@@ -5,7 +5,8 @@ import { respond } from '@metro-labs/core/stations/station-runtime';
 import { accounts, lineOf, type Account } from './accounts.js';
 import { isCallSignal } from './codecs.js';
 
-const CALL_WINDOW_MS = 2 * 60 * 60_000;
+const RECENT_MS = 24 * 60 * 60_000;
+const STAGE_HISTORY = 100;
 
 interface Leftover {
   line: string;
@@ -32,15 +33,15 @@ function openJoins(acct: Account, line: string, messages: DecodedMessage[]): Lef
 async function leftoversOf(acct: Account, sinceNs: bigint): Promise<Leftover[]> {
   const found: Leftover[] = [];
   for (const conv of await acct.client.conversations.list()) {
-    const messages = await conv.messages({ sentAfterNs: sinceNs, direction: 0 });
-    found.push(...openJoins(acct, lineOf(acct.cfg.id, conv.id), messages));
+    const newestFirst = await conv.messages({ sentAfterNs: sinceNs, direction: 1, limit: STAGE_HISTORY });
+    found.push(...openJoins(acct, lineOf(acct.cfg.id, conv.id), newestFirst.reverse()));
   }
   return found;
 }
 
 export async function callLeftovers(id: string): Promise<void> {
   if (accounts.size === 0) throw new TrainError('UNAVAILABLE', 'no XMTP account is ready yet');
-  const sinceNs = BigInt(Date.now() - CALL_WINDOW_MS) * 1_000_000n;
+  const sinceNs = BigInt(Date.now() - RECENT_MS) * 1_000_000n;
   const calls: Leftover[] = [];
   for (const acct of accounts.values()) calls.push(...(await leftoversOf(acct, sinceNs)));
   respond(id, { result: { calls } });

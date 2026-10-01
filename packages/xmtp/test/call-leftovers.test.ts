@@ -38,7 +38,7 @@ function fixture(convs: Record<string, Stored[]>): void {
     id,
     messages: async (opts: unknown) => {
       asked.push(opts);
-      return messages;
+      return [...messages].reverse();
     },
   }));
   const client = { inboxId: self, conversations: { list: async () => list } };
@@ -69,9 +69,10 @@ describe('xmtp callLeftovers', () => {
     expect((await leftovers()).result).toEqual({
       calls: [{ line: `metro://xmtp/${accountId}/g1`, callId: 'call-1', peer: 'peer-a' }],
     });
-    const since = (asked[0] as { sentAfterNs: bigint }).sentAfterNs;
-    const twoHoursAgoNs = BigInt(Date.now() - 2 * 60 * 60_000) * 1_000_000n;
-    expect(Number((twoHoursAgoNs - since) / 1_000_000n)).toBeLessThan(5_000);
+    const { sentAfterNs, ...rest } = asked[0] as { sentAfterNs: bigint };
+    expect(rest).toEqual({ direction: 1, limit: 100 });
+    const dayAgoNs = BigInt(Date.now() - 24 * 60 * 60_000) * 1_000_000n;
+    expect(Number((dayAgoNs - sentAfterNs) / 1_000_000n)).toBeLessThan(5_000);
   });
 
   test('says when no account is ready yet', async () => {
