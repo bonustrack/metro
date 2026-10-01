@@ -14,6 +14,7 @@ import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
 import { CallSignalCodec, FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
 import { buildFrameContent } from './frames.js';
+import { callLeftovers } from './call-leftovers.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
@@ -233,6 +234,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   reply,
   delete: remove,
   callSignal,
+  callLeftovers: (id) => callLeftovers(id),
   sendAttachment,
   sendImage,
   ...convHandlers,

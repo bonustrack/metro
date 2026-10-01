@@ -10,6 +10,7 @@ const OFFER_WAIT_MS = 45_000;
 const LONGEST_CALL_MS = 60 * 60_000;
 const CONTEXT_MESSAGES = 12;
 const CONTEXT_CHARS = 400;
+const LEAVE_RETRY_MS = 3_000;
 
 interface CallStart {
   line: string;
@@ -21,7 +22,7 @@ interface CallStart {
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-async function trainCall(action: string, args: Record<string, unknown>): Promise<unknown> {
+export async function trainCall(action: string, args: Record<string, unknown>): Promise<unknown> {
   const answer = await forwardTrainCall('xmtp', action, args);
   if (answer.error !== undefined) throw new Error(answer.error);
   return answer.result;
@@ -57,6 +58,7 @@ export class Call {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private longest: ReturnType<typeof setTimeout>;
   private over = false;
+  private left: Promise<void> = Promise.resolve();
 
   constructor(
     readonly start: CallStart,
@@ -93,11 +95,16 @@ export class Call {
       this.answer(this.start.callerPeer, raw.sdp).catch((err: unknown) => {
         this.hangUp(`answering failed: ${errMsg(err)}`);
       });
-    else if (raw.kind === 'leave' && fromCaller) this.end('the caller hung up', false);
+    else if (raw.kind === 'leave' && fromCaller) this.hangUp('the caller hung up');
   }
 
   hangUp(reason: string): void {
-    this.end(reason, true);
+    this.end(reason);
+  }
+
+  leave(reason: string): Promise<void> {
+    this.end(reason);
+    return this.left;
   }
 
   private async answer(to: string, offer: string): Promise<void> {
@@ -125,13 +132,15 @@ export class Call {
     return trainCall('callSignal', { line: this.start.line, signal });
   }
 
-  private end(reason: string, sendLeave: boolean): void {
+  private end(reason: string): void {
     if (this.over) return;
     this.over = true;
     if (this.timer !== null) clearTimeout(this.timer);
     clearTimeout(this.longest);
     log.info({ reason, seconds: Math.round((Date.now() - this.startedAt) / 1000) }, 'voice: call over');
-    this.wrapUp(reason, sendLeave)
+    this.left = this.sendLeave();
+    this.left
+      .then(() => this.wrapUp(reason))
       .catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'voice: wrapping up the call failed');
       })
@@ -140,11 +149,20 @@ export class Call {
       });
   }
 
-  private async wrapUp(reason: string, sendLeave: boolean): Promise<void> {
-    if (sendLeave)
-      await this.signal({ kind: 'leave', callId: this.start.callId, from: this.selfPeer }).catch((err: unknown) => {
-        log.warn({ err: errMsg(err) }, 'voice: could not send the hang-up');
+  private async sendLeave(): Promise<void> {
+    const leave = { kind: 'leave', callId: this.start.callId, from: this.selfPeer };
+    try {
+      await this.signal(leave);
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'voice: could not send the hang-up, trying once more');
+      await new Promise((r) => setTimeout(r, LEAVE_RETRY_MS));
+      await this.signal(leave).catch((again: unknown) => {
+        log.warn({ err: errMsg(again) }, 'voice: could not send the hang-up; the next start sends it');
       });
+    }
+  }
+
+  private async wrapUp(reason: string): Promise<void> {
     this.peer?.close();
     const notes = await this.talk.finish();
     const minutes = Math.max(1, Math.round((Date.now() - this.startedAt) / 60_000));

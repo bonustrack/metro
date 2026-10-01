@@ -52,7 +52,7 @@ import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
-import { isCallEvent, onCallEvent } from '../voice/calls.js';
+import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } from '../voice/calls.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
@@ -137,6 +137,7 @@ installBearerSessions(agentsDir(), localOwner);
   await materializeFrom(fileSource);
   forgetOrphans(knownAccounts());
   supervisor.start();
+  sweepLeftoverCalls();
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
   webhookServer = await startWebhookServer(
     emit,
@@ -196,6 +197,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
+  const leaving = leaveCallsForShutdown();
   unwatchSession();
   tunnel?.stop();
   if (webhookServer) {
@@ -211,6 +213,7 @@ async function shutdown(): Promise<void> {
       }),
     ]);
   }
+  await leaving;
   await supervisor.stop();
   process.exit(exitCode);
 }
