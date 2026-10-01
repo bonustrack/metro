@@ -175,6 +175,20 @@ describe('groups on the wire', () => {
     expect(cap.written.events[0]).toMatchObject({ line_name: 'Ops' });
   });
 
+  test('a fresh account with the same id requests its unknown roster independently', async () => {
+    const group = { ...GROUP, groupId: '8899aabbccddeeff' };
+    for (let lifecycle = 0; lifecycle < 2; lifecycle += 1) {
+      accounts.set('t0', bootAccount({ id: 't0', gatewayId: '*METRO01', secret: SECRET, privateKey: bytesToHex(gateway.secretKey) }));
+      await call('callback', inboundFrom('ALICE001', encodeGroupText(group, 'hello')));
+      await call('callback', inboundFrom('ALICE001', encodeGroupText(group, 'again')));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(sends).toHaveLength(lifecycle + 1);
+      expect(sends[lifecycle]?.get('to')).toBe('ALICE001');
+      expect(sends[lifecycle]?.get('group')).toBe('1');
+      expect(openedTo(sends[lifecycle] ?? new URLSearchParams())).toEqual({ kind: 'other', type: MSG_GROUP_REQUEST_SYNC });
+    }
+  });
+
   test('a send to a group goes to every member but us with the group flag, and a reply is a quote', async () => {
     await call('callback', inboundFrom('ALICE001', new Uint8Array([MSG_GROUP_SETUP, ...Buffer.from('0011223344556677', 'hex'), ...Buffer.from('BOB00002*METRO01', 'ascii')])));
     sends.length = 0;

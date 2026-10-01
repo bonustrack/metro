@@ -12,8 +12,6 @@ import { deliverFile } from './files.js';
 import type { Decoded, GroupRef } from './messages.js';
 import { requestSync, sentByUs } from './outbound.js';
 
-const synced = new Set<string>();
-
 function roomOf(acct: Account, group: GroupRef | null): Room {
   if (group === null) return DIRECT;
   return { group, name: acct.groups.get(group)?.name ?? null };
@@ -21,8 +19,8 @@ function roomOf(acct: Account, group: GroupRef | null): Room {
 
 function askForRoster(acct: Account, group: GroupRef): void {
   const key = `${acct.cfg.id}:${group.creator}-${group.groupId}`;
-  if (acct.groups.get(group) !== undefined || synced.has(key)) return;
-  synced.add(key);
+  if (acct.groups.get(group) !== undefined || acct.requestedRosters.has(key)) return;
+  acct.requestedRosters.add(key);
   requestSync(acct, group).catch((err: unknown) => {
     process.stderr.write(`threema[${acct.cfg.id}]: could not ask ${group.creator} for the group roster: ${err instanceof Error ? err.message : String(err)}\n`);
   });
