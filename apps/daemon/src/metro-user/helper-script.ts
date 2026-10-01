@@ -1,6 +1,8 @@
 export const HELPER_PATH = '/usr/local/lib/metro/root-helper';
-const HELPER_VERSION = 1;
+const HELPER_VERSION = 2;
 export const SUDOERS_PATH = '/etc/sudoers.d/metro';
+export const IMDS_UNIT = 'metro-imds.service';
+export const IMDS_UNIT_PATH = `/etc/systemd/system/${IMDS_UNIT}`;
 export const METRO_USER = 'metro';
 const METRO_HOME = '/var/lib/metro';
 
@@ -73,6 +75,43 @@ const FIREWALL = lines(
   '}',
 );
 
+const IMDS = lines(
+  'imds_block() {',
+  `  metro_uid=$(id -u ${METRO_USER} 2>/dev/null) || die "no ${METRO_USER} user"`,
+  '  for t in iptables ip6tables; do',
+  '    if [ "$t" = iptables ]; then dst=169.254.169.254; else dst=fd00:ec2::254; fi',
+  '    if ! $t -w -L OUTPUT -n >/dev/null 2>&1; then [ "$t" = ip6tables ] && continue; die "$t is not usable"; fi',
+  '    $t -w -N METRO_IMDS 2>/dev/null || true',
+  '    $t -w -F METRO_IMDS',
+  '    $t -w -A METRO_IMDS -m owner --uid-owner 0 -j RETURN',
+  '    $t -w -A METRO_IMDS -m owner --uid-owner "$metro_uid" -j RETURN',
+  '    $t -w -A METRO_IMDS -p tcp -j REJECT --reject-with tcp-reset',
+  '    $t -w -A METRO_IMDS -j REJECT',
+  '    $t -w -C OUTPUT -d "$dst" -j METRO_IMDS 2>/dev/null || $t -w -I OUTPUT -d "$dst" -j METRO_IMDS',
+  '  done',
+  '}',
+);
+
+export const imdsUnitText = (): string =>
+  lines(
+    '[Unit]',
+    `Description=Metro: only root and ${METRO_USER} reach the instance metadata service`,
+    'DefaultDependencies=no',
+    'After=local-fs.target',
+    'Before=network-pre.target shutdown.target',
+    'Wants=network-pre.target',
+    'Conflicts=shutdown.target',
+    '',
+    '[Service]',
+    'Type=oneshot',
+    'RemainAfterExit=yes',
+    `ExecStart=${HELPER_PATH} imds-block`,
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target',
+    '',
+  );
+
 const ACTIONS = lines(
   'action="${1:-}"; [ "$#" -gt 0 ] && shift',
   'case "$action" in',
@@ -109,6 +148,7 @@ const ACTIONS = lines(
   '    [ "$found" = 1 ] || die "that cron line is gone"',
   '    install -m 600 "$cur" "$backups/crontab-root.$(date +%Y-%m-%dT%H-%M-%S).bak"',
   '    crontab -u root "$kept"; rm -f "$cur" "$kept" ;;',
+  '  imds-block) imds_block ;;',
   '  firewall-on) firewall_on ;;',
   '  firewall-off) firewall_off ;;',
   '  trust-ca)',
@@ -123,4 +163,4 @@ const ACTIONS = lines(
 );
 
 export const helperScript = (): string =>
-  ['#!/bin/sh', 'set -eu', 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', CHECKS, FIREWALL, ACTIONS, ''].join('\n');
+  ['#!/bin/sh', 'set -eu', 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', CHECKS, FIREWALL, IMDS, ACTIONS, ''].join('\n');

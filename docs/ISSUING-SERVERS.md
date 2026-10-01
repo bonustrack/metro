@@ -1,31 +1,42 @@
 # Having Metro issue servers
 
-metro.box can launch a box for you: it holds one AWS key and one Tailscale auth
-key, runs the EC2 calls itself, and adds the machine to your server list. Nothing
-of yours is involved, and no key is ever sent to a browser. This is off until the
+metro.box can launch a box for you: it holds one AWS key and one Tailscale OAuth
+client, runs the EC2 calls itself, and adds the machine to your server list.
+Nothing of yours is involved, and no key is ever sent to a browser. This is off until the
 deployment is configured. Every box is billed to the AWS account whose key is
 configured here.
 
 ## What you set on the deployment
 
-Four Fly secrets on the `metro` app. With any of them unset or malformed the
-feature stays off, and the boot log names which ones: `fly logs` prints
-`launch: metro issues no servers, these are unset or malformed`.
+Five Fly secrets on the `metro` app. With any of the first three unset or
+malformed the whole feature stays off, and the boot log names which ones:
+`fly logs` prints `launch: metro issues no servers, these are unset or
+malformed`. Without the two Tailscale ones, resizes, disk grows, deletions and
+the charts still work, but no new box is launched (`launch: metro issues no new
+servers until a Tailscale OAuth client is set`).
 
 | Secret | What it is |
 | --- | --- |
 | `METRO_AWS_ACCESS_KEY_ID` | An IAM user holding only the policy below. |
 | `METRO_AWS_SECRET_ACCESS_KEY` | That user's secret. |
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
-| `METRO_TAILSCALE_AUTH_KEY` | A **reusable** auth key, `tskey-auth-…`. |
+| `METRO_TAILSCALE_CLIENT_ID` | A Tailscale OAuth client's id, see The Tailscale key below. |
+| `METRO_TAILSCALE_CLIENT_SECRET` | That client's secret, `tskey-client-…`. |
 
 ```
 fly secrets set -a metro \
   METRO_AWS_ACCESS_KEY_ID=AKIA... \
   METRO_AWS_SECRET_ACCESS_KEY=... \
   METRO_LAUNCH_TAILNET=tail17c4f8.ts.net \
-  METRO_TAILSCALE_AUTH_KEY=tskey-auth-...
+  METRO_TAILSCALE_CLIENT_ID=... \
+  METRO_TAILSCALE_CLIENT_SECRET=tskey-client-...
 ```
+
+`METRO_TAILSCALE_AUTH_KEY`, the one reusable key every box joined with until
+2026-10-01, is no longer read. If it is still set, the boot log says so: revoke
+that key in the admin console (https://login.tailscale.com/admin/settings/keys)
+and `fly secrets unset -a metro METRO_TAILSCALE_AUTH_KEY`. Revoking an auth key
+removes no machine: every box that joined with it stays on the tailnet.
 
 ### Who may launch
 
@@ -123,20 +134,54 @@ Metro no longer reads those, so that statement can go.
 
 ## The Tailscale key
 
-A reusable auth key from the admin console under Settings, Keys. It has to be
-reusable, since every box joins with the same one.
+Every launch gets its own auth key (`apps/api/src/aws/tailscale-key.ts`): the
+api trades the OAuth client for a short-lived token, and asks Tailscale for one
+key that is single use, preauthorized, tagged `tag:metro-box` and expires after
+one hour. Only that key goes into the instance's user data, so a box can read
+nothing but a key that is already spent (or dead within the hour), and no key
+in user data can join a second machine. If Tailscale refuses, no instance
+starts and the page shows Tailscale's own words.
 
-Worth knowing what that means: the key is written into each instance's user data,
-which anything with root on that box can read, and it does not expire on use. So
-one compromised box can join further machines to your tailnet until you rotate
-the secret. Metro never returns the key over any route and redacts every
-`tskey-…` out of the boot log it serves, but it cannot keep it away from the box
-that has to use it. Rotating is one `fly secrets set` plus revoking the old key.
+The box joins as a tagged device, so it belongs to the tag, not to a person,
+and its node key does not expire. The policy file
+(https://login.tailscale.com/admin/acls/file) needs three entries for the tag:
 
-The safer shape, if you want it later, is an API access token or an OAuth client
-and a fresh single-use key minted per launch. That is one module, `authKey` in
-`apps/api/src/launch-config.ts`, and an OAuth client additionally needs a
-`tagOwners` entry, the `funnel` node attribute and an SSH rule for the tag.
+```
+"tagOwners": { "tag:metro-box": ["autogroup:admin"] },
+"nodeAttrs": [ { "target": ["tag:metro-box"], "attr": ["funnel"] } ],
+"ssh": [ { "action": "check", "src": ["autogroup:admin"], "dst": ["tag:metro-box"], "users": ["autogroup:nonroot", "root"] } ]
+```
+
+Without the `funnel` attribute a box cannot open its public address, and
+without the SSH rule nobody can reach it as root over Tailscale SSH. Then the
+client, under Settings, OAuth clients
+(https://login.tailscale.com/admin/settings/oauth): Generate OAuth client,
+scope Keys, Auth Keys, Write, tag `tag:metro-box`, and nothing else. The secret
+is shown once. A client holding only that scope can make join keys for that tag
+and nothing more: it cannot list, change or remove machines.
+
+## The instance metadata service
+
+Anything on an EC2 instance can ask `169.254.169.254` for the instance's user
+data (the first-boot script, with its Tailscale key) and for its role's
+credentials. The agent has no use for either, so the agent may not ask:
+
+- **Launch:** IMDSv2 only (`HttpTokens=required`) with a hop limit of 1
+  (`HttpPutResponseHopLimit=1`), so a container on the box cannot get a token.
+- **Box:** the root helper's `imds-block` (helper version 2) sends all traffic
+  to `169.254.169.254` and `fd00:ec2::254` from any user except root and
+  `metro` into an iptables and ip6tables chain, `METRO_IMDS`, that rejects it.
+  The unit `metro-imds.service` runs it at every boot before the network comes
+  up, and the daemon runs it again at every start. Root (cloud-init, the SSM
+  agent) and `metro` (the CloudWatch readings, below) still reach it. A
+  DigitalOcean droplet answers on the same address with its own user data, and
+  gets the same wall.
+- **Boxes installed before helper version 2** keep an older helper, which
+  `metro` cannot replace. The daemon logs `imds: the agent can still read the
+  instance metadata` at every start until someone with root runs, once:
+  `/var/lib/metro/.npm-global/bin/metro service install --user metro`. On a
+  box that is already installed this only rewrites the helper, the sudo rules
+  and the unit, and leaves the service running.
 
 ## Two AWS account traps
 
@@ -231,11 +276,12 @@ the box's node). Any other instance gets it in the EC2 console: select it,
 Actions, Security, Modify IAM role, `metro-box`, Update IAM role. The daemon
 then sends within a minute, once the box runs beta.224 or later.
 
-The role is readable by anything on the box, the agent included, through the
-instance metadata. It can only write metrics into `CWAgent`, but under any name
-and any instance id: an agent on one box could write false memory or disk
-readings for another box in the same account, or add custom metrics that AWS
-bills (about $0.30 each a month). The charts are for reading only, so nothing
+The role is readable through the instance metadata by root and `metro` only
+(see The instance metadata service; on a box whose helper predates version 2,
+by anything on it, the agent included). It can only write metrics into
+`CWAgent`, but under any name and any instance id: whoever holds it could write
+false memory or disk readings for another box in the same account, or add
+custom metrics that AWS bills (about $0.30 each a month). The charts are for reading only, so nothing
 acts on them. The CloudWatch agent's own `CloudWatchAgentServerPolicy` reaches
 further than this.
 
@@ -281,9 +327,8 @@ are still refused, and the row stays:
 AWS also answers NotFound when the key belongs to another AWS account, so the
 dialog names the instance id and its region.
 
-The Tailscale machine stays in the tailnet, offline, since Metro holds an auth
-key and not a Tailscale API token. Remove it in the admin console under
-Machines. No DNS record exists for a box, so there is none to remove.
+The Tailscale machine stays in the tailnet, offline, since Metro's OAuth client
+may only make join keys. Remove it in the admin console under Machines. No DNS record exists for a box, so there is none to remove.
 
 The Metro operator (the `admin@stage.box` account, not an organization's
 admin) can also delete a box of any organization from Admin, Agents. The same

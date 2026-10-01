@@ -202,6 +202,15 @@ describe('metro service install, uninstall and status', () => {
     expect(f.files.get('/etc/systemd/system/metro.service')).toBe('old');
   });
 
+  test('install --user metro on a box that already has the unit only refreshes the root helper', async () => {
+    const f = fake(linuxRoot, { preflight: () => { throw new Error('no preflight on a refresh'); } });
+    f.files.set('/etc/systemd/system/metro.service', 'old');
+    expect(await service(['install', '--user', 'metro'], f.deps)).toBe(0);
+    expect(f.ran).toEqual([`bun ${HELPER}`]);
+    expect(f.lines[0]).toContain('root helper, sudo rules and metadata guard are now current');
+    expect(f.files.get('/etc/systemd/system/metro.service')).toBe('old');
+  });
+
   test('metro stop names the service that is about to restart what it stopped', () => {
     expect(serviceStopHint(linuxRoot, () => false)).toBeNull();
     expect(serviceStopHint(linuxRoot, () => true)).toContain('systemctl stop metro');

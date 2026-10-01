@@ -247,6 +247,13 @@ function install(argv: string[], deps: ServiceDeps): number {
   const args = parseServeArgs(serveArgs);
   const runAs = runAsOf(user, deps);
   const plan = servicePlan(deps.host, serveArgs, runAs);
+  if (deps.exists(plan.file) && runAs !== undefined) {
+    deps.run({ args: ['bun', runAs.helper] });
+    deps.out(
+      `metro is already installed as a ${plan.kind} service (${plan.file}); its root helper, sudo rules and metadata guard are now current, and the service keeps running`,
+    );
+    return 0;
+  }
   if (deps.exists(plan.file)) {
     deps.out(
       `metro is already installed as a ${plan.kind} service (${plan.file}) and restarts on its own; metro service status says whether it is running. To change its arguments: metro service uninstall, then install again`,

@@ -2,13 +2,15 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { HELPER_PATH, helperScript, SUDOERS_PATH, sudoersText } from './helper-script.js';
+import { HELPER_PATH, helperScript, IMDS_UNIT, IMDS_UNIT_PATH, imdsUnitText, SUDOERS_PATH, sudoersText } from './helper-script.js';
 import { AGENT_NAME } from '../agent-user/user.js';
 
 interface InstallPaths {
   helper: string;
   sudoers: string;
 }
+
+type Run = (file: string, args: string[]) => void;
 
 function checked(file: string, args: string[]): void {
   const run = spawnSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -31,7 +33,16 @@ export function installRootHelper(paths: InstallPaths = { helper: HELPER_PATH, s
   }
 }
 
+export function installImdsGuard(unit: string = IMDS_UNIT_PATH, run: Run = checked): void {
+  writeFileSync(unit, imdsUnitText(), { mode: 0o644 });
+  chmodSync(unit, 0o644);
+  run('systemctl', ['daemon-reload']);
+  run('systemctl', ['enable', IMDS_UNIT]);
+  run('systemctl', ['restart', IMDS_UNIT]);
+}
+
 if (import.meta.main) {
   installRootHelper();
-  process.stdout.write(`metro: wrote ${HELPER_PATH} and ${SUDOERS_PATH}\n`);
+  installImdsGuard();
+  process.stdout.write(`metro: wrote ${HELPER_PATH}, ${SUDOERS_PATH} and ${IMDS_UNIT_PATH}; only root and metro reach the instance metadata service\n`);
 }
