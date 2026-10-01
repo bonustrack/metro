@@ -23,12 +23,14 @@ import {
 import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
 import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
 import { describeInstanceTypes, describeRegions } from './aws/ec2.js';
-import { hourlyPrice } from './aws/pricing.js';
+import { gbMonthPrice, hourlyPrice } from './aws/pricing.js';
 import { LIVE_RESIZE } from './aws/resize.js';
 import { LIVE_DELETION } from './aws/deletion.js';
+import { LIVE_GROW } from './aws/grow.js';
 import { handleLaunchApiRequest, type LaunchApiDeps } from './launch.js';
 import { handleSizeApiRequest, resizing, type SizeApiDeps } from './size.js';
 import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
+import { growing, handleStorageApiRequest, type StorageApiDeps } from './storage.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
 import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
 import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
@@ -42,7 +44,8 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
-const deletionCore = { config: () => readLaunchConfig(), resizing, aws: LIVE_DELETION };
+const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
+const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
 const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
 const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
@@ -73,6 +76,16 @@ const sizeApi: SizeApiDeps = {
   lookup: instanceForOwner,
   aws: LIVE_RESIZE,
   sizes: { types: describeInstanceTypes, price: hourlyPrice, now: () => Date.now() },
+  growing,
+  keys,
+};
+
+const storageApi: StorageApiDeps = {
+  config: () => readLaunchConfig(),
+  lookup: deletionRowForOwner,
+  aws: LIVE_GROW,
+  price: gbMonthPrice,
+  resizing,
   keys,
 };
 
@@ -94,6 +107,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleMembersApiRequest(req, res, authApi),
   (req, res) => handleAdminApiRequest(req, res, adminApi),
   (req, res) => handleSizeApiRequest(req, res, sizeApi),
+  (req, res) => handleStorageApiRequest(req, res, storageApi),
   (req, res) => handleDeletionApiRequest(req, res, deletionApi),
   (req, res) => handleUsageApiRequest(req, res, usageApi),
   (req, res) => handleLatestApiRequest(req, res, latestApi),

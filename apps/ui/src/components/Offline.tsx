@@ -7,6 +7,7 @@ import { PageTitle } from './PageTitle.js';
 import { Badge } from '@stage-labs/kit/react-native/badge';
 import { AgentPicture } from './AgentOverview.js';
 import { ServerSizeSection } from './ServerSize.js';
+import { ServerStorageSection } from './ServerStorage.js';
 import { ServerResources } from './ServerResources.js';
 import { DeleteServerSection } from './DeleteServer.js';
 import { useServersQuery } from '../api/queries.js';
@@ -48,6 +49,7 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
       <Button size="md" color="secondary" dark={dark} label="Try again" onPress={onRetry} />
       {server === undefined ? null : <ServerResources serverId={server.id} />}
       {server === undefined ? null : <ServerSizeSection serverId={server.id} launchedOnly />}
+      {server === undefined ? null : <ServerStorageSection serverId={server.id} launchedOnly />}
       {server === undefined ? null : <DeleteServerSection server={server} />}
     </Col>
   );

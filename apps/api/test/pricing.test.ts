@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { AwsError } from '../src/aws/ec2.ts';
-import { cheapestHourly, hourlyPrice, productQuery } from '../src/aws/pricing.ts';
+import { cheapestGbMonth, cheapestHourly, gbMonthPrice, hourlyPrice, productQuery, storageQuery } from '../src/aws/pricing.ts';
 
 const CREDS = { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' };
 const realFetch = globalThis.fetch;
@@ -33,6 +33,15 @@ describe('the AWS price list', () => {
     expect(cheapestHourly({ PriceList: [product('0.0672000000'), product('0.0800000000')] })).toBe(0.0672);
     expect(cheapestHourly({ PriceList: [product('0.0000000000'), product('3', 'Quantity'), '{not json'] })).toBeNull();
     expect(cheapestHourly({})).toBeNull();
+  });
+
+  test('asks for the storage price of one volume type in one region, per GB-month', async () => {
+    const query = JSON.parse(storageQuery('eu-central-2', 'gp3')) as { ServiceCode: string; Filters: { Field: string; Value: string }[] };
+    expect(query.ServiceCode).toBe('AmazonEC2');
+    expect(Object.fromEntries(query.Filters.map((f) => [f.Field, f.Value]))).toEqual({ regionCode: 'eu-central-2', productFamily: 'Storage', volumeApiName: 'gp3' });
+    expect(cheapestGbMonth({ PriceList: [product('0.1142000000', 'GB-Mo'), product('0.0336')] })).toBe(0.1142);
+    globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ PriceList: [product('0.08', 'GB-Mo')] }), { status: 200 }))) as typeof fetch;
+    expect(await gbMonthPrice(CREDS, 'us-east-1', 'gp3')).toBe(0.08);
   });
 
   test('signs a JSON call for the pricing service in us-east-1', async () => {

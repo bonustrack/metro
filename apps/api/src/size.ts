@@ -1,14 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { ServerLaunch } from './db/servers.js';
 import { AwsError, type InstanceState } from './aws/ec2.js';
 import { catalogFor, type Catalog, type SizeDeps } from './aws/sizes.js';
+import { handleServerRoute } from './server-route.js';
 import { explain, jobRunning, newJob, runResize, type Ec2Target, type ResizeAws, type ResizeJob } from './aws/resize.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/size\/?$/;
@@ -23,6 +22,7 @@ export interface SizeApiDeps {
   lookup: (owner: string, id: string) => Promise<ServerLaunch | null>;
   aws: ResizeAws;
   sizes: SizeDeps;
+  growing: (region: string, instanceId: string) => boolean;
   keys: SigningKeys;
 }
 
@@ -135,6 +135,7 @@ async function resize(deps: SizeApiDeps, session: Session, owner: string, id: st
   if (typeof target === 'string') throw new ApiError(target, 400);
   const key = keyOf(target);
   if (claims.has(key) || jobRunning(jobs.get(key))) throw new ApiError('this server is already changing size. Wait for it to finish', 409);
+  if (deps.growing(target.region, target.instanceId)) throw new ApiError('the disk of this server is growing. Wait for it to finish', 409);
   claims.add(key);
   try {
     const seen = await read(deps, target);
@@ -146,39 +147,12 @@ async function resize(deps: SizeApiDeps, session: Session, owner: string, id: st
   }
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, deps: SizeApiDeps, id: string): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const owner = session?.organization ?? null;
-    if (session === null || owner === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    const body = req.method === 'GET' ? await overview(deps, owner, id) : await resize(deps, session, owner, id, await readJsonBody(req));
-    sendJson(req, res, 200, body);
-  } catch (err) {
-    apiFailure(req, res, err, 'size-api');
-  }
-}
-
 export function handleSizeApiRequest(req: IncomingMessage, res: ServerResponse, deps: SizeApiDeps): boolean {
-  const match = PATH_RE.exec((req.url ?? '').split('?')[0] ?? '');
-  if (match === null) return false;
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(req)).end();
-    return true;
-  }
-  const id = parseId(match[1] ?? '');
-  if (id === null) {
-    sendJson(req, res, 404, { error: 'no such server' });
-    return true;
-  }
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    sendJson(req, res, 405, { error: 'method not allowed' });
-    return true;
-  }
-  route(req, res, deps, id).catch((err: unknown) => {
-    apiFailure(req, res, err, 'size-api');
+  return handleServerRoute(req, res, {
+    path: PATH_RE,
+    label: 'size-api',
+    keys: deps.keys,
+    read: (owner, id) => overview(deps, owner, id),
+    write: (session, owner, id, body) => resize(deps, session, owner, id, body),
   });
-  return true;
 }

@@ -1,15 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
-import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { Ec2Target } from './aws/resize.js';
 import { DeletionRefused, isEntryOnly, planDeletion, runDeletion, type Confirmed, type DeletionAws, type Outcome, type Owned, type Plan } from './aws/deletion.js';
 import { fromAws } from './size.js';
+import { handleServerRoute } from './server-route.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/deletion\/?$/;
 const OFF = 'This Metro deployment has no AWS account, so it cannot delete a server.';
@@ -125,40 +124,13 @@ async function remove(deps: DeletionApiDeps, session: Session, owner: string, id
   return confirmDeletion(deps, await deps.lookup(owner, id), body, session.userId);
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, deps: DeletionApiDeps, id: string): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const owner = session?.organization ?? null;
-    if (session === null || owner === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    const body = req.method === 'GET' ? await deletionView(deps, await deps.lookup(owner, id)) : await remove(deps, session, owner, id, await readJsonBody(req));
-    sendJson(req, res, 200, body);
-  } catch (err) {
-    noteRefusal(id, err);
-    apiFailure(req, res, err, 'deletion-api');
-  }
-}
-
 export function handleDeletionApiRequest(req: IncomingMessage, res: ServerResponse, deps: DeletionApiDeps): boolean {
-  const match = PATH_RE.exec((req.url ?? '').split('?')[0] ?? '');
-  if (match === null) return false;
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, cors(req)).end();
-    return true;
-  }
-  const id = parseId(match[1] ?? '');
-  if (id === null) {
-    sendJson(req, res, 404, { error: 'no such server' });
-    return true;
-  }
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    sendJson(req, res, 405, { error: 'method not allowed' });
-    return true;
-  }
-  route(req, res, deps, id).catch((err: unknown) => {
-    apiFailure(req, res, err, 'deletion-api');
+  return handleServerRoute(req, res, {
+    path: PATH_RE,
+    label: 'deletion-api',
+    keys: deps.keys,
+    read: async (owner, id) => deletionView(deps, await deps.lookup(owner, id)),
+    write: (session, owner, id, body) => remove(deps, session, owner, id, body),
+    refused: noteRefusal,
   });
-  return true;
 }

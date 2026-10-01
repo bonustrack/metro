@@ -23,12 +23,12 @@ afterEach(() => {
 });
 
 const INSTANCE = `<DescribeInstancesResponse xmlns="x"><reservationSet><item><instancesSet><item>
-  <instanceId>${BOX}</instanceId><instanceState><code>16</code><name>running</name></instanceState><instanceType>t4g.medium</instanceType>
+  <instanceId>${BOX}</instanceId><instanceState><code>16</code><name>running</name></instanceState><instanceType>t4g.medium</instanceType><rootDeviceName>/dev/sda1</rootDeviceName>
   <blockDeviceMapping><item><deviceName>/dev/sda1</deviceName><ebs><volumeId>${DISK}</volumeId><status>attached</status><deleteOnTermination>true</deleteOnTermination></ebs></item></blockDeviceMapping>
   <tagSet><item><key>Name</key><value>metro:throwaway</value></item><item><key>metro</key><value>metro-thrw01</value></item></tagSet>
 </item></instancesSet></item></reservationSet></DescribeInstancesResponse>`;
 
-const VOLUMES = `<DescribeVolumesResponse xmlns="x"><volumeSet><item><volumeId>${DISK}</volumeId><size>8</size><status>in-use</status>
+const VOLUMES = `<DescribeVolumesResponse xmlns="x"><volumeSet><item><volumeId>${DISK}</volumeId><size>8</size><volumeType>gp3</volumeType><status>in-use</status>
   <attachmentSet><item><volumeId>${DISK}</volumeId><instanceId>${BOX}</instanceId><device>/dev/sda1</device><status>attached</status><deleteOnTermination>true</deleteOnTermination></item></attachmentSet>
   <tagSet><item><key>metro</key><value>metro-thrw01</value></item></tagSet><multiAttachEnabled>false</multiAttachEnabled>
 </item></volumeSet></DescribeVolumesResponse>`;
@@ -42,6 +42,7 @@ describe('the EC2 calls of a deletion name exact ids and never a filter', () => 
         state: 'running',
         type: 't4g.medium',
         tags: { Name: 'metro:throwaway', metro: 'metro-thrw01' },
+        rootDevice: '/dev/sda1',
         disks: [{ device: '/dev/sda1', volumeId: DISK, deleteOnTermination: true }],
         profile: null,
       },
@@ -65,7 +66,7 @@ describe('the EC2 calls of a deletion name exact ids and never a filter', () => 
   test('DescribeVolumes asks for the exact volume ids and reads size, attachments and tags', async () => {
     const seen = stub(200, VOLUMES);
     expect(await describeVolumeFacts(CREDS, 'us-east-1', [DISK])).toEqual([
-      { volumeId: DISK, sizeGib: 8, state: 'in-use', tags: { metro: 'metro-thrw01' }, attachedTo: [BOX], multiAttach: false },
+      { volumeId: DISK, sizeGib: 8, type: 'gp3', state: 'in-use', tags: { metro: 'metro-thrw01' }, attachedTo: [BOX], multiAttach: false },
     ]);
     expect(fields(seen[0])).toEqual({ Action: 'DescribeVolumes', Version: '2016-11-15', 'VolumeId.1': DISK });
     expect(await describeVolumeFacts(CREDS, 'us-east-1', [])).toEqual([]);

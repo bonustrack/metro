@@ -25,6 +25,7 @@ const SPECS: Record<string, [number, number]> = { 't4g.medium': [2, 4096], 't4g.
 let config: ConfigResult = CONFIG;
 let box: FakeBox = fakeBox();
 let hold: Promise<void> | null = null;
+let diskGrowing = false;
 
 const deps: SizeApiDeps = {
   config: () => config,
@@ -41,6 +42,7 @@ const deps: SizeApiDeps = {
     price: (_c, _r, type) => Promise.resolve(type === 't4g.medium' ? 0.0336 : 0.0672),
     now: () => 0,
   },
+  growing: () => diskGrowing,
   keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
 };
 
@@ -67,6 +69,7 @@ beforeEach(() => {
   config = CONFIG;
   box = fakeBox();
   hold = null;
+  diskGrowing = false;
   const aws = fakeAws(box);
   deps.aws = {
     ...aws,
@@ -157,6 +160,14 @@ describe('changing a server size', () => {
     expect((await call('POST', sizePath(), { type: 't4g.medium' })).status).toBe(400);
     expect((await call('POST', sizePath(HAND_ADDED), { type: 't4g.large' })).status).toBe(400);
     expect(box.calls.filter((c) => c !== 'describe')).toEqual([]);
+  });
+
+  test('refuses while the disk of the box is growing', async () => {
+    diskGrowing = true;
+    const res = await call('POST', sizePath(), { type: 't4g.large' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('disk of this server is growing');
+    expect(box.calls).toEqual([]);
   });
 
   test('refuses while AWS says the box is between states', async () => {

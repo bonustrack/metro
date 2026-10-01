@@ -52,8 +52,8 @@ refused with a 409.
    **Application running outside AWS**. Copy both halves at once: AWS shows the
    secret only at creation, and a user may hold at most two keys.
 
-These actions are all a launch, its progress view, a resize, a delete and the
-Usage charts use.
+These actions are all a launch, its progress view, a resize, a disk grow, a
+delete and the Usage charts use.
 
 ```json
 {
@@ -67,6 +67,7 @@ Usage charts use.
         "ec2:DescribeImages",
         "ec2:DescribeInstances",
         "ec2:DescribeVolumes",
+        "ec2:DescribeVolumesModifications",
         "ec2:RunInstances",
         "ec2:CreateTags",
         "ec2:GetConsoleOutput",
@@ -84,7 +85,9 @@ Usage charts use.
         "ec2:StartInstances",
         "ec2:ModifyInstanceAttribute",
         "ec2:TerminateInstances",
-        "ec2:AssociateIamInstanceProfile"
+        "ec2:AssociateIamInstanceProfile",
+        "ec2:ModifyVolume",
+        "ec2:RebootInstances"
       ],
       "Resource": "*",
       "Condition": { "Null": { "aws:ResourceTag/metro": "false" } }
@@ -99,9 +102,11 @@ Usage charts use.
 }
 ```
 
-The second statement is only for a resize and a delete, and only on instances
-with a `metro` tag, which every box Metro launches carries: the key cannot stop,
-change or terminate anything else in the account. It holds no `DeleteVolume`:
+The second statement is only for a resize, a disk grow and a delete, and only
+on instances and disks with a `metro` tag, which every box Metro launches
+carries: the key cannot stop, change, grow or terminate anything else in the
+account. Disks launched before 2026-09-29 have no `metro` tag; Metro writes the
+box's own tag on its disk (`CreateTags`) just before it grows it the first time. It holds no `DeleteVolume`:
 a box's disk goes with it through `DeleteOnTermination`. Before 2026-09-29 the
 policy had neither `DescribeVolumes` nor `TerminateInstances`, and the Delete
 dialog then names the missing one. `DescribeInstanceTypes` lists the sizes,
@@ -284,6 +289,34 @@ id in every organization, then runs exactly the same checks, and logs who
 deleted which box for which organization. An agent Metro did not launch also
 has Delete there. It only removes the agent entry, and its machine keeps
 running.
+
+## Growing the disk of a box
+
+The Server page of a box Metro launched has a Storage section: the root disk's
+size, its type and the AWS price per month. An admin of the organization picks
+a bigger size (16 to 2048 GB, up to what AWS allows for the disk type, 64 TiB
+for gp3) and types `grow` to confirm. The dialog says the change cannot be
+undone: AWS never shrinks a disk.
+
+The api reads the instance and its root disk by their exact ids and checks
+them like a delete (the instance's `metro` tag is the box's node, the disk is
+attached to it alone and not tagged for another box), then calls
+`ModifyVolume` with the new size. It follows `DescribeVolumesModifications`
+until AWS reports `optimizing` or `completed`, which is when the new size is
+usable (usually seconds), then `RebootInstances` once. At boot, cloud-init's
+`growpart` and `resizefs` grow the partition and the file system to the whole
+disk, so the box comes back with the space after about a minute. Metro itself
+cannot grow the file system without a restart: it has no root, and the root
+helper cannot change without a root shell on every box. A stopped box is not
+started: it uses the space when it starts.
+
+AWS takes the next change to a disk only once the last one is `completed`
+(the optimization can take hours on a big disk), and at most four in 24 hours.
+The page says when the last change is still being applied, and an AWS refusal
+is shown as AWS words it. A grow and a resize of the same box never run at
+once, and a delete waits for both. The job lives in the api's memory, like a
+resize: a deploy in the middle stops following it, and the box then uses the
+space after its next restart.
 
 ## Changing the size of a box
 

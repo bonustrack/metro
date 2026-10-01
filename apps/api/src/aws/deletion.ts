@@ -1,10 +1,11 @@
-import { AGENT_TAG, AwsError, NODE_TAG } from './ec2.js';
+import { AwsError } from './ec2.js';
 import type { Ec2Target } from './resize.js';
-import { NODE_RE } from './user-data.js';
 import {
   deleteDiskWithServer,
   describeInstanceFacts,
   describeVolumeFacts,
+  nodeIn,
+  tagMismatch,
   terminateInstance,
   type Disk,
   type InstanceFacts,
@@ -84,16 +85,12 @@ function sameIds(a: string[], b: string[]): boolean {
 }
 
 export function nodeOf(host: string): string {
-  const node = host.split('.')[0] ?? '';
-  if (!NODE_RE.test(node)) return refuse(`${host} is not an address Metro gives the servers it launches.`);
-  return node;
+  return nodeIn(host) ?? refuse(`${host} is not an address Metro gives the servers it launches.`);
 }
 
 function checkTags(tags: Tags, owned: Owned, node: string, what: string, nodeRequired: boolean): void {
-  const tagged = tags[NODE_TAG];
-  if (tagged === undefined ? nodeRequired : tagged !== node) refuse(`${what} is tagged ${NODE_TAG}=${tagged ?? '(none)'}, not ${node}.`);
-  const agent = tags[AGENT_TAG];
-  if (agent !== undefined && agent !== owned.agentId) refuse(`${what} is tagged for another agent, ${agent}.`);
+  const why = tagMismatch(tags, node, owned.agentId, nodeRequired);
+  if (why !== null) refuse(`${what} ${why}`);
 }
 
 async function described(aws: DeletionAws, target: Ec2Target): Promise<InstanceFacts[] | null> {

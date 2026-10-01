@@ -40,6 +40,7 @@ import { fetchUsage, type ResourceRange, type Usage } from './resources.js';
 import { fetchLatestUsage, type LatestUsage } from './latest-usage.js';
 import { fetchLaunchOverview, type LaunchOverview } from './launch.js';
 import { fetchSize, jobRunning, type SizeView } from './size.js';
+import { applying, fetchStorage, growRunning, type StorageView } from './storage.js';
 import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from './model.js';
 import { fetchSchedules, type Schedules } from './schedules.js';
 import { currentOrganization } from '../auth/org-route.js';
@@ -222,6 +223,17 @@ export function useSizeQuery(serverId: string): UseQueryResult<SizeView | null> 
     refetchInterval: (query) => resizePoll(query.state.data),
   });
 }
+
+const CHANGE_POLL_MS = 15_000;
+
+const storagePoll = (data: StorageView | null | undefined): number | false => {
+  if (data?.growable !== true) return false;
+  if (growRunning(data.job)) return RESIZE_POLL_MS;
+  return applying(data.modification) ? CHANGE_POLL_MS : false;
+};
+
+export const useStorageQuery = (serverId: string): UseQueryResult<StorageView | null> =>
+  useQuery({ queryKey: orgKey('storage', serverId), queryFn: () => fetchStorage(serverId), staleTime: 30_000, retry: false, refetchInterval: (query) => storagePoll(query.state.data) });
 
 export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
   return useQuery({

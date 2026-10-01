@@ -8,6 +8,7 @@ import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { ServerSizeSection } from './ServerSize.js';
+import { ServerStorageSection } from './ServerStorage.js';
 import { DeleteServerSection } from './DeleteServer.js';
 import { ServerResources } from './ServerResources.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
@@ -83,6 +84,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       )}
       {server === undefined ? null : <ServerResources serverId={server.id} />}
       {server === undefined ? null : <ServerSizeSection serverId={server.id} />}
+      {server === undefined ? null : <ServerStorageSection serverId={server.id} />}
       <Details machine={machine.data} server={server} />
       {server === undefined ? null : <DeleteServerSection server={server} />}
     </Col>
