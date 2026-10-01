@@ -149,7 +149,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   '5ce3f76d610aae91adc922d0edc6c8be1f27aa2fec4a5e3a6d6231a04fb9310b',
   'b910597d24f31fa479b130a2545f94dd23684d802d99e36b637fc57c818a33be',
 ]);
-const PRIOR_STAGE: ReadonlySet<string> = new Set();
+const PRIOR_STAGE: ReadonlySet<string> = new Set(['dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43']);
 
 interface ShippedSkill {
   name: string;

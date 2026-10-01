@@ -23,6 +23,16 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 - Assignees: `set_channel_metadata {"line": "…", "metadata": {"assigned": ["0x…"]}}`. Only 0x addresses of current members.
 - Each key you send replaces that whole list. Keys you leave out stay as they are. To add one label or one assignee, read `group_info` first and send the old list plus the new one. `[]` clears a list. Read `group_info` again to check it saved.
 
+**Task status labels.** When a channel is a task, keep exactly one of these status labels, plus any project labels:
+- `🗒️ Backlog`
+- `🎯 To-do`
+- `🚧 In progress`
+- `🔍 In review`
+- `✅ Done`
+- `🚫 Blocked`
+
+Move it from Backlog or To-do to In progress, then In review, then Done. Use Blocked while you wait on someone. To change it, read `group_info`, swap the old status for the new one in `labels`, keep the other labels, and send the whole list with `set_channel_metadata` `metadata.labels`.
+
 **Messages.**
 - Send: `send {"line": "…", "text": "Hello"}`. Reply with a quote: `reply {"line": "…", "message_id": "…", "text": "…"}`.
 - React: `react {"line": "…", "message_id": "…", "emoji": "👍"}`. `unreact` takes the same shape.
