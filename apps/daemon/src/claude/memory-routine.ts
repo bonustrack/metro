@@ -3,9 +3,9 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { existsSync, readFileSync } from '../agent-user/agent-fs.js';
-import { editCrontab, withBlock } from '../agent-user/crontab.js';
+import { readCrontab, withBlock, writeCrontab } from '../agent-user/crontab.js';
 import { writeHomeText } from '../agent-user/home-fs.js';
-import { listSchedules, realRunner, type Runner } from '../agent-user/schedules.js';
+import { listSchedules, parseCronLine, realRunner, type Runner } from '../agent-user/schedules.js';
 import { agentPath, agentUser, type AgentUser } from '../agent-user/user.js';
 
 const BEGIN = '# metro memory routine: begin';
@@ -53,10 +53,16 @@ export function cronLine(user: AgentUser, seed: string): string {
   return `${String(minute)} ${String(HOUR)} * * * ${launcherPath(user)} >> ${logPath(user)} 2>&1`;
 }
 
-function ownJob(user: AgentUser, runner: Runner): string | null {
+const commandName = (command: string): string => command.split(/\s+/)[0]?.split('/').pop() ?? 'cron';
+
+function ownJob(user: AgentUser, runner: Runner, lines: string[]): string | null {
   const launcher = launcherPath(user);
-  const found = listSchedules(user, runner).find((job) => !job.command.includes(launcher) && OWN_JOB.test(`${job.name} ${job.command}`));
-  return found?.name ?? null;
+  const cron = lines.flatMap((line) => {
+    const parsed = parseCronLine(line);
+    return parsed === null || parsed.command.includes(launcher) || !OWN_JOB.test(parsed.command) ? [] : [commandName(parsed.command)];
+  });
+  const timers = listSchedules(null, runner).filter((job) => job.runsAs === user.name && OWN_JOB.test(`${job.name} ${job.command}`));
+  return cron[0] ?? timers[0]?.name ?? null;
 }
 
 function placeLauncher(path: string, text: string): void {
@@ -76,18 +82,25 @@ function resolved(deps: MemoryJobDeps): Required<MemoryJobDeps> {
   };
 }
 
+const stateOf = (scheduled: boolean, own: string | null): MemoryJobState => {
+  if (scheduled) return 'scheduled';
+  return own === null ? 'off' : 'own';
+};
+
 export function ensureMemoryJob(on: boolean, deps: MemoryJobDeps = {}): MemoryJob {
   const { user, runner, cli, port, seed } = resolved(deps);
   if (user === null || cli === '') {
     last = { state: 'unavailable', job: null };
     return memoryJobStatus();
   }
-  const own = on ? ownJob(user, runner) : null;
+  const lines = readCrontab(user, runner);
+  const own = on ? ownJob(user, runner, lines) : null;
   const scheduled = on && own === null;
-  if (scheduled) placeLauncher(launcherPath(user), launcherText(user, cli, port));
-  const line = cronLine(user, seed);
-  const changed = editCrontab(user, runner, (lines) => withBlock(lines, BEGIN, END, scheduled ? [line] : [], 'end'));
-  last = { state: scheduled ? 'scheduled' : own === null ? 'off' : 'own', job: own };
+  const launcher = launcherPath(user);
+  if (scheduled) placeLauncher(launcher, launcherText(user, cli, port));
+  const next = withBlock(lines, BEGIN, END, scheduled ? [cronLine(user, seed)] : [], 'end', (l) => l.includes(launcher));
+  const changed = writeCrontab(user, runner, lines, next);
+  last = { state: stateOf(scheduled, own), job: own };
   if (changed) log.info({ ...last }, 'memory-routine: updated the daily memory job');
   return memoryJobStatus();
 }

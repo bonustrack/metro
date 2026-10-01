@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { AgentUser } from './user.js';
-import { helperRun } from './unit-files.js';
+import { helperRun, type RunResult } from './unit-files.js';
 
 const UNIT_DIR = '/etc/systemd/system';
 const OWN_UNITS = /^metro(-claude-\d+)?\.(service|scope)$/;
@@ -22,15 +22,15 @@ export interface ScheduledJob {
 }
 
 export interface Runner {
-  run: (file: string, args: string[], input?: string) => { status: number | null; stdout: string };
+  run: (file: string, args: string[], input?: string) => RunResult;
 }
 
 export const realRunner: Runner = {
   run: (file, args, input) => {
     const viaHelper = helperRun(file, args, input);
     if (viaHelper !== null) return viaHelper;
-    const done = spawnSync(file, args, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'ignore'], timeout: 20_000 });
-    return { status: done.error === undefined ? done.status : null, stdout: done.stdout ?? '' };
+    const done = spawnSync(file, args, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'], timeout: 20_000 });
+    return { status: done.error === undefined ? done.status : null, stdout: done.stdout ?? '', stderr: done.stderr ?? '' };
   },
 };
 
@@ -113,7 +113,7 @@ export function parseCronLine(line: string): CronLine | null {
 
 const lineId = (kind: JobKind, line: string): string => `${kind}:${createHash('sha256').update(line.trim()).digest('hex').slice(0, 16)}`;
 
-export function crontabOf(runner: Runner, user: string): string[] {
+function crontabOf(runner: Runner, user: string): string[] {
   const out = runner.run('crontab', ['-l', '-u', user]);
   return out.status === 0 ? out.stdout.split('\n') : [];
 }

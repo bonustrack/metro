@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
 import { currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
@@ -13,6 +13,8 @@ const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
 const PERMISSION_MODE_FLAG: Record<PermissionMode, string> = { auto: 'auto', bypass: 'bypassPermissions' };
 const KEY_HEADER = 'x-metro-key';
 const PROBE_MS = 3_000;
+const AUTH_STATUS_MS = 20_000;
+const KILL_GRACE_MS = 30_000;
 
 export const claudeArgs = (extra: string[], mcpConfig?: string, mode: PermissionMode = 'auto', prompt: string | null = null): string[] => [
   ...CHANNEL_FLAGS,
@@ -57,7 +59,7 @@ export function credentialEnv(env: NodeJS.ProcessEnv, agentKey: string, signedIn
 }
 
 function claudeSignedIn(): boolean {
-  const run = spawnSync('claude', ['auth', 'status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = spawnSync('claude', ['auth', 'status', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: AUTH_STATUS_MS });
   if (run.error !== undefined || typeof run.stdout !== 'string') return false;
   try {
     const parsed = JSON.parse(run.stdout) as { authenticated?: unknown; loggedIn?: unknown; email?: unknown; organization?: unknown };
@@ -99,15 +101,28 @@ async function verdict(): Promise<Verdict> {
   return { skip: 'the daemon is not serving here (stopped, or not running), so Claude Code talks to Anthropic directly' };
 }
 
+function deadline(child: ChildProcess, timeoutMs: number | undefined): () => void {
+  if (timeoutMs === undefined) return () => undefined;
+  let kill: NodeJS.Timeout | undefined;
+  const term = setTimeout(() => {
+    child.kill('SIGTERM');
+    kill = setTimeout(() => {
+      child.kill('SIGKILL');
+    }, KILL_GRACE_MS);
+  }, timeoutMs);
+  return () => {
+    clearTimeout(term);
+    clearTimeout(kill);
+  };
+}
+
 export function runClaude(args: string[], env: NodeJS.ProcessEnv, headless?: { timeoutMs: number }): Promise<number> {
   return new Promise((resolve, reject) => {
     const leaveToChild = (): undefined => undefined;
     process.on('SIGINT', leaveToChild);
     process.on('SIGTERM', leaveToChild);
     const child = spawn('claude', args, { stdio: [headless === undefined ? 'inherit' : 'ignore', 'inherit', 'inherit'], env });
-    const timer = headless === undefined ? undefined : setTimeout(() => {
-      child.kill('SIGTERM');
-    }, headless.timeoutMs);
+    const stop = deadline(child, headless?.timeoutMs);
     child.on('error', (err: NodeJS.ErrnoException) => {
       reject(
         new Error(
@@ -118,7 +133,7 @@ export function runClaude(args: string[], env: NodeJS.ProcessEnv, headless?: { t
       );
     });
     child.on('exit', (code) => {
-      clearTimeout(timer);
+      stop();
       resolve(code ?? 1);
     });
   });

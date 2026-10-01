@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { claudeDir, processAlive, projectDir } from './background.js';
@@ -20,6 +20,9 @@ export const MEMORY_FOLDERS = [
 
 const DAY_MS = 86_400_000;
 const TIMEOUT_MS = 50 * 60_000;
+const LOCK_STALE_MS = 2 * 60 * 60_000;
+const WINDOW_MAX_MS = 2 * DAY_MS;
+const FINISHED = /^\s*status:\s*["']?(completed|parked|abandoned)["']?\s*$/m;
 const LISTED_MAX = 60;
 const WALK_DEPTH = 4;
 
@@ -128,14 +131,12 @@ export function routineArgs(prompt: string, memory: string, appended: string | n
     '--permission-mode',
     'dontAsk',
     '--tools',
-    'Read,Write,Edit,Glob,Grep,Bash',
+    'Read,Write,Edit,Glob,Grep',
     '--allowedTools',
     'Read',
     'Glob',
     'Grep',
     `Edit(/${memory}/**)`,
-    'Bash(mv *)',
-    'Bash(mkdir *)',
     '--settings',
     JSON.stringify({ enabledPlugins: { 'metro@metro': false } }),
     '--strict-mcp-config',
@@ -144,7 +145,12 @@ export function routineArgs(prompt: string, memory: string, appended: string | n
   ];
 }
 
-export function takeLock(path: string, retry = true): boolean {
+function lockHeld(path: string, now: number): boolean {
+  const pid = Number(readFileSync(path, 'utf8').trim());
+  return now - statSync(path).mtimeMs < LOCK_STALE_MS && Number.isInteger(pid) && pid > 0 && processAlive(pid);
+}
+
+export function takeLock(path: string, now = Date.now(), retry = true): boolean {
   try {
     mkdirSync(dirname(path), { recursive: true });
     const fd = openSync(path, 'wx');
@@ -153,11 +159,31 @@ export function takeLock(path: string, retry = true): boolean {
     return true;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-    const pid = Number(readFileSync(path, 'utf8').trim());
-    if (!retry || (Number.isInteger(pid) && pid > 0 && processAlive(pid))) return false;
+    if (!retry || lockHeld(path, now)) return false;
     rmSync(path, { force: true });
-    return takeLock(path, false);
+    return takeLock(path, now, false);
   }
+}
+
+const frontmatter = (text: string): string => (text.startsWith('---\n') ? text.slice(4, text.indexOf('\n---', 4)) : '');
+
+export function settleWorkstreams(memory: string): string[] {
+  const active = join(memory, 'workstreams', 'active');
+  const done = join(memory, 'workstreams', 'completed');
+  if (!existsSync(active)) return [];
+  const moved = readdirSync(active).filter(
+    (name) => name.endsWith('.md') && !existsSync(join(done, name)) && FINISHED.test(frontmatter(readFileSync(join(active, name), 'utf8'))),
+  );
+  if (moved.length === 0) return [];
+  mkdirSync(done, { recursive: true });
+  for (const name of moved) renameSync(join(active, name), join(done, name));
+  const index = join(memory, 'MEMORY.md');
+  if (existsSync(index)) {
+    const text = readFileSync(index, 'utf8');
+    const relinked = moved.reduce((t, name) => t.split(`workstreams/active/${name}`).join(`workstreams/completed/${name}`), text);
+    if (relinked !== text) writeFileSync(index, relinked);
+  }
+  return moved;
 }
 
 function lastRun(state: string): Date | null {
@@ -174,8 +200,14 @@ const say = (text: string): void => {
   process.stdout.write(`${new Date().toISOString()} memory routine: ${text}\n`);
 };
 
+function windowStart(state: string, now: Date): Date {
+  const floor = now.getTime() - WINDOW_MAX_MS;
+  const last = lastRun(state)?.getTime() ?? now.getTime() - DAY_MS;
+  return new Date(Math.max(last, floor));
+}
+
 async function digest(paths: MemoryPaths, now: Date): Promise<number> {
-  const since = lastRun(paths.state) ?? new Date(now.getTime() - DAY_MS);
+  const since = windowStart(paths.state, now);
   const files = changedTranscripts(join(paths.claude, 'projects'), since.getTime());
   if (files.length === 0) {
     say(`skipped: no activity since ${since.toISOString()}`);
@@ -185,7 +217,11 @@ async function digest(paths: MemoryPaths, now: Date): Promise<number> {
   for (const folder of MEMORY_FOLDERS) mkdirSync(join(paths.memory, folder), { recursive: true });
   const prompt = routinePrompt(now, since, paths, files);
   const code = await runClaude(routineArgs(prompt, paths.memory, systemPrompt()), await headlessEnv(), { timeoutMs: TIMEOUT_MS });
-  if (code === 0) writeFileSync(paths.state, `${JSON.stringify({ lastRun: now.toISOString() })}\n`);
+  if (code === 0) {
+    writeFileSync(paths.state, `${JSON.stringify({ lastRun: now.toISOString() })}\n`);
+    const moved = settleWorkstreams(paths.memory);
+    if (moved.length > 0) say(`moved to workstreams/completed: ${moved.join(', ')}`);
+  }
   say(`done (exit ${String(code)})`);
   return code;
 }

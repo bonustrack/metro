@@ -6,6 +6,12 @@ import { agentUser, asUser } from './user.js';
 
 const UNIT_DIR = '/etc/systemd/system';
 
+export interface RunResult {
+  status: number | null;
+  stdout: string;
+  stderr?: string;
+}
+
 export function writeDropIn(service: string, name: string, text: string): void {
   mustHelper(['dropin-write', service, name], text);
 }
@@ -16,12 +22,12 @@ export function removeDropIn(service: string, name: string): boolean {
   return true;
 }
 
-function agentCrontab(args: string[], input?: string): { status: number | null; stdout: string } {
+function agentCrontab(args: string[], input?: string): RunResult {
   const at = args.indexOf('-u');
   const rest = at < 0 ? args : args.filter((_, i) => i !== at && i !== at + 1);
   const [file, argv] = asUser(agentUser(), 'crontab', rest);
-  const run = spawnSync(file, argv, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'ignore'], timeout: 20_000 });
-  return { status: run.error === undefined ? run.status : null, stdout: run.stdout ?? '' };
+  const run = spawnSync(file, argv, { encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'], timeout: 20_000 });
+  return { status: run.error === undefined ? run.status : null, stdout: run.stdout ?? '', stderr: run.stderr ?? '' };
 }
 
 function systemctl(args: string[]): { status: number | null; stdout: string } | null {
@@ -30,7 +36,7 @@ function systemctl(args: string[]): { status: number | null; stdout: string } | 
   return null;
 }
 
-export function helperRun(file: string, args: string[], input?: string): { status: number | null; stdout: string } | null {
+export function helperRun(file: string, args: string[], input?: string): RunResult | null {
   if (file === 'crontab') return agentCrontab(args, input);
   if (file === 'systemctl') return systemctl(args);
   return null;

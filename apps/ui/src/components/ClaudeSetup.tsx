@@ -52,8 +52,9 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
 }
 
 function memoryNote(job: MemoryJob | null): string {
-  if (job?.state === 'own') return `${MEMORY_NOTE} Your agent's own job ${job.job ?? ''} keeps its memory, so this one does not run.`;
+  if (job?.state === 'own') return `${MEMORY_NOTE} Your agent's own job ${job.job === null ? '' : `${job.job} `}keeps its memory, so this one does not run.`;
   if (job?.state === 'unavailable') return `${MEMORY_NOTE} It starts once Metro runs as its own user on this server.`;
+  if (job?.state === 'scheduled') return `${MEMORY_NOTE} It runs as memory-routine on the Scheduled page.`;
   return MEMORY_NOTE;
 }
 
@@ -138,7 +139,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
 const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
-const MEMORY_NOTE = 'Once a day, after a day with activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes. It runs as memory-routine on the Scheduled page.';
+const MEMORY_NOTE = 'Once a day, after a day with activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes.';
 const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Changing this restarts the agent.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {

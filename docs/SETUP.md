@@ -105,10 +105,13 @@ they are missing and runs Claude Code once, headless (`claude -p`), on the box's
 with the box's system prompt. Claude Code reads the skill and files the day into memory, then
 writes the daily note and, when it is missing, last week's weekly note. That run has no metro
 MCP server and no plugin, so it never takes the chat session's place. It saves no transcript.
-Its tools are Read, Glob and Grep, writes inside the memory folder, and `mv` and `mkdir`
-(`--permission-mode dontAsk`): no network, no subagents. A lock keeps one run at a time, and
-it stops after 50 minutes. Its output goes to `~/.metro/memory-routine.log`, which the
-Scheduled page shows, with Run now.
+Its tools are Read, Glob and Grep, plus Write and Edit inside the memory folder only
+(`--permission-mode dontAsk`): no shell, no network, no subagents. After a good run, the routine
+moves the workstream notes marked `completed`, `parked` or `abandoned` to
+`workstreams/completed/` and fixes their lines in `MEMORY.md`. It reads at most the last two
+days. A lock keeps one run at a time, and a run is stopped after 50 minutes. Its output goes
+to `~/.metro/memory-routine.log`, which the Scheduled page shows, with Run now. The time is the
+box's own clock, which is UTC on a box Metro launched.
 
 The switch is **Daily memory** on the Harness page (`memoryRoutine` in `claude-setup.json`, on
 unless switched off). Off removes the cron line. A box whose agent already has its own memory

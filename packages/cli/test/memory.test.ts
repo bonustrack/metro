@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routinePrompt, takeLock, type MemoryPaths } from '../src/memory.ts';
+import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
 
 let dir = '';
 
@@ -75,11 +75,13 @@ describe('the run the routine starts', () => {
     expect(prompt).toContain('a Friday (UTC)');
   });
 
-  test('has no metro tools, no network and writes only inside the memory folder', () => {
+  test('has no metro tools, no shell, no network and writes only inside the memory folder', () => {
     const args = routineArgs('go', '/home/agent/.claude/projects/-home-agent/memory', 'Be kind.');
     expect(args.slice(0, 2)).toEqual(['-p', 'go']);
     expect(args).toContain('dontAsk');
+    expect(args[args.indexOf('--tools') + 1]).toBe('Read,Write,Edit,Glob,Grep');
     expect(args).toContain('Edit(//home/agent/.claude/projects/-home-agent/memory/**)');
+    expect(args.join(' ')).not.toContain('Bash');
     expect(args).toContain('--strict-mcp-config');
     expect(args).toContain('--no-session-persistence');
     expect(args).not.toContain('--mcp-config');
@@ -88,12 +90,30 @@ describe('the run the routine starts', () => {
     expect(routineArgs('go', '/m', null)).not.toContain('--append-system-prompt');
   });
 
-  test('runs one at a time, and a lock left by a dead run is taken over', () => {
+  test('runs one at a time, and a lock left by a dead run or older than two hours is taken over', () => {
     const lock = join(dir, 'x.lock');
     expect(takeLock(lock)).toBe(true);
     expect(takeLock(lock)).toBe(false);
+    expect(takeLock(lock, Date.now() + 3 * 60 * 60_000)).toBe(true);
     writeFileSync(lock, '999999999');
     expect(takeLock(lock)).toBe(true);
+  });
+
+  test('moves the workstreams marked finished to completed and fixes their index lines, and leaves the rest', () => {
+    const memory = join(dir, 'memory');
+    const note = (status: string): string => `---\nname: x\nmetadata:\n  status: ${status}\n---\n# X\n`;
+    touch(join(memory, 'workstreams', 'active', 'done.md'), '2026-10-01T00:00:00Z', note('completed'));
+    touch(join(memory, 'workstreams', 'active', 'parked.md'), '2026-10-01T00:00:00Z', note('"parked"'));
+    touch(join(memory, 'workstreams', 'active', 'going.md'), '2026-10-01T00:00:00Z', note('active'));
+    touch(join(memory, 'workstreams', 'active', 'clash.md'), '2026-10-01T00:00:00Z', note('completed'));
+    touch(join(memory, 'workstreams', 'completed', 'clash.md'), '2026-10-01T00:00:00Z', note('completed'));
+    touch(join(memory, 'MEMORY.md'), '2026-10-01T00:00:00Z', '- [Done](workstreams/active/done.md): x\n- [Going](workstreams/active/going.md): y\n');
+    expect(settleWorkstreams(memory).sort()).toEqual(['done.md', 'parked.md']);
+    expect(existsSync(join(memory, 'workstreams', 'completed', 'done.md'))).toBe(true);
+    expect(existsSync(join(memory, 'workstreams', 'active', 'going.md'))).toBe(true);
+    expect(existsSync(join(memory, 'workstreams', 'active', 'clash.md'))).toBe(true);
+    expect(readFileSync(join(memory, 'MEMORY.md'), 'utf8')).toBe('- [Done](workstreams/completed/done.md): x\n- [Going](workstreams/active/going.md): y\n');
+    expect(settleWorkstreams(join(dir, 'none'))).toEqual([]);
   });
 
   test('stops before Claude Code when there is no skill, or no activity, or another run holds the lock', async () => {
@@ -104,6 +124,10 @@ describe('the run the routine starts', () => {
     expect(await memoryRoutine(p, new Date('2026-10-02T00:17:00Z'))).toBe(0);
     expect(existsSync(p.memory)).toBe(false);
     expect(existsSync(p.lock)).toBe(false);
+    writeFileSync(p.state, JSON.stringify({ lastRun: '2026-09-20T00:00:00Z' }));
+    touch(join(p.claude, 'projects', '-home-agent', 'stale.jsonl'), '2026-09-28T10:00:00Z');
+    expect(await memoryRoutine(p, new Date('2026-10-02T00:17:00Z'))).toBe(0);
+    expect(existsSync(p.memory)).toBe(false);
     writeFileSync(p.lock, String(process.pid));
     expect(await memoryRoutine(p, new Date('2026-10-02T00:17:00Z'))).toBe(0);
     expect(existsSync(p.lock)).toBe(true);

@@ -20,13 +20,14 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-function cron(initial: string, timers: unknown[] = []): Runner & { tab: () => string; writes: () => number } {
+function cron(initial: string, timers: unknown[] = [], unreadable = false): Runner & { tab: () => string; writes: () => number } {
   let tab = initial;
   let writes = 0;
   return {
     run: (file, args, input) => {
       const call = [file, ...args].join(' ');
-      if (call === 'crontab -l -u agent') return { status: tab === '' ? 1 : 0, stdout: tab };
+      if (call === 'crontab -l -u agent' && unreadable) return { status: null, stdout: '', stderr: '' };
+      if (call === 'crontab -l -u agent') return tab === '' ? { status: 1, stdout: '', stderr: 'no crontab for agent\n' } : { status: 0, stdout: tab };
       if (call === 'crontab -u agent -') {
         tab = input ?? '';
         writes += 1;
@@ -79,6 +80,37 @@ describe('the daily memory job on a box', () => {
     const later = cron(added);
     expect(ensureMemoryJob(true, deps(later))).toEqual({ state: 'own', job: 'memory-upkeep' });
     expect(later.tab()).toBe('5 1 * * * /home/agent/bin/memory-upkeep\n');
+  });
+
+  test('a crontab that cannot be read is never rewritten', () => {
+    const runner = cron('0 3 * * * /home/agent/backup.sh\n', [], true);
+    expect(() => ensureMemoryJob(true, deps(runner))).toThrow(/could not read the crontab of agent/);
+    expect(runner.writes()).toBe(0);
+    expect(runner.tab()).toBe('0 3 * * * /home/agent/backup.sh\n');
+  });
+
+  test('broken markers never take the lines around them, and the job is never there twice', () => {
+    const line = cronLine(user, 'box-1');
+    const noEnd = cron(`# metro memory routine: begin\n${line}\n15 * * * * /home/agent/own.sh\n`);
+    ensureMemoryJob(true, deps(noEnd));
+    ensureMemoryJob(true, deps(noEnd));
+    expect(noEnd.tab()).toBe(`15 * * * * /home/agent/own.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`);
+    const endFirst = cron(`# metro memory routine: end\n0 3 * * * /home/agent/backup.sh\n# metro memory routine: begin\n${line}\n`);
+    for (let i = 0; i < 3; i += 1) ensureMemoryJob(true, deps(endFirst));
+    expect(endFirst.tab()).toBe(`0 3 * * * /home/agent/backup.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`);
+  });
+
+  test("an agent timer with memory in its name is the agent's own job too", () => {
+    const runner = cron('', [{ unit: 'memory-daily.timer', activates: 'memory-daily.service' }]);
+    const real = runner.run;
+    runner.run = (file, args, input) => {
+      const call = [file, ...args].join(' ');
+      if (call.startsWith('systemctl show memory-daily.timer')) return { status: 0, stdout: 'FragmentPath=/etc/systemd/system/memory-daily.timer\n' };
+      if (call.startsWith('systemctl show memory-daily.service')) return { status: 0, stdout: 'ExecStart=\nUser=agent\nResult=success\n' };
+      return real(file, args, input);
+    };
+    expect(ensureMemoryJob(true, deps(runner))).toEqual({ state: 'own', job: 'memory-daily' });
+    expect(runner.writes()).toBe(0);
   });
 
   test('does nothing without the agent user or the metro command', () => {
