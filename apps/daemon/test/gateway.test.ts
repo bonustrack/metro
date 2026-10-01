@@ -231,6 +231,14 @@ describe('who the gateway answers', () => {
     expect((await post('/gateway/v1/other', {})).status).toBe(404);
     expect((await fetch(`${base}/elsewhere`)).status).toBe(404);
   });
+
+  test('the agent key is refused when the request came through the box public address', async () => {
+    const funneled = await post('/gateway/v1/messages', message('claude-sonnet-4-6'), { 'tailscale-funnel-request': '?1', 'x-forwarded-for': '203.0.113.7' });
+    expect(funneled.status).toBe(401);
+    const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok', 'x-forwarded-host': 'metro-x.ts.net' } });
+    expect(models.status).toBe(401);
+    expect(anthropic.seen).toHaveLength(0);
+  });
 });
 
 describe('the Anthropic route', () => {

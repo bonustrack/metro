@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readRange, statSync } from './agent-fs.js';
+import { readAsAgent } from './agent-fs.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { log } from '@metro-labs/core/log';
 import { listSchedules, realRunner, showProps, type Runner, type ScheduledJob } from './schedules.js';
@@ -18,14 +18,10 @@ export interface JobDetail extends ScheduledJob {
 const SCRIPT_MAX = 64 * 1024;
 
 function textFile(path: string): string | null {
-  try {
-    const st = statSync(path);
-    if (!st.isFile() || st.size > SCRIPT_MAX) return null;
-    const text = readFileSync(path, 'utf8');
-    return text.includes('\u0000') ? null : text;
-  } catch {
-    return null;
-  }
+  const bytes = readAsAgent(path, SCRIPT_MAX + 1);
+  if (bytes === null || bytes.length > SCRIPT_MAX) return null;
+  const text = bytes.toString('utf8');
+  return text.includes('\u0000') ? null : text;
 }
 
 export function scriptOf(command: string): { path: string; text: string } | null {
@@ -50,10 +46,9 @@ export function logFileOf(command: string): string | null {
   return m?.[1] ?? null;
 }
 
-function tail(path: string): string {
-  const size = statSync(path).size;
-  const start = Math.max(0, size - TAIL_BYTES);
-  return readRange(path, start, size - start).toString('utf8').split('\n').slice(-LOG_LINES).join('\n');
+function tail(path: string | null): string {
+  const bytes = path === null ? null : readAsAgent(path, TAIL_BYTES);
+  return bytes === null ? '' : bytes.toString('utf8').split('\n').slice(-LOG_LINES).join('\n');
 }
 
 function timerDetail(job: ScheduledJob, runner: Runner): JobDetail {
@@ -70,11 +65,10 @@ function timerDetail(job: ScheduledJob, runner: Runner): JobDetail {
 
 function cronDetail(job: ScheduledJob): JobDetail {
   const file = logFileOf(job.command);
-  const readable = file !== null && existsSync(file) && statSync(file).isFile();
   return {
     ...job,
     definition: `${job.schedule} ${job.command}`,
-    logs: readable ? tail(file) : '',
+    logs: tail(file),
     logSource: file,
     script: scriptOf(job.command),
   };

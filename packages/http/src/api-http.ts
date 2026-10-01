@@ -19,6 +19,11 @@ export function setBearerSessions(fn: BearerSessions | null): void {
   bearerSessions = fn;
 }
 
+const PROXY_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'tailscale-funnel-request'] as const;
+
+export const cameThroughProxy = (req: IncomingMessage): boolean =>
+  PROXY_HEADERS.some((name) => req.headers[name] !== undefined);
+
 export function requireAdmin(session: ApiSession): void {
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
 }

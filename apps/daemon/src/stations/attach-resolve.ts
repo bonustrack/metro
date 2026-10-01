@@ -2,6 +2,7 @@ import {
   assertAttachmentSize,
   assertContentLength,
   guessMime,
+  MAX_ATTACHMENT_BYTES,
 } from '@metro-labs/core/stations/attachments';
 import {
   assertInlineTotal,
@@ -105,6 +106,49 @@ async function fromPath(
   };
 }
 
+export const curlArgs = (url: string): string[] => [
+  'curl', '-sS', '-f', '-L', '--max-redirs', '5', '--proto', '=http,https', '--proto-redir', '=http,https',
+  '--max-time', String(FETCH_TIMEOUT_MS / 1000), '--max-filesize', String(MAX_ATTACHMENT_BYTES),
+  '-w', '%{stderr}\n%{content_type}', '--', url,
+];
+
+interface CurlSaid {
+  type: string;
+  why: string;
+}
+
+function curlSaid(text: string): CurlSaid {
+  const lines = text.trimEnd().split('\n');
+  const type = lines.pop()?.split(';')[0]?.trim() ?? '';
+  return { type, why: lines.join(' ').replace(/^curl: \(\d+\)\s*/, '').trim() };
+}
+
+async function fromUrlAs(
+  user: AgentUser,
+  a: CanonicalAttachment,
+  url: string,
+): Promise<ResolvedAttachment> {
+  const proc = Bun.spawn(agentCommand(curlArgs(url)), { stdout: 'pipe', stderr: 'pipe' });
+  const name = a.name ?? basenameOf(url) ?? 'attachment';
+  const said = new Response(proc.stderr).text().catch((err: unknown) => {
+    log.debug({ err: String(err) }, 'send: could not read what curl said');
+    return '';
+  });
+  let saved: Awaited<ReturnType<typeof streamToTemp>>;
+  try {
+    saved = await streamToTemp(proc.stdout, name);
+  } catch (err) {
+    proc.kill();
+    throw err;
+  }
+  const { type, why } = curlSaid(await said);
+  if ((await proc.exited) !== 0) {
+    await removeInlineTemp(saved.dir);
+    throw new Error(`attachment fetch failed for '${url}' (fetched as the ${user.name} user): ${why || 'no answer'}`);
+  }
+  return { path: saved.path, mime: a.mime ?? (type || guessMime(url)), name, bytes: saved.bytes, temp: saved.dir };
+}
+
 async function fromUrl(
   a: CanonicalAttachment,
   url: string,
@@ -113,6 +157,8 @@ async function fromUrl(
     throw new Error(
       `attachment url '${url}' is not an http(s) url; use \`path\` for a local file`,
     );
+  const user = agentUser();
+  if (user !== null) return fromUrlAs(user, a, url);
   const res = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
+import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
 import {
   assertBedrockReady,
@@ -301,7 +302,8 @@ export function handleGatewayRequest(req: IncomingMessage, res: ServerResponse, 
     res.writeHead(200).end();
     return true;
   }
-  if ((deps.identify ?? defaultIdentify)(keyOf(req))) answer(req, res, path, deps);
+  if (cameThroughProxy(req)) sendError(res, 401, 'authentication_error', 'metro gateway: the agent key works only on this machine, not through its public address');
+  else if ((deps.identify ?? defaultIdentify)(keyOf(req))) answer(req, res, path, deps);
   else sendError(res, 401, 'authentication_error', 'metro gateway: no agent key (x-metro-key); start Claude Code with metro claude');
   return true;
 }

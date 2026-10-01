@@ -53,6 +53,14 @@ describe('authenticate', () => {
     expect(allowedAgents(identity ?? undefined)).toEqual(new Set(['agent000012']));
   });
 
+  test('the key works only on this machine, never through the Tailscale serve or Funnel address', () => {
+    setKeyMap([{ key: 'mk_live', agentId: 'agent000012' }]);
+    expect(authenticate(req('/mcp', { authorization: 'Bearer mk_live' }))).toEqual({ kind: 'agent', agentId: 'agent000012' });
+    for (const proxied of [{ 'x-forwarded-for': '100.64.0.9' }, { 'x-forwarded-host': 'metro-x.ts.net' }, { 'tailscale-funnel-request': '?1' }])
+      expect(authenticate(req('/mcp', { authorization: 'Bearer mk_live', ...proxied }))).toBeNull();
+    expect(authenticate(req('/api/tail?token=mk_live', { 'x-forwarded-for': '203.0.113.7' }))).toBeNull();
+  });
+
   test('a revoked (unmapped) agent key is rejected', () => {
     setKeyMap([{ key: 'mk_live', agentId: 'agent000012' }]);
     expect(authenticate(req('/mcp?token=mk_revoked'))).toBeNull();

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage } from 'node:http';
+import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
 
 export interface RequestIdentity {
@@ -33,6 +34,7 @@ export function extractToken(req: IncomingMessage): string | undefined {
 }
 
 export function authenticate(req: IncomingMessage): RequestIdentity | null {
+  if (cameThroughProxy(req)) return null;
   const token = extractToken(req);
   if (!token) return null;
   const agentId = agentIdForKey(token);
