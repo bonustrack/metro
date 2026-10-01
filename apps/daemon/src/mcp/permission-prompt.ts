@@ -37,6 +37,17 @@ function channelOf(input: Record<string, unknown>): string | undefined {
   return typeof input.station === 'string' && input.station !== '' ? input.station : undefined;
 }
 
+function argText(value: unknown): string | undefined {
+  const plain = valueText(value);
+  if (plain !== undefined || value === null || typeof value !== 'object') return plain;
+  return JSON.stringify(value);
+}
+
+function fieldText(key: string, value: unknown): string | undefined {
+  if (key === 'attachments' && Array.isArray(value)) return `${String(value.length)} file(s)`;
+  return key === 'frame' ? argText(value) : valueText(value);
+}
+
 function metroLines(tool: string, input: Record<string, unknown>): string[] {
   const lines = [`Approval needed: ${tool}`];
   const channel = channelOf(input);
@@ -44,19 +55,13 @@ function metroLines(tool: string, input: Record<string, unknown>): string[] {
   const keys = [...LEAD, ...Object.keys(input).filter((k) => !LEAD.includes(k))];
   for (const key of keys) {
     if (PLACE.has(key)) continue;
-    const text = key === 'attachments' && Array.isArray(input.attachments) ? `${String(input.attachments.length)} file(s)` : valueText(input[key]);
+    const text = fieldText(key, input[key]);
     if (text !== undefined) lines.push(`${key === 'text' ? 'Text' : key}: ${key === 'text' ? `"${shorten(text)}"` : shorten(text)}`);
   }
   return lines;
 }
 
 const ARGS_MAX = 8;
-
-function argText(value: unknown): string | undefined {
-  const plain = valueText(value);
-  if (plain !== undefined || value === null || typeof value !== 'object') return plain;
-  return JSON.stringify(value);
-}
 
 function connectorLines(name: string, tool: string, input: Record<string, unknown> | undefined): string[] {
   const lines = [`Approval needed: ${tool}`, `Connector: ${name}`];

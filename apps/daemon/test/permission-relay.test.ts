@@ -310,4 +310,16 @@ describe('the prompt text', () => {
       }),
     ).toBe('Approval needed: create_group\nChannel: xmtp\nname: crew\nattachments: 2 file(s)\n\nReply "yes abcde" or "no abcde"');
   });
+
+  test('shows the frame of a send', () => {
+    const frame = { title: 'Deploy', widget: { type: 'Card' } };
+    expect(
+      promptBody({
+        request_id: 'abcde',
+        tool_name: 'mcp__metro__send',
+        description: 'Send a message',
+        input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', frame }),
+      }),
+    ).toBe(`Approval needed: send\nChannel: xmtp · g1\nframe: ${JSON.stringify(frame)}\n\nReply "yes abcde" or "no abcde"`);
+  });
 });
