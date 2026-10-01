@@ -138,11 +138,20 @@ async function loadStations(): Promise<ScopedAccounts> {
   return { accounts, unavailable };
 }
 
+const URL_SECRETS = new Set(['endpoint', 'callback']);
+
+function withoutUrlSecrets(acc: unknown): unknown {
+  const rec = asRecord(acc);
+  if (rec === undefined) return acc;
+  return Object.fromEntries(Object.entries(rec).filter(([key]) => !URL_SECRETS.has(key)));
+}
+
 export async function gatherAccounts(
   allowedAgents?: Set<string>,
 ): Promise<Record<string, unknown[]>> {
   const { accounts } = await loadStations();
-  return allowedAgents ? scopeAccountsByAgent(accounts, allowedAgents) : accounts;
+  const scoped = allowedAgents ? scopeAccountsByAgent(accounts, allowedAgents) : accounts;
+  return Object.fromEntries(Object.entries(scoped).map(([station, rows]) => [station, rows.map(withoutUrlSecrets)]));
 }
 
 export async function gatherAccountsForAgents(

@@ -4,6 +4,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
 import { removeHome, writeHomeText } from './home-fs.js';
+import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';
 
 const COPIED = ['policy.json', 'claude-setup.json', 'system-prompt.md'] as const;
@@ -79,6 +80,11 @@ export function watchAgentView(everyMs = SYNC_MS): void {
       if (changed > 0) log.info({ changed }, 'agent-user: refreshed the Metro files the agent may read');
     } catch (err) {
       log.warn({ err: errMsg(err) }, 'agent-user: could not refresh the Metro files the agent may read');
+    }
+    try {
+      closeMetroHome();
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'agent-user: could not close the metro home');
     }
   };
   tick();

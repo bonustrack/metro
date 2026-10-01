@@ -7,6 +7,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { copyIntoHome } from './home-fs.js';
 import { AGENT_NAME, agentMarketplaceDir, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
+import { closeMetroHome } from './metro-home.js';
 import { mustHelper } from '../metro-user/privilege.js';
 import { stagedPluginVersion } from '../claude/plugin-install.js';
 
@@ -22,7 +23,7 @@ function run(file: string, args: string[]): void {
 }
 
 function openMetroHome(): void {
-  chmodSync(homedir(), 0o711);
+  closeMetroHome();
   chmodSync(join(homedir(), '.metro'), 0o700);
 }
 
