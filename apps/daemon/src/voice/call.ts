@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forwardTrainCall } from '../stations/train-call.js';
+import { CallApprovals } from './approvals.js';
 import { Peer } from './peer.js';
 import { Talk } from './talk.js';
 import type { VoiceConfig } from './store.js';
@@ -14,6 +15,8 @@ const LEAVE_RETRY_MS = 3_000;
 
 interface CallStart {
   line: string;
+  lineName: string;
+  direct: boolean;
   from: string;
   callerName: string;
   callId: string;
@@ -28,9 +31,14 @@ export async function trainCall(action: string, args: Record<string, unknown>): 
   return answer.result;
 }
 
+function speaker(row: Record<string, unknown>, start: CallStart): string {
+  if (row.self === true) return 'you';
+  return row.from === start.from ? start.callerName : `another member (${str(row.from)})`;
+}
+
 function contextLine(row: unknown, start: CallStart): string | null {
   if (!isRecord(row) || typeof row.text !== 'string' || row.text.startsWith('[call')) return null;
-  const who = row.from === start.from ? start.callerName : 'you';
+  const who = speaker(row, start);
   return `${str(row.ts).slice(11, 16)} ${who}: ${row.text.replace(/\s+/g, ' ').slice(0, CONTEXT_CHARS)}`;
 }
 
@@ -45,9 +53,20 @@ async function recentChat(start: CallStart): Promise<string> {
   }
 }
 
-function opening(start: CallStart, chat: string): string {
-  const recent = chat === '' ? '' : ` Recent chat messages before the call, oldest first (times in UTC):\n${chat}\n`;
-  return `[A voice call with ${start.callerName} is starting on Stage, in your chat with them.${recent} Greet ${start.callerName} in a few words.]`;
+function where(start: CallStart): string {
+  if (start.lineName !== '') return `the group chat "${start.lineName}"`;
+  return start.direct ? `your direct chat with ${start.callerName}` : 'a group chat with no name';
+}
+
+export function opening(start: CallStart, chat: string): string {
+  const recent = chat === '' ? 'No earlier messages were found there.' : `Recent messages there before the call, oldest first (times in UTC):\n${chat}`;
+  return [
+    `[A voice call with ${start.callerName} is starting on Stage, in ${where(start)}.`,
+    `Line of this chat: ${start.line} (pass it verbatim to the metro tools, e.g. read, to look at or act on this chat).`,
+    `Caller: ${start.callerName} (${start.from}).`,
+    recent,
+    `Greet ${start.callerName} in a few words.]`,
+  ].join('\n');
 }
 
 export class Call {
@@ -65,6 +84,9 @@ export class Call {
     cfg: VoiceConfig,
     private readonly onOver: () => void,
   ) {
+    const approvals = new CallApprovals(start.line, async (text) => {
+      await trainCall('send', { line: start.line, text });
+    });
     this.talk = new Talk(
       cfg,
       (opus, timestamp, marker) => {
@@ -73,6 +95,7 @@ export class Call {
       (reason) => {
         this.hangUp(reason);
       },
+      approvals,
     );
     this.longest = setTimeout(() => {
       this.hangUp('the call reached one hour');
@@ -81,7 +104,13 @@ export class Call {
 
   async begin(): Promise<void> {
     log.info({ line: this.start.line, callId: this.start.callId }, 'voice: answering a call');
-    this.talk.prime(opening(this.start, await recentChat(this.start)));
+    recentChat(this.start)
+      .then((chat) => {
+        if (!this.over) this.talk.prime(opening(this.start, chat));
+      })
+      .catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'voice: could not start the agent on the call');
+      });
     await this.signal({ kind: 'join', callId: this.start.callId, from: this.selfPeer });
     this.timer = setTimeout(() => {
       this.hangUp('no offer arrived');
@@ -164,11 +193,8 @@ export class Call {
 
   private async wrapUp(reason: string): Promise<void> {
     this.peer?.close();
-    const notes = await this.talk.finish();
-    const minutes = Math.max(1, Math.round((Date.now() - this.startedAt) / 60_000));
-    const timing = this.talk.replyTime === null ? '' : `\n${this.talk.replyTime}`;
-    const failure = reason.startsWith('the caller') || reason === 'no offer arrived' ? null : `The voice call ended: ${reason}.`;
-    const text = [failure, notes === null ? null : `Call notes (${String(minutes)} min):\n${notes}${timing}`].filter((part) => part !== null).join('\n\n');
-    if (text !== '') await trainCall('send', { line: this.start.line, text });
+    this.talk.finish();
+    if (reason.startsWith('the caller') || reason === 'no offer arrived') return;
+    await trainCall('send', { line: this.start.line, text: `The voice call ended: ${reason}.` });
   }
 }

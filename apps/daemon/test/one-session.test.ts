@@ -14,7 +14,7 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
-import { initSession, openGet } from './mcp-probe.ts';
+import { initSession, openGet, postInitialize } from './mcp-probe.ts';
 import { settle, waitFor } from './wait.ts';
 
 const TOKEN = 'mk_one_tony';
@@ -27,6 +27,7 @@ let server: Server | undefined;
 let base = '';
 
 const url = (): string => `${base}/mcp?token=${TOKEN}`;
+const voiceUrl = (): string => `${base}/mcp/voice?token=${TOKEN}`;
 
 const msg = (line: string, text: string): MetroEvent =>
   ({
@@ -151,5 +152,28 @@ describe('one session per box', () => {
     const body = second.raw();
     await second.stop();
     expect(body).toContain(gap);
+  }, 30000);
+
+  test('a voice call session on /mcp/voice gets the tools, no channel, and leaves the chat session alone', async () => {
+    const chat = await initSession(url());
+    const stream = await openGet(url(), chat);
+    await settle(150);
+    const init = await postInitialize(voiceUrl());
+    const voice = init.headers.get('mcp-session-id');
+    const answer = await init.text();
+    expect(voice).not.toBeNull();
+    expect(voice).not.toBe(chat);
+    expect(answer).toContain('live voice call');
+    expect(answer).not.toContain('claude/channel');
+    const voiceStream = await openGet(voiceUrl(), voice ?? '');
+    await settle(150);
+    const text = `during-call-${randomUUID()}`;
+    publishEvent(msg(LINE, text));
+    await waitFor(() => stream.raw().includes(text));
+    expect(stream.ended()).toBe(false);
+    expect(stream.raw()).toContain(text);
+    expect(voiceStream.raw()).not.toContain(text);
+    await stream.stop();
+    await voiceStream.stop();
   }, 30000);
 });

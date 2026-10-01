@@ -39,13 +39,14 @@ export function parsed(raw: string): Record<string, unknown> {
   }
 }
 
-function sttUrl(): string {
+export function sttUrl(language: string | null): string {
   const query = new URLSearchParams({
     model_id: 'scribe_v2_realtime',
     audio_format: 'pcm_16000',
     commit_strategy: 'vad',
     vad_silence_threshold_secs: String(VAD_SILENCE_SECS),
   });
+  if (language !== null) query.set('language_code', language);
   return `${elevenLabs()}/v1/speech-to-text/realtime?${query.toString()}`;
 }
 
@@ -54,8 +55,8 @@ export class Scribe {
   private buffer: Int16Array[] = [];
   private buffered = 0;
 
-  constructor(apiKey: string, private readonly heard: Heard) {
-    this.ws = new WebSocket(sttUrl(), { headers: { 'xi-api-key': apiKey } });
+  constructor(apiKey: string, language: string | null, private readonly heard: Heard) {
+    this.ws = new WebSocket(sttUrl(language), { headers: { 'xi-api-key': apiKey } });
     this.ws.on('message', (data) => {
       this.onMessage(wsText(data));
     });

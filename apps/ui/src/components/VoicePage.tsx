@@ -18,6 +18,7 @@ import {
   fetchVoice,
   providerName,
   saveVoice,
+  VOICE_LANGUAGES,
   VOICE_SINCE,
   voiceModelLabel,
   type VoicePatch,
@@ -26,10 +27,11 @@ import {
 import { useDocumentTitle } from '../title.js';
 
 const INTRO =
-  'Call your agent from Stage and talk to it live. Metro listens and speaks with ElevenLabs, and the agent answers with its own memory, skills and tools. It picks up calls from the people who can approve on its Stage channel, and posts call notes to the chat after you hang up.';
+  'Call your agent from Stage and talk to it live. Metro listens and speaks with ElevenLabs, and the agent answers with its own memory, skills, connectors and tools, and knows which chat you call from. It picks up calls from the people who can approve on its Stage channel.';
 const PORTS_NOTE = 'The server needs inbound UDP ports 40000 to 40100 open for the call audio.';
 const KEY_NOTE = 'Give the key Speech to Text and Text to Speech access. Create one in ElevenLabs:';
 const VOICE_NOTE = 'Empty means Sarah, the default voice. Paste any voice ID from the ElevenLabs voice library:';
+const LANGUAGE_NOTE = 'The language you speak on calls, so speech to text does not guess. Detect lets ElevenLabs guess each time.';
 const MODEL_NOTE = 'The model that thinks during calls, through the connections on the Model page, at low effort for speed.';
 
 type Set = (next: VoiceSettings) => void;
@@ -54,13 +56,22 @@ function Link({ href }: { href: string }): ReactNode {
   );
 }
 
-function AnswerCalls({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
+interface ChoiceSettingProps<T extends string> {
+  title: string;
+  note: string;
+  value: T;
+  options: { value: T; label: string }[];
+  patch: (value: T) => VoicePatch;
+  set: Set;
+}
+
+function ChoiceSetting<T extends string>({ title, note, value, options, patch, set }: ChoiceSettingProps<T>): ReactNode {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const flip = (enabled: boolean): void => {
+  const pick = (next: T): void => {
     setBusy(true);
     setError(null);
-    saveVoice({ enabled })
+    saveVoice(patch(next))
       .then(set)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not change it.'));
@@ -69,20 +80,37 @@ function AnswerCalls({ voice, set }: { voice: VoiceSettings; set: Set }): ReactN
         setBusy(false);
       });
   };
-  const note = voice.hasKey ? PORTS_NOTE : 'Add an API key below first.';
   return (
-    <SettingsSection title="Answer calls" note={note}>
-      <Choice
-        label="Answer calls"
-        value={voice.enabled ? 'on' : 'off'}
-        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
-        disabled={busy}
-        onChange={(value) => {
-          flip(value === 'on');
-        }}
-      />
+    <SettingsSection title={title} note={note}>
+      <Choice label={title} value={value} options={options} disabled={busy} onChange={pick} />
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
+  );
+}
+
+function AnswerCalls({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
+  return (
+    <ChoiceSetting
+      title="Answer calls"
+      note={voice.hasKey ? PORTS_NOTE : 'Add an API key below first.'}
+      value={voice.enabled ? 'on' : 'off'}
+      options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+      patch={(value) => ({ enabled: value === 'on' })}
+      set={set}
+    />
+  );
+}
+
+function VoiceLanguage({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
+  return (
+    <ChoiceSetting
+      title="Language"
+      note={LANGUAGE_NOTE}
+      value={voice.language === null || voice.language === '' ? voice.defaults.language : voice.language}
+      options={VOICE_LANGUAGES}
+      patch={(language) => ({ language })}
+      set={set}
+    />
   );
 }
 
@@ -157,6 +185,7 @@ function VoiceBody(): ReactNode {
       </SettingsGroup>
       <SettingsGroup>
         <VoiceId voice={voice} set={set} />
+        {voice.language === null ? null : <VoiceLanguage voice={voice} set={set} />}
         <VoiceModel voice={voice} set={set} />
       </SettingsGroup>
     </Col>

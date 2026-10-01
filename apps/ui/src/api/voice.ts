@@ -12,14 +12,16 @@ export interface VoiceSettings {
   hasKey: boolean;
   voiceId: string;
   model: string;
+  language: string | null;
   enabled: boolean;
-  defaults: { voiceId: string; model: string };
+  defaults: { voiceId: string; model: string; language: string };
 }
 
 export interface VoicePatch {
   apiKey?: string;
   voiceId?: string;
   model?: string;
+  language?: string;
   enabled?: boolean;
 }
 
@@ -34,8 +36,9 @@ function toVoice(body: unknown): VoiceSettings {
     hasKey: body.hasKey === true,
     voiceId: str(body.voiceId),
     model: str(body.model),
+    language: typeof body.language === 'string' ? body.language : null,
     enabled: body.enabled !== false,
-    defaults: { voiceId: str(defaults.voiceId), model: str(defaults.model) },
+    defaults: { voiceId: str(defaults.voiceId), model: str(defaults.model), language: str(defaults.language) },
   };
 }
 
@@ -50,3 +53,9 @@ export async function saveVoice(patch: VoicePatch): Promise<VoiceSettings> {
 export const providerName = (id: string): string => (id === 'elevenlabs' ? 'ElevenLabs' : id);
 
 export const voiceModelLabel = (model: string): string => model.replace(/^anthropic:/, '');
+
+export const VOICE_LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'French' },
+  { value: 'auto', label: 'Detect' },
+];

@@ -17,3 +17,14 @@ export const MCP_INSTRUCTIONS =
   'needing approval must run in a background worker: on the main thread it is refused, so ' +
   'delegate that exact call and keep answering; the worker waits for the owner. Approval ' +
   'prompts are relayed to the chat; the owner answers "yes <id>"/"no <id>".';
+
+export const VOICE_MCP_INSTRUCTIONS =
+  "Metro's chat tools, opened for a live voice call. The caller hears what you say, so do not " +
+  'answer them with `send` or `reply` and do not post the call in a chat; post, react or act on ' +
+  'a channel only when the caller asks for it, once. `read` with a `line` (passed verbatim) ' +
+  'shows that chat; `group_info` and `list_members` show who is in it; `get_profile` with a ' +
+  '`from` names a sender. The owner may block a tool on an account or make it need approval ' +
+  '(`list_accounts` shows each `policy`). A blocked call errors. A call needing approval must ' +
+  'run in a background worker: on the main thread it is refused, so delegate that exact call ' +
+  'and keep talking; the worker waits while the owner is asked in the chat of the call, where ' +
+  'they answer "yes <id>"/"no <id>".';

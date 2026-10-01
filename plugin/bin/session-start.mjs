@@ -24,7 +24,7 @@ function guidance() {
   return '';
 }
 
-const text = guidance();
+const text = process.env.METRO_SESSION === 'voice' ? '' : guidance();
 if (text !== '')
   process.stdout.write(
     `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: `This machine runs as a metro agent. Standing rules, kept in the metro skill:\n\n${text}` } })}\n`,

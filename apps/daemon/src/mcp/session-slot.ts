@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { currentBusSeq } from '@metro-labs/core/events';
 import { newReplayLedger } from '../channels/relay.js';
-import { McpSession, channelLog } from './session.js';
+import { McpSession, channelLog, type SessionKind } from './session.js';
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
 
 export class SessionSlot {
@@ -10,7 +10,10 @@ export class SessionSlot {
   private started = false;
   private live: boolean;
 
-  constructor(live = true) {
+  constructor(
+    live = true,
+    private readonly kind: SessionKind = 'chat',
+  ) {
     this.live = live;
   }
 
@@ -50,6 +53,7 @@ export class SessionSlot {
     if (this.ledger.startAt < 0) this.ledger.startAt = currentBusSeq();
     const id = adoptId ?? randomUUID();
     const session = await McpSession.open({
+      kind: this.kind,
       id,
       scope: allowedAgents(identity),
       adopted: adoptId !== undefined,
@@ -61,7 +65,7 @@ export class SessionSlot {
     });
     this.session = session;
     if (this.started && this.live) session.startChannel();
-    channelLog('session: opened', 'id', id, 'adopted', adoptId !== undefined);
+    channelLog('session: opened', 'id', id, 'kind', this.kind, 'adopted', adoptId !== undefined);
     return session;
   }
 

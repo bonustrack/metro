@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { metroMcpConfig, writeMcpConfig } from '../src/mcp-config.ts';
+import { metroMcpConfig, VOICE_MCP_PATH, writeMcpConfig } from '../src/mcp-config.ts';
 
 describe('the metro MCP server handed to Claude Code at launch', () => {
   test('is the local daemon over http, authenticated with the agent key in a header', () => {
@@ -16,6 +16,7 @@ describe('the metro MCP server handed to Claude Code at launch', () => {
       },
     });
     expect(metroMcpConfig('mk_agent', 9000)).toContain('http://127.0.0.1:9000/mcp');
+    expect(metroMcpConfig('mk_agent', 8420, VOICE_MCP_PATH)).toContain('"http://127.0.0.1:8420/mcp/voice"');
   });
 
   test('is written to a private file for the session and removed afterwards', () => {

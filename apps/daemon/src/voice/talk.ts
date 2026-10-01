@@ -1,15 +1,13 @@
 import { log } from '@metro-labs/core/log';
 import { downsample3, OpusIn, Player, type Playback } from './audio.js';
-import { Brain, type Thinking } from './brain.js';
+import type { CallApprovals } from './approvals.js';
+import { Brain, type Thinking, type ToolAsk } from './brain.js';
 import { Scribe, VAD_SILENCE_SECS } from './scribe.js';
 import { Utterance } from './speech.js';
 import { Chunker } from './speakable.js';
-import { brainModel, voiceIdOf, type VoiceConfig } from './store.js';
+import { brainModel, languageOf, voiceIdOf, type VoiceConfig } from './store.js';
 
 const BARGE_MIN_WORDS = 2;
-const NOTES_WAIT_MS = 60_000;
-const NOTES_PROMPT =
-  '[The call has ended. Write short call notes for the chat: what was discussed, what was decided and what you will follow up on. Plain text, at most 6 short lines, no title and no greeting. Reply with the notes only.]';
 
 interface Reply {
   utterance: Utterance;
@@ -22,6 +20,11 @@ interface Reply {
   firstAudio: number | null;
   firstPlayed: number | null;
 }
+
+const toolName = (tool: string): string => tool.split('__').pop() ?? tool;
+
+const approvalNote = (tool: string, id: string): string =>
+  `[The owner was asked in the chat of this call to approve ${toolName(tool)}; they answer "yes ${id}" or "no ${id}" there. Unless you already said so, tell the caller in one short sentence that it waits for their answer in the chat.]`;
 
 const wordsIn = (text: string): number => text.split(/\s+/).filter((word) => /\p{L}/u.test(word)).length;
 
@@ -45,22 +48,19 @@ export class Talk implements Thinking {
   private reply: Reply | null = null;
   private cut: string | null = null;
   private muted = false;
-  private busy = false;
   private askedAt: number | null = null;
   private saidAt: number | null = null;
   private lastHeardAt: number | null = null;
   private readonly delays: number[] = [];
-  private notes: ((text: string) => void) | null = null;
-  private notesStarted = false;
   private live = false;
   private finished = false;
-  private heardCaller = false;
   private spoke = false;
 
   constructor(
     private readonly cfg: VoiceConfig,
     out: (opus: Buffer, timestamp: number, marker: boolean) => void,
     private readonly ended: (reason: string) => void,
+    private readonly approvals: CallApprovals,
   ) {
     const playback: Playback = {
       send: out,
@@ -73,7 +73,7 @@ export class Talk implements Thinking {
       this.firstPlayed();
     });
     this.brain = new Brain(brainModel(cfg), this);
-    this.scribe = new Scribe(cfg.apiKey, {
+    this.scribe = new Scribe(cfg.apiKey, languageOf(cfg), {
       partial: (text) => {
         this.partial(text);
       },
@@ -88,7 +88,6 @@ export class Talk implements Thinking {
   }
 
   prime(context: string): void {
-    this.busy = true;
     this.brain.tell(context);
   }
 
@@ -104,25 +103,23 @@ export class Talk implements Thinking {
     if (pcm !== null) this.scribe.send(downsample3(pcm));
   }
 
-  async finish(): Promise<string | null> {
-    if (this.finished) return null;
+  finish(): void {
+    if (this.finished) return;
     this.finished = true;
     this.live = false;
+    this.approvals.close();
     this.player.stop();
     this.scribe.close();
     this.reply?.utterance.abort();
     this.spare?.abort();
     this.opus.close();
-    const notes = this.heardCaller && this.brain.alive ? await this.callNotes() : null;
     this.brain.close();
-    return notes;
+    this.logReplyTime();
   }
 
   turnStarted(): void {
     this.muted = false;
-    this.busy = true;
-    if (this.notes !== null) this.notesStarted = true;
-    if (this.notes !== null || this.finished) return;
+    if (this.finished) return;
     this.reply = {
       utterance: this.takeUtterance(),
       said: '',
@@ -140,7 +137,7 @@ export class Talk implements Thinking {
 
   text(delta: string): void {
     const reply = this.reply;
-    if (this.muted || reply === null || this.notes !== null) return;
+    if (this.muted || reply === null) return;
     reply.firstText ??= performance.now();
     this.speak(reply, reply.chunker.add(delta));
   }
@@ -150,15 +147,7 @@ export class Talk implements Thinking {
     if (this.reply !== null && !this.muted) this.speak(this.reply, this.reply.chunker.flush());
   }
 
-  turnEnded(text: string): void {
-    this.busy = false;
-    const notes = this.notes;
-    if (notes !== null) {
-      if (!this.notesStarted) return;
-      this.notes = null;
-      notes(text);
-      return;
-    }
+  turnEnded(): void {
     const reply = this.reply;
     if (reply === null || this.muted) return;
     this.speak(reply, reply.chunker.flush());
@@ -169,10 +158,20 @@ export class Talk implements Thinking {
     );
   }
 
+  asked(ask: ToolAsk): void {
+    const id = this.finished ? null : this.approvals.ask(ask, (behavior) => {
+      this.brain.answer(ask, behavior);
+    });
+    if (id === null) {
+      this.brain.answer(ask, 'deny');
+      return;
+    }
+    log.info({ tool: ask.tool, worker: ask.fromWorker }, 'voice: a tool waits for the owner’s approval in the chat of the call');
+    this.brain.tell(approvalNote(ask.tool, id));
+  }
+
   exited(reason: string): void {
     log.warn({ reason }, 'voice: the agent session for the call ended');
-    this.notes?.('');
-    this.notes = null;
     this.ended(`agent session ${reason}`);
   }
 
@@ -214,11 +213,10 @@ export class Talk implements Thinking {
     if (this.reply !== null) this.reply.heard += chars;
   }
 
-  get replyTime(): string | null {
-    if (this.delays.length === 0) return null;
+  private logReplyTime(): void {
+    if (this.delays.length === 0) return;
     const sorted = [...this.delays].sort((a, b) => a - b);
-    const middle = sorted[Math.floor(sorted.length / 2)] ?? 0;
-    return `Reply time, from your last word heard to my first word sent: about ${(middle / 1000).toFixed(1)} s (middle of ${String(sorted.length)}).`;
+    log.info({ middleMs: Math.round(sorted[Math.floor(sorted.length / 2)] ?? 0), replies: sorted.length }, 'voice: reply time of the call, from the caller’s last word heard to the first reply audio sent');
   }
 
   private firstPlayed(): void {
@@ -246,7 +244,6 @@ export class Talk implements Thinking {
   }
 
   private committed(text: string): void {
-    this.heardCaller = true;
     if (this.interrupts(text)) this.cutOff();
     const note = this.cut;
     const now = this.muted;
@@ -254,22 +251,6 @@ export class Talk implements Thinking {
     this.askedAt = performance.now();
     this.saidAt = this.lastHeardAt ?? this.askedAt;
     this.lastHeardAt = null;
-    this.busy = true;
     this.brain.tell(note === null ? text : `${note}\n${text}`, now);
-  }
-
-  private callNotes(): Promise<string | null> {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.notes = null;
-        resolve(null);
-      }, NOTES_WAIT_MS);
-      this.notesStarted = false;
-      this.notes = (text) => {
-        clearTimeout(timer);
-        resolve(text.trim() === '' ? null : text.trim());
-      };
-      this.brain.tell(NOTES_PROMPT, this.busy);
-    });
   }
 }

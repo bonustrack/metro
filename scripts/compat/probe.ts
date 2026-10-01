@@ -202,7 +202,7 @@ await ok('detachAccount', () => attach.detachAccount(agent, 'threema', account))
 const hasVoice = (await fetch(`http://${host}/api/voice`, { method: 'DELETE' })).status === 405;
 if (hasVoice) {
   await ok('fetchVoice', () => voice.fetchVoice());
-  await ok('saveVoice', () => voice.saveVoice({ apiKey: 'compat-key', voiceId: 'compat', model: 'anthropic:claude-sonnet-5-5', enabled: false }));
+  await ok('saveVoice', () => voice.saveVoice({ apiKey: 'compat-key', voiceId: 'compat', model: 'anthropic:claude-sonnet-5-5', language: 'en', enabled: false }));
 }
 
 await mcp.stop(true);

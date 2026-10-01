@@ -59,7 +59,8 @@ function invite(env: TrainEvent, body: Record<string, unknown>): void {
   }
   current?.hangUp('the caller started a new call');
   const callerName = str(env.from_display_name) || str(env.from_name) || 'the caller';
-  const call = new Call({ line, from, callerName, callId, callerPeer }, readVoice(), () => {
+  const start = { line, lineName: str(env.line_name), direct: env.is_private === true, from, callerName, callId, callerPeer };
+  const call = new Call(start, readVoice(), () => {
     if (current === call) current = null;
   });
   current = call;

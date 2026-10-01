@@ -42,8 +42,9 @@ const USAGE = `metro: run your agent on this machine
   metro voice --model <model>
                   the agent's side of a voice call, which the daemon starts when a call
                   comes in: Claude Code reads the call's words as stream-json on stdin and
-                  streams its replies on stdout, with the agent's memory, skills and tools
-                  but no metro channel
+                  streams its replies on stdout, with the agent's memory, skills, plugin,
+                  connectors and metro tools (on /mcp/voice, so the chat session keeps its
+                  slot) but no metro channel; tool approvals come back on stdout
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 

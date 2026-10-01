@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   BodyTooLargeError,
   readBody as readBodyBuffer,
+  VOICE_MCP_PATH,
 } from '../routes/http.js';
 import {
   authenticate,
@@ -90,16 +91,19 @@ async function serveGet(
   if (served) session.replayMissed();
 }
 
-let activeSlot: SessionSlot | undefined;
+const isVoicePath = (req: IncomingMessage): boolean => (req.url ?? '').split('?')[0] === VOICE_MCP_PATH;
+
+let activeSlots: SessionSlot[] = [];
 
 export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
   setLiveEvents: (on: boolean) => void;
 }> {
-  await activeSlot?.close();
+  await Promise.all(activeSlots.map((s) => s.close()));
   const slot = new SessionSlot(options.liveEvents);
-  activeSlot = slot;
+  const voiceSlot = new SessionSlot(false, 'voice');
+  activeSlots = [slot, voiceSlot];
 
   const httpHandler = async (
     req: IncomingMessage,
@@ -114,7 +118,7 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
     if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {
       const session = await resolveSession(
-        slot,
+        isVoicePath(req) ? voiceSlot : slot,
         req,
         parsed.body,
         identity,

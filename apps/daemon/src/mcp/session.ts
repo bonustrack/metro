@@ -7,7 +7,7 @@ import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
 import { accountStationNames, stationByName } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
-import { MCP_INSTRUCTIONS } from './instructions.js';
+import { MCP_INSTRUCTIONS, VOICE_MCP_INSTRUCTIONS } from './instructions.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
@@ -47,7 +47,12 @@ function makeTransport(
   return t;
 }
 
+export type SessionKind = 'chat' | 'voice';
+
+const CHANNEL_CAPABILITIES = { experimental: { 'claude/channel': {}, 'claude/channel/permission': {} } };
+
 export interface SessionInit {
+  kind?: SessionKind;
   id: string;
   scope: Set<string>;
   adopted: boolean;
@@ -80,17 +85,12 @@ export class McpSession {
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore();
     this.transport = makeTransport(init.id, this.eventStore, init.adopted);
+    const voice = init.kind === 'voice';
     this.server = new Server(
       { name: 'metro', version: '0.1.0' },
       {
-        capabilities: {
-          experimental: {
-            'claude/channel': {},
-            'claude/channel/permission': {},
-          },
-          tools: { listChanged: true },
-        },
-        instructions: MCP_INSTRUCTIONS,
+        capabilities: { ...(voice ? {} : CHANNEL_CAPABILITIES), tools: { listChanged: true } },
+        instructions: voice ? VOICE_MCP_INSTRUCTIONS : MCP_INSTRUCTIONS,
       },
     );
     registerToolHandlers(this.server, {
@@ -113,13 +113,14 @@ export class McpSession {
       approves,
       answerPermission,
     });
-    registerPermissionRelay({
-      mcp: this.server,
-      relay: this.relay,
-      inScope: (line) => this.inScope(line),
-      live: this.live,
-      log: channelLog,
-    });
+    if (!voice)
+      registerPermissionRelay({
+        mcp: this.server,
+        relay: this.relay,
+        inScope: (line) => this.inScope(line),
+        live: this.live,
+        log: channelLog,
+      });
     this.channel = new ChannelRelay({
       relay: this.relay,
       log: channelLog,

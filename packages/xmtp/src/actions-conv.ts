@@ -57,7 +57,7 @@ const DELETED = { text: '[deletedMessage]', contentType: 'deletedMessage' };
 
 async function read(id: string, args: Args): Promise<void> {
   const { line, limit, before } = args as { line: string; limit?: number; before?: string };
-  const { conv } = await convOf(line);
+  const { acct, conv } = await convOf(line);
   if (!conv)
     throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
   const lim = Math.min(Math.max(1, limit ?? 20), 200);
@@ -73,6 +73,7 @@ async function read(id: string, args: Args): Promise<void> {
     id: m.id,
     ts: new Date(Number(m.sentAtNs / 1_000_000n)).toISOString(),
     from: `metro://xmtp/${acctId}/user/${m.senderInboxId}`,
+    ...(m.senderInboxId === acct.inboxId ? { self: true } : {}),
     ...(deleted.has(m.id) ? DELETED : { text: textOf(m), contentType: m.contentType?.typeId ?? 'unknown' }),
   }));
   respond(id, { result: { line, count: messages.length, messages } });

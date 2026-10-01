@@ -23,6 +23,7 @@ const ORCHESTRATION = new Set([
 const IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 const MCP = /^mcp__/;
 const METRO_MCP = /^mcp__metro__/;
+const VOICE = process.env.METRO_SESSION === 'voice';
 
 function answer(decision, reason) {
   process.stdout.write(
@@ -48,7 +49,10 @@ function verdict(payload, input) {
     return `${tool} blocks the session waiting on the terminal, and nobody is watching it. Decide with your best judgement and state the assumption, or ask over chat with the metro tools and keep working in the meantime.`;
   if (typeof payload.agent_id === 'string' && payload.agent_id !== '') return null;
   if (tool === 'Agent' && input.run_in_background === false)
-    return 'A foreground subagent blinds the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification.';
+    return VOICE
+      ? 'On a voice call a foreground subagent leaves the caller in silence until it finishes. Re-issue the identical Agent call with run_in_background: true, tell the caller you will come back to it, and keep talking.'
+      : 'A foreground subagent blinds the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification.';
+  if (VOICE) return null;
   if (ORCHESTRATION.has(tool)) return null;
   if (METRO_MCP.test(tool)) return null;
   if (MCP.test(tool))

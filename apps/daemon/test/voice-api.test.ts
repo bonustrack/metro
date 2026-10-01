@@ -5,7 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleVoiceRequest } from '../src/voice/api.ts';
-import { brainModel, parseVoice } from '../src/voice/store.ts';
+import { brainModel, languageOf, parseVoice } from '../src/voice/store.ts';
+import { sttUrl } from '../src/voice/scribe.ts';
 import { auth } from './identity-helper.ts';
 
 const OWNER = 'org_01VOICETEST000000000';
@@ -70,5 +71,16 @@ describe('the voice settings of a box', () => {
     const anthropic = { ...none, connections: [{ provider: 'anthropic' }] } as unknown as Parameters<typeof brainModel>[1];
     expect(brainModel(cfg, anthropic)).toBe('anthropic:claude-sonnet-5-5');
     expect(brainModel(parseVoice({ model: 'codex:gpt-6' }), none)).toBe('codex:gpt-6');
+  });
+
+  test('speech to text listens in English unless the page picks another language or Detect', async () => {
+    expect(languageOf(parseVoice({}))).toBe('en');
+    expect(sttUrl('en')).toContain('language_code=en');
+    expect(sttUrl(null)).not.toContain('language_code');
+    expect(await (await call('PUT', 'admin', { language: 'FR' })).json()).toMatchObject({ language: 'fr', defaults: { language: 'en' } });
+    expect(languageOf(parseVoice(JSON.parse(readFileSync(join(dir, 'voice.json'), 'utf8'))))).toBe('fr');
+    expect((await call('PUT', 'admin', { language: 'french' })).status).toBe(400);
+    expect(await (await call('PUT', 'admin', { language: 'auto' })).json()).toMatchObject({ language: 'auto' });
+    expect(languageOf(parseVoice({ language: 'auto' }))).toBeNull();
   });
 });

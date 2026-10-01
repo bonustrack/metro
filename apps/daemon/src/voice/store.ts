@@ -13,8 +13,13 @@ export interface VoiceConfig {
   apiKey: string;
   voiceId: string;
   model: string;
+  language: string;
   enabled: boolean;
 }
+
+const DEFAULT_LANGUAGE = 'en';
+const AUTO_LANGUAGE = 'auto';
+const LANGUAGE_RE = /^(?:[a-z]{2,3}|auto)$/;
 
 const DEFAULT_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL';
 const DEFAULT_VOICE_MODEL = 'anthropic:claude-sonnet-5-5';
@@ -34,6 +39,7 @@ export function parseVoice(raw: unknown): VoiceConfig {
     apiKey: text(r.apiKey),
     voiceId: text(r.voiceId),
     model: text(r.model),
+    language: LANGUAGE_RE.test(text(r.language)) ? text(r.language) : '',
     enabled: r.enabled !== false,
   };
 }
@@ -54,6 +60,11 @@ export function brainModel(cfg: VoiceConfig, models: ModelConfig = readModelConf
   return models.connections.some((c) => c.provider === 'anthropic') ? model : anthropic;
 }
 
+export function languageOf(cfg: VoiceConfig): string | null {
+  const language = cfg.language === '' ? DEFAULT_LANGUAGE : cfg.language;
+  return language === AUTO_LANGUAGE ? null : language;
+}
+
 export const voiceReady = (cfg: VoiceConfig): boolean => cfg.enabled && cfg.apiKey !== '';
 
 export function publicVoice(cfg: VoiceConfig): Record<string, unknown> {
@@ -63,8 +74,9 @@ export function publicVoice(cfg: VoiceConfig): Record<string, unknown> {
     hasKey: cfg.apiKey !== '',
     voiceId: cfg.voiceId,
     model: cfg.model,
+    language: cfg.language,
     enabled: cfg.enabled,
-    defaults: { voiceId: DEFAULT_VOICE_ID, model: DEFAULT_VOICE_MODEL },
+    defaults: { voiceId: DEFAULT_VOICE_ID, model: DEFAULT_VOICE_MODEL, language: DEFAULT_LANGUAGE },
   };
 }
 
@@ -82,6 +94,12 @@ function keyOf(body: Record<string, unknown>, current: string): string {
   return next === '' ? current : next;
 }
 
+function languageField(body: Record<string, unknown>, current: string): string {
+  const next = field(body, 'language', current).toLowerCase();
+  if (next !== '' && !LANGUAGE_RE.test(next)) throw new ApiError("language is a two or three letter ISO 639 code, or 'auto'", 400);
+  return next;
+}
+
 export function patchVoice(cfg: VoiceConfig, body: unknown): VoiceConfig {
   if (!isRecord(body)) throw new ApiError('the body must be a JSON object', 400);
   if (body.provider !== undefined && !isProvider(body.provider))
@@ -92,6 +110,7 @@ export function patchVoice(cfg: VoiceConfig, body: unknown): VoiceConfig {
     apiKey: keyOf(body, cfg.apiKey),
     voiceId: field(body, 'voiceId', cfg.voiceId),
     model: field(body, 'model', cfg.model),
+    language: languageField(body, cfg.language),
     enabled: typeof body.enabled === 'boolean' ? body.enabled : cfg.enabled,
   };
 }

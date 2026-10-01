@@ -6,16 +6,40 @@ import { asAgent } from '../agent-user/user.js';
 import { metroCli } from '../claude/session.js';
 
 const CLOSE_GRACE_MS = 10_000;
+const DENIED = 'The owner did not approve this.';
+
+export interface ToolAsk {
+  requestId: string;
+  tool: string;
+  input: Record<string, unknown>;
+  description: string;
+  fromWorker: boolean;
+}
 
 export interface Thinking {
   turnStarted(): void;
   text(delta: string): void;
   tool(name: string): void;
-  turnEnded(text: string): void;
+  turnEnded(): void;
+  asked(ask: ToolAsk): void;
   exited(reason: string): void;
 }
 
 const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+export function toolAsk(msg: Record<string, unknown>): ToolAsk | null {
+  const request = record(msg.request);
+  const requestId = str(msg.request_id);
+  if (request.subtype !== 'can_use_tool' || requestId === '' || str(request.tool_name) === '') return null;
+  return {
+    requestId,
+    tool: str(request.tool_name),
+    input: record(request.input),
+    description: str(request.description) || str(request.decision_reason),
+    fromWorker: str(request.agent_id) !== '',
+  };
+}
 
 function streamEvent(msg: Record<string, unknown>, mind: Thinking): void {
   if (msg.parent_tool_use_id !== null && msg.parent_tool_use_id !== undefined) return;
@@ -24,19 +48,6 @@ function streamEvent(msg: Record<string, unknown>, mind: Thinking): void {
   if (event.type === 'content_block_delta' && delta.type === 'text_delta' && typeof delta.text === 'string') mind.text(delta.text);
   const block = record(event.content_block);
   if (event.type === 'content_block_start' && block.type === 'tool_use') mind.tool(typeof block.name === 'string' ? block.name : 'tool');
-}
-
-function readBrainLine(line: string, mind: Thinking): void {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(line);
-  } catch {
-    return;
-  }
-  const msg = record(parsed);
-  if (msg.type === 'system' && msg.subtype === 'init') mind.turnStarted();
-  else if (msg.type === 'stream_event') streamEvent(msg, mind);
-  else if (msg.type === 'result') mind.turnEnded(typeof msg.result === 'string' ? msg.result : '');
 }
 
 export class Brain {
@@ -51,7 +62,7 @@ export class Brain {
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (chunk: string) => {
       this.out = drainLines('voice-brain', this.out + chunk, (line) => {
-        readBrainLine(line, this.mind);
+        this.read(line);
       });
     });
     this.child.stderr.setEncoding('utf8');
@@ -69,14 +80,14 @@ export class Brain {
     });
   }
 
-  get alive(): boolean {
-    return !this.gone;
+  tell(text: string, now = false): void {
+    const message = { type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: '' };
+    this.write(now ? { ...message, priority: 'now' } : message);
   }
 
-  tell(text: string, now = false): void {
-    if (this.gone) return;
-    const message = { type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null, session_id: '' };
-    this.child.stdin.write(`${JSON.stringify(now ? { ...message, priority: 'now' } : message)}\n`);
+  answer(ask: ToolAsk, behavior: 'allow' | 'deny'): void {
+    const response = behavior === 'allow' ? { behavior, updatedInput: ask.input } : { behavior, message: DENIED };
+    this.write({ type: 'control_response', response: { subtype: 'success', request_id: ask.requestId, response } });
   }
 
   close(): void {
@@ -85,6 +96,35 @@ export class Brain {
     setTimeout(() => {
       if (!this.gone) this.child.kill('SIGKILL');
     }, CLOSE_GRACE_MS).unref();
+  }
+
+  private write(message: Record<string, unknown>): void {
+    if (!this.gone && this.child.stdin.writable) this.child.stdin.write(`${JSON.stringify(message)}\n`);
+  }
+
+  private read(line: string): void {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return;
+    }
+    const msg = record(parsed);
+    if (msg.type === 'system' && msg.subtype === 'init') this.mind.turnStarted();
+    else if (msg.type === 'stream_event') streamEvent(msg, this.mind);
+    else if (msg.type === 'result') this.mind.turnEnded();
+    else if (msg.type === 'control_request') this.control(msg);
+  }
+
+  private control(msg: Record<string, unknown>): void {
+    const ask = toolAsk(msg);
+    if (ask !== null) {
+      this.mind.asked(ask);
+      return;
+    }
+    const subtype = str(record(msg.request).subtype);
+    log.warn({ subtype }, 'voice: the agent session asked for something the call does not handle');
+    this.write({ type: 'control_response', response: { subtype: 'error', request_id: str(msg.request_id), error: `not supported on a voice call: ${subtype}` } });
   }
 
   private exit(reason: string): void {

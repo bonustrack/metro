@@ -3,12 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const METRO_SERVER = 'metro';
+const CHAT_PATH = '/mcp';
+export const VOICE_MCP_PATH = '/mcp/voice';
 
-export function metroMcpConfig(agentKey: string, port: number): string {
+export function metroMcpConfig(agentKey: string, port: number, path = CHAT_PATH): string {
   const servers = {
     [METRO_SERVER]: {
       type: 'http',
-      url: `http://127.0.0.1:${String(port)}/mcp`,
+      url: `http://127.0.0.1:${String(port)}${path}`,
       headers: { Authorization: `Bearer ${agentKey}` },
     },
   };
@@ -20,10 +22,10 @@ export interface McpConfigFile {
   cleanup: () => void;
 }
 
-export function writeMcpConfig(agentKey: string, port: number, base = tmpdir()): McpConfigFile {
+export function writeMcpConfig(agentKey: string, port: number, base = tmpdir(), mcpPath = CHAT_PATH): McpConfigFile {
   const dir = mkdtempSync(join(base, 'metro-claude-'));
   const path = join(dir, 'mcp.json');
-  writeFileSync(path, metroMcpConfig(agentKey, port), { mode: 0o600 });
+  writeFileSync(path, metroMcpConfig(agentKey, port, mcpPath), { mode: 0o600 });
   return {
     path,
     cleanup: () => {
