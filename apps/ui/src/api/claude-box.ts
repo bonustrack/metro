@@ -40,6 +40,7 @@ export interface ClaudeSetup {
   liveEvents: boolean | null;
   worker: boolean;
   skill: boolean;
+  stage: boolean;
   privacyApplied: boolean;
   retentionDays: number | null;
 }
@@ -53,6 +54,7 @@ function toClaudeSetup(body: unknown): ClaudeSetup {
     liveEvents: typeof body.liveEvents === 'boolean' ? body.liveEvents : null,
     worker: body.worker === true,
     skill: body.skill === true,
+    stage: body.stage !== false,
     privacyApplied: body.privacyApplied === true,
     retentionDays: typeof body.retentionDays === 'number' ? body.retentionDays : null,
   };

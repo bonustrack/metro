@@ -9,8 +9,9 @@ and this page explains what they apply, how to check it, and what it costs.
 | Piece | Applied by | Where it lands |
 | --- | --- | --- |
 | Orchestrator-only guard on the main thread | the metro plugin (`hooks/hooks.json`, `bin/guard.mjs`) | every session where the plugin is installed |
-| Standing rules loaded at session start | the metro plugin (`bin/session-start.mjs`) | read from the `metro-orchestrator` skill |
-| The `metro-orchestrator` skill | the daemon, at boot | `~/.claude/skills/metro-orchestrator/SKILL.md`, editable on the Skills page |
+| Standing rules loaded at session start | the metro plugin (`bin/session-start.mjs`) | read from the `metro` skill |
+| The `metro` skill | the daemon, at boot, from `plugin/METRO.md` | `~/.claude/skills/metro/SKILL.md`, editable on the Skills page |
+| The `stage` skill | the daemon, at boot, from `plugin/STAGE.md` | `~/.claude/skills/stage/SKILL.md`, editable on the Skills page |
 | The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
 | Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
 | The metro MCP server, Channels, the model route | `metro claude`, at every launch | the session only |
@@ -65,12 +66,22 @@ copy edited on the box is never touched, so edits stick.
 
 ### The standing rules
 
-`~/.claude/skills/metro-orchestrator/SKILL.md` holds the rules: read `addressed` before
+`~/.claude/skills/metro/SKILL.md` holds the rules: read `addressed` before
 answering, react first, delegate everything that is work, never wait on the terminal, report
 like a relay, keep going. The daemon writes it from the copy the plugin carries, and the
 plugin's `SessionStart` hook loads its body into every session, so the agent does not have to
 invoke the skill. Edit it on the Skills page to change the rules on that box; an edited copy is
 never replaced by an update. The plugin's copy is only the fallback when the file is gone.
+Until 2026-10-01 the skill was called `metro-orchestrator`; the daemon moves that folder to
+`metro` at boot and keeps any edits.
+
+### The Stage skill
+
+`~/.claude/skills/stage/SKILL.md` tells the agent how to use Stage channels (XMTP groups) with
+the metro tools: create a channel, rename it, add or remove members, set labels and
+assignees, and send, reply, react, delete and read messages. It is written on every box, but it
+only works when the agent has an XMTP account, and it says so. It is not loaded at session
+start: Claude Code offers it like any other skill. Edits stick the same way.
 
 ## Privacy and data retention
 

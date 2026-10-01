@@ -11,7 +11,7 @@ import { Choice } from './Choice.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 
 function missingOf(setup: Setup): string[] {
-  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
+  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.stage ? '' : 'Stage skill', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
 }
 
 function useFlip(failure: string): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>) => void } {
@@ -90,7 +90,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             dark={dark}
             label="Edit"
             onPress={() => {
-              window.location.hash = routeHash({ kind: 'skill', project, id: 'metro-orchestrator' });
+              window.location.hash = routeHash({ kind: 'skill', project, id: 'user:metro' });
             }}
           />
         </SettingsSection>

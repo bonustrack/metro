@@ -12,10 +12,16 @@ import { readModelConfig } from '../src/gateway/model-config.js';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const GUIDANCE = join(import.meta.dir, '..', '..', '..', 'plugin', 'orchestrator.md');
+const PLUGIN = join(import.meta.dir, '..', '..', '..', 'plugin');
+const SHIPPED_BEFORE = readFileSync(join(import.meta.dir, 'metro-orchestrator-shipped.md'), 'utf8');
 
 let dir = '';
-const deps = (): SetupDeps => ({ dir: join(dir, 'claude'), agents: join(dir, 'agents'), guidance: GUIDANCE });
+const deps = (): SetupDeps => ({ dir: join(dir, 'claude'), agents: join(dir, 'agents'), plugin: PLUGIN });
+const skill = (name: string): string => join(dir, 'claude', 'skills', name, 'SKILL.md');
+const placeSkill = (name: string, text: string): void => {
+  mkdirSync(join(dir, 'claude', 'skills', name), { recursive: true });
+  writeFileSync(skill(name), text);
+};
 const settings = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'claude', 'settings.json'), 'utf8')) as Record<string, unknown>;
 
 beforeEach(() => {
@@ -29,15 +35,43 @@ afterEach(() => {
 });
 
 describe('the Claude Code setup a metro box gets', () => {
-  test('writes the worker agent, the orchestrator skill and the privacy settings once, and leaves them alone after', () => {
+  test('writes the worker agent, the metro and stage skills and the privacy settings once, and leaves them alone after', () => {
     const first = ensureClaudeSetup(deps());
-    expect(first).toEqual({ privacy: true, guard: 'plugin', worker: 'written', skill: 'written', settings: 'written' });
+    expect(first).toEqual({ privacy: true, guard: 'plugin', worker: 'written', skill: 'written', stage: 'written', settings: 'written' });
     expect(readFileSync(join(dir, 'claude', 'agents', 'worker.md'), 'utf8')).toContain('name: worker');
-    expect(readFileSync(join(dir, 'claude', 'skills', 'metro-orchestrator', 'SKILL.md'), 'utf8')).toContain('name: metro-orchestrator');
+    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
+    expect(readFileSync(skill('metro'), 'utf8')).toContain('name: metro\n');
+    expect(readFileSync(skill('stage'), 'utf8')).toContain('name: stage\n');
     expect(settings()).toEqual({ env: PRIVACY_ENV, cleanupPeriodDays: RETENTION_DAYS });
-    writeFileSync(join(dir, 'claude', 'skills', 'metro-orchestrator', 'SKILL.md'), 'edited by hand');
-    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', settings: 'unchanged' });
-    expect(readFileSync(join(dir, 'claude', 'skills', 'metro-orchestrator', 'SKILL.md'), 'utf8')).toBe('edited by hand');
+    writeFileSync(skill('metro'), 'edited by hand');
+    writeFileSync(skill('stage'), 'stage edited by hand');
+    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', stage: 'present', settings: 'unchanged' });
+    expect(readFileSync(skill('metro'), 'utf8')).toBe('edited by hand');
+    expect(readFileSync(skill('stage'), 'utf8')).toBe('stage edited by hand');
+  });
+
+  test('the old metro-orchestrator skill becomes metro: a copy metro shipped gets the new rules, an edited one keeps its edits', () => {
+    placeSkill('metro-orchestrator', SHIPPED_BEFORE);
+    expect(ensureClaudeSetup(deps())).toMatchObject({ skill: 'updated', stage: 'written' });
+    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
+    expect(existsSync(join(dir, 'claude', 'skills', 'metro-orchestrator'))).toBe(false);
+    rmSync(join(dir, 'claude', 'skills', 'metro'), { recursive: true });
+    placeSkill('metro-orchestrator', '---\nname: metro-orchestrator\ndescription: mine\n---\nAnswer in French.\n');
+    expect(ensureClaudeSetup(deps()).skill).toBe('present');
+    expect(readFileSync(skill('metro'), 'utf8')).toBe('---\nname: metro\ndescription: mine\n---\nAnswer in French.\n');
+    expect(existsSync(join(dir, 'claude', 'skills', 'metro-orchestrator'))).toBe(false);
+  });
+
+  test('beside an existing metro skill, an old copy metro shipped is removed and an edited one is left alone', () => {
+    placeSkill('metro', 'my metro rules');
+    placeSkill('metro-orchestrator', SHIPPED_BEFORE);
+    ensureClaudeSetup(deps());
+    expect(existsSync(join(dir, 'claude', 'skills', 'metro-orchestrator'))).toBe(false);
+    expect(readFileSync(skill('metro'), 'utf8')).toBe('my metro rules');
+    placeSkill('metro-orchestrator', 'my old rules');
+    ensureClaudeSetup(deps());
+    expect(readFileSync(skill('metro-orchestrator'), 'utf8')).toBe('my old rules');
+    expect(readFileSync(skill('metro'), 'utf8')).toBe('my metro rules');
   });
 
   test('a copy metro itself wrote is refreshed when the rules move on, and a copy someone edited never is', () => {
@@ -68,13 +102,13 @@ describe('the Claude Code setup a metro box gets', () => {
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
     expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
-    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', liveEvents: true, guard: 'plugin', worker: true, skill: true, privacyApplied: false, retentionDays: 7 });
+    expect(claudeSetupStatus(deps())).toEqual({ privacy: false, permissionMode: 'auto', systemPrompt: '', liveEvents: true, guard: 'plugin', worker: true, skill: true, stage: true, privacyApplied: false, retentionDays: 7 });
   });
 
-  test('a missing guidance file is reported, not thrown', () => {
-    const report = ensureClaudeSetup({ ...deps(), guidance: join(dir, 'nowhere.md') });
-    expect(report.skill).toBe('missing');
-    expect(existsSync(join(dir, 'claude', 'skills', 'metro-orchestrator'))).toBe(false);
+  test('missing skill sources are reported, not thrown', () => {
+    const report = ensureClaudeSetup({ ...deps(), plugin: join(dir, 'nowhere') });
+    expect(report).toMatchObject({ skill: 'missing', stage: 'missing' });
+    expect(existsSync(join(dir, 'claude', 'skills'))).toBe(false);
   });
 });
 
@@ -108,9 +142,9 @@ describe('the setup over the API', () => {
     });
 
   test('the owner reads the status and flips privacy, which rewrites the settings at once', async () => {
-    expect((await (await call('GET')).json()) as unknown).toMatchObject({ privacy: true, worker: false, skill: false, privacyApplied: false });
-    const off = (await (await call('POST', { privacy: false })).json()) as { privacy: boolean; worker: boolean; skill: boolean; privacyApplied: boolean };
-    expect(off).toMatchObject({ privacy: false, worker: true, skill: true, privacyApplied: false });
+    expect((await (await call('GET')).json()) as unknown).toMatchObject({ privacy: true, worker: false, skill: false, stage: false, privacyApplied: false });
+    const off = (await (await call('POST', { privacy: false })).json()) as { privacy: boolean; worker: boolean; skill: boolean; stage: boolean; privacyApplied: boolean };
+    expect(off).toMatchObject({ privacy: false, worker: true, skill: true, stage: true, privacyApplied: false });
     const on = (await (await call('POST', { privacy: true })).json()) as { privacyApplied: boolean; retentionDays: number };
     expect(on).toMatchObject({ privacyApplied: true, retentionDays: RETENTION_DAYS });
     expect((await call('POST', { privacy: 'yes' })).status).toBe(400);

@@ -128,7 +128,7 @@ describe('the owner policy the guard applies to metro tools', () => {
 });
 
 describe('the standing rules the plugin loads at session start', () => {
-  test('come from the metro-orchestrator skill on the machine, else from the copy the plugin carries', () => {
+  test('come from the metro skill on the machine, else from the copy the plugin carries', () => {
     const dir = mkdtempSync(join(tmpdir(), 'metro-guard-'));
     try {
       const env = { ...process.env, CLAUDE_CONFIG_DIR: dir };
@@ -137,12 +137,12 @@ describe('the standing rules the plugin loads at session start', () => {
       expect(out.hookSpecificOutput.hookEventName).toBe('SessionStart');
       expect(out.hookSpecificOutput.additionalContext).toContain('orchestrator');
       expect(out.hookSpecificOutput.additionalContext).not.toContain('---\nname:');
-      mkdirSync(join(dir, 'skills', 'metro-orchestrator'), { recursive: true });
-      writeFileSync(join(dir, 'skills', 'metro-orchestrator', 'SKILL.md'), '---\nname: metro-orchestrator\n---\nAnswer in French.\n');
+      mkdirSync(join(dir, 'skills', 'metro'), { recursive: true });
+      writeFileSync(join(dir, 'skills', 'metro', 'SKILL.md'), '---\nname: metro\n---\nAnswer in French.\n');
       const own = spawnSync('node', [START], { encoding: 'utf8', env });
       const text = (JSON.parse(own.stdout) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext;
       expect(text).toContain('Answer in French.');
-      expect(text).not.toContain('name: metro-orchestrator');
+      expect(text).not.toContain('name: metro');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

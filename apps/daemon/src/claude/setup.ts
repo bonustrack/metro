@@ -7,7 +7,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeAtomic, writeJson } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
-import { writeHomeText } from '../agent-user/home-fs.js';
+import { moveHome, removeHome, writeHomeText } from '../agent-user/home-fs.js';
 import { claudeDir } from './files.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
@@ -19,9 +19,11 @@ export const PRIVACY_ENV: Record<string, string> = {
   CLAUDE_CODE_GB_DISK_CACHE_WHEN_TELEMETRY_OFF: '1',
 };
 export const RETENTION_DAYS = 7;
-const SKILL_NAME = 'metro-orchestrator';
 const STATE_FILE = 'claude-setup.json';
-const GUIDANCE = 'orchestrator.md';
+const RULES_FILE = 'METRO.md';
+const RULES_SKILL = 'metro';
+const RENAMED_SKILL = 'metro-orchestrator';
+const RENAMED_NAME = /^name:[ \t]*metro-orchestrator[ \t]*$/m;
 const SYSTEM_PROMPT_FILE = 'system-prompt.md';
 export const SYSTEM_PROMPT_MAX = 64 * 1024;
 
@@ -45,7 +47,7 @@ Your final message is a report to the orchestrator, not a message to a human. It
 export interface SetupDeps {
   dir?: string;
   agents?: string;
-  guidance?: string;
+  plugin?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -57,6 +59,7 @@ export interface SetupReport {
   guard: 'plugin';
   worker: Placed;
   skill: Placed;
+  stage: Placed;
   settings: SettingsOutcome;
 }
 
@@ -68,6 +71,7 @@ export interface SetupStatus {
   guard: 'plugin';
   worker: boolean;
   skill: boolean;
+  stage: boolean;
   privacyApplied: boolean;
   retentionDays: number | null;
 }
@@ -127,22 +131,33 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
   writeAtomic(promptPath(agents), `${trimmed}\n`, 0o600);
 }
 
-function guidancePath(env: NodeJS.ProcessEnv = process.env): string {
+function pluginDir(env: NodeJS.ProcessEnv = process.env): string {
   const staged = stagedMarketplaceDir(env);
   if (staged !== null) {
-    const path = join(staged, 'plugin', GUIDANCE);
-    if (existsSync(path)) return path;
+    const dir = join(staged, 'plugin');
+    if (existsSync(join(dir, RULES_FILE))) return dir;
   }
-  return fileURLToPath(new URL(`../../../../plugin/${GUIDANCE}`, import.meta.url));
+  return fileURLToPath(new URL('../../../../plugin', import.meta.url));
 }
 
 const PRIOR_WORKER: ReadonlySet<string> = new Set(['08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef']);
-const PRIOR_SKILL: ReadonlySet<string> = new Set([
+const PRIOR_METRO: ReadonlySet<string> = new Set([
   '0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad',
   '36f4fb57f231a119d717b5e3d6ccb654f94960fcca708683f376679aead8df25',
   '3840bc50253e51f431691376cf29a925b8245d87b77b8b20804a159e378a6e67',
   'e6b59eba825b4568dfa9ace5049fd9568a2e10d731719976ad2657084fd4e5f9',
+  '5ce3f76d610aae91adc922d0edc6c8be1f27aa2fec4a5e3a6d6231a04fb9310b',
 ]);
+const PRIOR_STAGE: ReadonlySet<string> = new Set();
+
+interface ShippedSkill {
+  name: string;
+  file: string;
+  prior: ReadonlySet<string>;
+}
+
+const METRO_SKILL: ShippedSkill = { name: RULES_SKILL, file: RULES_FILE, prior: PRIOR_METRO };
+const STAGE_SKILL: ShippedSkill = { name: 'stage', file: 'STAGE.md', prior: PRIOR_STAGE };
 
 const digest = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -190,12 +205,30 @@ function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
   return mergeSettings(dir, (current) => withPrivacy(current, enabled));
 }
 
-const skillPath = (dir: string): string => join(dir, 'skills', SKILL_NAME, 'SKILL.md');
+const skillPath = (dir: string, name: string): string => join(dir, 'skills', name, 'SKILL.md');
 const workerPath = (dir: string): string => join(dir, 'agents', 'worker.md');
 
-function placeSkill(dir: string, guidance: string): Placed {
-  if (!existsSync(guidance)) return 'missing';
-  return placeFile(skillPath(dir), readFileSync(guidance, 'utf8'), PRIOR_SKILL);
+function placeSkill(dir: string, plugin: string, skill: ShippedSkill): Placed {
+  const source = join(plugin, skill.file);
+  if (!existsSync(source)) return 'missing';
+  return placeFile(skillPath(dir, skill.name), readFileSync(source, 'utf8'), skill.prior);
+}
+
+function moveRenamedSkill(dir: string): void {
+  const from = join(dir, 'skills', RENAMED_SKILL);
+  const old = skillPath(dir, RENAMED_SKILL);
+  if (!existsSync(old)) return;
+  const shipped = PRIOR_METRO.has(digest(readFileSync(old, 'utf8')));
+  if (existsSync(join(dir, 'skills', RULES_SKILL))) {
+    if (shipped) removeHome(from, true);
+    return;
+  }
+  moveHome(from, join(dir, 'skills', RULES_SKILL));
+  if (shipped) return;
+  const path = skillPath(dir, RULES_SKILL);
+  const text = readFileSync(path, 'utf8');
+  const renamed = text.replace(RENAMED_NAME, `name: ${RULES_SKILL}`);
+  if (renamed !== text) writeHomeText(path, renamed, statSync(path).mode & 0o777);
 }
 
 const written = (placed: Placed): boolean => placed === 'written' || placed === 'updated';
@@ -204,15 +237,18 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const dir = deps.dir ?? claudeDir();
   const agents = deps.agents ?? agentsDir();
   const privacy = privacyEnabled(agents);
+  const plugin = deps.plugin ?? pluginDir(deps.env);
+  moveRenamedSkill(dir);
   const report: SetupReport = {
     privacy,
     guard: 'plugin',
     worker: placeFile(workerPath(dir), WORKER_AGENT, PRIOR_WORKER),
-    skill: placeSkill(dir, deps.guidance ?? guidancePath(deps.env)),
+    skill: placeSkill(dir, plugin, METRO_SKILL),
+    stage: placeSkill(dir, plugin, STAGE_SKILL),
     settings: applyPrivacy(dir, privacy),
   };
   syncAvailableModelsQuietly({ ...deps, dir, agents });
-  if (written(report.worker) || written(report.skill) || report.settings === 'written')
+  if (written(report.worker) || written(report.skill) || written(report.stage) || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
   if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings were not written');
   return report;
@@ -231,7 +267,8 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
     liveEvents: liveEvents(agents),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
-    skill: existsSync(skillPath(dir)),
+    skill: existsSync(skillPath(dir, RULES_SKILL)),
+    stage: existsSync(skillPath(dir, STAGE_SKILL.name)),
     privacyApplied: Object.keys(PRIVACY_ENV).every((key) => env[key] === '1'),
     retentionDays: typeof days === 'number' ? days : null,
   };
