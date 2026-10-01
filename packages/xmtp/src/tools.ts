@@ -80,6 +80,46 @@ export const XMTP_TOOLS: StationTool[] = [
     },
   },
   {
+    name: 'send_frame',
+    group: 'write',
+    description:
+      'Post a frame in a Stage conversation: a small interactive view described in OpenAI ChatKit ' +
+      'widget JSON (the same nodes and props as ChatKit: a Card, ListView or Basic root with Row, Col, ' +
+      'Box, Text, Title, Caption, Markdown, Badge, Icon, Image, Button, Divider, Spacer, Form, Input, ' +
+      'Textarea, Select, DatePicker, Checkbox, RadioGroup, Table...). Stage shows it in the chat as a card ' +
+      '(title and description) that opens full screen. A tap on a Button onClickAction, a ListViewItem ' +
+      'onClickAction, a Card confirm/cancel or a Form submit comes back to you as a reply to the frame: ' +
+      '"Frame action: <type> <payload JSON>", with the values of the form fields added to the payload by ' +
+      'name. Images must be https. Args: line (required), widget (required, the ChatKit widget object, at ' +
+      'most 64K characters of JSON), title? and description? (shown on the card; taken from the first ' +
+      'Title and text in the widget when missing). xmtp-only. Returns the frame messageId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        line: lineProp,
+        widget: {
+          type: 'object',
+          description:
+            'ChatKit widget JSON, e.g. {"type":"Card","children":[{"type":"Title","value":"Deploy?"},' +
+            '{"type":"Button","label":"Ship it","onClickAction":{"type":"deploy","payload":{"env":"prod"}}}]}.',
+          additionalProperties: true,
+        },
+        title: { type: 'string', description: 'Card title in the chat (200 characters at most).' },
+        description: { type: 'string', description: 'Card description in the chat (1000 characters at most).' },
+      },
+      required: ['line', 'widget'],
+    },
+    async handle(a, ctx) {
+      const line = str(a.line);
+      if (!line) return ctx.err('send_frame requires `line`');
+      if (a.widget === undefined) return ctx.err('send_frame requires `widget`');
+      const args: Record<string, unknown> = { line, widget: a.widget };
+      if (a.title !== undefined) args.title = a.title;
+      if (a.description !== undefined) args.description = a.description;
+      return ctx.okJson(await ctx.call('sendFrame', args));
+    },
+  },
+  {
     name: 'dm',
     group: 'write',
     description:

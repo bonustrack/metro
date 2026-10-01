@@ -164,6 +164,40 @@ export const SignatureReferenceCodec =
     c.signature ? `[Signature] ${c.signature}` : '[Signature]',
   );
 
+export const ContentTypeFrame: ContentTypeId = {
+  authorityId: 'stage.box',
+  typeId: 'frame',
+  versionMajor: 1,
+  versionMinor: 0,
+};
+export interface FrameContent {
+  title?: string;
+  description?: string;
+  widget: Record<string, unknown>;
+}
+export const frameFallback = (c: FrameContent): string => {
+  const head = c.title ? `Frame: ${c.title}` : 'Frame';
+  return c.description ? `${head}\n${c.description}` : head;
+};
+export const FrameCodec = makeJsonCodec<FrameContent>(ContentTypeFrame, frameFallback);
+
+export const ContentTypeFrameAction: ContentTypeId = {
+  authorityId: 'stage.box',
+  typeId: 'frameAction',
+  versionMajor: 1,
+  versionMinor: 0,
+};
+export interface FrameActionContent {
+  frameId: string;
+  action: { type: string; payload?: Record<string, unknown> };
+  label?: string;
+}
+export const frameActionText = (c: FrameActionContent): string => {
+  const payload = c.action.payload === undefined ? '' : ` ${JSON.stringify(c.action.payload)}`;
+  return `Frame action: ${c.action.type}${payload}`;
+};
+const FrameActionCodec = makeJsonCodec<FrameActionContent>(ContentTypeFrameAction, frameActionText);
+
 const ContentTypeDeleteMessage: ContentTypeId = {
   authorityId: 'xmtp.org',
   typeId: 'deleteMessage',
@@ -195,4 +229,6 @@ export const CODECS = (): ContentCodec[] => [
   new PollCodec(),
   new SignatureRequestCodec(),
   new SignatureReferenceCodec(),
+  new FrameCodec(),
+  new FrameActionCodec(),
 ];

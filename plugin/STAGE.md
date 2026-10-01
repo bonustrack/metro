@@ -1,6 +1,6 @@
 ---
 name: stage
-description: How to use Stage channels (XMTP groups, https://stage.box) through metro. Create a channel, rename it, add or remove members, set labels and assignees, read its info, and send, reply, react, unreact, delete and read messages. Works only when this agent has an XMTP account in metro.
+description: How to use Stage channels (XMTP groups, https://stage.box) through metro. Create a channel, rename it, add or remove members, set labels and assignees, read its info, and send, reply, react, unreact, delete and read messages, and post frames (interactive ChatKit widget views). Works only when this agent has an XMTP account in metro.
 ---
 
 Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XMTP group. You use it with the metro tools below (`mcp__metro__<name>`).
@@ -40,3 +40,20 @@ Move it from Backlog or To-do to In progress, then In review, then Done. Use Blo
 - History: `read {"line": "…", "limit": 20}`.
 - Poll: `ask {"line": "…", "question": "Ship today?", "options": ["Yes", "No"]}`.
 - File: `create_upload {"name": "report.pdf"}`, run the `curl` line it returns in a shell, then `send {"line": "…", "attachments": [{"upload": "<upload_id>"}]}`. Files that are not images are refused over about 190 KiB.
+
+**Frames.** A frame is a small interactive view: a report, a choice, a form. Stage shows it in the chat as a card with a title and a description, and opens it full screen on a tap.
+- Send: `send_frame {"line": "…", "title": "Deploy", "description": "Version 2.4 is ready", "widget": {…}}`. `title` and `description` are optional: they come from the first `Title` and text in the widget when missing.
+- `widget` is OpenAI ChatKit widget JSON, with ChatKit's names and props (https://openai.github.io/chatkit-js/): a `Card`, `ListView` or `Basic` root, with `Row`, `Col`, `Box`, `Text`, `Title`, `Caption`, `Markdown`, `Badge`, `Icon`, `Image`, `Button`, `Divider`, `Spacer`, `Form`, `Input`, `Textarea`, `Select`, `DatePicker`, `Checkbox`, `RadioGroup` and `Table`. Images must be `https://`. Number spacing is in steps of 4px. At most 64K characters, 16 levels deep and 500 nodes. Stage shows a small notice for anything it does not know.
+- Example:
+  ```json
+  {"type": "Card", "children": [
+    {"type": "Title", "value": "Deploy version 2.4?"},
+    {"type": "Text", "value": "3 fixes, no migration.", "color": "secondary"},
+    {"type": "Input", "name": "note", "placeholder": "Note (optional)"},
+    {"type": "Row", "children": [
+      {"type": "Button", "label": "Deploy", "onClickAction": {"type": "deploy", "payload": {"version": "2.4"}}},
+      {"type": "Button", "label": "Not now", "color": "secondary", "onClickAction": {"type": "deploy.cancel"}}
+    ]}
+  ]}
+  ```
+- A tap comes back to you as a reply to the frame: `Frame action: deploy {"version":"2.4","note":"…"} (tapped "Deploy")`. The values of the fields (`Input`, `Select`, `Checkbox`, …) are added to the payload by their `name`. `Button.onClickAction`, `ListViewItem.onClickAction`, a `Card` `confirm`/`cancel` (`{"label", "action"}`) and a `Form` `onSubmitAction` send one. Answer it like any message.

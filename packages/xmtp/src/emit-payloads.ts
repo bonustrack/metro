@@ -9,6 +9,8 @@ import {
 } from './attachments.js';
 import { reportAttachment } from '@metro-labs/core/stations/train-events';
 import { sentByMe } from './wire.js';
+import { frameActionText, frameFallback, type FrameContent } from './codecs.js';
+import { asFrameAction } from './frames.js';
 
 export interface EnvelopeCtx {
   accountId: string;
@@ -300,6 +302,32 @@ function refEnvelope(
   return undefined;
 }
 
+function frameEnvelope(
+  base: Record<string, unknown>,
+  typeId: string,
+  c: object,
+): Record<string, unknown> | undefined {
+  if (typeId === 'frame') {
+    const f = c as Partial<FrameContent>;
+    const frame: FrameContent = {
+      ...(typeof f.title === 'string' ? { title: f.title } : {}),
+      ...(typeof f.description === 'string' ? { description: f.description } : {}),
+      widget: typeof f.widget === 'object' && f.widget !== null ? f.widget : {},
+    };
+    return { ...base, text: frameFallback(frame), payload: { contentType: typeId, frame: c } };
+  }
+  const a = typeId === 'frameAction' ? asFrameAction(c) : undefined;
+  if (!a) return undefined;
+  const label = a.label ? ` (tapped "${a.label}")` : '';
+  return {
+    ...base,
+    text: `${frameActionText(a)}${label}`,
+    event: { type: 'reply', replyTo: a.frameId },
+    ...(sentByMe(a.frameId) ? { reply_to_self: true } : {}),
+    payload: { contentType: typeId, frameAction: a, replyTo: a.frameId },
+  };
+}
+
 export function typedEnvelope(
   base: Record<string, unknown>,
   typeId: string | undefined,
@@ -311,6 +339,7 @@ export function typedEnvelope(
   if (typeId === 'poll') return pollPayload(base, typeId, c);
   return (
     attachmentEnvelope(base, typeId ?? '', c, ctx) ??
-    refEnvelope(base, typeId, c)
+    refEnvelope(base, typeId, c) ??
+    frameEnvelope(base, typeId ?? '', c)
   );
 }

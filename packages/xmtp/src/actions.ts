@@ -12,7 +12,8 @@ import {
 import { convOf, type Account } from './accounts.js';
 import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
-import { PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
+import { FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
+import { buildFrameContent } from './frames.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { TrainError } from '@metro-labs/core/train-error';
@@ -46,6 +47,16 @@ async function ask(id: string, args: Args): Promise<void> {
   const sentId = await conv.send(new PollCodec().encode(poll));
   emitOutbound(acct.cfg.id, line, sentId, `📊 Poll: ${title}`);
   respond(id, { result: { messageId: sentId, pollId: mintedId } });
+}
+
+async function sendFrame(id: string, args: Args): Promise<void> {
+  const { line } = args as { line: string };
+  const { acct, conv } = await convOf(line);
+  if (!conv) throw noConv(line);
+  const { frame, title } = buildFrameContent(args);
+  const sentId = await conv.send(new FrameCodec().encode(frame));
+  emitOutbound(acct.cfg.id, line, sentId, `Frame: ${title}`);
+  respond(id, { result: { messageId: sentId, title } });
 }
 
 async function referenceInboxOf(conv: Conversation, xmtpMsgId: string): Promise<string> {
@@ -211,6 +222,7 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   resolve_sender: resolveSenderAction,
   send,
   ask,
+  sendFrame,
   react,
   reply,
   delete: remove,
