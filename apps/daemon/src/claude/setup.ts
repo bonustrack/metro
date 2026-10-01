@@ -23,7 +23,7 @@ const STATE_FILE = 'claude-setup.json';
 const RULES_FILE = 'METRO.md';
 const RULES_SKILL = 'metro';
 const RENAMED_SKILL = 'metro-orchestrator';
-const RENAMED_NAME = /^name:[ \t]*metro-orchestrator[ \t]*$/m;
+const RENAMED_NAME = /^name:[ \t]*(["']?)metro-orchestrator\1[ \t]*$/m;
 const SYSTEM_PROMPT_FILE = 'system-prompt.md';
 export const SYSTEM_PROMPT_MAX = 64 * 1024;
 
@@ -147,6 +147,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   '3840bc50253e51f431691376cf29a925b8245d87b77b8b20804a159e378a6e67',
   'e6b59eba825b4568dfa9ace5049fd9568a2e10d731719976ad2657084fd4e5f9',
   '5ce3f76d610aae91adc922d0edc6c8be1f27aa2fec4a5e3a6d6231a04fb9310b',
+  'b910597d24f31fa479b130a2545f94dd23684d802d99e36b637fc57c818a33be',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set();
 
@@ -224,11 +225,20 @@ function moveRenamedSkill(dir: string): void {
     return;
   }
   moveHome(from, join(dir, 'skills', RULES_SKILL));
+  log.info({ from, shipped }, 'claude-setup: moved the metro-orchestrator skill to metro');
   if (shipped) return;
   const path = skillPath(dir, RULES_SKILL);
   const text = readFileSync(path, 'utf8');
   const renamed = text.replace(RENAMED_NAME, `name: ${RULES_SKILL}`);
   if (renamed !== text) writeHomeText(path, renamed, statSync(path).mode & 0o777);
+}
+
+function tryMoveRenamedSkill(dir: string): void {
+  try {
+    moveRenamedSkill(dir);
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'claude-setup: could not move the metro-orchestrator skill to metro');
+  }
 }
 
 const written = (placed: Placed): boolean => placed === 'written' || placed === 'updated';
@@ -238,7 +248,7 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const agents = deps.agents ?? agentsDir();
   const privacy = privacyEnabled(agents);
   const plugin = deps.plugin ?? pluginDir(deps.env);
-  moveRenamedSkill(dir);
+  tryMoveRenamedSkill(dir);
   const report: SetupReport = {
     privacy,
     guard: 'plugin',
@@ -267,7 +277,7 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
     liveEvents: liveEvents(agents),
     guard: 'plugin',
     worker: existsSync(workerPath(dir)),
-    skill: existsSync(skillPath(dir, RULES_SKILL)),
+    skill: existsSync(skillPath(dir, METRO_SKILL.name)),
     stage: existsSync(skillPath(dir, STAGE_SKILL.name)),
     privacyApplied: Object.keys(PRIVACY_ENV).every((key) => env[key] === '1'),
     retentionDays: typeof days === 'number' ? days : null,

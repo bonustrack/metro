@@ -10,15 +10,16 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 **Lines and links.** A channel's line is `metro://xmtp/<account>/<channel id>`. Pass it verbatim as `line`. Its link is `https://stage.box/#/channel/<channel id>`, the last part of the line. Stage shows Markdown, so `[#Launch plan](https://stage.box/#/channel/<channel id>)` is a clickable link. A `message_id` comes from the inbound message or from `read`.
 
 **Channels.**
-- Create: `create_group {"station": "xmtp", "name": "Launch plan", "members": ["0x…"]}`. Members are 0x addresses or XMTP inbox ids. It returns the new `line` and `id`. With several XMTP accounts, add `"account": "<id>"`.
+- Create: `create_group {"station": "xmtp", "name": "Launch plan", "members": ["0x…"]}`. Members are 0x addresses or XMTP inbox ids. It returns the new `line` and `id`.
 - Rename: `set_channel_metadata {"line": "…", "name": "New title"}`. No tool sets the description or the picture.
 - Add or remove people: `add_members {"line": "…", "members": ["0x…"]}`. `remove_members` takes the same shape.
 - Leave: `close_channel {"line": "…", "removeSelf": true}`.
 - Read: `group_info {"line": "…"}` gives the name, `labels`, `assigned`, `appData` and the members (`inboxId`, `address`). `list_members {"line": "…"}` gives the members only.
 - Direct chat: `dm {"address": "0x…"}` opens a 1:1 chat and returns its line.
+- With several XMTP accounts, add `"account": "<id>"` to `create_group` and `dm`.
 
 **Labels and assignees.** They live in the channel's metadata, and Stage shows them on the channel.
-- Labels: `set_channel_metadata {"line": "…", "metadata": {"labels": ["🚧 In progress", "Metro"]}}`
+- Labels: `set_channel_metadata {"line": "…", "metadata": {"labels": ["🚧 In progress", "Metro"]}}`. At most 16 labels of 24 characters each.
 - Assignees: `set_channel_metadata {"line": "…", "metadata": {"assigned": ["0x…"]}}`. Only 0x addresses of current members.
 - Each key you send replaces that whole list. Keys you leave out stay as they are. To add one label or one assignee, read `group_info` first and send the old list plus the new one. `[]` clears a list. Read `group_info` again to check it saved.
 
