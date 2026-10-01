@@ -46,9 +46,12 @@ if (timer !== undefined) runNow(timer.id, u);
 await new Promise((r) => setTimeout(r, 2000));
 check('Run now starts the timer job as the agent', out(...asAgent('cat', ['/home/agent/demo.log'])).text.includes('demo-ran'));
 
-check('the helper refuses a drop-in on a unit no timer starts', rootHelper(['dropin-write', 'other.service', '10-metro-agent.conf'], '[Service]\nUser=agent\n').status !== 0);
-check('the helper refuses a drop-in that runs as root', rootHelper(['dropin-write', 'demo.service', '10-metro-agent.conf'], '[Service]\nUser=root\n').status !== 0);
-check('the helper refuses a privileged ExecStart', rootHelper(['dropin-write', 'demo.service', '10-metro-agent.conf'], '[Service]\nUser=agent\nExecStart=\nExecStart=+/bin/sh -c id\n').status !== 0);
+const vaultDropIn = '[Service]\nEnvironmentFile=-/home/agent/.metro/vault.env\n';
+check('the helper adds the vault environment file to the agent\'s timer job', rootHelper(['dropin-write', 'demo.service', '11-metro-vault.conf'], vaultDropIn).status === 0 && rootHelper(['dropin-remove', 'demo.service', '11-metro-vault.conf']).status === 0);
+check('the helper refuses a drop-in on a unit no timer starts', rootHelper(['dropin-write', 'other.service', '11-metro-vault.conf'], vaultDropIn).status !== 0);
+check('the helper refuses any other drop-in content', rootHelper(['dropin-write', 'demo.service', '11-metro-vault.conf'], `${vaultDropIn}ExecStart=\nExecStart=+/bin/sh -c id\n`).status !== 0);
+check('the helper refuses the old user drop-in', rootHelper(['dropin-write', 'demo.service', '10-metro-agent.conf'], '[Service]\nUser=agent\n').status !== 0);
+check('the helper takes only a version number for an upgrade', rootHelper(['upgrade', '../x']).status !== 0);
 check('the helper refuses a metro unit', rootHelper(['start-job', 'metro.service']).status !== 0);
 check('the helper refuses an unknown action', rootHelper(['sh']).status !== 0);
 

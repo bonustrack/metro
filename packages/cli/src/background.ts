@@ -12,7 +12,7 @@ const POLL_MS = 250;
 const given = (value: string | undefined): string | undefined =>
   value !== undefined && value.trim() !== '' ? value.trim() : undefined;
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+export const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export const keepInSession = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   given(env[AGENT_VIEW_OFF]) === undefined ? { ...env, [AGENT_VIEW_OFF]: '1' } : env;

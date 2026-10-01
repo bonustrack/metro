@@ -1,10 +1,16 @@
-export const HELPER_PATH = '/usr/local/lib/metro/root-helper';
-const HELPER_VERSION = 2;
+const ROOT_DIR = '/usr/local/lib/metro';
+export const HELPER_PATH = `${ROOT_DIR}/root-helper`;
+const HELPER_VERSION = 3;
 export const SUDOERS_PATH = '/etc/sudoers.d/metro';
 export const IMDS_UNIT = 'metro-imds.service';
 export const IMDS_UNIT_PATH = `/etc/systemd/system/${IMDS_UNIT}`;
+export const UPGRADE_UNIT = 'metro-root-upgrade@.service';
+export const UPGRADE_UNIT_PATH = `/etc/systemd/system/${UPGRADE_UNIT}`;
+const RELEASE_DIR = `${ROOT_DIR}/release`;
 export const METRO_USER = 'metro';
 const METRO_HOME = '/var/lib/metro';
+const VAULT_DROP_IN = '11-metro-vault.conf';
+const PRIVILEGED_EXEC = ['ExecConditionEx', 'ExecStartPreEx', 'ExecStartEx', 'ExecStartPostEx', 'ExecReloadEx', 'ExecStopEx', 'ExecStopPostEx'];
 
 export const sudoersText = (agent: string): string =>
   [
@@ -22,31 +28,23 @@ const CHECKS = lines(
   'die() { echo "root-helper: $*" >&2; exit 2; }',
   'agent_uid() { id -u "$AGENT" 2>/dev/null || die "no agent user"; }',
   'service_ok() {',
-  '  printf %s "$1" | grep -Eq "^[A-Za-z0-9@_.-]+\\.service$" || die "bad service name"',
+  '  case "$1" in [!A-Za-z0-9]*|*[!A-Za-z0-9@_.-]*|"") die "bad service name";; esac',
+  '  case "$1" in *.service) ;; *) die "bad service name";; esac',
   '  case "$1" in metro*) die "not a metro unit";; esac',
   '  frag=$(systemctl show "$1" -p FragmentPath --value)',
   '  case "$frag" in "$UNITS"/*) ;; *) die "not a unit under $UNITS";; esac',
   '  systemctl show "$1" -p TriggeredBy --value | grep -q "\\.timer" || die "not started by a timer"',
   '}',
+  'agent_only() {',
+  '  [ "$(systemctl show "$1" -p User --value)" = "$AGENT" ] || die "that job does not run as $AGENT"',
+  '  [ "$(systemctl show "$1" -p PermissionsStartOnly --value)" != yes ] || die "that job runs commands as root"',
+  '  [ -n "$(systemctl show "$1" -p ExecStartEx --value)" ] || die "cannot read the commands of that job"',
+  `  if systemctl show "$1" ${PRIVILEGED_EXEC.map((p) => `-p ${p}`).join(' ')} --value | grep -Eq "flags=[^;]*(privileged|no-setuid|ambient)"; then die "that job runs commands as root"; fi`,
+  '}',
   'dropin_ok() {',
-  '  case "$1" in 10-metro-agent.conf|11-metro-vault.conf) ;; *) die "bad drop-in name";; esac',
+  `  [ "$1" = ${VAULT_DROP_IN} ] || die "bad drop-in name"`,
   '  home=$(getent passwd "$AGENT" | cut -d: -f6)',
-  '  saw_user=0',
-  '  while IFS= read -r line; do',
-  '    case "$line" in',
-  '      "[Service]"|"") ;;',
-  '      "User=$AGENT") saw_user=1 ;;',
-  '      Group=*) printf %s "${line#Group=}" | grep -Eq "^[0-9]+$" || die "bad group" ;;',
-  '      "WorkingDirectory=$home"|"WorkingDirectory=$home"/*) ;;',
-  '      Environment=*) ;;',
-  '      "EnvironmentFile=-$home/.metro/vault.env") ;;',
-  '      "ExecStart=") ;;',
-  '      ExecStart=[+!@]*) die "privileged ExecStart refused" ;;',
-  '      ExecStart=*) ;;',
-  '      *) die "line not allowed: $line" ;;',
-  '    esac',
-  '  done < "$2"',
-  '  if [ "$1" = 10-metro-agent.conf ] && [ "$saw_user" != 1 ]; then die "the drop-in must set User=$AGENT"; fi',
+  '  printf \'[Service]\\nEnvironmentFile=-%s/.metro/vault.env\\n\' "$home" | cmp -s - "$2" || die "only the vault environment file may be added"',
   '}',
 );
 
@@ -112,6 +110,20 @@ export const imdsUnitText = (): string =>
     '',
   );
 
+export const upgradeUnitText = (node: string): string =>
+  lines(
+    '[Unit]',
+    'Description=Metro: bring the root side to Metro %i, checked against npm and its GitHub provenance',
+    'After=network-online.target',
+    'Wants=network-online.target',
+    '',
+    '[Service]',
+    'Type=oneshot',
+    `ExecStart=/usr/bin/flock ${ROOT_DIR} ${node} ${RELEASE_DIR}/dist/cli.js service root-upgrade %i`,
+    'TimeoutStartSec=900',
+    '',
+  );
+
 const ACTIONS = lines(
   'action="${1:-}"; [ "$#" -gt 0 ] && shift',
   'case "$action" in',
@@ -126,10 +138,10 @@ const ACTIONS = lines(
   '    uid=$(agent_uid); gid=$(id -g "$AGENT")',
   '    exec systemd-run --scope --quiet --collect --unit="metro-claude-$(date +%s%N)" -p MemoryMax="$max" -p MemoryHigh="$high" -p OOMPolicy=continue -- setpriv --reuid="$uid" --regid="$gid" --init-groups -- "$@" ;;',
   '  dropin-write)',
-  '    service_ok "$1"; tmp=$(mktemp); trap \'rm -f "$tmp"\' EXIT; cat > "$tmp"; dropin_ok "$2" "$tmp"',
+  '    service_ok "$1"; agent_only "$1"; tmp=$(mktemp); trap \'rm -f "$tmp"\' EXIT; head -c 4096 > "$tmp"; dropin_ok "$2" "$tmp"',
   '    mkdir -p "$UNITS/$1.d"; install -m 644 "$tmp" "$UNITS/$1.d/$2" ;;',
   '  dropin-remove)',
-  '    service_ok "$1"; case "$2" in 10-metro-agent.conf|11-metro-vault.conf) ;; *) die "bad drop-in name";; esac',
+  `    service_ok "$1"; [ "$2" = ${VAULT_DROP_IN} ] || die "bad drop-in name"`,
   '    rm -f "$UNITS/$1.d/$2" ;;',
   '  daemon-reload) systemctl daemon-reload ;;',
   '  start-job)',
@@ -149,6 +161,11 @@ const ACTIONS = lines(
   '    install -m 600 "$cur" "$backups/crontab-root.$(date +%Y-%m-%dT%H-%M-%S).bak"',
   '    crontab -u root "$kept"; rm -f "$cur" "$kept" ;;',
   '  imds-block) imds_block ;;',
+  '  upgrade)',
+  '    [ "$#" -eq 1 ] || die "usage: upgrade <version>"',
+  '    case "$1" in *[!0-9A-Za-z.-]*|"") die "bad version";; esac',
+  '    printf %s "$1" | grep -Eqx "[0-9]{1,9}\\.[0-9]{1,9}\\.[0-9]{1,9}(-[0-9A-Za-z]{1,20}(\\.[0-9A-Za-z]{1,20}){0,4})?" || die "bad version"',
+  `    systemctl start --no-block "${UPGRADE_UNIT.replace('@.', '@$1.')}" ;;`,
   '  firewall-on) firewall_on ;;',
   '  firewall-off) firewall_off ;;',
   '  trust-ca)',

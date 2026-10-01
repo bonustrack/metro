@@ -46,3 +46,5 @@ export function mustHelper(args: string[], input?: string): string {
 }
 
 export const helperArgv = (args: string[]): [string, string[]] => ['sudo', ['-n', HELPER_PATH, ...args]];
+
+export const rootStepHint = (version: string): string => `as root, once: npx -y @stage-labs/metro@${version} service install --user metro`;

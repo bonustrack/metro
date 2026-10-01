@@ -27,6 +27,7 @@ import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
 import { applyVault } from '../vault/index.js';
 import { blockImds } from '../metro-user/imds.js';
+import { followRelease } from '../metro-user/root-follow.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
 import { liveEvents, memoryRoutine, tryClaudeSetup } from '../claude/setup.js';
 import { tryMemoryJob } from '../claude/memory-routine.js';
@@ -174,6 +175,7 @@ async function startClaude(): Promise<void> {
   if (agentUser === 'failed') return;
   if (agentUser === 'ready') {
     blockImds();
+    followRelease();
     const vault = (await applyVault()).status;
     if (vault.enabled) log.info({ running: vault.running, problem: vault.problem }, 'vault: the agent reaches the internet through the vault');
   }

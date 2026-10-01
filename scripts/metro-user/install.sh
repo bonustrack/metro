@@ -5,6 +5,8 @@ useradd --system --create-home --home-dir /var/lib/metro --shell /usr/sbin/nolog
 chmod 711 /var/lib/metro
 tailscale up --operator=metro
 install -m 644 /pkg/metro.tgz /tmp/metro.tgz
+install -d -m 755 /usr/local/lib/metro/release
+tar -xzf /tmp/metro.tgz -C /usr/local/lib/metro/release --strip-components=1 --no-same-owner --no-same-permissions
 sudo -u metro -H sh -c "cd / && npm install --global --prefix /var/lib/metro/.npm-global /tmp/metro.tgz" >/dev/null 2>&1
 install -d -o metro -g metro -m 700 /var/lib/metro/.metro /var/lib/metro/.metro/agents
 printf '%s\n' 'metro-abc123' > /var/lib/metro/.metro/agents/.node && chown metro:metro /var/lib/metro/.metro/agents/.node && chmod 600 /var/lib/metro/.metro/agents/.node

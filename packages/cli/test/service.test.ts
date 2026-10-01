@@ -21,8 +21,8 @@ const mac: ServiceHost = {
   env: { PATH: '/opt/homebrew/bin', HOME: '/Users/less' },
 };
 
-const HELPER = '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/runtime/node_modules/@metro-labs/daemon/src/metro-user/install.ts';
-const METRO: RunAs = { name: 'metro', home: '/var/lib/metro', helper: HELPER };
+const METRO: RunAs = { name: 'metro', home: '/var/lib/metro' };
+const VERSION = '0.1.0-beta.247';
 
 interface Fake {
   deps: ServiceDeps;
@@ -45,7 +45,11 @@ function fake(host: ServiceHost, over: Partial<ServiceDeps> = {}): Fake {
       running: () => null,
       preflight: () => undefined,
       account: (name) => (name === 'metro' ? { name, home: '/var/lib/metro' } : null),
-      helperEntry: () => HELPER,
+      version: VERSION,
+      release: (version, trigger) => {
+        ran.push(`root release ${version} ${trigger}`);
+        return Promise.resolve();
+      },
       mkdir: (dir) => {
         ran.push(`mkdir ${dir}`);
       },
@@ -98,7 +102,7 @@ describe('what metro service writes', () => {
     expect(plan.content).toContain('Environment=HOME=/var/lib/metro\nEnvironment=PATH=/var/lib/metro/.npm-global/bin:/usr/local/bin:/usr/bin:/bin\nEnvironment=NPM_CONFIG_PREFIX=/var/lib/metro/.npm-global\nEnvironment=METRO_WEBHOOK_PORT=8421\n');
     expect(plan.content).toContain('WantedBy=multi-user.target');
     expect(plan.content).not.toContain('/root');
-    expect(plan.install.map((c) => c.args.join(' '))).toEqual([`bun ${HELPER}`, 'systemctl daemon-reload', 'systemctl enable --now metro']);
+    expect(plan.install.map((c) => c.args.join(' '))).toEqual(['systemctl daemon-reload', 'systemctl enable --now metro']);
     expect(plan.hints).toEqual(['Logs:  journalctl -u metro -f']);
   });
 
@@ -159,7 +163,7 @@ describe('metro service install, uninstall and status', () => {
     expect(f.lines[0]).toContain('Installed /etc/systemd/system/metro.service');
   });
 
-  test('install --user metro writes the helper first, then the unit, and checks the owner against the metro user files', async () => {
+  test('install --user metro installs the verified root side first, then the unit, and checks the owner against the metro user files', async () => {
     const seen: (string | undefined)[] = [];
     const f = fake(linuxRoot, {
       preflight: (_args, agents) => {
@@ -168,7 +172,7 @@ describe('metro service install, uninstall and status', () => {
     });
     expect(await service(['install', '--owner', 'org_01M2TNE064H99ECTG4X228Y6B6', '--user', 'metro'], f.deps)).toBe(0);
     expect(seen).toEqual(['/var/lib/metro/.metro/agents']);
-    expect(f.ran).toEqual([`bun ${HELPER}`, 'systemctl daemon-reload', 'systemctl enable --now metro']);
+    expect(f.ran).toEqual([`root release ${VERSION} root`, 'systemctl daemon-reload', 'systemctl enable --now metro']);
     expect(f.files.get('/etc/systemd/system/metro.service')).toContain('User=metro\n');
     const inline = fake(linuxRoot);
     expect(await service(['install', '--user=metro', '--port', '8430'], inline.deps)).toBe(0);
@@ -202,13 +206,28 @@ describe('metro service install, uninstall and status', () => {
     expect(f.files.get('/etc/systemd/system/metro.service')).toBe('old');
   });
 
-  test('install --user metro on a box that already has the unit only refreshes the root helper', async () => {
+  test('install --user metro on a box that already has the unit only brings the root side to this version', async () => {
     const f = fake(linuxRoot, { preflight: () => { throw new Error('no preflight on a refresh'); } });
     f.files.set('/etc/systemd/system/metro.service', 'old');
     expect(await service(['install', '--user', 'metro'], f.deps)).toBe(0);
-    expect(f.ran).toEqual([`bun ${HELPER}`]);
-    expect(f.lines[0]).toContain('root helper, sudo rules and metadata guard are now current');
+    expect(f.ran).toEqual([`root release ${VERSION} root`]);
+    expect(f.lines[0]).toContain('follows every update by itself from now on');
     expect(f.files.get('/etc/systemd/system/metro.service')).toBe('old');
+  });
+
+  test('a root side that cannot be verified stops the install before the unit is written', async () => {
+    const f = fake(linuxRoot, { release: () => Promise.reject(new Error('the provenance signature does not check out; refused')) });
+    await expect(service(['install', '--user', 'metro'], f.deps)).rejects.toThrow(/refused/);
+    expect(f.files.size).toBe(0);
+    expect(f.ran).toEqual([]);
+  });
+
+  test('root-upgrade asks for exactly the version given, as metro\'s request, and only root on Linux may run it', async () => {
+    const f = fake(linuxRoot);
+    expect(await service(['root-upgrade', '0.1.0-beta.248'], f.deps)).toBe(0);
+    expect(f.ran).toEqual(['root release 0.1.0-beta.248 metro']);
+    await expect(service(['root-upgrade', '0.1.0-beta.248'], fake(linuxUser).deps)).rejects.toThrow(/for root on Linux/);
+    expect(() => service(['root-upgrade'], f.deps)).toThrow(/usage: metro service/);
   });
 
   test('metro stop names the service that is about to restart what it stopped', () => {

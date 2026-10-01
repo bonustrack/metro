@@ -3,10 +3,13 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, platform, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { serveLockedBy } from './control.js';
-import { findBun, runtimeDir } from './runtime.js';
+import { installRelease, type Trigger } from './root-release.js';
+import { realReleaseDeps } from './root-release-io.js';
+import { findBun } from './runtime.js';
 import { findTailscale, parseServeArgs, requireOwner, type ServeArgs } from './serve.js';
+import { currentVersion } from './version.js';
 
-const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] [--user metro] | uninstall | status';
+const USAGE = 'usage: metro service install [--port <n>] [--owner <organization id>] [--user metro] | uninstall | status | root-upgrade <version> (root only)';
 const SERVICE = 'metro';
 const LABEL = 'box.metro.serve';
 const CARRIED = /^(METRO_.*|XDG_CACHE_HOME|PATH|HOME)$/;
@@ -28,7 +31,6 @@ export interface ServiceHost {
 export interface RunAs {
   name: string;
   home: string;
-  helper: string;
 }
 
 interface Command {
@@ -53,8 +55,9 @@ export interface ServiceDeps {
   run: (command: Command) => { status: number; output: string };
   running: () => number | null;
   preflight: (args: ServeArgs, agents?: string) => void;
-  account: (name: string) => { name: string; home: string } | null;
-  helperEntry: () => string;
+  account: (name: string) => RunAs | null;
+  version: string;
+  release: (version: string, trigger: Trigger) => Promise<unknown>;
   mkdir: (dir: string) => void;
   write: (file: string, content: string) => void;
   remove: (file: string) => void;
@@ -174,7 +177,7 @@ function systemdPlan(host: ServiceHost, serveArgs: string[], runAs?: RunAs): Ser
     file,
     content: runAs === undefined ? systemdUnit(host, exec, system ? 'multi-user.target' : 'default.target') : runAsUnit(host, runAs, serveArgs),
     dirs: [],
-    install: [...(runAs === undefined ? [] : [{ args: ['bun', runAs.helper] }]), { args: [...ctl, 'daemon-reload'] }, { args: [...ctl, 'enable', '--now', SERVICE] }],
+    install: [{ args: [...ctl, 'daemon-reload'] }, { args: [...ctl, 'enable', '--now', SERVICE] }],
     uninstall: [{ args: [...ctl, 'disable', '--now', SERVICE], mayFail: true }],
     reload: [{ args: [...ctl, 'daemon-reload'], mayFail: true }],
     status: { args: [...ctl, 'is-active', SERVICE], mayFail: true },
@@ -239,21 +242,32 @@ function runAsOf(name: string | null, deps: ServiceDeps): RunAs | undefined {
     throw new Error(`the root helper and its sudo rules are written for the user ${METRO_USER}; pass --user ${METRO_USER}, not '${name}'`);
   const account = deps.account(name);
   if (account === null) throw new Error(`there is no user ${name} on this machine; create it first (useradd --system --create-home --home-dir /var/lib/${name} ${name})`);
-  return { ...account, helper: deps.helperEntry() };
+  return account;
 }
 
-function install(argv: string[], deps: ServiceDeps): number {
+async function refreshRoot(plan: ServicePlan, deps: ServiceDeps): Promise<number> {
+  await deps.release(deps.version, 'root');
+  deps.out(`metro is already installed as a ${plan.kind} service (${plan.file}); its root side is current and follows every update by itself from now on, and the service keeps running`);
+  return 0;
+}
+
+function writeService(plan: ServicePlan, deps: ServiceDeps): number {
+  for (const dir of plan.dirs) deps.mkdir(dir);
+  deps.write(plan.file, plan.content);
+  for (const command of plan.install) deps.run(command);
+  deps.out(
+    `Installed ${plan.file}: metro serve now starts at boot and after a crash, and the Server page on metro.box can stop, start and restart it.`,
+  );
+  for (const hint of plan.hints) deps.out(hint);
+  return 0;
+}
+
+function install(argv: string[], deps: ServiceDeps): number | Promise<number> {
   const { user, rest: serveArgs } = splitUser(argv);
   const args = parseServeArgs(serveArgs);
   const runAs = runAsOf(user, deps);
   const plan = servicePlan(deps.host, serveArgs, runAs);
-  if (deps.exists(plan.file) && runAs !== undefined) {
-    deps.run({ args: ['bun', runAs.helper] });
-    deps.out(
-      `metro is already installed as a ${plan.kind} service (${plan.file}); its root helper, sudo rules and metadata guard are now current, and the service keeps running`,
-    );
-    return 0;
-  }
+  if (deps.exists(plan.file) && runAs !== undefined) return refreshRoot(plan, deps);
   if (deps.exists(plan.file)) {
     deps.out(
       `metro is already installed as a ${plan.kind} service (${plan.file}) and restarts on its own; metro service status says whether it is running. To change its arguments: metro service uninstall, then install again`,
@@ -266,13 +280,13 @@ function install(argv: string[], deps: ServiceDeps): number {
     throw new Error(
       `a metro serve is running on this machine (pid ${String(pid)}). Stop it first (metro stop), then install: the service takes over from there`,
     );
-  for (const dir of plan.dirs) deps.mkdir(dir);
-  deps.write(plan.file, plan.content);
-  for (const command of plan.install) deps.run(command);
-  deps.out(
-    `Installed ${plan.file}: metro serve now starts at boot and after a crash, and the Server page on metro.box can stop, start and restart it.`,
-  );
-  for (const hint of plan.hints) deps.out(hint);
+  if (runAs === undefined) return writeService(plan, deps);
+  return deps.release(deps.version, 'root').then(() => writeService(plan, deps));
+}
+
+async function rootUpgrade(version: string, deps: ServiceDeps): Promise<number> {
+  if (deps.host.platform !== 'linux' || deps.host.uid !== 0) throw new Error('metro service root-upgrade is for root on Linux; the metro-root-upgrade unit runs it');
+  await deps.release(version, 'metro');
   return 0;
 }
 
@@ -352,7 +366,8 @@ function realDeps(): ServiceDeps {
     },
     running: serveLockedBy,
     account: lookupAccount,
-    helperEntry: () => join(runtimeDir(), 'node_modules', '@metro-labs', 'daemon', 'src', 'metro-user', 'install.ts'),
+    version: currentVersion(),
+    release: (version, trigger) => installRelease(version, trigger, realReleaseDeps()),
     preflight: (args, agents) => {
       requireOwner(args, agents);
       findBun();
@@ -380,5 +395,6 @@ export function service(argv: string[], deps: ServiceDeps = realDeps()): Promise
   if (verb === 'install') return Promise.resolve(install(rest, deps));
   if (verb === 'uninstall' && rest.length === 0) return Promise.resolve(uninstall(deps));
   if (verb === 'status' && rest.length === 0) return Promise.resolve(status(deps));
+  if (verb === 'root-upgrade' && rest.length === 1) return rootUpgrade(rest[0] ?? '', deps);
   throw new Error(USAGE);
 }

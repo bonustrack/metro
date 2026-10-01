@@ -1,7 +1,6 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { log } from '@metro-labs/core/log';
-import { rootHelper, type HelperResult } from './privilege.js';
+import { METRO_VERSION } from '@metro-labs/core/version';
+import { rootHelper, rootStepHint, type HelperResult } from './privilege.js';
 
 export function blockImds(run: (args: string[]) => HelperResult = rootHelper): boolean {
   const result = run(['imds-block']);
@@ -10,7 +9,7 @@ export function blockImds(run: (args: string[]) => HelperResult = rootHelper): b
     return true;
   }
   log.warn(
-    { err: result.stderr.trim(), fix: `as root: ${join(homedir(), '.npm-global', 'bin', 'metro')} service install --user metro` },
+    { err: result.stderr.trim(), fix: rootStepHint(METRO_VERSION) },
     'imds: the agent can still read the instance metadata (setup data, instance role), since the root helper on this box predates the guard',
   );
   return false;

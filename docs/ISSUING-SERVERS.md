@@ -178,10 +178,76 @@ credentials. The agent has no use for either, so the agent may not ask:
   gets the same wall.
 - **Boxes installed before helper version 2** keep an older helper, which
   `metro` cannot replace. The daemon logs `imds: the agent can still read the
-  instance metadata` at every start until someone with root runs, once:
-  `/var/lib/metro/.npm-global/bin/metro service install --user metro`. On a
-  box that is already installed this only rewrites the helper, the sudo rules
-  and the unit, and leaves the service running.
+  instance metadata` at every start until the one root run of the next
+  section is done.
+
+## The root side follows updates
+
+Root work on a box goes through one helper, `/usr/local/lib/metro/root-helper`,
+that `metro` may run with sudo. Until helper version 3 a new helper needed a
+root shell on every box. Now the root side upgrades itself when the box
+updates, and the `metro` user still cannot run any code of its choice as root
+(Less, 2026-10-01, #112).
+
+- **What metro can do:** run the helper's `upgrade <version>`. The helper
+  takes only a plain version (`1.2.3` or `1.2.3-beta.4`) and starts
+  `metro-root-upgrade@<version>.service` without waiting. That is all metro
+  passes: no file, no path, no package.
+- **What root does:** the unit (oneshot, one at a time under `flock`) runs
+  `node /usr/local/lib/metro/release/dist/cli.js service root-upgrade <version>`
+  from root's own copy of Metro. It refuses unless all of these hold:
+  1. the version is newer than root's copy (never the same, never older);
+  2. it is what the `beta` or `latest` tag of `@stage-labs/metro` points to now;
+  3. the tarball is `https://registry.npmjs.org/@stage-labs/metro/-/metro-<version>.tgz`
+     and matches the sha512 npm publishes for it;
+  4. npm holds a SLSA provenance for it whose Sigstore signature checks out,
+     signed by GitHub Actions for
+     `https://github.com/bonustrack/metro/.github/workflows/publish-cli.yml@refs/heads/main`,
+     and whose statement names this package, this version and this tarball's
+     sha512. The check uses the `sigstore` library that ships inside npm, next
+     to root's `node`, and only when every folder up to it belongs to root.
+
+  Then it unpacks the tarball into `/usr/local/lib/metro/release.new` (root,
+  0755) and runs that copy's `metro-user/install.ts` with root's own Bun
+  (`--no-install`, a clean environment, from `/`). That writes the helper, the
+  sudo rules, `metro-imds.service` and the upgrade unit. Only then does
+  `release.new` replace `release`. A failure keeps the old copy and says why
+  in the journal: `journalctl -u 'metro-root-upgrade@*'`.
+- **Why metro cannot get root from it:** root never reads a file metro wrote
+  and never runs code from a path metro can write. The copy, the units, node,
+  npm and Bun are root's. A version string is all metro controls, and the most
+  it can do is ask early for the newest signed release. A stolen npm token is
+  not enough either: a package published outside the repo's publish workflow
+  on `main` has no matching provenance (old versions published by
+  `publish.yml` are refused the same way). The check rests on the Sigstore
+  signature, not only on TLS, so a certificate metro added to the system store
+  (the vault's `trust-ca`) changes nothing.
+- **When it runs:** the daemon asks at every start (`followRelease` in
+  `metro-user/root-follow.ts`), so after every Update, and again at the next
+  start after a failed try.
+- **A new box** gets all of it from cloud-init: `metro service install --user
+  metro` does the same checked install of its own version before it writes the
+  service (root chose that version, so the tag rule does not apply there).
+- **A box whose helper is older needs one root run, then never again:**
+
+  ```
+  ssh root@<box> npx -y @stage-labs/metro@<version> service install --user metro
+  ```
+
+  `npx` as root fetches its own copy, so no file metro can write runs as root
+  even then. The daemon logs this command, with its version, at every start
+  until it is done. Run on a box that already has it, the command only runs
+  root's setup again; it never installs an older copy.
+- **The drop-in writer** (version 3): `dropin-write` takes only
+  `11-metro-vault.conf` with exactly `[Service]` and
+  `EnvironmentFile=-<agent home>/.metro/vault.env`, and only on a timer job
+  that runs as the agent with no command run with root rights (`+`, `!`, `!!`
+  or `PermissionsStartOnly`, read from systemd's `Exec*Ex` properties; a
+  systemd too old to show them is refused). Before, metro could add
+  `ExecStart=` or `Environment=` lines to a timer job that runs as root, or
+  hide `User=agent` behind a line continuation, and get root that way.
+  `10-metro-agent.conf` is gone, and a service name must start with a letter
+  or digit, so it can never read as a `systemctl` flag.
 
 ## Two AWS account traps
 
@@ -354,8 +420,7 @@ until AWS reports `optimizing` or `completed`, which is when the new size is
 usable (usually seconds), then `RebootInstances` once. At boot, cloud-init's
 `growpart` and `resizefs` grow the partition and the file system to the whole
 disk, so the box comes back with the space after about a minute. Metro itself
-cannot grow the file system without a restart: it has no root, and the root
-helper cannot change without a root shell on every box. A stopped box is not
+cannot grow the file system without a restart: it has no root. A stopped box is not
 started: it uses the space when it starts.
 
 AWS takes the next change to a disk only once the last one is `completed`

@@ -18,11 +18,11 @@ describe('Metro as its own user', () => {
     expect(rules.split('\n').filter((l) => l.includes('(root)'))).toHaveLength(1);
   });
 
-  test('the helper only knows its own actions and refuses privileged service lines', () => {
+  test('the helper only knows its own actions and adds nothing to a unit but the vault environment file', () => {
     const helper = helperScript();
     expect(helper).toContain('*) die "unknown action: $action"');
-    expect(helper).toContain('ExecStart=[+!@]*) die "privileged ExecStart refused"');
-    expect(helper).toContain('*) die "line not allowed: $line"');
+    expect(helper).toContain('die "only the vault environment file may be added"');
+    expect(helper).not.toContain('10-metro-agent.conf');
     expect(helper).toContain('case "$1" in metro*) die "not a metro unit";; esac');
     expect(helper).not.toContain('eval');
   });
@@ -97,9 +97,9 @@ describe('only root and metro reach the instance metadata service', () => {
     expect(v4.calls).toContain('iptables -w -I OUTPUT -d 169.254.169.254 -j METRO_IMDS');
   });
 
-  test('the helper says version 2, so a box can tell it has the guard', () => {
+  test('the helper says version 3, so a box can tell it has the guard and follows updates', () => {
     const run = spawnSync('sh', ['-c', helperScript(), 'root-helper', 'version'], { encoding: 'utf8' });
-    expect(run.stdout.trim()).toBe('2');
+    expect(run.stdout.trim()).toBe('3');
   });
 
   test('a boot unit applies it before the network comes up, so a reboot never leaves a gap', () => {

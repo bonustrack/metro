@@ -18,8 +18,8 @@ report() { if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1"; fails=1; 
 report "a fresh install runs Metro as the metro user, healthy, with nothing under /root" "$r"
 [ "$(docker exec "$name" systemctl show metro -p User --value)" = metro ] && [ "$(docker exec "$name" systemctl show metro -p OOMPolicy --value)" = continue ] && r=ok || r=no
 report "the unit names the metro user and keeps running when one process is killed" "$r"
-[ "$(docker exec -u metro "$name" sudo -n /usr/local/lib/metro/root-helper version)" = 2 ] && [ "$(docker exec "$name" stat -c %a /etc/sudoers.d/metro)" = 440 ] && r=ok || r=no
-report "the install wrote the root helper and the checked sudo rules" "$r"
+[ "$(docker exec -u metro "$name" sudo -n /usr/local/lib/metro/root-helper version)" = 3 ] && docker exec "$name" test -f /etc/systemd/system/metro-root-upgrade@.service && [ "$(docker exec "$name" stat -c %a /etc/sudoers.d/metro)" = 440 ] && r=ok || r=no
+report "the install wrote the root helper, the checked sudo rules and the root upgrade unit" "$r"
 for _ in $(seq 1 120); do docker exec "$name" test -x /home/agent/.local/bin/claude 2>/dev/null && break; sleep 5; done
 docker exec "$name" id agent >/dev/null 2>&1 && r=ok || r=no
 report "Metro created the agent user and installed Claude Code for it" "$r"
