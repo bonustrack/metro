@@ -104,9 +104,12 @@ delete and the Usage charts use.
 
 The second statement is only for a resize, a disk grow and a delete, and only
 on instances and disks with a `metro` tag, which every box Metro launches
-carries: the key cannot stop, change, grow or terminate anything else in the
-account. Disks launched before 2026-09-29 have no `metro` tag; Metro writes the
-box's own tag on its disk (`CreateTags`) just before it grows it the first time. It holds no `DeleteVolume`:
+carries. That guards against a mistake, not against a stolen key: the first
+statement allows `CreateTags` anywhere, so the key could tag something else
+first. Disks launched before 2026-09-29 have no `metro` tag; Metro writes the
+box's own tag on its disk (`CreateTags`) just before it grows it the first
+time, and retries `ModifyVolume` for up to 30 seconds while AWS spreads the new
+tag to IAM. It holds no `DeleteVolume`:
 a box's disk goes with it through `DeleteOnTermination`. Before 2026-09-29 the
 policy had neither `DescribeVolumes` nor `TerminateInstances`, and the Delete
 dialog then names the missing one. `DescribeInstanceTypes` lists the sizes,

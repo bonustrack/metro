@@ -112,6 +112,36 @@ describe('growing the disk', () => {
     );
   });
 
+  test('a just tagged disk waits for the tag to reach IAM before ModifyVolume gives up', async () => {
+    const disks = fakeDisks({ volumes: [volume({ tags: {} })] });
+    const aws = fakeGrowAws(disks);
+    const grow = aws.grow;
+    let denials = 2;
+    aws.grow = (target, volumeId, sizeGib) => {
+      if (denials === 0) return grow(target, volumeId, sizeGib);
+      denials -= 1;
+      disks.calls.push('ModifyVolume denied');
+      return Promise.reject(new AwsError('UnauthorizedOperation', 'not yet', 'ec2:ModifyVolume'));
+    };
+    const began = disks.clock;
+    const disk = await readRootDisk(aws, TARGET, OWNER);
+    const job = await startGrow(aws, TARGET, disk, 16);
+    expect(writes(disks)).toEqual([`CreateTags ${BOX_DISK} metro=metro-thrw01`, 'ModifyVolume denied', 'ModifyVolume denied', `ModifyVolume ${BOX_DISK} 16`]);
+    expect(disks.clock - began).toBe(6_000);
+    expect(job.phase).toBe('growing');
+    denials = 9;
+    const again = await startGrow(aws, TARGET, { ...disk, tagged: false }, 16).catch((e: unknown) => e);
+    expect(again).toMatchObject({ code: 'UnauthorizedOperation' });
+  });
+
+  test('a tagged disk is not retried: a refusal there is the policy', async () => {
+    const disks = fakeDisks({ refuse: { grow: new AwsError('UnauthorizedOperation', 'no', 'ec2:ModifyVolume') } });
+    const aws = fakeGrowAws(disks);
+    const disk = await readRootDisk(aws, TARGET, OWNER);
+    await expect(startGrow(aws, TARGET, disk, 16)).rejects.toBeInstanceOf(AwsError);
+    expect(writes(disks)).toEqual([`ModifyVolume ${BOX_DISK} 16`]);
+  });
+
   test('a refused ModifyVolume throws before any job exists', async () => {
     const disks = fakeDisks({ refuse: { grow: new AwsError('UnauthorizedOperation', 'no', 'ec2:ModifyVolume') } });
     const aws = fakeGrowAws(disks);

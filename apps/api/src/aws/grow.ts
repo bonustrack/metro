@@ -1,10 +1,11 @@
-import { NODE_TAG } from './ec2.js';
+import { AwsError, NODE_TAG } from './ec2.js';
 import { explain, type Ec2Target } from './resize.js';
 import { growVolume, lastModification, rebootInstance, tagVolumeNode, type Modification } from './disk.js';
 import { describeInstanceFacts, describeVolumeFacts, nodeIn, tagMismatch, type InstanceFacts, type VolumeFacts } from './teardown.js';
 
 const POLL_MS = 5_000;
 const WAIT_LIMIT_MS = 10 * 60_000;
+const TAG_SETTLE_MS = [2_000, 4_000, 8_000, 16_000];
 const MAX_GIB: Record<string, number> = { gp2: 16_384, gp3: 65_536, io1: 16_384, io2: 65_536, st1: 16_384, sc1: 16_384, standard: 1_024 };
 const OFFERED_GIB = [16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048];
 
@@ -113,9 +114,21 @@ export async function readRootDisk(aws: GrowAws, target: Ec2Target, owner: Owner
   };
 }
 
+async function growJustTagged(aws: GrowAws, target: Ec2Target, volumeId: string, sizeGib: number): Promise<Modification | null> {
+  for (const wait of TAG_SETTLE_MS) {
+    try {
+      return await aws.grow(target, volumeId, sizeGib);
+    } catch (err) {
+      if (!(err instanceof AwsError && err.code === 'UnauthorizedOperation')) throw err;
+      await aws.sleep(wait);
+    }
+  }
+  return aws.grow(target, volumeId, sizeGib);
+}
+
 export async function startGrow(aws: GrowAws, target: Ec2Target, disk: RootDisk, sizeGib: number): Promise<GrowJob> {
   if (!disk.tagged) await aws.tag(target, disk.volumeId, disk.node);
-  const started = await aws.grow(target, disk.volumeId, sizeGib);
+  const started = disk.tagged ? await aws.grow(target, disk.volumeId, sizeGib) : await growJustTagged(aws, target, disk.volumeId, sizeGib);
   return {
     from: disk.sizeGib,
     to: sizeGib,
