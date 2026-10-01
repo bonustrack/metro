@@ -1,9 +1,9 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import { TelegramClient } from '@mtcute/bun';
 import { TrainError } from '@metro-labs/core/train-error';
 import { errMsg } from '@metro-labs/core/log';
+import { ensureSecureDir } from '@metro-labs/core/secure-fs';
 import type { UserAccount } from './types.js';
 
 const STATE_DIR =
@@ -25,7 +25,7 @@ export interface UserClient {
 
 function storagePath(accountId: string): string {
   const dir = join(STATE_DIR, 'telegram');
-  mkdirSync(dir, { recursive: true });
+  ensureSecureDir(dir);
   return join(dir, `${accountId}.session`);
 }
 

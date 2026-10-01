@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
   closeSync,
-  mkdirSync,
   openSync,
   readFileSync,
   unlinkSync,
@@ -11,10 +10,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@metro-labs/core/log';
+import { ensureSecureDir } from '@metro-labs/core/secure-fs';
 
 export const STATE_DIR =
   process.env.METRO_STATE_DIR ?? join(homedir(), '.cache', 'metro');
-mkdirSync(STATE_DIR, { recursive: true });
+ensureSecureDir(STATE_DIR);
 
 
 export function trainsDir(): string {
