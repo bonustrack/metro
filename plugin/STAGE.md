@@ -57,3 +57,19 @@ Move it from Backlog or To-do to In progress, then In review, then Done. Use Blo
   ]}}}
   ```
 - A tap comes back to you as a reply to the frame: `Frame action: deploy {"version":"2.4","note":"…"} (tapped "Deploy")`. The values of the fields (`Input`, `Select`, `Checkbox`, …) are added to the payload by their `name`. `Button.onClickAction`, `ListViewItem.onClickAction`, a `Card` `confirm`/`cancel` (`{"label", "action"}`) and a `Form` `onSubmitAction` send one. Answer it like any message.
+- Screens: send `screens` instead of `widget` to put several screens in one frame, e.g. a list and a page per item. Each screen is a widget, or `{"title", "widget"}` for its own title in Stage's top bar. `start` names the first screen and is required. The action `{"type": "frame.open", "payload": {"screen": "<id>"}}` opens a screen and `{"type": "frame.back"}` goes back. They stay in Stage: no message comes to you. Stage's back arrow goes to the previous screen, and to the chat from the first one. Every other action comes to you as usual, with `screen` (the screen it was tapped on) in its payload. At most 50 screens and 64K characters for all of them; `start` and every `frame.open` must name a screen. Example:
+  ```json
+  {"line": "…", "frame": {"title": "Open invoices", "start": "home", "screens": {
+    "home": {"type": "ListView", "children": [
+      {"type": "ListViewItem", "onClickAction": {"type": "frame.open", "payload": {"screen": "inv-1"}},
+        "children": [{"type": "Text", "value": "Acme, CHF 420"}]}
+    ]},
+    "inv-1": {"title": "Acme", "widget": {"type": "Card", "children": [
+      {"type": "Title", "value": "Invoice 1040, CHF 420"},
+      {"type": "Row", "children": [
+        {"type": "Button", "label": "Back", "color": "secondary", "onClickAction": {"type": "frame.back"}},
+        {"type": "Button", "label": "Pay", "onClickAction": {"type": "invoice.pay", "payload": {"id": 1040}}}
+      ]}
+    ]}}
+  }}}
+  ```

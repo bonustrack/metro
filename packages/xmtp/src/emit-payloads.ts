@@ -312,7 +312,6 @@ function frameEnvelope(
     const frame: FrameContent = {
       ...(typeof f.title === 'string' ? { title: f.title } : {}),
       ...(typeof f.description === 'string' ? { description: f.description } : {}),
-      widget: typeof f.widget === 'object' && f.widget !== null ? f.widget : {},
     };
     return { ...base, text: frameFallback(frame), payload: { contentType: typeId, frame: c } };
   }

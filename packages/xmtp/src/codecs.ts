@@ -173,7 +173,9 @@ export const ContentTypeFrame: ContentTypeId = {
 export interface FrameContent {
   title?: string;
   description?: string;
-  widget: Record<string, unknown>;
+  widget?: Record<string, unknown>;
+  screens?: Record<string, unknown>;
+  start?: string;
 }
 export const frameFallback = (c: FrameContent): string => {
   const head = c.title ? `Frame: ${c.title}` : 'Frame';

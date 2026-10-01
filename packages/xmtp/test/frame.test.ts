@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { accounts, type Account } from '../src/accounts.ts';
 import { handleCall } from '../src/actions.ts';
 import { ContentTypeFrame, ContentTypeFrameAction, FrameCodec, type FrameContent } from '../src/codecs.ts';
-import { FRAME_MAX_CHARS, buildFrameContent, frameSummary } from '../src/frames.ts';
+import { FRAME_MAX_CHARS, FRAME_MAX_SCREENS, buildFrameContent, frameSummary } from '../src/frames.ts';
 import { typedEnvelope } from '../src/emit-payloads.ts';
 
 const accountId = 'frame-test';
@@ -68,6 +68,48 @@ describe('frame content', () => {
   test('refuses a widget over the size limit', () => {
     const big = { type: 'Card', children: [{ type: 'Text', value: 'x'.repeat(FRAME_MAX_CHARS) }] };
     expect(() => buildFrameContent({ widget: big })).toThrow(/limit is 65536/);
+  });
+});
+
+describe('frames with screens', () => {
+  const open = (screen: string) => ({ type: 'frame.open', payload: { screen } });
+  const home = { type: 'ListView', children: [{ type: 'ListViewItem', onClickAction: open('s1'), children: [{ type: 'Text', value: 'Story one' }] }] };
+  const story = { type: 'Card', children: [{ type: 'Title', value: 'Story one' }, { type: 'Button', label: 'Back', onClickAction: { type: 'frame.back' } }] };
+
+  test('screens go as they are, and the summary comes from the start screen', () => {
+    const screens = { home, s1: { title: ' Story ', widget: story } };
+    expect(buildFrameContent({ title: 'HN', screens, start: 'home' })).toEqual({
+      frame: { title: 'HN', screens: { home, s1: { title: 'Story', widget: story } }, start: 'home' },
+      title: 'HN',
+    });
+    expect(buildFrameContent({ screens, start: 's1' }).frame).toEqual({
+      title: 'Story one', screens: { home, s1: { title: 'Story', widget: story } }, start: 's1',
+    });
+    expect(buildFrameContent(JSON.stringify({ screens: JSON.stringify({ home, s1: story }), start: 'home' })).frame.screens).toEqual({ home, s1: story });
+  });
+
+  test.each([
+    ['both a widget and screens', { widget: story, screens: { home } }, /not both/],
+    ['no screens', { screens: {} }, /1 to 50 screens/],
+    ['too many screens', { screens: Object.fromEntries(Array.from({ length: FRAME_MAX_SCREENS + 1 }, (_, i) => [`s${i}`, story])) }, /not 51/],
+    ['an empty id', { screens: { '': story } }, /screen ids/],
+    ['a screen that is not a widget', { screens: { home, s1: { children: [] } } }, /frame screen "s1" must be/],
+    ['a titled screen without a widget type', { screens: { home: { title: 'x', widget: {} } } }, /frame screen "home" widget must be/],
+    ['no start', { screens: { home, s1: story } }, /start is required with screens/],
+    ['an unknown start', { screens: { home, s1: story }, start: 'nope' }, /start is required with screens/],
+    ['a frame.open to no screen', { screens: { home }, start: 'home' }, /frame.open goes to screen "s1"/],
+    ['screens not an object', { screens: [home] }, /frame screens must be an object/],
+  ])('refuses %s', (_, frame, message) => {
+    expect(() => buildFrameContent(frame)).toThrow(message);
+  });
+
+  test('the size limit holds over all the screens', () => {
+    const half = { type: 'Card', children: [{ type: 'Text', value: 'x'.repeat(FRAME_MAX_CHARS / 2) }] };
+    expect(() => buildFrameContent({ screens: { a: half, b: half }, start: 'a' })).toThrow(/frame screens is \d+ characters; the limit is 65536/);
+  });
+
+  test('a frame with screens reads as its title', () => {
+    expect(typedEnvelope(base, 'frame', { title: 'HN', screens: { home } }, ctx)?.text).toBe('Frame: HN');
   });
 });
 

@@ -73,7 +73,8 @@ export const COMMON_TOOLS: ToolDef[] = [
             'Stage (XMTP) only: a frame, a small interactive view that Stage shows as a card (title and ' +
             'description) and opens full screen. `widget` is OpenAI ChatKit widget JSON (a Card, ListView ' +
             'or Basic root, 64K characters at most); a missing `title` or `description` is taken from the ' +
-            'widget. A tap comes back to you as a reply to the frame: "Frame action: <type> <payload ' +
+            'widget. Or give `screens` instead of `widget` for several screens in one frame. A tap comes back ' +
+            'to you as a reply to the frame: "Frame action: <type> <payload ' +
             "JSON>\". It is sent after the text, and the message_id returned is the frame's. The stage " +
             'skill lists the widget nodes, with an example.',
           properties: {
@@ -84,10 +85,18 @@ export const COMMON_TOOLS: ToolDef[] = [
                 '{"type":"Button","label":"Ship it","onClickAction":{"type":"deploy","payload":{"env":"prod"}}}]}.',
               additionalProperties: true,
             },
+            screens: {
+              type: 'object',
+              description:
+                'Instead of `widget`: up to 50 screens by id, each a widget or {"title", "widget"}, 64K ' +
+                'characters in all. An action {"type":"frame.open","payload":{"screen":"<id>"}} opens a ' +
+                'screen and {"type":"frame.back"} goes back, in Stage, with no message to you.',
+              additionalProperties: true,
+            },
+            start: { type: 'string', description: 'Required with `screens`: the id of the first screen.' },
             title: { type: 'string', description: 'Card title in the chat (200 characters at most).' },
             description: { type: 'string', description: 'Card description in the chat (1000 characters at most).' },
           },
-          required: ['widget'],
         },
       },
       required: ['line'],
