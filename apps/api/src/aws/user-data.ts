@@ -17,7 +17,6 @@ export interface BoxSpec {
   hostname: string;
   node: string;
   owner: string;
-  tailscaleAuthKey: string;
   metroTag: string;
 }
 
@@ -30,8 +29,17 @@ function checkAuthKey(value: string): string {
   if (AUTH_KEY_RE.test(value)) return value;
   if (value === '') throw new Error('The Tailscale auth key is required.');
   throw new Error(
-    'The Tailscale auth key does not look right: an auth key starts with tskey-auth-. An API access token (tskey-api-) or a client secret cannot join a machine; generate an auth key under Settings, Keys in the Tailscale admin console.',
+    'The Tailscale auth key does not look right: an auth key starts with tskey-auth-. An API access token (tskey-api-) or a client secret cannot join a machine.',
   );
+}
+
+export function checkBox(spec: BoxSpec): BoxSpec {
+  return {
+    hostname: check(spec.hostname, HOSTNAME_RE, 'The host name'),
+    node: check(spec.node, NODE_RE, 'The tailnet name'),
+    owner: check(spec.owner, OWNER_RE, 'The owner'),
+    metroTag: check(spec.metroTag, TAG_RE, 'The metro version'),
+  };
 }
 
 const TOOLS = [
@@ -57,12 +65,9 @@ const metroSteps = (node: string, owner: string, tag: string): string[] => [
   `${PREFIX}/bin/metro service install --owner '${owner}' --user metro`,
 ];
 
-export function cloudInit(spec: BoxSpec): string {
-  const hostname = check(spec.hostname, HOSTNAME_RE, 'The host name');
-  const node = check(spec.node, NODE_RE, 'The tailnet name');
-  const owner = check(spec.owner, OWNER_RE, 'The owner');
-  const key = checkAuthKey(spec.tailscaleAuthKey);
-  const tag = check(spec.metroTag, TAG_RE, 'The metro version');
+export function cloudInit(spec: BoxSpec, tailscaleAuthKey: string): string {
+  const { hostname, node, owner, metroTag: tag } = checkBox(spec);
+  const key = checkAuthKey(tailscaleAuthKey);
   return [
     '#!/bin/bash',
     'set -euo pipefail',

@@ -9,6 +9,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
 import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
 import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
+import { TailscaleError, type TailscaleClient } from './aws/tailscale-key.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
 import type { ServerEntry } from './server-types.js';
 
@@ -79,9 +80,16 @@ function allowed(deps: LaunchApiDeps): LaunchConfig {
   return result.config;
 }
 
+function issuing(deps: LaunchApiDeps): LaunchConfig & { tailscale: TailscaleClient } {
+  const config = allowed(deps);
+  const { tailscale } = config;
+  if (tailscale === null) throw new ApiError('metro issues no new servers until its Tailscale OAuth client is set', 404);
+  return { ...config, tailscale };
+}
+
 async function overview(deps: LaunchApiDeps): Promise<unknown> {
   const result = deps.config();
-  if (!result.ok) return { enabled: false };
+  if (!result.ok || result.config.tailscale === null) return { enabled: false };
   return { enabled: true, regions: await enabledRegions(deps, result.config) };
 }
 
@@ -108,12 +116,12 @@ function holdDuplicate(deps: LaunchApiDeps, subject: string): void {
 }
 
 function refusal(err: unknown): never {
-  if (err instanceof AwsError || err instanceof LaunchError) throw new ApiError(err.message, 400);
+  if (err instanceof AwsError || err instanceof LaunchError || err instanceof TailscaleError) throw new ApiError(err.message, 400);
   throw err;
 }
 
 async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promise<unknown> {
-  const config = allowed(deps);
+  const config = issuing(deps);
   const name = nameOf(body);
   const region = regionOf(body);
   holdDuplicate(deps, subject);
@@ -125,7 +133,7 @@ async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promi
       owner: subject,
       agent,
       tailnet: config.tailnet,
-      authKey: config.authKey,
+      tailscale: config.tailscale,
       credentials: config.credentials,
     });
     const server = await deps.record(subject, {

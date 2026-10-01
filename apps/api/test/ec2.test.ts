@@ -85,6 +85,7 @@ describe('EC2 from the browser', () => {
     expect(body.get('BlockDeviceMapping.1.Ebs.VolumeSize')).toBe('8');
     expect(body.get('BlockDeviceMapping.1.Ebs.VolumeType')).toBe('gp3');
     expect(body.get('MetadataOptions.HttpTokens')).toBe('required');
+    expect(body.get('MetadataOptions.HttpPutResponseHopLimit')).toBe('1');
     for (const [at, type] of [['1', 'instance'], ['2', 'volume']] as const) {
       const tag = (n: number, part: 'Key' | 'Value'): string | null => body.get(`TagSpecification.${at}.Tag.${String(n)}.${part}`);
       expect(body.get(`TagSpecification.${at}.ResourceType`)).toBe(type);

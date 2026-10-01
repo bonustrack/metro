@@ -27,6 +27,10 @@ function fakeDeps(full: Set<string> = new Set()): { deps: LaunchDeps; calls: str
       calls.push(`zones ${region}`);
       return Promise.resolve(['eu-west-1a', 'eu-west-1b', 'eu-west-1c']);
     },
+    authKey: (client, node) => {
+      calls.push(`key ${client.id} ${node}`);
+      return Promise.resolve('tskey-auth-kONETIME1CNTRL-abcdefghijklmnop');
+    },
     node: () => 'metro-abc123',
     token: () => `tok-${String(++tokens)}`,
   };
@@ -39,7 +43,7 @@ const INPUT = {
   owner: 'org_01M2TNE064H99ECTG4X228Y6B6',
   agent: 'srv00000001',
   tailnet: 'tail17c4f8.ts.net',
-  authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
+  tailscale: { id: 'kCLIENT1CNTRL', secret: 'tskey-client-kCLIENT1CNTRL-abcdefghijklmnop' },
   credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 's' },
 };
 
@@ -56,8 +60,9 @@ describe('metro issuing a box', () => {
       zone: null,
       imageId: 'ami-new',
     });
-    expect(calls).toEqual(['image AKIAEXAMPLE eu-west-1', 'run eu-west-1 ami-new metro:andy metro-abc123 tok-1']);
-    expect(userData[0]).toContain("--hostname='metro-abc123'");
+    expect(calls).toEqual(['image AKIAEXAMPLE eu-west-1', 'key kCLIENT1CNTRL metro-abc123', 'run eu-west-1 ami-new metro:andy metro-abc123 tok-1']);
+    expect(userData[0]).toContain("--auth-key='tskey-auth-kONETIME1CNTRL-abcdefghijklmnop' --hostname='metro-abc123'");
+    expect(userData[0]).not.toContain('tskey-client-');
     expect(userData[0]).toContain("--owner 'org_01M2TNE064H99ECTG4X228Y6B6'");
     expect(userData[0]).toContain("hostnamectl set-hostname 'andy'");
   });
@@ -68,6 +73,7 @@ describe('metro issuing a box', () => {
     expect(launched.zone).toBe('eu-west-1b');
     expect(calls).toEqual([
       'image AKIAEXAMPLE eu-west-1',
+      'key kCLIENT1CNTRL metro-abc123',
       'run eu-west-1 ami-new metro:andy metro-abc123 tok-1',
       'zones eu-west-1',
       'run eu-west-1 ami-new metro:andy metro-abc123 tok-2 eu-west-1a',
@@ -109,16 +115,24 @@ describe('metro issuing a box', () => {
     expect(roles).toEqual(['metro-box']);
   });
 
-  test('a name, key or owner the script cannot carry is refused before AWS is asked', async () => {
+  test('a name or owner the script cannot carry is refused before AWS or Tailscale is asked', async () => {
     for (const [over, reason] of [
       [{ name: '***' }, 'name'],
-      [{ authKey: 'nope' }, 'Tailscale auth key'],
       [{ owner: '' }, 'The owner'],
     ] as const) {
       const { deps, calls } = fakeDeps();
       await expect(launchBox({ ...INPUT, ...over }, deps)).rejects.toThrow(reason);
       expect(calls).toEqual([]);
     }
+  });
+
+  test('each launch gets its own key from Tailscale, and no instance starts without one', async () => {
+    const { deps, calls } = fakeDeps();
+    deps.authKey = () => Promise.resolve('tskey-api-notajoinkey');
+    await expect(launchBox(INPUT, deps)).rejects.toThrow('starts with tskey-auth-');
+    deps.authKey = () => Promise.reject(new Error('Tailscale refused the OAuth client (HTTP 401).'));
+    await expect(launchBox(INPUT, deps)).rejects.toThrow('HTTP 401');
+    expect(calls.filter((c) => c.startsWith('run'))).toEqual([]);
   });
 });
 

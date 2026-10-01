@@ -3,7 +3,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleLaunchApiRequest, resetLaunchState, type LaunchApiDeps } from '../src/launch.js';
 import { AwsError } from '../src/aws/ec2.js';
-import type { ConfigResult } from '../src/launch-config.js';
+import { TailscaleError } from '../src/aws/tailscale-key.js';
+import type { ConfigResult, LaunchConfig } from '../src/launch-config.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { SigningKeys } from '@metro-labs/http/workos-token';
@@ -11,14 +12,13 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 const OWNER = TEST_OWNER;
 const WALLET = 'org_01BOXOWNER0000000';
 
-const CONFIG: ConfigResult = {
-  ok: true,
-  config: {
-    credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
-    tailnet: 'tail17c4f8.ts.net',
-    authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
-  },
+const READY: LaunchConfig = {
+  credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+  tailnet: 'tail17c4f8.ts.net',
+  tailscale: { id: 'kCLIENT1CNTRL', secret: 'tskey-client-kCLIENT1CNTRL-abcdefghijklmnop' },
 };
+
+const CONFIG: ConfigResult = { ok: true, config: READY };
 
 let config: ConfigResult = CONFIG;
 let launched: string[] = [];
@@ -29,7 +29,7 @@ let now = 1_000_000;
 const deps: LaunchApiDeps = {
   config: () => config,
   launch: (input) => {
-    launched.push(`${input.name} ${input.region} ${input.owner} ${input.tailnet} ${input.authKey}`);
+    launched.push(`${input.name} ${input.region} ${input.owner} ${input.tailnet} ${input.tailscale.id}`);
     agents.push(input.agent);
     return Promise.resolve({
       host: 'metro-abc123.tail17c4f8.ts.net',
@@ -119,6 +119,16 @@ describe('who metro will issue a server to', () => {
     expect(attempt.status).toBe(404);
     expect(launched).toEqual([]);
   });
+
+  test('with no Tailscale OAuth client nothing new is issued, and a launched box can still be followed', async () => {
+    config = { ok: true, config: { ...READY, tailscale: null } };
+    expect(await (await call('GET', '/api/launch')).json()).toEqual({ enabled: false });
+    const attempt = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
+    expect(attempt.status).toBe(404);
+    expect(((await attempt.json()) as { error: string }).error).toContain('Tailscale OAuth client');
+    expect(launched).toEqual([]);
+    expect((await call('GET', '/api/launch/srv00000001/boot')).status).toBe(200);
+  });
 });
 
 describe('the overview a wallet on the list sees', () => {
@@ -140,7 +150,7 @@ describe('issuing one', () => {
       region: 'us-east-1',
       server: { id: 'srv00000001', instanceId: 'i-0abc' },
     });
-    expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop`]);
+    expect(launched).toEqual([`Andy us-east-1 ${OWNER} tail17c4f8.ts.net kCLIENT1CNTRL`]);
     expect(launched[0]).not.toContain(WALLET);
   });
 
@@ -167,6 +177,15 @@ describe('issuing one', () => {
     const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1', owner: WALLET });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain('not eligible for Free Tier');
+    deps.launch = was;
+  });
+
+  test('a Tailscale refusal to make the one-time key reaches the page in its own words', async () => {
+    const was = deps.launch;
+    deps.launch = () => Promise.reject(new TailscaleError('Tailscale refused an auth key for tag:metro-box (HTTP 403: requested tags are invalid or not permitted).'));
+    const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'andy', region: 'eu-west-1' });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain('requested tags are invalid');
     deps.launch = was;
   });
 

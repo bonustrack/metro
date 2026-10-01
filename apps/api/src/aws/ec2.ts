@@ -145,6 +145,7 @@ export function runInstanceParams(spec: InstanceSpec): Record<string, string> {
     'BlockDeviceMapping.1.Ebs.DeleteOnTermination': 'true',
     'MetadataOptions.HttpTokens': 'required',
     'MetadataOptions.HttpEndpoint': 'enabled',
+    'MetadataOptions.HttpPutResponseHopLimit': '1',
     ...tagSpecification(1, 'instance', spec),
     ...tagSpecification(2, 'volume', spec),
     ...(spec.zone === undefined ? {} : { 'Placement.AvailabilityZone': spec.zone }),

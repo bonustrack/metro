@@ -13,7 +13,7 @@ import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts'
 
 const CONFIG: ConfigResult = {
   ok: true,
-  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop' },
+  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', tailscale: null },
 };
 const NOW = Date.parse('2026-09-29T10:07:00Z');
 const LAUNCHED = 'srv00000001';

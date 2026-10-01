@@ -27,7 +27,7 @@ const CONFIG: ConfigResult = {
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
     tailnet: 'tail17c4f8.ts.net',
-    authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
+    tailscale: null,
   },
 };
 const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1' });

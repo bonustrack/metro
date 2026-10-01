@@ -5,13 +5,13 @@ const SPEC = {
   hostname: 'andy',
   node: 'metro-andy',
   owner: 'org_01M2TNE064H99ECTG4X228Y6B6',
-  tailscaleAuthKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
   metroTag: 'beta',
 };
+const KEY = 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop';
 
 describe('the first-boot script', () => {
   test('installs everything and ends by installing the metro service for the owner, run as the metro user', () => {
-    const script = cloudInit(SPEC);
+    const script = cloudInit(SPEC, KEY);
     const lines = script.trim().split('\n');
     expect(lines[0]).toBe('#!/bin/bash');
     expect(script).toContain("hostnamectl set-hostname 'andy'");
@@ -28,7 +28,7 @@ describe('the first-boot script', () => {
   });
 
   test('Metro gets its own user and its own CLI, and nothing lands under /root', () => {
-    const script = cloudInit(SPEC);
+    const script = cloudInit(SPEC, KEY);
     expect(script).toContain('curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash');
     expect(script).toContain('useradd --system --create-home --home-dir /var/lib/metro --shell /usr/sbin/nologin --groups systemd-journal metro');
     expect(script).toContain('chmod 711 /var/lib/metro');
@@ -39,18 +39,23 @@ describe('the first-boot script', () => {
   });
 
   test('a value the script could not carry safely is refused before anything is built', () => {
+    for (const [key, what] of [
+      ["tskey-auth-x'; rm -rf /", 'Tailscale auth key'],
+      ['tskey-api-kKv6QQKgh311CNTRL-abcdefghijklmnop', 'starts with tskey-auth-'],
+      ['tskey-client-kKv6QQKgh311CNTRL-abcdefghijklmnop', 'starts with tskey-auth-'],
+      ['', 'is required'],
+    ] as const) {
+      expect(() => cloudInit(SPEC, key)).toThrow(what);
+    }
     for (const [over, what] of [
       [{ owner: '0xEF8305E140AC520225DAF050E2F71D5FBCC543E7' }, 'owner'],
       [{ owner: '' }, 'owner'],
-      [{ tailscaleAuthKey: "tskey-auth-x'; rm -rf /" }, 'Tailscale auth key'],
-      [{ tailscaleAuthKey: 'tskey-api-kKv6QQKgh311CNTRL-abcdefghijklmnop' }, 'starts with tskey-auth-'],
-      [{ tailscaleAuthKey: '' }, 'is required'],
       [{ node: 'metro-Andy' }, 'tailnet name'],
       [{ node: 'andy' }, 'tailnet name'],
       [{ hostname: "andy'" }, 'host name'],
       [{ metroTag: 'beta; reboot' }, 'metro version'],
     ] as const) {
-      expect(() => cloudInit({ ...SPEC, ...over })).toThrow(what);
+      expect(() => cloudInit({ ...SPEC, ...over }, KEY)).toThrow(what);
     }
   });
 });

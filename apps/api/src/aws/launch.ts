@@ -14,7 +14,8 @@ import {
 } from './ec2.js';
 import { metroSetupLines, progressOf, type Progress } from './boot-log.js';
 import { hostOf, randomNodeName, slugOf } from './names.js';
-import { cloudInit } from './user-data.js';
+import { mintAuthKey, type TailscaleClient } from './tailscale-key.js';
+import { checkBox, cloudInit } from './user-data.js';
 
 const METRO_TAG = 'beta';
 const NO_CAPACITY = 'InsufficientInstanceCapacity';
@@ -26,7 +27,7 @@ export interface LaunchInput {
   owner: string;
   agent: string;
   tailnet: string;
-  authKey: string;
+  tailscale: TailscaleClient;
   credentials: AwsCredentials;
 }
 
@@ -43,6 +44,7 @@ export interface LaunchDeps {
   latestImage: (credentials: AwsCredentials, region: string) => Promise<string>;
   run: (credentials: AwsCredentials, region: string, spec: InstanceSpec) => Promise<string>;
   zones: (credentials: AwsCredentials, region: string) => Promise<string[]>;
+  authKey: (client: TailscaleClient, node: string) => Promise<string>;
   node: () => string;
   token: () => string;
 }
@@ -51,6 +53,7 @@ export const LIVE: LaunchDeps = {
   latestImage: async (credentials, region) => (await latestUbuntuArm64Image(credentials, region)).imageId,
   run: runInstance,
   zones: describeZones,
+  authKey: (client, node) => mintAuthKey(client, node),
   node: randomNodeName,
   token: () => crypto.randomUUID(),
 };
@@ -115,14 +118,9 @@ export async function launchBox(input: LaunchInput, deps: LaunchDeps = LIVE): Pr
   const slug = slugOf(input.name);
   if (slug === '') throw new LaunchError('Give the server a name with at least one letter or digit.');
   const node = deps.node();
-  const userData = cloudInit({
-    hostname: slug,
-    node,
-    owner: input.owner,
-    tailscaleAuthKey: input.authKey,
-    metroTag: METRO_TAG,
-  });
+  const box = checkBox({ hostname: slug, node, owner: input.owner, metroTag: METRO_TAG });
   const imageId = await deps.latestImage(input.credentials, input.region);
+  const userData = cloudInit(box, await deps.authKey(input.tailscale, node));
   const { instanceId, zone } = await place(input, deps, { imageId, name: `metro:${slug}`, node, agent: input.agent, userData, role: BOX_ROLE });
   return { host: hostOf(node, input.tailnet), node, instanceId, region: input.region, zone, imageId };
 }

@@ -17,7 +17,7 @@ const CONFIG: ConfigResult = {
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
     tailnet: 'tail17c4f8.ts.net',
-    authKey: 'tskey-auth-kABCDEF1CNTRL-abcdefghijklmnop',
+    tailscale: null,
   },
 };
 const LAUNCHED = 'srv00000001';
