@@ -58,6 +58,7 @@ export interface LocalModeDeps {
   toolGroups?: AgentApiDeps['toolGroups'];
   prepareAccount: AccountApiDeps['prepareAccount'];
   liveEvents?: (on: boolean) => void;
+  switchModel?: (model: string | null) => boolean;
 }
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
@@ -201,7 +202,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     controlApi: { restart: deps.restart, stop: deps.stop },
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
     machineApi: {},
-    modelApi: {},
+    modelApi: { switchModel: deps.switchModel },
     gateway: { config: readModelConfig },
     terminalApi: {},
     mode: localModeInfo,

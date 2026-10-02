@@ -30,7 +30,13 @@ export const keyedRoute = (cfg: ModelConfig): boolean => (routedConnection(cfg)?
 
 export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents)): boolean => keyedRoute(cfg) || sdkOnLogin(agents);
 
-export const runnerInUse = (agents = agentsDir()): HarnessRunner => (harnessRunner(agents) === 'sdk' && sdkAllowed(agents) ? 'sdk' : 'cli');
+export const runnerInUse = (agents = agentsDir(), cfg?: ModelConfig): HarnessRunner => (harnessRunner(agents) === 'sdk' && sdkAllowed(agents, cfg) ? 'sdk' : 'cli');
+
+export function runnerModel(cfg: ModelConfig): string | null {
+  const conn = routedConnection(cfg);
+  if (conn === null || conn.model === '') return null;
+  return conn.provider === 'anthropic' ? conn.model : `${conn.provider}:${conn.model}`;
+}
 
 export function settleRunner(agents = agentsDir()): boolean {
   if (harnessRunner(agents) !== 'sdk' || sdkAllowed(agents)) return false;

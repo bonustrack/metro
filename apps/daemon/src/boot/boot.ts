@@ -105,7 +105,7 @@ async function syncStations(station: StationName): Promise<void> {
   }
 }
 
-function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
+function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: string | null) => boolean): SessionApis {
   return localSessionApis({
       syncStations,
       reloadAgents: async () => {
@@ -124,6 +124,7 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
       toolGroups: stationToolGroups,
       prepareAccount,
       liveEvents: setLiveEvents,
+      switchModel,
     });
 }
 
@@ -143,7 +144,7 @@ installBearerSessions(agentsDir(), localOwner);
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
   webhookServer = await startWebhookServer(
     emit,
-    sessionApis(metroMcp.setLiveEvents),
+    sessionApis(metroMcp.setLiveEvents, metroMcp.switchModel),
     metroMcp.httpHandler,
     true,
   );

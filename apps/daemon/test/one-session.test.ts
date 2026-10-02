@@ -25,6 +25,7 @@ const STRAY_LINE = `metro://whatsapp/${STRAY_ACCOUNT}/222@lid`;
 
 let server: Server | undefined;
 let base = '';
+let switchModel: (model: string | null) => boolean = () => false;
 
 const url = (): string => `${base}/mcp?token=${TOKEN}`;
 const voiceUrl = (): string => `${base}/mcp/voice?token=${TOKEN}`;
@@ -47,6 +48,7 @@ beforeAll(async () => {
   setAgentMap({ [`whatsapp/${ACCOUNT}`]: 'agent000001' }, { ['agent000001']: 'Tony' });
   const handler = await createMetroMcp();
   handler.startInbound();
+  switchModel = handler.switchModel;
   server = createServer((req, res) => {
     void handler.httpHandler(req, res);
   });
@@ -152,6 +154,20 @@ describe('one session per box', () => {
     const body = second.raw();
     await second.stop();
     expect(body).toContain(gap);
+  }, 30000);
+
+  test('a new model from the Model page reaches the session holding the slot, only while its stream is open', async () => {
+    const sessionId = await initSession(url());
+    expect(switchModel('openrouter:anthropic/claude-sonnet-5.5')).toBe(false);
+    const stream = await openGet(url(), sessionId);
+    await settle(150);
+    expect(switchModel('openrouter:anthropic/claude-sonnet-5.5')).toBe(true);
+    expect(switchModel(null)).toBe(true);
+    await waitFor(() => stream.raw().includes('"model":null'));
+    const body = stream.raw();
+    await stream.stop();
+    expect(body).toContain('"method":"notifications/metro/model","params":{"model":"openrouter:anthropic/claude-sonnet-5.5"}');
+    expect(body).toContain('"method":"notifications/metro/model","params":{"model":null}');
   }, 30000);
 
   test('a voice call session on /mcp/voice gets the tools, no channel, and leaves the chat session alone', async () => {
