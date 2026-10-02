@@ -166,6 +166,24 @@ export const SignatureReferenceCodec =
     c.signature ? `[Signature] ${c.signature}` : '[Signature]',
   );
 
+const xmtpOrg = (typeId: string): ContentTypeId => ({
+  authorityId: 'xmtp.org',
+  typeId,
+  versionMajor: 1,
+  versionMinor: 0,
+});
+export const WalletSendCallsCodec = makeJsonCodec<{ calls?: { metadata?: { description?: string } }[] }>(
+  xmtpOrg('walletSendCalls'),
+  (c) => {
+    const desc = c.calls?.[0]?.metadata?.description;
+    return desc ? `[Transaction request] ${desc}` : '[Transaction request]';
+  },
+);
+export const TransactionReferenceCodec = makeJsonCodec<{ reference?: string }>(
+  xmtpOrg('transactionReference'),
+  (c) => (c.reference ? `[Transaction] ${c.reference}` : '[Transaction]'),
+);
+
 export const ContentTypeFrame: ContentTypeId = {
   authorityId: 'stage.box',
   typeId: 'frame',

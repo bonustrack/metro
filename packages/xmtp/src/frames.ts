@@ -12,10 +12,10 @@ const TEXT_TYPES = new Set(['Text', 'Caption', 'Markdown']);
 
 type Node = Record<string, unknown>;
 
-const isNode = (v: unknown): v is Node =>
+export const isNode = (v: unknown): v is Node =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const bad = (message: string): TrainError => new TrainError('INVALID_ARGS', message);
+export const bad = (message: string): TrainError => new TrainError('INVALID_ARGS', message);
 
 function plain(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -56,7 +56,7 @@ function clip(value: unknown, max: number, name: string): string | undefined {
   return out === '' ? undefined : out;
 }
 
-function parseJson(raw: unknown, name: string): unknown {
+export function parseJson(raw: unknown, name: string): unknown {
   if (typeof raw !== 'string') return raw;
   try {
     return JSON.parse(raw);

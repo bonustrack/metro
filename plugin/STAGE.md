@@ -1,6 +1,6 @@
 ---
 name: stage
-description: How to use Stage channels (XMTP groups, https://stage.box) through metro. Create a channel, rename it, add or remove members, set labels and assignees, read its info, and send, reply, react, unreact, delete and read messages, and post frames (interactive ChatKit widget views). Works only when this agent has an XMTP account in metro.
+description: How to use Stage channels (XMTP groups, https://stage.box) through metro. Create a channel, rename it, add or remove members, set labels and assignees, read its info, and send, reply, react, unreact, delete and read messages, and post frames (interactive ChatKit widget views) and wallet cards (payment and signature requests, receipts). Works only when this agent has an XMTP account in metro.
 ---
 
 Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XMTP group. You use it with the metro tools below (`mcp__metro__<name>`).
@@ -73,3 +73,17 @@ Move it from Backlog or To-do to In progress, then In review, then Done. Use Blo
     ]}}
   }}}
   ```
+
+**Wallet cards.** The payment and signature cards Stage's own Request payment and Request signature send. Sending one moves nothing and signs nothing: the person taps Pay or Sign and confirms in Stage. Send one only when you were asked to.
+- Send: `send {"line": "…", "wallet": {"type": "<type>", "content": {…}}}`. With `text` or a `frame` as well, the card goes last, and the `message_id` you get back is the card's.
+- Payment request, `walletSendCalls`, a card with a Pay button. Stage pays a request with one call; a Stage wallet pays on Base only.
+  ```json
+  {"type": "walletSendCalls", "content": {"version": "1.0", "chainId": "0x2105", "from": "0x<your address>", "calls": [
+    {"to": "0x<who gets paid>", "value": "0x38d7ea4c68000", "metadata": {"description": "Dinner", "transactionType": "transfer",
+      "currency": "ETH", "amount": 0.001, "decimals": 18, "toAddress": "0x<who gets paid>"}}
+  ]}}
+  ```
+  `chainId` is a hex string (`0x2105` is Base) and `value` is in wei, hex. For a token, `to` is the token contract, `data` its `transfer(address,uint256)` call data, `value` is left out, and `metadata` has `currency`, `amount` and `toAddress` (who gets paid).
+- Receipt, `transactionReference`: `{"networkId": 8453, "reference": "0x<tx hash>", "metadata": {"currency": "USDC", "amount": 5}}`. Stage shows "Payment sent · 5 USDC" (or "Transaction sent" without an amount) and a link to the explorer. Only post a real transaction hash.
+- Signature request, `signatureRequest`, a card with a Sign button: `{"id": "<any id>", "kind": "personal", "message": "The text to sign", "description": "Why"}`, or `"kind": "eip712"` with `"eip712": {"domain", "types", "primaryType", "message"}` instead of `message`.
+- Signature, `signatureReference`: `{"requestId": "<message_id of the request>", "signature": "0x…", "signer": "0x…"}`. Stage shows it as Signed.

@@ -45,7 +45,7 @@ function argText(value: unknown): string | undefined {
 
 function fieldText(key: string, value: unknown): string | undefined {
   if (key === 'attachments' && Array.isArray(value)) return `${String(value.length)} file(s)`;
-  return key === 'frame' ? argText(value) : valueText(value);
+  return key === 'frame' || key === 'wallet' ? argText(value) : valueText(value);
 }
 
 function metroLines(tool: string, input: Record<string, unknown>): string[] {

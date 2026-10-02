@@ -45,13 +45,22 @@ describe('a frame rides on send, with no tool of its own', () => {
   test('a station without frames refuses before any train call', async () => {
     const res = await dispatchMessageTool('send', { line: 'metro://telegram-bot/t0/-100123', text: 'hi', frame });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain('telegram-bot cannot send a frame; frames are Stage (XMTP) only');
+    expect(text(res)).toContain('telegram-bot cannot send `frame`; that is Stage (XMTP) only');
     expect(calls).toEqual([]);
+  });
+
+  test('a wallet card rides on send too, Stage only', async () => {
+    const wallet = { type: 'transactionReference', content: { networkId: 8453, reference: '0xabc' } };
+    expect(text(await dispatchMessageTool('send', { line, wallet }))).toMatch(/^sent: wallet .+ message_id: frame-1$/);
+    expect(calls).toEqual([{ train: 'xmtp', action: 'send', args: { line, wallet } }]);
+    const res = await dispatchMessageTool('send', { line: 'metro://telegram-bot/t0/-100123', frame, wallet });
+    expect(text(res)).toContain('telegram-bot cannot send `frame` or `wallet`; that is Stage (XMTP) only');
+    expect(calls).toHaveLength(1);
   });
 
   test('a send with nothing to send names the frame too', async () => {
     const res = await dispatchMessageTool('send', { line });
-    expect(text(res)).toContain('send requires `text`, `attachments` or `frame`');
+    expect(text(res)).toContain('send requires `text`, `attachments`, `frame` or `wallet`');
     expect(calls).toEqual([]);
   });
 });

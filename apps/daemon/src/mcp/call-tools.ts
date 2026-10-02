@@ -60,16 +60,20 @@ function assertDelivered(
     );
 }
 
-const frameOf = (m: MessageArgs): Record<string, unknown> =>
-  m.a.frame === undefined ? {} : { frame: m.a.frame };
+const STAGE_PARTS = ['frame', 'wallet'] as const;
+
+const stagePartsIn = (m: MessageArgs): string[] => STAGE_PARTS.filter((key) => m.a[key] !== undefined);
+
+const stagePartArgs = (m: MessageArgs): Record<string, unknown> =>
+  Object.fromEntries(stagePartsIn(m).map((key) => [key, m.a[key]]));
 
 const sentLabels = (m: MessageArgs, text: string | undefined): string[] => [
   ...(text ? ['text'] : []),
-  ...(m.a.frame === undefined ? [] : ['frame']),
+  ...stagePartsIn(m),
 ];
 
 function nativeBody(m: MessageArgs, text: string | undefined, replyTo: string | undefined): Record<string, unknown> {
-  const body: Record<string, unknown> = { line: m.line, ...frameOf(m) };
+  const body: Record<string, unknown> = { line: m.line, ...stagePartArgs(m) };
   if (text) body.text = text;
   if (text && replyTo) body.replyTo = replyTo;
   return body;
@@ -101,7 +105,7 @@ async function sendForwarded(
   atts: ResolvedAttachment[],
 ): Promise<Sent> {
   const { line, ctx, station } = m;
-  const args: Record<string, unknown> = { line, ...frameOf(m) };
+  const args: Record<string, unknown> = { line, ...stagePartArgs(m) };
   if (text) args.text = text;
   if (typeof m.a.subject === 'string' && m.a.subject.trim() !== '') args.subject = m.a.subject;
   if (replyTo) args.replyTo = replyTo;
@@ -123,12 +127,13 @@ const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
     .map((a) => kindOf(a.mime ?? '', a.path ?? a.url ?? a.name ?? ''))
     .join(', ')}); send a link in \`text\` instead`;
 
-const NOTHING_TO_SEND = 'send requires `text`, `attachments` or `frame`';
+const NOTHING_TO_SEND = 'send requires `text`, `attachments`, `frame` or `wallet`';
 
 function refusal(m: MessageArgs, text: string | undefined, requested: CanonicalAttachment[]): string | undefined {
-  if (!text && !requested.length && m.a.frame === undefined) return NOTHING_TO_SEND;
-  if (m.a.frame !== undefined && m.station.sendsFrames !== true)
-    return `${m.station.name} cannot send a frame; frames are Stage (XMTP) only`;
+  const stageOnly = stagePartsIn(m);
+  if (!text && !requested.length && !stageOnly.length) return NOTHING_TO_SEND;
+  if (stageOnly.length && m.station.sendsFrames !== true)
+    return `${m.station.name} cannot send \`${stageOnly.join('` or `')}\`; that is Stage (XMTP) only`;
   if (requested.length && m.station.attachmentMode === 'none') return unsupported(m.station, requested);
   return undefined;
 }

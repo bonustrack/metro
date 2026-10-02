@@ -9,11 +9,13 @@ import {
   AttachmentCodec,
   type Attachment,
 } from '@xmtp/content-type-remote-attachment';
+import type { EncodedContent } from '@xmtp/content-type-primitives';
 import { convOf, type Account } from './accounts.js';
 import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
 import { CallSignalCodec, FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
 import { buildFrameContent } from './frames.js';
+import { buildWalletContent } from './wallet.js';
 import { callLeftovers } from './call-leftovers.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
@@ -30,19 +32,27 @@ const noConv = (line: string): TrainError =>
 const badArgs = (message: string): TrainError =>
   new TrainError('INVALID_ARGS', message);
 
+function framePart(raw: unknown): { encoded: EncodedContent; summary: string } {
+  const built = buildFrameContent(raw);
+  return { encoded: new FrameCodec().encode(built.frame), summary: `Frame: ${built.title}` };
+}
+
 async function send(id: string, args: Args): Promise<void> {
   const { line, text } = args as { line: string; text: string };
-  const built = args.frame === undefined ? undefined : buildFrameContent(args.frame);
+  const parts = [
+    ...(args.frame === undefined ? [] : [framePart(args.frame)]),
+    ...(args.wallet === undefined ? [] : [buildWalletContent(args.wallet)]),
+  ];
   const { acct, conv } = await convOf(line);
   if (!conv) throw noConv(line);
   let messageId: string | undefined;
-  if (text || !built) {
+  if (text || parts.length === 0) {
     messageId = await conv.sendText(text);
     emitOutbound(acct.cfg.id, line, messageId, text);
   }
-  if (built) {
-    messageId = await conv.send(new FrameCodec().encode(built.frame));
-    emitOutbound(acct.cfg.id, line, messageId, `Frame: ${built.title}`);
+  for (const part of parts) {
+    messageId = await conv.send(part.encoded);
+    emitOutbound(acct.cfg.id, line, messageId, part.summary);
   }
   respond(id, { result: { messageId } });
 }
