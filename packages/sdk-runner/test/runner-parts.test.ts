@@ -10,7 +10,7 @@ import type { PermissionAsk } from '../src/link.ts';
 import { SessionStore, projectFolder } from '../src/session-store.ts';
 import { SessionWatch } from '../src/session-watch.ts';
 import { runnerConfig } from '../src/config.ts';
-import { compactDue, runnerOptions } from '../src/runner.ts';
+import { allowedOnly, compactDue, Runner, runnerOptions, type OpenSession } from '../src/runner.ts';
 import type { MetroTools } from '../src/tool-proxy.ts';
 import { SpeechRouter } from '../src/speech.ts';
 
@@ -231,11 +231,73 @@ describe('the runner starts the Claude Code that comes with the pinned SDK', () 
     expect(cfg.claude).toBeNull();
     const options = runnerOptions(cfg, tools, allow, null, {});
     expect('pathToClaudeCodeExecutable' in options).toBe(false);
-    expect(options.env).toMatchObject({ DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-5-5' });
+    expect(options.env).toMatchObject({ DISABLE_AUTOUPDATER: '1' });
   });
 
   test('metro agent names the store copy of that binary', () => {
     const cfg = runnerConfig({ ...base, METRO_RUNNER_CLAUDE: '/home/agent/.metro/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude' }, '/tmp');
     expect(runnerOptions(cfg, tools, allow, 'resume-id', {}).pathToClaudeCodeExecutable).toBe(cfg.claude ?? '');
+  });
+});
+
+describe('the session thinks with the one model the Model page picked', () => {
+  const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
+  const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent', PATH: '/usr/bin' };
+  const allow = (): Promise<{ behavior: 'deny'; message: string }> => Promise.resolve({ behavior: 'deny', message: 'no' });
+
+  test('front and workers use that model: no model of its own, no pin left in the environment', () => {
+    const picked = runnerConfig({ ...base, METRO_RUNNER_MODEL: 'openrouter:anthropic/claude-sonnet-5.5' }, '/tmp');
+    const options = runnerOptions(picked, tools, allow, null, { PATH: '/usr/bin', ANTHROPIC_MODEL: 'openrouter:old/model', CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-5-5' });
+    expect(options.model).toBe('openrouter:anthropic/claude-sonnet-5.5');
+    expect(options.env).toEqual(expect.objectContaining({ PATH: '/usr/bin', DISABLE_AUTOUPDATER: '1' }));
+    expect(Object.keys(options.env ?? {})).not.toContain('ANTHROPIC_MODEL');
+    expect(Object.keys(options.env ?? {})).not.toContain('CLAUDE_CODE_SUBAGENT_MODEL');
+    expect('settings' in options).toBe(false);
+    const unpicked = runnerConfig(base, '/tmp');
+    expect(unpicked.model).toBeNull();
+    expect('model' in runnerOptions(unpicked, tools, allow, null, {})).toBe(false);
+  });
+
+  test('only that model is allowed, and no model means Claude Code default with no list', () => {
+    expect(allowedOnly('claude-opus-5-5')).toEqual({ availableModels: ['claude-opus-5-5'], enforceAvailableModels: true });
+    expect(allowedOnly(null)).toEqual({ availableModels: null, enforceAvailableModels: null });
+  });
+
+  test('a new model goes into the running session: the allowlist moves first, then the model, in order, with no restart', async () => {
+    const steps: string[] = [];
+    const fake = {
+      applyFlagSettings: (settings: Record<string, unknown>) => {
+        steps.push(`allow ${JSON.stringify(settings.availableModels)}`);
+        return Promise.resolve();
+      },
+      setModel: async (model?: string) => {
+        await Bun.sleep(5);
+        steps.push(`model ${model ?? 'default'}`);
+        if (model === 'refused') throw new Error('restricted');
+      },
+      close: () => undefined,
+    };
+    let opened = 0;
+    const open: OpenSession = () => {
+      opened += 1;
+      return fake as never;
+    };
+    const dir = mkdtempSync(join(tmpdir(), 'sdk-runner-model-'));
+    const runner = new Runner({ store: new SessionStore(join(dir, 's.json'), join(dir, 'claude'), dir), sink: { say: () => undefined, done: () => undefined }, readOnly: () => false, open });
+    const cfg = runnerConfig({ ...base, METRO_RUNNER_MODEL: 'claude-sonnet-5-5' }, dir);
+    runner.start(runnerOptions(cfg, tools, allow, null, {}));
+    await runner.switchModel('claude-sonnet-5-5');
+    expect(steps).toEqual(['allow ["claude-sonnet-5-5"]', 'allow ["claude-sonnet-5-5"]']);
+    steps.length = 0;
+    const first = runner.switchModel('openrouter:a/b');
+    const second = runner.switchModel('claude-opus-5-5');
+    await Promise.all([first, second]);
+    expect(steps).toEqual(['allow ["openrouter:a/b"]', 'model openrouter:a/b', 'allow ["claude-opus-5-5"]', 'model claude-opus-5-5']);
+    steps.length = 0;
+    await runner.switchModel('refused');
+    await runner.switchModel(null);
+    expect(steps).toEqual(['allow ["refused"]', 'model refused', 'allow null', 'model default']);
+    expect(opened).toBe(1);
+    runner.close();
   });
 });

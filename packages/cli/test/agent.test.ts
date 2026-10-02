@@ -63,16 +63,16 @@ test('the Claude Code package is the one the SDK itself would pick for this mach
   expect(runnerDependencies(manifest, claudePackage('linux', 'x64', false))).toEqual({ pino: '^9' });
 });
 
-test('the runner is told where metro is, its key, the permission mode, the Harness prompt, and a routed model for both front and workers', () => {
+test('the runner is told where metro is, its key, the permission mode, the Harness prompt, and the one model the Model page picked', () => {
   expect(runnerEnv('mk_x', 8420, null, 'bypass', null, '/s/claude')).toEqual({
     METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp',
     METRO_RUNNER_CLAUDE: '/s/claude',
     METRO_AGENT_KEY: 'mk_x',
     METRO_RUNNER_PERMISSION_MODE: 'bypass',
   });
-  expect(runnerEnv('mk_x', 9000, 'codex:gpt-6', 'auto', 'You are Emma.', '/s/claude')).toEqual(
-    expect.objectContaining({ METRO_RUNNER_FRONT_MODEL: 'codex:gpt-6', METRO_RUNNER_WORKER_MODEL: 'codex:gpt-6', METRO_RUNNER_PROMPT: 'You are Emma.' }),
-  );
+  const told = runnerEnv('mk_x', 9000, 'openrouter:anthropic/claude-sonnet-5.5', 'auto', 'You are Emma.', '/s/claude');
+  expect(told).toEqual(expect.objectContaining({ METRO_RUNNER_MODEL: 'openrouter:anthropic/claude-sonnet-5.5', METRO_RUNNER_PROMPT: 'You are Emma.' }));
+  expect(Object.keys(told).filter((name) => /FRONT|WORKER/.test(name))).toEqual([]);
   expect(runnerStore({ METRO_RUNNER_STORE: '/x' })).toBe('/x');
   expect(readRunnerManifest('{"version":"1","dependencies":{"a":"1","b":2}}')).toEqual({ version: '1', dependencies: { a: '1' } });
 });

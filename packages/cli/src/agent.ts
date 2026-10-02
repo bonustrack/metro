@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { headlessEnv, runClaude } from './claude.js';
 import { localAgent } from './local.js';
-import { currentRoute, harnessRunner, permissionMode, systemPrompt, type PermissionMode } from './route.js';
+import { currentModel, harnessRunner, permissionMode, systemPrompt, type PermissionMode } from './route.js';
 import { installDependencies } from './runtime-install.js';
 import { findBun, localPort, runtimeDir } from './runtime.js';
 
@@ -98,13 +98,13 @@ export function prepareRunner(opts: RunnerPrepare = {}): PreparedRunner {
   return { entry: join(store, ENTRY), claude: join(store, 'node_modules', ...pkg.name.split('/'), pkg.binary) };
 }
 
-export function runnerEnv(key: string, port: number, route: string | null, mode: PermissionMode, prompt: string | null, claude: string): Record<string, string> {
+export function runnerEnv(key: string, port: number, model: string | null, mode: PermissionMode, prompt: string | null, claude: string): Record<string, string> {
   return {
     METRO_RUNNER_MCP_URL: `http://127.0.0.1:${String(port)}/mcp`,
     METRO_RUNNER_CLAUDE: claude,
     METRO_AGENT_KEY: key,
     METRO_RUNNER_PERMISSION_MODE: mode,
-    ...(route === null ? {} : { METRO_RUNNER_FRONT_MODEL: route, METRO_RUNNER_WORKER_MODEL: route }),
+    ...(model === null ? {} : { METRO_RUNNER_MODEL: model }),
     ...(prompt === null ? {} : { METRO_RUNNER_PROMPT: prompt }),
   };
 }
@@ -118,6 +118,6 @@ export async function agentSession(): Promise<number> {
   const runner = prepareRunner({ bun });
   if (!existsSync(runner.claude)) throw new Error(`the Claude Code that comes with the Agent SDK is missing at ${runner.claude}; remove ${runnerStore()} and start again`);
   process.stderr.write('metro agent: this agent runs as one Agent SDK session: a light front talks, background workers do the work\n');
-  const env = { ...(await headlessEnv()), ...runnerEnv(agent.key, localPort(), currentRoute(), permissionMode(), systemPrompt(), runner.claude) };
+  const env = { ...(await headlessEnv()), ...runnerEnv(agent.key, localPort(), currentModel(), permissionMode(), systemPrompt(), runner.claude) };
   return runClaude([runner.entry], env, undefined, bun);
 }

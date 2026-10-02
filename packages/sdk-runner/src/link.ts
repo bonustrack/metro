@@ -9,11 +9,14 @@ const CHANNEL = 'notifications/claude/channel';
 const ASK = 'notifications/claude/channel/permission_request';
 const ANSWER = 'notifications/claude/channel/permission';
 const TOOLS_CHANGED = 'notifications/tools/list_changed';
+const MODEL = 'notifications/metro/model';
 const TOOL_TIMEOUT_MS = 30 * 60_000;
 const RECONNECT = { initialReconnectionDelay: 500, maxReconnectionDelay: 5_000, reconnectionDelayGrowFactor: 1.5, maxRetries: 60 };
 const GAVE_UP = 'Maximum reconnection attempts';
 
 export type Behavior = 'allow' | 'deny';
+
+const modelIn = (params: Record<string, unknown>): string | null => (typeof params.model === 'string' && params.model !== '' ? params.model : null);
 
 export interface PermissionAsk {
   request_id: string;
@@ -25,6 +28,7 @@ export interface PermissionAsk {
 export interface LinkEvents {
   channel(event: ChannelEvent): void;
   toolsChanged(): void;
+  model(model: string | null): void;
   lost(reason: string): void;
 }
 
@@ -102,11 +106,17 @@ export class MetroLink implements Asker {
       const event = channelEvent(params);
       if (event !== null) this.events.channel(event);
     } else if (notification.method === ANSWER) {
-      const id = typeof params.request_id === 'string' ? params.request_id : '';
-      this.waiting.get(id)?.(params.behavior === 'allow' ? 'allow' : 'deny');
+      this.answered(params);
     } else if (notification.method === TOOLS_CHANGED) {
       this.events.toolsChanged();
+    } else if (notification.method === MODEL) {
+      this.events.model(modelIn(params));
     }
+  }
+
+  private answered(params: Record<string, unknown>): void {
+    const id = typeof params.request_id === 'string' ? params.request_id : '';
+    this.waiting.get(id)?.(params.behavior === 'allow' ? 'allow' : 'deny');
   }
 
   private failed(err: Error): void {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { query, type CanUseTool, type Options, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
 import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
@@ -14,15 +14,23 @@ const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
 const STALL_MS = 2_000;
 export const COMPACT_AT = 120_000;
 
-export function runnerEnv(cfg: RunnerConfig, env: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  return { [STARTUP_WAIT]: '0', ...env, CLAUDE_CODE_SUBAGENT_MODEL: cfg.workerModel, DISABLE_AUTOUPDATER: '1' };
+const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL']);
+
+export function runnerEnv(env: NodeJS.ProcessEnv): Record<string, string | undefined> {
+  const unpinned = Object.fromEntries(Object.entries(env).filter(([name]) => !MODEL_PINS.has(name)));
+  return { [STARTUP_WAIT]: '0', ...unpinned, DISABLE_AUTOUPDATER: '1' };
 }
+
+export type ModelSettings = Parameters<Query['applyFlagSettings']>[0];
+
+export const allowedOnly = (model: string | null): ModelSettings =>
+  model === null ? { availableModels: null, enforceAvailableModels: null } : { availableModels: [model], enforceAvailableModels: true };
 
 export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: CanUseTool, resume: string | null, env = process.env): Options {
   return {
-    model: cfg.frontModel,
+    ...(cfg.model === null ? {} : { model: cfg.model }),
     cwd: cfg.cwd,
-    env: runnerEnv(cfg, env),
+    env: runnerEnv(env),
     ...(cfg.claude === null ? {} : { pathToClaudeCodeExecutable: cfg.claude }),
     settingSources: ['user', 'project', 'local'],
     systemPrompt: { type: 'preset', preset: 'claude_code', append: cfg.prompt === null ? FRONT_RULES : `${cfg.prompt}\n\n${FRONT_RULES}` },
@@ -48,11 +56,14 @@ export interface CompactState {
 
 export const compactDue = (s: CompactState): boolean => !s.busy && s.context >= s.limit && s.context - (s.floor ?? 0) >= s.limit / 2;
 
+export type OpenSession = (params: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => Query;
+
 export interface RunnerParts {
   store: SessionStore;
   sink: SpeechSink;
   readOnly: (tool: string) => boolean;
   compactAt?: number;
+  open?: OpenSession;
 }
 
 export class Runner {
@@ -64,6 +75,8 @@ export class Runner {
   private compactAsked = false;
   private compactFloor: number | null = null;
   private stall: ReturnType<typeof setTimeout> | null = null;
+  private model: string | null = null;
+  private switching: Promise<void> = Promise.resolve();
 
   constructor(private readonly parts: RunnerParts) {
     this.inbox = new Inbox((unanswered) => {
@@ -89,8 +102,15 @@ export class Runner {
     const again = this.parts.store.unanswered();
     this.inbox.again(again);
     if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
-    this.session = query({ prompt: this.inbox, options });
+    this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
+    this.model = options.model ?? null;
+    this.queueModel(this.model);
     return this.session;
+  }
+
+  switchModel(model: string | null): Promise<void> {
+    this.queueModel(model);
+    return this.switching;
   }
 
   async run(observe?: (message: SDKMessage) => void): Promise<void> {
@@ -159,6 +179,25 @@ export class Runner {
   private clearStall(): void {
     if (this.stall !== null) clearTimeout(this.stall);
     this.stall = null;
+  }
+
+  private queueModel(model: string | null): void {
+    this.switching = this.switching
+      .then(() => this.applyModel(model))
+      .catch((err: unknown) => {
+        log.warn({ model, err: errMsg(err) }, 'sdk-runner: the session could not take the model the Model page picked');
+      });
+  }
+
+  private async applyModel(model: string | null): Promise<void> {
+    const session = this.session;
+    if (session === null) return;
+    await session.applyFlagSettings(allowedOnly(model));
+    if (model === this.model) return;
+    const was = this.model;
+    await session.setModel(model ?? undefined);
+    this.model = model;
+    log.info({ was, now: model }, 'sdk-runner: the session thinks with the new model from now on, with no restart');
   }
 
   private keep(unanswered: Unanswered[]): void {

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { currentRoute, permissionMode, routeModelEnv, systemPrompt } from '../src/route.ts';
+import { currentModel, currentRoute, permissionMode, routeModelEnv, systemPrompt } from '../src/route.ts';
 
 let dir = '';
 
@@ -34,6 +34,21 @@ describe('the model route metro claude tells Claude Code about', () => {
     expect(currentRoute(dir)).toBeNull();
     writeFileSync(join(dir, 'model.json'), '{broken');
     expect(currentRoute(dir)).toBeNull();
+  });
+
+  test('the Agent SDK runner gets the model of every provider, Anthropic included, and nothing when no model is picked', () => {
+    const write = (route: string, connections: unknown[]): void => {
+      writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));
+    };
+    expect(currentModel(dir)).toBeNull();
+    write('c1', [{ id: 'c1', provider: 'anthropic', model: 'claude-opus-5-5' }]);
+    expect(currentModel(dir)).toBe('claude-opus-5-5');
+    write('c1', [{ id: 'c1', provider: 'bedrock', model: 'eu.anthropic.claude-sonnet-5-5' }]);
+    expect(currentModel(dir)).toBe('bedrock:eu.anthropic.claude-sonnet-5-5');
+    write('c1', [{ id: 'c1', provider: 'anthropic', model: '' }]);
+    expect(currentModel(dir)).toBeNull();
+    write('c1', [{ id: 'c1', provider: 'mars', model: 'x' }]);
+    expect(currentModel(dir)).toBeNull();
   });
 
   test('sets ANTHROPIC_MODEL unless the user set one', () => {
