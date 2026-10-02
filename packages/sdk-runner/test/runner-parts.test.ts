@@ -102,13 +102,14 @@ describe('only words that answer a call are spoken', () => {
     expect(said).toEqual(['It is Paris.']);
   });
 
-  test('call words folded into a running chat turn are spoken once Claude Code replays them into the stream', () => {
+  test('call words folded into a running chat turn are spoken from the moment Claude Code starts them', () => {
     const { router, said, inbox } = setup();
     router.setCallLive(true);
     const chat = inbox.push('chat', 'a long log');
     const call = inbox.push('call', 'hello?');
-    const replay = msg({ type: 'user', isReplay: true, parent_tool_use_id: null, uuid: call, message: { role: 'user', content: '<call>hello?</call>' } });
-    for (const m of [init, stamp([chat]), text('noted'), replay, text("I'm on the line."), result]) router.observe(m);
+    const started = msg({ type: 'command_lifecycle', command_uuid: call, state: 'started' });
+    for (const m of [init, stamp([chat]), text('noted'), started, text("I'm on the line."), result]) router.observe(m);
+    for (const m of [msg({ type: 'command_lifecycle', command_uuid: chat, state: 'started' }), init, text('later chat work'), result]) router.observe(m);
     expect(said).toEqual(["I'm on the line."]);
   });
 
@@ -143,7 +144,7 @@ describe('the session watch', () => {
     expect(released).toBe(true);
   });
 
-  test('gives up waiting after the cap, and follows compaction', async () => {
+  test('gives up waiting after the cap, and holds call words until a compaction ends', async () => {
     const watch = new SessionWatch(() => false);
     watch.observe(toolUse('t1', 'mcp__metro__send'));
     const started = performance.now();
@@ -151,7 +152,15 @@ describe('the session watch', () => {
     expect(performance.now() - started).toBeLessThan(1_000);
     watch.observe({ type: 'system', subtype: 'status', status: 'compacting' });
     expect(watch.compacting).toBe(true);
+    let after = false;
+    const held = watch.whenNotCompacting(5_000).then(() => {
+      after = true;
+    });
+    await Bun.sleep(20);
+    expect(after).toBe(false);
     watch.observe({ type: 'system', subtype: 'compact_boundary' });
+    await held;
+    expect(after).toBe(true);
     expect(watch.compacting).toBe(false);
     expect(watch.context).toBe(0);
     watch.observe({ type: 'result' });

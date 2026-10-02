@@ -6,7 +6,7 @@ import type { RunnerConfig } from './config.js';
 import { Inbox, type Unanswered, type Uuid } from './inbox.js';
 import { CALL_ENDED, callStarted, callWords, FRONT_RULES } from './rules.js';
 import type { SessionStore } from './session-store.js';
-import { replayedUuid, SessionWatch, uuidsOf } from './session-watch.js';
+import { SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
 import { SpeechRouter, type SpeechSink } from './speech.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 
@@ -97,9 +97,8 @@ export class Runner {
     if (this.session === null) throw new Error('the runner was not started');
     for await (const message of this.session) {
       const m: Record<string, unknown> = { ...message };
-      const uuids = uuidsOf(m) ?? [];
-      const delivered = replayedUuid(m);
-      this.inbox.consumed(delivered === null ? uuids : [...uuids, delivered]);
+      const started = startedCommand(m);
+      this.inbox.consumed([...(uuidsOf(m) ?? []), ...(started === null ? [] : [started])]);
       this.watch.observe(m);
       this.speech.observe(message);
       this.note(m);
@@ -136,12 +135,10 @@ export class Runner {
     const uuid = randomUUID();
     this.inbox.mark(uuid, 'call');
     this.armStall();
-    if (this.watch.compacting) {
-      log.info('sdk-runner: a call message waits for the compaction to finish');
-      return this.inbox.push('call', text, undefined, uuid);
-    }
+    if (this.watch.compacting) log.info('sdk-runner: a call message waits for the compaction to finish');
     this.watch
-      .whenNotWriting()
+      .whenNotCompacting()
+      .then(() => this.watch.whenNotWriting())
       .then(() => this.inbox.push('call', text, 'now', uuid))
       .catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'sdk-runner: could not hand a call message to the session');

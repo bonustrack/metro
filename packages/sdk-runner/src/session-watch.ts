@@ -2,14 +2,15 @@ import { isRecord } from '@metro-labs/core/is-record';
 
 const METRO_TOOL = /^mcp__metro__(.+)$/;
 const GATE_CAP_MS = 5_000;
+const COMPACT_CAP_MS = 20_000;
 
 export const uuidsOf = (m: Record<string, unknown>): string[] | null => {
   if (Array.isArray(m.user_message_uuids)) return m.user_message_uuids.filter((u): u is string => typeof u === 'string');
   return typeof m.user_message_uuid === 'string' ? [m.user_message_uuid] : null;
 };
 
-export const replayedUuid = (m: Record<string, unknown>): string | null =>
-  m.type === 'user' && m.isReplay === true && m.parent_tool_use_id === null && typeof m.uuid === 'string' ? m.uuid : null;
+export const startedCommand = (m: Record<string, unknown>): string | null =>
+  m.type === 'command_lifecycle' && m.state === 'started' && typeof m.command_uuid === 'string' ? m.command_uuid : null;
 
 const num = (value: unknown): number => (typeof value === 'number' ? value : 0);
 
@@ -23,9 +24,20 @@ function toolResultIds(message: unknown): string[] {
   return message.content.filter(isRecord).filter((b) => b.type === 'tool_result' && typeof b.tool_use_id === 'string').map((b) => String(b.tool_use_id));
 }
 
+function capped(waiters: (() => void)[], capMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, capMs);
+    waiters.push(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 export class SessionWatch {
   private readonly writes = new Set<string>();
   private readonly idle: (() => void)[] = [];
+  private readonly compacted: (() => void)[] = [];
   private compactingNow = false;
   private lastContext = 0;
 
@@ -52,23 +64,25 @@ export class SessionWatch {
   }
 
   whenNotWriting(capMs = GATE_CAP_MS): Promise<void> {
-    if (!this.writing) return Promise.resolve();
-    return new Promise((resolve) => {
-      const timer = setTimeout(resolve, capMs);
-      this.idle.push(() => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
+    return this.writing ? capped(this.idle, capMs) : Promise.resolve();
+  }
+
+  whenNotCompacting(capMs = COMPACT_CAP_MS): Promise<void> {
+    return this.compactingNow ? capped(this.compacted, capMs) : Promise.resolve();
   }
 
   private system(m: Record<string, unknown>): void {
     if (m.subtype === 'init') this.settle();
-    else if (m.subtype === 'status') this.compactingNow = m.status === 'compacting';
+    else if (m.subtype === 'status') this.setCompacting(m.status === 'compacting');
     else if (m.subtype === 'compact_boundary') {
-      this.compactingNow = false;
+      this.setCompacting(false);
       this.lastContext = 0;
     }
+  }
+
+  private setCompacting(on: boolean): void {
+    this.compactingNow = on;
+    if (!on) for (const resume of this.compacted.splice(0)) resume();
   }
 
   private assistant(message: Record<string, unknown>): void {
