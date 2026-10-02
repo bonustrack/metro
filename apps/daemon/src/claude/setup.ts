@@ -68,6 +68,7 @@ export interface SetupReport {
 export interface SetupStatus {
   privacy: boolean;
   permissionMode: PermissionMode;
+  runner: HarnessRunner;
   systemPrompt: string;
   liveEvents: boolean;
   memoryRoutine: boolean;
@@ -85,6 +86,8 @@ const statePath = (agents: string): string => join(agents, STATE_FILE);
 
 const PERMISSION_MODES = ['auto', 'bypass'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
+const RUNNERS = ['cli', 'sdk'] as const;
+export type HarnessRunner = (typeof RUNNERS)[number];
 
 function readState(agents: string): Record<string, unknown> {
   const raw = readJson<unknown>(statePath(agents), null);
@@ -111,6 +114,17 @@ export function permissionMode(agents = agentsDir()): PermissionMode {
 
 export function setPermissionMode(mode: PermissionMode, agents = agentsDir()): void {
   writeState(agents, { permissionMode: mode });
+}
+
+export const isHarnessRunner = (value: unknown): value is HarnessRunner => RUNNERS.some((r) => r === value);
+
+export function harnessRunner(agents = agentsDir()): HarnessRunner {
+  const runner = readState(agents).runner;
+  return isHarnessRunner(runner) ? runner : 'cli';
+}
+
+export function setHarnessRunner(runner: HarnessRunner, agents = agentsDir()): void {
+  writeState(agents, { runner });
 }
 
 export const liveEvents = (agents = agentsDir()): boolean => readState(agents).liveEvents !== false;
@@ -294,6 +308,7 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
   return {
     privacy: privacyEnabled(agents),
     permissionMode: permissionMode(agents),
+    runner: harnessRunner(agents),
     systemPrompt: systemPrompt(agents),
     liveEvents: liveEvents(agents),
     memoryRoutine: memoryRoutine(agents),
