@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { realpathSync } from '../agent-user/agent-fs.js';
+import { readdirNames, readFileSync, realpathSync, statSync } from '../agent-user/agent-fs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -9,6 +9,7 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
 import { claudeDir, listClaudeProjects } from './files.js';
+import { harnessRunner } from './setup.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
@@ -35,6 +36,7 @@ const PAUSE_MS = 30 * 60_000;
 export interface SessionDeps {
   tmux?: string;
   metro?: string[];
+  runner?: string[];
   home?: string;
   agents?: string;
   signedIn?: () => boolean;
@@ -118,10 +120,41 @@ export function metroCli(args: string[], fixed?: string[]): string[] {
   return env.length === 0 || fixed !== undefined ? base : ['env', ...env, ...base];
 }
 
+const SDK_SESSION_FILE = join('.metro', 'agent-session.json');
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function sdkSession(home: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(home, SDK_SESSION_FILE), 'utf8'));
+    const id = isRecord(parsed) ? parsed.sessionId : undefined;
+    return typeof id === 'string' && SESSION_ID_RE.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function newestTranscript(home: string, dir: string): string | null {
+  const project = join(dir, 'projects', encodedCwd(realDir(home)));
+  try {
+    const newest = readdirNames(project)
+      .filter((name) => name.endsWith('.jsonl'))
+      .map((name) => ({ name, mtime: statSync(join(project, name)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)[0];
+    return newest === undefined ? null : newest.name.slice(0, -'.jsonl'.length);
+  } catch {
+    return null;
+  }
+}
+
+export function continueArgs(home: string, dir = claudeDir(), continues: (home: string) => boolean = hasConversation): string[] {
+  const sdk = sdkSession(home);
+  if (sdk !== null && newestTranscript(home, dir) === sdk) return ['--resume', sdk];
+  return continues(home) ? ['-c'] : [];
+}
+
 function metroCommand(deps: SessionDeps, home: string): string[] {
-  const command = metroCli(['claude'], deps.metro);
-  const continues = (deps.continues ?? hasConversation)(home);
-  return continues ? [...command, '-c'] : command;
+  if (harnessRunner(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
+  return [...metroCli(['claude'], deps.metro), ...continueArgs(home, claudeDir(), deps.continues)];
 }
 
 function credentialReady(deps: SessionDeps): string | null {

@@ -32,6 +32,7 @@ export async function controlClaudeSession(input: { action?: 'start' | 'stop'; a
 }
 
 export type PermissionMode = 'auto' | 'bypass';
+export type HarnessRunner = 'cli' | 'sdk';
 
 export interface MemoryJob {
   state: 'scheduled' | 'own' | 'off' | 'unavailable';
@@ -41,6 +42,7 @@ export interface MemoryJob {
 export interface ClaudeSetup {
   privacy: boolean;
   permissionMode: PermissionMode;
+  runner: HarnessRunner | null;
   systemPrompt: string;
   liveEvents: boolean | null;
   memoryRoutine: boolean | null;
@@ -66,6 +68,7 @@ function toClaudeSetup(body: unknown): ClaudeSetup {
   return {
     privacy: body.privacy,
     permissionMode: body.permissionMode === 'bypass' ? 'bypass' : 'auto',
+    runner: body.runner === 'sdk' || body.runner === 'cli' ? body.runner : null,
     systemPrompt: typeof body.systemPrompt === 'string' ? body.systemPrompt : '',
     liveEvents: typeof body.liveEvents === 'boolean' ? body.liveEvents : null,
     memoryRoutine: typeof body.memoryRoutine === 'boolean' ? body.memoryRoutine : null,
@@ -89,6 +92,10 @@ export async function setClaudePrivacy(privacy: boolean): Promise<ClaudeSetup> {
 
 export async function setClaudePermissionMode(permissionMode: PermissionMode): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { permissionMode }));
+}
+
+export async function setHarnessRunner(runner: HarnessRunner): Promise<ClaudeSetup> {
+  return toClaudeSetup(await claudeCall('POST', '/setup', { runner }));
 }
 
 export async function setClaudeLiveEvents(liveEvents: boolean): Promise<ClaudeSetup> {

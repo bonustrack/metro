@@ -109,6 +109,7 @@ describe('the Claude Code setup a metro box gets', () => {
     expect(claudeSetupStatus(deps())).toEqual({
       privacy: false,
       permissionMode: 'auto',
+      runner: 'cli',
       systemPrompt: '',
       liveEvents: true,
       memoryRoutine: true,
@@ -224,6 +225,15 @@ describe('the permission mode of the session', () => {
     expect(both).toMatchObject({ permissionMode: 'bypass', privacy: false });
     expect((await call('POST', { permissionMode: 'sometimes' })).status).toBe(400);
     expect((await call('POST', {})).status).toBe(400);
+  });
+
+  test('the runner is the Claude Code session until switched to the Agent SDK, is kept with the setup, and anything else is refused', async () => {
+    expect(((await (await call('GET')).json()) as { runner: string }).runner).toBe('cli');
+    const sdk = (await (await call('POST', { runner: 'sdk' })).json()) as { runner: string; permissionMode: string };
+    expect(sdk.runner).toBe('sdk');
+    expect((JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as { runner: string }).runner).toBe('sdk');
+    expect((await call('POST', { runner: 'codex' })).status).toBe(400);
+    expect(((await (await call('POST', { runner: 'cli' })).json()) as { runner: string }).runner).toBe('cli');
   });
 
   test('a system prompt is kept as a file the CLI appends, empty removes it, and a non-text or huge one is refused', async () => {

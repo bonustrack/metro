@@ -23,16 +23,20 @@ import {
 import {
   claudeSetupStatus,
   ensureClaudeSetup,
+  harnessRunner,
+  isHarnessRunner,
   isPermissionMode,
   liveEvents,
   permissionMode,
   setLiveEvents,
+  setHarnessRunner,
   setMemoryRoutine,
   setPermissionMode,
   setPrivacy,
   setSystemPrompt,
   systemPrompt,
   SYSTEM_PROMPT_MAX,
+  type HarnessRunner,
   type PermissionMode,
   type SetupDeps,
 } from './setup.js';
@@ -158,6 +162,7 @@ const VERSION = 'version';
 interface SetupChange {
   privacy?: boolean;
   permissionMode?: PermissionMode;
+  runner?: HarnessRunner;
   systemPrompt?: string;
   liveEvents?: boolean;
   memoryRoutine?: boolean;
@@ -182,6 +187,12 @@ function modeChange(raw: unknown): PermissionMode | undefined {
   return raw;
 }
 
+function runnerChange(raw: unknown): HarnessRunner | undefined {
+  if (raw === undefined) return undefined;
+  if (!isHarnessRunner(raw)) throw new ApiError('runner must be cli or sdk', 400);
+  return raw;
+}
+
 function setupChange(body: unknown): SetupChange {
   if (!isRecord(body)) throw new ApiError('a body is required', 400);
   const privacy = flagChange(body.privacy, 'privacy');
@@ -189,10 +200,12 @@ function setupChange(body: unknown): SetupChange {
   const systemPrompt = promptChange(body.systemPrompt);
   const liveEvents = flagChange(body.liveEvents, 'liveEvents');
   const memoryRoutine = flagChange(body.memoryRoutine, 'memoryRoutine');
-  if ([privacy, permissionMode, systemPrompt, liveEvents, memoryRoutine].every((v) => v === undefined)) throw new ApiError('nothing to change', 400);
+  const runner = runnerChange(body.runner);
+  if ([privacy, permissionMode, systemPrompt, liveEvents, memoryRoutine, runner].every((v) => v === undefined)) throw new ApiError('nothing to change', 400);
   return {
     ...(privacy === undefined ? {} : { privacy }),
     ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(runner === undefined ? {} : { runner }),
     ...(systemPrompt === undefined ? {} : { systemPrompt }),
     ...(liveEvents === undefined ? {} : { liveEvents }),
     ...(memoryRoutine === undefined ? {} : { memoryRoutine }),
@@ -207,6 +220,10 @@ function restartsSession(change: SetupChange, agents: string | undefined): boole
   }
   if (change.systemPrompt !== undefined && change.systemPrompt.trim() !== systemPrompt(agents)) {
     setSystemPrompt(change.systemPrompt, agents);
+    restart = true;
+  }
+  if (change.runner !== undefined && change.runner !== harnessRunner(agents)) {
+    setHarnessRunner(change.runner, agents);
     restart = true;
   }
   return restart;
