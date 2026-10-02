@@ -5,12 +5,15 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { SDKMessage } from '../../packages/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs';
 import { startStandIn, STANDIN_KEY, type StandIn } from './key-route.ts';
+import { startScripted, type ScriptedUpstream } from './scripted-upstream.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'sdk-runner-check-'));
-const AGENTS = join(ROOT, 'agents');
+export const AGENTS = join(ROOT, 'agents');
+export const CLAUDE_DIR = join(ROOT, 'claude');
 const WORK = join(ROOT, 'work');
 mkdirSync(AGENTS, { recursive: true });
 mkdirSync(WORK, { recursive: true });
+mkdirSync(CLAUDE_DIR, { recursive: true });
 const realAgentFile = join(process.env.METRO_AGENTS_DIR ?? join(homedir(), '.metro', 'agents'), 'agent.json');
 if (existsSync(realAgentFile)) copyFileSync(realAgentFile, join(AGENTS, 'agent.json'));
 process.env.METRO_AGENTS_DIR = AGENTS;
@@ -68,7 +71,10 @@ setTrainCallBackend((_train, action, args) => {
 });
 
 const keyRoute = process.env.SDK_RUNNER_CHECK_ROUTE === 'key';
+const scriptedRoute = process.env.SDK_RUNNER_CHECK_ROUTE === 'scripted';
+const gatewayOn = keyRoute || scriptedRoute;
 export const standIn: StandIn | null = keyRoute ? await startStandIn(PORT + 1) : null;
+export const upstream: ScriptedUpstream | null = scriptedRoute ? await startScripted(PORT + 1) : null;
 if (keyRoute) {
   writeFileSync(
     join(AGENTS, 'model.json'),
@@ -76,11 +82,18 @@ if (keyRoute) {
   );
 }
 
-const mcp = await createMetroMcp();
+export const mcp = await createMetroMcp();
 mcp.startInbound();
-const gateway = { config: () => readModelConfig(AGENTS), identify: (key: string) => key === KEY, anthropicBase: `http://127.0.0.1:${String(PORT + 1)}` };
+export const UPSTREAM = `http://127.0.0.1:${String(PORT + 1)}`;
+const gateway = { config: () => readModelConfig(AGENTS), identify: (key: string) => key === KEY, anthropicBase: UPSTREAM, openrouterBase: UPSTREAM };
+let also: ((req: IncomingMessage, res: ServerResponse) => boolean) | null = null;
+export const serveAlso = (handler: (req: IncomingMessage, res: ServerResponse) => boolean): void => {
+  also = handler;
+};
+export const BASE = `http://127.0.0.1:${String(PORT)}`;
 const http = createServer((req: IncomingMessage, res: ServerResponse) => {
-  if (keyRoute && handleGatewayRequest(req, res, gateway)) return;
+  if (also?.(req, res) === true) return;
+  if (gatewayOn && handleGatewayRequest(req, res, gateway)) return;
   mcp.httpHandler(req, res).catch(() => undefined);
 });
 await new Promise<void>((resolve) => http.listen(PORT, '127.0.0.1', () => resolve()));
@@ -109,12 +122,18 @@ export function chat(from: string, text: string, line = LINE, extra: Record<stri
 
 const DROP = /^(CLAUDECODE|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_MESSAGING_SOCKET|CLAUDE_CODE_MESSAGING_TOKEN|CLAUDE_CODE_SESSION_ID|CLAUDE_PID|CLAUDE_CODE_SESSION_ATTENDED|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_EXECPATH|CLAUDE_EFFORT)$/;
 const inherited: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
-const childEnv: NodeJS.ProcessEnv = keyRoute
-  ? { ...inherited, ANTHROPIC_BASE_URL: `http://127.0.0.1:${String(PORT)}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}` }
-  : inherited;
+const throughGateway: NodeJS.ProcessEnv = gatewayOn ? { ...inherited, ANTHROPIC_BASE_URL: `${BASE}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}` } : inherited;
+const childEnv: NodeJS.ProcessEnv = scriptedRoute ? { ...throughGateway, CLAUDE_CONFIG_DIR: CLAUDE_DIR, ANTHROPIC_AUTH_TOKEN: KEY } : throughGateway;
 
 const cfg = runnerConfig(
-  { ...childEnv, METRO_RUNNER_MCP_URL: `http://127.0.0.1:${String(PORT)}/mcp`, METRO_AGENT_KEY: KEY, METRO_RUNNER_STATE: join(ROOT, 'session.json'), METRO_RUNNER_PERMISSION_MODE: 'bypass' },
+  {
+    ...childEnv,
+    METRO_RUNNER_MCP_URL: `${BASE}/mcp`,
+    METRO_AGENT_KEY: KEY,
+    METRO_RUNNER_STATE: join(ROOT, 'session.json'),
+    METRO_RUNNER_PERMISSION_MODE: 'bypass',
+    METRO_RUNNER_MODEL: process.env.SDK_RUNNER_CHECK_MODEL ?? 'claude-sonnet-5-5',
+  },
   WORK,
 );
 
@@ -205,4 +224,5 @@ export async function settled(quietMs = 3_000, waitWorkers = true): Promise<void
 export function close(): void {
   http.close();
   standIn?.close();
+  upstream?.close();
 }

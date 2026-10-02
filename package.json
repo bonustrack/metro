@@ -19,6 +19,7 @@
     "compat": "bash scripts/compat.sh",
     "sdk-runner-check": "bun scripts/sdk-runner/run.ts",
     "sdk-runner-long": "bun scripts/sdk-runner/long.ts",
+    "sdk-runner-model": "bun scripts/sdk-runner/model.ts",
     "metro-user-check": "bash scripts/metro-user/run.sh",
     "secret-modes": "bash scripts/secret-modes.sh",
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"
