@@ -18,6 +18,7 @@
     "smoke": "bash scripts/smoke.sh",
     "compat": "bash scripts/compat.sh",
     "sdk-runner-check": "bun scripts/sdk-runner/run.ts",
+    "sdk-runner-long": "bun scripts/sdk-runner/long.ts",
     "metro-user-check": "bash scripts/metro-user/run.sh",
     "secret-modes": "bash scripts/secret-modes.sh",
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"

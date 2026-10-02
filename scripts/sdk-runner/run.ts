@@ -1,182 +1,9 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
-import type { SDKMessage } from '../../packages/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs';
+import { ALICE, boot as bootAt, calls, chat, close, events, LESS, LINE, lost, OTHER, reactsTo, sendsOn, settled, sleep, spoken, standIn, stalls, turnsSince, until, wordsAfter, say, now } from './harness.ts';
 
-const ROOT = mkdtempSync(join(tmpdir(), 'sdk-runner-check-'));
-const AGENTS = join(ROOT, 'agents');
-const WORK = join(ROOT, 'work');
-mkdirSync(AGENTS, { recursive: true });
-mkdirSync(WORK, { recursive: true });
-const realAgentFile = join(process.env.METRO_AGENTS_DIR ?? join(homedir(), '.metro', 'agents'), 'agent.json');
-if (existsSync(realAgentFile)) copyFileSync(realAgentFile, join(AGENTS, 'agent.json'));
-process.env.METRO_AGENTS_DIR = AGENTS;
-process.env.METRO_LOG_LEVEL ??= 'warn';
-
-const { publishEvent } = await import('../../packages/core/src/events.ts');
-const { createMetroMcp } = await import('../../apps/daemon/src/mcp/index.ts');
-const { setKeyMap } = await import('../../apps/daemon/src/agents/keys.ts');
-const { setAgentMap, setAllowlistMap, setApproversMap } = await import('../../apps/daemon/src/agents/map.ts');
-const { setTrainCallBackend } = await import('../../apps/daemon/src/stations/train-call.ts');
-const { setPolicies } = await import('../../apps/daemon/src/policy/policy.ts');
-const { watchPolicySnapshot } = await import('../../apps/daemon/src/mcp/policy-snapshot.ts');
-const { startAgent } = await import('../../packages/sdk-runner/src/app.ts');
-const { runnerConfig } = await import('../../packages/sdk-runner/src/config.ts');
-
-const T0 = performance.now();
-const now = (): number => Math.round(performance.now() - T0);
-const say = (kind: string, data: Record<string, unknown> = {}): void => {
-  process.stdout.write(`${JSON.stringify({ t: now(), kind, ...data })}\n`);
-};
-
-const AGENT = 'agent000001';
-const KEY = `mk_${randomUUID()}`;
-const TG = 'tb000000001';
-const TG2 = 'tb000000002';
-const LINE = `metro://telegram-bot/${TG}/-100777`;
-const OTHER = `metro://telegram-bot/${TG2}/-100999`;
-const LESS = `metro://telegram-bot/${TG}/user/111`;
-const ALICE = `metro://telegram-bot/${TG}/user/222`;
-const PORT = Number(process.env.SDK_RUNNER_CHECK_PORT ?? 18419);
-
-setKeyMap([{ key: KEY, agentId: AGENT }]);
-setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`telegram-bot/${TG2}`]: AGENT }, { [AGENT]: 'Emma' });
-setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'], [`telegram-bot/${TG2}`]: ['111'] });
-setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
-setPolicies('channel', [[{ kind: 'channel', station: 'telegram-bot', account: TG2 }, { tools: { send: 'ask' } }]]);
-watchPolicySnapshot();
-
-interface Call {
-  t: number;
-  action: string;
-  args: Record<string, unknown>;
-}
-const calls: Call[] = [];
-setTrainCallBackend((_train, action, args) => {
-  const a = args as Record<string, unknown>;
-  calls.push({ t: now(), action, args: a });
-  say('train', { action, line: a.line, text: typeof a.text === 'string' ? a.text.slice(0, 160) : undefined, emoji: a.emoji });
-  return Promise.resolve({ result: { messageId: `out-${String(calls.length)}` } });
-});
-
-const mcp = await createMetroMcp();
-mcp.startInbound();
-const http = createServer((req, res) => {
-  mcp.httpHandler(req, res).catch(() => undefined);
-});
-await new Promise<void>((resolve) => http.listen(PORT, '127.0.0.1', () => resolve()));
-
-let seq = 0;
-function chat(from: string, text: string, line = LINE): string {
-  seq += 1;
-  const id = `in-${String(seq)}`;
-  publishEvent({
-    id: `ev-${randomUUID()}`,
-    ts: new Date().toISOString(),
-    station: 'telegram-bot',
-    line,
-    from,
-    to: line,
-    text,
-    messageId: id,
-    fromName: from === LESS ? 'Less' : 'Alice',
-    event: { type: 'msg' },
-    isPrivate: true,
-  } as never);
-  say('chat_in', { id, from: from === LESS ? 'less' : 'alice', text: text.slice(0, 120) });
-  return id;
-}
-
-const DROP = /^(CLAUDECODE|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_MESSAGING_SOCKET|CLAUDE_CODE_MESSAGING_TOKEN|CLAUDE_CODE_SESSION_ID|CLAUDE_PID|CLAUDE_CODE_SESSION_ATTENDED|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_EXECPATH|CLAUDE_EFFORT)$/;
-const childEnv: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
-
-const cfg = runnerConfig(
-  { ...childEnv, METRO_RUNNER_MCP_URL: `http://127.0.0.1:${String(PORT)}/mcp`, METRO_AGENT_KEY: KEY, METRO_RUNNER_STATE: join(ROOT, 'session.json'), METRO_RUNNER_PERMISSION_MODE: 'bypass' },
-  WORK,
-);
-
-interface Turn {
-  t: number;
-  kind: string;
-  data: Record<string, unknown>;
-}
-const events: Turn[] = [];
-const spoken: { t: number; text: string }[] = [];
-const stalls: number[] = [];
-const firstWords: number[] = [];
-const wordsAfter = (at: number): number => (firstWords.find((t) => t >= at) ?? at) - at;
-let speaking = '';
-const record = (m: SDKMessage): void => {
-  const r: Record<string, unknown> = { ...m };
-  if (r.type === 'system' && r.subtype === 'init') events.push({ t: now(), kind: 'init', data: { session: r.session_id } });
-  if (r.type === 'result') {
-    events.push({ t: now(), kind: 'result', data: { ms: r.duration_ms, cost: r.total_cost_usd, uuids: r.user_message_uuids, origin: r.origin } });
-    say('result', { ms: r.duration_ms, cost: r.total_cost_usd, text: typeof r.result === 'string' ? r.result.slice(0, 200) : '' });
-  }
-  if (r.type === 'system' && typeof r.subtype === 'string' && /^(task_started|task_notification|compact_boundary|status)$/.test(r.subtype)) {
-    events.push({ t: now(), kind: r.subtype, data: { status: r.status, task: r.task_id, meta: r.compact_metadata } });
-    say(r.subtype, { status: r.status, meta: r.compact_metadata });
-  }
-  if (r.type === 'user' && r.isReplay === true) say('replay', { uuid: r.uuid });
-  if (r.type === 'stream_event' && r.parent_tool_use_id === null) {
-    const e = r.event as Record<string, unknown>;
-    const block = e.content_block as Record<string, unknown> | undefined;
-    if (e.type === 'content_block_start' && block?.type === 'tool_use') say('tool', { name: block.name });
-  }
-};
-
-let lostReason: string | null = null;
-const boot = (): ReturnType<typeof startAgent> =>
-  startAgent(cfg, {
-    speech: {
-      say: (text) => {
-        if (speaking === '') {
-          firstWords.push(now());
-          say('first_words');
-        }
-        speaking += text;
-      },
-      stalled: () => {
-        say('stalled');
-        stalls.push(now());
-      },
-      done: () => {
-        spoken.push({ t: now(), text: speaking.trim() });
-        say('spoken', { text: speaking.trim().slice(0, 200) });
-        speaking = '';
-      },
-    },
-    lost: (reason) => {
-      lostReason = reason;
-    },
-    observe: record,
-    env: childEnv,
-    compactAt: Number(process.env.SDK_RUNNER_CHECK_COMPACT_AT ?? 100_000),
-  });
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-async function until(what: string, pred: () => boolean, ms = 120_000): Promise<number> {
-  const start = now();
-  while (!pred()) {
-    if (now() - start > ms) throw new Error(`timed out waiting for ${what}`);
-    await sleep(25);
-  }
-  return now() - start;
-}
-const sendsOn = (line: string, after: number): Call[] => calls.filter((c) => c.t >= after && (c.action === 'send' || c.action === 'reply') && c.args.line === line);
-const reactsTo = (id: string): Call[] => calls.filter((c) => c.action === 'react' && JSON.stringify(c.args).includes(`"${id}"`));
-const results = (after: number): Turn[] => events.filter((e) => e.t >= after && e.kind === 'result');
 const numbers: Record<string, unknown> = {};
+const COMPACT_AT = Number(process.env.SDK_RUNNER_CHECK_COMPACT_AT ?? 100_000);
+const boot = (): ReturnType<typeof bootAt> => bootAt(COMPACT_AT);
 
-const turnsSince = (after: number): number => events.filter((e) => e.t >= after && e.kind === 'result').length;
-async function settled(quietMs = 3_000): Promise<void> {
-  await until('the session to settle', () => {
-    const last = events[events.length - 1];
-    return (last === undefined || (last.kind !== 'init' && now() - last.t > quietMs)) && !events.some((e) => e.kind === 'task_started' && !events.some((d) => d.kind === 'task_notification' && d.t > e.t));
-  }, 300_000).catch(() => 0);
-}
 const ONLY = (process.env.SDK_RUNNER_CHECK_STEPS ?? '').split(',').filter((n) => n !== '');
 const step = async (name: string, body: () => Promise<void>): Promise<void> => {
   if (ONLY.length > 0 && !ONLY.includes(name)) return;
@@ -356,10 +183,12 @@ await step('compact', async () => {
   numbers.compact_after_answer = sendsOn(LINE, q)[0]?.args.text;
 });
 
-numbers.lost = lostReason;
+numbers.lost = lost();
+numbers.claude_code = [...events].reverse().find((e) => e.kind === 'init')?.data.claude;
+if (standIn !== null) numbers.key_route = standIn.stats;
 numbers.turns = events.filter((e) => e.kind === 'result').length;
 numbers.cost_usd = [...events].reverse().find((e) => e.kind === 'result')?.data.cost;
 say('numbers', numbers);
 await agent.stop();
-http.close();
+close();
 process.exit(0);
