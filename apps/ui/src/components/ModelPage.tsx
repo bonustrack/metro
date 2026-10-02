@@ -15,10 +15,10 @@ import { ModelPickerModal } from './ModelPickerModal.js';
 import type { MenuItem } from './Dropdown.js';
 import { chooseConnection, dropConnection, saveConnection, type ConnectionRow, type ModelSettings } from '../api/model.js';
 import { usesKey } from '../api/providers.js';
-import { queryError, refresh, useModelQuery } from '../api/queries.js';
+import { queryError, refresh, useClaudeSetupQuery, useModelQuery } from '../api/queries.js';
+import { modelNote } from '../api/runner.js';
 import { useDocumentTitle } from '../title.js';
 
-const HOW = 'The AI your agent thinks with. Switching restarts the agent, which takes a few seconds.';
 const NONE_YET = 'No provider yet. Your agent uses the Claude login of its server until you add one.';
 
 type Run = (job: () => Promise<unknown>, fallback: string) => void;
@@ -95,13 +95,14 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
 
 export function ModelPage(): ReactNode {
   const model = useModelQuery();
+  const setup = useClaudeSetupQuery();
   useDocumentTitle('Model');
   return (
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
         <Text size="md" role="secondary">
-          {HOW}
+          {modelNote(setup.data)}
         </Text>
       </Col>
       {model.error !== null ? (

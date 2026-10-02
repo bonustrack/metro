@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,6 +69,15 @@ describe('a box owned by an organization', () => {
     expect((await get('/api/session', {})).status).toBe(401);
     expect(existsSync(join(dir, '.jwks'))).toBe(true);
     expect(readFileSync(join(dir, '.jwks'), 'utf8')).toContain('"keys"');
+  });
+
+  test('the Metro operator is marked by the WorkOS user id the token is signed for, never by role', async () => {
+    setLocalOwner(ORG, dir);
+    const sessions = bearerSessionsFor(() => localOwner(dir), new SigningKeys(issuer.url, jwksStore(dir)));
+    const as = (claims: Record<string, unknown>): Promise<unknown> => sessions({ headers: bearer(claims) } as unknown as IncomingMessage);
+    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, role: 'admin', operator: true });
+    expect(await as({ org_id: ORG, role: 'member', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, role: 'member', operator: true });
+    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01SOMEADMIN0000000000000' })).toEqual({ subject: ORG, role: 'admin' });
   });
 
   test('stop needs the admin role: a member is 403, an admin goes through', async () => {

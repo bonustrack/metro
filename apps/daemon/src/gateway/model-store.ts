@@ -24,6 +24,7 @@ export interface ModelApiDeps {
   bedrockControlBase?: string;
   setup?: SetupDeps;
   restartSession?: () => boolean;
+  switchModel?: (model: string | null) => boolean;
   claudeUsage?: () => Promise<unknown>;
   usageWaitMs?: number;
 }

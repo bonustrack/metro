@@ -696,3 +696,55 @@ describe('picking an Anthropic or Bedrock model without typing its id', () => {
     expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).not.toHaveProperty('availableModels');
   });
 });
+
+describe('the Agent SDK session follows the Model page live', () => {
+  const setupFile = (): string => join(home, 'agents', 'claude-setup.json');
+  const runnerIs = (runner: 'cli' | 'sdk'): void => {
+    mkdirSync(join(home, 'agents'), { recursive: true });
+    writeFileSync(setupFile(), JSON.stringify({ runner }));
+  };
+
+  test('a new model or route goes to the running session, which switches without a restart; the same model sends nothing', async () => {
+    const told: (string | null)[] = [];
+    modelDeps.switchModel = (model) => {
+      told.push(model);
+      return true;
+    };
+    runnerIs('sdk');
+    try {
+      const sonnet = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5.5' });
+      const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-5-5' });
+      expect(told).toEqual(['openrouter:anthropic/claude-sonnet-5.5']);
+      await conns('PUT', `/${sonnet}`, { model: 'openai/gpt-6.1' });
+      await conns('PUT', `/${sonnet}`, { label: 'Work' });
+      await call('PUT', OWNER, { route: keyed });
+      await conns('PUT', `/${keyed}`, { model: 'claude-sonnet-5-5' });
+      expect(told).toEqual(['openrouter:anthropic/claude-sonnet-5.5', 'openrouter:openai/gpt-6.1', 'claude-opus-5-5', 'claude-sonnet-5-5']);
+      expect(restarts).toBe(0);
+    } finally {
+      modelDeps.switchModel = undefined;
+      rmSync(setupFile(), { force: true });
+    }
+  });
+
+  test('a session that cannot be told restarts on the new model, and the Claude Code session keeps restarting as before', async () => {
+    modelDeps.switchModel = () => false;
+    runnerIs('sdk');
+    try {
+      const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
+      expect(restarts).toBe(1);
+      await conns('PUT', `/${one}`, { model: 'c/d' });
+      expect(restarts).toBe(2);
+      runnerIs('cli');
+      await conns('PUT', `/${one}`, { model: 'e/f' });
+      expect(restarts).toBe(3);
+      const keyless = await add({ provider: 'anthropic', model: 'claude-opus-5-5' });
+      runnerIs('sdk');
+      await call('PUT', OWNER, { route: keyless });
+      expect(restarts).toBe(4);
+    } finally {
+      modelDeps.switchModel = undefined;
+      rmSync(setupFile(), { force: true });
+    }
+  });
+});
