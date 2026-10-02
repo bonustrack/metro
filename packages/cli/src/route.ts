@@ -34,16 +34,20 @@ export function routeModelEnv(env: NodeJS.ProcessEnv, route: string | null): Nod
 
 export type PermissionMode = 'auto' | 'bypass';
 
-export function permissionMode(dir = agentsDir()): PermissionMode {
+export const permissionMode = (dir = agentsDir()): PermissionMode => (setupField(dir, 'permissionMode') === 'bypass' ? 'bypass' : 'auto');
+
+function setupField(dir: string, field: string): unknown {
   const path = join(dir, 'claude-setup.json');
-  if (!existsSync(path)) return 'auto';
+  if (!existsSync(path)) return undefined;
   try {
-    const state = JSON.parse(readFileSync(path, 'utf8')) as { permissionMode?: unknown };
-    return state.permissionMode === 'bypass' ? 'bypass' : 'auto';
+    const state = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+    return state[field];
   } catch {
-    return 'auto';
+    return undefined;
   }
 }
+
+export const harnessRunner = (dir = agentsDir()): 'cli' | 'sdk' => (setupField(dir, 'runner') === 'sdk' ? 'sdk' : 'cli');
 
 export function systemPrompt(dir = agentsDir()): string | null {
   const path = join(dir, 'system-prompt.md');

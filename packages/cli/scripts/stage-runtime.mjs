@@ -66,5 +66,15 @@ const manifest = {
   stations: Object.fromEntries(STATION_SOURCES.map(([from, name]) => [name, vendor(from)])),
 };
 writeFileSync(join(OUT, 'stations.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
+const RUNNER = join(OUT, 'sdk-runner');
+cpSync(join(REPO, 'packages', 'sdk-runner', 'src'), join(RUNNER, 'src'), { recursive: true });
+const RUNNER_CORE = join(RUNNER, 'node_modules', '@metro-labs', 'core');
+cpSync(join(REPO, 'packages', 'core', 'src'), join(RUNNER_CORE, 'src'), { recursive: true });
+cpSync(join(REPO, 'packages', 'core', 'package.json'), join(RUNNER_CORE, 'package.json'));
+const runnerDeps = Object.fromEntries(
+  [...Object.entries(vendor('packages/core')), ...Object.entries(vendor('packages/sdk-runner'))].sort(([a], [b]) => a.localeCompare(b)),
+);
+writeFileSync(join(RUNNER, 'runner.json'), `${JSON.stringify({ version, dependencies: runnerDeps }, null, 2)}\n`);
 writeFileSync(join(OUT, 'runtime.json'), `${JSON.stringify({ version }, null, 2)}\n`);
 process.stdout.write(`staged the metro runtime ${version}\n`);

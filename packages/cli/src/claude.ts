@@ -1,7 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
 import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
-import { currentRoute, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
+import { currentRoute, harnessRunner, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
@@ -116,18 +116,18 @@ function deadline(child: ChildProcess, timeoutMs: number | undefined): () => voi
   };
 }
 
-export function runClaude(args: string[], env: NodeJS.ProcessEnv, headless?: { timeoutMs: number }): Promise<number> {
+export function runClaude(args: string[], env: NodeJS.ProcessEnv, headless?: { timeoutMs: number }, command = 'claude'): Promise<number> {
   return new Promise((resolve, reject) => {
     const leaveToChild = (): undefined => undefined;
     process.on('SIGINT', leaveToChild);
     process.on('SIGTERM', leaveToChild);
-    const child = spawn('claude', args, { stdio: [headless === undefined ? 'inherit' : 'ignore', 'inherit', 'inherit'], env });
+    const child = spawn(command, args, { stdio: [headless === undefined ? 'inherit' : 'ignore', 'inherit', 'inherit'], env });
     const stop = deadline(child, headless?.timeoutMs);
     child.on('error', (err: NodeJS.ErrnoException) => {
       reject(
         new Error(
           err.code === 'ENOENT'
-            ? 'the `claude` command is not on PATH — install Claude Code first'
+            ? `the \`${command}\` command is not on PATH${command === 'claude' ? ' — install Claude Code first' : ''}`
             : err.message,
         ),
       );
@@ -191,7 +191,11 @@ async function reclaimConversation(extra: string[]): Promise<void> {
   }
 }
 
+const SDK_HOLDS_CHAT =
+  'the Harness runs this agent as an Agent SDK session (metro agent), which holds the metro chat; a metro claude session would take it away. Switch the Harness runner back to the Claude Code session first, or open the conversation with plain claude --resume <session id>';
+
 export async function launchClaude(extra: string[]): Promise<number> {
+  if (harnessRunner() === 'sdk') throw new Error(SDK_HOLDS_CHAT);
   await reclaimConversation(extra);
   const decision = await verdict();
   const port = localPort();
