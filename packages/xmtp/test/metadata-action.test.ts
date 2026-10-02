@@ -80,6 +80,19 @@ describe('metadata action and independent mocked readback', () => {
     expect(state.syncs).toBe(2);
   });
 
+  test('the category is written once and read back by group_info', async () => {
+    const { state, group, acct } = fixture();
+    await patch({ category: ' Clients ' });
+    expect(state.writes).toHaveLength(1);
+    expect(JSON.parse(state.raw)).toEqual({ v: 1, assigned: [bob], labels: ['Blocked'], custom: true, category: 'Clients' });
+    const info = await buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2]);
+    expect(info.category).toBe('Clients');
+    await patch({ category: null });
+    expect(JSON.parse(state.raw)).toEqual({ v: 1, assigned: [bob], labels: ['Blocked'], custom: true });
+    const cleared = await buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2]);
+    expect(cleared.category).toBeUndefined();
+  });
+
   test('combined patch and explicit clearing use the existing updater', async () => {
     const { state, group } = fixture();
     await patch({ assigned: [alice], labels: ['In review'], custom: { active: true } }, 'feat: renamed');

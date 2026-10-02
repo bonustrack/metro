@@ -105,12 +105,14 @@ async function applyChannelMeta(
 
 function metaFields(merged: Record<string, unknown>): {
   labels: string[];
+  category: string | undefined;
   github: string | undefined;
   preview: string | undefined;
   assigned: unknown;
 } {
   return {
     labels: Array.isArray(merged.labels) ? (merged.labels as string[]) : [],
+    category: typeof merged.category === 'string' ? merged.category : undefined,
     github: typeof merged.github === 'string' ? merged.github : undefined,
     preview: typeof merged.preview === 'string' ? merged.preview : undefined,
     assigned: Object.hasOwn(merged, 'assigned') ? merged.assigned : [],

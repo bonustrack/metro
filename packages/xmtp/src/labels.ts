@@ -14,13 +14,17 @@ const MAX_LABELS = 16;
 const MAX_LABEL_LEN = 24;
 const MAX_APP_DATA_BYTES = 8192;
 
+function cleanLabel(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN);
+}
+
 function cleanLabels(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
   for (const item of raw) {
     if (typeof item !== 'string') continue;
-    const label = item.trim().replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN);
+    const label = cleanLabel(item);
     const key = label.toLowerCase();
     if (!label || seen.has(key)) continue;
     seen.add(key);
@@ -70,8 +74,13 @@ function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' && v.trim() ? v.trim() : undefined;
 }
 
+function cleanCategory(v: unknown): string | undefined {
+  return typeof v === 'string' ? cleanLabel(v) || undefined : undefined;
+}
+
 export function readAppData(appData: string | undefined): {
   labels: string[];
+  category?: string;
   github?: string;
   preview?: string;
 } {
@@ -82,6 +91,7 @@ export function readAppData(appData: string | undefined): {
     const rec = p as Record<string, unknown>;
     return {
       labels: cleanLabels(rec.labels),
+      category: cleanCategory(rec.category),
       github: trimmedString(rec.github),
       preview: trimmedString(rec.preview),
     };
@@ -97,33 +107,30 @@ function checkedLabels(value: unknown): string[] {
   return cleanLabels(value);
 }
 
+function checkedCategory(value: unknown): string | undefined {
+  if (value !== undefined && value !== null && typeof value !== 'string') {
+    throw new TrainError('INVALID_ARGS', 'category must be a string or null');
+  }
+  return cleanCategory(value);
+}
+
+const KNOWN_FIELDS = new Map<string, (value: unknown) => unknown>([
+  ['labels', checkedLabels],
+  ['assigned', normalizeAssigned],
+  ['github', (value) => normalizeGithubUrl(value) || undefined],
+  ['preview', (value) => normalizePreviewUrl(value) || undefined],
+  ['category', checkedCategory],
+]);
+
 function applyMergeKey(
   merged: Record<string, unknown>,
   k: string,
   v: unknown,
 ): void {
-  if (k === 'labels') {
-    merged.labels = checkedLabels(v);
-    return;
-  }
-  if (k === 'assigned') {
-    merged.assigned = normalizeAssigned(v);
-    return;
-  }
-  if (k === 'github') {
-    const g = normalizeGithubUrl(v);
-    if (g) merged.github = g;
-    else delete merged.github;
-    return;
-  }
-  if (k === 'preview') {
-    const p = normalizePreviewUrl(v);
-    if (p) merged.preview = p;
-    else delete merged.preview;
-    return;
-  }
-  if (v === undefined || v === null) Reflect.deleteProperty(merged, k);
-  else Object.defineProperty(merged, k, { value: v, enumerable: true, configurable: true, writable: true });
+  const normalize = KNOWN_FIELDS.get(k);
+  const value = normalize ? normalize(v) : v;
+  if (value === undefined || value === null) Reflect.deleteProperty(merged, k);
+  else Object.defineProperty(merged, k, { value, enumerable: true, configurable: true, writable: true });
 }
 
 export function mergeAppData(

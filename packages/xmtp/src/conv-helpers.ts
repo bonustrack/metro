@@ -89,7 +89,7 @@ export async function buildGroupInfo(
   const gn = (conv as unknown as { name?: string | (() => Promise<string>) })
     .name;
   const resolvedName = typeof gn === 'function' ? await gn() : (gn ?? '');
-  const { labels, github, preview } = readAppData(rawAppData);
+  const { labels, category, github, preview } = readAppData(rawAppData);
   return {
     line,
     id: conv.id,
@@ -98,6 +98,7 @@ export async function buildGroupInfo(
     name: resolvedName ?? '',
     memberCount: inboxIds.length,
     labels,
+    category,
     github,
     preview,
     assigned: Object.hasOwn(appData, 'assigned') ? appData.assigned : [],

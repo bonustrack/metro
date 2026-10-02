@@ -44,6 +44,18 @@ describe('JSON metadata patches', () => {
     expect(() => mergeAppData(JSON.stringify({ assigned: [alice, 4] }), { assigned: [alice] })).toThrow();
   });
 
+  test('keeps one cleaned category per channel and clears it with null or ""', () => {
+    const current = JSON.stringify({ v: 1, labels: ['Blocked'] });
+    expect(mergeAppData(current, { category: '  Client   work ' }).merged).toEqual({ v: 1, labels: ['Blocked'], category: 'Client work' });
+    expect(mergeAppData(current, { category: 'x'.repeat(40) }).merged.category).toBe('x'.repeat(24));
+    const set = JSON.stringify({ v: 1, labels: ['Blocked'], category: 'Ops' });
+    expect(mergeAppData(set, { labels: ['Todo'] }).merged.category).toBe('Ops');
+    expect(mergeAppData(set, { category: null }).merged).toEqual({ v: 1, labels: ['Blocked'] });
+    expect(mergeAppData(set, { category: '' }).merged).toEqual({ v: 1, labels: ['Blocked'] });
+    expect(() => mergeAppData(set, { category: ['Ops'] })).toThrow('category must be a string or null');
+    expect(() => mergeAppData(set, { category: 7 })).toThrow('category must be a string or null');
+  });
+
   test('missing metadata can be initialized', () => {
     expect(mergeAppData(undefined, { assigned: [alice] }).merged).toEqual({ v: 1, assigned: [alice] });
     expect(readAppDataObject('')).toEqual({});

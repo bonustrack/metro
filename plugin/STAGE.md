@@ -18,9 +18,10 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 - Direct chat: `dm {"address": "0x…"}` opens a 1:1 chat and returns its line.
 - With several XMTP accounts, add `"account": "<id>"` to `create_group` and `dm`.
 
-**Labels and assignees.** They live in the channel's metadata, and Stage shows them on the channel.
+**Labels, assignees and category.** They live in the channel's metadata, and Stage shows them on the channel.
 - Labels: `set_channel_metadata {"line": "…", "metadata": {"labels": ["🚧 In progress", "Metro"]}}`. At most 16 labels of 24 characters each.
 - Assignees: `set_channel_metadata {"line": "…", "metadata": {"assigned": ["0x…"]}}`. Only 0x addresses of current members.
+- Category: `set_channel_metadata {"line": "…", "metadata": {"category": "Clients"}}`. One per channel, 24 characters at most; `""` clears it. `group_info` returns it as `category`.
 - Each key you send replaces that whole list. Keys you leave out stay as they are. To add one label or one assignee, read `group_info` first and send the old list plus the new one. `[]` clears a list. Read `group_info` again to check it saved.
 
 **Task status labels.** When a channel is a task, keep exactly one of these status labels, plus any project labels:
