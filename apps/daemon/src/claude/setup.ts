@@ -12,7 +12,7 @@ import { claudeDir } from './files.js';
 import { memoryJobStatus, type MemoryJob } from './memory-routine.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
-import { harnessRunner, sdkAllowed, sdkOnLogin, type HarnessRunner } from './runner.js';
+import { harnessRunner, runnerModel, sdkAllowed, sdkOnLogin, type HarnessRunner } from './runner.js';
 import { readSetupState, writeSetupState } from './setup-state.js';
 
 export const PRIVACY_ENV: Record<string, string> = {
@@ -314,11 +314,7 @@ export function tryClaudeSetup(deps: SetupDeps = {}): void {
 const MODELS_KEY = 'availableModels';
 const ENFORCE_KEY = 'enforceAvailableModels';
 
-export function routeOf(cfg: ModelConfig): string | null {
-  const conn = routedConnection(cfg);
-  if (conn === null || conn.provider === 'anthropic' || conn.model === '') return null;
-  return `${conn.provider}:${conn.model}`;
-}
+export const routeOf = (cfg: ModelConfig): string | null => (routedConnection(cfg)?.provider === 'anthropic' ? null : runnerModel(cfg));
 
 function withAvailableModels(settings: Record<string, unknown>, route: string | null, metroWrote: boolean): Record<string, unknown> {
   if (route !== null) return { ...settings, [MODELS_KEY]: [route], [ENFORCE_KEY]: true };

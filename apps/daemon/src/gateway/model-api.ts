@@ -6,6 +6,7 @@ import { log } from '@metro-labs/core/log';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { routeOf, syncAvailableModelsQuietly } from '../claude/setup.js';
+import { runnerInUse, runnerModel } from '../claude/runner.js';
 import { sessionRunning, stopSession } from '../claude/session.js';
 import { forgetOne, forgetReported } from './usage.js';
 import {
@@ -47,13 +48,25 @@ function restartRunningSession(): boolean {
   return true;
 }
 
+function followModel(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
+  const restart = deps.restartSession ?? restartRunningSession;
+  if (runnerInUse(deps.setup?.agents, next) === 'sdk') {
+    const [was, now] = [runnerModel(before), runnerModel(next)];
+    if (was === now) return;
+    if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
+    else if (restart()) log.info({ was, now }, 'model-api: the model changed and the Agent SDK session could not be told, so it restarts on it');
+    return;
+  }
+  if (routeOf(next) !== routeOf(before) && restart())
+    log.info({ was: routeOf(before), now: routeOf(next) }, 'model-api: the model changed, so the Claude session restarts on it');
+}
+
 function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
-  const before = routeOf(store.read());
+  const before = store.read();
   store.write(next);
   syncAvailableModelsQuietly(deps.setup ?? {}, next);
   log.info(fields, note);
-  if (routeOf(next) !== before && (deps.restartSession ?? restartRunningSession)())
-    log.info({ was: before, now: routeOf(next) }, 'model-api: the model changed, so the Claude session restarts on it');
+  followModel(before, next, deps);
   return settingsBody(next);
 }
 

@@ -1,7 +1,10 @@
 import type { ClaudeSetup } from './claude-box.js';
 
 const RUNNER_NOTE =
-  'Claude Code runs the agent in a terminal session. Agent SDK runs it as one session for chat and calls: a light front answers fast and background workers do the work. Changing this restarts the agent, and switching back to Claude Code continues the same conversation.';
+  'Claude Code runs the agent in a terminal session. Agent SDK runs it as one session for chat and calls: the front answers fast and background workers do the work, all on the model you pick on the Model page. Changing this restarts the agent, and switching back to Claude Code continues the same conversation.';
+const MODEL_LIST = 'The AI your agent thinks with: an ordered list of models, and the connections they run on.';
+const MODEL_RESTARTS = `${MODEL_LIST} Changing the first model restarts the agent, which takes a few seconds.`;
+const MODEL_LIVE = `${MODEL_LIST} The agent cannot pick another model itself, and changing the first model applies at once, with no restart.`;
 const NEEDS_KEY =
   'Agent SDK needs an API key: on the Model page, route to Anthropic with an API key, Amazon Bedrock or OpenRouter. Anthropic does not allow products built on the Agent SDK to use a Claude login.';
 const ON_LOGIN = "The Metro operator allows the Agent SDK on this server's Claude login.";
@@ -15,3 +18,5 @@ export function runnerNote(setup: ClaudeSetup): string {
   if (!setup.runnerAllowed) return `${RUNNER_NOTE} ${NEEDS_KEY}`;
   return setup.sdkOnLogin === true ? `${RUNNER_NOTE} ${ON_LOGIN}` : RUNNER_NOTE;
 }
+
+export const modelNote = (setup: ClaudeSetup | undefined): string => (setup?.runner === 'sdk' && setup.runnerAllowed ? MODEL_LIVE : MODEL_RESTARTS);

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { toClaudeSetup } from '../src/api/claude-box.js';
-import { runnerNote, sdkSelectable } from '../src/api/runner.js';
+import { modelNote, runnerNote, sdkSelectable } from '../src/api/runner.js';
 
 const answer = (over: Record<string, unknown>): ReturnType<typeof toClaudeSetup> => toClaudeSetup({ privacy: true, permissionMode: 'auto', runner: 'cli', ...over });
 
@@ -21,5 +21,15 @@ describe('the Runner choice follows the terms guard the daemon answers', () => {
     expect(answer({}).sdkOnLogin).toBeNull();
     expect(answer({}).runnerAllowed).toBe(false);
     expect(sdkSelectable(answer({ runner: 'sdk', runnerAllowed: false }))).toBe(true);
+  });
+});
+
+describe('the Model page says how a switch reaches the agent', () => {
+  test('the Agent SDK session takes it at once, the Claude Code session restarts, and an unknown setup reads as a restart', () => {
+    expect(modelNote(answer({ runner: 'sdk', runnerAllowed: true }))).toContain('no restart');
+    expect(modelNote(answer({ runner: 'sdk', runnerAllowed: true }))).toContain('cannot pick another model');
+    expect(modelNote(answer({ runner: 'cli', runnerAllowed: true }))).toContain('restarts the agent');
+    expect(modelNote(answer({ runner: 'sdk', runnerAllowed: false }))).toContain('restarts the agent');
+    expect(modelNote(undefined)).toContain('restarts the agent');
   });
 });
