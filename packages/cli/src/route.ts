@@ -3,28 +3,42 @@ import { join } from 'node:path';
 import { agentsDir } from './local.js';
 
 const PROVIDERS = new Set(['bedrock', 'openrouter', 'codex', 'gemini']);
+const ANTHROPIC = 'anthropic';
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-function routeIn(cfg: unknown): string | null {
+interface Routed {
+  provider: string;
+  model: string;
+}
+
+function routedIn(cfg: unknown): Routed | null {
   if (typeof cfg !== 'object' || cfg === null) return null;
   const { route, connections } = cfg as { route?: unknown; connections?: unknown };
   if (!Array.isArray(connections)) return null;
   const conn: unknown = connections.find((c: unknown) => typeof c === 'object' && c !== null && (c as { id?: unknown }).id === route);
   if (typeof conn !== 'object' || conn === null) return null;
-  const provider = text((conn as { provider?: unknown }).provider);
   const model = text((conn as { model?: unknown }).model);
-  return PROVIDERS.has(provider) && model !== '' ? `${provider}:${model}` : null;
+  return model === '' ? null : { provider: text((conn as { provider?: unknown }).provider), model };
 }
 
-export function currentRoute(dir = agentsDir()): string | null {
+function routed(dir: string): Routed | null {
   const path = join(dir, 'model.json');
   if (!existsSync(path)) return null;
   try {
-    return routeIn(JSON.parse(readFileSync(path, 'utf8')));
+    return routedIn(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
     return null;
   }
+}
+
+const prefixed = (found: Routed | null): string | null => (found !== null && PROVIDERS.has(found.provider) ? `${found.provider}:${found.model}` : null);
+
+export const currentRoute = (dir = agentsDir()): string | null => prefixed(routed(dir));
+
+export function currentModel(dir = agentsDir()): string | null {
+  const found = routed(dir);
+  return found?.provider === ANTHROPIC ? found.model : prefixed(found);
 }
 
 export function routeModelEnv(env: NodeJS.ProcessEnv, route: string | null): NodeJS.ProcessEnv {

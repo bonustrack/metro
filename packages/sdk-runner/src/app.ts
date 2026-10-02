@@ -35,13 +35,19 @@ export async function startAgent(cfg: RunnerConfig, hooks: AppHooks): Promise<Ru
     toolsChanged: () => {
       tools?.changed();
     },
+    model: (model) => {
+      log.info({ model }, 'sdk-runner: the Model page picked a model');
+      runner.switchModel(model).catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'sdk-runner: could not switch the model');
+      });
+    },
     lost: (reason) => {
       hooks.lost(reason);
     },
   });
   tools = metroTools(link);
   const resume = store.resumable();
-  log.info({ resume, front: cfg.frontModel, worker: cfg.workerModel, mode: cfg.permissionMode }, 'sdk-runner: starting the Agent SDK session');
+  log.info({ resume, model: cfg.model, mode: cfg.permissionMode }, 'sdk-runner: starting the Agent SDK session');
   runner.start(runnerOptions(cfg, tools, approvalsThrough(link), resume, hooks.env));
   const stop = async (): Promise<void> => {
     runner.close();

@@ -20,6 +20,7 @@ let daemon: Server | null = null;
 const calls: unknown[] = [];
 const asked: string[] = [];
 const events: ChannelEvent[] = [];
+const models: (string | null)[] = [];
 let link: MetroLink;
 
 function fakeDaemon(): Server {
@@ -67,6 +68,7 @@ beforeAll(async () => {
   link = await MetroLink.open(`http://127.0.0.1:${String(PORT)}/mcp`, KEY, {
     channel: (event) => events.push(event),
     toolsChanged: () => undefined,
+    model: (model) => models.push(model),
     lost: () => undefined,
   });
 });
@@ -108,4 +110,12 @@ test('the session sees metro tools through the proxy, with their metadata, and c
   expect(answer.content).toEqual([{ type: 'text', text: 'sent: hi' }]);
   expect(calls).toEqual([{ name: 'send', arguments: { line: 'l', text: 'hi' } }]);
   await client.close();
+});
+
+test('a model the daemon announces reaches the runner, and an empty one means no model', async () => {
+  await daemon?.notification({ method: 'notifications/metro/model', params: { model: 'openrouter:anthropic/claude-sonnet-5.5' } });
+  await daemon?.notification({ method: 'notifications/metro/model', params: { model: null } });
+  await daemon?.notification({ method: 'notifications/metro/model', params: { model: '' } });
+  for (let i = 0; i < 100 && models.length < 3; i += 1) await Bun.sleep(20);
+  expect(models).toEqual(['openrouter:anthropic/claude-sonnet-5.5', null, null]);
 });

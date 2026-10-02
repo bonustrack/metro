@@ -3,16 +3,12 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 
-export const FRONT_MODEL = 'claude-sonnet-5-5';
-export const WORKER_MODEL = 'claude-opus-5-5';
-
 export interface RunnerConfig {
   mcpUrl: string;
   key: string;
   cwd: string;
   claude: string | null;
-  frontModel: string;
-  workerModel: string;
+  model: string | null;
   permissionMode: PermissionMode;
   prompt: string | null;
   statePath: string;
@@ -45,8 +41,7 @@ export function runnerConfig(env: NodeJS.ProcessEnv = process.env, cwd = process
     key: required(env, 'METRO_AGENT_KEY'),
     cwd: realDir(cwd),
     claude: given(env.METRO_RUNNER_CLAUDE),
-    frontModel: given(env.METRO_RUNNER_FRONT_MODEL) ?? FRONT_MODEL,
-    workerModel: given(env.METRO_RUNNER_WORKER_MODEL) ?? WORKER_MODEL,
+    model: given(env.METRO_RUNNER_MODEL),
     permissionMode: env.METRO_RUNNER_PERMISSION_MODE === 'bypass' ? 'bypassPermissions' : 'auto',
     prompt: given(env.METRO_RUNNER_PROMPT),
     statePath: given(env.METRO_RUNNER_STATE) ?? join(home, '.metro', 'agent-session.json'),
