@@ -15,7 +15,7 @@ const STALL_MS = 2_000;
 export const COMPACT_AT = 120_000;
 
 export function runnerEnv(cfg: RunnerConfig, env: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  return { [STARTUP_WAIT]: '0', ...env, CLAUDE_CODE_SUBAGENT_MODEL: cfg.workerModel };
+  return { [STARTUP_WAIT]: '0', ...env, CLAUDE_CODE_SUBAGENT_MODEL: cfg.workerModel, DISABLE_AUTOUPDATER: '1' };
 }
 
 export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: CanUseTool, resume: string | null, env = process.env): Options {
@@ -23,7 +23,7 @@ export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: 
     model: cfg.frontModel,
     cwd: cfg.cwd,
     env: runnerEnv(cfg, env),
-    pathToClaudeCodeExecutable: cfg.claude,
+    ...(cfg.claude === null ? {} : { pathToClaudeCodeExecutable: cfg.claude }),
     settingSources: ['user', 'project', 'local'],
     systemPrompt: { type: 'preset', preset: 'claude_code', append: cfg.prompt === null ? FRONT_RULES : `${cfg.prompt}\n\n${FRONT_RULES}` },
     mcpServers: { [METRO_SERVER]: tools.config },
