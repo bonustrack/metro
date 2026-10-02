@@ -2,6 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { setBearerSessions, type ApiSession } from '@metro-labs/http/api-http';
 import { isOrganizationId, SigningKeys, verifyToken } from '@metro-labs/http/workos-token';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
+import { isOperatorUser } from '../src/routes/bearer.ts';
 
 export const TEST_OWNER = 'org_01TESTOWNER000000';
 
@@ -20,7 +21,7 @@ export function installTestSessions(keys: SigningKeys): void {
     const session = await verifyToken(token, keys);
     if (session === null || session.organization === null) return null;
     const subject = isOrganizationId(session.organization) ? session.organization : session.organization.toLowerCase();
-    return { subject, role: session.role === 'member' ? 'member' : 'admin' };
+    return { subject, role: session.role === 'member' ? 'member' : 'admin', ...(isOperatorUser(session.userId) ? { operator: true as const } : {}) };
   });
 }
 
@@ -39,3 +40,7 @@ export async function forged(who: Who = TEST_OWNER): Promise<string> {
 }
 
 export const auth = (who: Who, role: 'admin' | 'member' = 'admin'): Promise<string> => bearer({ org_id: who, role });
+
+export const OPERATOR_USER = 'user_01M2TN3K6NRVX675M617GR4WVE';
+
+export const operatorAuth = (who: Who): Promise<string> => bearer({ org_id: who, role: 'admin', sub: OPERATOR_USER });

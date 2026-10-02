@@ -9,7 +9,7 @@ import { handleClaudeRequest } from '../src/claude/api.js';
 import { configOf, makeConnection } from './model-fixture.ts';
 import { claudeSetupStatus, ensureClaudeSetup, placeFile, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
 import { readModelConfig } from '../src/gateway/model-config.js';
-import { auth } from './identity-helper.ts';
+import { auth, operatorAuth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const PLUGIN = join(import.meta.dir, '..', '..', '..', 'plugin');
@@ -110,6 +110,8 @@ describe('the Claude Code setup a metro box gets', () => {
       privacy: false,
       permissionMode: 'auto',
       runner: 'cli',
+      runnerAllowed: false,
+      sdkOnLogin: false,
       systemPrompt: '',
       liveEvents: true,
       memoryRoutine: true,
@@ -153,12 +155,25 @@ describe('the setup over the API', () => {
     server.close();
   });
 
-  const call = async (method: string, body?: unknown): Promise<Response> =>
+  const call = async (method: string, body?: unknown, authorization?: string): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const route = (connection: ReturnType<typeof makeConnection>): void => {
+    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
+  };
+  interface Runner {
+    runner: string;
+    runnerAllowed: boolean;
+    sdkOnLogin: boolean;
+  }
+  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
+  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
+    const done = await res;
+    return { status: done.status, error: ((await done.json()) as { error: string }).error };
+  };
 
   test('the owner reads the status and flips privacy, which rewrites the settings at once', async () => {
     expect((await (await call('GET')).json()) as unknown).toMatchObject({ privacy: true, worker: false, skill: false, stage: false, privacyApplied: false });
@@ -208,12 +223,25 @@ describe('the permission mode of the session', () => {
   afterEach(() => {
     server.close();
   });
-  const call = async (method: string, body?: unknown): Promise<Response> =>
+  const call = async (method: string, body?: unknown, authorization?: string): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const route = (connection: ReturnType<typeof makeConnection>): void => {
+    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
+  };
+  interface Runner {
+    runner: string;
+    runnerAllowed: boolean;
+    sdkOnLogin: boolean;
+  }
+  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
+  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
+    const done = await res;
+    return { status: done.status, error: ((await done.json()) as { error: string }).error };
+  };
 
   test('is auto until flipped, keeps the other setup state, and is refused when not a mode', async () => {
     const before = (await (await call('GET')).json()) as { permissionMode: string };
@@ -227,13 +255,41 @@ describe('the permission mode of the session', () => {
     expect((await call('POST', {})).status).toBe(400);
   });
 
-  test('the runner is the Claude Code session until switched to the Agent SDK, is kept with the setup, and anything else is refused', async () => {
-    expect(((await (await call('GET')).json()) as { runner: string }).runner).toBe('cli');
-    const sdk = (await (await call('POST', { runner: 'sdk' })).json()) as { runner: string; permissionMode: string };
-    expect(sdk.runner).toBe('sdk');
+  test('the runner is the Claude Code session until switched to the Agent SDK on an API-key route, is kept with the setup, and anything else is refused', async () => {
+    route(makeConnection('anthropic', { apiKey: 'sk-ant-test' }));
+    expect(await runnerOf(call('GET'))).toMatchObject({ runner: 'cli', runnerAllowed: true, sdkOnLogin: false });
+    expect((await runnerOf(call('POST', { runner: 'sdk' }))).runner).toBe('sdk');
     expect((JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as { runner: string }).runner).toBe('sdk');
     expect((await call('POST', { runner: 'codex' })).status).toBe(400);
-    expect(((await (await call('POST', { runner: 'cli' })).json()) as { runner: string }).runner).toBe('cli');
+    expect((await runnerOf(call('POST', { runner: 'cli' }))).runner).toBe('cli');
+  });
+
+  test('the Agent SDK runner is refused on a Claude login, a keyless Anthropic connection, Codex and Gemini, and taken with Bedrock or OpenRouter keys', async () => {
+    const refused = await refusal(call('POST', { runner: 'sdk' }));
+    expect(refused.status).toBe(403);
+    expect(refused.error).toContain('needs an API key');
+    expect((await runnerOf(call('GET'))).runnerAllowed).toBe(false);
+    for (const login of [makeConnection('anthropic'), makeConnection('codex', { model: 'gpt-6' }), makeConnection('gemini', { model: 'gemini-3' })]) {
+      route(login);
+      expect((await call('POST', { runner: 'sdk' })).status).toBe(403);
+    }
+    expect((await runnerOf(call('GET'))).runner).toBe('cli');
+    for (const keyed of [makeConnection('bedrock', { apiKey: 'br-key', region: 'us-east-1' }), makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' })]) {
+      route(keyed);
+      expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
+      await call('POST', { runner: 'cli' });
+    }
+  });
+
+  test('only the Metro operator allows the Agent SDK on the Claude login, and taking it back puts the agent on Claude Code', async () => {
+    const admin = await refusal(call('POST', { sdkOnLogin: true }));
+    expect(admin).toEqual({ status: 403, error: 'only the Metro operator can allow the Agent SDK on a Claude login' });
+    const operator = await operatorAuth(OWNER);
+    expect(await runnerOf(call('POST', { sdkOnLogin: true }, operator))).toMatchObject({ sdkOnLogin: true, runnerAllowed: true, runner: 'cli' });
+    expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
+    expect((await call('POST', { sdkOnLogin: false })).status).toBe(403);
+    expect(await runnerOf(call('POST', { sdkOnLogin: false }, operator))).toEqual(expect.objectContaining({ sdkOnLogin: false, runnerAllowed: false, runner: 'cli' }));
+    expect(await runnerOf(call('POST', { sdkOnLogin: true, runner: 'sdk' }, operator))).toMatchObject({ sdkOnLogin: true, runner: 'sdk' });
   });
 
   test('a system prompt is kept as a file the CLI appends, empty removes it, and a non-text or huge one is refused', async () => {
@@ -274,12 +330,25 @@ describe('live messages to the session', () => {
   afterEach(() => {
     server.close();
   });
-  const call = async (method: string, body?: unknown): Promise<Response> =>
+  const call = async (method: string, body?: unknown, authorization?: string): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const route = (connection: ReturnType<typeof makeConnection>): void => {
+    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
+  };
+  interface Runner {
+    runner: string;
+    runnerAllowed: boolean;
+    sdkOnLogin: boolean;
+  }
+  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
+  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
+    const done = await res;
+    return { status: done.status, error: ((await done.json()) as { error: string }).error };
+  };
   const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
 
   test('are on until switched off, the switch is kept with the setup and reaches the daemon at once, and a non-boolean is refused', async () => {
@@ -322,12 +391,25 @@ describe('the daily memory routine switch', () => {
   afterEach(() => {
     server.close();
   });
-  const call = async (method: string, body?: unknown): Promise<Response> =>
+  const call = async (method: string, body?: unknown, authorization?: string): Promise<Response> =>
     fetch(`${base}/api/claude/setup`, {
       method,
-      headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const route = (connection: ReturnType<typeof makeConnection>): void => {
+    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
+  };
+  interface Runner {
+    runner: string;
+    runnerAllowed: boolean;
+    sdkOnLogin: boolean;
+  }
+  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
+  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
+    const done = await res;
+    return { status: done.status, error: ((await done.json()) as { error: string }).error };
+  };
   const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
 
   test('is on until switched off, is kept with the setup, sets the job up again at once, and a non-boolean is refused', async () => {

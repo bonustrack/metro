@@ -1,17 +1,19 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { existsSync, readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
-import { readJson, writeAtomic, writeJson } from '@metro-labs/core/secure-fs';
+import { writeAtomic } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { moveHome, removeHome, writeHomeText } from '../agent-user/home-fs.js';
 import { claudeDir } from './files.js';
 import { memoryJobStatus, type MemoryJob } from './memory-routine.js';
 import { stagedMarketplaceDir } from './plugin-install.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
+import { harnessRunner, sdkAllowed, sdkOnLogin, type HarnessRunner } from './runner.js';
+import { readSetupState, writeSetupState } from './setup-state.js';
 
 export const PRIVACY_ENV: Record<string, string> = {
   DISABLE_TELEMETRY: '1',
@@ -20,7 +22,6 @@ export const PRIVACY_ENV: Record<string, string> = {
   CLAUDE_CODE_GB_DISK_CACHE_WHEN_TELEMETRY_OFF: '1',
 };
 export const RETENTION_DAYS = 7;
-const STATE_FILE = 'claude-setup.json';
 const RULES_FILE = 'METRO.md';
 const RULES_SKILL = 'metro';
 const RENAMED_SKILL = 'metro-orchestrator';
@@ -69,6 +70,8 @@ export interface SetupStatus {
   privacy: boolean;
   permissionMode: PermissionMode;
   runner: HarnessRunner;
+  runnerAllowed: boolean;
+  sdkOnLogin: boolean;
   systemPrompt: string;
   liveEvents: boolean;
   memoryRoutine: boolean;
@@ -82,61 +85,36 @@ export interface SetupStatus {
   retentionDays: number | null;
 }
 
-const statePath = (agents: string): string => join(agents, STATE_FILE);
-
 const PERMISSION_MODES = ['auto', 'bypass'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
-const RUNNERS = ['cli', 'sdk'] as const;
-export type HarnessRunner = (typeof RUNNERS)[number];
 
-function readState(agents: string): Record<string, unknown> {
-  const raw = readJson<unknown>(statePath(agents), null);
-  return isRecord(raw) ? raw : {};
-}
-
-function writeState(agents: string, patch: Record<string, unknown>): void {
-  mkdirSync(agents, { recursive: true });
-  writeJson(statePath(agents), { ...readState(agents), ...patch });
-}
-
-const privacyEnabled = (agents = agentsDir()): boolean => readState(agents).privacy !== false;
+const privacyEnabled = (agents = agentsDir()): boolean => readSetupState(agents).privacy !== false;
 
 export function setPrivacy(enabled: boolean, agents = agentsDir()): void {
-  writeState(agents, { privacy: enabled });
+  writeSetupState(agents, { privacy: enabled });
 }
 
 export const isPermissionMode = (value: unknown): value is PermissionMode => PERMISSION_MODES.some((m) => m === value);
 
 export function permissionMode(agents = agentsDir()): PermissionMode {
-  const mode = readState(agents).permissionMode;
+  const mode = readSetupState(agents).permissionMode;
   return isPermissionMode(mode) ? mode : 'auto';
 }
 
 export function setPermissionMode(mode: PermissionMode, agents = agentsDir()): void {
-  writeState(agents, { permissionMode: mode });
+  writeSetupState(agents, { permissionMode: mode });
 }
 
-export const isHarnessRunner = (value: unknown): value is HarnessRunner => RUNNERS.some((r) => r === value);
-
-export function harnessRunner(agents = agentsDir()): HarnessRunner {
-  const runner = readState(agents).runner;
-  return isHarnessRunner(runner) ? runner : 'cli';
-}
-
-export function setHarnessRunner(runner: HarnessRunner, agents = agentsDir()): void {
-  writeState(agents, { runner });
-}
-
-export const liveEvents = (agents = agentsDir()): boolean => readState(agents).liveEvents !== false;
+export const liveEvents = (agents = agentsDir()): boolean => readSetupState(agents).liveEvents !== false;
 
 export function setLiveEvents(on: boolean, agents = agentsDir()): void {
-  writeState(agents, { liveEvents: on });
+  writeSetupState(agents, { liveEvents: on });
 }
 
-export const memoryRoutine = (agents = agentsDir()): boolean => readState(agents).memoryRoutine !== false;
+export const memoryRoutine = (agents = agentsDir()): boolean => readSetupState(agents).memoryRoutine !== false;
 
 export function setMemoryRoutine(on: boolean, agents = agentsDir()): void {
-  writeState(agents, { memoryRoutine: on });
+  writeSetupState(agents, { memoryRoutine: on });
 }
 
 const promptPath = (agents: string): string => join(agents, SYSTEM_PROMPT_FILE);
@@ -308,6 +286,8 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
     privacy: privacyEnabled(agents),
     permissionMode: permissionMode(agents),
     runner: harnessRunner(agents),
+    runnerAllowed: sdkAllowed(agents),
+    sdkOnLogin: sdkOnLogin(agents),
     systemPrompt: systemPrompt(agents),
     liveEvents: liveEvents(agents),
     memoryRoutine: memoryRoutine(agents),
@@ -349,11 +329,9 @@ export function syncAvailableModels(cfg: ModelConfig, deps: SetupDeps = {}): Set
   const dir = deps.dir ?? claudeDir();
   const agents = deps.agents ?? agentsDir();
   const route = routeOf(cfg);
-  const state = readJson<unknown>(statePath(agents), null);
-  const metroWrote = isRecord(state) && state.modelsByMetro === true;
+  const metroWrote = readSetupState(agents).modelsByMetro === true;
   return mergeSettings(dir, (current) => {
-    mkdirSync(agents, { recursive: true });
-    writeJson(statePath(agents), { ...(isRecord(state) ? state : {}), modelsByMetro: route !== null });
+    writeSetupState(agents, { modelsByMetro: route !== null });
     return withAvailableModels(current, route, metroWrote);
   });
 }

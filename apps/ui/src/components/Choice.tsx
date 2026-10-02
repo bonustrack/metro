@@ -3,7 +3,7 @@ import { type ReactNode } from 'react';
 interface ChoiceProps<T extends string> {
   label: string;
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; disabled?: boolean }[];
   disabled?: boolean;
   onChange: (value: T) => void;
 }
@@ -17,7 +17,7 @@ export function Choice<T extends string>({ label, value, options, disabled = fal
           type="button"
           role="radio"
           aria-checked={option.value === value}
-          disabled={disabled}
+          disabled={disabled || option.disabled === true}
           className={option.value === value ? 'choice-opt is-on' : 'choice-opt'}
           onClick={() => {
             if (option.value !== value) onChange(option.value);

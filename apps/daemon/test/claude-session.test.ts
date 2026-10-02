@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { autostartEnabled, continueArgs, ensureSession, hasConversation, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
+import { configOf, makeConnection } from './model-fixture.ts';
+import { runnerInUse, settleRunner } from '../src/claude/runner.js';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const KEY = `mk_${'a'.repeat(43)}`;
@@ -150,7 +152,7 @@ describe('starting the session', () => {
   test('with the Agent SDK runner the session runs metro agent, and back on Claude Code it resumes the SDK conversation when it is the newest', () => {
     agent();
     const home = join(dir, 'home');
-    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
+    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'sdk', sdkOnLogin: true }));
     startSession(deps({ runner: ['metro', 'agent'], metro: ['metro', 'claude'] }));
     expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro agent')).toBe(true);
     stopSession(deps());
@@ -166,6 +168,25 @@ describe('starting the session', () => {
     expect(continueArgs(home, join(dir, 'config'), () => true)).toEqual(['--resume', sdk]);
     startSession(deps({ metro: ['metro', 'claude'] }));
     expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${sdk}`)).toBe(true);
+  });
+
+  test('the Agent SDK runner runs only on an API-key route or where the operator allowed the login, and otherwise falls back to Claude Code for good', () => {
+    agent();
+    const agents = join(dir, 'agents');
+    const setup = (): Record<string, unknown> => JSON.parse(readFileSync(join(agents, 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
+    writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
+    expect(runnerInUse(agents)).toBe('cli');
+    startSession(deps({ runner: ['metro', 'agent'], metro: ['metro', 'claude'], continues: () => false }));
+    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude')).toBe(true);
+    writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
+    expect(runnerInUse(agents)).toBe('sdk');
+    expect(settleRunner(agents)).toBe(false);
+    writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('codex', [makeConnection('codex', { model: 'gpt-6' })])));
+    expect(settleRunner(agents)).toBe(true);
+    expect(setup().runner).toBe('cli');
+    writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
+    expect(runnerInUse(agents)).toBe('cli');
+    expect(settleRunner(agents)).toBe(false);
   });
 
   test('ensure starts once, then reports running, and honours the auto-start switch', () => {

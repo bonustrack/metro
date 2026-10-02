@@ -9,7 +9,7 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
 import { claudeDir, listClaudeProjects } from './files.js';
-import { harnessRunner } from './setup.js';
+import { runnerInUse, settleRunner } from './runner.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
@@ -153,7 +153,7 @@ export function continueArgs(home: string, dir = claudeDir(), continues: (home: 
 }
 
 function metroCommand(deps: SessionDeps, home: string): string[] {
-  if (harnessRunner(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
+  if (runnerInUse(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
   return [...metroCli(['claude'], deps.metro), ...continueArgs(home, claudeDir(), deps.continues)];
 }
 
@@ -315,6 +315,10 @@ export function watchSession(deps: SessionDeps = {}, everyMs = WATCH_MS): void {
   if (watcher !== null) return;
   const tick = (): void => {
     try {
+      if (settleRunner(deps.agents ?? agentsDir())) {
+        stopSession(deps);
+        return;
+      }
       const outcome = ensureSession(deps);
       if (outcome === 'started' || outcome === 'restarted') log.info({ outcome }, 'claude-session: Claude Code is up');
     } catch (err) {

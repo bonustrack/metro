@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './settings.js';
@@ -20,29 +20,9 @@ import {
   startClaudeLogin,
   type LoginDeps,
 } from './login.js';
-import {
-  claudeSetupStatus,
-  ensureClaudeSetup,
-  harnessRunner,
-  isHarnessRunner,
-  isPermissionMode,
-  liveEvents,
-  permissionMode,
-  setLiveEvents,
-  setHarnessRunner,
-  setMemoryRoutine,
-  setPermissionMode,
-  setPrivacy,
-  setSystemPrompt,
-  systemPrompt,
-  SYSTEM_PROMPT_MAX,
-  type HarnessRunner,
-  type PermissionMode,
-  type SetupDeps,
-} from './setup.js';
+import { setupAnswer, type SetupApiDeps } from './setup-api.js';
 import {
   ensureSession,
-  sessionRunning,
   sessionStatus,
   setAutostart,
   startSession,
@@ -50,7 +30,6 @@ import {
   type SessionDeps,
 } from './session.js';
 import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
-import { tryMemoryJob } from './memory-routine.js';
 import { receiveSessionFile, sessionFilePath } from './session-files.js';
 import { createReadStream } from '../agent-user/agent-fs.js';
 import { pipeline } from 'node:stream/promises';
@@ -72,14 +51,10 @@ const WRITABLE = new Set(['GET', 'DELETE', 'PUT', 'POST']);
 const PAGE = 100;
 const PAGE_MAX = 500;
 
-export interface ClaudeApiDeps {
+export interface ClaudeApiDeps extends SetupApiDeps {
   dir?: () => string;
   login?: LoginDeps;
-  session?: SessionDeps;
-  setup?: SetupDeps;
   version?: VersionDeps;
-  liveEvents?: (on: boolean) => void;
-  memoryJob?: (on: boolean) => void;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -156,107 +131,7 @@ const ADMIN_ONLY = /^\/api\/claude\/(login|session|version|setup)(\/|$)/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
-const SETUP_BODY_MAX = SYSTEM_PROMPT_MAX * 2;
 const VERSION = 'version';
-
-interface SetupChange {
-  privacy?: boolean;
-  permissionMode?: PermissionMode;
-  runner?: HarnessRunner;
-  systemPrompt?: string;
-  liveEvents?: boolean;
-  memoryRoutine?: boolean;
-}
-
-function promptChange(raw: unknown): string | undefined {
-  if (raw === undefined) return undefined;
-  if (typeof raw !== 'string') throw new ApiError('systemPrompt must be text', 400);
-  if (Buffer.byteLength(raw) > SYSTEM_PROMPT_MAX) throw new ApiError(`systemPrompt must be under ${String(SYSTEM_PROMPT_MAX / 1024)} KiB`, 400);
-  return raw;
-}
-
-function flagChange(raw: unknown, name: string): boolean | undefined {
-  if (raw === undefined) return undefined;
-  if (typeof raw !== 'boolean') throw new ApiError(`${name} must be true or false`, 400);
-  return raw;
-}
-
-function modeChange(raw: unknown): PermissionMode | undefined {
-  if (raw === undefined) return undefined;
-  if (!isPermissionMode(raw)) throw new ApiError('permissionMode must be auto or bypass', 400);
-  return raw;
-}
-
-function runnerChange(raw: unknown): HarnessRunner | undefined {
-  if (raw === undefined) return undefined;
-  if (!isHarnessRunner(raw)) throw new ApiError('runner must be cli or sdk', 400);
-  return raw;
-}
-
-function setupChange(body: unknown): SetupChange {
-  if (!isRecord(body)) throw new ApiError('a body is required', 400);
-  const privacy = flagChange(body.privacy, 'privacy');
-  const permissionMode = modeChange(body.permissionMode);
-  const systemPrompt = promptChange(body.systemPrompt);
-  const liveEvents = flagChange(body.liveEvents, 'liveEvents');
-  const memoryRoutine = flagChange(body.memoryRoutine, 'memoryRoutine');
-  const runner = runnerChange(body.runner);
-  if ([privacy, permissionMode, systemPrompt, liveEvents, memoryRoutine, runner].every((v) => v === undefined)) throw new ApiError('nothing to change', 400);
-  return {
-    ...(privacy === undefined ? {} : { privacy }),
-    ...(permissionMode === undefined ? {} : { permissionMode }),
-    ...(runner === undefined ? {} : { runner }),
-    ...(systemPrompt === undefined ? {} : { systemPrompt }),
-    ...(liveEvents === undefined ? {} : { liveEvents }),
-    ...(memoryRoutine === undefined ? {} : { memoryRoutine }),
-  };
-}
-
-function restartsSession(change: SetupChange, agents: string | undefined): boolean {
-  let restart = false;
-  if (change.permissionMode !== undefined && change.permissionMode !== permissionMode(agents)) {
-    setPermissionMode(change.permissionMode, agents);
-    restart = true;
-  }
-  if (change.systemPrompt !== undefined && change.systemPrompt.trim() !== systemPrompt(agents)) {
-    setSystemPrompt(change.systemPrompt, agents);
-    restart = true;
-  }
-  if (change.runner !== undefined && change.runner !== harnessRunner(agents)) {
-    setHarnessRunner(change.runner, agents);
-    restart = true;
-  }
-  return restart;
-}
-
-function applyLiveEvents(on: boolean, deps: ClaudeApiDeps): void {
-  const agents = deps.setup?.agents;
-  if (on !== liveEvents(agents)) setLiveEvents(on, agents);
-  deps.liveEvents?.(on);
-}
-
-function applyMemoryRoutine(on: boolean, deps: ClaudeApiDeps): void {
-  setMemoryRoutine(on, deps.setup?.agents);
-  (deps.memoryJob ?? tryMemoryJob)(on);
-}
-
-function applySetupChange(change: SetupChange, deps: ClaudeApiDeps): void {
-  const setup = deps.setup ?? {};
-  if (change.privacy !== undefined) setPrivacy(change.privacy, setup.agents);
-  if (change.liveEvents !== undefined) applyLiveEvents(change.liveEvents, deps);
-  if (change.memoryRoutine !== undefined) applyMemoryRoutine(change.memoryRoutine, deps);
-  if (restartsSession(change, setup.agents) && sessionRunning(deps.session?.tmux ?? 'tmux')) stopSession(deps.session ?? {});
-  ensureClaudeSetup(setup);
-}
-
-async function setupAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
-  const setup = deps.setup ?? {};
-  const method = req.method ?? 'GET';
-  if (method === 'GET') return claudeSetupStatus(setup);
-  if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  applySetupChange(setupChange(await readJsonBody(req, SETUP_BODY_MAX)), deps);
-  return claudeSetupStatus(setup);
-}
 
 function sessionCommand(body: Record<string, unknown>, session: SessionDeps): unknown {
   if (body.action === 'start') {
@@ -325,18 +200,18 @@ function versionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unkno
   return updateClaude(version);
 }
 
-const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps) => Promise<unknown>> = {
+const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps, session: ApiSession) => Promise<unknown>> = {
   [SESSION]: sessionAnswer,
   [SETUP]: setupAnswer,
   [VERSION]: versionAnswer,
 };
 
-function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {
+function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps, session: ApiSession): unknown {
   const dir = (deps.dir ?? claudeDir)();
   const [head = '', item = ''] = parts(path);
   if (head === LOGIN) return loginAnswer(req, item, deps);
   const single = item === '' ? SINGLETONS[head] : undefined;
-  if (single !== undefined) return single(req, deps);
+  if (single !== undefined) return single(req, deps, session);
   if (req.method === 'PUT') return writeAnswer(req, path, search, dir);
   if (req.method === 'POST') return created(req, path, dir);
   return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
@@ -384,7 +259,7 @@ export function handleClaudeRequest(
       if (!session) throw new ApiError('unauthorized', 401);
       if (req.method !== 'GET' && ADMIN_ONLY.test(path)) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
-      sendJson(req, res, 200, await routed(req, path, search, deps));
+      sendJson(req, res, 200, await routed(req, path, search, deps, session));
     })
     .catch((err: unknown) => {
       if (err instanceof ApiError) apiFailure(req, res, err, 'claude-api');
