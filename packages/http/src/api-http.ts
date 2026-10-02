@@ -9,6 +9,7 @@ export type Role = 'admin' | 'member';
 export interface ApiSession {
   subject: string;
   role: Role;
+  operator?: true;
 }
 
 export type BearerSessions = (req: IncomingMessage) => Promise<ApiSession | null>;

@@ -43,6 +43,8 @@ export interface ClaudeSetup {
   privacy: boolean;
   permissionMode: PermissionMode;
   runner: HarnessRunner | null;
+  runnerAllowed: boolean;
+  sdkOnLogin: boolean | null;
   systemPrompt: string;
   liveEvents: boolean | null;
   memoryRoutine: boolean | null;
@@ -63,12 +65,20 @@ function toMemoryJob(raw: unknown): MemoryJob | null {
   return state === undefined ? null : { state, job: filled(raw.job) };
 }
 
-function toClaudeSetup(body: unknown): ClaudeSetup {
+function runnerOf(body: Record<string, unknown>): Pick<ClaudeSetup, 'runner' | 'runnerAllowed' | 'sdkOnLogin'> {
+  return {
+    runner: body.runner === 'sdk' || body.runner === 'cli' ? body.runner : null,
+    runnerAllowed: body.runnerAllowed === true,
+    sdkOnLogin: typeof body.sdkOnLogin === 'boolean' ? body.sdkOnLogin : null,
+  };
+}
+
+export function toClaudeSetup(body: unknown): ClaudeSetup {
   if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     privacy: body.privacy,
     permissionMode: body.permissionMode === 'bypass' ? 'bypass' : 'auto',
-    runner: body.runner === 'sdk' || body.runner === 'cli' ? body.runner : null,
+    ...runnerOf(body),
     systemPrompt: typeof body.systemPrompt === 'string' ? body.systemPrompt : '',
     liveEvents: typeof body.liveEvents === 'boolean' ? body.liveEvents : null,
     memoryRoutine: typeof body.memoryRoutine === 'boolean' ? body.memoryRoutine : null,
@@ -96,6 +106,10 @@ export async function setClaudePermissionMode(permissionMode: PermissionMode): P
 
 export async function setHarnessRunner(runner: HarnessRunner): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { runner }));
+}
+
+export async function setSdkOnLogin(sdkOnLogin: boolean): Promise<ClaudeSetup> {
+  return toClaudeSetup(await claudeCall('POST', '/setup', { sdkOnLogin }));
 }
 
 export async function setClaudeLiveEvents(liveEvents: boolean): Promise<ClaudeSetup> {

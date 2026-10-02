@@ -7,7 +7,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 interface ChoiceProps<T extends string> {
   label: string;
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; disabled?: boolean }[];
   disabled?: boolean;
   onChange: (value: T) => void;
 }
@@ -24,13 +24,14 @@ export function Choice<T extends string>({ label, value, options, disabled = fal
     <Row accessibilityRole="radiogroup" accessibilityLabel={label} gap={2} padding={3} radius={999} surface="raised" style={SELF}>
       {options.map((option) => {
         const selected = option.value === value;
+        const off = disabled || option.disabled === true;
         return (
           <Pressable
             key={option.value}
             accessibilityRole="radio"
-            accessibilityState={{ checked: selected, disabled }}
-            disabled={disabled}
-            style={[styles.opt, selected ? on : null, disabled ? styles.off : null]}
+            accessibilityState={{ checked: selected, disabled: off }}
+            disabled={off}
+            style={[styles.opt, selected ? on : null, off ? styles.off : null]}
             onPress={() => {
               if (!selected) onChange(option.value);
             }}
