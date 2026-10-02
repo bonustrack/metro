@@ -9,7 +9,9 @@ import { Inbox } from '../src/inbox.ts';
 import type { PermissionAsk } from '../src/link.ts';
 import { SessionStore, projectFolder } from '../src/session-store.ts';
 import { SessionWatch } from '../src/session-watch.ts';
-import { compactDue } from '../src/runner.ts';
+import { runnerConfig } from '../src/config.ts';
+import { compactDue, runnerOptions } from '../src/runner.ts';
+import type { MetroTools } from '../src/tool-proxy.ts';
 import { SpeechRouter } from '../src/speech.ts';
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
@@ -216,5 +218,24 @@ describe('the runner compacts between calls', () => {
     expect(compactDue({ context: 130_000, floor: 100_000, limit, busy: false })).toBe(false);
     expect(compactDue({ context: 160_000, floor: 100_000, limit, busy: false })).toBe(true);
     expect(compactDue({ context: 130_000, floor: null, limit, busy: false })).toBe(true);
+  });
+});
+
+describe('the runner starts the Claude Code that comes with the pinned SDK', () => {
+  const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
+  const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent', PATH: '/usr/bin' };
+  const allow = (): Promise<{ behavior: 'deny'; message: string }> => Promise.resolve({ behavior: 'deny', message: 'no' });
+
+  test('without METRO_RUNNER_CLAUDE the SDK picks its own bundled binary, never the box claude on PATH, and that binary never updates itself', () => {
+    const cfg = runnerConfig(base, '/tmp');
+    expect(cfg.claude).toBeNull();
+    const options = runnerOptions(cfg, tools, allow, null, {});
+    expect('pathToClaudeCodeExecutable' in options).toBe(false);
+    expect(options.env).toMatchObject({ DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-5-5' });
+  });
+
+  test('metro agent names the store copy of that binary', () => {
+    const cfg = runnerConfig({ ...base, METRO_RUNNER_CLAUDE: '/home/agent/.metro/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude' }, '/tmp');
+    expect(runnerOptions(cfg, tools, allow, 'resume-id', {}).pathToClaudeCodeExecutable).toBe(cfg.claude ?? '');
   });
 });
