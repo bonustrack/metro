@@ -62,7 +62,7 @@ class ResizeError extends Error {}
 export function explain(err: unknown, type: string): string {
   if (!(err instanceof AwsError)) return err instanceof Error ? err.message : String(err);
   if (err.code === 'UnauthorizedOperation' || err.code === 'AccessDeniedException')
-    return `Metro's AWS key may not call ${err.action || 'this action'}. Add it to the policy of the IAM user metro.`;
+    return `Metro may not call ${err.action || 'this action'} in this AWS account. Add it to the policy Metro uses there.`;
   if (err.code === 'InsufficientInstanceCapacity') return `AWS has no ${type} capacity in this zone right now. Try again later or pick another size.`;
   if (err.code === 'VcpuLimitExceeded')
     return `The AWS account's vCPU quota in this region is too low for ${type}. Raise "Running On-Demand Standard instances" in Service Quotas.`;

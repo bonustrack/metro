@@ -7,6 +7,7 @@ export interface ServerEntry {
   launchedAt: string | null;
   avatar: string | null;
   slug: string | null;
+  awsConnection: string | null;
 }
 
 const HOST_RE = /^[a-z0-9][a-z0-9.-]*(?::\d{1,5})?$/;

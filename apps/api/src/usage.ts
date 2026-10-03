@@ -9,6 +9,7 @@ import type { MetricsLink, UsageRow } from './db/usage.js';
 import { associateProfile, AWS_REFUSED, AwsError, BOX_ROLE, NODE_TAG, type AwsCredentials } from './aws/ec2.js';
 import { getMetricData, listMetrics } from './aws/cloudwatch.js';
 import { describeInstanceFacts, type InstanceFacts } from './aws/teardown.js';
+import { access } from './aws/access.js';
 import { readUsage, USAGE_RANGES, type Usage, type UsageAws, type UsageRange } from './aws/usage.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/usage\/?$/;
@@ -16,7 +17,7 @@ const ROLE_NOTE_MS = 10 * 60_000;
 
 const OFF = 'This Metro deployment has no AWS account, so it shows no charts.';
 const NOT_AVAILABLE =
-  'Charts are not available for this server yet. They come from AWS CloudWatch, for servers Metro launched in its own AWS account. A server hosted elsewhere, such as on DigitalOcean, has no charts.';
+  'Charts are not available for this server yet. They come from AWS CloudWatch, for a server Metro launched or one linked to its instance in a connected AWS account. A server hosted elsewhere, such as on DigitalOcean, has no charts.';
 const WAITING = 'No memory or disk readings yet. Update Metro on this server: it then sends them to CloudWatch every minute.';
 const GAVE_ROLE = `Metro gave this server the ${BOX_ROLE} role. Memory and disk show a few minutes after Metro on the server is updated.`;
 const NOT_OURS = `Memory and disk need the ${BOX_ROLE} role on this server. Metro did not launch it, so give it the role in the AWS console: Actions, Security, Modify IAM role.`;
@@ -55,7 +56,7 @@ export function resetUsageState(): void {
 function explain(err: unknown): string {
   if (!(err instanceof AwsError)) return errMsg(err);
   if (!['AccessDenied', 'AccessDeniedException', 'UnauthorizedOperation'].includes(err.code)) return err.message;
-  return `AWS refused ${err.action || 'a call'}. Add it to the policy of the IAM user metro.`;
+  return `AWS refused ${err.action || 'a call'}. Add it to the policy Metro uses in this AWS account.`;
 }
 
 function roleNoteFor(instance: InstanceFacts | undefined, host: string): string | null {
@@ -92,7 +93,7 @@ async function view(deps: UsageApiDeps, row: UsageRow, range: UsageRange): Promi
   if (!config.ok) return { available: false, reason: OFF };
   const link = row.link;
   if (link === null) return { available: false, reason: NOT_AVAILABLE };
-  const credentials = config.config.credentials;
+  const credentials = access.reach(config.config, link.account);
   let usage: Usage;
   try {
     usage = await readUsage(deps.aws, credentials, link, range, deps.now());

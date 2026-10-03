@@ -12,17 +12,17 @@ import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts'
 
 const CONFIG: ConfigResult = {
   ok: true,
-  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', tailscale: null },
+  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, role: null, tailnet: 'tail17c4f8.ts.net', tailscale: null },
 };
 const START = Date.parse('2026-09-29T10:07:00Z');
 const ROWS: Record<string, LinkedRow[]> = {
   [TEST_OWNER]: [
-    { id: 'srv00000001', link: { instanceId: 'i-0abc', region: 'us-east-1' } },
-    { id: 'srv00000002', link: { instanceId: 'i-0bcd', region: 'us-east-1' } },
-    { id: 'srv00000003', link: { instanceId: 'i-0def', region: 'eu-central-2' } },
+    { id: 'srv00000001', link: { instanceId: 'i-0abc', region: 'us-east-1', account: null } },
+    { id: 'srv00000002', link: { instanceId: 'i-0bcd', region: 'us-east-1', account: null } },
+    { id: 'srv00000003', link: { instanceId: 'i-0def', region: 'eu-central-2', account: null } },
     { id: 'srv00000004', link: null },
   ],
-  [TEST_STRANGER]: [{ id: 'srv00000009', link: { instanceId: 'i-0fff', region: 'us-east-1' } }],
+  [TEST_STRANGER]: [{ id: 'srv00000009', link: { instanceId: 'i-0fff', region: 'us-east-1', account: null } }],
 };
 const agentMetrics = (instanceId: string): Metric[] => [
   { namespace: 'CWAgent', name: 'mem_used_percent', dimensions: [{ name: 'InstanceId', value: instanceId }] },

@@ -7,14 +7,14 @@ import { requestOwner } from './servers.js';
 import { AGENT_NAME_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
-import { AwsError, type AwsCredentials, type InstanceState } from './aws/ec2.js';
+import { access } from './aws/access.js';
+import { AwsError, REGION_RE, type AwsCredentials, type InstanceState } from './aws/ec2.js';
 import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
 import { TailscaleError, type TailscaleClient } from './aws/tailscale-key.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
 import type { ServerEntry } from './server-types.js';
 
 const PREFIX = '/api/launch';
-const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d$/;
 const IN_FLIGHT_MS = 60_000;
 const REGIONS_TTL_MS = 60 * 60_000;
 
@@ -165,8 +165,9 @@ async function answer(
     return req.method === 'GET' ? overview(deps) : issue(deps, subject, await readJsonBody(req));
   const config = allowed(deps);
   const launch = await deps.lookup(subject, tgt.id);
-  if (tgt.kind === 'boot') return deps.boot(config.credentials, launch.region, launch.instanceId);
-  return deps.state(config.credentials, launch.region, launch.instanceId);
+  const credentials = access.reach(config, launch.account);
+  if (tgt.kind === 'boot') return deps.boot(credentials, launch.region, launch.instanceId);
+  return deps.state(credentials, launch.region, launch.instanceId);
 }
 
 async function route(

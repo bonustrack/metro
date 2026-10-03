@@ -1,10 +1,11 @@
 # Having Metro issue servers
 
-metro.box can launch a box for you: it holds one AWS key and one Tailscale OAuth
-client, runs the EC2 calls itself, and adds the machine to your server list.
-Nothing of yours is involved, and no key is ever sent to a browser. This is off until the
-deployment is configured. Every box is billed to the AWS account whose key is
-configured here.
+metro.box can launch a box for you: it signs in to AWS (with its own role, or an
+access key until the role is set up), holds one Tailscale OAuth client, runs the
+EC2 calls itself, and adds the machine to your server list. Nothing of yours is
+involved, and no key is ever sent to a browser. This is off until the deployment
+is configured. Every box is billed to Metro's own AWS account. An organization
+can also connect its own AWS account, see Connecting another AWS account.
 
 ## What you set on the deployment
 
@@ -17,7 +18,9 @@ servers until a Tailscale OAuth client is set`).
 
 | Secret | What it is |
 | --- | --- |
-| `METRO_AWS_ACCESS_KEY_ID` | An IAM user holding only the policy below. |
+| `METRO_AWS_ROLE_ARN` | Metro's own role, `metro-api`, taken with a Fly token. See No access key. Set instead of the two below, or next to them while switching. |
+| `METRO_AWS_TEMPLATES` | The bucket the `metro-access` template is published to, as in `https://metro-templates-787391402827.s3.us-east-1.amazonaws.com`. Needed to connect another AWS account. |
+| `METRO_AWS_ACCESS_KEY_ID` | The old way: an IAM user holding only the policy below. While it is set, Metro's own account is reached with it, not with the role. |
 | `METRO_AWS_SECRET_ACCESS_KEY` | That user's secret. |
 | `METRO_LAUNCH_TAILNET` | The tailnet suffix the boxes join, as in `tail17c4f8.ts.net`. |
 | `METRO_TAILSCALE_CLIENT_ID` | A Tailscale OAuth client's id, see The Tailscale key below. |
@@ -44,6 +47,94 @@ Anyone signed in to metro.box, for their current organization. There is no
 allowlist and no cap on how many boxes an organization may have. The one bound on
 spend is that one organization cannot run two launches at once: the second one is
 refused with a 409.
+
+## No access key: Metro's own role
+
+api.metro.box runs on Fly, outside AWS. Fly gives every machine a short-lived
+signed token (OpenID Connect, `POST /v1/tokens/oidc` on the machine API socket
+`/.fly/api`, issuer `https://oidc.fly.io/stage-labs`, subject
+`stage-labs:metro:<machine>`). AWS trades that token for one-hour credentials
+of the role `metro-api` (`AssumeRoleWithWebIdentity`). Nothing on Fly is a
+long-lived AWS secret: a stolen Fly secret list opens nothing in AWS, and the
+role can be taken only by a machine of the Fly app `metro`. Metro keeps the
+credentials in memory and takes new ones 5 minutes before they expire
+(`apps/api/src/aws/access.ts`).
+
+One stack in Metro's own AWS account sets it up,
+`apps/api/cloudformation/metro-identity.yaml`: the Fly identity provider, the
+role `metro-api` with the same permissions as the IAM user's policy below, plus
+`sts:AssumeRole` on any account's `metro-access` role and `s3:PutObject` on the
+template bucket, and that bucket (public read on `metro-access-*.yaml` only).
+In AWS CloudShell, region us-east-1, signed in to Metro's account:
+
+```
+curl -fsSO https://raw.githubusercontent.com/bonustrack/metro/main/apps/api/cloudformation/metro-identity.yaml
+aws cloudformation deploy --stack-name metro-identity --template-file metro-identity.yaml --capabilities CAPABILITY_NAMED_IAM
+aws cloudformation describe-stacks --stack-name metro-identity --query 'Stacks[0].Outputs' --output table
+```
+
+Then on Fly, with the two outputs:
+
+```
+fly secrets set -a metro METRO_AWS_ROLE_ARN=<RoleArn> METRO_AWS_TEMPLATES=<TemplatesUrl>
+```
+
+**Switching without a gap.** While the access key is still set, Metro's own
+servers keep using it and only connected accounts use the role. Admin, AWS,
+Check takes the role and reads every server Metro launched through it, without
+switching anything. Once every row reads OK:
+
+```
+fly secrets unset -a metro METRO_AWS_ACCESS_KEY_ID METRO_AWS_SECRET_ACCESS_KEY
+```
+
+The boot log then says `aws: metro signs in with its role through Fly, no
+access key`. Last, delete the IAM user `metro` and its access key in the IAM
+console. To go back, set the key again: it wins over the role.
+
+If the stack fails on the bucket policy, the account blocks public bucket
+policies (S3, Block Public Access settings for this account). The template has
+no secret in it, and CloudFormation reads a quick-create template only from S3.
+
+## Connecting another AWS account
+
+An organization's admin connects its own AWS account from the Organization page,
+AWS accounts, Connect AWS (`apps/api/src/aws-connections.ts`):
+
+1. Metro gives the organization one external id (random, kept in
+   `aws_external_ids`, the same for every link of that organization),
+   publishes `apps/api/cloudformation/metro-access.yaml` to the bucket under a
+   name made of its hash, and opens the CloudFormation quick-create link with
+   the external id and Metro's role filled in.
+2. The stack creates the role `metro-access`, which only `metro-api` may take,
+   and only with that external id (`sts:ExternalId`, `aws:PrincipalArn`). Its
+   permissions are exactly the server statements of `metro-api` (a test pins
+   it). It also creates the `metro-box` role and instance profile for the
+   memory and disk readings (parameter `CreateBoxRole`, false when the account
+   has one already).
+3. The admin pastes the stack's `RoleArn` output. Metro takes the role, checks
+   with `GetCallerIdentity` that it answers from that account, lists the regions,
+   and only then saves it (`aws_connections`).
+
+A server of the organization that Metro did not launch (added by its address)
+is then linked to its instance on its Server page, AWS, Find servers: Metro lists
+the running instances of every connected account (those tagged with the
+server's node first), and on a pick it checks that the instance carries no
+other box's tags and writes `metro=<node>` and `metro:agent=<agent id>` on it.
+From then on its charts, size, storage and Delete work through that account's
+role, with every check of a Metro-launched box. Unlinking, or disconnecting the
+account, only forgets the instance; nothing changes in AWS. Moving the agent to
+another organization unlinks it too, since the connection belongs to the old one.
+
+One AWS account can be connected to one Metro organization: the role is always
+named `metro-access`, and it trusts one external id.
+
+**An account in an AWS Organization** connects the same way: sign in to that
+member account (not the management account) and open the link. For many member
+accounts, deploy `metro-access.yaml` once from the management account as a
+service-managed StackSet (CloudFormation, StackSets, Service-managed
+permissions) with the parameters `ExternalId` and `MetroRoleArn` from the link,
+then paste each account's `arn:aws:iam::<member account>:role/metro-access`.
 
 ## The IAM user, step by step
 
@@ -293,9 +384,10 @@ the CloudWatch agent uses, so a box that runs the official agent instead shows
 the same charts. The daemon runs as the `metro` user and cannot install a
 package, which is why it sends the two readings itself. It signs with the
 instance's role, read from the instance metadata. With no role, or off EC2, it
-sends nothing and logs it once. Only a box Metro launched in its own AWS account
-has charts. Any other box (in another AWS account, added by its address, or
-hosted elsewhere, such as on DigitalOcean) has none yet, and the page says so.
+sends nothing and logs it once. A box Metro launched has charts, and so has a box
+linked to its instance in a connected AWS account. Any other box (added by its
+address and not linked, or hosted elsewhere, such as on DigitalOcean) has none,
+and the page says so.
 
 Restarts show as dashed lines across every chart: red when the server
 restarted, grey when only Metro did. From beta.225, when the daemon starts it

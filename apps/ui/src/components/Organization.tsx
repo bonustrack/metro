@@ -4,6 +4,8 @@ import { PageTitle } from './PageTitle.js';
 import { Frame } from './Frame.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { OrganizationSettings } from './OrganizationSettings.js';
+import { OrganizationAws } from './OrganizationAws.js';
+import { activeAccount } from '../auth/account.js';
 import { routeHash } from '../route.js';
 import { useDocumentTitle } from '../title.js';
 
@@ -25,6 +27,7 @@ export function Organization({ onLock }: { onLock: () => void }): ReactNode {
       <Col gap={32} width="100%">
         <PageTitle>Organization</PageTitle>
         <OrganizationSettings />
+        {(activeAccount()?.organization ?? null) === null ? null : <OrganizationAws />}
       </Col>
     </Frame>
   );

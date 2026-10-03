@@ -77,7 +77,7 @@ describe('a resize', () => {
     const box = fakeBox({ refuse: { stop: new AwsError('UnauthorizedOperation', 'You are not authorized to perform this operation. User: arn:aws:iam::123456789012:user/metro', 'ec2:StopInstances') } });
     const job = await resize(box, 't4g.large');
     expect(verbs(box)).toEqual(['stop']);
-    expect(job.error).toBe("Could not stop the server: Metro's AWS key may not call ec2:StopInstances. Add it to the policy of the IAM user metro. It runs as t4g.medium.");
+    expect(job.error).toBe("Could not stop the server: Metro may not call ec2:StopInstances in this AWS account. Add it to the policy Metro uses there. It runs as t4g.medium.");
     expect(job.error).not.toContain('123456789012');
     expect(box).toMatchObject({ state: 'running', type: 't4g.medium' });
   });

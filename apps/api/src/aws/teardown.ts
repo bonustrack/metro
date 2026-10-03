@@ -106,3 +106,29 @@ export async function terminateInstance(credentials: AwsCredentials, region: str
   const xml = await ec2(credentials, region, 'TerminateInstances', { 'InstanceId.1': checked(instanceId, INSTANCE_ID_RE, 'The server') });
   return children(child(xml, 'instancesSet'), 'item').map((item) => textAt(item, 'instanceId'));
 }
+
+const LIST_PAGES_MAX = 10;
+const LIVE_STATES = ['pending', 'running', 'stopping', 'stopped'];
+
+export async function listInstances(credentials: AwsCredentials, region: string): Promise<InstanceFacts[]> {
+  const params: Record<string, string> = { MaxResults: '1000', 'Filter.1.Name': 'instance-state-name', ...Object.fromEntries(LIVE_STATES.map((s, at) => [`Filter.1.Value.${String(at + 1)}`, s])) };
+  const found: InstanceFacts[] = [];
+  let token = '';
+  for (let page = 0; page < LIST_PAGES_MAX; page += 1) {
+    const xml = await ec2(credentials, region, 'DescribeInstances', token === '' ? params : { ...params, NextToken: token });
+    found.push(...children(child(xml, 'reservationSet'), 'item').flatMap((reservation) => children(child(reservation, 'instancesSet'), 'item').map(instanceOf)));
+    token = textAt(xml, 'nextToken');
+    if (token === '') return found;
+  }
+  return found;
+}
+
+export async function tagInstance(credentials: AwsCredentials, region: string, instanceId: string, node: string, agentId: string): Promise<void> {
+  await ec2(credentials, region, 'CreateTags', {
+    'ResourceId.1': checked(instanceId, INSTANCE_ID_RE, 'The server'),
+    'Tag.1.Key': NODE_TAG,
+    'Tag.1.Value': node,
+    'Tag.2.Key': AGENT_TAG,
+    'Tag.2.Value': agentId,
+  });
+}

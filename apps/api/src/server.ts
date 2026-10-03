@@ -23,6 +23,14 @@ import {
 import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
 import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
 import { describeInstanceTypes, describeRegions } from './aws/ec2.js';
+import { access } from './aws/access.js';
+import { callerIdentity } from './aws/sts.js';
+import { publishTemplate, templatesOf } from './aws/templates.js';
+import { describeInstanceFacts, listInstances, tagInstance } from './aws/teardown.js';
+import { dbAws, metroServers } from './db/aws.js';
+import { handleAwsConnectionsRequest, type AwsConnectionsDeps } from './aws-connections.js';
+import { handleServerLinkRequest, type ServerLinkDeps } from './server-link.js';
+import { roleCheck } from './admin-aws.js';
 import { gbMonthPrice, hourlyPrice } from './aws/pricing.js';
 import { LIVE_RESIZE } from './aws/resize.js';
 import { LIVE_DELETION } from './aws/deletion.js';
@@ -37,6 +45,7 @@ import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
 import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
+import { randomBytes } from 'node:crypto';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
@@ -47,7 +56,8 @@ const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users:
 const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
 const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
-const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
+const awsCheck = (): Promise<unknown> => roleCheck({ config: () => readLaunchConfig(), servers: metroServers, access, caller: callerIdentity, describe: describeInstanceFacts });
+const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow }, awsCheck };
 const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
 const latestApi: LatestApiDeps = { ...metricsCore, rows: usageRowsForOwner, keys };
 const serversApi: ServersApiDeps = {
@@ -91,6 +101,26 @@ const storageApi: StorageApiDeps = {
 
 const deletionApi: DeletionApiDeps = { ...deletionCore, lookup: deletionRowForOwner, remove: deleteServerForOwner, keys };
 
+const awsApi: AwsConnectionsDeps = {
+  config: () => readLaunchConfig(),
+  templates: () => templatesOf(process.env.METRO_AWS_TEMPLATES ?? ''),
+  store: dbAws,
+  access,
+  aws: { caller: callerIdentity, regions: describeRegions, instances: listInstances, publish: publishTemplate },
+  externalId: () => randomBytes(24).toString('base64url'),
+  now: () => Date.now(),
+  keys,
+};
+
+const linkApi: ServerLinkDeps = {
+  config: () => readLaunchConfig(),
+  lookup: deletionRowForOwner,
+  store: dbAws,
+  access,
+  aws: { describe: describeInstanceFacts, tag: tagInstance },
+  keys,
+};
+
 function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   const path = (req.url ?? '').split('?')[0];
   if (path !== '/health' && path !== '/healthz') return false;
@@ -110,6 +140,8 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleStorageApiRequest(req, res, storageApi),
   (req, res) => handleDeletionApiRequest(req, res, deletionApi),
   (req, res) => handleUsageApiRequest(req, res, usageApi),
+  (req, res) => handleServerLinkRequest(req, res, linkApi),
+  (req, res) => handleAwsConnectionsRequest(req, res, awsApi),
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),

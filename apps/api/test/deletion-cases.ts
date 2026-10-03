@@ -35,7 +35,7 @@ export const STILL_REFUSED: { when: string; status: number; error: string; added
   },
   { when: 'AWS throttles DescribeInstances', status: 503, error: 'Request limit exceeded.', aws: failing('RequestLimitExceeded', 'Request limit exceeded.') },
   { when: 'AWS does not accept the key', status: 503, error: 'AWS was not able to validate', aws: failing('AuthFailure', 'AWS was not able to validate the provided access credentials') },
-  { when: 'the key may not call DescribeInstances', status: 503, error: "Metro's AWS key may not call ec2:DescribeInstances", aws: failing('UnauthorizedOperation', 'You are not authorized.') },
+  { when: 'the key may not call DescribeInstances', status: 503, error: "Metro may not call ec2:DescribeInstances in this AWS account", aws: failing('UnauthorizedOperation', 'You are not authorized.') },
   { when: 'EC2 cannot be reached', status: 503, error: 'Could not reach EC2 in us-east-1.', aws: failing('Unreachable', 'Could not reach EC2 in us-east-1.') },
 ];
 

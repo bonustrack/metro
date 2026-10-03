@@ -108,7 +108,7 @@ describe('growing the disk', () => {
     const job = await grown(disks, 16);
     expect(job.phase).toBe('failed');
     expect(job.error).toBe(
-      "The disk is now 16 GiB, but AWS did not restart the server: Metro's AWS key may not call ec2:RebootInstances. Add it to the policy of the IAM user metro. It uses the space after its next restart.",
+      "The disk is now 16 GiB, but AWS did not restart the server: Metro may not call ec2:RebootInstances in this AWS account. Add it to the policy Metro uses there. It uses the space after its next restart.",
     );
   });
 

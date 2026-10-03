@@ -14,6 +14,7 @@ const CONFIG: ConfigResult = {
   ok: true,
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+    role: null,
     tailnet: 'tail17c4f8.ts.net',
     tailscale: null,
   },
@@ -31,7 +32,7 @@ const deps: SizeApiDeps = {
   config: () => config,
   lookup: (owner, id) => {
     if (owner !== TEST_OWNER) return Promise.reject(new ApiError('no such server', 404));
-    if (id === LAUNCHED) return Promise.resolve({ instanceId: 'i-0abc', region: 'us-east-1' });
+    if (id === LAUNCHED) return Promise.resolve({ instanceId: 'i-0abc', region: 'us-east-1', account: null });
     if (id === HAND_ADDED) return Promise.resolve(null);
     return Promise.reject(new ApiError('no such server', 404));
   },

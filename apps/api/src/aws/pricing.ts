@@ -1,5 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
-import { AwsError, type AwsCredentials } from './ec2.js';
+import { AwsError, keysOf, type AwsCredentials } from './ec2.js';
 import { signV4 } from '@metro-labs/http/sigv4';
 
 const PRICING_REGION = 'us-east-1';
@@ -74,7 +74,7 @@ async function products(credentials: AwsCredentials, body: string): Promise<unkn
     body,
     region: PRICING_REGION,
     service: 'pricing',
-    ...credentials,
+    ...(await keysOf(credentials)),
   });
   let res: Response;
   try {

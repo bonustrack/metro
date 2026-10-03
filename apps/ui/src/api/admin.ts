@@ -115,3 +115,43 @@ export async function fetchAllAgents(): Promise<AgentRow[]> {
       : [],
   );
 }
+
+export interface RoleServerCheck {
+  id: string;
+  name: string | null;
+  region: string;
+  instanceId: string;
+  ok: boolean;
+  state: string | null;
+  error: string | null;
+}
+
+export interface AwsCheck {
+  signsInWith: 'key' | 'role' | 'none';
+  role: string | null;
+  check: { ok: boolean; account: string | null; error: string | null; servers: RoleServerCheck[] } | null;
+}
+
+const toServerCheck = (s: Record<string, unknown>): RoleServerCheck => ({
+  id: optional(s.id) ?? '',
+  name: optional(s.name),
+  region: optional(s.region) ?? '',
+  instanceId: optional(s.instanceId) ?? '',
+  ok: s.ok === true,
+  state: optional(s.state),
+  error: optional(s.error),
+});
+
+export async function fetchAwsCheck(): Promise<AwsCheck> {
+  const answer = await call('/aws');
+  const signsInWith = answer.signsInWith === 'role' || answer.signsInWith === 'key' ? answer.signsInWith : 'none';
+  const check = isRecord(answer.check) ? answer.check : null;
+  return {
+    signsInWith,
+    role: optional(answer.role),
+    check:
+      check === null
+        ? null
+        : { ok: check.ok === true, account: optional(check.account), error: optional(check.error), servers: rows(check, 'servers').map(toServerCheck) },
+  };
+}

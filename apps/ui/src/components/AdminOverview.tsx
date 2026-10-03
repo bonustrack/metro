@@ -5,6 +5,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { SignupChart } from './SignupChart.js';
+import { AdminAws } from './AdminAws.js';
 import { fetchAllAgents, fetchAllOrganizations, fetchUsers, type UserRow } from '../api/admin.js';
 import { queryError } from '../api/queries.js';
 import { useDocumentTitle } from '../title.js';
@@ -89,6 +90,7 @@ export function AdminOverview(): ReactNode {
         <Stat label="Agents" total={counts.agents} week={counts.agentsWeek} />
       </Row>
       {users === undefined ? null : <SignupChart users={users} />}
+      <AdminAws />
     </Col>
   );
 }

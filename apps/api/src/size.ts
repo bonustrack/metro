@@ -8,6 +8,7 @@ import type { ServerLaunch } from './db/servers.js';
 import { AWS_REFUSED, AwsError, type InstanceState } from './aws/ec2.js';
 import { catalogFor, type Catalog, type SizeDeps } from './aws/sizes.js';
 import { handleServerRoute } from './server-route.js';
+import { access } from './aws/access.js';
 import { explain, jobRunning, newJob, runResize, type Ec2Target, type ResizeAws, type ResizeJob } from './aws/resize.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/size\/?$/;
@@ -15,7 +16,7 @@ const JOB_SHOWN_MS = 60 * 60_000;
 const TYPE_RE = /^[a-z][a-z0-9-]*\.[a-z0-9]+$/;
 const OFF = 'This Metro deployment has no AWS account, so it cannot change the size of a server.';
 const NOT_LAUNCHED =
-  'Metro did not launch this server on AWS, so it cannot change its size. A server hosted elsewhere, such as on DigitalOcean, is resized where it is hosted.';
+  'Metro did not launch this server on AWS and it is not linked to a connected AWS account, so Metro cannot change its size. A server hosted elsewhere, such as on DigitalOcean, is resized where it is hosted.';
 
 export interface SizeApiDeps {
   config: () => ConfigResult;
@@ -55,7 +56,7 @@ async function targetOf(deps: SizeApiDeps, owner: string, id: string): Promise<E
   const config = deps.config();
   if (!config.ok) return OFF;
   if (launch === null) return NOT_LAUNCHED;
-  return { credentials: config.config.credentials, region: launch.region, instanceId: launch.instanceId };
+  return { credentials: access.reach(config.config, launch.account), region: launch.region, instanceId: launch.instanceId };
 }
 
 interface Read {

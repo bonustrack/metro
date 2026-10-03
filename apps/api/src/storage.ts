@@ -23,13 +23,14 @@ import {
 } from './aws/grow.js';
 import { fromAws } from './size.js';
 import { handleServerRoute } from './server-route.js';
+import { access } from './aws/access.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/storage\/?$/;
 const JOB_SHOWN_MS = 60 * 60_000;
 const PRICED_TTL_MS = 24 * 60 * 60_000;
 const UNPRICED_TTL_MS = 10 * 60_000;
 const OFF = 'This Metro deployment has no AWS account, so it cannot grow the disk of a server.';
-const NOT_LAUNCHED = 'Metro did not launch this server on AWS, so it cannot grow its disk.';
+const NOT_LAUNCHED = 'Metro did not launch this server on AWS and it is not linked to a connected AWS account, so Metro cannot grow its disk.';
 
 export interface StorageApiDeps {
   config: () => ConfigResult;
@@ -77,7 +78,7 @@ async function resolve(deps: StorageApiDeps, owner: string, id: string): Promise
   if (!config.ok) return OFF;
   if (row.instanceId === null || row.region === null) return NOT_LAUNCHED;
   return {
-    target: { credentials: config.config.credentials, region: row.region, instanceId: row.instanceId },
+    target: { credentials: access.reach(config.config, row.account), region: row.region, instanceId: row.instanceId },
     owner: { agentId: row.id, host: row.host },
   };
 }

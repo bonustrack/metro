@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Lets Metro (metro.box) see and manage its servers in this AWS account, with no access key.
+  It creates the role metro-access, which only Metro's own role may take, and only with the
+  external id of your Metro organization. Delete this stack to disconnect the account.
+Parameters:
+  ExternalId:
+    Type: String
+    MinLength: 16
+    MaxLength: 128
+    AllowedPattern: '^[\w+=,.@:/-]+$'
+    Description: The external id of your Metro organization. Metro filled it in.
+  MetroRoleArn:
+    Type: String
+    AllowedPattern: '^arn:aws:iam::\d{12}:role/[\w+=,.@/-]+$'
+    Description: Metro's own role, the only one that may take metro-access. Metro filled it in.
+  CreateBoxRole:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Creates the metro-box role, which lets a Metro server send its memory and disk readings
+      to CloudWatch. Choose false if this account already has a role named metro-box.
+Conditions:
+  WithBoxRole:
+    Fn::Equals: [{ Ref: CreateBoxRole }, 'true']
+Resources:
+  MetroAccess:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: metro-access
+      Description: Taken by Metro (metro.box) to see and manage its servers in this account.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                Fn::Sub:
+                  - 'arn:aws:iam::${MetroAccount}:root'
+                  - MetroAccount:
+                      Fn::Select: [4, { 'Fn::Split': [':', { Ref: MetroRoleArn }] }]
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: { Ref: ExternalId }
+              ArnEquals:
+                aws:PrincipalArn: { Ref: MetroRoleArn }
+      Policies:
+        - PolicyName: metro-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeRegions
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeImages
+                  - ec2:DescribeInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeVolumesModifications
+                  - ec2:RunInstances
+                  - ec2:CreateTags
+                  - ec2:GetConsoleOutput
+                  - ec2:DescribeInstanceTypes
+                  - pricing:GetProducts
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:TerminateInstances
+                  - ec2:AssociateIamInstanceProfile
+                  - ec2:ModifyVolume
+                  - ec2:RebootInstances
+                Resource: '*'
+                Condition:
+                  'Null':
+                    aws:ResourceTag/metro: 'false'
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/metro-box'
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ec2.amazonaws.com
+  BoxRole:
+    Type: AWS::IAM::Role
+    Condition: WithBoxRole
+    Properties:
+      RoleName: metro-box
+      Description: Lets a Metro server send its memory and disk readings to CloudWatch.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: metro-box-metrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: CWAgent
+  BoxProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: WithBoxRole
+    Properties:
+      InstanceProfileName: metro-box
+      Roles:
+        - Ref: BoxRole
+Outputs:
+  RoleArn:
+    Description: Paste this into Metro.
+    Value:
+      Fn::GetAtt: [MetroAccess, Arn]

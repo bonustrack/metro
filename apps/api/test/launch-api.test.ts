@@ -14,6 +14,7 @@ const WALLET = 'org_01BOXOWNER0000000';
 
 const READY: LaunchConfig = {
   credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+  role: null,
   tailnet: 'tail17c4f8.ts.net',
   tailscale: { id: 'kCLIENT1CNTRL', secret: 'tskey-client-kCLIENT1CNTRL-abcdefghijklmnop' },
 };
@@ -57,7 +58,7 @@ const deps: LaunchApiDeps = {
   },
   lookup: (subject, id) =>
     subject === TEST_OWNER && id === 'srv00000001'
-      ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1' })
+      ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1', account: null })
       : Promise.reject(new ApiError('no such server', 404)),
   now: () => now,
   keys: new SigningKeys('http://127.0.0.1:1/nowhere'),

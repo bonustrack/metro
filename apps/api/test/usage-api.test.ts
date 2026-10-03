@@ -13,13 +13,13 @@ import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts'
 
 const CONFIG: ConfigResult = {
   ok: true,
-  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, tailnet: 'tail17c4f8.ts.net', tailscale: null },
+  config: { credentials: { accessKeyId: 'AKIAMETRO', secretAccessKey: 's' }, role: null, tailnet: 'tail17c4f8.ts.net', tailscale: null },
 };
 const NOW = Date.parse('2026-09-29T10:07:00Z');
 const LAUNCHED = 'srv00000001';
 const HAND_ADDED = 'srv00000003';
 const ROWS: Record<string, UsageRow> = {
-  [LAUNCHED]: { host: 'metro-thrw01.tail17c4f8.ts.net', link: { instanceId: 'i-0abc', region: 'us-east-1' } },
+  [LAUNCHED]: { host: 'metro-thrw01.tail17c4f8.ts.net', link: { instanceId: 'i-0abc', region: 'us-east-1', account: null } },
   [HAND_ADDED]: { host: 'metro-6vfdky.tail17c4f8.ts.net', link: null },
 };
 const AGENT: Metric[] = [
@@ -206,13 +206,13 @@ describe('the usage charts of a server', () => {
     cloud.refuse.associate = new AwsError('UnauthorizedOperation', 'no', 'ec2:AssociateIamInstanceProfile');
     const answer = await body(await get(LAUNCHED));
     expect(answer.available).toBe(true);
-    expect(answer.note).toContain('AWS refused ec2:AssociateIamInstanceProfile. Add it to the policy of the IAM user metro.');
+    expect(answer.note).toContain('AWS refused ec2:AssociateIamInstanceProfile. Add it to the policy Metro uses in this AWS account.');
   });
 
   test('a CloudWatch refusal is 503 with the reason', async () => {
     cloud.refuse.data = new AwsError('AccessDenied', 'no', 'cloudwatch:GetMetricData');
     const refusedData = await get(LAUNCHED);
     expect(refusedData.status).toBe(503);
-    expect((await body(refusedData)).error).toContain('AWS refused cloudwatch:GetMetricData. Add it to the policy of the IAM user metro.');
+    expect((await body(refusedData)).error).toContain('AWS refused cloudwatch:GetMetricData. Add it to the policy Metro uses in this AWS account.');
   });
 });

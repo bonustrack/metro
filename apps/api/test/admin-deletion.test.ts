@@ -26,12 +26,13 @@ const CONFIG: ConfigResult = {
   ok: true,
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+    role: null,
     tailnet: 'tail17c4f8.ts.net',
     tailscale: null,
   },
 };
-const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1' });
-const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: CLIENT_ORG, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null });
+const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1', account: null });
+const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: CLIENT_ORG, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null, account: null });
 
 let workos: FakeWorkos;
 let server: Server;
@@ -70,6 +71,7 @@ beforeAll(async () => {
       resizing: () => busy,
       aws: fakeDeletionAws(account),
     },
+    awsCheck: () => Promise.resolve(null),
   };
   await deps.users.noteLogin({ id: OPERATOR, email: 'admin@stage.box', name: 'Stage Labs', picture: null, createdAt: '2026-09-01T10:00:00.000Z' }, '2026-09-29T10:00:00.000Z');
   await deps.users.noteLogin({ id: CLIENT_ADMIN, email: 'bob@client.example', name: 'Bob', picture: null, createdAt: '2026-09-02T10:00:00.000Z' }, '2026-09-29T10:00:00.000Z');

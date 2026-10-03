@@ -11,6 +11,7 @@ import { ServerSizeSection } from './ServerSize.js';
 import { ServerStorageSection } from './ServerStorage.js';
 import { DeleteServerSection } from './DeleteServer.js';
 import { ServerResources } from './ServerResources.js';
+import { ServerAwsSection } from './ServerAws.js';
 import { queryError, useMachineQuery, useServersQuery } from '../api/queries.js';
 import { type Server } from '../api/servers.js';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '../api/machine.js';
@@ -82,6 +83,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       ) : (
         <MachineFacts machine={machine.data} />
       )}
+      {server === undefined ? null : <ServerAwsSection server={server} />}
       {server === undefined ? null : <ServerResources serverId={server.id} />}
       {server === undefined ? null : <ServerSizeSection serverId={server.id} />}
       {server === undefined ? null : <ServerStorageSection serverId={server.id} />}

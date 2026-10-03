@@ -33,6 +33,7 @@ beforeAll(async () => {
       resizing: () => false,
       aws: fakeDeletionAws(fakeAccount()),
     },
+    awsCheck: () => Promise.resolve({ signsInWith: 'key', role: null, check: null }),
   };
   await deps.users.noteLogin({ id: 'user_01ABC', email: 'admin@stage.box', name: 'Stage Labs', picture: null, createdAt: '2026-09-01T10:00:00.000Z' }, '2026-09-19T10:00:00.000Z');
   await deps.users.setStatus('user_01ABC', 'approved');
@@ -67,6 +68,7 @@ describe('the operator pages', () => {
     expect((await call('GET', '/api/admin/users', token('user_02BOB'))).status).toBe(403);
     expect((await call('GET', '/api/admin/organizations', token('user_02BOB'))).status).toBe(403);
     expect((await call('GET', '/api/admin/agents', token('user_02BOB'))).status).toBe(403);
+    expect((await call('GET', '/api/admin/aws', token('user_02BOB'))).status).toBe(403);
     expect((await call('GET', '/api/admin/nothing', token('user_01ABC'))).status).toBe(404);
   });
 
@@ -91,5 +93,11 @@ describe('the operator pages', () => {
     expect(orgs.organizations).toEqual([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z', slug: 'stage-labs' }]);
     const agents = (await (await call('GET', '/api/admin/agents', token('user_01ABC'))).json()) as { agents: Record<string, unknown>[] };
     expect(agents.agents).toEqual([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, instanceId: null, organizationName: 'Stage Labs' }]);
+  });
+
+  test("the operator reads how Metro signs in to AWS and the check of its role", async () => {
+    const res = await call('GET', '/api/admin/aws', token('user_01ABC'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ signsInWith: 'key', role: null, check: null });
   });
 });

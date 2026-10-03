@@ -1,10 +1,16 @@
 import { signV4 } from '@metro-labs/http/sigv4';
 import { child, children, parseXml, textAt, type XmlNode } from './xml.js';
 
-export interface AwsCredentials {
+export interface AwsKeys {
   accessKeyId: string;
   secretAccessKey: string;
+  sessionToken?: string;
 }
+
+export type AwsCredentials = AwsKeys | (() => Promise<AwsKeys>);
+
+export const keysOf = (credentials: AwsCredentials): Promise<AwsKeys> =>
+  typeof credentials === 'function' ? credentials() : Promise.resolve(credentials);
 
 export class AwsError extends Error {
   constructor(
@@ -18,6 +24,7 @@ export class AwsError extends Error {
 }
 
 export const AWS_REFUSED = 503;
+export const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d$/;
 
 const EC2_VERSION = '2016-11-15';
 export const INSTANCE_TYPE = 't4g.medium';
@@ -35,22 +42,11 @@ export interface QueryService {
   label: string;
 }
 
-export async function awsQuery(credentials: AwsCredentials, service: QueryService, action: string, params: Record<string, string>): Promise<XmlNode> {
-  const url = `https://${service.host}/`;
-  const body = new URLSearchParams({ Action: action, Version: service.version, ...params }).toString();
-  const signed = await signV4({
-    method: 'POST',
-    url,
-    headers: { 'content-type': CONTENT_TYPE },
-    body,
-    region: service.region,
-    service: service.signingName,
-    ...credentials,
-  });
+async function sendQuery(service: QueryService, action: string, body: string, headers: Record<string, string>): Promise<XmlNode> {
   const iamAction = `${service.iamPrefix}:${action}`;
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers: signed.headers, body });
+    res = await fetch(`https://${service.host}/`, { method: 'POST', headers, body });
   } catch {
     throw new AwsError('Unreachable', `Could not reach ${service.label}.`, iamAction);
   }
@@ -59,6 +55,26 @@ export async function awsQuery(credentials: AwsCredentials, service: QueryServic
   const error = child(child(xml, 'Errors'), 'Error') ?? child(xml, 'Error');
   throw new AwsError(textAt(error, 'Code') || `HTTP${res.status}`, textAt(error, 'Message') || `${service.label} answered ${String(res.status)}.`, iamAction);
 }
+
+const queryBody = (service: QueryService, action: string, params: Record<string, string>): string =>
+  new URLSearchParams({ Action: action, Version: service.version, ...params }).toString();
+
+export async function awsQuery(credentials: AwsCredentials, service: QueryService, action: string, params: Record<string, string>): Promise<XmlNode> {
+  const body = queryBody(service, action, params);
+  const signed = await signV4({
+    method: 'POST',
+    url: `https://${service.host}/`,
+    headers: { 'content-type': CONTENT_TYPE },
+    body,
+    region: service.region,
+    service: service.signingName,
+    ...(await keysOf(credentials)),
+  });
+  return sendQuery(service, action, body, signed.headers);
+}
+
+export const unsignedQuery = (service: QueryService, action: string, params: Record<string, string>): Promise<XmlNode> =>
+  sendQuery(service, action, queryBody(service, action, params), { 'content-type': CONTENT_TYPE });
 
 export const ec2 = (credentials: AwsCredentials, region: string, action: string, params: Record<string, string>): Promise<XmlNode> =>
   awsQuery(credentials, { host: `ec2.${region}.amazonaws.com`, region, signingName: 'ec2', iamPrefix: 'ec2', version: EC2_VERSION, label: `EC2 in ${region}` }, action, params);

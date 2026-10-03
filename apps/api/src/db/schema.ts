@@ -13,6 +13,7 @@ export const agents = pgTable(
     launchedAt: text('launched_at'),
     avatar: text('avatar'),
     slug: text('slug'),
+    awsConnection: text('aws_connection'),
   },
   (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), uniqueIndex('agents_owner_slug_idx').on(t.owner, t.slug), index('agents_owner_idx').on(t.owner)],
 );
@@ -39,3 +40,21 @@ export const organizations = pgTable(
   },
   (t) => [uniqueIndex('organizations_slug_idx').on(t.slug)],
 );
+
+export const awsConnections = pgTable(
+  'aws_connections',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    accountId: text('account_id').notNull(),
+    roleArn: text('role_arn').notNull(),
+    addedAt: text('added_at').notNull(),
+  },
+  (t) => [uniqueIndex('aws_connections_owner_account_idx').on(t.owner, t.accountId)],
+);
+
+export const awsExternalIds = pgTable('aws_external_ids', {
+  owner: text('owner').primaryKey(),
+  externalId: text('external_id').notNull(),
+  createdAt: text('created_at').notNull(),
+});

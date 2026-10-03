@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Metro's own AWS identity, run once in Metro's own AWS account. api.metro.box on Fly takes
+  the role metro-api with a short-lived Fly token instead of an access key. The role manages
+  the servers in this account, may take the metro-access role of a connected account, and
+  writes the template those accounts use into a public bucket.
+Resources:
+  FlyProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://oidc.fly.io/stage-labs
+      ClientIdList:
+        - sts.amazonaws.com
+  TemplateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: 'metro-templates-${AWS::AccountId}'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+  TemplateBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: { Ref: TemplateBucket }
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicTemplates
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource:
+              Fn::Sub: 'arn:aws:s3:::${TemplateBucket}/metro-access-*.yaml'
+  MetroRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: metro-api
+      Description: Taken by api.metro.box on Fly (app metro) with a Fly token. No access key.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: { Ref: FlyProvider }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                oidc.fly.io/stage-labs:aud: sts.amazonaws.com
+              StringLike:
+                oidc.fly.io/stage-labs:sub: 'stage-labs:metro:*'
+      Policies:
+        - PolicyName: metro-api
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeRegions
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeImages
+                  - ec2:DescribeInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeVolumesModifications
+                  - ec2:RunInstances
+                  - ec2:CreateTags
+                  - ec2:GetConsoleOutput
+                  - ec2:DescribeInstanceTypes
+                  - pricing:GetProducts
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:TerminateInstances
+                  - ec2:AssociateIamInstanceProfile
+                  - ec2:ModifyVolume
+                  - ec2:RebootInstances
+                Resource: '*'
+                Condition:
+                  'Null':
+                    aws:ResourceTag/metro: 'false'
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/metro-box'
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ec2.amazonaws.com
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: 'arn:aws:iam::*:role/metro-access'
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  Fn::Sub: 'arn:aws:s3:::metro-templates-${AWS::AccountId}/metro-access-*.yaml'
+Outputs:
+  RoleArn:
+    Description: Set as METRO_AWS_ROLE_ARN on the Fly app.
+    Value:
+      Fn::GetAtt: [MetroRole, Arn]
+  TemplatesUrl:
+    Description: Set as METRO_AWS_TEMPLATES on the Fly app.
+    Value:
+      Fn::Sub: 'https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com'

@@ -35,10 +35,11 @@ primary_region = "iad"
 # Secrets are NOT stored here — set them with `fly secrets set` (see README "Deploying"):
 #   DATABASE_URL  (required — the Postgres holding the server lists)
 #   WORKOS_API_KEY and WORKOS_CLIENT_ID (sign-in)
-#   To have metro issue servers, five more (docs/ISSUING-SERVERS.md), and with any of
-#   them unset the feature is simply off: METRO_AWS_ACCESS_KEY_ID,
-#   METRO_AWS_SECRET_ACCESS_KEY, METRO_LAUNCH_TAILNET, METRO_TAILSCALE_CLIENT_ID,
+#   To have metro issue servers (docs/ISSUING-SERVERS.md): METRO_AWS_ROLE_ARN (its own
+#   role, taken with this machine's Fly token, no key) or the older METRO_AWS_ACCESS_KEY_ID
+#   and METRO_AWS_SECRET_ACCESS_KEY, plus METRO_LAUNCH_TAILNET, METRO_TAILSCALE_CLIENT_ID and
 #   METRO_TAILSCALE_CLIENT_SECRET (a Tailscale OAuth client: one key per launch).
+#   METRO_AWS_TEMPLATES (the template bucket) lets an organization connect its own AWS account.
 
 [http_service]
   internal_port = 8420

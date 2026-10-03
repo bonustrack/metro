@@ -1,10 +1,12 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { getDb } from './client.js';
 import { isUniqueViolation } from './errors.js';
 import { newId, parseId } from '@metro-labs/core/ids';
-import { agents } from './schema.js';
+import { agents, awsConnections, awsExternalIds } from './schema.js';
+import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aws.js';
+import type { AwsAccount } from '../aws/access.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
 import { parseSlug, slugify, withSuffix } from '../slug.js';
@@ -35,6 +37,7 @@ interface Row {
   launchedAt: string | null;
   avatar: string | null;
   slug: string | null;
+  awsConnection: string | null;
 }
 
 const entryOf = (row: Row): ServerEntry => ({
@@ -46,6 +49,7 @@ const entryOf = (row: Row): ServerEntry => ({
   launchedAt: row.launchedAt,
   avatar: row.avatar,
   slug: row.slug,
+  awsConnection: row.awsConnection,
 });
 
 const columns = {
@@ -57,6 +61,7 @@ const columns = {
   launchedAt: agents.launchedAt,
   avatar: agents.avatar,
   slug: agents.slug,
+  awsConnection: agents.awsConnection,
 };
 
 const SLUG_TRIES = 50;
@@ -141,7 +146,7 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     await db.update(agents).set({ name }).where(eq(agents.id, row.id));
     return entryOf({ ...row, name });
   }
-  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host) };
+  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host), awsConnection: null };
   return entryOf(await insertAgent(owner, next, name ?? host));
 }
 
@@ -168,6 +173,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
     launchedAt: new Date().toISOString(),
     avatar: null,
     slug: await freeSlug(owner, launch.name),
+    awsConnection: null,
   };
   return entryOf(await insertAgent(owner, next, launch.name));
 }
@@ -175,19 +181,21 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
 export interface ServerLaunch {
   instanceId: string;
   region: string;
+  account: AwsAccount | null;
 }
 
 export async function instanceForOwner(subject: string, rawId: string): Promise<ServerLaunch | null> {
   const owner = ownerOf(subject);
   const id = idOf(rawId);
   const rows = await getDb()
-    .select({ instanceId: agents.instanceId, region: agents.launchRegion })
+    .select(placedColumns)
     .from(agents)
+    .leftJoin(awsConnections, connectionJoin)
+    .leftJoin(awsExternalIds, externalIdJoin)
     .where(and(eq(agents.id, id), eq(agents.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
-  if (row.instanceId === null || row.region === null) return null;
-  return { instanceId: row.instanceId, region: row.region };
+  return placementOf(row);
 }
 
 export interface DeletionRow {
@@ -198,17 +206,21 @@ export interface DeletionRow {
   addedAt: string;
   instanceId: string | null;
   region: string | null;
+  account: AwsAccount | null;
 }
 
 async function deletionRow(id: string, owner: string | null): Promise<DeletionRow> {
   const byId = eq(agents.id, id);
   const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, addedAt: agents.addedAt, instanceId: agents.instanceId, region: agents.launchRegion })
+    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, addedAt: agents.addedAt, ...placedColumns })
     .from(agents)
+    .leftJoin(awsConnections, connectionJoin)
+    .leftJoin(awsExternalIds, externalIdJoin)
     .where(owner === null ? byId : and(byId, eq(agents.owner, owner)));
   const row = rows[0];
   if (row === undefined) throw missing();
-  return row;
+  const placed = placementOf(row);
+  return { id: row.id, owner: row.owner, host: row.host, name: row.name, addedAt: row.addedAt, instanceId: placed?.instanceId ?? null, region: placed?.region ?? null, account: placed?.account ?? null };
 }
 
 export async function deletionRowForOwner(subject: string, rawId: string): Promise<DeletionRow> {
@@ -284,7 +296,16 @@ async function assertAdminOf(cfg: WorkosConfig | null, session: Session, to: str
 
 async function changeOwner(id: string, from: string, to: string): Promise<ServerEntry> {
   try {
-    const rows = await getDb().update(agents).set({ owner: to }).where(and(eq(agents.id, id), eq(agents.owner, from))).returning(columns);
+    const rows = await getDb()
+      .update(agents)
+      .set({
+        owner: to,
+        instanceId: sql`case when ${agents.awsConnection} is null then ${agents.instanceId} end`,
+        launchRegion: sql`case when ${agents.awsConnection} is null then ${agents.launchRegion} end`,
+        awsConnection: null,
+      })
+      .where(and(eq(agents.id, id), eq(agents.owner, from)))
+      .returning(columns);
     const row = rows[0];
     if (row === undefined) throw missing();
     return entryOf(row);

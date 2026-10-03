@@ -16,14 +16,15 @@ const CONFIG: ConfigResult = {
   ok: true,
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+    role: null,
     tailnet: 'tail17c4f8.ts.net',
     tailscale: null,
   },
 };
 const LAUNCHED = 'srv00000001';
 const HAND_ADDED = 'srv00000002';
-const launched = (): DeletionRow => ({ id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway-47', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1' });
-const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null });
+const launched = (): DeletionRow => ({ id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway-47', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1', account: null });
+const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null, account: null });
 
 let rows: Record<string, DeletionRow> = {};
 let config: ConfigResult = CONFIG;
@@ -195,7 +196,7 @@ describe('deleting', () => {
     account.refuse = new AwsError('UnauthorizedOperation', 'You are not authorized to perform this operation.', 'ec2:DescribeVolumes');
     const res = await call('POST', pathOf(), CONFIRM);
     expect(res.status).toBe(503);
-    expect(await errorOf(res)).toBe("Metro's AWS key may not call ec2:DescribeVolumes. Add it to the policy of the IAM user metro.");
+    expect(await errorOf(res)).toBe("Metro may not call ec2:DescribeVolumes in this AWS account. Add it to the policy Metro uses there.");
     expect(writes()).toEqual([]);
     expect(removed).toEqual([]);
   });

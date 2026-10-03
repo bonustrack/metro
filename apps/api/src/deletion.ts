@@ -6,6 +6,7 @@ import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { Ec2Target } from './aws/resize.js';
+import { access } from './aws/access.js';
 import { DeletionRefused, isEntryOnly, planDeletion, runDeletion, type Confirmed, type DeletionAws, type Outcome, type Owned, type Plan } from './aws/deletion.js';
 import { fromAws } from './size.js';
 import { handleServerRoute } from './server-route.js';
@@ -55,7 +56,7 @@ function resolve(deps: DeletionCore, row: DeletionRow): Resolved | string {
   const config = deps.config();
   if (!config.ok) return OFF;
   if (row.region === null) return NO_REGION;
-  return { row, target: { credentials: config.config.credentials, region: row.region, instanceId: row.instanceId }, owned };
+  return { row, target: { credentials: access.reach(config.config, row.account), region: row.region, instanceId: row.instanceId }, owned };
 }
 
 const viewOf = (row: DeletionRow, plan: Plan): Record<string, unknown> => ({

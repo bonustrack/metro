@@ -15,6 +15,7 @@ const CONFIG: ConfigResult = {
   ok: true,
   config: {
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
+    role: null,
     tailnet: 'tail17c4f8.ts.net',
     tailscale: null,
   },
@@ -22,8 +23,8 @@ const CONFIG: ConfigResult = {
 const LAUNCHED = 'srv00000001';
 const HAND_ADDED = 'srv00000002';
 const ROWS: Record<string, DeletionRow> = {
-  [LAUNCHED]: { id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway', addedAt: '2026-09-01T00:00:00.000Z', instanceId: BOX, region: 'us-east-1' },
-  [HAND_ADDED]: { id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: '2026-09-01T00:00:00.000Z', instanceId: null, region: null },
+  [LAUNCHED]: { id: LAUNCHED, owner: TEST_OWNER, host: HOST, name: 'throwaway', addedAt: '2026-09-01T00:00:00.000Z', instanceId: BOX, region: 'us-east-1', account: null },
+  [HAND_ADDED]: { id: HAND_ADDED, owner: TEST_OWNER, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: '2026-09-01T00:00:00.000Z', instanceId: null, region: null, account: null },
 };
 
 let config: ConfigResult = CONFIG;
@@ -197,7 +198,7 @@ describe('growing the disk of a server', () => {
     disks.refuse = { read: new AwsError('UnauthorizedOperation', 'You are not authorized to perform this operation.', 'ec2:DescribeVolumesModifications') };
     const res = await call('GET', storagePath());
     expect(res.status).toBe(503);
-    expect(((await res.json()) as { error: string }).error).toBe("Metro's AWS key may not call ec2:DescribeVolumesModifications. Add it to the policy of the IAM user metro.");
+    expect(((await res.json()) as { error: string }).error).toBe("Metro may not call ec2:DescribeVolumesModifications in this AWS account. Add it to the policy Metro uses there.");
   });
 
   test('an AWS refusal of ModifyVolume is a 503 naming the missing permission, and no job starts', async () => {
