@@ -194,7 +194,7 @@ describe('deleting', () => {
   test('a key without the right to look at disks says which permission is missing, and the row stays', async () => {
     account.refuse = new AwsError('UnauthorizedOperation', 'You are not authorized to perform this operation.', 'ec2:DescribeVolumes');
     const res = await call('POST', pathOf(), CONFIRM);
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(503);
     expect(await errorOf(res)).toBe("Metro's AWS key may not call ec2:DescribeVolumes. Add it to the policy of the IAM user metro.");
     expect(writes()).toEqual([]);
     expect(removed).toEqual([]);

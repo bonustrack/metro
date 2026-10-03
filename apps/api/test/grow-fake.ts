@@ -4,13 +4,15 @@ import type { GrowAws } from '../src/aws/grow.ts';
 import type { InstanceFacts, VolumeFacts } from '../src/aws/teardown.ts';
 import { instance, otherDisk, otherServer, volume } from './deletion-fake.ts';
 
+type Verb = 'read' | 'grow' | 'reboot' | 'tag';
+
 export interface FakeDisks {
   instances: InstanceFacts[];
   volumes: VolumeFacts[];
   modification: Modification | null;
   next: ModificationState[];
   calls: string[];
-  refuse: Partial<Record<'grow' | 'reboot' | 'tag', AwsError>>;
+  refuse: Partial<Record<Verb, AwsError>>;
   hold: Promise<void> | null;
   clock: number;
 }
@@ -40,7 +42,7 @@ export const modification = (over: Partial<Modification> = {}): Modification => 
 const copy = <T>(value: T): T => structuredClone(value);
 
 export function fakeGrowAws(disks: FakeDisks): GrowAws {
-  const refused = (verb: 'grow' | 'reboot' | 'tag'): Promise<never> | null => {
+  const refused = (verb: Verb): Promise<never> | null => {
     const err = disks.refuse[verb];
     return err === undefined ? null : Promise.reject(err);
   };
@@ -55,6 +57,8 @@ export function fakeGrowAws(disks: FakeDisks): GrowAws {
     },
     modification: (_target, volumeId) => {
       disks.calls.push(`DescribeVolumesModifications ${volumeId}`);
+      const refusal = refused('read');
+      if (refusal !== null) return refusal;
       const state = disks.modification === null ? undefined : disks.next.shift();
       if (disks.modification !== null && state !== undefined) disks.modification.state = state;
       return Promise.resolve(copy(disks.modification));

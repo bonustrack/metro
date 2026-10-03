@@ -137,10 +137,10 @@ describe('reading a server size', () => {
     expect(JSON.stringify(body)).not.toContain('AKIA');
   });
 
-  test('an AWS refusal is a 502 that names the missing permission', async () => {
+  test('an AWS refusal is a 503 that names the missing permission', async () => {
     deps.aws.describe = () => Promise.reject(new AwsError('UnauthorizedOperation', 'arn:aws:iam::123456789012:user/metro', 'ec2:DescribeInstances'));
     const res = await call('GET', sizePath());
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain('ec2:DescribeInstances');
     expect(body.error).not.toContain('123456789012');

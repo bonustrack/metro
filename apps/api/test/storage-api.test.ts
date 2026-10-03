@@ -193,10 +193,17 @@ describe('growing the disk of a server', () => {
     expect(writes()).toEqual([`CreateTags ${BOX_DISK} metro=metro-thrw01`, `ModifyVolume ${BOX_DISK} 16`, `RebootInstances ${BOX}`]);
   });
 
-  test('an AWS refusal of ModifyVolume is a 502 naming the missing permission, and no job starts', async () => {
+  test('a key that may not read disk changes is a 503 naming the permission', async () => {
+    disks.refuse = { read: new AwsError('UnauthorizedOperation', 'You are not authorized to perform this operation.', 'ec2:DescribeVolumesModifications') };
+    const res = await call('GET', storagePath());
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toBe("Metro's AWS key may not call ec2:DescribeVolumesModifications. Add it to the policy of the IAM user metro.");
+  });
+
+  test('an AWS refusal of ModifyVolume is a 503 naming the missing permission, and no job starts', async () => {
     disks.refuse = { grow: new AwsError('UnauthorizedOperation', 'arn:aws:iam::123456789012:user/metro', 'ec2:ModifyVolume') };
     const res = await call('POST', storagePath(), { sizeGib: 16 });
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toContain('ec2:ModifyVolume');
     expect(body.error).not.toContain('123456789012');

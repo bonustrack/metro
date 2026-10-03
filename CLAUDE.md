@@ -365,6 +365,8 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 | `/api/launch…` | bearer | Launch a box on AWS, status, boot log (Tailscale keys redacted). |
 | `/api/admin/*` | bearer, operator email | Users, status, organizations, agents. `/api/admin/servers/<id>/deletion` is the same deletion as above for a box of any organization: the view adds `owner` and `organizationName`. |
 
+**The api never answers 502 or 504; an AWS refusal is a 503 (`AWS_REFUSED` in `aws/ec2.ts`).** Cloudflare in front of api.metro.box replaces an origin 502 or 504 with its own `error code: 502` body and drops the CORS headers, so the browser saw only a failed fetch and the page said "Failed to reach Metro." instead of AWS's reason (the Storage section, 2026-10-03). It passes 500, 503 and 4xx through.
+
 ## Database (`apps/api` only)
 
 - **Postgres lives only in `apps/api`.** The daemon has no `drizzle-orm`, `postgres` or `drizzle-kit`.

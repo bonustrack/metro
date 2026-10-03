@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { ServerLaunch } from './db/servers.js';
-import { AwsError, type InstanceState } from './aws/ec2.js';
+import { AWS_REFUSED, AwsError, type InstanceState } from './aws/ec2.js';
 import { catalogFor, type Catalog, type SizeDeps } from './aws/sizes.js';
 import { handleServerRoute } from './server-route.js';
 import { explain, jobRunning, newJob, runResize, type Ec2Target, type ResizeAws, type ResizeJob } from './aws/resize.js';
@@ -45,7 +45,7 @@ export async function fromAws<T>(work: () => Promise<T>, type = ''): Promise<T> 
   try {
     return await work();
   } catch (err) {
-    if (err instanceof AwsError) throw new ApiError(explain(err, type), 502);
+    if (err instanceof AwsError) throw new ApiError(explain(err, type), AWS_REFUSED);
     throw err;
   }
 }

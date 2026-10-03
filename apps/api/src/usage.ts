@@ -6,7 +6,7 @@ import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { MetricsLink, UsageRow } from './db/usage.js';
-import { associateProfile, AwsError, BOX_ROLE, NODE_TAG, type AwsCredentials } from './aws/ec2.js';
+import { associateProfile, AWS_REFUSED, AwsError, BOX_ROLE, NODE_TAG, type AwsCredentials } from './aws/ec2.js';
 import { getMetricData, listMetrics } from './aws/cloudwatch.js';
 import { describeInstanceFacts, type InstanceFacts } from './aws/teardown.js';
 import { readUsage, USAGE_RANGES, type Usage, type UsageAws, type UsageRange } from './aws/usage.js';
@@ -97,7 +97,7 @@ async function view(deps: UsageApiDeps, row: UsageRow, range: UsageRange): Promi
   try {
     usage = await readUsage(deps.aws, credentials, link, range, deps.now());
   } catch (err) {
-    throw new ApiError(`Could not read CloudWatch: ${explain(err)}`, 502);
+    throw new ApiError(`Could not read CloudWatch: ${explain(err)}`, AWS_REFUSED);
   }
   const note = usage.agent ? null : await agentNote(deps, credentials, row.host, link);
   return { available: true, instanceId: link.instanceId, region: link.region, range, ...usage, note };

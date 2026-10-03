@@ -209,10 +209,10 @@ describe('the usage charts of a server', () => {
     expect(answer.note).toContain('AWS refused ec2:AssociateIamInstanceProfile. Add it to the policy of the IAM user metro.');
   });
 
-  test('a CloudWatch refusal is 502 with the reason', async () => {
+  test('a CloudWatch refusal is 503 with the reason', async () => {
     cloud.refuse.data = new AwsError('AccessDenied', 'no', 'cloudwatch:GetMetricData');
     const refusedData = await get(LAUNCHED);
-    expect(refusedData.status).toBe(502);
+    expect(refusedData.status).toBe(503);
     expect((await body(refusedData)).error).toContain('AWS refused cloudwatch:GetMetricData. Add it to the policy of the IAM user metro.');
   });
 });

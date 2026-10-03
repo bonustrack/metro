@@ -17,6 +17,8 @@ export class AwsError extends Error {
   }
 }
 
+export const AWS_REFUSED = 503;
+
 const EC2_VERSION = '2016-11-15';
 export const INSTANCE_TYPE = 't4g.medium';
 const ROOT_GIB = '8';
