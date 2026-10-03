@@ -36,14 +36,14 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
           <Row gap={8} align="center" wrap>
             <Badge label="Offline" color="secondary" variant="soft" pill />
             {here === null ? null : (
-              <Text size="md" role="secondary" numberOfLines={1}>
+              <Text size="2xs" role="secondary" numberOfLines={1}>
                 {here.host}
               </Text>
             )}
           </Row>
         </Col>
       </Row>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {WHY}
       </Text>
       <Button size="md" color="secondary" dark={dark} label="Try again" onPress={onRetry} />

@@ -38,14 +38,14 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
     <Col gap={10}>
       <Button color="primary" dark={dark} onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
       {blocked ? (
-        <Text size="md">
+        <Text size="2xs">
           <a className="hint-link" href={authorizeUrl} target="_blank" rel="noreferrer">
             Open the {provider} sign-in page
           </a>
         </Text>
       ) : null}
       {opened ? (
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           Waiting for you to sign in.
         </Text>
       ) : null}

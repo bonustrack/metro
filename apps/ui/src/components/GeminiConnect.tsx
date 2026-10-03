@@ -22,7 +22,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
     <Col gap={10}>
       <Col gap={6} maxWidth={FIELD_WIDTH}>
         <FormField label="Google Cloud project (optional)" name="gemini-project" value={project} placeholder="my-project-123456" dark={dark} onChangeText={setProject} style={GROW} />
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {PROJECT_HINT}
         </Text>
       </Col>
@@ -37,7 +37,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
           finish={(code) => finishGeminiLogin(code, started.state, project.trim(), id)}
         />
       )}
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -52,7 +52,7 @@ export function GeminiConnect({ gemini }: { gemini: ConnectionRow | null }): Rea
         </SignedInAs>
       ) : (
         <Col gap={10}>
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             Not connected. {WHICH_ACCOUNT}
           </Text>
           <SignInFlow label="Connect Google" color="primary" id={gemini?.id ?? ''} />

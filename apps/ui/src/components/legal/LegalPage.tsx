@@ -33,7 +33,7 @@ export function LegalPage({ kind }: { kind: LegalKind }): ReactNode {
       </main>
       <footer className="lp-footer">
         <div className="lp-footer-inner">
-          <Text size="md" role="secondary">Stage Labs</Text>
+          <Text size="2xs" role="secondary">Stage Labs</Text>
           <nav className="lp-footer-links" aria-label="Legal">
             <LegalLinks />
           </nav>

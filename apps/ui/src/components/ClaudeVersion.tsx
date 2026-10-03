@@ -11,11 +11,11 @@ type Phase = { kind: 'idle' } | { kind: 'updating'; to: string } | { kind: 'done
 
 function Status({ phase, check, onUpdate }: { phase: Phase; check: Version; onUpdate: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  if (phase.kind === 'updating') return <Text size="md" role="secondary">{`Updating to ${phase.to}…`}</Text>;
+  if (phase.kind === 'updating') return <Text size="2xs" role="secondary">{`Updating to ${phase.to}…`}</Text>;
   if (phase.kind === 'done')
-    return <Text size="md" role="secondary">{phase.restarted ? `Updated to ${phase.to}. The session restarts on the new build.` : `Updated to ${phase.to}.`}</Text>;
+    return <Text size="2xs" role="secondary">{phase.restarted ? `Updated to ${phase.to}. The session restarts on the new build.` : `Updated to ${phase.to}.`}</Text>;
   if (check.newer && check.latest !== null) return <Button size="md" color="secondary" dark={dark} label={`Update to ${check.latest}`} onPress={onUpdate} />;
-  if (check.installed !== null && check.latest !== null) return <Text size="md" role="secondary">Up to date</Text>;
+  if (check.installed !== null && check.latest !== null) return <Text size="2xs" role="secondary">Up to date</Text>;
   return null;
 }
 
@@ -44,11 +44,11 @@ export function ClaudeVersion(): ReactNode {
 
   return (
     <Row gap={10} align="center" wrap>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {installed === null ? 'Not installed yet' : `Version ${installed}`}
       </Text>
       <Status phase={phase} check={check.data} onUpdate={update} />
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Row>
   );
 }

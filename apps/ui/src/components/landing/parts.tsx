@@ -26,7 +26,7 @@ export function Section({ id, index, eyebrow, title, body, children }: SectionPr
         </Eyebrow>
         <h2 className="lp-h2">{title}</h2>
         {body === undefined ? null : (
-          <Text size="2xl" role="secondary">
+          <Text size="md" role="secondary">
             {body}
           </Text>
         )}

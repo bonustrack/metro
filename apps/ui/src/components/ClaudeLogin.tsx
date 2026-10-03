@@ -39,17 +39,17 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
   return (
     <Col gap={8} maxWidth={FIELD_WIDTH}>
       {login.url === null ? (
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           Waiting for the sign-in to print its address…
         </Text>
       ) : (
-        <Text size="md">
+        <Text size="2xs">
           <a className="hint-link" href={login.url} target="_blank" rel="noreferrer">
             Open the Anthropic sign-in
           </a>
         </Text>
       )}
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         Finish it in that tab. If it asks you to paste a code back, put it here.
       </Text>
       <FormField label="Sign-in code"
@@ -130,7 +130,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
     return (
       <Col gap={4}>
         <FieldLabel>Claude Code sign-in</FieldLabel>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           Claude Code is not installed on this machine, so there is nothing to sign in.
         </Text>
       </Col>
@@ -138,10 +138,10 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
   return (
     <Col gap={8}>
       <FieldLabel>Claude Code sign-in</FieldLabel>
-      <Text size="md">
+      <Text size="2xs">
         {account === null ? 'Asking the machine…' : account.signedIn ? `Signed in${account.account === null ? '' : ` as ${account.account}`}` : 'Not signed in on this machine.'}
       </Text>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {WHAT}
       </Text>
       {login === null ? (
@@ -165,7 +165,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
         </Col>
       )}
       {error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {error}
         </Text>
       )}

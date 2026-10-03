@@ -19,7 +19,7 @@ export function ProjectGate({ title, claudeProject, none, children }: ProjectGat
   return (
     <Col gap={16}>
       <PageTitle>{title}</PageTitle>
-      {home.loading ? <Loading /> : <Text size="md" role="secondary">{none}</Text>}
+      {home.loading ? <Loading /> : <Text size="2xs" role="secondary">{none}</Text>}
     </Col>
   );
 }

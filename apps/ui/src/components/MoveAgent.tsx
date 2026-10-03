@@ -36,7 +36,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
   const move = useMove(server);
   if (rows.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         You are an admin of no other organization.
       </Text>
     );
@@ -58,7 +58,7 @@ function Targets({ server, rows }: { server: Server; rows: OrganizationRow[] }):
         ))}
       </Row>
       {move.error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {move.error}
         </Text>
       )}

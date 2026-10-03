@@ -54,14 +54,14 @@ function DeviceFlow({ label, id }: { label: string; id: string }): ReactNode {
       </SignInLink>
       {login !== null ? (
         <Col gap={4}>
-          <Text size="md">Enter this code on the ChatGPT page that opened:</Text>
-          <Text size="lg">{login.userCode}</Text>
-          <Text size="md" role="secondary">
+          <Text size="2xs">Enter this code on the ChatGPT page that opened:</Text>
+          <Text size="xs">{login.userCode}</Text>
+          <Text size="2xs" role="secondary">
             Waiting for ChatGPT to confirm. This page finishes on its own.
           </Text>
         </Col>
       ) : null}
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -75,7 +75,7 @@ function RedirectFlow({ label, id }: { label: string; id: string }): ReactNode {
         <Button size="md" color="secondary" dark={dark} label={label} loading={starting} disabled={starting} onPress={connect} />
       </SignInLink>
       {started === null ? null : <PasteAddress hint={PASTE_HINT} name="codex-callback" placeholder="http://localhost:1455/auth/callback?code=…&state=…" finish={(pasted) => finishCodexLogin(pasted, id)} />}
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -85,18 +85,18 @@ function NotConnected({ id }: { id: string }): ReactNode {
   const { busy, error, run } = useModelAction();
   return (
     <Col gap={10}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         Not connected.
       </Text>
       <DeviceFlow label="Connect ChatGPT" id={id} />
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         Other ways in:
       </Text>
       <RedirectFlow label="Sign in through a browser redirect" id={id} />
       <Row gap={8} wrap>
         <Button size="md" color="secondary" dark={dark} label="Use the Codex CLI login on this machine" disabled={busy} onPress={() => { run(() => codexImport(id), 'Could not read the Codex CLI login.'); }} />
       </Row>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Col>
   );
 }

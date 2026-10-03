@@ -71,7 +71,7 @@ function Notice({ text, danger = false }: { text: string; danger?: boolean }): R
   return (
     <SettingsGroup title={TITLE}>
       <div className="settings-pad">
-        <Text size="md" role={danger ? 'danger' : 'secondary'}>
+        <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
           {text}
         </Text>
       </div>
@@ -84,7 +84,7 @@ function JobRow({ job }: { job: GrowJob }): ReactNode {
   const running = growRunning(job);
   return (
     <SettingsSection title={running ? 'Growing' : 'Last change'} leading={running ? <Spinner size={16} color={palette.link} /> : undefined}>
-      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
+      <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {growText(job)}
       </Text>
     </SettingsSection>

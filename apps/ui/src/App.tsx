@@ -57,9 +57,9 @@ function Notice({ text, onRetry, retryLabel }: { text: string; onRetry: () => vo
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
-        <Text size="lg" role="secondary">{text}</Text>
+        <Text size="xs" role="secondary">{text}</Text>
         <Button color="secondary" dark={dark} label={retryLabel} onPress={onRetry} style={CENTER_SELF} />
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             All agents
           </a>

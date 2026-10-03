@@ -38,7 +38,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
-        <Text size="lg" role="secondary">
+        <Text size="xs" role="secondary">
           metro is stopped on {daemonHost(daemonBase())}. metro serve is still holding the address, so it can start from here.
         </Text>
         <Button
@@ -50,11 +50,11 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
           style={CENTER_SELF}
         />
         {error !== null ? (
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {error}
           </Text>
         ) : null}
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>
             All agents
           </a>

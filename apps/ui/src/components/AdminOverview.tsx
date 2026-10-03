@@ -22,17 +22,17 @@ function Stat({ label, total, week, waiting }: { label: string; total: number; w
   const side = { width: 1, color: useKitPalette().border };
   return (
     <Col flex={1} minWidth={CARD_MIN} gap={4} padding={16} radius={12} border={{ top: side, right: side, bottom: side, left: side }}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {label}
       </Text>
-      <Text size="5xl" weight="semibold">
+      <Text size="2xl" weight="semibold">
         {String(total)}
       </Text>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {`+${String(week)} in the last 7 days`}
       </Text>
       {waiting === undefined ? null : (
-        <Text size="md" role={waiting > 0 ? 'danger' : 'secondary'}>
+        <Text size="2xs" role={waiting > 0 ? 'danger' : 'secondary'}>
           {`${String(waiting)} waiting`}
         </Text>
       )}
@@ -80,7 +80,7 @@ export function AdminOverview(): ReactNode {
     <Col gap={20} width="100%" maxWidth={WIDTH}>
       <PageTitle>Admin</PageTitle>
       {error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {queryError(error, 'Could not load the numbers.')}
         </Text>
       )}

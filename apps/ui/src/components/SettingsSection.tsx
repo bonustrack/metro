@@ -11,14 +11,14 @@ export function SettingsGroup({ title, note, action, children }: { title?: strin
     <section className="settings-group">
       {title === undefined ? null : (
         <div className="settings-group-head">
-          <Text size="2xl" weight="semibold">
+          <Text size="md" weight="semibold">
             {title}
           </Text>
           {action}
         </div>
       )}
       {note === undefined ? null : (
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {note}
         </Text>
       )}
@@ -33,7 +33,7 @@ export function EmptyCard({ text }: { text: string }): ReactNode {
   return (
     <SettingsGroup>
       <div className="settings-pad">
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {text}
         </Text>
       </div>
@@ -48,13 +48,13 @@ export function SettingsSection({ title, note, count, leading, compact = false, 
       {leading === undefined ? null : <div className="settings-row-lead">{leading}</div>}
       <div className="settings-row-text">
         <span className="settings-row-title">
-          <Text size="lg" weight="medium">
+          <Text size="xs" weight="medium">
             {title}
           </Text>
           {count === undefined ? null : <CountBadge count={count} />}
         </span>
         {note === undefined ? null : (
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {note}
           </Text>
         )}
@@ -67,7 +67,7 @@ export function SettingsSection({ title, note, count, leading, compact = false, 
 export function FactRow({ label, value, href, danger = false }: { label: string; value: string; href?: string; danger?: boolean }): ReactNode {
   return (
     <SettingsSection title={label} compact>
-      <Text size="md" role={danger ? 'danger' : 'secondary'} numberOfLines={1}>
+      <Text size="2xs" role={danger ? 'danger' : 'secondary'} numberOfLines={1}>
         {href === undefined ? (
           value
         ) : (

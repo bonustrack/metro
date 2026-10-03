@@ -132,18 +132,18 @@ function ConnectorForm({
 
   return (
     <Col gap={14}>
-      <Text size="md" role="secondary">{HINT}</Text>
+      <Text size="2xs" role="secondary">{HINT}</Text>
       <Col gap={10}>
         <Fields specs={FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
       <Col gap={10}>
-        <Text size="md" role="secondary">{APP_HINT}</Text>
+        <Text size="2xs" role="secondary">{APP_HINT}</Text>
         {machine === undefined ? null : (
-          <Text size="md">{connectorCallbackUrl(machine)}</Text>
+          <Text size="2xs">{connectorCallbackUrl(machine)}</Text>
         )}
         <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
           color="secondary"

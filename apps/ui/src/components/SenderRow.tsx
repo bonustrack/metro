@@ -58,13 +58,13 @@ export function SenderRow({ station, id, name, handle, avatar, busy, approves, o
         <AgentAvatar seed={id} src={avatar} size={AVATAR} />
         <Col gap={2} style={SHRINK}>
           <Row gap={8} align="center">
-            <Text size="lg" weight="medium" numberOfLines={1} style={SHRINK}>
+            <Text size="xs" weight="medium" numberOfLines={1} style={SHRINK}>
               {title}
             </Text>
             {approves === true ? <span className="tag">Approver</span> : null}
           </Row>
           {subtitle === '' ? null : (
-            <Text size="md" role="secondary" numberOfLines={1}>
+            <Text size="2xs" role="secondary" numberOfLines={1}>
               {subtitle}
             </Text>
           )}

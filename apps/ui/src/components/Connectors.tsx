@@ -106,13 +106,13 @@ export function Connectors({
       />
 
       {returned === null ? null : (
-        <Text size="md" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
+        <Text size="2xs" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
       )}
       {error === null ? null : (
-        <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>
+        <Text size="2xs" role="danger">{queryError(error, FALLBACK)}</Text>
       )}
       {failed === null ? null : (
-        <Text size="md" role="danger">{failed}</Text>
+        <Text size="2xs" role="danger">{failed}</Text>
       )}
       {data === undefined && error === null ? <Loading /> : null}
       {data === undefined ? null : (

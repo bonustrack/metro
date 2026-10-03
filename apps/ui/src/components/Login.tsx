@@ -86,7 +86,7 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
 function Footer(): ReactNode {
   return (
     <Row justify="center" gap={16}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {COPYRIGHT}
       </Text>
       <LegalLinks newTab />
@@ -116,14 +116,14 @@ function Frame({ title, children }: { title: ReactNode; children: ReactNode }): 
           <Col gap={typeof title === 'string' ? TITLE_GAP : LOGO_GAP}>
             <Row justify="center">
               {typeof title === 'string' ? (
-                <Text size="6xl" weight="medium">
+                <Text size="3xl" weight="medium">
                   {title}
                 </Text>
               ) : (
                 title
               )}
             </Row>
-            <Text size="2xl" style={CENTER_TEXT}>
+            <Text size="md" style={CENTER_TEXT}>
               {ABOUT}
             </Text>
           </Col>
@@ -140,7 +140,7 @@ function DaemonHint(): ReactNode {
   if (heading === null) return null;
   return (
     <Row justify="center">
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         then on to {daemonHost(heading)}
       </Text>
     </Row>
@@ -155,7 +155,7 @@ export function Login(): ReactNode {
   if (waitlist && outcome.joined)
     return (
       <Frame title={WAITLIST_TITLE}>
-        <Text size="lg" style={CENTER_TEXT}>
+        <Text size="xs" style={CENTER_TEXT}>
           {JOINED}
         </Text>
       </Frame>
@@ -164,23 +164,23 @@ export function Login(): ReactNode {
     <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
       <DaemonHint />
       {failed === null ? null : (
-        <Text size="2xl" role="danger" style={CENTER_TEXT}>
+        <Text size="md" role="danger" style={CENTER_TEXT}>
           {failed}
         </Text>
       )}
       {pendingInvitation() !== null && !outcome.invited ? (
-        <Text size="2xl" style={CENTER_TEXT}>
+        <Text size="md" style={CENTER_TEXT}>
           {INVITATION}
         </Text>
       ) : null}
       {outcome.invited ? (
-        <Text size="2xl" style={CENTER_TEXT}>
+        <Text size="md" style={CENTER_TEXT}>
           {INVITED}
         </Text>
       ) : null}
       <Col padding={{ top: BUTTONS_TOP }} gap={OR_GAP}>
         <EmailLogin intent={waitlist ? 'waitlist' : 'login'} />
-        <Text size="md" role="secondary" style={CENTER_TEXT}>
+        <Text size="2xs" role="secondary" style={CENTER_TEXT}>
           or
         </Text>
         <ProviderButtons intent={waitlist ? 'waitlist' : 'login'} />

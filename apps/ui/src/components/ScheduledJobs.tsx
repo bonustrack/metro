@@ -27,15 +27,15 @@ export function ScheduledJobs({ project, onOpen }: { project: string; onOpen: (i
   return (
     <Col gap={32}>
       <PageTitle>Scheduled tasks</PageTitle>
-      <Text size="md" role="secondary">{ABOUT}</Text>
+      <Text size="2xs" role="secondary">{ABOUT}</Text>
       {schedules.error !== null ? (
-        <Text size="md" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
+        <Text size="2xs" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
       ) : schedules.data === undefined ? (
-        <Text size="md" role="secondary">Reading the scheduled tasks…</Text>
+        <Text size="2xs" role="secondary">Reading the scheduled tasks…</Text>
       ) : schedules.data.jobs.length === 0 ? (
         <SettingsGroup>
           <div className="settings-pad">
-            <Text size="md" role="secondary">{EMPTY}</Text>
+            <Text size="2xs" role="secondary">{EMPTY}</Text>
           </div>
         </SettingsGroup>
       ) : (

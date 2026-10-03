@@ -1,40 +1,6 @@
 import { defineConfig } from '@stage-labs/config';
 
 export default defineConfig({
-  eslint: {
-    ignores: [
-      '**/test/**',
-      '**/scripts/**',
-      'packages/cli/runtime/**',
-      'apps/daemon/trains/**',
-      '.claude/**',
-    ],
-    extends: [
-      {
-        files: ['**/*.{ts,tsx}'],
-        rules: {
-          '@typescript-eslint/no-floating-promises': [
-            'error',
-            { ignoreVoid: false },
-          ],
-        },
-      },
-      {
-        files: ['**/*.tsx'],
-        rules: {
-          'no-restricted-syntax': [
-            'error',
-            {
-              selector:
-                'JSXAttribute[name.name=/[Ss]tyle$/] > JSXExpressionContainer > ObjectExpression',
-              message:
-                'No inline style objects in JSX. Use the kit props (gap, padding, flex, radius, surface, border, minWidth...) or a named style constant.',
-            },
-          ],
-        },
-      },
-    ],
-  },
   knip: {
     ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/metro-user/**'],
   },

@@ -55,7 +55,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
   };
   return (
     <Col gap={12}>
-      <Text size="2xl" weight="semibold">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
+      <Text size="md" weight="semibold">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
       <FormField label="Name" name="secret-name" value={name} placeholder="OpenAI" disabled={busy} dark={dark} onChangeText={edit('name')} />
       {editing === null ? (
         <FormField label="Variable the agent sees" name="secret-env" value={variable} placeholder="OPENAI_API_KEY" disabled={busy} dark={dark} onChangeText={edit('env')} />
@@ -75,7 +75,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
         <Button size="lg" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
         <Button size="md" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </Col>
   );
 }

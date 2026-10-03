@@ -48,7 +48,7 @@ export function ConnectStation(props: ConnectStationProps): ReactNode {
     <Modal title="Connect channel" open={open} onClose={close}>
       {step.kind === 'pick' ? (
         <Col gap={12}>
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {known.length === 0
               ? 'This Metro daemon offers no channel you can connect.'
               : 'Pick where this agent should be reachable.'}

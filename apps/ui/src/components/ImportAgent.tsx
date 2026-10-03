@@ -46,7 +46,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
   const from = payload.agent.name === '' ? 'an agent' : payload.agent.name;
   return (
     <Col gap={12}>
-      <Text size="lg">{`From ${from}`}</Text>
+      <Text size="xs">{`From ${from}`}</Text>
       <Row gap={8} wrap>
         {sectionsIn(payload).map((section) => (
           <Button
@@ -84,7 +84,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
           }}
         />
       </Row>
-      <Text size="md" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
+      <Text size="2xs" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
         {mode === 'overwrite' ? OVERWRITE : APPEND}
       </Text>
     </Col>
@@ -278,7 +278,7 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
   return (
     <Modal title="Import agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="md" role="secondary">{HOW}</Text>
+        <Text size="2xs" role="secondary">{HOW}</Text>
         {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} /> : null}
         {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
         {ready && state.payload !== null ? (
@@ -291,8 +291,8 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
             onMode={state.setMode}
           />
         ) : null}
-        {state.done === null ? null : <Text size="lg">{`Imported ${landed(state.done)}.`}</Text>}
-        {state.error === null ? null : <Text size="md" role="danger">{state.error}</Text>}
+        {state.done === null ? null : <Text size="xs">{`Imported ${landed(state.done)}.`}</Text>}
+        {state.error === null ? null : <Text size="2xs" role="danger">{state.error}</Text>}
         <Footer state={state} close={close} ready={ready} />
       </Col>
     </Modal>

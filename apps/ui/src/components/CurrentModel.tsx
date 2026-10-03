@@ -42,7 +42,7 @@ function FallbackInUse({ settings }: { settings: ModelSettings }): ReactNode {
   if (at <= 0 || conn === undefined) return null;
   return (
     <div className="settings-pad">
-      <Text size="md" role="danger">
+      <Text size="2xs" role="danger">
         {`${hold === null ? 'Over its limit' : `Over its limit (${holdLine(hold)})`}. Requests now go to the fallback ${name} on ${conn.label}.`}
       </Text>
     </div>
@@ -61,7 +61,7 @@ export function CurrentModel({ settings, onChange }: { settings: ModelSettings; 
       </SettingsSection>
       {settings.reason === null ? null : (
         <div className="settings-pad">
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {settings.reason}
           </Text>
         </div>

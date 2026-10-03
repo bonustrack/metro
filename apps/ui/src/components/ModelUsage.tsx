@@ -23,7 +23,7 @@ function UsageBar({ used }: { used: number | null }): ReactNode {
   return (
     <Row gap={10} align="center">
       <Meter used={used} warn={warn} />
-      <Text size="md" role={warn ? 'danger' : 'secondary'}>
+      <Text size="2xs" role={warn ? 'danger' : 'secondary'}>
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
@@ -43,12 +43,12 @@ export function UsageLine({ window }: { window: UsageWindow }): ReactNode {
   const note = windowLine({ ...window, used: null });
   return (
     <span className="usage-line">
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {window.label}
       </Text>
       <UsageBar used={window.used} />
       {note === '' ? null : (
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {note}
         </Text>
       )}
@@ -60,7 +60,7 @@ export function UsageUpdateHint({ pad = false }: { pad?: boolean }): ReactNode {
   const mode = useModeQuery();
   if (!olderThan(mode.data?.version ?? null, USAGE_SINCE)) return null;
   const hint = (
-    <Text size="md" role="secondary">
+    <Text size="2xs" role="secondary">
       Update Metro to see the usage.
     </Text>
   );

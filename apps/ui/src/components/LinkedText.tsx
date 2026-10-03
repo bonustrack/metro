@@ -13,13 +13,13 @@ export function LinkedText({
   text: string;
   links: HintLink[];
 }): ReactNode {
-  if (links.length === 0) return <Text size="md" role="secondary">{text}</Text>;
+  if (links.length === 0) return <Text size="2xs" role="secondary">{text}</Text>;
 
   const pattern = new RegExp(`(${links.map((l) => escape(l.text)).join('|')})`, 'g');
   const parts = text.split(pattern);
 
   return (
-    <Text size="md" role="secondary">
+    <Text size="2xs" role="secondary">
       {parts.map((part, index) => {
         const link = links.find((l) => l.text === part);
         if (link === undefined) return part;

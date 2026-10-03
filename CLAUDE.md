@@ -77,12 +77,13 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - **Every test that materializes trains must point `METRO_TRAINS_DIR` at a temp dir in `beforeEach`**, or it writes stubs into the checkout. The default `trainsDir()` is `apps/daemon/trains` (gitignored), never `~/.metro/trains`.
 - turbo `test` depends on `^build`, so a core edit reruns station tests.
 - **`bun run compat` (`scripts/compat.sh`) runs the current page's API calls (`scripts/compat/probe.ts`) against the daemon on the `beta` dist-tag** (`COMPAT_REF` picks another commit): it checks out the commit that set that version into a temp worktree and boots it isolated (`env -i`, temp HOME and dirs, a fake WorkOS issuer, a fake MCP server), and fails on any call the old daemon rejects. The `Compat` workflow runs it on every push and PR, outside the gate. Add a new page call to the probe.
-- **Remove agent worktrees under `.claude/worktrees/` once merged** (`git worktree remove`). Lint scans them, and their own `node_modules` make ESLint fail with `could not find plugin "@typescript-eslint"`.
+- **Remove agent worktrees under `.claude/worktrees/` once merged** (`git worktree remove`).
+- **`bun run lint` is `stage lint`: `oxlint --type-aware` with the root `.oxlintrc.json`** (since `@stage-labs/config` 0.1.0-beta.3, which dropped the ESLint presets). The file carries the old ESLint rules, as Stage does, plus the two Metro rules below (`void p`, inline styles). `eslint` stays installed only for the config's `core` oxlint plugin.
 
 ## Coding conventions (hard, enforced by `@stage-labs/config`)
 
 - **No comments in source. None.**
-- **No escape hatches:** no `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `any` casts to dodge types.
+- **No escape hatches:** no `oxlint-disable` or `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `any` casts to dodge types.
 - **No floating promises, and `void p` is a lint error** (`ignoreVoid: false`). Every promise is awaited or ends in a `.catch()` that logs.
 - `max-lines` (400) and function-length caps: split files instead of suppressing.
 - Strict TS, ESM, import specifiers carry explicit `.js`.

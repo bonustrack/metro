@@ -35,10 +35,10 @@ export function AttachedAccount({
   return (
     <Col gap={14}>
         <Col gap={4}>
-          <Text size="xl" weight="medium">
+          <Text size="sm" weight="medium">
             {stationLabel(result.station)} attached
           </Text>
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {activationNote(result)}
           </Text>
         </Col>
@@ -51,7 +51,7 @@ export function AttachedAccount({
         {endpoint === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="post events here" value={endpoint} secret />
-            <Text size="md" role="secondary">
+            <Text size="2xs" role="secondary">
               The whole URL is the credential. Paste it into the provider as the
               webhook URL — no secret or signature header to configure.
             </Text>
@@ -60,7 +60,7 @@ export function AttachedAccount({
         {callback === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="threema delivers here" value={callback} secret />
-            <Text size="md" role="secondary">
+            <Text size="2xs" role="secondary">
               {CALLBACK_NOTE}
             </Text>
           </Col>
@@ -68,7 +68,7 @@ export function AttachedAccount({
         {secret !== null ? (
           <Col gap={8}>
             <CopyBlock label={secret.label} value={secret.value} secret />
-            <Text size="md" role="danger">
+            <Text size="2xs" role="danger">
               {secret.note} Copy it somewhere safe before you close this.
             </Text>
           </Col>

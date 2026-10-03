@@ -41,7 +41,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
     <Modal title={title} open={open} onClose={close}>
       <Col gap={14}>
         {lines.map((line) => (
-          <Text key={line} size="md" role="secondary">{line}</Text>
+          <Text key={line} size="2xs" role="secondary">{line}</Text>
         ))}
         <Col gap={4}>
           <FormField label={confirmPrompt(confirmWord)}
@@ -56,7 +56,7 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
           />
         </Col>
         {props.error !== null ? (
-          <Text size="md" role="danger">{props.error}</Text>
+          <Text size="2xs" role="danger">{props.error}</Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
           <Button color="secondary" dark={dark} disabled={props.busy} onPress={close} label="Cancel" />

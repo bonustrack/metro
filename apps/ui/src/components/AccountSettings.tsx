@@ -24,7 +24,7 @@ function Picture({ account, onChanged }: { account: Account; onChanged: () => vo
       <Button size="md" color="secondary" dark={dark} label={picker.busy ? 'Saving…' : 'Set picture'} loading={picker.busy} disabled={picker.busy} onPress={picker.pick} />
       {account.user.picture === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove picture" disabled={picker.busy} onPress={picker.remove} />}
       {picker.error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {picker.error}
         </Text>
       )}
@@ -61,8 +61,8 @@ export function AccountSettings(): ReactNode {
   return (
     <Col gap={12}>
       <Col gap={2}>
-        <Text size="xl" weight="medium">Account</Text>
-        <Text size="md" role="secondary">
+        <Text size="sm" weight="medium">Account</Text>
+        <Text size="2xs" role="secondary">
           {account.user.email ?? ''}
         </Text>
       </Col>

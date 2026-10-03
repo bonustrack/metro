@@ -62,8 +62,8 @@ interface SaveFieldProps {
 }
 
 function SaveNote({ saving }: { saving: Saving }): ReactNode {
-  if (saving.error !== null) return <Text size="md" role="danger">{saving.error}</Text>;
-  return saving.saved ? <Text size="md" role="secondary">Saved.</Text> : null;
+  if (saving.error !== null) return <Text size="2xs" role="danger">{saving.error}</Text>;
+  return saving.saved ? <Text size="2xs" role="secondary">Saved.</Text> : null;
 }
 
 export function SaveField({ saving, name, label, placeholder, editable = true, secret = false }: SaveFieldProps): ReactNode {

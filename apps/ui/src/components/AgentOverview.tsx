@@ -49,7 +49,7 @@ export function StatusLine({ host, project, onSelect }: { host: string | null; p
   const body = (
     <span className="status-line">
       <span className={`status-line-dot is-${tone}`} aria-hidden="true" />
-      <Text size="lg" role={tone === 'bad' ? 'danger' : 'secondary'}>
+      <Text size="xs" role={tone === 'bad' ? 'danger' : 'secondary'}>
         {text}
       </Text>
     </span>
@@ -75,7 +75,7 @@ export function ChannelCards({ groups, project, onSelect }: { groups: AccountGro
   const accounts = flattenAccounts(groups).filter((a) => a.row.id !== null);
   if (accounts.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         No channel yet.
       </Text>
     );
@@ -112,7 +112,7 @@ export function ChannelCards({ groups, project, onSelect }: { groups: AccountGro
 export function ConnectorIcons({ connectors, project, onSelect }: { connectors: Connector[]; project: string; onSelect: (s: Selection) => void }): ReactNode {
   if (connectors.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         No connector yet.
       </Text>
     );
@@ -132,7 +132,7 @@ export function ConnectorIcons({ connectors, project, onSelect }: { connectors: 
             }}
           >
             <ConnectorFavicon name={c.name} url={c.url} size={CONNECTOR_ICON} />
-            <Text size="md" numberOfLines={1}>
+            <Text size="2xs" numberOfLines={1}>
               {c.name}
             </Text>
           </a>

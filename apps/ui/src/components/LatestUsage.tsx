@@ -7,7 +7,7 @@ export function LatestUsageLine({ serverId }: { serverId: string }): ReactNode {
   const usage = useLatestUsageQuery().data?.[serverId];
   if (usage === undefined) return null;
   return (
-    <Text size="md" role="secondary" numberOfLines={1}>
+    <Text size="2xs" role="secondary" numberOfLines={1}>
       {latestLine(usage)}
     </Text>
   );

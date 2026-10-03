@@ -12,7 +12,7 @@ const FIELD_INPUT = {
   minHeight: 24,
   minWidth: 0,
   fontFamily: fontName.sans,
-  fontSize: FONT_SIZE['2xl'],
+  fontSize: FONT_SIZE.md,
 } as const;
 
 interface FormFieldProps extends InputProps {
@@ -24,7 +24,7 @@ export function FormField({ label, labelHidden = false, style, ...props }: FormF
   return (
     <label className="form-field">
       <span className={labelHidden ? 'sr-only' : undefined}>
-        <Text nativeID={props.name === undefined ? undefined : `label-${props.name}`} size="lg" role="secondary">
+        <Text nativeID={props.name === undefined ? undefined : `label-${props.name}`} size="xs" role="secondary">
           {label}
         </Text>
       </span>

@@ -75,7 +75,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
         <ClaudeSession project={project} />
       </SettingsGroup>
       {machine.error !== null ? (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {queryError(machine.error, FALLBACK)}
         </Text>
       ) : machine.data === undefined ? (

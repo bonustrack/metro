@@ -71,7 +71,7 @@ function Rows({ settings, list, busy, run }: { settings: ModelSettings; list: Fa
   if (list.length === 0)
     return (
       <div className="settings-row">
-        <Text size="md" role="secondary">{NONE}</Text>
+        <Text size="2xs" role="secondary">{NONE}</Text>
       </div>
     );
   return list.map((fallback, at) => {
@@ -105,7 +105,7 @@ export function FallbackModels({ settings }: { settings: ModelSettings }): React
     return (
       <SettingsGroup title="Fallbacks">
         <div className="settings-pad">
-          <Text size="md" role="secondary">{OLD}</Text>
+          <Text size="2xs" role="secondary">{OLD}</Text>
         </div>
       </SettingsGroup>
     );
@@ -132,7 +132,7 @@ export function FallbackModels({ settings }: { settings: ModelSettings }): React
         <Rows settings={settings} list={list} busy={busy} run={run} />
         {error === null ? null : (
           <div className="settings-pad">
-            <Text size="md" role="danger">{error}</Text>
+            <Text size="2xs" role="danger">{error}</Text>
           </div>
         )}
       </SettingsGroup>

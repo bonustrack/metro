@@ -60,11 +60,11 @@ function MemberRow({ member, org, last, onError }: { member: Member; org: Organi
     <Row align="center" gap={12} padding={{ x: 14, y: 12 }} border={last ? undefined : { bottom: { width: 1, color: palette.border } }}>
       <AgentAvatar seed={member.userId} src={member.picture} size={AVATAR} />
       <Col style={GROW}>
-        <Text size="lg" weight="medium" numberOfLines={1}>
+        <Text size="xs" weight="medium" numberOfLines={1}>
           {memberLabel(member, self)}
         </Text>
         {member.name === null || member.email === null ? null : (
-          <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>
+          <Text size="2xs" role="secondary" numberOfLines={1} style={SHRINK}>
             {member.email}
           </Text>
         )}
@@ -88,8 +88,8 @@ function InvitationRow({ invitation, org, last, onError }: { invitation: Invitat
   return (
     <Row align="center" gap={12} padding={{ x: 14, y: 12 }} border={last ? undefined : { bottom: { width: 1, color: palette.border } }}>
       <Col style={GROW}>
-        <Text size="lg" numberOfLines={1}>{invitation.email}</Text>
-        <Text size="md" role="secondary">Invited{invitation.role === null ? '' : ` as ${invitation.role}`}, not accepted yet</Text>
+        <Text size="xs" numberOfLines={1}>{invitation.email}</Text>
+        <Text size="2xs" role="secondary">Invited{invitation.role === null ? '' : ` as ${invitation.role}`}, not accepted yet</Text>
       </Col>
       {org.role === 'admin' ? <KebabMenu label={`Actions for the invitation of ${invitation.email}`} items={[{ label: 'Revoke', danger: true, onSelect: revoke }]} /> : null}
     </Row>
@@ -146,7 +146,7 @@ function Body(): ReactNode {
   const { data, error, isPending } = useOrganizationQuery();
   const [failed, setFailed] = useState<string | null>(null);
   if (isPending) return <Loading />;
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the organization.')}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the organization.')}</Text>;
   const side = { width: 1, color: palette.border };
   return (
     <Col gap={20}>
@@ -158,7 +158,7 @@ function Body(): ReactNode {
           <InvitationRow key={inv.id} invitation={inv} org={data} last={i === data.invitations.length - 1} onError={setFailed} />
         ))}
       </Col>
-      {failed === null ? null : <Text size="md" role="danger">{failed}</Text>}
+      {failed === null ? null : <Text size="2xs" role="danger">{failed}</Text>}
       {data.role === 'admin' ? <Invite onError={setFailed} /> : null}
     </Col>
   );
@@ -181,7 +181,7 @@ export function Members({ onLock }: { onLock: () => void }): ReactNode {
     >
       <Col gap={20} width="100%">
         <PageTitle>Members</PageTitle>
-        <Text size="md" role="secondary">{HOW}</Text>
+        <Text size="2xs" role="secondary">{HOW}</Text>
         <Body />
       </Col>
     </Frame>

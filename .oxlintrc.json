@@ -1,0 +1,267 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript"
+  ],
+  "jsPlugins": [
+    "@stage-labs/config/oxlint/comments",
+    "@stage-labs/config/oxlint/core"
+  ],
+  "categories": {
+    "correctness": "off"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "ignorePatterns": [
+    "**/test/**",
+    "**/scripts/**",
+    "packages/cli/runtime/**",
+    "apps/daemon/trains/**",
+    ".claude/**",
+    "**/.vite/**"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "apps/**",
+        "packages/**"
+      ],
+      "rules": {
+        "typescript/adjacent-overload-signatures": "error",
+        "typescript/array-type": "error",
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "minimumDescriptionLength": 10
+          }
+        ],
+        "typescript/ban-tslint-comment": "error",
+        "typescript/class-literal-property-style": "error",
+        "typescript/consistent-generic-constructors": "error",
+        "typescript/consistent-indexed-object-style": "error",
+        "typescript/consistent-type-assertions": "error",
+        "typescript/consistent-type-definitions": "error",
+        "no-array-constructor": "error",
+        "typescript/no-confusing-non-null-assertion": "error",
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-dynamic-delete": "error",
+        "no-empty-function": "error",
+        "typescript/no-empty-object-type": "error",
+        "typescript/no-explicit-any": "error",
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-extraneous-class": "error",
+        "typescript/no-inferrable-types": "error",
+        "typescript/no-invalid-void-type": "error",
+        "typescript/no-misused-new": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-nullish-coalescing": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-non-null-assertion": "error",
+        "typescript/no-require-imports": "error",
+        "typescript/no-this-alias": "error",
+        "typescript/no-unnecessary-type-constraint": "error",
+        "typescript/no-unsafe-declaration-merging": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "no-unused-expressions": "error",
+        "no-unused-vars": [
+          "error",
+          {
+            "reportVarsOnlyUsedAsTypes": true
+          }
+        ],
+        "no-useless-constructor": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-for-of": "error",
+        "typescript/prefer-function-type": "error",
+        "typescript/prefer-literal-enum-member": "error",
+        "typescript/prefer-namespace-keyword": "error",
+        "typescript/triple-slash-reference": "error",
+        "typescript/unified-signatures": "error",
+        "core/quotes": [
+          "error",
+          "single",
+          {
+            "avoidEscape": true
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/**/*.{ts,tsx,mts,cts}",
+        "packages/**/*.{ts,tsx,mts,cts}"
+      ],
+      "rules": {
+        "no-var": "error",
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error"
+      }
+    },
+    {
+      "files": [
+        "apps/**/*.{ts,tsx,mts,cts}",
+        "packages/**/*.{ts,tsx,mts,cts}"
+      ],
+      "excludeFiles": [
+        "**/test/**",
+        "**/*.{test,spec}.{ts,tsx}",
+        "**/*.test.*",
+        "**/*.config.{ts,mts,cts}"
+      ],
+      "rules": {
+        "typescript/await-thenable": "error",
+        "typescript/dot-notation": "error",
+        "typescript/no-array-delete": "error",
+        "typescript/no-base-to-string": "error",
+        "typescript/no-confusing-void-expression": "error",
+        "typescript/no-duplicate-type-constituents": "error",
+        "typescript/no-floating-promises": [
+          "error",
+          {
+            "ignoreVoid": false
+          }
+        ],
+        "typescript/no-for-in-array": "error",
+        "typescript/no-implied-eval": "error",
+        "typescript/no-meaningless-void-operator": "error",
+        "typescript/no-misused-promises": "error",
+        "typescript/no-misused-spread": "error",
+        "typescript/no-mixed-enums": "error",
+        "typescript/no-redundant-type-constituents": "error",
+        "typescript/no-unnecessary-boolean-literal-compare": "error",
+        "typescript/no-unnecessary-template-expression": "error",
+        "typescript/no-unnecessary-type-arguments": "error",
+        "typescript/no-unnecessary-type-assertion": "error",
+        "typescript/no-unnecessary-type-conversion": "error",
+        "typescript/no-unnecessary-type-parameters": "error",
+        "typescript/no-unsafe-argument": "error",
+        "typescript/no-unsafe-assignment": "error",
+        "typescript/no-unsafe-call": "error",
+        "typescript/no-unsafe-enum-comparison": "error",
+        "typescript/no-unsafe-member-access": "error",
+        "typescript/no-unsafe-return": "error",
+        "typescript/no-unsafe-unary-minus": "error",
+        "typescript/no-useless-default-assignment": "error",
+        "typescript/non-nullable-type-assertion-style": "error",
+        "typescript/only-throw-error": "error",
+        "typescript/prefer-find": "error",
+        "typescript/prefer-includes": "error",
+        "typescript/prefer-nullish-coalescing": "error",
+        "typescript/prefer-promise-reject-errors": "error",
+        "typescript/prefer-reduce-type-parameter": "error",
+        "typescript/prefer-regexp-exec": "error",
+        "typescript/prefer-return-this-type": "error",
+        "typescript/prefer-string-starts-ends-with": "error",
+        "typescript/related-getter-setter-pairs": "error",
+        "typescript/require-await": "error",
+        "typescript/restrict-plus-operands": [
+          "error",
+          {
+            "allowAny": false,
+            "allowBoolean": false,
+            "allowNullish": false,
+            "allowNumberAndString": false,
+            "allowRegExp": false
+          }
+        ],
+        "typescript/return-await": [
+          "error",
+          "error-handling-correctness-only"
+        ],
+        "typescript/unbound-method": "error",
+        "typescript/use-unknown-in-catch-callback-variable": "error"
+      }
+    },
+    {
+      "files": [
+        "apps/*/src/**/*.{ts,tsx}",
+        "packages/*/src/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-ignore": true,
+            "ts-nocheck": true,
+            "ts-expect-error": {
+              "descriptionFormat": "^: .{10,}$"
+            },
+            "minimumDescriptionLength": 10
+          }
+        ],
+        "max-lines": [
+          "error",
+          {
+            "max": 400,
+            "skipBlankLines": false,
+            "skipComments": false
+          }
+        ],
+        "max-lines-per-function": [
+          "error",
+          {
+            "max": 100,
+            "skipBlankLines": true,
+            "skipComments": true,
+            "IIFEs": true
+          }
+        ],
+        "complexity": [
+          "error",
+          10
+        ],
+        "comments/no-comments": "error"
+      }
+    },
+    {
+      "files": [
+        "apps/*/src/**/*.tsx",
+        "packages/*/src/**/*.tsx"
+      ],
+      "rules": {
+        "core/no-restricted-syntax": [
+          "error",
+          {
+            "selector": "JSXAttribute[name.name=/[Ss]tyle$/] > JSXExpressionContainer > ObjectExpression",
+            "message": "No inline style objects in JSX. Use the kit props (gap, padding, flex, radius, surface, border, minWidth...) or a named style constant."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "**/*.{js,jsx,cjs,mjs}"
+      ],
+      "rules": {
+        "comments/no-comments": "error",
+        "core/quotes": [
+          "error",
+          "single",
+          {
+            "avoidEscape": true
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "**/test/**",
+        "**/*.{test,spec}.{ts,tsx}",
+        "**/*.test.*"
+      ],
+      "rules": {
+        "comments/no-comments": "error",
+        "core/quotes": [
+          "error",
+          "single",
+          {
+            "avoidEscape": true
+          }
+        ]
+      }
+    }
+  ]
+}

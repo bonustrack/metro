@@ -95,10 +95,10 @@ export function ControlDemo(): ReactNode {
         <div className="lp-rules-head">
           <ConnectorFavicon name="Outlook" url="https://outlook.com" size={28} />
           <span className="lp-rules-title">
-            <Text size="xl" weight="semibold">
+            <Text size="sm" weight="semibold">
               Outlook
             </Text>
-            <Text size="md" role="secondary">
+            <Text size="2xs" role="secondary">
               finance@yourcompany.ch
             </Text>
           </span>
@@ -112,10 +112,10 @@ export function ControlDemo(): ReactNode {
             }}
           >
             <span className="lp-rule-name">
-              <Text size="lg" weight="medium">
+              <Text size="xs" weight="medium">
                 {r.tool}
               </Text>
-              <Text size="sm" role="secondary">
+              <Text size="3xs" role="secondary">
                 {r.group}
               </Text>
             </span>
@@ -135,7 +135,7 @@ export function ControlDemo(): ReactNode {
           <span className="lp-outcome-icon">
             <Icon name={MODE_ICON[mode]} size={22} color={palette.link} />
           </span>
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {`${rule.tool} · ${MODES.find((m) => m.value === mode)?.label ?? ''}`}
           </Text>
           <p className="lp-outcome-text">{rule.outcome[mode]}</p>

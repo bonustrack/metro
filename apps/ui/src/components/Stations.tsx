@@ -25,10 +25,10 @@ export function Stations({ project, onOpen }: StationsProps): ReactNode {
   const { data, error } = useStationsQuery();
   const [connecting, setConnecting] = useState(false);
   useDocumentTitle('Channels');
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   const agent = data.agent;
-  if (agent === undefined) return <Text size="md" role="secondary">Create the agent first, from the first page.</Text>;
+  if (agent === undefined) return <Text size="2xs" role="secondary">Create the agent first, from the first page.</Text>;
   const mine = data.groups;
   return (
     <Col gap={16}>

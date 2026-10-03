@@ -21,7 +21,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
   const palette = useKitPalette();
   return (
     <label className="labeled-field">
-      <Text size="lg" role="secondary">
+      <Text size="xs" role="secondary">
         {props.label}
       </Text>
       <TextField
@@ -39,7 +39,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
         paddingY={0}
         minHeight={0}
         radius={0}
-        fontSize={FONT_SIZE['2xl']}
+        fontSize={FONT_SIZE.md}
         fontFamily={FONT_SANS}
         color={palette.link}
         placeholderColor={palette.sub}

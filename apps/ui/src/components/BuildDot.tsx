@@ -21,11 +21,11 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
         surface="raised"
         border={{ top: side, right: side, bottom: side, left: side }}
       >
-        <Text size="md" weight="medium">
+        <Text size="2xs" weight="medium">
           {head}
         </Text>
         {build.time === '' ? null : (
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {build.time}
           </Text>
         )}

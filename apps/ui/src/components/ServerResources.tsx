@@ -12,7 +12,7 @@ const WARN = 90;
 
 function Note({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
-    <Text size="md" role={danger ? 'danger' : 'secondary'}>
+    <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   );

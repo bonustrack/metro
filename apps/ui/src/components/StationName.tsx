@@ -38,31 +38,31 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
   };
   return (
     <Col gap={8} maxWidth={FIELD_WIDTH}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {NO_NAME}
       </Text>
       <Row gap={8} align="center">
         <FormField label="Stage name" name="stage-name" value={label} placeholder="lisa-mci" dark={dark} onChangeText={setLabel} style={GROW} />
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {SUFFIX}
         </Text>
       </Row>
       <Row>
         <Button size="lg" dark={dark} label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </Col>
   );
 }
 
 export function StationName({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
   const { data, error } = useBoxQuery(['account-name', station, accountId], () => accountName(agentId, station, accountId), { staleTime: 60_000 });
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
   if (data === undefined) return null;
-  if (data.name !== null) return <Text size="md">{data.name}</Text>;
+  if (data.name !== null) return <Text size="2xs">{data.name}</Text>;
   if (!data.canClaim)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {OLD_ACCOUNT}
       </Text>
     );

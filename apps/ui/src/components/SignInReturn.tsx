@@ -35,13 +35,13 @@ export function SignInReturn({ ret }: { ret: ReturnedSignIn }): ReactNode {
     <Row justify="center" align="center" flex={1} padding={24}>
       <Col gap={12} align="center" width="100%" maxWidth={WIDTH}>
         {outcome === null ? (
-          <Text size="lg" role="secondary">Finishing the sign-in…</Text>
+          <Text size="xs" role="secondary">Finishing the sign-in…</Text>
         ) : outcome.ok ? (
-          <Text size="lg">{stationLabel(outcome.station)} is connected. You can close this tab.</Text>
+          <Text size="xs">{stationLabel(outcome.station)} is connected. You can close this tab.</Text>
         ) : (
           <>
-            <Text size="lg" role="danger">{outcome.message}</Text>
-            <Text size="md">
+            <Text size="xs" role="danger">{outcome.message}</Text>
+            <Text size="2xs">
               <a className="hint-link" href={`/${outcome.backHash ?? '#/'}`}>
                 Try again
               </a>

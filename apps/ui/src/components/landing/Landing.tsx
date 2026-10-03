@@ -68,14 +68,14 @@ function Trust(): ReactNode {
   const palette = useKitPalette();
   return (
     <div className="lp-trust">
-      <Text size="2xl" role="secondary">
+      <Text size="md" role="secondary">
         Works where your team already talks
       </Text>
       <div className="lp-trust-row">
         {TRUST.map((item) => (
           <span key={item.name} className="lp-trust-item">
             <ConnectorFavicon name={item.name} url={item.url} size={28} />
-            <Text size="2xl" weight="medium" color={palette.link}>
+            <Text size="md" weight="medium" color={palette.link}>
               {item.name}
             </Text>
           </span>
@@ -179,7 +179,7 @@ function Footer(): ReactNode {
       <div className="lp-footer-inner">
         <div className="lp-footer-brand">
           <Wordmark />
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {COPYRIGHT}
           </Text>
         </div>

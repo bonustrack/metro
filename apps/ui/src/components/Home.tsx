@@ -23,7 +23,7 @@ const FALLBACK = 'Could not read this machine.';
 function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
   return (
     <Row gap={8} align="center">
-      <Text size="2xl" weight="semibold">{label}</Text>
+      <Text size="md" weight="semibold">{label}</Text>
       <CountBadge count={count} />
     </Row>
   );
@@ -33,7 +33,7 @@ function NoAgent(): ReactNode {
   return (
     <Col gap={16}>
       <PageTitle>This box</PageTitle>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         Setting up this box… the daemon creates its agent at start, this fills in within seconds.
       </Text>
     </Col>
@@ -89,7 +89,7 @@ export function Home({ project, onSelect }: HomeProps): ReactNode {
   const agent = data?.agent;
   const name = useBoxName(agent);
   useDocumentTitle(name);
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
   if (agent === undefined) return <NoAgent />;
   return (

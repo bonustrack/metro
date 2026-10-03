@@ -18,9 +18,9 @@ export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
     <Row gap={6} align="center" wrap>
       {crumbs.map((crumb, at) => (
         <Fragment key={`${String(at)}:${crumb.label}`}>
-          {at === 0 ? null : <Text size="lg" role="secondary">/</Text>}
+          {at === 0 ? null : <Text size="xs" role="secondary">/</Text>}
           {at === crumbs.length - 1 ? (
-            <Text size="lg" weight="medium">{crumb.label}</Text>
+            <Text size="xs" weight="medium">{crumb.label}</Text>
           ) : (
             <a
               className="crumb-link"
@@ -31,7 +31,7 @@ export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
                 crumb.onPress();
               }}
             >
-              <Text size="lg" role="secondary">{crumb.label}</Text>
+              <Text size="xs" role="secondary">{crumb.label}</Text>
             </a>
           )}
         </Fragment>

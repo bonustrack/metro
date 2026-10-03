@@ -55,7 +55,7 @@ interface ListingProps {
 }
 
 function Listing({ error, data, project, onOpen }: ListingProps): ReactNode {
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.skills.length === 0) return <EmptyCard text="No skill yet. A skill teaches your agent how to do a task your way." />;
   return (

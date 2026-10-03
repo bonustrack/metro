@@ -29,7 +29,7 @@ interface ItemProps {
 export function Item({ title, detail, avatar, badge, trailing }: ItemProps): ReactNode {
   const palette = useKitPalette();
   const heading = (
-    <Text size="lg" weight="medium" numberOfLines={1}>
+    <Text size="xs" weight="medium" numberOfLines={1}>
       {title}
     </Text>
   );
@@ -45,7 +45,7 @@ export function Item({ title, detail, avatar, badge, trailing }: ItemProps): Rea
             {badge}
           </Row>
         )}
-        <Text size="md" role="secondary" numberOfLines={1}>
+        <Text size="2xs" role="secondary" numberOfLines={1}>
           {detail}
         </Text>
       </Col>
@@ -67,7 +67,7 @@ export function Listing<T>({ title, failed, rows, error, render }: ListingProps<
     <Col gap={16} width="100%" maxWidth={LIST_WIDTH}>
       <ListHeader title={title} count={rows?.length} />
       {error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {queryError(error, failed)}
         </Text>
       )}

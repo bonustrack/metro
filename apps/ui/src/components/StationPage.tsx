@@ -45,12 +45,12 @@ export function StationPage({
   useDocumentTitle(titleOf(found, accountId));
 
   if (error !== null)
-    return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
+    return <Text size="2xs" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
 
   if (found === undefined)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         This channel is not connected to the agent anymore.
       </Text>
     );

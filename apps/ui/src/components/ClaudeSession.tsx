@@ -51,7 +51,7 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
         ) : (
           <Button size="md" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
         )}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       </SettingsSection>
       <SettingsSection title="Start by itself" note={AUTOSTART}>
         <Choice

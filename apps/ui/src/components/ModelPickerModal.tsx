@@ -52,7 +52,7 @@ function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow) => vo
 function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; typed: PickRow | null; connections: ConnectionRow[]; busy: boolean; onPick: (row: PickRow) => void }): ReactNode {
   if (rows.length === 0 && typed === null)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         No model matches your search.
       </Text>
     );
@@ -141,11 +141,11 @@ export function ModelPickerModal({ open, settings, scope, title, isCurrent, onPi
     <Modal title={titleOf(scope, title)} open={open} onClose={onClose}>
       <Col gap={12}>
         <FormField label="Search models" name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
-        {lists.loading && rows.length === 0 ? <Text size="md" role="secondary">Loading models…</Text> : null}
+        {lists.loading && rows.length === 0 ? <Text size="2xs" role="secondary">Loading models…</Text> : null}
         {lists.errors.map((e) => (
-          <Text key={e} size="md" role="danger">{e}</Text>
+          <Text key={e} size="2xs" role="danger">{e}</Text>
         ))}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
         <Groups rows={rows} typed={typed} connections={settings.connections} busy={busy} onPick={pick} />
       </Col>
     </Modal>

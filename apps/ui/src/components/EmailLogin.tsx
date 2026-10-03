@@ -59,7 +59,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
         <LabeledField label="Email" name="email" value={email} placeholder="e. g. alice@stage.box" inputMode="email" disabled={step.busy} onChangeText={setEmail} onSubmit={send} />
       ) : (
         <>
-          <Text size="lg" style={CENTER_TEXT}>
+          <Text size="xs" style={CENTER_TEXT}>
             {`We sent a code to ${step.sentTo}. Enter the six digits here.`}
           </Text>
           <LabeledField label="Code" name="code" value={code} placeholder="e. g. 123456" inputMode="numeric" autoFocus disabled={step.busy} onChangeText={setCode} onSubmit={verify} />
@@ -91,7 +91,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
         </Row>
       )}
       {step.error === null ? null : (
-        <Text size="lg" role="danger" style={CENTER_TEXT}>
+        <Text size="xs" role="danger" style={CENTER_TEXT}>
           {step.error}
         </Text>
       )}

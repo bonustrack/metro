@@ -3,7 +3,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 
 export function FieldLabel({ children }: { children: string }): ReactNode {
   return (
-    <Text size="lg" role="secondary">
+    <Text size="xs" role="secondary">
       {children}
     </Text>
   );

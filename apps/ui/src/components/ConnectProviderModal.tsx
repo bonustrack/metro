@@ -23,8 +23,8 @@ export function ConnectProviderModal({ open, onPick, onClose }: ConnectProps): R
             <Row gap={12} align="center">
               <ProviderLogo provider={p} size={LOGO} />
               <Col gap={2} style={SHRINK}>
-                <Text size="lg" weight="medium">{p.label}</Text>
-                <Text size="md" role="secondary">{p.blurb}</Text>
+                <Text size="xs" weight="medium">{p.label}</Text>
+                <Text size="2xs" role="secondary">{p.blurb}</Text>
               </Col>
             </Row>
           </button>

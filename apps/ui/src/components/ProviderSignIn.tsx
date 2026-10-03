@@ -23,7 +23,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
   const [pasted, setPasted] = useState('');
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {hint}
       </Text>
       <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={setPasted} style={GROW} />
@@ -39,7 +39,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
           }}
         />
       </Row>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -47,7 +47,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
 export function SignedInAs({ connection, children }: { connection: ConnectionRow; children: ReactNode }): ReactNode {
   return (
     <Col gap={10}>
-      <Text size="md">
+      <Text size="2xs">
         Signed in{connection.account === null ? '' : ` as ${connection.account}`}
         {connection.plan === null ? '' : ` (${connection.plan})`}
       </Text>
@@ -61,7 +61,7 @@ export function SignInLink({ link, label, children }: { link: string | null; lab
     <Row gap={8} wrap align="center">
       {children}
       {link !== null ? (
-        <Text size="md">
+        <Text size="2xs">
           <a className="hint-link" href={link} target="_blank" rel="noreferrer">
             {label}
           </a>

@@ -103,7 +103,7 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
   };
   return (
     <Col gap={8}>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {text.hint}
       </Text>
       <Row gap={8} align="center" wrap>
@@ -152,7 +152,7 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
   if (senders.length === 0) return null;
   return (
     <Col gap={8}>
-      <Text size="md" role="secondary">Wrote recently</Text>
+      <Text size="2xs" role="secondary">Wrote recently</Text>
       <Row gap={8} wrap>
         {senders.map((sender) => (
           <Button
@@ -198,7 +198,7 @@ function AddPerson({ agentId, station, accountId, seen, entries, busy, onAdd, on
             />
             <Button size="md" color="secondary" dark={dark} disabled={busy !== null || draft.trim() === ''} label="Add" onPress={submit} />
           </Row>
-          {WHERE_TO_FIND[station] === undefined ? null : <Text size="md" role="secondary">{WHERE_TO_FIND[station]}</Text>}
+          {WHERE_TO_FIND[station] === undefined ? null : <Text size="2xs" role="secondary">{WHERE_TO_FIND[station]}</Text>}
         </Col>
         <Suggestions
           senders={seen.filter((s) => !entries.some((e) => e.toLowerCase() === s.id.toLowerCase()))}
@@ -337,7 +337,7 @@ export function Allowlist({ title, agentId, station, accountId, allowlist, appro
             if (!everyone) save([EVERYONE], 'everyone');
           }}
         />
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       </SettingsSection>
       {editing ? <People {...editorProps} /> : null}
       {editing ? <AddPerson {...editorProps} /> : null}

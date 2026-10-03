@@ -42,7 +42,7 @@ function useBusy(): Busy {
 
 const Note = ({ text, danger = false }: { text: string; danger?: boolean }): ReactNode => (
   <div className="settings-pad">
-    <Text size="md" role={danger ? 'danger' : 'secondary'}>
+    <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   </div>

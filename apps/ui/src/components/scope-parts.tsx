@@ -45,7 +45,7 @@ export function ScopeItem({ label, current = false, shown = false, onHover, href
     <>
       {leading ?? null}
       {icon === undefined ? null : <Icon name={icon} size={ICON} color={palette.sub} />}
-      <Text size="2xl" numberOfLines={1} style={SHRINK}>
+      <Text size="md" numberOfLines={1} style={SHRINK}>
         {label}
       </Text>
       <span className="scope-item-end">{current ? <Icon name="check" size={CHECK} color={palette.link} /> : null}</span>

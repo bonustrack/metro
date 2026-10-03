@@ -148,7 +148,7 @@ body {
 .markdown {
   color: var(--metro-text);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-3xl);
+  font-size: var(--kit-font-lg);
   line-height: 23px;
   overflow-wrap: break-word;
 }
@@ -166,12 +166,12 @@ body {
   margin: 1.6em 0 0.6em;
 }
 
-.markdown h1 { font-size: var(--kit-font-6xl); }
-.markdown h2 { font-size: var(--kit-font-5xl); }
-.markdown h3 { font-size: var(--kit-font-4xl); }
+.markdown h1 { font-size: var(--kit-font-3xl); }
+.markdown h2 { font-size: var(--kit-font-2xl); }
+.markdown h3 { font-size: var(--kit-font-xl); }
 .markdown h4,
 .markdown h5,
-.markdown h6 { font-size: var(--kit-font-3xl); }
+.markdown h6 { font-size: var(--kit-font-lg); }
 .markdown > :first-child { margin-top: 0; }
 
 .markdown p,
@@ -189,7 +189,7 @@ body {
 
 .markdown code {
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-sm);
+  font-size: var(--kit-font-3xs);
   background: var(--metro-surface);
   border-radius: 4px;
   padding: 0.15em 0.4em;
@@ -205,7 +205,7 @@ body {
 .markdown pre code {
   background: none;
   padding: 0;
-  font-size: var(--kit-font-sm);
+  font-size: var(--kit-font-3xs);
   line-height: 1.55;
 }
 
@@ -575,7 +575,7 @@ textarea:focus-visible {
   padding: 6px 16px 8px;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-lg);
+  font-size: var(--kit-font-xs);
 }
 
 .scope-footer {
@@ -619,7 +619,7 @@ textarea:focus-visible {
   padding: 7px 16px;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
 }
 
 .scope-item-end {
@@ -696,7 +696,7 @@ textarea:focus-visible {
 .transcript .tool-call summary,
 .transcript .tool-call pre {
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-3xl);
+  font-size: var(--kit-font-lg);
   line-height: 23px;
   color: var(--metro-text);
 }
@@ -708,18 +708,18 @@ textarea:focus-visible {
 }
 .markdown-compact pre,
 .markdown-compact code {
-  font-size: var(--kit-font-sm);
+  font-size: var(--kit-font-3xs);
 }
-.markdown-compact h1 { font-size: var(--kit-font-5xl); }
-.markdown-compact h2 { font-size: var(--kit-font-4xl); }
-.markdown-compact h3 { font-size: var(--kit-font-3xl); }
+.markdown-compact h1 { font-size: var(--kit-font-2xl); }
+.markdown-compact h2 { font-size: var(--kit-font-xl); }
+.markdown-compact h3 { font-size: var(--kit-font-lg); }
 .markdown-compact h4,
 .markdown-compact h5,
-.markdown-compact h6 { font-size: var(--kit-font-2xl); }
+.markdown-compact h6 { font-size: var(--kit-font-md); }
 .transcript .tool-call,
 .transcript .tool-call summary,
 .transcript .tool-call pre {
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   line-height: 1.5;
 }
 
@@ -823,7 +823,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-2xl);
+  font-size: var(--kit-font-md);
   text-align: left;
   cursor: pointer;
 }
@@ -834,7 +834,7 @@ textarea:focus-visible {
 
 .model-match-name {
   color: var(--metro-sub);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
 }
 
 .login-output {
@@ -846,14 +846,14 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .boot-log {
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   line-height: 1.45;
   color: var(--metro-text);
   background: var(--metro-surface);
@@ -955,7 +955,7 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-text);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1184,7 +1184,7 @@ textarea:focus-visible {
 .model-card-action {
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   flex: none;
 }
 
@@ -1226,7 +1226,7 @@ textarea:focus-visible {
   background: var(--metro-surface);
   color: var(--metro-heading);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-xs);
+  font-size: var(--kit-font-4xs);
   white-space: nowrap;
 }
 
@@ -1241,7 +1241,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   cursor: pointer;
 }
 
@@ -1316,7 +1316,7 @@ textarea:focus-visible {
   background: var(--metro-bg);
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
 }
 
 .pick-row {
@@ -1357,14 +1357,14 @@ textarea:focus-visible {
 .pick-row-name {
   color: var(--metro-heading);
   font-family: var(--metro-font-head);
-  font-size: var(--kit-font-2xl);
+  font-size: var(--kit-font-md);
 }
 
 .pick-row-detail {
   overflow: hidden;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1389,7 +1389,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--metro-sub);
   font-family: var(--metro-font-sans);
-  font-size: var(--kit-font-md);
+  font-size: var(--kit-font-2xs);
   white-space: nowrap;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;

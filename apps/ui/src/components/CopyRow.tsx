@@ -46,11 +46,11 @@ export function CopyRow({ title, note, value, secret = false }: CopyRowProps): R
         <Button size="md" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
       </Row>
       {shown ? (
-        <Text size="md" role="secondary" numberOfLines={1} selectable>
+        <Text size="2xs" role="secondary" numberOfLines={1} selectable>
           {value}
         </Text>
       ) : (
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {MASK}
         </Text>
       )}

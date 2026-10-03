@@ -37,8 +37,8 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
     <Col gap={6} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
       <Row justify="between" align="center" gap={12}>
         <Col gap={2} style={SHRINK}>
-          <Text size="lg" weight="medium" numberOfLines={2}>{summary(approval)}</Text>
-          <Text size="md" role="secondary">
+          <Text size="xs" weight="medium" numberOfLines={2}>{summary(approval)}</Text>
+          <Text size="2xs" role="secondary">
             {`${whenLabel(approval.requestedAt)} · id ${approval.id}${approval.inChat ? ' · also asked in the chat' : ''}`}
           </Text>
         </Col>
@@ -47,7 +47,7 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
           <Button size="md" dark={dark} disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
         </Row>
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </Col>
   );
 }
@@ -58,7 +58,7 @@ export function Approvals(): ReactNode {
   return (
     <Col gap={8}>
       <Row gap={8} align="center">
-        <Text size="xl" weight="medium">Approvals</Text>
+        <Text size="sm" weight="medium">Approvals</Text>
         <CountBadge count={query.data.length} />
       </Row>
       {query.data.map((a) => (

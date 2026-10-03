@@ -62,7 +62,7 @@ function ToolRow({ tool, title, policy, busy, onSave }: { tool: GroupedTool; tit
   const name = title === undefined || title === '' || title === tool.name ? toolLabel(tool.name) : title;
   return (
     <div className="settings-row is-compact is-sub">
-      <Text size="md" numberOfLines={1}>
+      <Text size="2xs" numberOfLines={1}>
         {name}
       </Text>
       <Dropdown items={items} label={`Permission for ${name}`} className={override === undefined ? 'tool-access' : 'tool-access is-set'} align="end">
@@ -119,7 +119,7 @@ export function Permissions({ title, policy, tools, store, onSaved, titles }: Pe
       })}
       {error === null ? null : (
         <div className="settings-pad">
-          <Text size="md" role="danger">{error}</Text>
+          <Text size="2xs" role="danger">{error}</Text>
         </div>
       )}
     </SettingsGroup>

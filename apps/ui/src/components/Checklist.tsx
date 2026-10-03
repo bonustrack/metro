@@ -38,10 +38,10 @@ function StepRow({ step, onSelect }: { step: Step; onSelect: (selection: Selecti
         {step.done ? <Icon name="check" size={14} color={palette.bg} /> : null}
       </span>
       <span className="check-text">
-        <Text size="lg" weight="medium">
+        <Text size="xs" weight="medium">
           {step.title}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {step.hint}
         </Text>
       </span>
@@ -78,10 +78,10 @@ export function Checklist({ name, project, channels, connectors, onSelect }: Che
   return (
     <section className="checklist" aria-label="Setup">
       <div className="checklist-head">
-        <Text size="2xl" weight="semibold">
+        <Text size="md" weight="semibold">
           {`Get ${name} ready`}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {`${String(steps.length - left)} of ${String(steps.length)} done`}
         </Text>
       </div>

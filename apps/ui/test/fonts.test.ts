@@ -69,10 +69,10 @@ describe('self-hosted Calibre', () => {
 
   test('form values and labels match Stage FormField roles', () => {
     const field = readFileSync(join(uiRoot, 'src/components/FormField.tsx'), 'utf8');
-    expect(field).toContain("FONT_SIZE['2xl']");
-    expect(field).toContain('size="lg"');
-    expect(FONT_SIZE['2xl']).toBe(18);
-    expect(FONT_SIZE.lg).toBe(16);
+    expect(field).toContain('FONT_SIZE.md');
+    expect(field).toContain('size="xs"');
+    expect(FONT_SIZE.md).toBe(18);
+    expect(FONT_SIZE.xs).toBe(16);
   });
 
   test('the primary weight is preloaded with a crossorigin font hint', () => {

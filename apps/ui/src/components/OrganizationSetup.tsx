@@ -46,7 +46,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
         <Row justify="center">
           <PageTitle>Name your organization</PageTitle>
         </Row>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {WHAT}
         </Text>
         <FormField label="Organization name" name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
@@ -55,7 +55,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
           <Button color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={onLock} />
         </Row>
         {error === null ? null : (
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {error}
           </Text>
         )}

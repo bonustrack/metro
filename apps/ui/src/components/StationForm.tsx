@@ -78,7 +78,7 @@ export function StationForm(props: StationFormProps): ReactNode {
   return (
     <Col gap={14}>
       <Col gap={2}>
-        <Text size="2xl" weight="semibold">{stationLabel(station)}</Text>
+        <Text size="md" weight="semibold">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
       </Col>
       <Col gap={10}>
@@ -98,11 +98,11 @@ export function StationForm(props: StationFormProps): ReactNode {
               onSubmit={submit}
               style={GROW}
             />
-            {field.hint === undefined ? null : <Text size="md" role="secondary">{field.hint}</Text>}
+            {field.hint === undefined ? null : <Text size="2xs" role="secondary">{field.hint}</Text>}
           </Col>
         ))}
       </Col>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
           color="secondary"

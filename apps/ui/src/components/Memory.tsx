@@ -64,7 +64,7 @@ function DeleteMemory({ claudeProject, file }: { claudeProject: string; file: Me
 function MemoryFolderView({ project, claudeProject, path, onSelect }: { project: string; claudeProject: string; path: string; onSelect: (s: Selection) => void }): ReactNode {
   const { data, error } = useMemoryQuery(claudeProject);
   const tree = useMemo(() => memoryTree(data?.files ?? []), [data]);
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the memory.')}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the memory.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.files.length === 0) return <EmptyCard text="No notes yet. The agent writes notes here as it learns about you and your work." />;
   const folder = folderAt(tree, path);
@@ -98,7 +98,7 @@ function MemoryFolderView({ project, claudeProject, path, onSelect }: { project:
 
 function MemoryFileView({ claudeProject, file }: { claudeProject: string; file: string }): ReactNode {
   const { data, error } = useMemoryFileQuery(claudeProject, file);
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the file.')}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the file.')}</Text>;
   if (data === undefined) return <Loading />;
   return (
     <SettingsGroup>

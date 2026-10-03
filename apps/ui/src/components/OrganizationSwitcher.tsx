@@ -40,10 +40,10 @@ function AgentFace({ server, org }: { server: Server; org: string }): ReactNode 
     <>
       <Face server={server} size={AVATAR} />
       <span className="agent-trigger-text">
-        <Text size="2xl" weight="semibold" numberOfLines={1} style={SHRINK}>
+        <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
           {serverLabel(server)}
         </Text>
-        <Text size="md" role="secondary" numberOfLines={1}>
+        <Text size="2xs" role="secondary" numberOfLines={1}>
           {`${org} · ${statusWord(data?.state)}`}
         </Text>
       </span>
@@ -54,10 +54,10 @@ function AgentFace({ server, org }: { server: Server; org: string }): ReactNode 
 function OrgFace({ org }: { org: string }): ReactNode {
   return (
     <span className="agent-trigger-text">
-      <Text size="2xl" weight="semibold" numberOfLines={1} style={SHRINK}>
+      <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
         {org}
       </Text>
-      <Text size="md" role="secondary" numberOfLines={1}>
+      <Text size="2xs" role="secondary" numberOfLines={1}>
         All agents
       </Text>
     </span>

@@ -24,11 +24,11 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
     <Col gap={16}>
       <Col gap={8}>
         <PageTitle>{skill.title}</PageTitle>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {[skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ')}
         </Text>
       </Col>
-      {skill.editable ? null : <Text size="md" role="danger">That skill is too large to edit here.</Text>}
+      {skill.editable ? null : <Text size="2xs" role="danger">That skill is too large to edit here.</Text>}
     </Col>
   );
 }
@@ -48,8 +48,8 @@ function Actions({ busy, changed, note, failure, onSave, onRevert }: ActionsProp
     <Row gap={12} align="center" wrap>
       <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={onSave} />
       <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
-      {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
-      {failure === null ? null : <Text size="md" role="danger">{failure}</Text>}
+      {note === null ? null : <Text size="2xs" role="secondary">{note}</Text>}
+      {failure === null ? null : <Text size="2xs" role="danger">{failure}</Text>}
     </Row>
   );
 }
@@ -122,7 +122,7 @@ export function SkillPage({ project, id, onBack }: SkillPageProps): ReactNode {
     <Col gap={20}>
       <BackLink label="Skills" href={routeHash({ kind: 'skills', project })} onPress={onBack} />
       {error !== null ? (
-        <Text size="md" role="danger">{queryError(error, 'Could not read that skill.')}</Text>
+        <Text size="2xs" role="danger">{queryError(error, 'Could not read that skill.')}</Text>
       ) : data === undefined ? (
         <Loading />
       ) : (

@@ -20,7 +20,7 @@ function StepRow({ label, state }: { label: string; state: StepState }): ReactNo
   return (
     <Row align="center" gap={10} padding={{ y: 4 }}>
       <Row width={DOT} height={DOT} radius={DOT} background={color} />
-      <Text size="md" role={state === 'pending' ? 'secondary' : undefined}>{`${MARK[state]} ${label}`}</Text>
+      <Text size="2xs" role={state === 'pending' ? 'secondary' : undefined}>{`${MARK[state]} ${label}`}</Text>
     </Row>
   );
 }
@@ -98,10 +98,10 @@ export function LaunchProgress({ launched }: { launched: Launched }): ReactNode 
   const watch = useLaunchWatch(launched.server.id, live);
   return (
     <Col gap={14}>
-      <Text size="xl" weight="medium">{headline(watch.instance, watch.boot, live)}</Text>
-      {watch.error === null ? null : <Text size="md" role="danger">{watch.error}</Text>}
+      <Text size="sm" weight="medium">{headline(watch.instance, watch.boot, live)}</Text>
+      {watch.error === null ? null : <Text size="2xs" role="danger">{watch.error}</Text>}
       <Steps launched={launched} watch={watch} live={live} />
-      <Text size="md" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>
+      <Text size="2xs" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>
       <LogTail lines={watch.boot?.lines ?? []} />
       <CopyBlock label="address" value={launched.host} />
       <Actions launched={launched} live={live} />

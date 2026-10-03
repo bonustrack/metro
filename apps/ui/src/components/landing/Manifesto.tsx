@@ -54,7 +54,7 @@ export function Manifesto(): ReactNode {
         {FACTS.map((fact) => (
           <div key={fact.value} className="lp-fact">
             <span className="lp-fact-value">{fact.value}</span>
-            <Text size="md" role="secondary">
+            <Text size="2xs" role="secondary">
               {fact.label}
             </Text>
           </div>

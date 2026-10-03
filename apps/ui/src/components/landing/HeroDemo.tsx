@@ -115,12 +115,12 @@ function Caption({ stop, onPick }: { stop: number; onPick: (stop: number) => voi
           {shown.marks.map((mark) => (
             <span key={mark.name} className="lp-acc-mark">
               <ConnectorFavicon name={mark.name} url={mark.url} size={16} />
-              <Text size="sm">{mark.name}</Text>
+              <Text size="3xs">{mark.name}</Text>
             </span>
           ))}
           {shown.note === undefined ? null : (
             <span className="lp-acc-mark">
-              <Text size="sm">{shown.note}</Text>
+              <Text size="3xs">{shown.note}</Text>
             </span>
           )}
         </span>

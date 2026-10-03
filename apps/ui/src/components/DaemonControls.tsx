@@ -72,7 +72,7 @@ export function DaemonControls(): ReactNode {
           onPress={restart}
         />
         {error !== null && !confirming ? (
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {error}
           </Text>
         ) : null}

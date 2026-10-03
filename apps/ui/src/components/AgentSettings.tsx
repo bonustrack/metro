@@ -35,7 +35,7 @@ function AvatarSection({ server }: { server: Server }): ReactNode {
         <Button size="md" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
         {server.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
         {avatar.error === null ? null : (
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {avatar.error}
           </Text>
         )}

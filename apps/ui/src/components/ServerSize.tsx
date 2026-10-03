@@ -72,7 +72,7 @@ function Notice({ text, danger = false }: { text: string; danger?: boolean }): R
   return (
     <SettingsGroup title={TITLE}>
       <div className="settings-pad">
-        <Text size="md" role={danger ? 'danger' : 'secondary'}>
+        <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
           {text}
         </Text>
       </div>
@@ -85,7 +85,7 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
   const running = jobRunning(job);
   return (
     <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner size={16} color={palette.link} /> : undefined}>
-      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
+      <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {phaseText(job)}
       </Text>
     </SettingsSection>
@@ -107,7 +107,7 @@ function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactN
         }}
       />
       {resize.error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {resize.error}
         </Text>
       )}

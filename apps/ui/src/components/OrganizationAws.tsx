@@ -24,7 +24,7 @@ const ROLE_RE = /^arn:aws:iam::\d{12}:role\/\S+$/;
 function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
     <div className="settings-pad">
-      <Text size="md" role={danger ? 'danger' : 'secondary'}>
+      <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
         {text}
       </Text>
     </div>
@@ -83,7 +83,7 @@ function RoleField(): ReactNode {
       <Row gap={8}>
         <Button size="lg" color="primary" dark={dark} label={busy ? 'Checking…' : 'Connect'} loading={busy} disabled={busy || !ROLE_RE.test(role.trim())} onPress={save} />
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </Col>
   );
 }
@@ -98,7 +98,7 @@ function ConnectSteps({ view }: { view: AwsOverview }): ReactNode {
           <SignInLink link={link} label="Open AWS">
             <Button size="md" color="secondary" dark={dark} label="Connect AWS" loading={starting} disabled={starting} onPress={start} />
           </SignInLink>
-          {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+          {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
         </Col>
       </SettingsSection>
       {started === null && view.externalId === null ? null : (

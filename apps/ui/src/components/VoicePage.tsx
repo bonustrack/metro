@@ -83,7 +83,7 @@ function ChoiceSetting<T extends string>({ title, note, value, options, patch, s
   return (
     <SettingsSection title={title} note={note}>
       <Choice label={title} value={value} options={options} disabled={busy} onChange={pick} />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -152,7 +152,7 @@ function VoiceModel({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNo
   const settings = model.data;
   return (
     <SettingsSection title="Model" note={MODEL_NOTE}>
-      <Text size="md">{voiceModelLabel(current)}</Text>
+      <Text size="2xs">{voiceModelLabel(current)}</Text>
       {settings === undefined || settings.connections.length === 0 ? null : (
         <>
           <Button size="md" color="secondary" dark={dark} label="Change" onPress={() => { setOpen(true); }} />
@@ -172,14 +172,14 @@ function VoiceModel({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNo
 
 function VoiceBody(): ReactNode {
   const { voice, error, set } = useVoice();
-  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
+  if (error !== null && error !== undefined) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
   if (voice === undefined) return <Loading />;
   return (
     <Col gap={32}>
       <SettingsGroup>
         <AnswerCalls voice={voice} set={set} />
         <SettingsSection title="Provider" compact>
-          <Text size="md" role="secondary">{providerName(voice.provider)}</Text>
+          <Text size="2xs" role="secondary">{providerName(voice.provider)}</Text>
         </SettingsSection>
         <ApiKey voice={voice} set={set} />
       </SettingsGroup>
@@ -204,7 +204,7 @@ export function VoicePage(): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Voice</PageTitle>
-      <Text size="md" role="secondary">{INTRO}</Text>
+      <Text size="2xs" role="secondary">{INTRO}</Text>
       <VoiceGate />
     </Col>
   );

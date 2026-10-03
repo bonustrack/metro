@@ -64,7 +64,7 @@ function Header({ station, project, row }: { station: string; project: string; r
           <StationIcon station={station} size={ICON} />
           <Col gap={2} style={SHRINK}>
             <PageTitle>{handle ?? row.id ?? stationLabel(station)}</PageTitle>
-            <Text size="md" role="secondary">
+            <Text size="2xs" role="secondary">
               {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Not receiving'}`}
             </Text>
           </Col>
@@ -148,7 +148,7 @@ function Receive({ station, id, enabled, onToggle }: { station: string; id: stri
           flip(value === 'on');
         }}
       />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -188,7 +188,7 @@ function Abilities({ station, row, agent, verbs, tools, onSaved }: { station: st
     return (
       <SettingsGroup title={title}>
         <div className="settings-pad">
-          <Text size="md" role="secondary">{RECEIVE_ONLY}</Text>
+          <Text size="2xs" role="secondary">{RECEIVE_ONLY}</Text>
         </div>
       </SettingsGroup>
     );

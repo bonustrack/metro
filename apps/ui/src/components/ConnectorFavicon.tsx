@@ -39,7 +39,7 @@ export function ConnectorFavicon({
   if (blank)
     return (
       <div style={tile}>
-        <Text size={size >= 28 ? 'md' : 'sm'} weight="semibold" role="secondary">
+        <Text size={size >= 28 ? '2xs' : '3xs'} weight="semibold" role="secondary">
           {(name.trim()[0] ?? '?').toUpperCase()}
         </Text>
       </div>

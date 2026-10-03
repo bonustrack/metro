@@ -62,7 +62,7 @@ function StartButton({ host }: { host: string }): ReactNode {
   return (
     <Row gap={8} align="center">
       {error !== null ? (
-        <Text size="md" role="danger" numberOfLines={1}>
+        <Text size="2xs" role="danger" numberOfLines={1}>
           {error}
         </Text>
       ) : null}
@@ -107,11 +107,11 @@ function AgentCard({ server, onRemove, onBootLog }: CardProps): ReactNode {
         <Col gap={2} flex={1}>
           <Row gap={8} align="center">
             <StatusDot host={server.host} />
-            <Text size="2xl" weight="semibold" numberOfLines={1} style={SHRINK}>
+            <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
               {serverLabel(server)}
             </Text>
           </Row>
-          <Text size="md" role="secondary" numberOfLines={1}>
+          <Text size="2xs" role="secondary" numberOfLines={1}>
             {server.host}
           </Text>
           <LatestUsageLine serverId={server.id} />
@@ -139,7 +139,7 @@ function NewAgentCard(): ReactNode {
         window.location.hash = href;
       }}
     >
-      <Text size="lg" weight="medium" role="secondary">
+      <Text size="xs" weight="medium" role="secondary">
         + New agent
       </Text>
     </a>
@@ -156,7 +156,7 @@ function ServerList({ servers, onBootLog }: ListProps): ReactNode {
   const [failed, setFailed] = useState<string | null>(null);
   if (servers.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         No agents yet. Add the address your daemon printed at start-up.
       </Text>
     );
@@ -174,7 +174,7 @@ function ServerList({ servers, onBootLog }: ListProps): ReactNode {
   return (
     <>
       {failed === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="2xs" role="danger">
           {failed}
         </Text>
       )}
@@ -202,7 +202,7 @@ function Body({ onBootLog }: { onBootLog: (s: Server) => void }): ReactNode {
   if (isPending) return <Loading />;
   if (error !== null)
     return (
-      <Text size="md" role="danger">
+      <Text size="2xs" role="danger">
         {queryError(error, 'Could not list your agents.')}
       </Text>
     );
@@ -243,7 +243,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
           }
         />
         <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-          <Text size="md" role="secondary">
+          <Text size="2xs" role="secondary">
             {HOW}
           </Text>
           <Body onBootLog={setLogOf} />

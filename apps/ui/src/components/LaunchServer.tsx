@@ -34,7 +34,7 @@ function RegionChoice({ regions, value, disabled, onPick }: { regions: string[];
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={6}>
-      <Text size="md" role="secondary">Region</Text>
+      <Text size="2xs" role="secondary">Region</Text>
       <Row gap={8} wrap>
         {regions.map((code) => (
           <Button
@@ -58,10 +58,10 @@ function Off(): ReactNode {
   const organization = activeAccount()?.organization ?? null;
   return (
     <Col gap={12}>
-      <Text size="md" role="secondary">{OFF}</Text>
+      <Text size="2xs" role="secondary">{OFF}</Text>
       {organization === null ? null : (
         <Col gap={8}>
-          <Text size="md" role="secondary">{OFF_IDENTITY}</Text>
+          <Text size="2xs" role="secondary">{OFF_IDENTITY}</Text>
           <CopyBlock label="your organization" value={organization} />
         </Col>
       )}
@@ -121,7 +121,7 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
       <Row justify="center">
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
-      <Text size="md" role="secondary">
+      <Text size="2xs" role="secondary">
         {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your agent list. Open it once it is live to create the agent.`}
       </Text>
       <LaunchProgress launched={launched} />
@@ -137,7 +137,7 @@ function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): Re
       <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
       <Button size="md" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
       {form.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
-      {form.picker.error === null ? null : <Text size="md" role="danger">{form.picker.error}</Text>}
+      {form.picker.error === null ? null : <Text size="2xs" role="danger">{form.picker.error}</Text>}
     </Row>
   );
 }
@@ -151,7 +151,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       <Row justify="center">
         <PageTitle>Have Metro issue an agent</PageTitle>
       </Row>
-      <Text size="md" role="secondary">{HINT}</Text>
+      <Text size="2xs" role="secondary">{HINT}</Text>
       <Col gap={10}>
         <PictureChoice form={form} />
         <Col gap={4}>
@@ -169,9 +169,9 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
         </Col>
         <RegionChoice regions={launchRegions(overview.regions)} value={form.region} disabled={form.busy} onPick={form.setRegion} />
       </Col>
-      {form.error === null ? null : <Text size="md" role="danger">{form.error}</Text>}
+      {form.error === null ? null : <Text size="2xs" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           <a className="hint-link" href={routeHash({ kind: 'servers' })}>Back to your agents</a>
         </Text>
         <Button size="lg"
@@ -189,7 +189,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
 
 function Body(): ReactNode {
   const { data, error } = useLaunchOverviewQuery();
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, OFF)}</Text>;
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, OFF)}</Text>;
   if (data === undefined) return <Loading />;
   if (!data.enabled) return <Off />;
   return <LaunchForm overview={data} />;

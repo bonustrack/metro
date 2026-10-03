@@ -18,11 +18,11 @@ function CopyReport({ results, connectors }: { results: CopyResult[]; connectors
   const names = new Map(connectors.map((row) => [row.id, row.name]));
   const copied = results.filter((row) => row.status === 'copied').length;
   return <Col gap={8}>
-    <Text size="md">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
-    {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="md" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
+    <Text size="2xs">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
+    {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="2xs" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
       {`${names.get(row.sourceId ?? '') ?? 'Connector'}: ${row.status === 'skipped' ? 'skipped, that name already exists on the destination' : row.status === 'invalid' ? 'not copied, invalid settings' : 'copied'}`}
     </Text>)}
-    <Text size="md" role="secondary">Reload plugins on the destination to make new connector tools available. Some services rotate login tokens, so either agent may need to reconnect for independent logins.</Text>
+    <Text size="2xs" role="secondary">Reload plugins on the destination to make new connector tools available. Some services rotate login tokens, so either agent may need to reconnect for independent logins.</Text>
   </Col>;
 }
 
@@ -71,11 +71,11 @@ function CopyChooser(props: ChooserProps): ReactNode {
   return <Modal title={props.title} open={props.open} onClose={props.onClose}>
     <Col gap={14}>
       {props.results === null ? <>
-        <Text size="md" role="secondary">Choose an agent. Copy includes saved logins, client secrets, tool permissions and settings. You must administer both organizations.</Text>
+        <Text size="2xs" role="secondary">Choose an agent. Copy includes saved logins, client secrets, tool permissions and settings. You must administer both organizations.</Text>
         {props.pending ? <Loading /> : null}
-        {props.error === null ? null : <Text size="md" role="danger">{queryError(props.error, 'Could not load agents.')}</Text>}
+        {props.error === null ? null : <Text size="2xs" role="danger">{queryError(props.error, 'Could not load agents.')}</Text>}
         {props.targets.map((row) => <Button key={`${row.organization}:${row.id}`} color="secondary" dark={dark} label={`${row.name} (${row.organizationName})`} onPress={() => { props.onSelect(row); }} />)}
-        {!props.pending && props.targets.length === 0 ? <Text size="md" role="secondary">No other agent is available in an organization you administer.</Text> : null}
+        {!props.pending && props.targets.length === 0 ? <Text size="2xs" role="secondary">No other agent is available in an organization you administer.</Text> : null}
       </> : <CopyReport results={props.results} connectors={props.connectors} />}
       <Button color="secondary" dark={dark} label={props.results === null ? 'Cancel' : 'Done'} onPress={props.onClose} />
     </Col>

@@ -37,7 +37,7 @@ export function BackLink({ label, href, onPress }: BackLinkProps): ReactNode {
       }}
     >
       <BackIcon size={16} color={palette.sub} />
-      <Text size="lg" role="secondary" numberOfLines={1}>
+      <Text size="xs" role="secondary" numberOfLines={1}>
         {label}
       </Text>
     </a>

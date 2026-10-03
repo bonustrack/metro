@@ -52,7 +52,7 @@ export function AdminAws(): ReactNode {
       </SettingsSection>
       {aws.error === null ? null : (
         <div className="settings-pad">
-          <Text size="md" role="danger">
+          <Text size="2xs" role="danger">
             {queryError(aws.error, 'Could not check the role.')}
           </Text>
         </div>

@@ -40,13 +40,13 @@ export function ListRow({ title, detail, href = '#', onOpen, icon, extra, muted 
         {icon}
         <Col gap={2} flex={1} minWidth={0}>
           <Row gap={8} align="center">
-            <Text size="2xl" weight="semibold" role={muted ? 'secondary' : 'default'} numberOfLines={1} style={SHRINK}>
+            <Text size="md" weight="semibold" role={muted ? 'secondary' : 'default'} numberOfLines={1} style={SHRINK}>
               {title}
             </Text>
             {extra}
           </Row>
           {detail === '' ? null : (
-            <Text size="md" role="secondary" numberOfLines={1}>
+            <Text size="2xs" role="secondary" numberOfLines={1}>
               {detail}
             </Text>
           )}

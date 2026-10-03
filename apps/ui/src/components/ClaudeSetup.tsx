@@ -46,7 +46,7 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
           live.run(() => setClaudeLiveEvents(next === 'on'));
         }}
       />
-      {live.error === null ? null : <Text size="md" role="danger">{live.error}</Text>}
+      {live.error === null ? null : <Text size="2xs" role="danger">{live.error}</Text>}
     </SettingsSection>
   );
 }
@@ -71,7 +71,7 @@ function MemoryRoutine({ on, job }: { on: boolean; job: MemoryJob | null }): Rea
           memory.run(() => setClaudeMemoryRoutine(next === 'on'));
         }}
       />
-      {memory.error === null ? null : <Text size="md" role="danger">{memory.error}</Text>}
+      {memory.error === null ? null : <Text size="2xs" role="danger">{memory.error}</Text>}
     </SettingsSection>
   );
 }
@@ -92,7 +92,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             privacy.run(() => setClaudePrivacy(next === 'on'));
           }}
         />
-        {privacy.error === null ? null : <Text size="md" role="danger">{privacy.error}</Text>}
+        {privacy.error === null ? null : <Text size="2xs" role="danger">{privacy.error}</Text>}
       </SettingsSection>
       <SettingsSection title="Approvals" note={MODE_NOTE}>
         <Choice
@@ -104,7 +104,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             mode.run(() => setClaudePermissionMode(next));
           }}
         />
-        {mode.error === null ? null : <Text size="md" role="danger">{mode.error}</Text>}
+        {mode.error === null ? null : <Text size="2xs" role="danger">{mode.error}</Text>}
       </SettingsSection>
       {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
       {setup.memoryRoutine === null ? null : <MemoryRoutine on={setup.memoryRoutine} job={setup.memoryJob} />}
@@ -144,7 +144,7 @@ const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never as
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const setup = useClaudeSetupQuery();
-  if (setup.error !== null) return <Text size="md" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
+  if (setup.error !== null) return <Text size="2xs" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
   if (setup.data === undefined) return null;
   return (
     <>

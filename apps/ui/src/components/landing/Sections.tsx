@@ -18,7 +18,7 @@ function PartCard({ part, index }: { part: Part; index: number }): ReactNode {
       </div>
       <span className="lp-part-kind">{part.kind}</span>
       <span className="lp-part-title">{part.title}</span>
-      <Text size="2xl" role="secondary">
+      <Text size="md" role="secondary">
         {part.body}
       </Text>
     </div>
@@ -79,7 +79,7 @@ export function Privacy(): ReactNode {
           Privacy
         </span>
         <h2 className="lp-h2">Your AI agent belongs in your hands.</h2>
-        <Text size="2xl" role="secondary">
+        <Text size="md" role="secondary">
           Most AI tools send your conversations through someone else’s cloud. Metro keeps the whole path on a server that belongs to you.
         </Text>
       </div>

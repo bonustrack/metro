@@ -29,7 +29,7 @@ function Extra({ enabled, stale }: { enabled: boolean; stale: boolean }): ReactN
     <>
       {enabled ? null : <Badge label="Not receiving" color="secondary" variant="soft" pill />}
       {stale && enabled ? (
-        <Text size="md" role="danger" numberOfLines={1}>
+        <Text size="2xs" role="danger" numberOfLines={1}>
           not responding
         </Text>
       ) : null}

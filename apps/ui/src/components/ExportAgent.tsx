@@ -91,7 +91,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
   return (
     <Modal title="Export agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="md" role="secondary">{HOW}</Text>
+        <Text size="2xs" role="secondary">{HOW}</Text>
         <Row gap={8} wrap>
           {SECTIONS.map((section) => (
             <Button
@@ -108,9 +108,9 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
           ))}
         </Row>
         <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
-        <Text size="md" role="secondary">{NOTE}</Text>
-        {done === null ? null : <Text size="lg">{`Saved: ${done}`}</Text>}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        <Text size="2xs" role="secondary">{NOTE}</Text>
+        {done === null ? null : <Text size="xs">{`Saved: ${done}`}</Text>}
+        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
         <Row justify="end" gap={8}>
           <Button color="secondary" dark={dark} disabled={busy} onPress={close} label={done === null ? 'Cancel' : 'Done'} />
           <Button size="lg"

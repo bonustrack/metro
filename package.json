@@ -22,14 +22,15 @@
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"
   },
   "devDependencies": {
-    "@stage-labs/config": "0.1.0-beta.2",
+    "@stage-labs/config": "0.1.0-beta.3",
     "@types/bun": "^1.2.0",
     "@types/node": "^22.10.0",
     "eslint": "^10.3.0",
     "knip": "^6.15.0",
     "madge": "^8.0.0",
+    "oxlint": "1.86.0",
+    "oxlint-tsgolint": "7.0.2003",
     "turbo": "^2.5.0",
-    "typescript": "^5",
-    "typescript-eslint": "^8.59.2"
+    "typescript": "^5"
   }
 }

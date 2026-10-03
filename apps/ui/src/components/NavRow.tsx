@@ -46,7 +46,7 @@ export function NavRow({
   const body = (
     <Row {...NAV_ROW_BOX}>
       {icon === undefined ? null : <NavIcon name={icon} color={selected ? palette.link : palette.sub} />}
-      <Text size="2xl" role={selected ? 'link' : 'secondary'} weight={selected ? 'semibold' : 'normal'} numberOfLines={1}>
+      <Text size="md" role={selected ? 'link' : 'secondary'} weight={selected ? 'semibold' : 'normal'} numberOfLines={1}>
         {label}
       </Text>
     </Row>
