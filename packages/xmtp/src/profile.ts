@@ -11,8 +11,8 @@ import {
   type ProfileChange,
 } from '@metro-labs/core/stations/profile';
 import { accountForCall } from './accounts.js';
-import { claimName, nameOf, parseLabel } from './names.js';
-import { sendSponsored, type SmartAccount } from './smart.js';
+import { STAGE_NAMES_PARENT, claimName, nameOf, parseLabel } from './names.js';
+import { sendSponsored, sendSponsoredCalls, type SmartAccount, type SponsoredCall } from './smart.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 
 export const BASENAME_REGISTRY = '0xB94704422c2a1E396835A571837Aa5AE53285a95' as const;
@@ -36,6 +36,7 @@ const RESOLVER_ABI = [
     outputs: [],
   },
   { name: 'multicall', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'data', type: 'bytes[]' }], outputs: [{ name: 'results', type: 'bytes[]' }] },
+  { name: 'setAddr', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'node', type: 'bytes32' }, { name: 'a', type: 'address' }], outputs: [] },
 ] as const;
 
 const REVERSE_ABI = [
@@ -70,9 +71,9 @@ export const encodePrimaryName = (name: string): Hex => encodeFunctionData({ abi
 export const reverseNodeOf = (address: string): Hex =>
   keccak256(encodePacked(['bytes32', 'bytes32'], [BASE_REVERSE_ROOT, keccak256(stringToBytes(address.slice(2).toLowerCase()))]));
 
-async function resolverOf(smart: SmartAccount, node: Hex): Promise<Hex> {
+async function resolverOf(smart: SmartAccount, node: Hex, fallback: Hex = BASENAME_L2_RESOLVER): Promise<Hex> {
   const found: Hex = await smart.publicClient.readContract({ address: BASENAME_REGISTRY, abi: REGISTRY_ABI, functionName: 'resolver', args: [node] });
-  return found === ZERO ? BASENAME_L2_RESOLVER : found;
+  return found === ZERO ? fallback : found;
 }
 
 export async function primaryNameOf(smart: SmartAccount): Promise<string | null> {
@@ -81,12 +82,18 @@ export async function primaryNameOf(smart: SmartAccount): Promise<string | null>
   return found === '' ? null : found;
 }
 
-export async function setPrimaryName(smart: SmartAccount, name: string): Promise<boolean> {
+export function nameSetupCalls(name: string, address: Hex, resolver: Hex): SponsoredCall[] {
+  const setAddr = encodeFunctionData({ abi: RESOLVER_ABI, functionName: 'setAddr', args: [namehash(normalize(name)), address] });
+  return [{ to: resolver, data: setAddr }, { to: BASENAME_REVERSE_REGISTRAR, data: encodePrimaryName(name) }];
+}
+
+export async function setUpName(smart: SmartAccount, name: string): Promise<boolean> {
   try {
-    await sendSponsored(smart, BASENAME_REVERSE_REGISTRAR, encodePrimaryName(name));
+    const resolver = await resolverOf(smart, namehash(normalize(name)), await resolverOf(smart, namehash(STAGE_NAMES_PARENT)));
+    await sendSponsoredCalls(smart, nameSetupCalls(name, smart.address, resolver));
     return true;
   } catch (err) {
-    process.stderr.write(`xmtp: the name ${name} is claimed but not set as the primary name of ${smart.address}: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`xmtp: the name ${name} is claimed but its address and primary name are not set for ${smart.address}: ${err instanceof Error ? err.message : String(err)}\n`);
     return false;
   }
 }
@@ -136,13 +143,13 @@ export async function claimNameAction(id: string, args: Args): Promise<void> {
   const held = await nameOf(address);
   if (held !== null) throw new TrainError('name_held', `this account already holds ${held}`);
   const name = await claimName(parseLabel(args.label), address, (message) => smart.signMessage(message));
-  const primary = await setPrimaryName(smart, name);
+  const primary = await setUpName(smart, name);
   respond(id, { result: { account: accountId, name, primary } });
 }
 
 export async function ensurePrimaryName(smart: SmartAccount, name: string): Promise<boolean> {
   if ((await primaryNameOf(smart)) === name) return true;
-  return setPrimaryName(smart, name);
+  return setUpName(smart, name);
 }
 
 export async function nameAction(id: string, args: Args): Promise<void> {

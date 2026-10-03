@@ -57,13 +57,20 @@ export async function smartAccountFor(privateKey: string, rpc = zerodevRpc()): P
   };
 }
 
-export async function sendSponsored(smart: SmartAccount, to: Hex, data: Hex): Promise<Hex> {
+export interface SponsoredCall {
+  to: Hex;
+  data: Hex;
+}
+
+export async function sendSponsoredCalls(smart: SmartAccount, calls: SponsoredCall[]): Promise<Hex> {
   const client = smart.client();
-  const hash = await client.sendTransaction({ to, data, value: 0n } as Parameters<typeof client.sendTransaction>[0]);
+  const hash = await client.sendTransaction({ calls: calls.map((call) => ({ ...call, value: 0n })) });
   const receipt = await smart.publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error(`the Base transaction ${hash} reverted`);
   return hash;
 }
+
+export const sendSponsored = (smart: SmartAccount, to: Hex, data: Hex): Promise<Hex> => sendSponsoredCalls(smart, [{ to, data }]);
 
 export async function ensureDeployed(smart: SmartAccount): Promise<boolean> {
   if (await smart.deployed()) return false;
