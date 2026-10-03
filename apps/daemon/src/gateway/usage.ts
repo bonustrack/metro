@@ -3,7 +3,7 @@ import { stringOf } from '@metro-labs/http/api-http';
 
 type Key = string;
 
-interface UsageWindow {
+export interface UsageWindow {
   label: string;
   used: number | null;
   resetAt: string | null;
@@ -28,13 +28,31 @@ export interface ProviderUsage {
 export type Reported = Omit<ProviderUsage, 'tally'>;
 
 const latest = new Map<Key, Reported>();
+const stamps = new Map<Key, Map<string, number>>();
 const tallies = new Map<Key, Tally>();
 const probed = new Map<Key, number>();
 const answers = new Map<Key, Reported>();
 
 export const noteUsage = (key: Key, usage: Reported): void => {
   latest.set(key, usage);
+  stamps.set(key, new Map(usage.windows.map((w) => [w.label, Date.parse(usage.at)])));
 };
+
+export function mergeUsage(key: Key, usage: Reported): void {
+  const seen = latest.get(key);
+  const marks = stamps.get(key);
+  if (seen === undefined || marks === undefined) {
+    noteUsage(key, usage);
+    return;
+  }
+  const at = Date.parse(usage.at);
+  const newer = new Map(usage.windows.filter((w) => (marks.get(w.label) ?? Number.NEGATIVE_INFINITY) <= at).map((w) => [w.label, w]));
+  for (const label of newer.keys()) marks.set(label, at);
+  const kept = seen.windows.map((w) => newer.get(w.label) ?? w);
+  const added = [...newer.values()].filter((w) => !seen.windows.some((old) => old.label === w.label));
+  const later = Date.parse(seen.at) <= at;
+  latest.set(key, { windows: [...kept, ...added], note: later ? usage.note : seen.note, at: later ? usage.at : seen.at });
+}
 
 export function usageSeen(): Record<Key, ProviderUsage> {
   const out: Record<Key, ProviderUsage> = {};
@@ -50,17 +68,20 @@ export const usageOf = (key: Key): Reported | undefined => latest.get(key);
 
 export const forgetOne = (key: Key): void => {
   latest.delete(key);
+  stamps.delete(key);
   tallies.delete(key);
   probed.delete(key);
 };
 
 export const forgetReported = (key: Key): void => {
   latest.delete(key);
+  stamps.delete(key);
   probed.delete(key);
 };
 
 export const forgetUsage = (): void => {
   latest.clear();
+  stamps.clear();
   tallies.clear();
   probed.clear();
   answers.clear();
@@ -178,13 +199,15 @@ function anthropicUnified(headers: Headers, now: Date): { windows: UsageWindow[]
   return { windows, note };
 }
 
+export const PER_MINUTE = 'Tokens per minute';
+
 function anthropicKeyed(headers: Headers, now: Date): UsageWindow[] {
   const limit = Number(headers.get('anthropic-ratelimit-tokens-limit'));
   const remaining = Number(headers.get('anthropic-ratelimit-tokens-remaining'));
   if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return [];
   return [
     {
-      label: 'Tokens per minute',
+      label: PER_MINUTE,
       used: clamp(1 - remaining / limit),
       resetAt: whenFrom(headers.get('anthropic-ratelimit-tokens-reset'), now),
       detail: `${remaining.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} left`,
@@ -315,7 +338,9 @@ export function claudeLoginUsage(limits: unknown, now = new Date()): Reported | 
 
 export function noteUsageHeaders(kind: 'anthropic' | 'codex', key: Key, headers: Headers, now = new Date()): void {
   const usage = kind === 'anthropic' ? anthropicUsage(headers, now) : codexUsage(headers, now);
-  if (usage !== null) noteUsage(key, usage);
+  if (usage === null) return;
+  if (kind === 'anthropic') mergeUsage(key, usage);
+  else noteUsage(key, usage);
 }
 
 const dollars = (value: number): string => `$${value.toFixed(2)}`;

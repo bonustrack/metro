@@ -1,6 +1,6 @@
 import { filled, isRecord, str } from './read.js';
 import { call } from './client.js';
-import { toUsage, type Usage } from './usage.js';
+import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'gemini';
@@ -55,6 +55,24 @@ export interface ConnectionRow {
   plan: string | null;
 }
 
+export interface Fallback {
+  connection: string;
+  model: string;
+}
+
+export interface Hold {
+  reason: string;
+  until: string | null;
+}
+
+export const holdLine = (hold: Hold): string => (hold.until === null ? hold.reason : `${hold.reason}, ${untilLabel(hold.until)}`);
+
+export interface ChainRow extends Fallback {
+  used: number | null;
+  hold: Hold | null;
+  active: boolean;
+}
+
 export interface ModelSettings {
   route: string;
   ready: boolean;
@@ -62,6 +80,8 @@ export interface ModelSettings {
   lastServed: Served | null;
   usage: Usage;
   connections: ConnectionRow[];
+  fallbacks: Fallback[] | null;
+  chain: ChainRow[];
 }
 
 export interface ConnectionPatch {
@@ -99,6 +119,23 @@ function toConnection(raw: unknown): ConnectionRow | null {
   };
 }
 
+function toFallback(raw: unknown): Fallback | null {
+  if (!isRecord(raw)) return null;
+  const fallback = { connection: str(raw.connection), model: str(raw.model) };
+  return fallback.connection === '' || fallback.model === '' ? null : fallback;
+}
+
+function toHold(raw: unknown): Hold | null {
+  if (!isRecord(raw) || typeof raw.reason !== 'string') return null;
+  return { reason: raw.reason, until: filled(raw.until) };
+}
+
+function toChainRow(raw: unknown): ChainRow | null {
+  if (!isRecord(raw)) return null;
+  const used = typeof raw.used === 'number' && Number.isFinite(raw.used) ? Math.min(1, Math.max(0, raw.used)) : null;
+  return { connection: str(raw.connection), model: str(raw.model), used, hold: toHold(raw.hold), active: raw.active === true };
+}
+
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || !Array.isArray(body.connections)) throw unexpected();
   return {
@@ -108,6 +145,8 @@ export function toModelSettings(body: unknown): ModelSettings {
     lastServed: toServed(body.lastServed),
     usage: toUsage(body.usage),
     connections: body.connections.flatMap((c: unknown) => toConnection(c) ?? []),
+    fallbacks: Array.isArray(body.fallbacks) ? body.fallbacks.flatMap((f: unknown) => toFallback(f) ?? []) : null,
+    chain: Array.isArray(body.chain) ? body.chain.flatMap((r: unknown) => toChainRow(r) ?? []) : [],
   };
 }
 
@@ -138,6 +177,10 @@ export async function addConnection(patch: ConnectionPatch): Promise<ModelSettin
 
 export async function saveConnection(id: string, patch: ConnectionPatch): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'PUT', base: modelUrl(), path: `/connections/${id}`, headers: json, body: JSON.stringify(patch) }));
+}
+
+export async function saveFallbacks(fallbacks: Fallback[]): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'PUT', base: modelUrl(), path: '/fallbacks', headers: json, body: JSON.stringify({ fallbacks }) }));
 }
 
 export async function dropConnection(id: string): Promise<ModelSettings> {

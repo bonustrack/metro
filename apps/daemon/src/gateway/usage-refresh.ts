@@ -3,8 +3,8 @@ import { readClaudeUsage } from '../claude/usage-probe.js';
 import { codexUsageNow, sharedCodexState } from './codex.js';
 import { openrouterKey } from './openrouter.js';
 import { lastServed } from './served.js';
-import { claudeLoginUsage, geminiUsage, keepProbeAnswer, mayProbe, noteUsage, openrouterUsage, probeAnswer, usageOf, type Reported } from './usage.js';
-import { PASSTHROUGH_ID, routedConnection, type Connection, type ModelConfig } from './model-config.js';
+import { claudeLoginUsage, geminiUsage, keepProbeAnswer, mayProbe, mergeUsage, noteUsage, openrouterUsage, probeAnswer, usageOf } from './usage.js';
+import { PASSTHROUGH_ID, readModelConfig, routedConnection, writeModelConfig, type Connection, type ModelConfig } from './model-config.js';
 import { codexDepsFor, geminiModelsOf } from './model-signin.js';
 import { CREDITS_TTL_MS, type ModelApiDeps, type Store } from './model-store.js';
 
@@ -41,14 +41,15 @@ async function refreshCodex(conn: Connection, deps: ModelApiDeps, store: Store, 
   });
 }
 
-const modelsInUse = (conn: Connection): Set<string> => {
+const modelsInUse = (conn: Connection, cfg: ModelConfig): Set<string> => {
   const served = lastServed();
-  return new Set([conn.model, served?.connection === conn.id ? served.model : ''].filter((m) => m !== ''));
+  const fallbacks = (cfg.fallbacks ?? []).filter((f) => f.connection === conn.id).map((f) => f.model);
+  return new Set([conn.model, served?.connection === conn.id ? served.model : '', ...fallbacks].filter((m) => m !== ''));
 };
 
 async function refreshQuota(conn: Connection, deps: ModelApiDeps, store: Store, now: number): Promise<void> {
   if (conn.gemini === null) return;
-  const inUse = modelsInUse(conn);
+  const inUse = modelsInUse(conn, store.read());
   const seen = usageOf(conn.id);
   const covers = seen !== undefined && [...inUse].every((id) => seen.windows.some((w) => w.label === id));
   if (seen !== undefined && covers && now - Date.parse(seen.at) < CREDITS_TTL_MS) return;
@@ -64,11 +65,11 @@ const loginIds = (cfg: ModelConfig): string[] => [
   ...cfg.connections.filter((c) => c.provider === 'anthropic' && c.apiKey === '').map((c) => c.id),
 ];
 
-const olderThan = (seen: Reported | undefined, usage: Reported): boolean => seen === undefined || Date.parse(seen.at) < Date.parse(usage.at);
+const hasFallbacks = (cfg: ModelConfig): boolean => (cfg.fallbacks ?? []).length > 0;
 
 async function refreshLogin(cfg: ModelConfig, deps: ModelApiDeps, now: number): Promise<void> {
-  const stale = loginIds(cfg).filter((id) => !fresh(id, now));
-  if (stale.length === 0) return;
+  const ids = loginIds(cfg);
+  if (!ids.some((id) => !fresh(id, now)) && !(hasFallbacks(cfg) && ids.length > 0)) return;
   if (mayProbe(LOGIN_PROBE, now, CREDITS_TTL_MS))
     await probe('usage of the Claude Code login', async () => {
       const usage = claudeLoginUsage(await (deps.claudeUsage ?? readClaudeUsage)(), new Date(now));
@@ -76,7 +77,7 @@ async function refreshLogin(cfg: ModelConfig, deps: ModelApiDeps, now: number): 
     });
   const usage = probeAnswer(LOGIN_PROBE);
   if (usage === undefined || now - Date.parse(usage.at) >= CREDITS_TTL_MS) return;
-  for (const id of stale) if (olderThan(usageOf(id), usage)) noteUsage(id, usage);
+  for (const id of ids) mergeUsage(id, usage);
 }
 
 function refreshOne(conn: Connection, deps: ModelApiDeps, store: Store, now: number): Promise<void> {
@@ -99,4 +100,15 @@ export async function refreshUsage(deps: ModelApiDeps, store: Store, now = Date.
   const cfg = store.read();
   const work = Promise.all([...cfg.connections.map((conn) => refreshOne(conn, deps, store, now)), refreshLogin(cfg, deps, now)]);
   await within(deps.usageWaitMs ?? WAIT_MS, work);
+}
+
+export function watchFallbackUsage(deps: ModelApiDeps = {}, every = CREDITS_TTL_MS): void {
+  const store: Store = { read: deps.read ?? readModelConfig, write: deps.write ?? writeModelConfig };
+  const run = (): void => {
+    if (!hasFallbacks(store.read())) return;
+    refreshUsage(deps, store).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'model-api: could not refresh the usage of the fallback models');
+    });
+  };
+  setInterval(run, every).unref();
 }

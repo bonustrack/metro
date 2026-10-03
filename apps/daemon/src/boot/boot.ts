@@ -54,6 +54,7 @@ import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
+import { watchFallbackUsage } from '../gateway/usage-refresh.js';
 import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } from '../voice/calls.js';
 
 installCrashGuard();
@@ -153,6 +154,7 @@ installBearerSessions(agentsDir(), localOwner);
   startUploadReaper();
   startAttachReaper();
   startCloudWatchPublisher();
+  watchFallbackUsage();
   announceLocalEndpoint();
   tunnel?.start();
   log.info(

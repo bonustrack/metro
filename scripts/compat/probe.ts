@@ -145,6 +145,10 @@ const added = await ok('addConnection', () => model.addConnection({ provider: 'o
 const cid = added?.connections[0]?.id ?? '';
 await ok('saveConnection', () => model.saveConnection(cid, { label: 'Renamed' }));
 await ok('chooseConnection', () => model.chooseConnection(cid));
+if (added?.fallbacks !== null && added !== undefined) {
+  await ok('saveFallbacks', () => model.saveFallbacks([{ connection: cid, model: 'openai/gpt-5.2' }]));
+  await ok('saveFallbacks clear', () => model.saveFallbacks([]));
+}
 
 const url = `http://127.0.0.1:${String(mcp.port)}/mcp`;
 await ok('createConnector', () => conn.createConnector({ name: 'compat', url, header: '', value: '', clientId: '', clientSecret: '' }));

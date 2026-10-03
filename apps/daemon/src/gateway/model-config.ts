@@ -21,10 +21,16 @@ export interface Connection {
   gemini: GeminiTokens | null;
 }
 
+export interface Fallback {
+  connection: string;
+  model: string;
+}
+
 export interface ModelConfig {
   version: 2;
   route: string;
   connections: Connection[];
+  fallbacks?: Fallback[];
 }
 
 export interface Route {
@@ -38,6 +44,7 @@ const MODEL_FILE = 'model.json';
 const MAX_FIELD = 512;
 const MAX_LABEL = 60;
 const MAX_CONNECTIONS = 20;
+const MAX_FALLBACKS = 8;
 const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|gemini):(.+)$/;
 const SMALL_RE = /haiku/i;
 
@@ -102,11 +109,29 @@ function connectionFromDisk(raw: unknown): Connection | null {
   };
 }
 
+function fallbacksOf(raw: unknown, connections: Connection[]): Fallback[] {
+  if (!Array.isArray(raw)) return [];
+  const known = raw.flatMap((f: unknown) => {
+    if (!isRecord(f)) return [];
+    const entry = { connection: text(f.connection), model: text(f.model).slice(0, MAX_FIELD) };
+    return entry.model !== '' && connections.some((c) => c.id === entry.connection) ? [entry] : [];
+  });
+  return known.filter((f, at) => known.findIndex((o) => o.connection === f.connection && o.model === f.model) === at).slice(0, MAX_FALLBACKS);
+}
+
+const withFallbacks = (cfg: ModelConfig, fallbacks: Fallback[]): ModelConfig => ({
+  version: 2,
+  route: cfg.route,
+  connections: cfg.connections,
+  ...(fallbacks.length === 0 ? {} : { fallbacks }),
+});
+
 export function parseModelConfig(raw: unknown): ModelConfig {
   if (!isRecord(raw) || !Array.isArray(raw.connections)) return empty();
   const connections = raw.connections.flatMap((c: unknown) => connectionFromDisk(c) ?? []).slice(0, MAX_CONNECTIONS);
   const route = text(raw.route);
-  return { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
+  const cfg: ModelConfig = { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
+  return withFallbacks(cfg, fallbacksOf(raw.fallbacks, connections));
 }
 
 const needsIds = (raw: unknown): boolean =>
@@ -160,7 +185,7 @@ export function notReady(cfg: ModelConfig, conn = routedConnection(cfg)): string
   return CHECKS[conn.provider].find(([missing]) => missing(conn))?.[1] ?? null;
 }
 
-const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
+export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
 
 const DEFAULTS: Record<Provider, (requested: string, c: Connection) => string> = {
   openrouter: (requested, c) => (requested.includes('/') ? requested : c.model),
@@ -175,6 +200,8 @@ function forProvider(cfg: ModelConfig, provider: Provider): Connection | null {
   if (routed?.provider === provider) return routed;
   return cfg.connections.find((c) => c.provider === provider) ?? null;
 }
+
+export const bareModel = (requested: string): string => PREFIX_RE.exec(requested)?.[2]?.trim() ?? requested;
 
 export function resolveRoute(requested: string, cfg: ModelConfig): Route | null {
   const explicit = PREFIX_RE.exec(requested);
@@ -276,7 +303,24 @@ export function updateConnection(cfg: ModelConfig, id: string, patch: unknown): 
 export function removeConnection(cfg: ModelConfig, id: string): ModelConfig {
   requireConnection(cfg, id);
   const connections = cfg.connections.filter((c) => c.id !== id);
-  return { ...cfg, route: cfg.route === id ? (connections[0]?.id ?? '') : cfg.route, connections };
+  const next = { ...cfg, route: cfg.route === id ? (connections[0]?.id ?? '') : cfg.route, connections };
+  return withFallbacks(next, (cfg.fallbacks ?? []).filter((f) => f.connection !== id));
+}
+
+function fallbackEntry(cfg: ModelConfig, raw: unknown): Fallback {
+  if (!isRecord(raw)) throw new ModelConfigError('each fallback must be an object with a connection and a model');
+  const connection = field(raw, 'connection', '', 'connection');
+  const model = field(raw, 'model', '', 'model');
+  requireConnection(cfg, connection);
+  if (model === '') throw new ModelConfigError('each fallback needs a model');
+  return { connection, model };
+}
+
+export function setFallbacks(cfg: ModelConfig, raw: unknown): ModelConfig {
+  if (!Array.isArray(raw)) throw new ModelConfigError('fallbacks must be a list');
+  if (raw.length > MAX_FALLBACKS) throw new ModelConfigError(`a box keeps at most ${String(MAX_FALLBACKS)} fallbacks`);
+  const entries = raw.map((f: unknown) => fallbackEntry(cfg, f));
+  return withFallbacks(cfg, fallbacksOf(entries, cfg.connections));
 }
 
 export function setRoute(cfg: ModelConfig, id: string): ModelConfig {

@@ -14,11 +14,11 @@ const LOGO_SIZE = 28;
 
 const LOW = 0.9;
 
-export function useModelName(conn: ConnectionRow | undefined): string {
+export function useModelName(conn: ConnectionRow | undefined, model = conn?.model ?? ''): string {
   const models = useConnectionModelsQuery(conn);
-  if (conn === undefined || conn.model === '') return DEFAULT_MODEL;
-  const found = models.data?.find((option) => option.id === conn.model);
-  if (found === undefined || found.name === '') return conn.model;
+  if (conn === undefined || model === '') return DEFAULT_MODEL;
+  const found = models.data?.find((option) => option.id === model);
+  if (found === undefined || found.name === '') return model;
   const cut = found.name.indexOf(': ');
   return cut === -1 ? found.name : found.name.slice(cut + 2);
 }

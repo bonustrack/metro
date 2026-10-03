@@ -455,6 +455,11 @@ textarea:focus-visible {
   height: 40px;
 }
 
+.kebab:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .kebab:hover {
   background: var(--metro-surface);
 }

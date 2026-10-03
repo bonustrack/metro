@@ -8,6 +8,7 @@ import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { ProviderRow } from './ProviderCard.js';
 import { CurrentModel } from './CurrentModel.js';
+import { FallbackModels } from './FallbackModels.js';
 import { SettingsGroup } from './SettingsSection.js';
 import { ProviderModal, type Editing } from './ProviderModal.js';
 import { ConnectProviderModal } from './ConnectProviderModal.js';
@@ -57,6 +58,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
   return (
     <Col gap={32}>
       <CurrentModel settings={settings} onChange={() => { setPicking(true); }} />
+      <FallbackModels settings={settings} />
       <SettingsGroup title="Providers" action={<Button size="md" dark={dark} label="Add provider" onPress={() => { setConnecting(true); }} />}>
         {settings.connections.length === 0 ? (
           <div className="settings-row">

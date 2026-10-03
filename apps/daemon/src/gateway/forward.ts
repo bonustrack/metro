@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, OutgoingHttpHeader, OutgoingHttpHeaders, ServerResponse } from 'node:http';
 import { UsageScanner } from './usage.js';
 
 export class GatewayError extends Error {
@@ -234,4 +234,42 @@ export function upstreamMessage(text: string, fallback: string): string {
   } catch {
     return text;
   }
+}
+
+const LIMIT_STATUSES = new Set([402, 429]);
+
+export interface Refusal {
+  status: number;
+  headers: Headers;
+}
+
+export interface Held {
+  res: ServerResponse;
+  refusal: () => Refusal | null;
+}
+
+function headersOf(raw: OutgoingHttpHeaders | OutgoingHttpHeader[] | undefined): Headers {
+  const out = new Headers();
+  if (raw === undefined || Array.isArray(raw)) return out;
+  for (const [name, value] of Object.entries(raw)) if (value !== undefined) out.set(name, Array.isArray(value) ? value.join(', ') : String(value));
+  return out;
+}
+
+export function holdLimitRefusal(res: ServerResponse): Held {
+  let refusal: Refusal | null = null;
+  const swallow = (): boolean => true;
+  const held: ServerResponse = new Proxy(res, {
+    get(target, prop) {
+      if (prop === 'writeHead')
+        return (status: number, headers?: OutgoingHttpHeaders | OutgoingHttpHeader[]): ServerResponse => {
+          if (!LIMIT_STATUSES.has(status)) return target.writeHead(status, headers);
+          refusal = { status, headers: headersOf(headers) };
+          return held;
+        };
+      if (refusal !== null && (prop === 'write' || prop === 'end')) return swallow;
+      const value: unknown = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+  return { res: held, refusal: () => refusal };
 }

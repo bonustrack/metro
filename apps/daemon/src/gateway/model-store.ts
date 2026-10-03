@@ -5,6 +5,7 @@ import { GeminiAuthError } from './gemini-auth.js';
 import { GatewayError } from './forward.js';
 import { lastServed } from './served.js';
 import { usageSeen } from './usage.js';
+import { chainStatus } from './fallback.js';
 import { ModelConfigError, connectionOf, publicModelConfig, routedConnection, type Connection, type ModelConfig, type Provider } from './model-config.js';
 import type { SetupDeps } from '../claude/setup.js';
 
@@ -45,6 +46,8 @@ export const CREDITS_TTL_MS = 5 * 60_000;
 
 export const settingsBody = (cfg: ModelConfig): Record<string, unknown> => ({
   ...publicModelConfig(cfg),
+  fallbacks: cfg.fallbacks ?? [],
+  chain: chainStatus(cfg),
   lastServed: lastServed(),
   usage: usageSeen(),
 });

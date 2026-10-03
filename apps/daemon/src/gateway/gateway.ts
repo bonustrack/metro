@@ -10,7 +10,8 @@ import {
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
-import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, parseJson, pipeResponse, readBody, sendError, upstreamMessage, watchUpstream } from './forward.js';
+import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, holdLimitRefusal, parseJson, pipeResponse, readBody, sendError, upstreamMessage, watchUpstream } from './forward.js';
+import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry } from './fallback.js';
 import {
   BINDING_BETA,
   cappedEffort,
@@ -58,6 +59,7 @@ const learned: Adaptations = freshAdaptations();
 
 export function resetGatewayState(): void {
   forgetServed();
+  forgetFallbackState();
   forgetUsage();
   learned.fields.clear();
   learned.dropBetas = false;
@@ -237,13 +239,17 @@ function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<
 
 const bytesOf = (raw: Buffer, parsed: Record<string, unknown>, sent: Record<string, unknown>): Buffer => (sent === parsed ? raw : Buffer.from(JSON.stringify(sent)));
 
-async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
-  const cfg = deps.config();
-  const raw = await readBody(req);
-  const parsed = parseJson(raw);
-  const sent = fitToolSearch(req, parsed);
-  const route = resolveRoute(requestedModel(sent), cfg) ?? passthrough(sent);
-  const body = shapedFor(req, sent);
+interface Request {
+  path: string;
+  raw: Buffer;
+  parsed: Record<string, unknown>;
+  sent: Record<string, unknown>;
+  body: Record<string, unknown>;
+  cfg: ModelConfig;
+}
+
+async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: GatewayDeps): Promise<void> {
+  const { path, body } = ask;
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
@@ -256,14 +262,38 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   }
   if (conn.provider === 'openrouter') {
     if (path === COUNT) throw new GatewayError(404, 'not_found_error', 'OpenRouter does not count tokens');
-    await toOpenRouter(req, res, body, route, cfg, deps);
+    await toOpenRouter(req, res, body, route, ask.cfg, deps);
     return;
   }
   if (conn.provider === 'codex' || conn.provider === 'gemini') {
     await toSubscription(req, res, path, body, route, deps);
     return;
   }
-  await toAnthropic(req, res, bytesOf(raw, parsed, sent), sent, body, route, deps);
+  await toAnthropic(req, res, bytesOf(ask.raw, ask.parsed, ask.sent), ask.sent, body, route, deps);
+}
+
+async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
+  const cfg = deps.config();
+  const raw = await readBody(req);
+  const parsed = parseJson(raw);
+  const sent = fitToolSearch(req, parsed);
+  const requested = requestedModel(sent);
+  const primary = resolveRoute(requested, cfg) ?? passthrough(sent);
+  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent), cfg };
+  const routes = routesToTry(chainOf(primary, cfg, requested));
+  for (const [at, route] of routes.entries()) {
+    const next = routes[at + 1];
+    if (path === MESSAGES) noteChoice(primary, route);
+    if (next === undefined) {
+      await attempt(req, res, ask, route, deps);
+      return;
+    }
+    const held = holdLimitRefusal(res);
+    await attempt(req, held.res, ask, route, deps);
+    const refusal = held.refusal();
+    if (refusal === null) return;
+    noteRefused(route, refusal.status, refusal.headers, next);
+  }
 }
 
 function failed(res: ServerResponse, err: unknown): void {

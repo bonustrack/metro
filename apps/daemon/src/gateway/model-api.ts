@@ -14,6 +14,7 @@ import {
   parseModelConfig,
   readModelConfig,
   removeConnection,
+  setFallbacks,
   setRoute,
   updateConnection,
   writeModelConfig,
@@ -25,6 +26,7 @@ import { refreshUsage } from './usage-refresh.js';
 
 const PATH = '/api/model';
 const CONNECTIONS = '/api/model/connections';
+const FALLBACKS = '/api/model/fallbacks';
 const CODEX = '/api/model/codex/';
 const GEMINI = '/api/model/gemini/';
 const OPENROUTER = '/api/model/openrouter/';
@@ -67,6 +69,11 @@ async function withBody(req: IncomingMessage, run: (body: Record<string, unknown
 async function chooseRoute(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
   const next = await withBody(req, (body) => setRoute(store.read(), typeof body.route === 'string' ? body.route : ''));
   return kept(store, next, deps, 'model-api: route changed', { route: next.route });
+}
+
+async function chooseFallbacks(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
+  const next = await withBody(req, (body) => setFallbacks(store.read(), body.fallbacks));
+  return kept(store, next, deps, 'model-api: fallback models changed', { fallbacks: (next.fallbacks ?? []).map((f) => `${f.connection}:${f.model}`) });
 }
 
 async function create(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
@@ -133,7 +140,8 @@ function bundleRoute(path: string, method: string | undefined): Route | number {
   return method === 'POST' ? { method: 'POST', run: (req, deps, store) => restore(req, store, deps) } : 405;
 }
 
-function settingsRoute(method: string | undefined): Route | number {
+function settingsRoute(path: string, method: string | undefined): Route | number {
+  if (path === FALLBACKS) return method === 'PUT' ? { method: 'POST', run: chooseFallbacks } : 405;
   if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(deps, store) };
   if (method === 'PUT') return { method: 'POST', run: chooseRoute };
   return 405;
@@ -155,26 +163,23 @@ function codexRoute(rest: string, method: string | undefined): Route | number {
   return codexDeviceRoute(id, method);
 }
 
-const mine = (path: string): boolean =>
-  path === PATH ||
-  path === BUNDLE ||
-  path === RESTORE ||
-  path === CONNECTIONS ||
-  path.startsWith(`${CONNECTIONS}/`) ||
-  path.startsWith(CODEX) ||
-  path.startsWith(GEMINI) ||
-  path.startsWith(OPENROUTER) ||
-  path.startsWith(ANTHROPIC) ||
-  path.startsWith(BEDROCK);
+const TABLES: [string, Record<string, Route>][] = [
+  [OPENROUTER, OPENROUTER_ROUTES],
+  [ANTHROPIC, ANTHROPIC_ROUTES],
+  [BEDROCK, BEDROCK_ROUTES],
+  [GEMINI, GEMINI_ROUTES],
+];
+const EXACT = new Set([PATH, FALLBACKS, BUNDLE, RESTORE, CONNECTIONS]);
+const PREFIXES = [`${CONNECTIONS}/`, CODEX, ...TABLES.map(([prefix]) => prefix)];
+
+const mine = (path: string): boolean => EXACT.has(path) || PREFIXES.some((prefix) => path.startsWith(prefix));
 
 function routeFor(path: string, method: string | undefined): Route | number {
-  if (path === PATH) return settingsRoute(method);
+  if (path === PATH || path === FALLBACKS) return settingsRoute(path, method);
   if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
   if (path === CONNECTIONS || path.startsWith(`${CONNECTIONS}/`)) return connectionsRoute(path, method);
-  if (path.startsWith(OPENROUTER)) return named(OPENROUTER_ROUTES, path.slice(OPENROUTER.length), method);
-  if (path.startsWith(ANTHROPIC)) return named(ANTHROPIC_ROUTES, path.slice(ANTHROPIC.length), method);
-  if (path.startsWith(BEDROCK)) return named(BEDROCK_ROUTES, path.slice(BEDROCK.length), method);
-  if (path.startsWith(GEMINI)) return named(GEMINI_ROUTES, path.slice(GEMINI.length), method);
+  const table = TABLES.find(([prefix]) => path.startsWith(prefix));
+  if (table !== undefined) return named(table[1], path.slice(table[0].length), method);
   return codexRoute(path.slice(CODEX.length), method);
 }
 
