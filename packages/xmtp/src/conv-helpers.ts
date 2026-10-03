@@ -4,6 +4,7 @@ import { inboxEthCache, cacheInboxEth } from './wire.js';
 import { TrainError } from '@metro-labs/core/train-error';
 import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import { readAppData, readAppDataObject, type GroupLike } from './labels.js';
+import { network, syncConversation } from './network.js';
 
 export { parseMemberArgs, resolveMembers } from './member-args.js';
 
@@ -67,7 +68,9 @@ export async function resolveAddresses(
         cacheInboxEth(key, eth.identifier);
       }
     }
-  } catch {
+  } catch (error) {
+    network.note(error);
+    if (network.remaining() > 0) throw error;
     return addresses;
   }
   return addresses;
@@ -78,11 +81,12 @@ export async function buildGroupInfo(
   acct: Account,
   conv: Conv,
 ): Promise<Record<string, unknown>> {
-  await conv.sync();
+  await syncConversation(acct.client, conv);
   const rawAppData = (conv as unknown as GroupLike).appData ?? '';
   const appData = readAppDataObject(rawAppData);
-  const inboxIds = (await conv.members()).map((m) => m.inboxId);
-  const addresses = await resolveAddresses(acct, inboxIds);
+  const members = await conv.members();
+  const inboxIds = members.map((m) => m.inboxId);
+  const addresses = memberAddresses(members);
   const isDm =
     typeof (conv as unknown as { peerInboxId?: unknown }).peerInboxId ===
     'function';
@@ -114,6 +118,16 @@ export async function buildGroupInfo(
 interface RawMember {
   inboxId: string;
   permissionLevel?: number;
+  accountIdentifiers?: EthId[];
+}
+
+function memberAddresses(members: RawMember[]): Record<string, string> {
+  const addresses: Record<string, string> = {};
+  for (const member of members) {
+    const eth = member.accountIdentifiers?.find((id) => id.identifierKind === IdentifierKind.Ethereum);
+    if (eth) addresses[member.inboxId] = eth.identifier;
+  }
+  return addresses;
 }
 
 function toMetroMember(
@@ -128,15 +142,9 @@ function toMetroMember(
   return member;
 }
 
-export async function buildMemberList(
-  acct: Account,
-  conv: Conv,
-): Promise<MemberList> {
-  const raw = (await conv.members()) as RawMember[];
-  const addresses = await resolveAddresses(
-    acct,
-    raw.map((m) => m.inboxId),
-  );
+export async function buildMemberList(conv: Conv): Promise<MemberList> {
+  const raw = await conv.members();
+  const addresses = memberAddresses(raw);
   return {
     members: raw.map((m) => toMetroMember(m, addresses)),
     capability: { supported: true, complete: true, total: raw.length },
@@ -199,7 +207,7 @@ export async function applyMemberOp(
       'INVALID_ARGS',
       `${verb} target is not a group (no ${verb})`,
     );
-  await group.sync?.().catch(() => undefined);
+  await group.sync?.();
   await applyByIdentifiers(group, byIdent, addrs, verb);
   await applyByInboxId(group, byId, inboxes, verb);
 }

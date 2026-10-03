@@ -16,6 +16,7 @@ import {
 import { updateChannelMeta } from './actions-meta.js';
 import { deletedByRequests, isDeleteRequest, superAdminCheck } from './delete-requests.js';
 import { isCallSignal } from './codecs.js';
+import { syncConversation } from './network.js';
 
 type Args = Record<string, unknown>;
 type Handler = (id: string, args: Args) => Promise<void>;
@@ -61,7 +62,7 @@ async function read(id: string, args: Args): Promise<void> {
   if (!conv)
     throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
   const lim = Math.min(Math.max(1, limit ?? 20), 200);
-  await conv.sync().catch(() => undefined);
+  await syncConversation(acct.client, conv);
   const all = await conv.messages();
   const deleted = deletedByRequests(all, superAdminCheck(conv));
   const slice = upTo(all.filter((m) => !isDeleteRequest(m) && !isCallSignal(m)), before).slice(-lim);
@@ -89,10 +90,10 @@ async function groupInfo(id: string, args: Args): Promise<void> {
 
 async function listMembers(id: string, args: Args): Promise<void> {
   const { line } = args as { line: string };
-  const { acct, conv } = await convOf(line);
+  const { conv } = await convOf(line);
   if (!conv)
     throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
-  respond(id, { result: await buildMemberList(acct, conv) });
+  respond(id, { result: await buildMemberList(conv) });
 }
 
 export const convHandlers: Record<string, Handler> = {

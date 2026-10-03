@@ -16,6 +16,7 @@ import { emitOutbound } from './emit.js';
 import { CallSignalCodec, FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
 import { buildFrameContent } from './frames.js';
 import { buildWalletContent } from './wallet.js';
+import { network } from './network.js';
 import { callLeftovers } from './call-leftovers.js';
 import { convHandlers } from './actions-conv.js';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
@@ -253,6 +254,11 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
 export type { CallMsg };
 
 export const handleCall = makeStation({
-  handlers,
+  handlers: Object.fromEntries(Object.entries(handlers).map(([action, handler]) => [
+    action,
+    action === 'accounts' || action === 'callLeftovers'
+      ? handler
+      : (id: string, args: Args) => network.run(() => handler(id, args)),
+  ])),
   normalize: messagingAliases({ action: 'removed' }),
 });
