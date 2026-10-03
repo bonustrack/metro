@@ -1,5 +1,5 @@
 import { errMsg } from '@metro-labs/core/log';
-import { ConsentState, type DecodedMessage } from '@xmtp/node-sdk';
+import type { DecodedMessage } from '@xmtp/node-sdk';
 import {
   accounts,
   bootAccount,
@@ -13,10 +13,10 @@ import { groupNameFor } from './conv-helpers.js';
 import { senderFieldsNow } from './sender.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
+import { streamMessages } from './stream.js';
 
 readCalls('xmtp', handleCall);
 
-const SYNC_MS = Number(process.env.XMTP_SYNC_MS ?? '60000');
 const SILENT_TYPES = new Set([
   'readReceipt',
   'transactionReference',
@@ -25,35 +25,6 @@ const SILENT_TYPES = new Set([
   'group_updated',
   'deleteRequest',
 ]);
-
-async function bootSync(acct: Account): Promise<void> {
-  const { id } = acct.cfg;
-  try {
-    await acct.client.conversations.syncAll([
-      ConsentState.Allowed,
-      ConsentState.Unknown,
-    ]);
-    const initial = await acct.client.conversations.list();
-    process.stderr.write(
-      `xmtp[${id}]: synced ${initial.length} conversation(s) at boot\n`,
-    );
-  } catch (err) {
-    process.stderr.write(
-      `xmtp[${id}] boot sync error: ${errMsg(err)}\n`,
-    );
-  }
-}
-
-function startPeriodicSync(acct: Account): void {
-  const { id } = acct.cfg;
-  setInterval(() => {
-    acct.client.conversations
-      .syncAll([ConsentState.Allowed, ConsentState.Unknown])
-      .catch((err: unknown) => {
-        process.stderr.write(`xmtp[${id}] sync error: ${errMsg(err)}\n`);
-      });
-  }, SYNC_MS).unref();
-}
 
 async function handleStreamMessage(
   acct: Account,
@@ -74,28 +45,12 @@ async function handleStreamMessage(
 }
 
 async function runAccount(acct: Account): Promise<void> {
-  const { id } = acct.cfg;
-  await bootSync(acct);
-  startPeriodicSync(acct);
-
-  for (;;) {
-    try {
-      const stream = await acct.client.conversations.streamAllMessages({
-        consentStates: [ConsentState.Allowed, ConsentState.Unknown],
-      });
-      for await (const msg of stream) {
-        if (!msg) continue;
-        await handleStreamMessage(acct, msg).catch((err: unknown) => {
-          process.stderr.write(`xmtp[${id}] one message failed and was skipped: ${errMsg(err)}\n`);
-        });
-      }
-    } catch (err) {
-      process.stderr.write(
-        `xmtp[${id}] stream error (retry 5s): ${errMsg(err)}\n`,
-      );
-    }
-    await new Promise((r) => setTimeout(r, 5000));
-  }
+  await streamMessages(acct.client.conversations, async (msg) => {
+    if (!msg) return;
+    await handleStreamMessage(acct, msg).catch((err: unknown) => {
+      process.stderr.write(`xmtp[${acct.cfg.id}] one message failed and was skipped: ${errMsg(err)}\n`);
+    });
+  });
 }
 
 const cfgs = loadAccounts();

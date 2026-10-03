@@ -3,6 +3,7 @@ import { respond } from '@metro-labs/core/stations/station-runtime';
 import { ethIdentifiers, warmGroupName } from './conv-helpers.js';
 import { mergeAppData, normalizeAssigned, readAppDataObject, type GroupLike } from './labels.js';
 import { TrainError } from '@metro-labs/core/train-error';
+import { syncConversation } from './network.js';
 
 type Args = Record<string, unknown>;
 
@@ -73,7 +74,7 @@ async function applyChannelMeta(
       `${verb} target is not a group (no updateAppData)`,
     );
   }
-  await conv.sync();
+  await syncConversation(acct.client, conv);
   if (appData) mergeAppData(group.appData, appData);
   else readAppDataObject(group.appData);
   if (appData && Object.hasOwn(appData, 'assigned')) {
