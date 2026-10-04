@@ -22,6 +22,10 @@ export default defineConfig({
         includeEntryExports: true,
       },
     },
+    'apps/bundler': {
+      type: 'worker',
+      knip: { entry: ['src/index.ts', 'test/**/*.ts'] },
+    },
     'apps/api': {
       type: 'library',
       knip: {

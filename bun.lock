@@ -87,6 +87,10 @@
         "babel-preset-expo": "57.0.13",
       },
     },
+    "apps/bundler": {
+      "name": "@metro-labs/bundler",
+      "version": "0.1.0",
+    },
     "apps/daemon": {
       "name": "@metro-labs/daemon",
       "version": "0.1.0-beta.15",
@@ -751,6 +755,8 @@
     "@metro-labs/api": ["@metro-labs/api@workspace:apps/api"],
 
     "@metro-labs/app": ["@metro-labs/app@workspace:apps/app"],
+
+    "@metro-labs/bundler": ["@metro-labs/bundler@workspace:apps/bundler"],
 
     "@metro-labs/client": ["@metro-labs/client@workspace:packages/client"],
 

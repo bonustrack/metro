@@ -2,10 +2,12 @@ name: App preview
 
 # Per-branch JS preview of apps/app for the Metro dev client, the way Stage's
 # pr-preview.yml works: every push publishes the Android JS bundle as an EAS
-# Update on the branch's own channel and writes a dev-client deep link and a
-# QR code to the job summary. A pull request also gets a clickable "App
-# preview" status. A native change still needs a new dev APK
-# (app-dev-client.yml); the summary warns when the runtime moved.
+# Update on the branch's own channel, so https://bundler.metro.box/<branch>
+# (apps/bundler) loads it in the dev client, and writes that link, the
+# commit's own deep link and a QR code to the job summary. The commit gets a
+# clickable "App preview" status pointing at the branch link. A native change
+# still needs a new dev APK (app-dev-client.yml); the summary warns when the
+# runtime moved.
 #
 # Needs the EXPO_TOKEN secret and the EAS project id in apps/app/app.config.js.
 
@@ -96,6 +98,7 @@ jobs:
           SHORT_SHA="$(git rev-parse --short HEAD)"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "preview_url=https://bundler.metro.box/$(node -e "process.stdout.write(process.argv[1].split('/').map(encodeURIComponent).join('/'))" "$RAW_BRANCH")" >> "$GITHUB_OUTPUT"
           bunx expo export --platform android --no-minify --no-bytecode --output-dir dist-update
           BUNDLE="$(find dist-update -name '*.js' | grep -E '/_expo/static/js/android/' | head -n1)"
           [ -n "$BUNDLE" ] || { echo "::error::expo export produced no Android bundle"; exit 1; }
@@ -111,6 +114,7 @@ jobs:
           MANIFEST: ${{ steps.update.outputs.manifest }}
           DEEPLINK: ${{ steps.update.outputs.deeplink }}
           SHORT_SHA: ${{ steps.update.outputs.short_sha }}
+          PREVIEW_URL: ${{ steps.update.outputs.preview_url }}
         run: |
           set -euo pipefail
           enc() { node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$1"; }
@@ -123,7 +127,9 @@ jobs:
               echo "> This push changed the native runtime. A new dev-client APK is needed (App dev client APK workflow)."
               echo ""
             fi
-            echo "Open on the phone that has the Metro dev client:"
+            echo "Open on the phone that has the Metro dev client (the latest preview of this branch): $PREVIEW_URL"
+            echo ""
+            echo "This commit only:"
             echo ""
             echo "\`$DEEPLINK\`"
             echo ""
@@ -133,9 +139,10 @@ jobs:
       - name: Publish the clickable status
         if: steps.ready.outputs.ready == 'true'
         uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.update.outputs.preview_url }}
         with:
           script: |
-            const manifest = `${{ steps.update.outputs.manifest }}`;
             const native = `${{ steps.native.outputs.native }}` === 'true';
             const shortSha = `${{ steps.update.outputs.short_sha }}`;
             await github.rest.repos.createCommitStatus({
@@ -144,7 +151,7 @@ jobs:
               sha: context.sha,
               state: 'success',
               context: 'App preview',
-              target_url: 'https://metro.box/preview-launcher.html?u=' + encodeURIComponent(manifest),
+              target_url: process.env.PREVIEW_URL,
               description: native ? `Preview ${shortSha} (native changed, new APK needed)` : `Open the dev-client preview of ${shortSha}`,
             });
 

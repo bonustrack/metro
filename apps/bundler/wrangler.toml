@@ -1,0 +1,13 @@
+name = "metro-bundler"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# bundler.metro.box/<branch>: the dev client gets that branch's latest EAS
+# Update manifest (channel = the branch name, escaped like
+# scripts/app/channel-key.mjs), a browser gets the preview launcher
+# (apps/app/public/preview-launcher.html, bundled in as text). The Worker
+# answers everything itself, so the DNS record in the metro.box zone only has
+# to be proxied: AAAA bundler 100:: (orange cloud).
+routes = [
+  { pattern = "bundler.metro.box/*", zone_name = "metro.box" },
+]

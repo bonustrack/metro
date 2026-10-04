@@ -1,0 +1,10 @@
+{
+  "name": "@metro-labs/bundler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "bundler.metro.box: a Cloudflare Worker that hands the Metro dev client the latest EAS Update of a branch at https://bundler.metro.box/<branch>, and sends a browser to the preview launcher.",
+  "type": "module",
+  "scripts": {
+    "test": "bun test test/"
+  }
+}
