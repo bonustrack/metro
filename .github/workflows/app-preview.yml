@@ -57,6 +57,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "project_id=$ID" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Detect a native change
@@ -88,6 +89,7 @@ jobs:
           GIT_COMMIT: ${{ github.sha }}
           GIT_COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
           RAW_BRANCH: ${{ github.ref_name }}
+          EAS_PROJECT_ID: ${{ steps.ready.outputs.project_id }}
         run: |
           set -euo pipefail
           BRANCH="$(bun ../../scripts/app/channel-key.mjs "$RAW_BRANCH")"
