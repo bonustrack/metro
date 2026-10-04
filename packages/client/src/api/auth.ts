@@ -35,10 +35,16 @@ export const returnTo = (): string => signInReturnUrl();
 
 export type Intent = 'login' | 'waitlist';
 
-export function loginUrl(provider: Provider, intent: Intent): string {
+export interface AppReturn {
+  returnTo: string;
+  challenge: string;
+}
+
+export function loginUrl(provider: Provider, intent: Intent, app?: AppReturn): string {
   const invitation = pendingInvitation();
   const extra = `${intent === 'waitlist' ? '&intent=waitlist' : ''}${invitation === null ? '' : `&invitation_token=${encodeURIComponent(invitation)}`}`;
-  return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(returnTo())}${extra}`);
+  const back = app === undefined ? '' : `&code_challenge=${encodeURIComponent(app.challenge)}`;
+  return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(app?.returnTo ?? returnTo())}${extra}${back}`);
 }
 
 export async function sendEmailCode(email: string, intent: Intent): Promise<void> {
@@ -53,8 +59,8 @@ export async function verifyEmailCode(email: string, code: string, intent: Inten
   return answer.hash;
 }
 
-export async function exchangeHandoff(code: string): Promise<Account> {
-  const account = accountFrom(await post('/exchange', { code }));
+export async function exchangeHandoff(code: string, verifier?: string): Promise<Account> {
+  const account = accountFrom(await post('/exchange', verifier === undefined ? { code } : { code, verifier }));
   storeAccount(account);
   clearInvitation();
   return account;

@@ -19,6 +19,7 @@ interface Platform {
   location: Location;
   apiBase: string;
   signInReturn: (() => string) | null;
+  random: (count: number) => Uint8Array;
 }
 
 export const HOSTED_API = 'https://api.metro.box';
@@ -78,6 +79,7 @@ const current: Platform = {
   location: browserLocation,
   apiBase: HOSTED_API,
   signInReturn: null,
+  random: (count) => crypto.getRandomValues(new Uint8Array(count)),
 };
 
 export function configurePlatform(changes: Partial<Platform>): void {
@@ -87,6 +89,8 @@ export function configurePlatform(changes: Partial<Platform>): void {
 export const location = (): Location => current.location;
 
 export const apiBase = (): string => current.apiBase;
+
+export const randomBytes = (count: number): Uint8Array => current.random(count);
 
 export function signInReturnUrl(): string {
   if (current.signInReturn !== null) return current.signInReturn();

@@ -6,6 +6,10 @@ export function allowedWebHost(host: string): boolean {
   return PREVIEW.test(host);
 }
 
+export const APP_RETURN = 'metro://auth';
+
+export const isAppReturn = (returnTo: string): boolean => returnTo === APP_RETURN;
+
 export function validateReturnTo(returnTo: string): boolean {
   let url: URL;
   try {

@@ -17,6 +17,7 @@ import { GitHubMark } from './GitHubMark.js';
 import { RouteLink } from './RouteLink.js';
 import { PageScroll } from './PageScroll.js';
 import { goExternal } from '../lib/open.js';
+import { appLogin } from '../lib/app-login.js';
 import { CENTER_TEXT, FULL_WIDTH, webOnly } from '../lib/style.js';
 
 const CONTENT_WIDTH = 340;
@@ -63,6 +64,7 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
 function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const onButton = useKitPalette().text;
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <Col gap={10}>
       {PROVIDERS.map((provider) => (
@@ -76,10 +78,21 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
           icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
           onPress={() => {
-            goExternal(loginUrl(provider, intent));
+            if (WEB) goExternal(loginUrl(provider, intent));
+            else {
+              setFailed(null);
+              appLogin(provider, intent).catch((err: unknown) => {
+                setFailed(err instanceof Error ? err.message : 'The sign-in failed. Try again.');
+              });
+            }
           }}
         />
       ))}
+      {failed === null ? null : (
+        <Text size="xs" role="danger" style={CENTER_TEXT}>
+          {failed}
+        </Text>
+      )}
     </Col>
   );
 }
@@ -184,14 +197,10 @@ export function Login(): ReactNode {
       <Notes failed={refusalText(outcome.refused)} invited={outcome.invited} />
       <Col padding={{ top: 8 }} gap={16}>
         <EmailLogin intent={intent} />
-        {WEB ? (
-          <>
-            <Text size="2xs" role="secondary" style={CENTER_TEXT}>
-              or
-            </Text>
-            <ProviderButtons intent={intent} />
-          </>
-        ) : null}
+        <Text size="2xs" role="secondary" style={CENTER_TEXT}>
+          or
+        </Text>
+        <ProviderButtons intent={intent} />
       </Col>
     </Frame>
   );

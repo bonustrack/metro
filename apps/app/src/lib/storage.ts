@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { deleteItemAsync, getItemAsync, setItemAsync } from 'expo-secure-store';
+import { getRandomBytes } from 'expo-crypto';
 import { configurePlatform, memoryKeyValue, type KeyValue } from '@metro-labs/client/platform';
 import { logError } from './log.js';
 
@@ -41,5 +42,5 @@ export async function prepareStorage(): Promise<void> {
     logError('storage.read')(err);
     return {};
   });
-  configurePlatform({ kv: persisted(seed), tabKv: memoryKeyValue() });
+  configurePlatform({ kv: persisted(seed), tabKv: memoryKeyValue(), random: getRandomBytes });
 }

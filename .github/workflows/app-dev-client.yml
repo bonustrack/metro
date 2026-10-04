@@ -1,0 +1,207 @@
+name: App dev client APK
+
+# Android dev-client build of apps/app (EAS `development` profile), keyed by
+# the native runtime (the Expo fingerprint, the app's runtimeVersion), the way
+# Stage's dev-client.yml works. A dev APK loads every JS preview of its
+# runtime (app-preview.yml), so each runtime is built once.
+#
+# A push to main, or to a pull request, resolves the runtime. When no APK on
+# the `app-dev-client` release was built for it, EAS builds one; a push that
+# changes only JS builds nothing. Pushes to main also point the rolling
+# metro-dev-client.apk at main's runtime.
+#
+# APKs are published as direct downloads on the `app-dev-client` release:
+#   releases/download/app-dev-client/metro-dev-client-<sha7>.apk
+#
+# Needs the EXPO_TOKEN repository secret (an Expo access token of the
+# bonustrack account). Without it the job only says so in its summary.
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/app/**', 'packages/client/**', 'patches/**', 'package.json', 'bun.lock', '.github/workflows/app-dev-client.yml']
+  pull_request:
+    paths: ['apps/app/**', 'packages/client/**', 'patches/**', 'package.json', 'bun.lock', '.github/workflows/app-dev-client.yml']
+  workflow_dispatch:
+    inputs:
+      publish_rolling:
+        description: Also point the rolling metro-dev-client.apk at this runtime's APK
+        type: boolean
+        default: false
+
+concurrency:
+  group: app-dev-client-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: app-dev-client
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      PACKAGE: box.metro.dev
+      ROLLING: ${{ github.event_name == 'push' || inputs.publish_rolling }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check the Expo token
+        id: token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dev-client APK"
+              echo ""
+              echo "No build: add an \`EXPO_TOKEN\` secret to this repository (Settings, Secrets and variables, Actions)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.token.outputs.ready == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.token.outputs.ready == 'true'
+        with:
+          bun-version: 1.4.0
+
+      - run: bun install --frozen-lockfile
+        if: steps.token.outputs.ready == 'true'
+
+      - uses: expo/expo-github-action@v8
+        if: steps.token.outputs.ready == 'true'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Make sure the EAS project exists
+        if: steps.token.outputs.ready == 'true'
+        working-directory: apps/app
+        run: |
+          set -euo pipefail
+          ID="$(bunx expo config --json --type public | jq -r '.extra.eas.projectId // empty')"
+          if [ -n "$ID" ]; then exit 0; fi
+          eas init --non-interactive --force || true
+          eas project:info || true
+          {
+            echo "## EAS project"
+            echo ""
+            echo "The app config has no EAS project id yet. The run above created or found @bonustrack/metro-app;"
+            echo "put its id in \`EAS_PROJECT_ID\` in apps/app/app.config.js and push again."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Look for an APK of this runtime
+        if: steps.token.outputs.ready == 'true'
+        id: asset
+        working-directory: apps/app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease --title "Metro dev client" --notes "Android dev-client APKs of apps/app, one per native runtime."
+          RUNTIME="$(bunx expo-updates runtimeversion:resolve --platform android | jq -re .runtimeVersion)"
+          ASSETS="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '[.assets[] | {name, digest}]')"
+          BUILT="$(eas build:list --platform android --build-profile development --runtime-version "$RUNTIME" \
+            --status finished --limit 50 --json --non-interactive | jq -r '.[].gitCommitHash // empty')"
+          digest() { jq -r --arg name "$1" '.[] | select(.name == $name) | .digest // "none"' <<< "$ASSETS"; }
+          ROLLING_DIGEST="$(digest metro-dev-client.apk)"
+          APK=""
+          ROLLING_CURRENT=false
+          for COMMIT in "$SHA" $BUILT; do
+            NAME="metro-dev-client-${COMMIT::7}.apk"
+            DIGEST="$(digest "$NAME")"
+            [ -n "$DIGEST" ] || continue
+            [ -n "$APK" ] || APK="$NAME"
+            if [ "$DIGEST" != none ] && [ "$DIGEST" = "$ROLLING_DIGEST" ]; then ROLLING_CURRENT=true; fi
+          done
+          BUILD=false
+          if [ -z "$APK" ]; then BUILD=true; APK="metro-dev-client-${SHA::7}.apk"; fi
+          PUBLISH_ROLLING=false
+          if [ "$ROLLING" = true ] && [ "$ROLLING_CURRENT" = false ]; then PUBLISH_ROLLING=true; fi
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$APK"
+          echo "Runtime $RUNTIME, APK $APK, build $BUILD, rolling $PUBLISH_ROLLING"
+          {
+            echo "runtime=$RUNTIME"
+            echo "apk=$APK"
+            echo "url=$URL"
+            echo "build=$BUILD"
+            echo "rolling=$PUBLISH_ROLLING"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$BUILD" = false ]; then
+            {
+              echo "## Dev-client APK - \`${SHA::7}\`"
+              echo ""
+              echo "Runtime \`$RUNTIME\` already has its APK, no new build: [Download APK]($URL)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build the dev-client APK on EAS
+        if: steps.token.outputs.ready == 'true' && steps.asset.outputs.build == 'true'
+        working-directory: apps/app
+        env:
+          APK: ${{ steps.asset.outputs.apk }}
+        run: |
+          set -euo pipefail
+          eas build -p android --profile development --non-interactive --json --wait > "$RUNNER_TEMP/eas-build.json"
+          cat "$RUNNER_TEMP/eas-build.json"
+          URL=$(jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty' "$RUNNER_TEMP/eas-build.json")
+          [ -n "$URL" ] || { echo "::error::No Android artifact URL from EAS"; exit 1; }
+          curl -fSL "$URL" -o "$GITHUB_WORKSPACE/$APK"
+
+      - name: Verify the APK
+        if: steps.token.outputs.ready == 'true' && steps.asset.outputs.build == 'true'
+        id: verify
+        env:
+          APK: ${{ steps.asset.outputs.apk }}
+          RUNTIME: ${{ steps.asset.outputs.runtime }}
+        run: |
+          set -euo pipefail
+          VERSION_CODE=$(jq -r '.[0].appBuildVersion // empty' "$RUNNER_TEMP/eas-build.json")
+          [ -n "$VERSION_CODE" ] || { echo "::error::EAS output has no versionCode"; exit 1; }
+          bun scripts/app/verify-apk.mjs "$APK" --package "$PACKAGE" --commit "$SHA" --version-code "$VERSION_CODE" --runtime "$RUNTIME"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the APK on the release
+        if: steps.token.outputs.ready == 'true' && steps.asset.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.asset.outputs.apk }}
+          APK_URL: ${{ steps.asset.outputs.url }}
+          RUNTIME: ${{ steps.asset.outputs.runtime }}
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" "$APK" --repo "$GITHUB_REPOSITORY"
+          curl -fsSIL -o /dev/null "$APK_URL"
+          {
+            echo "## Dev-client APK - \`${SHA::7}\`"
+            echo ""
+            echo "[Download APK]($APK_URL) (open on the phone, then install)"
+            echo ""
+            echo "Runtime \`$RUNTIME\`, versionCode ${{ steps.verify.outputs.version_code }}."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Point the rolling APK at this runtime's APK
+        if: steps.token.outputs.ready == 'true' && steps.asset.outputs.rolling == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.asset.outputs.apk }}
+          BUILD: ${{ steps.asset.outputs.build }}
+        run: |
+          set -euo pipefail
+          if [ "$BUILD" = true ]; then
+            cp "$APK" metro-dev-client.apk
+          else
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --output metro-dev-client.apk
+          fi
+          gh release upload "$RELEASE_TAG" metro-dev-client.apk --clobber --repo "$GITHUB_REPOSITORY"
+          echo "Rolling metro-dev-client.apk is now $APK." >> "$GITHUB_STEP_SUMMARY"

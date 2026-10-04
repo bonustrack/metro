@@ -52,6 +52,7 @@
         "expo-build-properties": "57.0.22",
         "expo-clipboard": "57.0.2",
         "expo-constants": "57.0.19",
+        "expo-crypto": "57.0.3",
         "expo-dev-client": "57.0.19",
         "expo-document-picker": "57.0.3",
         "expo-file-system": "57.0.7",
@@ -132,6 +133,11 @@
     "packages/client": {
       "name": "@metro-labs/client",
       "version": "0.1.0",
+      "dependencies": {
+        "@noble/ciphers": "^1.3.0",
+        "@noble/hashes": "^1.8.0",
+        "fflate": "^0.8.2",
+      },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.3",
         "@types/bun": "^1.2.0",
@@ -1507,6 +1513,8 @@
 
     "expo-constants": ["expo-constants@57.0.19", "", { "dependencies": { "@expo/env": "~2.4.3" }, "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-3eK1kZRwCdMizQLlM/PPlPwjaPnB5qKvdRDMBMnB1ZxmvWJBf9TB4uEO4DMMfIPaFUxYFs29dsR5fPr1gh3FTQ=="],
 
+    "expo-crypto": ["expo-crypto@57.0.3", "", { "peerDependencies": { "expo": "*" } }, "sha512-SAWqEfF37nc8ot7bXsVmu9AFYwQdC2kGvH/eNAHiR3bmlcf1Vv8wu9AnGKT+a90r3T8YfwMpZP4QAYlo4vCn9w=="],
+
     "expo-dev-client": ["expo-dev-client@57.0.19", "", { "dependencies": { "expo-dev-launcher": "~57.0.20", "expo-dev-menu": "~57.0.18", "expo-dev-menu-interface": "~57.0.0", "expo-manifests": "~57.0.2", "expo-updates-interface": "~57.0.2" }, "peerDependencies": { "expo": "*" } }, "sha512-7giMK6BLL685GECHem2UAQvS473ImZLi5l+Q5tq+XSyv6I9UNVPs0p07mKwgBzq8z7DR3d4nTl702ziFxTjO3Q=="],
 
     "expo-dev-launcher": ["expo-dev-launcher@57.0.20", "", { "dependencies": { "@expo/schema-utils": "^57.0.2", "expo-dev-menu": "~57.0.18", "expo-manifests": "~57.0.2" }, "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-F6oAHaDn9j3L/gyMGE+OalriX6PHZWnZLxpN5jc6crTrp8f6hSwGhmsHpAvdOzijfMjyi3R2UkcISFsCIIQYFA=="],
@@ -1602,6 +1610,8 @@
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
     "fetch-nodeshim": ["fetch-nodeshim@0.4.10", "", {}, "sha512-m6I8ALe4L4XpdETy7MJZWs6L1IVMbjs99bwbpIKphxX+0CTns4IKDWJY0LWfr4YsFjfg+z1TjzTMU8lKl8rG0w=="],
+
+    "fflate": ["fflate@0.8.3", "", {}, "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="],
 
     "file-entry-cache": ["file-entry-cache@8.0.0", "", { "dependencies": { "flat-cache": "^4.0.0" } }, "sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ=="],
 

@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { log, errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { validateReturnTo } from '@metro-labs/http/return-to';
+import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
 import { parseAccountName, type UserStore } from '../users.js';
@@ -54,14 +54,24 @@ interface Started {
   returnTo: string;
   intent: Intent;
   invitation?: string;
+  challenge?: string;
 }
+
+interface Handoff {
+  tokens: Tokens;
+  challenge?: string;
+}
+
+const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
+
+const challengeOf = (verifier: string): string => createHash('sha256').update(verifier).digest('base64url');
 
 function invitationOf(query: URLSearchParams): { invitation?: string } {
   return invitationFrom(query.get('invitation_token') ?? '');
 }
 
 const states = new Map<string, Pending<Started>>();
-const handoffs = new Map<string, Pending<Tokens>>();
+const handoffs = new Map<string, Pending<Handoff>>();
 
 const token = (): string => randomBytes(32).toString('base64url');
 
@@ -99,17 +109,27 @@ const withHash = (returnTo: string, hash: string): string => {
 
 const callbackUri = (req: IncomingMessage, deps: AuthApiDeps): string => `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`;
 
+function appChallenge(returnTo: string, challenge: string): { challenge?: string } {
+  if (!isAppReturn(returnTo)) {
+    if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
+    return {};
+  }
+  if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in from the app needs a code_challenge', 400);
+  return { challenge };
+}
+
 function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const provider = query.get('provider');
   const returnTo = query.get('return_to') ?? '';
   if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
-  if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
+  const app = appChallenge(returnTo, query.get('code_challenge') ?? '');
   const now = (deps.now ?? Date.now)();
   prune(states, STATE_TTL_MS, now);
   const state = token();
-  states.set(state, { value: { returnTo, intent: query.get('intent') === 'waitlist' ? 'waitlist' : 'login', ...invitationOf(query) }, at: now });
+  const intent = query.get('intent') === 'waitlist' ? 'waitlist' : 'login';
+  states.set(state, { value: { returnTo, intent, ...invitationOf(query), ...app }, at: now });
   redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
@@ -125,10 +145,10 @@ function refusal(query: URLSearchParams): Refusal | null {
   return error === 'access_denied' || error === null ? 'cancelled' : 'failed';
 }
 
-function handoffFor(tokens: Tokens, now: number): string {
+function handoffFor(tokens: Tokens, now: number, challenge?: string): string {
   prune(handoffs, HANDOFF_TTL_MS, now);
   const handoff = token();
-  handoffs.set(handoff, { value: tokens, at: now });
+  handoffs.set(handoff, { value: { tokens, ...(challenge === undefined ? {} : { challenge }) }, at: now });
   log.info({ user: tokens.user.id, organization: tokens.organization }, 'auth: signed in');
   return handoff;
 }
@@ -146,17 +166,17 @@ async function withInvitations(deps: AuthApiDeps, tokens: Tokens): Promise<Token
   return refreshTokens(cfg, tokens.refreshToken, joined);
 }
 
-async function admitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number): Promise<string> {
+async function admitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number, challenge?: string): Promise<string> {
   const tokens = await withInvitations(deps, signedIn);
   const verdict = await admit(deps.users, tokens, intent, new Date(now).toISOString());
-  if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now)}`;
+  if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now, challenge)}`;
   log.info({ user: tokens.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
   if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
   return refusedHash(verdict.reason);
 }
 
 async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
-  return admitted(deps, await exchangeCode(cfg, code, started.invitation), started.intent, now);
+  return admitted(deps, await exchangeCode(cfg, code, started.invitation), started.intent, now, started.challenge);
 }
 
 function exchangeRefusal(err: unknown): Refusal {
@@ -220,8 +240,10 @@ async function updateAccount(req: IncomingMessage, session: Session, deps: AuthA
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
   const body = await readJsonBody(req);
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
-  const tokens = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
-  if (tokens === null) throw new ApiError('that sign-in has already been used or has expired', 404);
+  const verifier = isRecord(body) && typeof body.verifier === 'string' ? body.verifier : '';
+  const handoff = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
+  if (handoff === null || (handoff.challenge !== undefined && challengeOf(verifier) !== handoff.challenge)) throw new ApiError('that sign-in has already been used or has expired', 404);
+  const tokens = handoff.tokens;
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   return tokensPayload(tokens, cfg, deps);

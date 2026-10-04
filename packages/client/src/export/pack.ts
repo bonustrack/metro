@@ -1,6 +1,8 @@
 import { isRecord, recordOf, str } from '../read.js';
 import { fromBase64Url, toBase64Url } from './bytes.js';
 import { isPassphraseEnvelope, openWithPassphrase, sealWithPassphrase, type PassphraseEnvelope } from './passphrase.js';
+import { strFromU8, strToU8 } from 'fflate';
+import { gunzipBytes, gzipBytes, sha256Hex } from './primitives.js';
 
 const FILE_VERSION = 1;
 const FILE_KIND = 'agent-export';
@@ -84,28 +86,14 @@ export function sectionsIn(payload: Payload): Section[] {
   return SECTIONS.filter((section) => payload[section] !== undefined);
 }
 
-async function through(bytes: Uint8Array, stream: ReadableWritablePair<Uint8Array, BufferSource>): Promise<Uint8Array> {
-  const owned = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  owned.set(bytes);
-  const source = new ReadableStream<BufferSource>({
-    start(controller) {
-      controller.enqueue(owned);
-      controller.close();
-    },
-  });
-  const out = await new Response(source.pipeThrough(stream)).arrayBuffer();
-  return new Uint8Array(out);
-}
-
 export async function gzip(text: string): Promise<string> {
-  const packed = await through(new TextEncoder().encode(text), new CompressionStream('gzip'));
-  return toBase64Url(packed);
+  return toBase64Url(await gzipBytes(strToU8(text)));
 }
 
 export async function gunzip(encoded: string): Promise<string> {
-  const plain = await through(fromBase64Url(encoded), new DecompressionStream('gzip'));
+  const plain = await gunzipBytes(fromBase64Url(encoded));
   if (plain.length > PAYLOAD_MAX) throw new Error('That file is larger than metro will open.');
-  return new TextDecoder().decode(plain);
+  return strFromU8(plain);
 }
 
 const HASH_CHARS = 16;
@@ -113,10 +101,7 @@ const two = (n: number): string => String(n).padStart(2, '0');
 
 const fileStamp = (at: Date): string => `${String(at.getFullYear())}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
 
-export async function digest(text: string): Promise<string> {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
+export const digest = (text: string): Promise<string> => sha256Hex(text);
 
 export function fileName(server: string, at: Date, hash: string): string {
   const slug = server.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
