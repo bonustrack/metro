@@ -13,6 +13,7 @@ export function makeConnection(provider: Provider, fields: Partial<Connection> =
     zdr: false,
     codex: null,
     gemini: null,
+    claude: null,
     ...fields,
   };
 }

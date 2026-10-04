@@ -42,6 +42,8 @@ const saved = (store: Store, cfg: ModelConfig, note: string, fields: { connectio
 
 function keepCodex(store: Store, req: IncomingMessage, tokens: CodexTokens | null, note: string): unknown {
   const { cfg, id } = connectionToFill(store, req, 'codex');
+  const twin = cfg.connections.find((c) => c.id !== id && tokens !== null && c.codex?.refreshToken === tokens.refreshToken);
+  if (twin !== undefined) throw new ApiError(`this ChatGPT login is already connected as ${twin.label}; sign in with ChatGPT to add another one`, 409);
   const next = setCodexAuth(cfg, id, tokens);
   return saved(store, next, note, { connection: id, plan: tokens?.plan ?? null });
 }

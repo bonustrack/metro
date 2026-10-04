@@ -35,11 +35,12 @@ const LINE_MAX = 1024 * 1024;
 export interface UsageProbeDeps {
   command?: string[];
   timeoutMs?: number;
+  env?: Record<string, string>;
 }
 
-export function usageProbeCommand(): string[] | null {
+export function usageProbeCommand(env: Record<string, string> = {}): string[] | null {
   if (runningAsRoot() || (agentUserExpected() && agentUser() === null)) return null;
-  return agentCommand([claudeBin(), ...ARGS], PROBE_ENV);
+  return agentCommand([claudeBin(), ...ARGS], { ...PROBE_ENV, ...env });
 }
 
 function answerOf(line: string): Record<string, unknown> | null {
@@ -67,11 +68,11 @@ export function usageIn(output: string): unknown {
 }
 
 export function readClaudeUsage(deps: UsageProbeDeps = {}): Promise<unknown> {
-  const command = deps.command ?? usageProbeCommand();
+  const command = deps.command ?? usageProbeCommand(deps.env);
   if (command === null) return Promise.reject(new Error('Claude Code runs only as the agent user, and this box has none'));
   const [file = '', ...args] = command;
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { cwd: '/', stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, ...PROBE_ENV } });
+    const child = spawn(file, args, { cwd: '/', stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, ...PROBE_ENV, ...deps.env } });
     let carry = '';
     let settled = false;
     let hardKill: ReturnType<typeof setTimeout> | undefined;

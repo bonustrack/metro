@@ -128,6 +128,15 @@ export function anthropicHeaders(req: IncomingMessage, apiKey: string): Record<s
   return headers;
 }
 
+export const OAUTH_BETA = 'oauth-2025-04-20';
+
+export function loginHeaders(req: IncomingMessage, token: string): Record<string, string> {
+  const headers = forwardedHeaders(req);
+  delete headers['x-api-key'];
+  headers.authorization = `Bearer ${token}`;
+  return addBeta(headers, OAUTH_BETA);
+}
+
 export function addBeta(headers: Record<string, string>, beta: string): Record<string, string> {
   const listed = (headers['anthropic-beta'] ?? '')
     .split(',')

@@ -20,7 +20,8 @@ import {
   writeModelConfig,
   type ModelConfig,
 } from './model-config.js';
-import { asApiError, BODY_MAX, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
+import { asApiError, BODY_MAX, claudeLoginDeps, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
+import { dropUnusedClaudeLogins } from './claude-logins.js';
 import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES } from './model-signin.js';
 import { refreshUsage } from './usage-refresh.js';
 
@@ -89,14 +90,17 @@ async function change(req: IncomingMessage, deps: ModelApiDeps, store: Store, id
 }
 
 function drop(deps: ModelApiDeps, store: Store, id: string): unknown {
+  const before = store.read();
   let next: ModelConfig;
   try {
-    next = removeConnection(store.read(), id);
+    next = removeConnection(before, id);
   } catch (err) {
     asApiError(err);
   }
   forgetOne(id);
-  return kept(store, next, deps, 'model-api: connection removed', { connection: id });
+  const body = kept(store, next, deps, 'model-api: connection removed', { connection: id });
+  dropUnusedClaudeLogins(before, next, claudeLoginDeps(deps));
+  return body;
 }
 
 async function settingsWithUsage(deps: ModelApiDeps, store: Store): Promise<Record<string, unknown>> {
@@ -132,7 +136,11 @@ const named = (table: Record<string, Route>, name: string, method: string | unde
 async function restore(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
   const body = await readJsonBody(req, RESTORE_MAX);
   if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
-  return kept(store, parseModelConfig(body), deps, 'model-api: model setup restored from a file', {});
+  const before = store.read();
+  const next = parseModelConfig(body);
+  const answer = kept(store, next, deps, 'model-api: model setup restored from a file', {});
+  dropUnusedClaudeLogins(before, next, claudeLoginDeps(deps));
+  return answer;
 }
 
 function bundleRoute(path: string, method: string | undefined): Route | number {

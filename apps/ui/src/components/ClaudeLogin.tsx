@@ -6,12 +6,15 @@ import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../theme.js';
-import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '../api/claude.js';
-import { queryError } from '../api/queries.js';
+import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, OWN_LOGINS_SINCE, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '../api/claude.js';
+import { queryError, useModeQuery } from '../api/queries.js';
+import { olderThan } from '../api/version.js';
+import type { ConnectionRow } from '../api/model.js';
 
 const FIELD_WIDTH = 420;
 const POLL_MS = 1_500;
-const WHAT = 'Runs Claude Code’s own sign-in on the machine. Metro never holds the login.';
+const WHAT = 'Runs Claude Code’s own sign-in. Each account keeps its own login on the machine, so you can add as many as you like.';
+const NEW_LOGIN = 'Each Claude account you sign in with becomes its own provider.';
 
 function useLoginPolling(login: ClaudeLogin | null, onUpdate: (next: ClaudeLogin) => void, onError: (message: string) => void): void {
   useEffect(() => {
@@ -80,30 +83,45 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
   );
 }
 
-export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNode {
+function Note({ text }: { text: string }): ReactNode {
+  return (
+    <Col gap={4}>
+      <FieldLabel>Claude subscription</FieldLabel>
+      <Text size="2xs" role="secondary">
+        {text}
+      </Text>
+    </Col>
+  );
+}
+
+function statusLine(connection: ConnectionRow | null, account: ClaudeAccount | null): string {
+  if (connection === null) return NEW_LOGIN;
+  if (connection.signedIn) return `Signed in${connection.account === null ? '' : ` as ${connection.account}`}${connection.plan === null ? '' : ` (${connection.plan})`}`;
+  const machine = account?.signedIn === true && account.account !== null ? ` (${account.account})` : '';
+  return `Uses the Claude Code login of this machine${machine}. Sign in to give it a login of its own.`;
+}
+
+export function ClaudeLoginCard({ connection, onDone }: { connection: ConnectionRow | null; onDone: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [account, setAccount] = useState<ClaudeAccount | null>(null);
   const [login, setLogin] = useState<ClaudeLogin | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const refresh = (then?: () => void): void => {
+  const mode = useModeQuery();
+  useEffect(() => {
     fetchClaudeAccount()
-      .then((next) => {
-        setAccount(next);
-        then?.();
-      })
+      .then(setAccount)
       .catch(() => undefined);
-  };
-  useEffect(refresh, []);
+  }, []);
   useLoginPolling(login, (next) => {
     setLogin(next.state === 'pending' ? next : null);
     if (next.state === 'failed') setError(next.error ?? 'The sign-in did not finish.');
-    if (next.state === 'done') refresh(onChange);
+    if (next.state === 'done') onDone();
   }, setError);
   const begin = (): void => {
     setBusy(true);
     setError(null);
-    startClaudeLogin()
+    startClaudeLogin(connection?.id ?? 'new')
       .then(setLogin)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not start the sign-in.'));
@@ -126,21 +144,12 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
     setLogin(null);
     cancelClaudeLogin(id).catch(() => undefined);
   };
-  if (account !== null && !account.available)
-    return (
-      <Col gap={4}>
-        <FieldLabel>Claude Code sign-in</FieldLabel>
-        <Text size="2xs" role="secondary">
-          Claude Code is not installed on this machine, so there is nothing to sign in.
-        </Text>
-      </Col>
-    );
+  if (olderThan(mode.data?.version ?? null, OWN_LOGINS_SINCE)) return <Note text={`Needs metro ${OWN_LOGINS_SINCE}. Update first, from the Server page.`} />;
+  if (account !== null && !account.available) return <Note text="Claude Code is not installed on this machine, so there is nothing to sign in." />;
   return (
     <Col gap={8}>
-      <FieldLabel>Claude Code sign-in</FieldLabel>
-      <Text size="2xs">
-        {account === null ? 'Asking the machine…' : account.signedIn ? `Signed in${account.account === null ? '' : ` as ${account.account}`}` : 'Not signed in on this machine.'}
-      </Text>
+      <FieldLabel>Claude subscription</FieldLabel>
+      <Text size="2xs">{statusLine(connection, account)}</Text>
       <Text size="2xs" role="secondary">
         {WHAT}
       </Text>
@@ -150,7 +159,7 @@ export function ClaudeLoginCard({ onChange }: { onChange: () => void }): ReactNo
             size="md"
             color="secondary"
             dark={dark}
-            label={account?.signedIn === true ? 'Sign in again' : 'Sign in with a Claude subscription'}
+            label={connection?.signedIn === true ? 'Sign in again' : 'Sign in with a Claude subscription'}
             loading={busy}
             disabled={busy}
             onPress={begin}

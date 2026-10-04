@@ -269,7 +269,7 @@ export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
 
 function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
-  const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey);
+  const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey && !conn.signedIn);
   const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 60_000, enabled: own });
   return own ? (account.data?.account ?? null) : null;
 }

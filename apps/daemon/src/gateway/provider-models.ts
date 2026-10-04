@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
-import { GatewayError } from './forward.js';
+import { GatewayError, OAUTH_BETA } from './forward.js';
 import type { Connection } from './model-config.js';
 import { fingerprint, listCache } from './model-lists.js';
 import { stringOf } from '@metro-labs/http/api-http';
@@ -9,7 +9,6 @@ export const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
 const LIST_MAX = 1000;
 const LIST_TIMEOUT_MS = 10_000;
-const OAUTH_BETA = 'oauth-2025-04-20';
 const BEARER = 'Bearer ';
 
 export interface ProviderModel {

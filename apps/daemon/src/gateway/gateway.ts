@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
@@ -10,7 +10,20 @@ import {
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
-import { addBeta, anthropicHeaders, forwardedHeaders, GatewayError, holdLimitRefusal, parseJson, pipeResponse, readBody, sendError, upstreamMessage, watchUpstream } from './forward.js';
+import {
+  addBeta,
+  anthropicHeaders,
+  forwardedHeaders,
+  GatewayError,
+  holdLimitRefusal,
+  loginHeaders,
+  parseJson,
+  pipeResponse,
+  readBody,
+  sendError,
+  upstreamMessage,
+  watchUpstream,
+} from './forward.js';
 import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry } from './fallback.js';
 import {
   BINDING_BETA,
@@ -38,6 +51,7 @@ import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
 import { ANTHROPIC_API, refreshLoginModels } from './provider-models.js';
 import type { CodexTokens } from './codex-auth.js';
+import { forgetClaudeTokens, withClaudeLogin, type ClaudeLoginDeps } from './claude-logins.js';
 
 const GATEWAY_PREFIX = '/gateway';
 const MESSAGES = '/v1/messages';
@@ -53,6 +67,7 @@ export interface GatewayDeps {
   openrouterBase?: string;
   codex?: Partial<CodexDeps>;
   gemini?: Partial<GeminiDeps>;
+  claudeLogins?: ClaudeLoginDeps;
 }
 
 const learned: Adaptations = freshAdaptations();
@@ -66,6 +81,7 @@ export function resetGatewayState(): void {
   forgetLearnedThinking();
   sharedCodexState.clear();
   sharedGeminiState.clear();
+  forgetClaudeTokens();
 }
 
 const saveCodexTokens = (id: string, tokens: CodexTokens): void => {
@@ -90,7 +106,18 @@ function modelsBody(cfg: ModelConfig): Record<string, unknown> {
   return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null };
 }
 
-const PASSTHROUGH: Connection = { id: PASSTHROUGH_ID, provider: 'anthropic', label: 'Claude Code login', model: '', apiKey: '', region: '', zdr: false, codex: null, gemini: null };
+const PASSTHROUGH: Connection = {
+  id: PASSTHROUGH_ID,
+  provider: 'anthropic',
+  label: 'Claude Code login',
+  model: '',
+  apiKey: '',
+  region: '',
+  zdr: false,
+  codex: null,
+  gemini: null,
+  claude: null,
+};
 
 const passthrough = (body: Record<string, unknown>): Route => ({ connection: PASSTHROUGH, model: requestedModel(body) });
 
@@ -139,10 +166,25 @@ async function refusedThinkingOff(upstream: Response, shaped: Record<string, unk
   return true;
 }
 
-function listLoginModels(req: IncomingMessage, anthropicBase: string): void {
-  refreshLoginModels(req.headers, anthropicBase).catch((err: unknown) => {
+function listLoginModels(headers: IncomingHttpHeaders, anthropicBase: string): void {
+  refreshLoginModels(headers, anthropicBase).catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'gateway: could not list the models of the Claude Code login');
   });
+}
+
+function sendAnthropic(req: IncomingMessage, conn: Connection, anthropicBase: string, attempt: (base: Record<string, string>) => Promise<Response>, deps: GatewayDeps): Promise<Response> {
+  if (conn.apiKey !== '') return attempt(anthropicHeaders(req, conn.apiKey));
+  if (conn.claude === null) return attempt(forwardedHeaders(req));
+  return withClaudeLogin(conn.claude.id, deps.claudeLogins ?? {}, (token) => {
+    listLoginModels({ authorization: `Bearer ${token}` }, anthropicBase);
+    return attempt(loginHeaders(req, token));
+  });
+}
+
+async function refusedLogin(conn: Connection, upstream: Response): Promise<void> {
+  if (conn.apiKey !== '' || conn.claude === null || upstream.status !== 401) return;
+  await upstream.body?.cancel();
+  throw new GatewayError(403, 'permission_error', `Anthropic refused the Claude login of ${conn.label}: sign in again on the Model page`);
 }
 
 async function toAnthropic(
@@ -157,25 +199,28 @@ async function toAnthropic(
   const conn = route.connection;
   const anthropicBase = deps.anthropicBase ?? ANTHROPIC_API;
   const url = `${anthropicBase}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
-  const key = conn.apiKey;
-  if (key === '' && standsInFor(req))
+  const passthrough = conn.apiKey === '' && conn.claude === null;
+  if (passthrough && standsInFor(req))
     throw new GatewayError(
       403,
       'permission_error',
       'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter, Codex or Gemini on the Model page, or sign in on the Claude tab',
     );
   const watch = watchUpstream(res);
-  if (key === '') listLoginModels(req, anthropicBase);
-  const base = key === '' ? forwardedHeaders(req) : anthropicHeaders(req, key);
+  if (passthrough) listLoginModels(req.headers, anthropicBase);
   const send = (payload: Buffer, headers: Record<string, string>): Promise<Response> =>
     fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
-  const attempt = (): Promise<Response> => asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
-  const first = await attempt();
-  const upstream = (await refusedThinkingOff(first, shaped, route.model)) ? await attempt() : first;
+  const attempt = async (base: Record<string, string>): Promise<Response> => {
+    const shape = (): Promise<Response> => asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
+    const first = await shape();
+    return (await refusedThinkingOff(first, shaped, route.model)) ? shape() : first;
+  };
+  const upstream = await sendAnthropic(req, conn, anthropicBase, attempt, deps);
+  await refusedLogin(conn, upstream);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
   const scanner = new UsageScanner(conn.id);
-  await pipeResponse(upstream, res, watch, key === '' ? { scanner } : { ownCredential: true, scanner });
+  await pipeResponse(upstream, res, watch, passthrough ? { scanner } : { ownCredential: true, scanner });
 }
 
 async function toOpenRouter(

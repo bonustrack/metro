@@ -501,6 +501,9 @@ describe('connecting ChatGPT for Codex from the page', () => {
     const imported = await codex('import', 'POST');
     expect(imported.status).toBe(200);
     expect(stored.connections[0]?.codex?.accessToken).toBe('cli-at');
+    const twice = await codex('import', 'POST');
+    expect(twice.status).toBe(409);
+    expect(stored.connections).toHaveLength(1);
     expect((await codex('dance', 'POST')).status).toBe(404);
     expect((await codex('login', 'GET')).status).toBe(405);
   });

@@ -8,6 +8,7 @@ import { usageSeen } from './usage.js';
 import { chainStatus } from './fallback.js';
 import { ModelConfigError, connectionOf, publicModelConfig, routedConnection, type Connection, type ModelConfig, type Provider } from './model-config.js';
 import type { SetupDeps } from '../claude/setup.js';
+import type { ClaudeLoginDeps } from './claude-logins.js';
 
 export interface ModelApiDeps {
   read?: () => ModelConfig;
@@ -25,9 +26,12 @@ export interface ModelApiDeps {
   bedrockControlBase?: string;
   setup?: SetupDeps;
   restartSession?: () => boolean;
-  claudeUsage?: () => Promise<unknown>;
+  claudeUsage?: (env?: Record<string, string>) => Promise<unknown>;
+  claudeLoginsRoot?: string;
   usageWaitMs?: number;
 }
+
+export const claudeLoginDeps = (deps: ModelApiDeps): ClaudeLoginDeps => ({ root: deps.claudeLoginsRoot, probe: deps.claudeUsage });
 
 export interface Store {
   read: () => ModelConfig;

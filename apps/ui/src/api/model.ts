@@ -17,7 +17,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'anthropic',
     label: 'Anthropic',
     site: 'https://anthropic.com',
-    blurb: 'Claude models, on the session’s own Claude Code login or on an API key you add.',
+    blurb: 'Claude models, on a Claude subscription you sign in with or on an API key you add.',
   },
   { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account.' },
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },

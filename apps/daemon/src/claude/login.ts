@@ -26,12 +26,19 @@ export interface LoginView {
   error: string | null;
 }
 
+export interface LoginTarget {
+  key: string;
+  env: Record<string, string>;
+  settle: (ok: boolean) => Promise<string | null>;
+}
+
 interface Live {
   id: string;
   startedAt: number;
   state: LoginState;
   output: string;
   error: string | null;
+  target: LoginTarget | null;
   write: (text: string) => void;
   kill: () => void;
 }
@@ -102,27 +109,32 @@ export function claudeInstalled(): boolean {
   });
 }
 
-interface ClaudeAccount {
+export interface ClaudeAccount {
   signedIn: boolean;
   account: string | null;
+  plan: string | null;
 }
 
+const SIGNED_OUT: ClaudeAccount = { signedIn: false, account: null, plan: null };
+
 export function claudeAccount(): ClaudeAccount {
-  return remembered(checks.account, readAccount, (c) => {
+  return remembered(checks.account, () => claudeAccountIn({}), (c) => {
     checks.account = c;
   });
 }
 
-function readAccount(): ClaudeAccount {
-  const run = spawnSync(...asAgent(claudeBin(), STATUS_COMMAND), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  if (run.error !== undefined || typeof run.stdout !== 'string') return { signedIn: false, account: null };
+const textOf = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+
+export function claudeAccountIn(env: Record<string, string>): ClaudeAccount {
+  const run = spawnSync(...asAgent(claudeBin(), STATUS_COMMAND, env), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, ...env } });
+  if (run.error !== undefined || typeof run.stdout !== 'string') return SIGNED_OUT;
   try {
     const parsed: unknown = JSON.parse(run.stdout);
-    if (!isRecord(parsed)) return { signedIn: false, account: null };
-    const account = typeof parsed.email === 'string' ? parsed.email : typeof parsed.organization === 'string' ? parsed.organization : null;
-    return { signedIn: parsed.authenticated === true || parsed.loggedIn === true || account !== null, account };
+    if (!isRecord(parsed)) return SIGNED_OUT;
+    const account = textOf(parsed.email) ?? textOf(parsed.organization) ?? textOf(parsed.orgName);
+    return { signedIn: parsed.authenticated === true || parsed.loggedIn === true || account !== null, account, plan: textOf(parsed.subscriptionType) };
   } catch {
-    return { signedIn: false, account: null };
+    return SIGNED_OUT;
   }
 }
 
@@ -131,16 +143,37 @@ function note(session: Live, chunk: string): void {
   session.output = next.length > OUTPUT_MAX ? next.slice(next.length - OUTPUT_MAX) : next;
 }
 
-export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginView {
+async function verdict(session: Live, code: number): Promise<string | null> {
+  const problem = code === 0 ? null : `the login ended with status ${String(code)}`;
+  if (session.target === null) return problem;
+  try {
+    return (await session.target.settle(problem === null)) ?? problem;
+  } catch (err) {
+    return errMsg(err);
+  }
+}
+
+function runningFor(target: LoginTarget | null): Live | null {
+  if (live === null || live.state !== 'pending') return null;
+  if (live.target?.key === target?.key) return live;
+  live.kill();
+  live = null;
+  return null;
+}
+
+export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now(), target: LoginTarget | null = null): LoginView {
   sweep(now);
-  if (live !== null && live.state === 'pending') return view(live);
-  const command = deps.command ?? agentCommand([claudeBin(), ...LOGIN_ARGS], { TERM: 'xterm-256color' });
+  const running = runningFor(target);
+  if (running !== null) return view(running);
+  const env = { TERM: 'xterm-256color', ...target?.env };
+  const command = deps.command ?? agentCommand([claudeBin(), ...LOGIN_ARGS], env);
   const session: Live = {
     id: randomBytes(9).toString('base64url'),
     startedAt: now,
     state: 'pending',
     output: '',
     error: null,
+    target,
     write: () => undefined,
     kill: () => undefined,
   };
@@ -151,7 +184,7 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginV
       note(session, Buffer.from(chunk).toString('utf8'));
     },
   });
-  const proc = Bun.spawn(command, { terminal, env: { ...process.env, TERM: 'xterm-256color' } });
+  const proc = Bun.spawn(command, { terminal, env: { ...process.env, ...env } });
   session.write = (text: string) => {
     terminal.write(Buffer.from(`${text}\r`, 'utf8'));
   };
@@ -160,13 +193,14 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginV
     terminal.close();
   };
   proc.exited
-    .then((code) => {
-      session.state = code === 0 ? 'done' : 'failed';
-      if (code !== 0) session.error = `the login ended with status ${String(code)}`;
+    .then(async (code) => {
+      session.write = () => undefined;
       terminal.close();
       forgetClaudeChecks();
-      const onboarding = code === 0 ? markOnboardingDone() : 'skipped';
-      log.info({ state: session.state, onboarding }, 'claude-login: the official login finished');
+      session.error = await verdict(session, code);
+      session.state = session.error === null ? 'done' : 'failed';
+      const onboarding = session.error === null ? markOnboardingDone() : 'skipped';
+      log.info({ state: session.state, onboarding, own: session.target !== null }, 'claude-login: the official login finished');
     })
     .catch((err: unknown) => {
       session.state = 'failed';

@@ -282,8 +282,10 @@ export async function fetchClaudeAccount(): Promise<ClaudeAccount> {
   return { available: body.available === true, signedIn: body.signedIn === true, account: filled(body.account) };
 }
 
-export async function startClaudeLogin(): Promise<ClaudeLogin> {
-  return toLogin(await call({ base: base(), path: '/login', method: 'POST' }));
+export const OWN_LOGINS_SINCE = '0.1.0-beta.253';
+
+export async function startClaudeLogin(connection: string): Promise<ClaudeLogin> {
+  return toLogin(await call({ base: base(), path: `/login?connection=${encodeURIComponent(connection)}`, method: 'POST' }));
 }
 
 export async function pollClaudeLogin(id: string): Promise<ClaudeLogin> {

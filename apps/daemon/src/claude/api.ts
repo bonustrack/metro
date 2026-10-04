@@ -19,7 +19,9 @@ import {
   endClaudeLogin,
   startClaudeLogin,
   type LoginDeps,
+  type LoginTarget,
 } from './login.js';
+import { claudeLoginTarget, type ClaudeLoginDeps } from '../gateway/claude-logins.js';
 import {
   claudeSetupStatus,
   ensureClaudeSetup,
@@ -71,6 +73,7 @@ const PAGE_MAX = 500;
 export interface ClaudeApiDeps {
   dir?: () => string;
   login?: LoginDeps;
+  claudeLogins?: ClaudeLoginDeps;
   session?: SessionDeps;
   setup?: SetupDeps;
   version?: VersionDeps;
@@ -265,10 +268,15 @@ async function sessionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise
   return sessionCommand(body, session);
 }
 
+function loginTarget(req: IncomingMessage, deps: ClaudeApiDeps): LoginTarget | null {
+  const asked = new URL(req.url ?? '', 'http://metro').searchParams.get('connection');
+  return asked === null ? null : claudeLoginTarget(asked, deps.claudeLogins);
+}
+
 async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps): Promise<unknown> {
   const method = req.method ?? 'GET';
   if (id === '') {
-    if (method === 'POST') return startClaudeLogin(deps.login);
+    if (method === 'POST') return startClaudeLogin(deps.login, Date.now(), loginTarget(req, deps));
     if (method === 'GET') return { available: claudeInstalled(), ...claudeAccount() };
     throw new ApiError('method not allowed', 405);
   }

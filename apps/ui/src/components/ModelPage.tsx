@@ -26,7 +26,8 @@ type Run = (job: () => Promise<unknown>, fallback: string) => void;
 
 function menuFor(c: ConnectionRow, edit: (e: Editing) => void, run: Run, pickFor: (c: ConnectionRow) => void): MenuItem[] {
   const model = { label: 'Change model', onSelect: () => { pickFor(c); } };
-  const open = { label: usesKey(c.provider) ? 'Key and settings' : 'Sign in again', onSelect: () => { edit({ provider: c.provider, connection: c }); } };
+  const signIn = !usesKey(c.provider) || (c.provider === 'anthropic' && !c.hasKey);
+  const open = { label: signIn ? 'Sign in again' : 'Key and settings', onSelect: () => { edit({ provider: c.provider, connection: c }); } };
   const zdr: MenuItem[] =
     c.provider === 'openrouter'
       ? [{ label: c.zdr ? 'Zero data retention: turn off' : 'Zero data retention: turn on', onSelect: () => { run(() => saveConnection(c.id, { zdr: !c.zdr }), 'Could not change the setting.'); } }]

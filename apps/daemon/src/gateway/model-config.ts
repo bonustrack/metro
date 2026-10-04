@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { newId } from '@metro-labs/core/ids';
+import { ID_RE, newId } from '@metro-labs/core/ids';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -8,6 +8,13 @@ import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gem
 
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
 export type Provider = (typeof PROVIDERS)[number];
+
+export interface ClaudeLogin {
+  id: string;
+  email: string | null;
+  plan: string | null;
+  savedAt: string;
+}
 
 export interface Connection {
   id: string;
@@ -19,6 +26,7 @@ export interface Connection {
   zdr: boolean;
   codex: CodexTokens | null;
   gemini: GeminiTokens | null;
+  claude: ClaudeLogin | null;
 }
 
 export interface Fallback {
@@ -73,7 +81,13 @@ const newConnection = (provider: Provider, label: string): Connection => ({
   zdr: false,
   codex: null,
   gemini: null,
+  claude: null,
 });
+
+function claudeFromDisk(raw: unknown): ClaudeLogin | null {
+  if (!isRecord(raw) || !ID_RE.test(text(raw.id))) return null;
+  return { id: text(raw.id), email: maybe(raw.email), plan: maybe(raw.plan), savedAt: text(raw.savedAt) };
+}
 
 function codexFromDisk(raw: unknown): CodexTokens | null {
   if (!isRecord(raw)) return null;
@@ -106,6 +120,7 @@ function connectionFromDisk(raw: unknown): Connection | null {
     zdr: raw.zdr === true,
     codex: codexFromDisk(raw.codex),
     gemini: geminiTokensFromDisk(raw.gemini),
+    claude: provider === 'anthropic' ? claudeFromDisk(raw.claude) : null,
   };
 }
 
@@ -219,6 +234,7 @@ export const routeLabel = (route: Route): string =>
 export const PASSTHROUGH_ID = 'passthrough';
 
 function signedInAs(c: Connection): { account: string | null; plan: string | null } {
+  if (c.claude !== null) return { account: c.claude.email, plan: c.claude.plan };
   if (c.codex === null) return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
   const claims = claimsOf(c.codex.idToken);
   return { account: c.codex.email ?? claims.email, plan: c.codex.plan ?? claims.plan };
@@ -233,7 +249,7 @@ function publicConnection(c: Connection): Record<string, unknown> {
     hasKey: c.apiKey !== '',
     region: c.region,
     zdr: c.zdr,
-    signedIn: c.codex !== null || c.gemini !== null,
+    signedIn: c.codex !== null || c.gemini !== null || c.claude !== null,
     ...signedInAs(c),
   };
 }
@@ -253,6 +269,9 @@ export const setCodexAuth = (cfg: ModelConfig, id: string, auth: CodexTokens | n
 
 export const setGeminiAuth = (cfg: ModelConfig, id: string, auth: GeminiTokens | null): ModelConfig =>
   withConnection(cfg, id, (c) => ({ ...c, gemini: auth }));
+
+export const setClaudeLogin = (cfg: ModelConfig, id: string, login: ClaudeLogin | null): ModelConfig =>
+  withConnection(cfg, id, (c) => ({ ...c, claude: login }));
 
 function field(patch: Record<string, unknown>, key: string, current: string, what: string, max = MAX_FIELD): string {
   if (!(key in patch)) return current;

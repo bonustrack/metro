@@ -10,12 +10,12 @@ import { CodexConnect } from './CodexConnect.js';
 import { GeminiConnect } from './GeminiConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
 import { addConnection, ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, saveConnection, type ConnectionPatch, type ConnectionRow, type Provider } from '../api/model.js';
-import { providerLabel, usesKey } from '../api/providers.js';
+import { providerLabel } from '../api/providers.js';
 import { queryError, refresh } from '../api/queries.js';
 import { GROW } from '../theme.js';
 
 const ZDR_NOTE = 'Only reaches providers that keep no prompts. A model without such an endpoint fails rather than falling back.';
-const ANTHROPIC_KEY_NOTE = 'No key: the request carries the session’s own Claude Code login.';
+const ANTHROPIC_KEY_NOTE = 'No key: it uses the Claude sign-in above, or else the Claude Code login of this machine.';
 
 export interface Editing {
   provider: Provider;
@@ -116,12 +116,13 @@ function Body({ editing, onDone }: { editing: Editing; onDone: () => void }): Re
   const client = useQueryClient();
   if (editing.provider === 'codex') return <CodexConnect codex={editing.connection} />;
   if (editing.provider === 'gemini') return <GeminiConnect gemini={editing.connection} />;
-  if (editing.provider === 'anthropic' && editing.connection === null)
+  if (editing.provider === 'anthropic' && editing.connection?.hasKey !== true)
     return (
       <Col gap={20}>
         <ClaudeLoginCard
-          onChange={() => {
-            refresh(client, 'model').catch(() => undefined);
+          connection={editing.connection}
+          onDone={() => {
+            refresh(client, 'model').then(onDone, () => undefined);
           }}
         />
         <KeyForm editing={editing} onDone={onDone} />
@@ -138,7 +139,7 @@ export function ProviderModal({ editing, onClose }: { editing: Editing | null; o
     <Modal title={title} open onClose={onClose}>
       <Col gap={16}>
         <Text size="2xs" role="secondary">{info?.blurb ?? ''}</Text>
-        {usesKey(editing.provider) || editing.connection === null ? null : (
+        {editing.connection?.signedIn !== true ? null : (
           <Text size="2xs" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
         )}
         <Body editing={editing} onDone={onClose} />
