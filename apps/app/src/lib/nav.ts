@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { routeHash } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
@@ -13,6 +14,7 @@ export function goHash(hash: string): void {
   router.push(pathOfHash(hash));
 }
 
-export function replaceHash(hash: string): void {
-  router.replace(pathOfHash(hash));
+export function openRoute(hash: string): void {
+  if (Platform.OS === 'web') window.open(`${window.location.pathname}${hash}`, '_blank', 'noopener');
+  else goHash(hash);
 }

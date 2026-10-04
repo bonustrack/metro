@@ -1,0 +1,86 @@
+import { type ReactNode } from 'react';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
+import { CopyBlock } from './CopyBlock.js';
+import { Field } from './Field.js';
+
+export const CALLBACK_NOTE =
+  'Paste this as the callback URL at gateway.threema.ch. The whole URL is the credential, so keep it out of public places.';
+
+function activationNote(result: AttachResult): string {
+  if (!result.activated)
+    return 'The channel is stored, but Metro could not reload it. It becomes live at the next daemon restart.';
+  if (result.station === 'webhook')
+    return 'The endpoint is live now. Anything posted to it reaches your agent.';
+  return `The ${stationLabel(result.station)} station is restarting to pick it up. It appears in the list above once it is connected.`;
+}
+
+export function AttachedAccount({
+  result,
+  onDismiss,
+}: {
+  result: AttachResult;
+  onDismiss: () => void;
+}): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const secret = result.secret;
+  const endpoint = result.identity.endpoint;
+  const callback = result.identity.callback;
+  const fields = Object.entries(result.identity).filter(
+    ([k]) => k !== 'endpoint' && k !== 'callback',
+  );
+  return (
+    <Col gap={14}>
+        <Col gap={4}>
+          <Text size="sm" weight="medium">
+            {stationLabel(result.station)} attached
+          </Text>
+          <Text size="2xs" role="secondary">
+            {activationNote(result)}
+          </Text>
+        </Col>
+        <Row gap={20} wrap>
+          <Field label="id" value={result.accountId} />
+          {fields.map(([label, value]) => (
+            <Field key={label} label={label} value={value} />
+          ))}
+        </Row>
+        {endpoint === undefined ? null : (
+          <Col gap={8}>
+            <CopyBlock label="post events here" value={endpoint} secret />
+            <Text size="2xs" role="secondary">
+              The whole URL is the credential. Paste it into the provider as the
+              webhook URL — no secret or signature header to configure.
+            </Text>
+          </Col>
+        )}
+        {callback === undefined ? null : (
+          <Col gap={8}>
+            <CopyBlock label="threema delivers here" value={callback} secret />
+            <Text size="2xs" role="secondary">
+              {CALLBACK_NOTE}
+            </Text>
+          </Col>
+        )}
+        {secret !== null ? (
+          <Col gap={8}>
+            <CopyBlock label={secret.label} value={secret.value} secret />
+            <Text size="2xs" role="danger">
+              {secret.note} Copy it somewhere safe before you close this.
+            </Text>
+          </Col>
+        ) : null}
+        <Row justify="end">
+          <Button
+            color="secondary"
+            dark={dark}
+            onPress={onDismiss}
+            label="Done"
+          />
+        </Row>
+    </Col>
+  );
+}

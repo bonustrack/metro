@@ -1,0 +1,103 @@
+import { type ReactNode, useState } from 'react';
+import { Col } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { offeredStations, type AttachResult } from '@metro-labs/client/api/attach';
+import { type AttachSession as Session } from '@metro-labs/client/api/attach-session';
+import { AttachedAccount } from './AttachedAccount.js';
+import { AttachSession } from './AttachSession.js';
+import { Modal } from '@stage-labs/kit/react-native/modal';
+import { StationForm } from './StationForm.js';
+import { StationPicker } from './StationPicker.js';
+
+const TAIL = ['xmtp', 'webhook'];
+
+const rank = (station: string): number => {
+  const at = TAIL.indexOf(station);
+  return at === -1 ? -1 : at;
+};
+
+function orderStations(attachable: string[]): string[] {
+  return offeredStations(attachable).sort((a, b) => rank(a) - rank(b));
+}
+
+type Step =
+  | { kind: 'pick' }
+  | { kind: 'form'; station: string }
+  | { kind: 'session'; session: Session }
+  | { kind: 'done'; result: AttachResult };
+
+interface ConnectStationProps {
+  agentId: string;
+  attachable: string[];
+  open: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}
+
+export function ConnectStation(props: ConnectStationProps): ReactNode {
+  const { agentId, attachable, open, onClose, onChanged } = props;
+  const [step, setStep] = useState<Step>({ kind: 'pick' });
+  const known = orderStations(attachable);
+
+  const close = (): void => {
+    setStep({ kind: 'pick' });
+    onClose();
+  };
+
+  return (
+    <Modal title="Connect channel" open={open} onClose={close}>
+      {step.kind === 'pick' ? (
+        <Col gap={12}>
+          <Text size="2xs" role="secondary">
+            {known.length === 0
+              ? 'This Metro daemon offers no channel you can connect.'
+              : 'Pick where this agent should be reachable.'}
+          </Text>
+          <StationPicker
+            stations={known}
+            disabled={false}
+            onPick={(station) => {
+              setStep({ kind: 'form', station });
+            }}
+          />
+        </Col>
+      ) : null}
+
+      {step.kind === 'form' ? (
+        <StationForm
+          agentId={agentId}
+          station={step.station}
+          onBack={() => {
+            setStep({ kind: 'pick' });
+          }}
+          onPending={(session) => {
+            setStep({ kind: 'session', session });
+          }}
+          onAttached={(result) => {
+            setStep({ kind: 'done', result });
+            onChanged();
+          }}
+        />
+      ) : null}
+
+      {step.kind === 'session' ? (
+        <AttachSession
+          agentId={agentId}
+          session={step.session}
+          onUpdate={(session) => {
+            setStep({ kind: 'session', session });
+          }}
+          onDone={(result) => {
+            setStep({ kind: 'done', result });
+            onChanged();
+          }}
+          onClose={close}
+        />
+      ) : null}
+
+      {step.kind === 'done' ? (
+        <AttachedAccount result={step.result} onDismiss={close} />
+      ) : null}
+    </Modal>
+  );
+}

@@ -14,8 +14,6 @@ export const CENTER_TEXT: TextStyle = { textAlign: 'center' };
 
 export const FULL_WIDTH: ViewStyle = { alignSelf: 'stretch' };
 
-export const SELF_START: ViewStyle = { alignSelf: 'flex-start' };
-
 export const WEB = Platform.OS === 'web';
 
 type WebStyle = Record<string, string | number | undefined>;
@@ -24,6 +22,5 @@ export const css = (style: WebStyle): ViewStyle => style;
 
 export const webOnly = (style: WebStyle): ViewStyle => (WEB ? css(style) : {});
 
-export const SELECTABLE = { userSelect: 'text' } as const;
 
 export const ABSOLUTE_FILL = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } as const;

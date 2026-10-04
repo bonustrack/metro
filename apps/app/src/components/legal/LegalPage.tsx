@@ -23,7 +23,7 @@ export function LegalPage({ kind }: { kind: LegalKind }): ReactNode {
   useDocumentTitle(page.title);
   return (
     <PageScroll>
-      <Row justify="between" align="center" padding={{ x: 24, y: 18 }}>
+      <Row justify="between" align="center" height={72} width="100%" maxWidth={MAX} padding={{ x: 24 }} style={CENTER}>
         <RouteLink to="#/" label="Metro home">
           <MetroLogo size={24} color={palette.link} />
         </RouteLink>
@@ -34,7 +34,7 @@ export function LegalPage({ kind }: { kind: LegalKind }): ReactNode {
       <Col width="100%" maxWidth={760} padding={{ x: 24, top: 48, bottom: 48 }} gap={24} style={CENTER}>
         <MarkdownBlock text={page.text} size={BODY} lineHeight={LINE} />
       </Col>
-      <Row justify="between" align="center" gap={16} padding={{ x: 24, y: 24 }}>
+      <Row justify="between" align="center" gap={16} width="100%" maxWidth={MAX} padding={{ x: 24, y: 24 }} style={CENTER}>
         <Text size="2xs" role="secondary">
           Stage Labs
         </Text>
@@ -47,3 +47,4 @@ export function LegalPage({ kind }: { kind: LegalKind }): ReactNode {
 }
 
 const CENTER = { alignSelf: 'center' } as const;
+const MAX = 1200;

@@ -14,6 +14,7 @@ interface MarkdownBlockProps {
 }
 
 const CODE_KEYS = ['code_inline', 'code_block', 'fence'] as const;
+const HEADINGS = ['heading1', 'heading2', 'heading3', 'heading4', 'heading5', 'heading6'] as const;
 
 function useStyles(size: number, lineHeight: number): Record<string, object> {
   const palette = useKitPalette();
@@ -21,7 +22,9 @@ function useStyles(size: number, lineHeight: number): Record<string, object> {
   return useMemo(() => {
     const base = markdownStyles({ fg: palette.text, dark, link: palette.link, fontSize: size, lineHeight });
     for (const key of CODE_KEYS) base[key] = { ...base[key], fontFamily: fontName.sans };
+    for (const key of HEADINGS) base[key] = { ...base[key], color: palette.link };
     base.body = { ...base.body, fontFamily: fontName.sans };
+    base.link = { ...base.link, color: palette.link, textDecorationLine: 'underline' };
     return base;
   }, [palette.text, palette.link, dark, size, lineHeight]);
 }

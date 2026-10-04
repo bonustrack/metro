@@ -9,7 +9,7 @@ import { ServerGate } from './gates.js';
 
 export function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
-  if (selection.kind === 'launch') return <LaunchServer onLock={onLock} />;
+  if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;
   if (selection.kind === 'organization') return <Organization onLock={onLock} />;
   if (selection.kind === 'servers' || selection.kind === 'none') return <Servers onLock={onLock} />;

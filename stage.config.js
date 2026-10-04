@@ -3,7 +3,6 @@ import { defineConfig } from '@stage-labs/config';
 export default defineConfig({
   knip: {
     ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/metro-user/**'],
-    ignoreIssues: { 'apps/app/src/lib/**': ['exports'] },
   },
   workspaces: {
     'apps/app': {
@@ -20,6 +19,7 @@ export default defineConfig({
       knip: {
         entry: ['test/**/*.ts'],
         project: ['src/**/*.ts'],
+        includeEntryExports: true,
       },
     },
     'apps/api': {

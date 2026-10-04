@@ -11,21 +11,18 @@ const styles = StyleSheet.create({
 interface LogBlockProps {
   lines?: string[];
   text?: string;
-  maxHeight?: DimensionValue;
+  maxHeight?: DimensionValue | null;
   muted?: boolean;
 }
 
 export function LogBlock({ lines, text, maxHeight = 360, muted = false }: LogBlockProps): ReactNode {
   const palette = useKitPalette();
-  const frame = [styles.box, { backgroundColor: palette.inputBg, maxHeight }];
+  const frame = [styles.box, { backgroundColor: palette.inputBg }, maxHeight === null ? null : { maxHeight }];
   const body = text ?? (lines ?? []).join('\n');
-  return (
-    <View style={frame}>
-      <ScrollView nestedScrollEnabled>
-        <Text size="2xs" role={muted ? 'secondary' : 'default'} selectable style={styles.line}>
-          {body}
-        </Text>
-      </ScrollView>
-    </View>
+  const content = (
+    <Text size="2xs" role={muted ? 'secondary' : 'default'} selectable style={styles.line}>
+      {body}
+    </Text>
   );
+  return <View style={frame}>{maxHeight === null ? content : <ScrollView nestedScrollEnabled>{content}</ScrollView>}</View>;
 }

@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,8 @@ import { webOnly } from '../lib/style.js';
 const styles = StyleSheet.create({ fill: { flex: 1 } });
 const STICKY = webOnly({ position: 'sticky', top: 0, height: '100vh' });
 const PAGE_PAD = { x: 18, top: 18, bottom: 64 } as const;
+const SMALL = 720;
+const SMALL_TOP = 12;
 
 function SidebarBody({ sidebar, onLock, close }: { sidebar: (close: () => void) => ReactNode; onLock: () => void; close: () => void }): ReactNode {
   const palette = useKitPalette();
@@ -53,9 +55,10 @@ export function Frame({ sidebar, onLock, children }: FrameProps): ReactNode {
     setMenuOpen(false);
   }, []);
   const swipe = useSwipeDrawer(narrow, menuOpen, setMenuOpen);
+  const top = useWindowDimensions().width <= SMALL ? SMALL_TOP : PAGE_PAD.top;
   const page = (
     <PageScroll>
-      <Col gap={24} padding={{ ...PAGE_PAD, bottom: PAGE_PAD.bottom + insets.bottom }}>
+      <Col gap={24} padding={{ ...PAGE_PAD, top, bottom: PAGE_PAD.bottom + insets.bottom }}>
         {children}
       </Col>
     </PageScroll>

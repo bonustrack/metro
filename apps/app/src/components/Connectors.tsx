@@ -1,0 +1,136 @@
+import { type ReactNode, useState } from 'react';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { EmptyCard, SettingsGroup } from './SettingsSection.js';
+import { ListHeader } from './ListHeader.js';
+import {
+  connectorsInOrder,
+  deleteConnector,
+  takeConnectorError,
+  type ConnectorsView,
+} from '@metro-labs/client/api/connectors';
+import { AddConnector } from './AddConnector.js';
+import { ConnectorRow } from './ConnectorRow.js';
+import { Loading } from './Loading.js';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  queryError,
+  refreshConnectors,
+  useConnectorsQuery,
+} from '../lib/queries.js';
+import { useDocumentTitle } from '../lib/title.js';
+import { CopyAllConnectors } from './CopyConnectors.js';
+import { go } from '../lib/nav.js';
+
+
+const FALLBACK = 'Could not load your connectors.';
+const EMPTY = 'No connector yet. A connector gives your agent tools, like a calendar, Notion or GitHub.';
+
+interface ConnectorsBodyProps {
+  project: string;
+  onChanged: () => void;
+  data: ConnectorsView;
+  onDelete: (id: string) => Promise<void>;
+  onError: (message: string) => void;
+}
+
+function ConnectorsBody({
+  project,
+  onChanged,
+  data,
+  onDelete,
+  onError,
+}: ConnectorsBodyProps): ReactNode {
+  const rows = connectorsInOrder(data.connectors);
+  if (rows.length === 0) return <EmptyCard text={EMPTY} />;
+  return (
+    <SettingsGroup>
+      {rows.map((row) => (
+        <ConnectorRow
+          key={row.id}
+          project={project}
+          onChanged={onChanged}
+          row={row}
+          onDelete={onDelete}
+          onError={onError}
+        />
+      ))}
+    </SettingsGroup>
+  );
+}
+
+export function Connectors({
+  project,
+}: {
+  project: string;
+}): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const client = useQueryClient();
+  const { data, error } = useConnectorsQuery();
+  const reload = (): void => {
+    refreshConnectors(client);
+  };
+  const remove = (id: string): Promise<void> =>
+    deleteConnector(id).then(() => {
+      refreshConnectors(client);
+    });
+  useDocumentTitle('Connectors');
+  const [adding, setAdding] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [returned] = useState(takeConnectorError);
+
+  return (
+    <Col gap={16}>
+      <ListHeader
+        title="Connectors"
+        count={data?.connectors.length}
+        action={
+          <Row gap={8}>
+          <CopyAllConnectors data={data} />
+          <Button
+            color="primary"
+            dark={dark}
+            label="Add connector"
+            onPress={() => {
+              setAdding(true);
+            }}
+          />
+          </Row>
+        }
+      />
+
+      {returned === null ? null : (
+        <Text size="2xs" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
+      )}
+      {error === null ? null : (
+        <Text size="2xs" role="danger">{queryError(error, FALLBACK)}</Text>
+      )}
+      {failed === null ? null : (
+        <Text size="2xs" role="danger">{failed}</Text>
+      )}
+      {data === undefined && error === null ? <Loading /> : null}
+      {data === undefined ? null : (
+        <ConnectorsBody
+          project={project}
+          onChanged={reload}
+          data={data}
+          onDelete={remove}
+          onError={setFailed}
+        />
+      )}
+
+      <AddConnector
+        open={adding}
+        onClose={() => {
+          setAdding(false);
+        }}
+        onAdded={(id) => {
+          reload();
+          go({ kind: 'connector', project, id });
+        }}
+      />
+    </Col>
+  );
+}

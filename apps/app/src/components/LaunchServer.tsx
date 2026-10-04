@@ -1,12 +1,215 @@
-import { type ReactNode } from 'react';
-import { Frame } from './Shell.js';
-import { PlainSidebar } from './PlainSidebar.js';
-import { Pending } from './Pending.js';
+import { type ReactNode, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { FormField } from './FormField.js';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { GROW } from '../lib/style.js';
+import { MetroLogo } from './MetroLogo.js';
+import { PageTitle } from './PageTitle.js';
+import { LaunchProgress } from './LaunchProgress.js';
+import { CopyBlock } from './CopyBlock.js';
+import { Loading } from './Loading.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
+import { queryError, refreshServers, useLaunchOverviewQuery } from '../lib/queries.js';
+import { launchServer, type Launched, type LaunchOverview } from '@metro-labs/client/api/launch';
+import { launchRegions, regionName } from '@metro-labs/client/aws/regions';
+import { useDocumentTitle } from '../lib/title.js';
+import { routeHash } from '@metro-labs/client/route';
+import { AgentAvatar } from './AgentAvatar.js';
+import { useImagePicker, type AvatarPicker } from './AvatarPicker.js';
+import { setServerAvatar } from '@metro-labs/client/api/servers';
+import { TextLink } from './TextLink.js';
+import { PageScroll } from './PageScroll.js';
 
-export function LaunchServer({ onLock }: { onLock: () => void }): ReactNode {
+const PICTURE = 48;
+const CARD_WIDTH = 480;
+const NO_AUTOFILL = { autoComplete: 'off' } as const;
+const HINT =
+  'Metro issues the machine from its own AWS account and sets it up for you. It belongs to your organization, and is usually live within five minutes.';
+const OFF = 'This Metro deployment issues no agents. Add your own from the list instead.';
+const OFF_IDENTITY = 'To configure it: the AWS and Tailscale secrets are missing on this deployment.';
+
+function RegionChoice({ regions, value, disabled, onPick }: { regions: string[]; value: string; disabled: boolean; onPick: (code: string) => void }): ReactNode {
+  const dark = useKitScheme() === 'dark';
   return (
-    <Frame sidebar={(closeMenu) => <PlainSidebar selection={{ kind: 'servers' }} onSelect={closeMenu} />} onLock={onLock}>
-      <Pending title="New agent" />
-    </Frame>
+    <Col gap={6}>
+      <Text size="2xs" role="secondary">Region</Text>
+      <Row gap={8} wrap>
+        {regions.map((code) => (
+          <Button
+            key={code}
+            size="md"
+            dark={dark}
+            color={value === code ? 'primary' : 'secondary'}
+            label={regionName(code)}
+            disabled={disabled}
+            onPress={() => {
+              onPick(code);
+            }}
+          />
+        ))}
+      </Row>
+    </Col>
+  );
+}
+
+function Off(): ReactNode {
+  const organization = activeAccount()?.organization ?? null;
+  return (
+    <Col gap={12}>
+      <Text size="2xs" role="secondary">{OFF}</Text>
+      {organization === null ? null : (
+        <Col gap={8}>
+          <Text size="2xs" role="secondary">{OFF_IDENTITY}</Text>
+          <CopyBlock label="your organization" value={organization} />
+        </Col>
+      )}
+    </Col>
+  );
+}
+
+function useLaunchForm(): {
+  name: string;
+  region: string;
+  setName: (value: string) => void;
+  setRegion: (value: string) => void;
+  busy: boolean;
+  error: string | null;
+  done: Launched | null;
+  launch: () => void;
+  avatar: string | null;
+  picker: AvatarPicker;
+} {
+  const [name, setName] = useState('');
+  const [region, setRegion] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<Launched | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const picker = useImagePicker((next) => {
+    setAvatar(next);
+    return Promise.resolve();
+  });
+  const client = useQueryClient();
+  const launch = (): void => {
+    if (busy || name.trim() === '' || region.trim() === '') return;
+    setBusy(true);
+    setError(null);
+    launchServer(name.trim(), region.trim())
+      .then(async (launched) => {
+        if (avatar !== null)
+          await setServerAvatar(launched.server.id, avatar).catch((err: unknown) => {
+            setError(queryError(err, 'The agent is launching, but its picture was not saved. Set it again in its settings.'));
+          });
+        await refreshServers(client);
+        setDone(launched);
+      })
+      .catch((err: unknown) => {
+        setError(queryError(err, 'Could not launch the agent.'));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return { name, region, setName, setRegion, busy, error, done, launch, avatar, picker };
+}
+
+function LaunchedView({ launched }: { launched: Launched }): ReactNode {
+  return (
+    <Col gap={14}>
+      <Row justify="center">
+        <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
+      </Row>
+      <Text size="2xs" role="secondary">
+        {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your agent list. Open it once it is live to create the agent.`}
+      </Text>
+      <LaunchProgress launched={launched} />
+    </Col>
+  );
+}
+
+function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Row align="center" gap={12} wrap>
+      <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
+      <Button size="md" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
+      {form.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
+      {form.picker.error === null ? null : <Text size="2xs" role="danger">{form.picker.error}</Text>}
+    </Row>
+  );
+}
+
+function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const form = useLaunchForm();
+  if (form.done !== null) return <LaunchedView launched={form.done} />;
+  return (
+    <Col gap={16}>
+      <Row justify="center">
+        <PageTitle>Have Metro issue an agent</PageTitle>
+      </Row>
+      <Text size="2xs" role="secondary">{HINT}</Text>
+      <Col gap={10}>
+        <PictureChoice form={form} />
+        <Col gap={4}>
+          <FormField label="Name"
+            name="launch-name"
+            value={form.name}
+            placeholder="andy"
+            inputProps={NO_AUTOFILL}
+            disabled={form.busy}
+            dark={dark}
+            onChangeText={form.setName}
+            onSubmit={form.launch}
+            style={GROW}
+          />
+        </Col>
+        <RegionChoice regions={launchRegions(overview.regions)} value={form.region} disabled={form.busy} onPick={form.setRegion} />
+      </Col>
+      {form.error === null ? null : <Text size="2xs" role="danger">{form.error}</Text>}
+      <Row justify="between" align="center" gap={12} wrap>
+        <Text size="2xs" role="secondary">
+          <TextLink to={routeHash({ kind: 'servers' })}>Back to your agents</TextLink>
+        </Text>
+        <Button size="lg"
+          color="primary"
+          dark={dark}
+          loading={form.busy}
+          disabled={form.busy || form.name.trim() === '' || form.region.trim() === ''}
+          label="Launch"
+          onPress={form.launch}
+        />
+      </Row>
+    </Col>
+  );
+}
+
+function Body(): ReactNode {
+  const { data, error } = useLaunchOverviewQuery();
+  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, OFF)}</Text>;
+  if (data === undefined) return <Loading />;
+  if (!data.enabled) return <Off />;
+  return <LaunchForm overview={data} />;
+}
+
+export function LaunchServer(): ReactNode {
+  const palette = useKitPalette();
+  const side = { width: 1, color: palette.border };
+  useDocumentTitle('Launch an agent');
+  return (
+    <PageScroll>
+      <Row justify="center" align="center" flex={1} padding={24}>
+        <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24} radius={BLOCK_RADIUS_DEFAULT} border={{ top: side, right: side, bottom: side, left: side }}>
+          <Row justify="center">
+            <MetroLogo size={48} color={palette.link} />
+          </Row>
+          <Body />
+        </Col>
+      </Row>
+    </PageScroll>
   );
 }

@@ -84,10 +84,6 @@ export function configurePlatform(changes: Partial<Platform>): void {
   Object.assign(current, changes);
 }
 
-export const kv = (): KeyValue => current.kv;
-
-export const tabKv = (): KeyValue => current.tabKv;
-
 export const location = (): Location => current.location;
 
 export const apiBase = (): string => current.apiBase;

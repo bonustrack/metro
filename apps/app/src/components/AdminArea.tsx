@@ -1,10 +1,12 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { type Selection } from '@metro-labs/client/selection';
 import { Frame } from './Shell.js';
 import { FieldLabel } from './FieldLabel.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
-import { Pending } from './Pending.js';
+import { AdminUsers } from './AdminUsers.js';
+import { AdminOverview } from './AdminOverview.js';
+import { AdminOrganizations, AdminAgents } from './AdminLists.js';
+import { type Selection } from '@metro-labs/client/selection';
 
 export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
 
@@ -28,10 +30,25 @@ function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSe
   );
 }
 
+function AdminPage({ selection }: { selection: AdminSelection }): ReactNode {
+  if (selection.kind === 'admin-organizations') return <AdminOrganizations />;
+  if (selection.kind === 'admin-agents') return <AdminAgents />;
+  if (selection.kind === 'admin-users') return <AdminUsers />;
+  return <AdminOverview />;
+}
+
 export function AdminArea({ selection, onLock }: { selection: AdminSelection; onLock: () => void }): ReactNode {
   return (
-    <Frame sidebar={(closeMenu) => <AdminSidebar selection={selection} onSelect={closeMenu} />} onLock={onLock}>
-      <Pending title="Admin" />
+    <Frame
+      sidebar={(closeMenu) => (
+        <AdminSidebar
+          selection={selection}
+          onSelect={closeMenu}
+        />
+      )}
+      onLock={onLock}
+    >
+      <AdminPage selection={selection} />
     </Frame>
   );
 }
