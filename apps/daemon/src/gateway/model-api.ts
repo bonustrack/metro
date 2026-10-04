@@ -48,13 +48,22 @@ function restartRunningSession(): boolean {
   return true;
 }
 
+function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps, restart: () => boolean): void {
+  const [was, now] = [runnerModel(before), runnerModel(next)];
+  if (was === now) return;
+  if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
+  else if (restart()) log.info({ was, now }, 'model-api: the model changed and the Agent SDK session could not be told, so it restarts on it');
+}
+
 function followModel(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
   const restart = deps.restartSession ?? restartRunningSession;
-  if (runnerInUse(deps.setup?.agents, next) === 'sdk') {
-    const [was, now] = [runnerModel(before), runnerModel(next)];
-    if (was === now) return;
-    if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
-    else if (restart()) log.info({ was, now }, 'model-api: the model changed and the Agent SDK session could not be told, so it restarts on it');
+  const agents = deps.setup?.agents;
+  if (runnerInUse(agents, next) === 'sdk') {
+    switchLive(before, next, deps, restart);
+    return;
+  }
+  if (runnerInUse(agents, before) === 'sdk') {
+    if (restart()) log.info('model-api: a model on the list has no API key now, so the Agent SDK session stops and the agent goes back to Claude Code');
     return;
   }
   if (routeOf(next) !== routeOf(before) && restart())

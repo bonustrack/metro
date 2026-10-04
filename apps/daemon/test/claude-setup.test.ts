@@ -281,6 +281,24 @@ describe('the permission mode of the session', () => {
     }
   });
 
+  test('every fallback model needs an API key too: one on a Claude login, Codex or Gemini keeps the Agent SDK runner off', async () => {
+    const first = makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
+    const fallingBackTo = (fallback: ReturnType<typeof makeConnection>): void => {
+      const cfg = configOf('openrouter', [first, fallback]);
+      writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify({ ...cfg, fallbacks: [{ connection: fallback.id, model: fallback.model === '' ? 'claude-opus-5-5' : fallback.model }] }));
+    };
+    fallingBackTo(makeConnection('anthropic', { apiKey: 'sk-ant-test', model: 'claude-opus-5-5' }));
+    expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
+    await call('POST', { runner: 'cli' });
+    for (const login of [makeConnection('anthropic'), makeConnection('codex', { model: 'gpt-6' }), makeConnection('gemini', { model: 'gemini-3' })]) {
+      fallingBackTo(login);
+      const refused = await refusal(call('POST', { runner: 'sdk' }));
+      expect(refused.status).toBe(403);
+      expect(refused.error).toContain('each fallback');
+      expect(await runnerOf(call('GET'))).toMatchObject({ runner: 'cli', runnerAllowed: false });
+    }
+  });
+
   test('only the Metro operator allows the Agent SDK on the Claude login, and taking it back puts the agent on Claude Code', async () => {
     const admin = await refusal(call('POST', { sdkOnLogin: true }));
     expect(admin).toEqual({ status: 403, error: 'only the Metro operator can allow the Agent SDK on a Claude login' });

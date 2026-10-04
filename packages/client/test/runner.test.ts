@@ -32,4 +32,10 @@ describe('the Model page says how a switch reaches the agent', () => {
     expect(modelNote(answer({ runner: 'sdk', runnerAllowed: false }))).toContain('restarts the agent');
     expect(modelNote(undefined)).toContain('restarts the agent');
   });
+
+  test('on an API-key route it warns that a model without a key puts the agent back on Claude Code, and on an allowed login it does not', () => {
+    expect(runnerNote(answer({ runnerAllowed: false, sdkOnLogin: false }))).toContain('each fallback');
+    expect(modelNote(answer({ runner: 'sdk', runnerAllowed: true, sdkOnLogin: false }))).toContain('Every model in the list needs an API key');
+    expect(modelNote(answer({ runner: 'sdk', runnerAllowed: true, sdkOnLogin: true }))).not.toContain('API key');
+  });
 });

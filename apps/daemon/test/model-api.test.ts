@@ -779,6 +779,36 @@ describe('the Agent SDK session follows the Model page live', () => {
     }
   });
 
+  test('fallback models are routed by the gateway, so a keyed list neither switches nor restarts the session, and a fallback without an API key stops it at once', async () => {
+    const told: (string | null)[] = [];
+    modelDeps.switchModel = (model) => {
+      told.push(model);
+      return true;
+    };
+    runnerIs('sdk');
+    const fallbacks = async (list: { connection: string; model: string }[]): Promise<number> => {
+      const res = await fetch(`${base}/api/model/fallbacks`, {
+        method: 'PUT',
+        headers: { authorization: await auth(OWNER), 'content-type': 'application/json' },
+        body: JSON.stringify({ fallbacks: list }),
+      });
+      await res.text();
+      return res.status;
+    };
+    try {
+      await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5.5' });
+      const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-5-5' });
+      const login = await add({ provider: 'anthropic' });
+      expect(await fallbacks([{ connection: keyed, model: 'claude-opus-5-5' }])).toBe(200);
+      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 0 });
+      expect(await fallbacks([{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }])).toBe(200);
+      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 1 });
+    } finally {
+      modelDeps.switchModel = undefined;
+      rmSync(setupFile(), { force: true });
+    }
+  });
+
   test('a session that cannot be told restarts on the new model, and the Claude Code session keeps restarting as before', async () => {
     modelDeps.switchModel = () => false;
     runnerIs('sdk');
