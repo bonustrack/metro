@@ -18,7 +18,7 @@ function commitTime() {
   return process.env.GIT_COMMIT_TIME || git('show -s --format=%cI HEAD');
 }
 
-const EAS_PROJECT_ID = '';
+const EAS_PROJECT_ID = '51aa82e1-6457-4e12-a9c2-30def4397e20';
 
 const IS_PROD = process.env.APP_VARIANT === 'prod';
 
