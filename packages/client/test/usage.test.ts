@@ -41,6 +41,7 @@ describe('what the page makes of the usage the daemon reports', () => {
   test('a reset in the future is said in the units a person would use', () => {
     expect(untilLabel('2026-09-17T10:05:00.000Z', NOW)).toBe('resets in 5 min');
     expect(untilLabel('2026-09-17T13:00:00.000Z', NOW)).toBe('resets in 3 h');
+    expect(untilLabel('2026-09-17T12:59:45.000Z', NOW)).toBe('resets in 3 h');
     expect(untilLabel('2026-09-17T09:00:00.000Z', NOW)).toBe('resets now');
     expect(untilLabel('2026-09-19T09:00:00.000Z', NOW)).toMatch(/^resets \w{3} /);
     expect(untilLabel('soon', NOW)).toBe('');

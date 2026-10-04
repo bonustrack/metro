@@ -94,8 +94,9 @@ export function untilLabel(iso: string, now = Date.now()): string {
   if (left <= 0) return 'resets now';
   if (left < HOUR) return `resets in ${String(Math.ceil(left / MINUTE))} min`;
   if (left < DAY) {
-    const hours = Math.floor(left / HOUR);
-    const minutes = Math.round((left % HOUR) / MINUTE);
+    const total = Math.round(left / MINUTE);
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
     return minutes === 0 ? `resets in ${String(hours)} h` : `resets in ${String(hours)} h ${String(minutes)} min`;
   }
   const when = new Date(at);
