@@ -16,18 +16,26 @@ interface PasteAddressProps {
   name: string;
   placeholder: string;
   finish: (pasted: string) => Promise<unknown>;
+  ready?: (pasted: string) => boolean;
 }
 
-export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressProps): ReactNode {
+export function PasteAddress({ hint, name, placeholder, finish, ready }: PasteAddressProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useModelAction();
   const [pasted, setPasted] = useState('');
+  const submit = (text: string): void => {
+    run(() => finish(text), 'Could not finish the sign-in.');
+  };
+  const change = (text: string): void => {
+    setPasted(text);
+    if (!busy && ready?.(text) === true) submit(text);
+  };
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
       <Text size="2xs" role="secondary">
         {hint}
       </Text>
-      <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={setPasted} style={GROW} />
+      <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={change} style={GROW} />
       <Row gap={8}>
         <Button
           size="lg"
@@ -36,7 +44,7 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
           loading={busy}
           disabled={busy || pasted.trim() === ''}
           onPress={() => {
-            run(() => finish(pasted), 'Could not finish the sign-in.');
+            submit(pasted);
           }}
         />
       </Row>
@@ -45,11 +53,12 @@ export function PasteAddress({ hint, name, placeholder, finish }: PasteAddressPr
   );
 }
 
-export function SignedInAs({ connection, children }: { connection: ConnectionRow; children: ReactNode }): ReactNode {
+export function SignedInAs({ connection, how = '', children }: { connection: ConnectionRow; how?: string; children: ReactNode }): ReactNode {
   return (
     <Col gap={10}>
       <Text size="2xs">
-        Signed in{connection.account === null ? '' : ` as ${connection.account}`}
+        Signed in{how === '' ? '' : ` ${how}`}
+        {connection.account === null ? '' : ` as ${connection.account}`}
         {connection.plan === null ? '' : ` (${connection.plan})`}
       </Text>
       {children}

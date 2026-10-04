@@ -30,7 +30,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const CODEX_TOKENS = { clientId: 'oaiapp_1', subject: 'user-1', email: 'l@x', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
+const CODEX_TOKENS = { method: 'chatgpt' as const, clientId: 'oaiapp_1', subject: 'user-1', email: 'l@x', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
 const OLD_CODEX_LOGIN = { accessToken: 'at', refreshToken: 'rt', idToken: '', accountId: 'acct', email: 'l@x', plan: 'pro', savedAt: '2026-09-07T00:00:00.000Z' };
 const GEMINI_TOKENS = { accessToken: 'gat', refreshToken: 'grt', expiresAt: 1_800_000_000_000, email: 'l@gmail.com', project: 'proj', tier: 'Google AI Pro', savedAt: '2026-09-20T00:00:00.000Z' };
 
@@ -63,17 +63,21 @@ describe('the connections on disk', () => {
     expect(shown).toMatchObject({ route: connectionId('bedrock'), ready: true, reason: null });
     const rows = shown.connections as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ provider: 'bedrock', region: 'eu-central-1', hasKey: true });
-    expect(rows[2]).toMatchObject({ provider: 'codex', signedIn: true, account: 'l@x', plan: null });
+    expect(rows[2]).toMatchObject({ provider: 'codex', signedIn: true, account: 'l@x', plan: null, method: 'chatgpt' });
     expect(readFileSync(join(dir, 'model.json'), 'utf8')).toContain('aws-key');
   });
 
-  test('a Codex login from before Sign in with ChatGPT reads as signed out, keeps its model, and says to sign in again', () => {
+  test('a Codex login from the Codex app client reads as a code sign-in, and each connection keeps which sign-in it used', () => {
     const dir = scratch();
     writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'cn-codex', connections: [{ id: 'cn-codex', provider: 'codex', model: 'gpt-5.4', codex: OLD_CODEX_LOGIN }] }));
     const cfg = readModelConfig(dir);
-    expect(cfg.connections[0]).toMatchObject({ id: 'cn-codex', model: 'gpt-5.4', codex: null });
-    expect(publicModelConfig(cfg)).toMatchObject({ ready: false, reason: CODEX_SIGN_IN, connections: [{ signedIn: false, account: null }] });
+    expect(cfg.connections[0]?.codex).toEqual({ method: 'code', accountId: 'acct', email: 'l@x', plan: 'pro', accessToken: 'at', refreshToken: 'rt', expiresAt: 0, savedAt: '2026-09-07T00:00:00.000Z' });
+    expect(publicModelConfig(cfg)).toMatchObject({ ready: true, reason: null, connections: [{ signedIn: true, account: 'l@x', plan: 'pro', method: 'code' }] });
+    writeModelConfig(cfg, dir);
+    expect(JSON.parse(readFileSync(join(dir, 'model.json'), 'utf8'))).toMatchObject({ connections: [{ codex: { method: 'code', accountId: 'acct' } }] });
     expect(parseModelConfig({ connections: [{ provider: 'codex', codex: { ...CODEX_TOKENS, clientId: 'dynamic_agent_client' } }] }).connections[0]?.codex).toBeNull();
+    const unsigned = parseModelConfig({ route: 'cn-codex', connections: [{ id: 'cn-codex', provider: 'codex', model: 'gpt-5.4', codex: { ...OLD_CODEX_LOGIN, refreshToken: '' } }] });
+    expect(publicModelConfig(unsigned)).toMatchObject({ ready: false, reason: CODEX_SIGN_IN, connections: [{ signedIn: false, account: null }] });
   });
 
   test('a file with no connections list is no connection at all', () => {

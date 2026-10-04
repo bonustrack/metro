@@ -3,7 +3,7 @@ import { ID_RE, newId } from '@metro-labs/core/ids';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
-import { CODEX_SIGN_IN, NEW_CLIENT, type CodexTokens } from './codex-auth.js';
+import { CODEX_SIGN_IN, NEW_CLIENT, type CodexCredential, type CodexMethod, type CodexTokens } from './codex-auth.js';
 import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gemini-auth.js';
 
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
@@ -89,21 +89,27 @@ function claudeFromDisk(raw: unknown): ClaudeLogin | null {
   return { id: text(raw.id), email: maybe(raw.email), plan: maybe(raw.plan), savedAt: text(raw.savedAt) };
 }
 
-function codexFromDisk(raw: unknown): CodexTokens | null {
-  if (!isRecord(raw)) return null;
-  const clientId = text(raw.clientId);
+function credentialFromDisk(raw: Record<string, unknown>): CodexCredential | null {
   const accessToken = text(raw.accessToken);
   const refreshToken = text(raw.refreshToken);
-  if (clientId === '' || clientId === NEW_CLIENT || accessToken === '' || refreshToken === '') return null;
+  if (accessToken === '' || refreshToken === '') return null;
   return {
-    clientId,
-    subject: text(raw.subject),
     email: maybe(raw.email),
     accessToken,
     refreshToken,
     expiresAt: typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt) ? raw.expiresAt : 0,
     savedAt: text(raw.savedAt) === '' ? new Date(0).toISOString() : text(raw.savedAt),
   };
+}
+
+function codexFromDisk(raw: unknown): CodexTokens | null {
+  if (!isRecord(raw)) return null;
+  const held = credentialFromDisk(raw);
+  if (held === null) return null;
+  const accountId = text(raw.accountId);
+  if (accountId !== '') return { method: 'code', accountId, plan: maybe(raw.plan), ...held };
+  const clientId = text(raw.clientId);
+  return clientId === '' || clientId === NEW_CLIENT ? null : { method: 'chatgpt', clientId, subject: text(raw.subject), ...held };
 }
 
 function connectionFromDisk(raw: unknown): Connection | null {
@@ -233,9 +239,9 @@ export const routeLabel = (route: Route): string =>
 
 export const PASSTHROUGH_ID = 'passthrough';
 
-function signedInAs(c: Connection): { account: string | null; plan: string | null } {
+function signedInAs(c: Connection): { account: string | null; plan: string | null; method?: CodexMethod } {
   if (c.claude !== null) return { account: c.claude.email, plan: c.claude.plan };
-  if (c.codex !== null) return { account: c.codex.email, plan: null };
+  if (c.codex !== null) return { account: c.codex.email, plan: c.codex.method === 'code' ? c.codex.plan : null, method: c.codex.method };
   return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import { openExternal } from '../lib/open.js';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,10 +51,10 @@ export function useSignInTab<T>(begin: () => Promise<T>, urlOf: (started: T) => 
         setStarting(false);
       });
   };
-  const settle = (message: string | null): void => {
+  const settle = useCallback((message: string | null): void => {
     setStarted(null);
     setError(message);
-  };
+  }, []);
   return { starting, started, link, error, start, settle };
 }
 

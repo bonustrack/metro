@@ -7,13 +7,13 @@ import { agentsDir } from '../agents/files.js';
 import { newPkce } from './pkce.js';
 import { nonEmpty } from './text.js';
 
-const CODEX_ISSUER = 'https://auth.openai.com';
+export const CODEX_ISSUER = 'https://auth.openai.com';
 export const CODEX_REDIRECT = 'http://127.0.0.1:1455/auth/callback';
 export const OPENAI_API = 'https://api.openai.com/v1';
 export const NEW_CLIENT = 'dynamic_agent_client';
 export const APP_NAME = 'Metro';
 export const PLAN_SCOPE = 'chatgpt.tokens.use.direct';
-export const CODEX_SIGN_IN = "Codex needs a ChatGPT sign-in: Metro now uses OpenAI's official Sign in with ChatGPT, so sign in again on the Model page.";
+export const CODEX_SIGN_IN = 'Codex is not signed in: sign in with ChatGPT on the Model page.';
 const SCOPE = `openid profile email offline_access resource.invoke ${PLAN_SCOPE}`;
 const PROFILE_CLAIM = 'https://api.openai.com/profile';
 const HOST_FILE = 'chatgpt-host.json';
@@ -23,15 +23,29 @@ const DEFAULT_TTL_MS = 60 * 60_000;
 const RENEW_BEFORE_MS = 2 * 60_000;
 const AGAIN = 'press Continue with ChatGPT again';
 
-export interface CodexTokens {
-  clientId: string;
-  subject: string;
+export type CodexMethod = 'chatgpt' | 'code';
+
+export interface CodexCredential {
   email: string | null;
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
   savedAt: string;
 }
+
+export interface ChatgptTokens extends CodexCredential {
+  method: 'chatgpt';
+  clientId: string;
+  subject: string;
+}
+
+export interface CodeTokens extends CodexCredential {
+  method: 'code';
+  accountId: string;
+  plan: string | null;
+}
+
+export type CodexTokens = ChatgptTokens | CodeTokens;
 
 export class CodexAuthError extends Error {}
 
@@ -53,12 +67,12 @@ export function chatgptHostId(dir = agentsDir()): string {
   return made;
 }
 
-function returning(previous: CodexTokens | null): Record<string, string> {
+function returning(previous: ChatgptTokens | null): Record<string, string> {
   if (previous === null) return { client_id: NEW_CLIENT, agent_name_hint: APP_NAME };
   return { client_id: previous.clientId, ...(previous.email === null ? {} : { login_hint: previous.email }) };
 }
 
-export function beginLogin(previous: CodexTokens | null, hostId: string, issuer = CODEX_ISSUER, now = Date.now()): string {
+export function beginLogin(previous: ChatgptTokens | null, hostId: string, issuer = CODEX_ISSUER, now = Date.now()): string {
   const { verifier, challenge } = newPkce();
   const nonce = randomBytes(32).toString('base64url');
   const { ticket: state } = pending.mint({ verifier, nonce, clientId: previous?.clientId ?? null, subject: previous?.subject ?? null }, now);
@@ -103,7 +117,7 @@ export function parseCallback(raw: string): { code: string; state: string; clien
   return { code, state, clientId: nonEmpty(param(query, 'client_id')) };
 }
 
-function decodeJwtPayload(jwt: string): Record<string, unknown> {
+export function decodeJwtPayload(jwt: string): Record<string, unknown> {
   const part = jwt.split('.')[1] ?? '';
   try {
     const parsed: unknown = JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
@@ -113,22 +127,31 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
   }
 }
 
+export function emailOf(claims: Record<string, unknown>): string | null {
+  const profile = isRecord(claims[PROFILE_CLAIM]) ? claims[PROFILE_CLAIM] : {};
+  return nonEmpty(claims.email) ?? nonEmpty(profile.email);
+}
+
 function identityOf(idToken: unknown, expected: { issuer: string; clientId: string; nonce: string }): { subject: string; email: string | null } {
   const claims = decodeJwtPayload(typeof idToken === 'string' ? idToken : '');
   const audience: unknown[] = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   const subject = nonEmpty(claims.sub);
   if (subject === null || claims.iss !== expected.issuer || !audience.includes(expected.clientId) || claims.nonce !== expected.nonce)
     throw new CodexAuthError(`OpenAI sent back an identity that does not match this sign-in; ${AGAIN}`);
-  const profile = isRecord(claims[PROFILE_CLAIM]) ? claims[PROFILE_CLAIM] : {};
-  return { subject, email: nonEmpty(claims.email) ?? nonEmpty(profile.email) };
+  return { subject, email: emailOf(claims) };
 }
 
-async function tokenCall(issuer: string, form: Record<string, string>, fetchImpl: typeof fetch): Promise<Record<string, unknown>> {
-  const res = await fetchImpl(`${issuer}/api/accounts/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-    body: new URLSearchParams(form).toString(),
-  });
+interface Encoded {
+  type: string;
+  body: string;
+}
+
+export const asForm = (fields: Record<string, string>): Encoded => ({ type: 'application/x-www-form-urlencoded', body: new URLSearchParams(fields).toString() });
+
+export const asJson = (fields: Record<string, string>): Encoded => ({ type: 'application/json', body: JSON.stringify(fields) });
+
+export async function tokenCall(url: string, sent: Encoded, fetchImpl: typeof fetch): Promise<Record<string, unknown>> {
+  const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': sent.type, accept: 'application/json' }, body: sent.body });
   const raw = await res.text();
   let parsed: unknown = null;
   try {
@@ -141,13 +164,23 @@ async function tokenCall(issuer: string, form: Record<string, string>, fetchImpl
   return body;
 }
 
-function tokensFrom(body: Record<string, unknown>, who: Pick<CodexTokens, 'clientId' | 'subject' | 'email'>, keptRefresh: string, now: number): CodexTokens {
+export function grantOf(body: Record<string, unknown>, keptRefresh: string, now: number): Omit<CodexCredential, 'email'> {
   const accessToken = nonEmpty(body.access_token) ?? '';
   const refreshToken = nonEmpty(body.refresh_token) ?? keptRefresh;
-  if (accessToken === '' || refreshToken === '') throw new CodexAuthError(`OpenAI returned no usable tokens; ${AGAIN}`);
+  if (accessToken === '' || refreshToken === '') throw new CodexAuthError('OpenAI returned no usable tokens; sign in again');
   const ttl = typeof body.expires_in === 'number' && body.expires_in > 0 ? body.expires_in * 1000 : DEFAULT_TTL_MS;
-  return { clientId: who.clientId, subject: who.subject, email: who.email, accessToken, refreshToken, expiresAt: now + ttl, savedAt: new Date(now).toISOString() };
+  return { accessToken, refreshToken, expiresAt: now + ttl, savedAt: new Date(now).toISOString() };
 }
+
+const tokensFrom = (body: Record<string, unknown>, who: Pick<ChatgptTokens, 'clientId' | 'subject' | 'email'>, keptRefresh: string, now: number): ChatgptTokens => ({
+  method: 'chatgpt',
+  clientId: who.clientId,
+  subject: who.subject,
+  email: who.email,
+  ...grantOf(body, keptRefresh, now),
+});
+
+const officialToken = (issuer: string): string => `${issuer}/api/accounts/oauth/token`;
 
 function clientOf(started: Pending, returned: string | null): string {
   const clientId = started.clientId ?? returned;
@@ -156,14 +189,14 @@ function clientOf(started: Pending, returned: string | null): string {
   return clientId;
 }
 
-export async function finishLogin(callback: string, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<CodexTokens> {
+export async function finishLogin(callback: string, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<ChatgptTokens> {
   const { code, state, clientId: returned } = parseCallback(callback);
   const started = pending.take(state, now);
   if (started === undefined) throw new CodexAuthError(`this sign-in link has expired or was started elsewhere; ${AGAIN}`);
   const clientId = clientOf(started, returned);
   const body = await tokenCall(
-    issuer,
-    { grant_type: 'authorization_code', client_id: clientId, code, code_verifier: started.verifier, redirect_uri: CODEX_REDIRECT, resource: OPENAI_API },
+    officialToken(issuer),
+    asForm({ grant_type: 'authorization_code', client_id: clientId, code, code_verifier: started.verifier, redirect_uri: CODEX_REDIRECT, resource: OPENAI_API }),
     fetchImpl,
   );
   const who = identityOf(body.id_token, { issuer, clientId, nonce: started.nonce });
@@ -174,10 +207,10 @@ export async function finishLogin(callback: string, issuer = CODEX_ISSUER, fetch
   return tokensFrom(body, { clientId, ...who }, '', now);
 }
 
-export async function refreshTokens(previous: CodexTokens, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<CodexTokens> {
+export async function refreshTokens(previous: ChatgptTokens, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<ChatgptTokens> {
   const body = await tokenCall(
-    issuer,
-    { grant_type: 'refresh_token', client_id: previous.clientId, refresh_token: previous.refreshToken, resource: OPENAI_API },
+    officialToken(issuer),
+    asForm({ grant_type: 'refresh_token', client_id: previous.clientId, refresh_token: previous.refreshToken, resource: OPENAI_API }),
     fetchImpl,
   );
   return tokensFrom(body, previous, previous.refreshToken, now);

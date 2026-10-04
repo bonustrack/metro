@@ -11,6 +11,7 @@ const row = (over: Partial<ConnectionRow> & { id: string; provider: ConnectionRo
   signedIn: false,
   account: null,
   plan: null,
+  method: null,
   ...over,
 });
 

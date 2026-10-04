@@ -68,7 +68,8 @@ const geminiFailures: number[] = [];
 const geminiRefusals: string[] = [];
 const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
-const tokens = (): CodexTokens => ({ clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
+const tokens = (): CodexTokens => ({ method: 'chatgpt', clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
+const codeTokens = (): CodexTokens => ({ method: 'code', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
 const codexEvents = (): string[] => [
   JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }),
   JSON.stringify({ type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } }),
@@ -539,6 +540,22 @@ describe('the Codex route', () => {
     expect(saved[0]?.accessToken).toBe('at-2');
     expect(codexBackend.seen.at(-1)?.headers.authorization).toBe('Bearer at-2');
     expect((JSON.parse(codexBackend.seen.at(-1)?.body ?? '{}') as { model: string }).model).toBe('gpt-5.4');
+  });
+
+  test('a code sign-in calls the ChatGPT backend as the Codex app, and a 401 refreshes it with the JSON grant of the Codex app client', async () => {
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = { ...codeTokens(), accessToken: 'expired' };
+    const res = await post('/gateway/v1/messages', message('gpt-5.4', true), { 'x-claude-code-session-id': 'sess-2' });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('event: message_stop');
+    expect(tokenIssuer.seen.map((r) => r.url)).toEqual(['/oauth/token']);
+    expect(JSON.parse(tokenIssuer.seen[0]?.body ?? '{}')).toEqual({ client_id: 'app_EMoamEEZ73f0CkXaXp7hrann', grant_type: 'refresh_token', refresh_token: 'rt-1' });
+    expect(saved[0]).toMatchObject({ method: 'code', accountId: 'acct_1', plan: 'pro', accessToken: 'at-2', refreshToken: 'rt-2' });
+    const last = codexBackend.seen.at(-1);
+    expect(last?.url).toBe('/responses');
+    expect(last?.headers).toMatchObject({ authorization: 'Bearer at-2', 'chatgpt-account-id': 'acct_1', originator: 'codex_cli_rs', 'openai-beta': 'responses=experimental', 'session-id': 'sess-2' });
+    expect(String(last?.headers['user-agent'])).toMatch(/^codex_cli_rs\/\d+\.\d+\.\d+ \(.+\) metro$/);
+    expect((JSON.parse(last?.body ?? '{}') as { model: string; prompt_cache_key: string })).toMatchObject({ model: 'gpt-5.4', prompt_cache_key: 'sess-2' });
   });
 
   test('a used-up ChatGPT plan is a 429 rate limit that says where to manage the usage', async () => {

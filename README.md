@@ -86,7 +86,8 @@ metro claude [args...]
 already loaded, using the agent's key. Nothing needs `claude mcp add`. Every argument is
 passed to `claude` as it is. It also routes inference through the daemon's model gateway,
 so the **Model** page decides where requests go: Anthropic, Amazon Bedrock, OpenRouter,
-Codex (a ChatGPT Plus or Pro plan, through OpenAI's Sign in with ChatGPT) or Gemini.
+Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the Codex app's code
+sign-in) or Gemini.
 
 You rarely type it yourself. Once the box has an agent and a model it can use, the daemon
 starts the session in a tmux session named `metro`, answers Claude Code's first-run

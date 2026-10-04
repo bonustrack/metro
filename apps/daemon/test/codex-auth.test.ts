@@ -15,7 +15,7 @@ import {
   PLAN_SCOPE,
   refreshTokens,
   tokensStale,
-  type CodexTokens,
+  type ChatgptTokens,
 } from '../src/gateway/codex-auth.ts';
 import { jwt } from './model-fixture.ts';
 
@@ -62,12 +62,12 @@ const granted = (nonce: string, extra: Record<string, unknown> = {}): Record<str
   ...extra,
 });
 
-const started = (previous: CodexTokens | null = null): { url: URL; state: string; nonce: string } => {
+const started = (previous: ChatgptTokens | null = null): { url: URL; state: string; nonce: string } => {
   const url = new URL(beginLogin(previous, HOST, ISSUER));
   return { url, state: url.searchParams.get('state') ?? '', nonce: url.searchParams.get('nonce') ?? '' };
 };
 
-const saved = (): CodexTokens => ({ clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.parse('2026-10-04T13:00:00Z'), savedAt: '2026-10-04T12:00:00.000Z' });
+const saved = (): ChatgptTokens => ({ method: 'chatgpt', clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.parse('2026-10-04T13:00:00Z'), savedAt: '2026-10-04T12:00:00.000Z' });
 
 describe('Sign in with ChatGPT, the way OpenAI documents it for open-source apps', () => {
   test('a first sign-in registers Metro on this host: dynamic client, app name, host id, plan scope, resource, PKCE and a nonce', () => {
@@ -123,7 +123,7 @@ describe('Sign in with ChatGPT, the way OpenAI documents it for open-source apps
     const { calls, fetchImpl } = fakeFetch(() => json(granted(nonce)));
     const now = Date.parse('2026-10-04T12:00:00Z');
     const tokens = await finishLogin(`${CODEX_REDIRECT}?code=the-code&scope=x&state=${state}&client_id=oaiapp_1`, ISSUER, fetchImpl, now);
-    expect(tokens).toEqual({ clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: now + 3_600_000, savedAt: '2026-10-04T12:00:00.000Z' });
+    expect(tokens).toEqual({ method: 'chatgpt', clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: now + 3_600_000, savedAt: '2026-10-04T12:00:00.000Z' });
     expect(calls[0]?.url).toBe(`${ISSUER}/api/accounts/oauth/token`);
     expect((calls[0]?.init.headers as Record<string, string>)['content-type']).toBe('application/x-www-form-urlencoded');
     const form = Object.fromEntries(new URLSearchParams(String(calls[0]?.init.body)));
@@ -161,7 +161,7 @@ describe('Sign in with ChatGPT, the way OpenAI documents it for open-source apps
     const { calls, fetchImpl } = fakeFetch(() => json({ access_token: 'at-2', refresh_token: 'rt-2', expires_in: 3600, token_type: 'Bearer' }));
     const now = Date.parse('2026-10-04T12:58:30Z');
     const fresh = await refreshTokens(saved(), ISSUER, fetchImpl, now);
-    expect(fresh).toMatchObject({ clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-2', refreshToken: 'rt-2', expiresAt: now + 3_600_000 });
+    expect(fresh).toMatchObject({ method: 'chatgpt', clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-2', refreshToken: 'rt-2', expiresAt: now + 3_600_000 });
     expect(calls[0]?.url).toBe(`${ISSUER}/api/accounts/oauth/token`);
     expect(Object.fromEntries(new URLSearchParams(String(calls[0]?.init.body)))).toEqual({ grant_type: 'refresh_token', client_id: 'oaiapp_1', refresh_token: 'rt-1', resource: OPENAI_API });
     const kept = await refreshTokens(saved(), ISSUER, fakeFetch(() => json({ access_token: 'at-3' })).fetchImpl, now);

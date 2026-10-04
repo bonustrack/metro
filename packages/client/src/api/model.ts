@@ -42,6 +42,8 @@ export interface Served {
   at: string;
 }
 
+export type CodexMethod = 'chatgpt' | 'code';
+
 export interface ConnectionRow {
   id: string;
   provider: Provider;
@@ -53,6 +55,7 @@ export interface ConnectionRow {
   signedIn: boolean;
   account: string | null;
   plan: string | null;
+  method: CodexMethod | null;
 }
 
 export interface Fallback {
@@ -116,6 +119,7 @@ function toConnection(raw: unknown): ConnectionRow | null {
     signedIn: raw.signedIn === true,
     account: filled(raw.account),
     plan: filled(raw.plan),
+    method: raw.method === 'chatgpt' || raw.method === 'code' ? raw.method : null,
   };
 }
 
@@ -197,6 +201,36 @@ export async function beginCodexLogin(id = ''): Promise<string> {
 
 export async function finishCodexLogin(url: string, id = ''): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/callback', id), headers: json, body: JSON.stringify({ url }) }));
+}
+
+const CODE_PARAM = /(?:^|[?&])code=[^&\s]/;
+const STATE_PARAM = /(?:^|[?&])state=[^&\s]/;
+
+export const carriesCodeAndState = (pasted: string): boolean => CODE_PARAM.test(pasted.trim()) && STATE_PARAM.test(pasted.trim());
+
+export const CODEX_CODE_SINCE = '0.1.0-beta.256';
+
+export interface DeviceLogin {
+  id: string;
+  userCode: string;
+  verifyUrl: string;
+  interval: number;
+}
+
+export type DevicePoll = { status: 'pending' } | { status: 'done' } | { status: 'failed'; error: string };
+
+export async function beginCodexDevice(): Promise<DeviceLogin> {
+  const body = await call({ method: 'POST', base: modelUrl(), path: '/codex/device' });
+  if (!isRecord(body) || typeof body.id !== 'string' || typeof body.user_code !== 'string' || typeof body.verify_url !== 'string') throw unexpected();
+  return { id: body.id, userCode: body.user_code, verifyUrl: body.verify_url, interval: typeof body.interval === 'number' && body.interval >= 1 ? body.interval : 5 };
+}
+
+export async function pollCodexDevice(id: string, connection = ''): Promise<DevicePoll> {
+  const body = await call({ method: 'GET', base: modelUrl(), path: withConnection(`/codex/device/${id}`, connection) });
+  if (!isRecord(body)) throw unexpected();
+  if (body.status === 'done') return { status: 'done' };
+  if (body.status === 'failed') return { status: 'failed', error: typeof body.error === 'string' ? body.error : 'The sign-in did not finish.' };
+  return { status: 'pending' };
 }
 
 export async function beginGeminiLogin(): Promise<{ url: string; state: string }> {
