@@ -4,10 +4,13 @@ export interface UpstreamRequest {
   t: number;
   model: string;
   worker: boolean;
+  efforts: string[];
 }
 
 export interface ScriptedUpstream {
   seen: UpstreamRequest[];
+  refuse: Set<string>;
+  refused: string[];
   close(): void;
 }
 
@@ -58,6 +61,17 @@ function stream(res: ServerResponse, model: string, blocks: Block[]): void {
   res.end();
 }
 
+const effortOf = (item: unknown): string => {
+  const config = typeof item === 'object' && item !== null ? (item as { output_config?: { effort?: unknown } }).output_config : undefined;
+  return typeof config?.effort === 'string' ? config.effort : '';
+};
+
+const effortsOf = (body: Record<string, unknown>): string[] => [body, ...(Array.isArray(body.messages) ? (body.messages as unknown[]) : [])].map(effortOf).filter((e) => e !== '');
+
+function refusal(res: ServerResponse): void {
+  res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '120' }).end(JSON.stringify({ type: 'error', error: { type: 'rate_limit_error', message: 'scripted: this model is over its limit' } }));
+}
+
 function parse(raw: Buffer): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw.toString('utf8'));
@@ -67,7 +81,15 @@ function parse(raw: Buffer): Record<string, unknown> {
   }
 }
 
-function serve(req: IncomingMessage, res: ServerResponse, raw: Buffer, seen: UpstreamRequest[], t0: number, lines: string[]): void {
+interface State {
+  seen: UpstreamRequest[];
+  refuse: Set<string>;
+  refused: string[];
+  lines: string[];
+  t0: number;
+}
+
+function serve(req: IncomingMessage, res: ServerResponse, raw: Buffer, state: State): void {
   const path = (req.url ?? '').split('?')[0] ?? '';
   if (path.endsWith('/models')) {
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ data: [], has_more: false }));
@@ -79,31 +101,34 @@ function serve(req: IncomingMessage, res: ServerResponse, raw: Buffer, seen: Ups
   }
   const body = parse(raw);
   const model = typeof body.model === 'string' ? body.model : '?';
-  const { worker, blocks } = answerFor(body, model, lines);
+  if (state.refuse.has(model)) {
+    state.refused.push(model);
+    refusal(res);
+    return;
+  }
+  const { worker, blocks } = answerFor(body, model, state.lines);
   if (body.stream !== true) {
     res.writeHead(200, { 'content-type': 'application/json' }).end(
       JSON.stringify({ id: 'msg_quiet', type: 'message', role: 'assistant', model, content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 5, output_tokens: 5 } }),
     );
     return;
   }
-  seen.push({ t: Date.now() - t0, model, worker });
+  state.seen.push({ t: Date.now() - state.t0, model, worker, efforts: effortsOf(body) });
   stream(res, model, blocks);
 }
 
 export function startScripted(port: number): Promise<ScriptedUpstream> {
-  const seen: UpstreamRequest[] = [];
-  const lines: string[] = [];
-  const t0 = Date.now();
+  const state: State = { seen: [], refuse: new Set(), refused: [], lines: [], t0: Date.now() };
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
-      serve(req, res, Buffer.concat(chunks), seen, t0, lines);
+      serve(req, res, Buffer.concat(chunks), state);
     });
   });
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
-      resolve({ seen, close: () => server.close() });
+      resolve({ seen: state.seen, refuse: state.refuse, refused: state.refused, close: () => server.close() });
     });
   });
 }

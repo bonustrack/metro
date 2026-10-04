@@ -52,12 +52,17 @@ const put = async (path: string, body: unknown): Promise<number> => {
 interface Seen {
   main: string[];
   workers: string[];
+  mainEfforts?: string[];
+  workerEfforts?: string[];
 }
+
+const distinct = (values: string[]): string[] => [...new Set(values)];
 
 function seenSince(mark: number, counts: Record<string, number>): Seen {
   if (h.upstream !== null) {
     const rows = h.upstream.seen.slice(mark);
-    return { main: [...new Set(rows.filter((r) => !r.worker).map((r) => r.model))], workers: [...new Set(rows.filter((r) => r.worker).map((r) => r.model))] };
+    const [main, workers] = [rows.filter((r) => !r.worker), rows.filter((r) => r.worker)];
+    return { main: distinct(main.map((r) => r.model)), workers: distinct(workers.map((r) => r.model)), mainEfforts: distinct(main.flatMap((r) => r.efforts)), workerEfforts: distinct(workers.flatMap((r) => r.efforts)) };
   }
   const now = h.standIn?.stats.models ?? {};
   return { main: Object.keys(now).filter((m) => (now[m] ?? 0) > (counts[m] ?? 0)), workers: [] };
@@ -88,26 +93,42 @@ async function change(name: string, path: string, body: unknown): Promise<void> 
 const sessions = (): string[] => [...new Set(h.events.filter((e) => e.kind === 'init').map((e) => String(e.data.session)))];
 const modelsUsed = (): string[] => [...new Set(h.events.filter((e) => e.kind === 'result').flatMap((e) => Object.keys((e.data.models ?? {}) as Record<string, unknown>)))];
 
+async function delegate(name: string): Promise<void> {
+  const at = h.now();
+  const before = marks();
+  h.chat(h.LESS, 'DELEGATE: have a background worker compute 17 times 23, then post the result here in one line.');
+  await h.until(`${name} done`, () => h.events.some((e) => e.t >= at && e.kind === 'task_notification'), 300_000);
+  await h.until(`${name} relayed`, () => h.sendsOn(h.LINE, at).length > 0, 120_000);
+  numbers[`${name}_upstream`] = seenSince(before.mark, before.counts);
+  numbers[`${name}_relayed`] = h.sendsOn(h.LINE, at).at(-1)?.args.text;
+  await h.settled();
+}
+
+async function fallBack(): Promise<void> {
+  const switches = told.length;
+  await change('fallback', '/api/model/fallbacks', { fallbacks: [{ connection: 'or', model: 'vendor/model-c' }] });
+  h.upstream?.refuse.add(OTHER_PROVIDER);
+  await ask('fallback', 'Which model are you now? Answer here in one line.');
+  numbers.fallback_refused = h.upstream?.refused.length;
+  numbers.fallback_new_switches = told.length - switches;
+}
+
 const agent = await h.boot(10_000_000);
 await ask('start', 'Remember the codeword PLUM-42. Which model are you? Answer here in one line.');
 await h.settled();
 await change('switch', `/api/model/connections/${ROUTED}`, { model: bare(SECOND) });
 await ask('after_switch', 'Which model are you now? Answer here in one line.');
 await h.settled();
-const workerAt = h.now();
-const workerMarks = marks();
-h.chat(h.LESS, 'DELEGATE: have a background worker compute 17 times 23, then post the result here in one line.');
-await h.until('worker done', () => h.events.some((e) => e.t >= workerAt && e.kind === 'task_notification'), 300_000);
-await h.until('worker relayed', () => h.sendsOn(h.LINE, workerAt).length > 0, 120_000);
-numbers.worker_upstream = seenSince(workerMarks.mark, workerMarks.counts);
-numbers.worker_relayed = h.sendsOn(h.LINE, workerAt).at(-1)?.args.text;
-await h.settled();
+await delegate('worker');
 if (REAL) {
   await change('back', `/api/model/connections/${ROUTED}`, { model: FIRST });
   await ask('recall', 'What was the codeword I gave you at the start? Answer here in one line.');
 } else {
   await change('provider', '/api/model', { route: 'an' });
   await ask('other_provider', 'Which model are you now? Answer here in one line.');
+  await h.settled();
+  await delegate('anthropic_worker');
+  await fallBack();
 }
 numbers.models_in_claude_code = modelsUsed();
 numbers.sessions = sessions();
