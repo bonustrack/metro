@@ -73,6 +73,15 @@ aws cloudformation deploy --stack-name metro-identity --template-file metro-iden
 aws cloudformation describe-stacks --stack-name metro-identity --query 'Stacks[0].Outputs' --output table
 ```
 
+CloudShell can refuse to start while AWS is still verifying the account
+("Unable to create the environment. Your account verification is in
+progress"). The CloudFormation console runs the same stack without it, in
+us-east-1: download the template from the link in the `curl` line, then Create
+stack, Upload a template file, and pick that file. Name the stack
+`metro-identity` (the template has no parameters), tick the box that
+acknowledges IAM resources with custom names, and Submit. Once the stack reads
+`CREATE_COMPLETE`, its Outputs tab shows `RoleArn` and `TemplatesUrl`.
+
 Then on Fly, with the two outputs:
 
 ```
