@@ -6,8 +6,8 @@ compatibility_date = "2026-06-01"
 # Update manifest (channel = the branch name, escaped like
 # scripts/app/channel-key.mjs), a browser gets the preview launcher
 # (apps/app/public/preview-launcher.html, bundled in as text). The Worker
-# answers everything itself, so the DNS record in the metro.box zone only has
-# to be proxied: AAAA bundler 100:: (orange cloud).
+# answers everything itself, so it is a Custom Domain: the deploy creates the
+# DNS record and the certificate in the metro.box zone.
 routes = [
-  { pattern = "bundler.metro.box/*", zone_name = "metro.box" },
+  { pattern = "bundler.metro.box", custom_domain = true },
 ]

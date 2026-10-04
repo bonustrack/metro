@@ -5,6 +5,10 @@
   "description": "bundler.metro.box: a Cloudflare Worker that hands the Metro dev client the latest EAS Update of a branch at https://bundler.metro.box/<branch>, and sends a browser to the preview launcher.",
   "type": "module",
   "scripts": {
+    "deploy": "wrangler deploy",
     "test": "bun test test/"
+  },
+  "devDependencies": {
+    "wrangler": "^4.133.0"
   }
 }

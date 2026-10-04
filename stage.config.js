@@ -24,7 +24,7 @@ export default defineConfig({
     },
     'apps/bundler': {
       type: 'worker',
-      knip: { entry: ['src/index.ts', 'test/**/*.ts'] },
+      knip: { entry: ['test/**/*.ts'] },
     },
     'apps/api': {
       type: 'library',
