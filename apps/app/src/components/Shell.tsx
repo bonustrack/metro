@@ -1,19 +1,18 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TopBar } from './TopBar.js';
-import { Drawer, DRAWER_WIDTH } from './Drawer.js';
+import { Drawer } from './Drawer.js';
+import { DRAWER_WIDTH } from './DrawerPanel.js';
 import { PageScroll } from './PageScroll.js';
 import { AccountMenu } from './AccountMenu.js';
 import { OrganizationSwitcher } from './OrganizationSwitcher.js';
-import { useSwipeDrawer } from './swipe.js';
 import { side } from './ui/edges.js';
 import { useIsNarrow } from '../lib/media.js';
 import { webOnly } from '../lib/style.js';
 
-const styles = StyleSheet.create({ fill: { flex: 1 } });
 const STICKY = webOnly({ position: 'sticky', top: 0, height: '100vh' });
 const PAGE_PAD = { x: 18, top: 18, bottom: 64 } as const;
 const SMALL = 720;
@@ -54,7 +53,6 @@ export function Frame({ sidebar, onLock, children }: FrameProps): ReactNode {
   const close = useCallback(() => {
     setMenuOpen(false);
   }, []);
-  const swipe = useSwipeDrawer(narrow, menuOpen, setMenuOpen);
   const top = useWindowDimensions().width <= SMALL ? SMALL_TOP : PAGE_PAD.top;
   const page = (
     <PageScroll>
@@ -65,17 +63,14 @@ export function Frame({ sidebar, onLock, children }: FrameProps): ReactNode {
   );
   if (narrow)
     return (
-      <View style={styles.fill} {...swipe}>
+      <Drawer open={menuOpen} onOpenChange={setMenuOpen} menu={<SidebarBody sidebar={sidebar} onLock={onLock} close={close} />}>
         <TopBar
           onOpenMenu={() => {
             setMenuOpen(true);
           }}
         />
         {page}
-        <Drawer open={menuOpen} onClose={close} swipe={swipe}>
-          <SidebarBody sidebar={sidebar} onLock={onLock} close={close} />
-        </Drawer>
-      </View>
+      </Drawer>
     );
   return (
     <Row flex={1} align="start">
