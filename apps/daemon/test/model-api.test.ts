@@ -10,7 +10,7 @@ import { userAgent } from '../src/gateway/codex.ts';
 import { codexVersion } from '../src/gateway/codex-version.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { jwt, makeConnection } from './model-fixture.ts';
