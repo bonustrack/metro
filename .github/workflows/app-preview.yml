@@ -1,0 +1,177 @@
+name: App preview
+
+# Per-branch JS preview of apps/app for the Metro dev client, the way Stage's
+# pr-preview.yml works: every push publishes the Android JS bundle as an EAS
+# Update on the branch's own channel, so https://bundler.metro.box/<branch>
+# (apps/bundler) loads it in the dev client, and writes that link, the
+# commit's own deep link and a QR code to the job summary. The commit gets a
+# clickable "App preview" status pointing at the branch link. A native change
+# still needs a new dev APK (app-dev-client.yml); the summary warns when the
+# runtime moved.
+#
+# Needs the EXPO_TOKEN secret and the EAS project id in apps/app/app.config.js.
+
+on:
+  push:
+    branches: ['**']
+    paths: ['apps/app/**', 'packages/client/**', 'patches/**', 'package.json', 'bun.lock', '.github/workflows/app-preview.yml']
+  delete:
+
+concurrency:
+  group: app-preview-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      TMPDIR: ${{ github.workspace }}/.metro-tmp
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - run: mkdir -p "$TMPDIR" && bun install --frozen-lockfile
+
+      - name: Check the Expo token and project
+        id: ready
+        working-directory: apps/app
+        run: |
+          ID="$(bunx expo config --json --type public | jq -r '.extra.eas.projectId // empty')"
+          if [ -z "$EXPO_TOKEN" ] || [ -z "$ID" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## App preview"
+              echo ""
+              echo "Not published: it needs the \`EXPO_TOKEN\` secret and the EAS project id in apps/app/app.config.js."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "project_id=$ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect a native change
+        if: steps.ready.outputs.ready == 'true'
+        id: native
+        run: |
+          set -uo pipefail
+          BEFORE='${{ github.event.before }}'
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="$(git rev-parse --verify -q HEAD~1 || true)"
+          fi
+          runtime() { (cd apps/app && bunx expo-updates runtimeversion:resolve --platform android | jq -re .runtimeVersion); }
+          NATIVE=false
+          AFTER="$(runtime)" || AFTER=""
+          if [ -n "$BEFORE" ] && git fetch -q --depth=1 origin "$BEFORE" && git checkout -q --detach "$BEFORE"; then
+            if ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- bun.lock; then bun install --frozen-lockfile > /dev/null 2>&1 || true; fi
+            OLD="$(runtime)" || OLD=""
+            if [ -n "$OLD" ] && [ -n "$AFTER" ] && [ "$OLD" != "$AFTER" ]; then NATIVE=true; fi
+            git checkout -q --detach "$GITHUB_SHA"
+            if ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- bun.lock; then bun install --frozen-lockfile; fi
+          fi
+          echo "native=$NATIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the EAS Update for this branch
+        if: steps.ready.outputs.ready == 'true'
+        id: update
+        working-directory: apps/app
+        env:
+          GIT_COMMIT: ${{ github.sha }}
+          GIT_COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
+          RAW_BRANCH: ${{ github.ref_name }}
+          EAS_PROJECT_ID: ${{ steps.ready.outputs.project_id }}
+        run: |
+          set -euo pipefail
+          BRANCH="$(bun ../../scripts/app/channel-key.mjs "$RAW_BRANCH")"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "preview_url=https://bundler.metro.box/$(node -e "process.stdout.write(process.argv[1].split('/').map(encodeURIComponent).join('/'))" "$RAW_BRANCH")" >> "$GITHUB_OUTPUT"
+          bunx expo export --platform android --no-minify --no-bytecode --output-dir dist-update
+          BUNDLE="$(find dist-update -name '*.js' | grep -E '/_expo/static/js/android/' | head -n1)"
+          [ -n "$BUNDLE" ] || { echo "::error::expo export produced no Android bundle"; exit 1; }
+          node --check "$BUNDLE"
+          bunx eas-cli@20.1.0 channel:create "$BRANCH" --non-interactive > /dev/null 2>&1 || true
+          bunx eas-cli@20.1.0 update --branch "$BRANCH" --platform android --skip-bundler --input-dir dist-update \
+            --message "${RAW_BRANCH}@${SHORT_SHA} (${{ github.sha }})" --non-interactive --json > eas-update.json
+          node ../../scripts/app/eas-deeplink.mjs eas-update.json >> "$GITHUB_OUTPUT"
+
+      - name: Write the preview link to the job summary
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          MANIFEST: ${{ steps.update.outputs.manifest }}
+          DEEPLINK: ${{ steps.update.outputs.deeplink }}
+          SHORT_SHA: ${{ steps.update.outputs.short_sha }}
+          PREVIEW_URL: ${{ steps.update.outputs.preview_url }}
+        run: |
+          set -euo pipefail
+          enc() { node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$1"; }
+          QR="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=$(enc "$DEEPLINK")"
+          {
+            echo "## App preview - \`${{ github.ref_name }}\` @ \`$SHORT_SHA\`"
+            echo ""
+            if [ '${{ steps.native.outputs.native }}' = 'true' ]; then
+              echo "> [!WARNING]"
+              echo "> This push changed the native runtime. A new dev-client APK is needed (App dev client APK workflow)."
+              echo ""
+            fi
+            echo "Open on the phone that has the Metro dev client (the latest preview of this branch): $PREVIEW_URL"
+            echo ""
+            echo "This commit only:"
+            echo ""
+            echo "\`$DEEPLINK\`"
+            echo ""
+            echo "![QR]($QR)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the clickable status
+        if: steps.ready.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.update.outputs.preview_url }}
+        with:
+          script: |
+            const native = `${{ steps.native.outputs.native }}` === 'true';
+            const shortSha = `${{ steps.update.outputs.short_sha }}`;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'success',
+              context: 'App preview',
+              target_url: process.env.PREVIEW_URL,
+              description: native ? `Preview ${shortSha} (native changed, new APK needed)` : `Open the dev-client preview of ${shortSha}`,
+            });
+
+  cleanup:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Delete this branch's EAS channel and branch
+        if: env.EXPO_TOKEN != ''
+        working-directory: apps/app
+        env:
+          RAW_BRANCH: ${{ github.event.ref }}
+        run: |
+          BRANCH="$(bun ../../scripts/app/channel-key.mjs "$RAW_BRANCH")"
+          bunx eas-cli@20.1.0 channel:delete "$BRANCH" --non-interactive || echo "No EAS channel $BRANCH."
+          bunx eas-cli@20.1.0 branch:delete "$BRANCH" --non-interactive || echo "No EAS branch $BRANCH."

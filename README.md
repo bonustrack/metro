@@ -31,8 +31,9 @@ depends on the network; an unsupported verb answers with the reason.
 - **The daemon** (`apps/daemon`) runs on your box. It holds the agent, its channels and
   its connectors as files under `~/.metro/agents`. It serves MCP, the APIs the page uses,
   and a model gateway, and it runs one subprocess ("train") per chat network.
-- **The page** at https://metro.box (`apps/ui`) manages your boxes. It talks to each
-  daemon directly, over the daemon's own public address.
+- **The app** (`apps/app`) manages your boxes: https://metro.box on the web, and the
+  same code on Android and iOS. It talks to each daemon directly, over the daemon's own
+  public address.
 - **api.metro.box** (`apps/api`) runs no chat network and sees no message. It holds
   sign-in (through WorkOS: Google, Microsoft or GitHub), organizations, the list of
   agents, and the launcher that can start a box on AWS. It is the only place with a
@@ -168,7 +169,7 @@ docs/         SETUP.md, ISSUING-SERVERS.md, MICROSOFT-365.md, GMAIL.md
 ```
 
 Each package has its own README: [apps/daemon](apps/daemon/README.md),
-[apps/ui](apps/ui/README.md), and one per chat network under `packages/`.
+[apps/app](apps/app/README.md), and one per chat network under `packages/`.
 
 ## Development
 
@@ -176,7 +177,7 @@ Each package has its own README: [apps/daemon](apps/daemon/README.md),
 bun install
 bun apps/daemon/src/server.ts          # a daemon on http://127.0.0.1:8420
 bun --filter @metro-labs/api start     # api.metro.box locally; needs DATABASE_URL
-cd apps/ui && bun run dev              # the page on http://localhost:5175
+cd apps/app && bun run web             # the app on http://localhost:8081
 ```
 
 The gate. All of it must pass before a pull request:
@@ -194,12 +195,15 @@ Always commit `bun.lock`: CI and Docker install with `--frozen-lockfile`.
   the `release_command` in `fly.toml`); a failed migration aborts the deploy and the old
   version keeps serving. Secrets: `DATABASE_URL`, `WORKOS_API_KEY` and `WORKOS_CLIENT_ID`, plus the four of
   [docs/ISSUING-SERVERS.md](docs/ISSUING-SERVERS.md) to launch boxes.
-- **apps/ui** is deployed to https://metro.box on Netlify.
+- **apps/app** is deployed to https://metro.box on Netlify (the Expo web export, set by
+  the root `netlify.toml`). Every pull request gets a deploy preview. The phone app runs
+  in a dev client: `App dev client APK` builds an APK when the native runtime changes,
+  and `App preview` publishes every push as an EAS Update for that branch.
 - **The CLI** (`@stage-labs/metro`) is published by hand with the "Publish
   @stage-labs/metro" workflow in the GitHub Actions tab. It always publishes under the
   `beta` tag. Boxes pick it up with `metro update` or the Update button on the page.
 
 ## License
 
-MIT, except the Calibre font files in `apps/ui/public/fonts/`, which are licensed
+MIT, except the Calibre font files in `apps/app/assets/fonts/`, which are licensed
 separately.

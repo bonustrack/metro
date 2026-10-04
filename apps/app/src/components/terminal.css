@@ -1,0 +1,59 @@
+.terminal-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 360px;
+  background: var(--metro-bg);
+}
+
+.terminal-touch {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--terminal-top, 0px);
+  height: var(--terminal-height, 100dvh);
+  min-height: 0;
+}
+
+.terminal-keys {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 6px;
+  overflow-x: auto;
+  border-top: 1px solid var(--metro-border);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.terminal-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 12px 12px 16px;
+}
+
+.terminal-float {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-session {
+  display: inline-flex;
+}
+
+.terminal-note {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+}
+
+

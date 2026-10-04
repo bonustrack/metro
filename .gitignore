@@ -1,6 +1,7 @@
 node_modules
 .claude
 .turbo
+.wrangler
 dist
 *.tgz
 *.log

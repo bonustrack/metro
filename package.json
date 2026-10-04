@@ -32,5 +32,9 @@
     "oxlint-tsgolint": "7.0.2003",
     "turbo": "^2.5.0",
     "typescript": "^5"
+  },
+  "patchedDependencies": {
+    "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
+    "expo-dev-launcher@57.0.20": "patches/expo-dev-launcher@57.0.20.patch"
   }
 }

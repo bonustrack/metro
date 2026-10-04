@@ -1,0 +1,86 @@
+import type { ReactNode } from 'react';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { ChatIcon } from './ChatIcon.js';
+import { KebabMenu } from './KebabMenu.js';
+import { RoundButton } from './RoundButton.js';
+import { Tag } from './Tag.js';
+import { openExternal } from '../lib/open.js';
+import { type MenuItem } from './Dropdown.js';
+import { SHRINK } from '../lib/style.js';
+import { chatLink } from '@metro-labs/client/api/senders';
+import { AgentAvatar } from './AgentAvatar.js';
+
+const CHAT_ICON = 16;
+const AVATAR = 32;
+
+export interface SenderRowProps {
+  station: string;
+  id: string;
+  name: string;
+  handle: string;
+  avatar: string | null;
+  busy: boolean;
+  approves: boolean | null;
+  onApprove: (approves: boolean) => void;
+  onRemove: () => void;
+}
+
+const subtitleOf = (id: string, name: string, handle: string): string =>
+  [handle, name === '' ? '' : id].filter((part) => part !== '' && part !== name).join(' · ');
+
+export function SenderRow({ station, id, name, handle, avatar, busy, approves, onApprove, onRemove }: SenderRowProps): ReactNode {
+  const palette = useKitPalette();
+  const title = name === '' ? (handle === '' ? id : handle) : name;
+  const subtitle = subtitleOf(id, name, handle === title ? '' : handle);
+  const link = chatLink(station, id, handle === '' ? undefined : handle);
+  const items: MenuItem[] = [
+    ...(approves === null
+      ? []
+      : [
+          {
+            label: approves ? 'Stop approving' : 'Can approve requests',
+            icon: 'shieldCheck' as const,
+            onSelect: () => {
+              if (!busy) onApprove(!approves);
+            },
+          },
+        ]),
+    {
+      label: 'Remove',
+      danger: true,
+      onSelect: () => {
+        if (!busy) onRemove();
+      },
+    },
+  ];
+  return (
+    <Row justify="between" align="center" gap={12} padding={{ x: 16, y: 10 }}>
+      <Row gap={12} align="center" style={SHRINK}>
+        <AgentAvatar seed={id} src={avatar} size={AVATAR} />
+        <Col gap={2} style={SHRINK}>
+          <Row gap={8} align="center">
+            <Text size="xs" weight="medium" numberOfLines={1} style={SHRINK}>
+              {title}
+            </Text>
+            {approves === true ? <Tag label="Approver" /> : null}
+          </Row>
+          {subtitle === '' ? null : (
+            <Text size="2xs" role="secondary" numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+        </Col>
+      </Row>
+      <Row gap={8} align="center">
+        {link === null ? null : (
+          <RoundButton label={`Open a chat with ${title}`} onPress={() => openExternal(link)}>
+            <ChatIcon size={CHAT_ICON} color={palette.link} />
+          </RoundButton>
+        )}
+        <KebabMenu items={items} label={`Actions for ${title}`} />
+      </Row>
+    </Row>
+  );
+}

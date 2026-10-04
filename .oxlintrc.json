@@ -262,6 +262,14 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "apps/app/*.js"
+      ],
+      "rules": {
+        "typescript/no-require-imports": "off"
+      }
     }
   ]
 }

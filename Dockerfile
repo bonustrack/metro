@@ -20,6 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 #    never again silently break the frozen install / Fly auto-deploy.
 COPY package.json bun.lock turbo.json ./
 COPY --parents apps/*/package.json packages/*/package.json ./
+# The root patchedDependencies (apps/app's Expo patches) must exist for the frozen
+# install to resolve, even though the api never installs those packages.
+COPY patches ./patches
 # --filter installs only what @metro-labs/api and the two packages it depends on need:
 # 68 packages and 168 MB instead of the whole workspace at 1.5 GB (measured 2026-09-09),
 # and no station SDK ever lands in the hosted image. drizzle-kit stays in
