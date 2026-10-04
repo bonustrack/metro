@@ -51,6 +51,17 @@ describe('the effort metro asks for', () => {
     expect(plannedEffort(asRequest(), turn({ output_config: { effort: 'high', format: {} } }))).toBeNull();
   });
 
+  test('the per-turn effort Claude Code also puts on its system messages is moved the same way, since the model follows it', () => {
+    const perTurn = (effort: string): Record<string, unknown> => ({ role: 'system', output_config: { effort }, content: 'context' });
+    const body = turn({ messages: [{ role: 'user', content: 'hi' }, perTurn('medium'), { role: 'assistant', content: 'ok' }, perTurn('high')] });
+    expect(plannedEffort(asRequest(), body)).toBe('low');
+    expect(plannedEffort(asRequest(), turn({ output_config: { effort: 'low' }, messages: [perTurn('medium')] }))).toBe('low');
+    expect(plannedEffort(asRequest(), turn({ output_config: { effort: 'low' }, messages: [perTurn('low')] }))).toBeNull();
+    const moved = withEffort(body, 'low');
+    expect(moved.output_config).toEqual({ effort: 'low' });
+    expect(moved.messages).toEqual([{ role: 'user', content: 'hi' }, perTurn('low'), { role: 'assistant', content: 'ok' }, perTurn('low')]);
+  });
+
   test('writing the effort keeps the rest of output_config, and taking it away leaves the field only when something else is in it', () => {
     expect(withEffort(turn({ output_config: { effort: 'high', keep: 1 } }), 'low').output_config).toEqual({ effort: 'low', keep: 1 });
     expect(withoutEffort(turn({ output_config: { effort: 'low', keep: 1 } })).output_config).toEqual({ keep: 1 });

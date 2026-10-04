@@ -38,16 +38,26 @@ export function requestKind(req: IncomingMessage, body: Body): RequestKind {
   return chore(body) ? 'other' : 'main';
 }
 
+const messagesOf = (body: Body): unknown[] => (Array.isArray(body.messages) ? body.messages : []);
+
+const askedEfforts = (body: Body): string[] => [body, ...messagesOf(body).map(record)].map(effortOf).filter((effort) => effort !== '');
+
 export function plannedEffort(req: IncomingMessage, body: Body): string | null {
-  const current = effortOf(body);
-  if (current === '') return null;
+  const asked = askedEfforts(body);
+  if (asked.length === 0) return null;
   const kind = requestKind(req, body);
   if (kind === 'other') return null;
   const wanted = kind === 'subagent' ? SUBAGENT_EFFORT : MAIN_EFFORT;
-  return wanted === current ? null : wanted;
+  return asked.every((effort) => effort === wanted) ? null : wanted;
 }
 
-export const withEffort = (body: Body, effort: string): Body => ({ ...body, output_config: { ...record(body.output_config), effort } });
+const withOwnEffort = (item: Body, effort: string): Body => (effortOf(item) === '' ? item : { ...item, output_config: { ...record(item.output_config), effort } });
+
+export function withEffort(body: Body, effort: string): Body {
+  const top = withOwnEffort(body, effort);
+  if (!Array.isArray(body.messages)) return top;
+  return { ...top, messages: body.messages.map((message: unknown) => (isRecord(message) ? withOwnEffort(message, effort) : message)) };
+}
 
 export function withoutEffort(body: Body): Body {
   const config = Object.fromEntries(Object.entries(record(body.output_config)).filter(([key]) => key !== 'effort'));

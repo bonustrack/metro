@@ -309,14 +309,18 @@ describe('the Anthropic route', () => {
   });
 
   test('the main thread is asked to think less, a subagent to think more, and a chore is left alone', async () => {
-    const turn = { ...message('claude-sonnet-5'), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
+    const perTurn = (effort: string): Record<string, unknown> => ({ role: 'system', output_config: { effort }, content: 'context' });
+    const turn = { ...message('claude-sonnet-5'), output_config: { effort: 'high' }, thinking: { type: 'adaptive' }, messages: [{ role: 'user', content: 'hi' }, perTurn('high')] };
     await post('/gateway/v1/messages', turn);
     const main = JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, unknown>;
     expect(main.output_config).toEqual({ effort: 'low' });
+    expect(main.messages).toEqual([{ role: 'user', content: 'hi' }, perTurn('low')]);
     expect(main.thinking).toEqual({ type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } });
     expect(String(anthropic.seen[0]?.headers['anthropic-beta'] ?? '')).toContain('thinking-binding-controls');
     await post('/gateway/v1/messages', turn, { 'x-claude-code-agent-id': 'a0248f42' });
-    expect((JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, unknown>).output_config).toEqual({ effort: 'max' });
+    const sub = JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, unknown>;
+    expect(sub.output_config).toEqual({ effort: 'max' });
+    expect(sub.messages).toEqual([{ role: 'user', content: 'hi' }, perTurn('max')]);
     const chore = { ...turn, output_config: { effort: 'high', format: { type: 'json_schema' } }, thinking: { type: 'disabled' } };
     await post('/gateway/v1/messages', chore);
     expect((JSON.parse(anthropic.seen[2]?.body ?? '{}') as Record<string, unknown>).output_config).toEqual({ effort: 'high', format: { type: 'json_schema' } });
