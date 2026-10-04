@@ -2,6 +2,7 @@ import { daemonBase, daemonHost } from '../auth/daemon.js';
 import { isRecord } from '../read.js';
 import { call } from './client.js';
 import { fetchMode } from './mode.js';
+import { timeoutSignal } from '../platform.js';
 
 export type DaemonState = 'live' | 'stopped' | 'offline';
 
@@ -71,7 +72,7 @@ export async function awaitStopped(base = daemonBase()): Promise<void> {
 
 async function uptimeOf(base: string): Promise<number | null> {
   try {
-    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5_000) });
+    const res = await fetch(`${base}/health`, { signal: timeoutSignal(5_000) });
     const body: unknown = await res.json();
     return isRecord(body) && typeof body.uptime === 'number' ? body.uptime : null;
   } catch {

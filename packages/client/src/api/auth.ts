@@ -1,5 +1,5 @@
 import { builtInDaemon } from '../auth/daemon.js';
-import { signInReturnUrl } from '../platform.js';
+import { signInReturnUrl, timeoutSignal } from '../platform.js';
 import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
 import { isRecord } from '../read.js';
 import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
@@ -154,7 +154,7 @@ export async function switchOrganization(organization: string): Promise<Account>
 }
 
 function copySwitch(organization: string | null, refreshToken: string, bearer: string): Promise<unknown> {
-  return post('/switch', { organization, refreshToken }, bearer, { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
+  return post('/switch', { organization, refreshToken }, bearer, { redirect: 'manual', signal: timeoutSignal(30_000) });
 }
 
 async function waitForRefresh(): Promise<void> {

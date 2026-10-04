@@ -2,6 +2,7 @@ import { activeAccount } from '../auth/account.js';
 import { baseFromSegment, daemonBase } from '../auth/daemon.js';
 import { accessToken, fetchOrganizations, organizationAccessToken } from './auth.js';
 import { isRecord } from '../read.js';
+import { timeoutSignal } from '../platform.js';
 
 export interface CopyTarget {
   organization: string;
@@ -25,7 +26,7 @@ export async function connectorTransfer(base: string, path: 'prepare' | 'export'
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
       redirect: 'manual',
-      signal: AbortSignal.timeout(60_000),
+      signal: timeoutSignal(60_000),
     });
   } catch {
     throw new Error('Could not reach an agent. No existing connectors will be overwritten if you retry.');
