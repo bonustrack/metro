@@ -45,6 +45,7 @@ function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);
   const booting = useBootingState(server, data?.state === 'offline');
   if (data === undefined) return <Badge label="Checking" color="secondary" variant="soft" pill />;
+  if (data.state === 'updating') return <Badge label="Updating" color="secondary" variant="soft" pill />;
   if (data.state === 'offline') return <Badge label={booting === null ? 'Offline' : `Booting · ${booting}`} color="secondary" variant="soft" pill />;
   if (data.state === 'stopped') return <Badge label="Stopped" color="secondary" variant="soft" pill />;
   return <Badge label={data.version === null ? 'Live' : `Live · ${data.version}`} color="success" variant="soft" pill />;

@@ -1,6 +1,7 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
 import { isRecord } from '../read.js';
+import { noteUpdate } from './servers.js';
 
 export interface UpdateCheck {
   running: string;
@@ -15,7 +16,7 @@ export interface UpdateResult {
   restarting: boolean;
 }
 
-const updateUrl = (): string => `${daemonBase()}/api/update`;
+const updateUrl = (base = daemonBase()): string => `${base}/api/update`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
 export async function fetchUpdate(): Promise<UpdateCheck> {
@@ -30,7 +31,10 @@ export async function fetchUpdate(): Promise<UpdateCheck> {
 }
 
 export async function runUpdate(): Promise<UpdateResult> {
-  const body = await call({ method: 'POST', base: updateUrl() });
+  const base = daemonBase();
+  const body = await call({ method: 'POST', base: updateUrl(base) });
   if (!isRecord(body) || typeof body.version !== 'string') throw unexpected();
-  return { updated: body.updated === true, version: body.version, restarting: body.restarting === true };
+  const result = { updated: body.updated === true, version: body.version, restarting: body.restarting === true };
+  if (result.restarting) noteUpdate(base, result.version);
+  return result;
 }

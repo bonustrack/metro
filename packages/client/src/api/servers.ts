@@ -3,6 +3,7 @@ import { call } from './client.js';
 import { fetchMode } from './mode.js';
 import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
 import { rememberAgents } from '../auth/agent-route.js';
+import { readItem, writeItem } from '../platform.js';
 
 export interface Server {
   id: string;
@@ -15,7 +16,7 @@ export interface Server {
   slug: string | null;
 }
 
-type ServerState = 'live' | 'stopped' | 'offline';
+type ServerState = 'live' | 'stopped' | 'offline' | 'updating';
 
 export interface ServerStatus {
   state: ServerState;
@@ -24,6 +25,8 @@ export interface ServerStatus {
 }
 
 const PROBE_MS = 6_000;
+const UPDATE_KEY = 'metro.update:';
+const UPDATE_MS = 10 * 60_000;
 const listUrl = (): string => `${builtInDaemon()}/api/servers`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
@@ -105,8 +108,33 @@ export async function removeServer(id: string): Promise<void> {
 
 const offline = (): ServerStatus => ({ state: 'offline', version: null, owner: null });
 
+export function noteUpdate(base: string, version: string, now = Date.now()): void {
+  writeItem(`${UPDATE_KEY}${base}`, JSON.stringify({ version, at: now }));
+}
+
+function notedUpdate(key: string): { version: string; at: number } | null {
+  try {
+    const value: unknown = JSON.parse(readItem(key) ?? 'null');
+    return isRecord(value) && typeof value.version === 'string' && typeof value.at === 'number' ? { version: value.version, at: value.at } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function duringUpdate(base: string, status: ServerStatus, now = Date.now()): ServerStatus {
+  const key = `${UPDATE_KEY}${base}`;
+  const update = notedUpdate(key);
+  if (update === null) return status;
+  if (status.version === update.version || now - update.at >= UPDATE_MS) {
+    writeItem(key, null);
+    return status;
+  }
+  return status.state === 'offline' ? { ...status, state: 'updating' } : status;
+}
+
 export function probeServer(host: string): Promise<ServerStatus> {
-  const probe = fetchMode(baseFromSegment(host)).then(
+  const base = baseFromSegment(host);
+  const probe = fetchMode(base).then(
     (mode): ServerStatus => ({ state: mode.stopped ? 'stopped' : 'live', version: mode.version, owner: mode.owner }),
     offline,
   );
@@ -115,5 +143,5 @@ export function probeServer(host: string): Promise<ServerStatus> {
       resolve(offline());
     }, PROBE_MS);
   });
-  return Promise.race([probe, late]);
+  return Promise.race([probe, late]).then((status) => duringUpdate(base, status));
 }
