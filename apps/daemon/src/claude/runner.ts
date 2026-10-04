@@ -7,7 +7,7 @@ const RUNNERS = ['cli', 'sdk'] as const;
 export type HarnessRunner = (typeof RUNNERS)[number];
 
 export const SDK_NEEDS_KEY =
-  'The Agent SDK runner needs an API key on every model the Model page lists, the first one and each fallback: use Anthropic with an API key, Amazon Bedrock or OpenRouter. Anthropic does not allow products built on the Agent SDK to use a Claude login, so on a login it runs only where the Metro operator allows it.';
+  'The Agent SDK runner needs an API key or a ChatGPT sign-in on every model the Model page lists, the first one and each fallback: use Anthropic with an API key, Amazon Bedrock, OpenRouter, or Codex signed in with ChatGPT. Anthropic does not allow products built on the Agent SDK to use a Claude login, so on a login it runs only where the Metro operator allows it.';
 
 export const isHarnessRunner = (value: unknown): value is HarnessRunner => RUNNERS.some((r) => r === value);
 
@@ -26,13 +26,13 @@ export function setSdkOnLogin(on: boolean, agents = agentsDir()): void {
   writeSetupState(agents, { sdkOnLogin: on });
 }
 
-const keyed = (conn: Connection | null): boolean => (conn?.apiKey ?? '') !== '';
+const permitted = (conn: Connection | null): boolean => conn !== null && (conn.apiKey !== '' || conn.codex !== null);
 
 const servingConnections = (cfg: ModelConfig): (Connection | null)[] => [routedConnection(cfg), ...(cfg.fallbacks ?? []).map((f) => connectionOf(cfg, f.connection))];
 
-export const keyedRoute = (cfg: ModelConfig): boolean => servingConnections(cfg).every(keyed);
+const permittedRoute = (cfg: ModelConfig): boolean => servingConnections(cfg).every(permitted);
 
-export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents)): boolean => keyedRoute(cfg) || sdkOnLogin(agents);
+export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents)): boolean => permittedRoute(cfg) || sdkOnLogin(agents);
 
 export const runnerInUse = (agents = agentsDir(), cfg?: ModelConfig): HarnessRunner => (harnessRunner(agents) === 'sdk' && sdkAllowed(agents, cfg) ? 'sdk' : 'cli');
 
@@ -45,6 +45,6 @@ export function runnerModel(cfg: ModelConfig): string | null {
 export function settleRunner(agents = agentsDir()): boolean {
   if (harnessRunner(agents) !== 'sdk' || sdkAllowed(agents)) return false;
   setHarnessRunner('cli', agents);
-  log.warn('claude-runner: a model on the Model page (the first one or a fallback) has no API key and this box is not allowed the Agent SDK on a Claude login, so the agent goes back to the Claude Code session');
+  log.warn('claude-runner: a model on the Model page (the first one or a fallback) has neither an API key nor a ChatGPT sign-in, and this box is not allowed the Agent SDK on a Claude login, so the agent goes back to the Claude Code session');
   return true;
 }

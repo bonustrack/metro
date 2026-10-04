@@ -9,6 +9,7 @@ describe('the Runner choice follows the terms guard the daemon answers', () => {
     const login = answer({ runnerAllowed: false, sdkOnLogin: false });
     expect(sdkSelectable(login)).toBe(false);
     expect(runnerNote(login)).toContain('Agent SDK needs an API key');
+    expect(runnerNote(login)).toContain('Codex signed in with ChatGPT');
   });
 
   test('an API-key route or the operator allowing the login opens it, and the note says which', () => {
