@@ -185,6 +185,29 @@ describe('signing in to metro.box through WorkOS', () => {
     expect((await json('POST', '/api/auth/exchange', { code: 'nope' })).status).toBe(404);
   });
 
+  test('the phone app signs in through metro://auth, and only the code verifier opens its handoff', async () => {
+    const { createHash, randomBytes } = await import('node:crypto');
+    const verifier = randomBytes(32).toString('base64url');
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    const app = encodeURIComponent('metro://auth');
+    expect((await fetch(`${base}/api/auth/login?provider=google&return_to=${app}`, { redirect: 'manual' })).status).toBe(400);
+    expect((await fetch(`${base}/api/auth/login?provider=google&return_to=${encodeURIComponent('other://auth')}&code_challenge=${challenge}`, { redirect: 'manual' })).status).toBe(400);
+    const handoff = async (): Promise<string> => {
+      const start = await fetch(`${base}/api/auth/login?provider=google&return_to=${app}&code_challenge=${challenge}`, { redirect: 'manual' });
+      expect(start.status).toBe(302);
+      const fromGoogle = await fetch(new URL(start.headers.get('location') ?? ''), { redirect: 'manual' });
+      const back = await fetch(fromGoogle.headers.get('location') ?? '', { redirect: 'manual' });
+      const landed = back.headers.get('location') ?? '';
+      expect(landed.startsWith('metro://auth#/auth/')).toBe(true);
+      return landed.slice('metro://auth#/auth/'.length);
+    };
+    expect((await json('POST', '/api/auth/exchange', { code: await handoff() })).status).toBe(404);
+    expect((await json('POST', '/api/auth/exchange', { code: await handoff(), verifier: 'wrong' })).status).toBe(404);
+    const exchanged = await json('POST', '/api/auth/exchange', { code: await handoff(), verifier });
+    expect(exchanged.status).toBe(200);
+    expect(((await exchanged.json()) as TokenBody).user.id).toBe('user_01ABC');
+  });
+
   test('a bad provider, a foreign return_to, a stale state and a cancelled sign-in are all handled', async () => {
     expect((await fetch(`${base}/api/auth/login?provider=facebook&return_to=https://metro.box/`, { redirect: 'manual' })).status).toBe(400);
     expect((await fetch(`${base}/api/auth/login?provider=google&return_to=https://evil.example/`, { redirect: 'manual' })).status).toBe(400);
