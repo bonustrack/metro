@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { SettingsPad, SettingsSection } from './SettingsSection.js';
+import { SettingsPad } from './SettingsSection.js';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useModeQuery } from '../lib/queries.js';
@@ -21,8 +21,9 @@ function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
 }
 
 const CLIP = { overflow: 'hidden' } as const;
+const FIT = { maxWidth: '100%', flexShrink: 1 } as const;
 
-function UsageBar({ used }: { used: number | null }): ReactNode {
+export function UsageBar({ used }: { used: number | null }): ReactNode {
   if (used === null) return null;
   const warn = used >= HIGH;
   return (
@@ -35,19 +36,19 @@ function UsageBar({ used }: { used: number | null }): ReactNode {
   );
 }
 
-export function UsageRow({ window }: { window: UsageWindow }): ReactNode {
-  const note = windowLine({ ...window, used: null });
+export function UsageShort({ used }: { used: number | null }): ReactNode {
+  if (used === null) return null;
   return (
-    <SettingsSection title={window.label} note={note === '' ? undefined : note} compact>
-      <UsageBar used={window.used} />
-    </SettingsSection>
+    <Text size="2xs" role={used >= HIGH ? 'danger' : 'secondary'}>
+      {`${String(Math.round(used * 100))}%`}
+    </Text>
   );
 }
 
 export function UsageLine({ window }: { window: UsageWindow }): ReactNode {
   const note = windowLine({ ...window, used: null });
   return (
-    <Row wrap align="center" gap={10} minWidth={0}>
+    <Row wrap align="center" gap={10} minWidth={0} style={FIT}>
       <Text size="2xs" role="secondary">
         {window.label}
       </Text>

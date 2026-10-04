@@ -5,7 +5,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { UsageLine, UsageUpdateHint } from './ModelUsage.js';
-import { PROVIDERS, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
+import { PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings } from '@metro-labs/client/api/model';
 import { DEFAULT_MODEL, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
 import { queryError, useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
 import { tallyLine } from '@metro-labs/client/api/usage';
@@ -16,16 +16,20 @@ const LOGO_SIZE = 28;
 
 const LOW = 0.9;
 
-export function useModelName(conn: ConnectionRow | undefined, model = conn?.model ?? ''): string {
-  const models = useConnectionModelsQuery(conn);
-  if (conn === undefined || model === '') return DEFAULT_MODEL;
-  const found = models.data?.find((option) => option.id === model);
+export function nameIn(options: ModelOption[] | undefined, model: string): string {
+  if (model === '') return DEFAULT_MODEL;
+  const found = options?.find((option) => option.id === model);
   if (found === undefined || found.name === '') return model;
   const cut = found.name.indexOf(': ');
   return cut === -1 ? found.name : found.name.slice(cut + 2);
 }
 
-function CardUsage({ usage }: { usage: ModelSettings['usage'][string] | undefined }): ReactNode {
+export function useModelName(conn: ConnectionRow | undefined, model = conn?.model ?? ''): string {
+  const models = useConnectionModelsQuery(conn);
+  return conn === undefined ? DEFAULT_MODEL : nameIn(models.data, model);
+}
+
+export function CardUsage({ usage }: { usage: ModelSettings['usage'][string] | undefined }): ReactNode {
   if (usage === undefined) return <UsageUpdateHint />;
   if (usage.windows.length === 0)
     return usage.tally === null ? null : (

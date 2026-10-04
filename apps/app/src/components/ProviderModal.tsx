@@ -14,11 +14,16 @@ import { providerLabel } from '@metro-labs/client/api/providers';
 import { queryError, refresh } from '../lib/queries.js';
 import { GROW } from '../lib/style.js';
 import { TextLink } from './TextLink.js';
+import { ProviderChoices } from './ProviderChoices.js';
 
-const ZDR_NOTE = 'Only reaches providers that keep no prompts. A model without such an endpoint fails rather than falling back.';
 const ANTHROPIC_KEY_NOTE = 'No key: it uses the Claude sign-in above, or else the Claude Code login of this machine.';
 
 export interface Editing {
+  provider: Provider | null;
+  connection: ConnectionRow | null;
+}
+
+interface Chosen {
   provider: Provider;
   connection: ConnectionRow | null;
 }
@@ -33,21 +38,20 @@ interface Draft {
   label: string;
   key: string;
   region: string;
-  zdr: boolean;
 }
 
-const draftOf = (row: ConnectionRow | null): Draft => ({ label: row?.label ?? '', key: '', region: row?.region ?? '', zdr: row?.zdr === true });
+const draftOf = (row: ConnectionRow | null): Draft => ({ label: row?.label ?? '', key: '', region: row?.region ?? '' });
 
 function patchOf(provider: Provider, draft: Draft): ConnectionPatch {
   const key = draft.key.trim() === '' ? {} : { apiKey: draft.key.trim() };
   const label = draft.label.trim() === '' ? {} : { label: draft.label.trim() };
   if (provider === 'bedrock') return { ...key, ...label, region: draft.region.trim() };
-  if (provider === 'openrouter') return { ...key, ...label, zdr: draft.zdr };
   return { ...key, ...label };
 }
 
 function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draft; setDraft: (next: (d: Draft) => Draft) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  if (provider === 'openrouter') return <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />;
   if (provider === 'anthropic')
     return (
       <Col gap={6}>
@@ -61,16 +65,10 @@ function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draf
         <FormField label="Region" name="region" value={draft.region} placeholder="eu-central-1" dark={dark} onChangeText={(region) => { setDraft((d) => ({ ...d, region })); }} style={GROW} />
       </Col>
     );
-  return (
-    <Col gap={6}>
-      <KeyLink url={OPENROUTER_KEYS_URL} label="Get a key from OpenRouter" />
-      <Button size="md" color={draft.zdr ? 'primary' : 'secondary'} dark={dark} label={draft.zdr ? 'Zero data retention: on' : 'Zero data retention: off'} onPress={() => { setDraft((d) => ({ ...d, zdr: !d.zdr })); }} />
-      <Text size="2xs" role="secondary">{ZDR_NOTE}</Text>
-    </Col>
-  );
+  return null;
 }
 
-function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }): ReactNode {
+function KeyForm({ editing, onDone }: { editing: Chosen; onDone: () => void }): ReactNode {
   const client = useQueryClient();
   const dark = useKitScheme() === 'dark';
   const row = editing.connection;
@@ -109,7 +107,7 @@ function KeyForm({ editing, onDone }: { editing: Editing; onDone: () => void }):
   );
 }
 
-function Body({ editing, onDone }: { editing: Editing; onDone: () => void }): ReactNode {
+function Body({ editing, onDone }: { editing: Chosen; onDone: () => void }): ReactNode {
   const client = useQueryClient();
   if (editing.provider === 'codex') return <CodexConnect codex={editing.connection} />;
   if (editing.provider === 'gemini') return <GeminiConnect gemini={editing.connection} />;
@@ -128,18 +126,54 @@ function Body({ editing, onDone }: { editing: Editing; onDone: () => void }): Re
   return <KeyForm editing={editing} onDone={onDone} />;
 }
 
+function Blurb({ editing }: { editing: Chosen }): ReactNode {
+  const info = PROVIDERS.find((p) => p.id === editing.provider);
+  return (
+    <>
+      <Text size="2xs" role="secondary">{info?.blurb ?? ''}</Text>
+      {editing.connection?.signedIn !== true ? null : (
+        <Text size="2xs" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
+      )}
+    </>
+  );
+}
+
+export function ProviderSetup({ onDone, onBack }: { onDone: () => void; onBack?: () => void }): ReactNode {
+  const [provider, setProvider] = useState<Provider | null>(null);
+  const back = provider === null ? onBack : () => { setProvider(null); };
+  return (
+    <Col gap={16}>
+      {provider === null ? <ProviderChoices onPick={setProvider} /> : (
+        <Col gap={16}>
+          <Text size="xs" weight="medium">{providerLabel(provider)}</Text>
+          <Blurb editing={{ provider, connection: null }} />
+          <Body editing={{ provider, connection: null }} onDone={onDone} />
+        </Col>
+      )}
+      {back === undefined ? null : (
+        <Row>
+          <TextLink size="2xs" onPress={back}>{provider === null ? 'Back to connections' : 'Choose another provider'}</TextLink>
+        </Row>
+      )}
+    </Col>
+  );
+}
+
 export function ProviderModal({ editing, onClose }: { editing: Editing | null; onClose: () => void }): ReactNode {
   if (editing === null) return null;
-  const info = PROVIDERS.find((p) => p.id === editing.provider);
-  const title = editing.connection?.label ?? `Connect ${providerLabel(editing.provider)}`;
+  const { provider, connection } = editing;
+  if (provider === null)
+    return (
+      <Modal title="Add a connection" open onClose={onClose}>
+        <ProviderSetup onDone={onClose} />
+      </Modal>
+    );
+  const title = connection?.label ?? `Connect ${providerLabel(provider)}`;
   return (
     <Modal title={title} open onClose={onClose}>
       <Col gap={16}>
-        <Text size="2xs" role="secondary">{info?.blurb ?? ''}</Text>
-        {editing.connection?.signedIn !== true ? null : (
-          <Text size="2xs" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
-        )}
-        <Body editing={editing} onDone={onClose} />
+        <Blurb editing={{ provider, connection }} />
+        <Body editing={{ provider, connection }} onDone={onClose} />
       </Col>
     </Modal>
   );

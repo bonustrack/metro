@@ -1,44 +1,52 @@
 import { type ReactNode } from 'react';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { SettingsSection } from './SettingsSection.js';
-import { useModelName } from './AgentModel.js';
+import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
+import { CardUsage } from './AgentModel.js';
 import type { MenuItem } from './Dropdown.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
-import { windowLine } from '@metro-labs/client/api/usage';
+import { connectionDetail } from '@metro-labs/client/api/providers';
 import { useAccountOf } from '../lib/queries.js';
 import { Tag } from './Tag.js';
-import { Row } from '@stage-labs/kit/react-native/box';
 
-const LOGO = 24;
 
-const usageLine = (settings: ModelSettings, connection: ConnectionRow): string | null => {
-  const window = settings.usage[connection.id]?.windows[0];
-  if (window === undefined) return null;
-  return window.label === connection.model ? windowLine(window) : `${window.label} ${windowLine(window)}`;
-};
+export function connectionNote(conn: ConnectionRow, account: string | null): string {
+  if (conn.provider === 'openrouter') return conn.hasKey ? 'API key stored' : 'no key';
+  if (account === null) return connectionDetail(conn);
+  const plan = conn.plan === null ? '' : ` (${conn.plan})`;
+  return conn.provider === 'anthropic' && !conn.hasKey && !conn.signedIn ? `Claude Code login of the server · ${account}` : `${account}${plan}`;
+}
 
-interface ProviderRowProps {
+export function mostUsed(settings: ModelSettings, id: string): number | null {
+  const windows = settings.usage[id]?.windows ?? [];
+  return windows.reduce<number | null>((most, w) => (w.used === null ? most : Math.max(most ?? 0, w.used)), null);
+}
+
+export function roleOf(settings: ModelSettings, id: string): string {
+  if (settings.route === id) return 'Primary';
+  const at = (settings.fallbacks ?? []).findIndex((f) => f.connection === id);
+  return at === -1 ? 'Not used' : `Fallback ${String(at + 1)}`;
+}
+
+interface ConnectionItemProps {
   connection: ConnectionRow;
   settings: ModelSettings;
   items: MenuItem[];
-  busy: boolean;
-  onUse: () => void;
+  onOpen: () => void;
 }
 
-export function ProviderRow({ connection, settings, items, busy, onUse }: ProviderRowProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const model = useModelName(connection);
-  const inUse = settings.route === connection.id;
-  const note = [useAccountOf(connection), model, usageLine(settings, connection)].filter((part): part is string => part !== null && part !== '').join(' · ');
+export function ConnectionItem({ connection, settings, items, onOpen }: ConnectionItemProps): ReactNode {
+  const note = [connectionNote(connection, useAccountOf(connection)), roleOf(settings, connection.id)].filter((part) => part !== '').join(' · ');
+  const usage = settings.usage[connection.id];
   return (
-    <SettingsSection title={connection.label} note={note} leading={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LOGO} />}>
-      <Row align="center" gap={10}>
-        {inUse ? <Tag label="In use" /> : <Button size="md" color="secondary" dark={dark} label="Use" disabled={busy} onPress={onUse} />}
-        <KebabMenu label={`${connection.label} menu`} items={items} />
-      </Row>
-    </SettingsSection>
+    <ListRow
+      title={connection.label}
+      detail={note}
+      icon={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LIST_ICON_SIZE} />}
+      extra={connection.provider === 'openrouter' && connection.zdr ? <Tag label="Zero data retention" /> : undefined}
+      below={usage === undefined ? undefined : <CardUsage usage={usage} />}
+      onPress={onOpen}
+      trailing={<KebabMenu label={`${connection.label} menu`} items={items} />}
+    />
   );
 }

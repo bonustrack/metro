@@ -6,43 +6,36 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
-import { ProviderRow } from './ProviderCard.js';
-import { CurrentModel } from './CurrentModel.js';
-import { FallbackModels } from './FallbackModels.js';
+import { ConnectionItem } from './ProviderCard.js';
+import { CardUsage } from './AgentModel.js';
+import { ModelRouting, type RouteActions } from './ModelRouting.js';
+import { RouteEditor } from './RouteEditor.js';
 import { SettingsGroup, SettingsPad } from './SettingsSection.js';
 import { ProviderModal, type Editing } from './ProviderModal.js';
-import { ConnectProviderModal } from './ConnectProviderModal.js';
-import { ModelPickerModal } from './ModelPickerModal.js';
 import type { MenuItem } from './Dropdown.js';
-import { chooseConnection, dropConnection, saveConnection, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
+import { dropConnection, saveFallbacks, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
 import { usesKey } from '@metro-labs/client/api/providers';
+import { movedFallbacks, promoteFallback, type Slot } from '@metro-labs/client/api/route-edit';
 import { queryError, refresh, useModelQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
-const HOW = 'The AI your agent thinks with. Switching restarts the agent, which takes a few seconds.';
-const NONE_YET = 'No provider yet. Your agent uses the Claude login of its server until you add one.';
+const HOW = 'The AI your agent thinks with: an ordered list of models, and the connections they run on. Changing the first model restarts the agent, which takes a few seconds.';
+const NONE_YET = 'No connection yet. Your agent uses the Claude login of its server until you add one.';
+const CONNECTIONS = 'The accounts and keys the list above can use. Each one shows its own usage.';
 
 type Run = (job: () => Promise<unknown>, fallback: string) => void;
 
-function menuFor(c: ConnectionRow, edit: (e: Editing) => void, run: Run, pickFor: (c: ConnectionRow) => void): MenuItem[] {
-  const model = { label: 'Change model', onSelect: () => { pickFor(c); } };
+function menuFor(c: ConnectionRow, edit: (e: Editing) => void, run: Run): MenuItem[] {
   const signIn = !usesKey(c.provider) || (c.provider === 'anthropic' && !c.hasKey);
-  const open = { label: signIn ? 'Sign in again' : 'Key and settings', onSelect: () => { edit({ provider: c.provider, connection: c }); } };
-  const zdr: MenuItem[] =
-    c.provider === 'openrouter'
-      ? [{ label: c.zdr ? 'Zero data retention: turn off' : 'Zero data retention: turn on', onSelect: () => { run(() => saveConnection(c.id, { zdr: !c.zdr }), 'Could not change the setting.'); } }]
-      : [];
-  return [model, open, ...zdr, { label: 'Disconnect', danger: true, onSelect: () => { run(() => dropConnection(c.id), 'Could not disconnect.'); } }];
+  return [
+    { label: signIn ? 'Sign in again' : 'Key and settings', onSelect: () => { edit({ provider: c.provider, connection: c }); } },
+    { label: 'Disconnect', danger: true, separated: true, onSelect: () => { run(() => dropConnection(c.id), 'Could not disconnect.'); } },
+  ];
 }
 
-function Body({ settings }: { settings: ModelSettings }): ReactNode {
+function useRun(): { busy: boolean; error: string | null; run: Run } {
   const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
-  const [picking, setPicking] = useState(false);
-  const [scope, setScope] = useState<ConnectionRow | null>(null);
   const [busy, setBusy] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const run: Run = (job, fallback) => {
     setError(null);
@@ -56,41 +49,37 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
         setBusy(false);
       });
   };
+  return { busy, error, run };
+}
+
+function Body({ settings }: { settings: ModelSettings }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [slot, setSlot] = useState<Slot | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const { busy, error, run } = useRun();
+  const list = settings.fallbacks ?? [];
+  const actions: RouteActions = {
+    edit: setSlot,
+    move: (at, by) => { run(() => saveFallbacks(movedFallbacks(list, at, by)), 'Could not move the model.'); },
+    promote: (at) => { run(() => promoteFallback(settings, at), 'Could not make it the primary model.'); },
+    remove: (at) => { run(() => saveFallbacks(list.filter((_, other) => other !== at)), 'Could not remove the model.'); },
+  };
+  const add = <Button size="md" dark={dark} label="Add connection" onPress={() => { setEditing({ provider: null, connection: null }); }} />;
   return (
     <Col gap={32}>
-      <CurrentModel settings={settings} onChange={() => { setPicking(true); }} />
-      <FallbackModels settings={settings} />
-      <SettingsGroup title="Providers" action={<Button size="md" dark={dark} label="Add provider" onPress={() => { setConnecting(true); }} />}>
+      <ModelRouting settings={settings} busy={busy} actions={actions} />
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      <SettingsGroup title="Connections" note={CONNECTIONS} action={add}>
         {settings.connections.length === 0 ? (
           <SettingsPad row>
             <Text size="2xs" role="secondary">{NONE_YET}</Text>
+            <CardUsage usage={settings.usage.passthrough} />
           </SettingsPad>
         ) : (
-          settings.connections.map((c) => (
-            <ProviderRow
-              key={c.id}
-              connection={c}
-              settings={settings}
-              items={menuFor(c, setEditing, run, setScope)}
-              busy={busy}
-              onUse={() => {
-                run(() => chooseConnection(c.id), 'Could not switch provider.');
-              }}
-            />
-          ))
+          settings.connections.map((c) => <ConnectionItem key={c.id} connection={c} settings={settings} items={menuFor(c, setEditing, run)} onOpen={() => { setEditing({ provider: c.provider, connection: c }); }} />)
         )}
       </SettingsGroup>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
-      <ModelPickerModal open={picking} settings={settings} onClose={() => { setPicking(false); }} />
-      <ModelPickerModal open={scope !== null} settings={settings} scope={scope ?? undefined} onClose={() => { setScope(null); }} />
-      <ConnectProviderModal
-        open={connecting}
-        onPick={(provider) => {
-          setConnecting(false);
-          setEditing({ provider, connection: null });
-        }}
-        onClose={() => { setConnecting(false); }}
-      />
+      <RouteEditor settings={settings} slot={slot} onClose={() => { setSlot(null); }} />
       <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
     </Col>
   );

@@ -28,6 +28,7 @@ interface ListRowProps {
   extra?: ReactNode;
   muted?: boolean;
   trailing?: ReactNode;
+  below?: ReactNode;
 }
 
 function Opener({ href, onPress, label, children }: { href?: string; onPress?: () => void; label: string; children: ReactNode }): ReactNode {
@@ -44,7 +45,7 @@ function Opener({ href, onPress, label, children }: { href?: string; onPress?: (
   );
 }
 
-export function ListRow({ title, detail, href, onPress, icon, extra, muted = false, trailing }: ListRowProps): ReactNode {
+export function ListRow({ title, detail, href, onPress, icon, extra, muted = false, trailing, below }: ListRowProps): ReactNode {
   const palette = useKitPalette();
   const inCard = useInCard();
   const divider = useCardDivider();
@@ -67,6 +68,7 @@ export function ListRow({ title, detail, href, onPress, icon, extra, muted = fal
               {detail}
             </Text>
           )}
+          {below}
         </Col>
       </Opener>
       {trailing === undefined ? null : (

@@ -30,7 +30,7 @@ function useLists(connections: ConnectionRow[], open: boolean): { models: Record
   return { models, loading: queries.some((q) => q.isFetching), errors };
 }
 
-function niceName(row: PickRow): string {
+export function niceName(row: PickRow): string {
   if (row.name === '' || row.name === row.id) return row.id;
   const cut = row.name.indexOf(': ');
   return cut === -1 ? row.name : row.name.slice(cut + 2);
@@ -42,7 +42,7 @@ const LIST = { maxHeight: 520 } as const;
 const BUSY = { opacity: 0.5 } as const;
 const PICK_ROW = { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 67, paddingVertical: 9, paddingHorizontal: 16, borderRadius: 4 } as const;
 
-function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow) => void }): ReactNode {
+export function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow) => void }): ReactNode {
   const palette = useKitPalette();
   const [hovered, hover] = useHover();
   const lit = row.current || hovered ? { backgroundColor: palette.inputBg } : null;
