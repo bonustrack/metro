@@ -11,7 +11,7 @@ export default defineConfig({
       knip: {
         entry: ['src/app/**/*.{ts,tsx}', 'src/**/*.web.{ts,tsx}', 'babel.config.js', 'fingerprint.config.js'],
         project: ['src/**/*.{ts,tsx}'],
-        ignoreDependencies: ['babel-preset-expo'],
+        ignoreDependencies: ['babel-preset-expo', '@types/qrcode'],
       },
     },
     'packages/client': {
