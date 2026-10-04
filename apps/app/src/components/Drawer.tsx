@@ -1,19 +1,16 @@
-import { type ReactNode, useEffect, useRef } from 'react';
-import { BackHandler, useWindowDimensions } from 'react-native';
-import DrawerLayout, { DrawerKeyboardDismissMode, type DrawerLayoutMethods } from 'react-native-gesture-handler/ReanimatedDrawerLayout';
+import { type ReactNode, useCallback, useEffect } from 'react';
+import { BackHandler, StyleSheet, useWindowDimensions } from 'react-native';
+import { Drawer as DrawerLayout } from 'react-native-drawer-layout';
+import { type PanGesture } from 'react-native-gesture-handler';
 import { BACKDROP, DRAWER_WIDTH, DrawerPanel, type DrawerProps } from './DrawerPanel.js';
 
-const SWIPE_START = 20;
+const SWIPE = 20;
+const SCROLL = 10;
+
+const styles = StyleSheet.create({ drawer: { width: DRAWER_WIDTH }, overlay: { backgroundColor: BACKDROP } });
 
 export function Drawer({ open, onOpenChange, menu, children }: DrawerProps): ReactNode {
-  const layout = useRef<DrawerLayoutMethods>(null);
-  const shown = useRef(false);
   const { width } = useWindowDimensions();
-  useEffect(() => {
-    if (open === shown.current) return;
-    if (open) layout.current?.openDrawer();
-    else layout.current?.closeDrawer();
-  }, [open]);
   useEffect(() => {
     if (!open) return undefined;
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -24,25 +21,29 @@ export function Drawer({ open, onOpenChange, menu, children }: DrawerProps): Rea
       back.remove();
     };
   }, [open, onOpenChange]);
-  const settled = (next: boolean): void => {
-    shown.current = next;
-    onOpenChange(next);
-  };
+  const sideways = useCallback(
+    (pan: PanGesture) =>
+      pan
+        .activeOffsetX([-SWIPE, SWIPE])
+        .failOffsetX(open ? SCROLL : -SCROLL)
+        .failOffsetY([-SCROLL, SCROLL]),
+    [open],
+  );
   return (
     <DrawerLayout
-      ref={layout}
-      drawerWidth={DRAWER_WIDTH}
-      edgeWidth={width}
-      minSwipeDistance={SWIPE_START}
-      overlayColor={BACKDROP}
-      keyboardDismissMode={DrawerKeyboardDismissMode.ON_DRAG}
-      onDrawerOpen={() => {
-        settled(true);
+      open={open}
+      onOpen={() => {
+        onOpenChange(true);
       }}
-      onDrawerClose={() => {
-        settled(false);
+      onClose={() => {
+        onOpenChange(false);
       }}
-      renderNavigationView={() => <DrawerPanel>{menu}</DrawerPanel>}
+      drawerStyle={styles.drawer}
+      overlayStyle={styles.overlay}
+      overlayAccessibilityLabel="Close menu"
+      swipeEdgeWidth={width}
+      configureGestureHandler={sideways}
+      renderDrawerContent={() => <DrawerPanel>{menu}</DrawerPanel>}
     >
       {children}
     </DrawerLayout>
