@@ -6,16 +6,14 @@ import { recordedClaudeModels } from './claude-models-fixture.ts';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
-import { userAgent } from '../src/gateway/codex.ts';
-import { codexVersion } from '../src/gateway/codex-version.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { jwt, makeConnection } from './model-fixture.ts';
 import { usageIn } from '../src/claude/usage-probe.ts';
-import { codexUsageAnswer, recordedClaudeUsageAnswer } from './usage-fixtures.ts';
+import { recordedClaudeUsageAnswer } from './usage-fixtures.ts';
 import type { ModelApiDeps } from '../src/gateway/model-store.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -29,21 +27,25 @@ let issuerBase = '';
 let backendBase = '';
 let stored: ModelConfig;
 let home = '';
-const seenModelUrls: string[] = [];
 const creditsAuth: string[] = [];
-const whamAsked: string[] = [];
+const tokenForms: URLSearchParams[] = [];
+const signIn = { nonce: '', sub: 'user-1' };
 const login: { asked: number; answer: () => Promise<unknown> } = { asked: 0, answer: () => Promise.resolve(null) };
 let modelDeps: ModelApiDeps = {};
-const idToken = jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'plus' } });
 
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), 'metro-codex-home-'));
   issuer = createServer((req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    const url = req.url ?? '';
-    if (url.endsWith('/deviceauth/usercode')) res.end(JSON.stringify({ device_auth_id: 'dev_1', user_code: 'ABCD-EFGH', interval: 1 }));
-    else if (url.endsWith('/deviceauth/token')) res.end(JSON.stringify({ authorization_code: 'ac-1', code_challenge: 'ch', code_verifier: 'ver' }));
-    else res.end(JSON.stringify({ id_token: idToken, access_token: 'at-1', refresh_token: 'rt-1' }));
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+      tokenForms.push(form);
+      const clientId = form.get('client_id') ?? '';
+      const idToken = jwt({ iss: issuerBase, aud: clientId, sub: signIn.sub, nonce: signIn.nonce, email: 'less@example.com' });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id_token: idToken, access_token: 'at-1', refresh_token: 'rt-1', token_type: 'Bearer', expires_in: 3600, scope: 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct' }));
+    });
   });
   await new Promise<void>((r) => {
     issuer.listen(0, '127.0.0.1', r);
@@ -51,10 +53,6 @@ beforeAll(async () => {
   issuerBase = `http://127.0.0.1:${String((issuer.address() as AddressInfo).port)}`;
   backend = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
-    if (req.url === '/codex-latest') {
-      res.end(JSON.stringify({ name: '@openai/codex', version: '0.158.2' }));
-      return;
-    }
     if ((req.url ?? '').startsWith('/v1/models') && req.headers.authorization === 'Bearer sk-ant-oat-login') {
       res.end(JSON.stringify(recordedClaudeModels));
       return;
@@ -89,11 +87,6 @@ beforeAll(async () => {
     if (req.url === '/v1/key') {
       creditsAuth.push(String(req.headers.authorization ?? ''));
       res.end(JSON.stringify({ data: { label: 'sk-or-v1-abc...xyz', limit: 50, limit_remaining: 37.5, limit_reset: null, usage: 80, is_free_tier: false } }));
-      return;
-    }
-    if (req.url === '/wham/usage') {
-      whamAsked.push(`${String(req.headers.authorization)} ${String(req.headers['chatgpt-account-id'])}`);
-      res.end(JSON.stringify(codexUsageAnswer));
       return;
     }
     if (req.url === '/token') {
@@ -161,21 +154,18 @@ beforeAll(async () => {
       res.end(JSON.stringify({ data: [{ model_id: 'openai/gpt-5.2-codex', provider_name: 'OpenAI' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { model_id: 'anthropic/claude-sonnet-4.5' }, { name: 'no id' }] }));
       return;
     }
-    seenModelUrls.push(req.url ?? '');
-    res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex' }] }));
+    res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex', display_name: 'GPT-5.3 Codex', visibility: 'list' }, { slug: 'codex-auto-review', visibility: 'hide' }] }));
   });
   await new Promise<void>((r) => {
     backend.listen(0, '127.0.0.1', r);
   });
   backendBase = `http://127.0.0.1:${String((backend.address() as AddressInfo).port)}`;
-  process.env.METRO_CODEX_REGISTRY = `${backendBase}/codex-latest`;
   modelDeps = {
     read: () => stored,
     write: (cfg) => {
       stored = cfg;
     },
     issuer: issuerBase,
-    codexHome: home,
     codexBase: backendBase,
     openrouterBase: backendBase,
     anthropicBase: backendBase,
@@ -215,7 +205,8 @@ beforeEach(() => {
   forgetUsage();
   forgetModelLists();
   creditsAuth.length = 0;
-  whamAsked.length = 0;
+  tokenForms.length = 0;
+  signIn.sub = 'user-1';
   login.asked = 0;
   login.answer = () => Promise.resolve(null);
   modelDeps.usageWaitMs = undefined;
@@ -367,30 +358,25 @@ const pause = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
+const codexSignIn = async (connection = ''): Promise<{ url: URL; done: Response }> => {
+  const query = connection === '' ? '' : `?connection=${connection}`;
+  const started = (await (await codex(`login${query}`, 'POST')).json()) as { url: string };
+  const url = new URL(started.url);
+  signIn.nonce = url.searchParams.get('nonce') ?? '';
+  const issued = url.searchParams.get('client_id') === 'dynamic_agent_client' ? '&client_id=oaiapp_1' : '';
+  const done = await codex(`callback${query}`, 'POST', { url: `http://127.0.0.1:1455/auth/callback?code=the-code&state=${url.searchParams.get('state') ?? ''}${issued}` });
+  return { url, done };
+};
+
 describe('usage asked for before the agent sends anything', () => {
-  test('a Codex connection shows its ChatGPT usage and the account it signed in with, asked once per five minutes', async () => {
-    const started = (await (await codex('login', 'POST')).json()) as { url: string };
-    const state = new URL(started.url).searchParams.get('state') ?? '';
-    await codex('callback', 'POST', { url: `http://localhost:1455/auth/callback?code=the-code&state=${state}` });
+  test('a Codex connection shows the account it signed in with, and no usage endpoint is asked for it', async () => {
+    const { done } = await codexSignIn();
+    expect(done.status).toBe(200);
     const id = stored.connections[0]?.id ?? '';
     const settings = await shown();
-    expect(settings.connections[0]).toMatchObject({ id, account: 'less@example.com', plan: 'plus' });
-    expect(settings.usage[id]?.windows.map((w) => [w.label, w.used])).toEqual([
-      ['5-hour window', 0.07],
-      ['Weekly', 0.03],
-      ['Credits', null],
-    ]);
-    expect(whamAsked).toEqual(['Bearer at-1 acct_1']);
+    expect(settings.connections[0]).toMatchObject({ id, account: 'less@example.com', plan: null });
+    expect(settings.usage[id]).toBeUndefined();
     expect(JSON.stringify(settings)).not.toContain('at-1');
-    await shown();
-    expect(whamAsked).toHaveLength(1);
-  });
-
-  test('an email only the profile claim of the id token carries is read on the box, without asking anyone', async () => {
-    const idOnly = jwt({ 'https://api.openai.com/profile': { email: 'p@example.com' }, 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_9', chatgpt_plan_type: 'pro' } });
-    const codexTokens = { accessToken: 'at-9', refreshToken: 'rt-9', idToken: idOnly, accountId: 'acct_9', email: null, plan: null, savedAt: new Date().toISOString() };
-    stored = { version: 2, route: 'cn-codex', connections: [makeConnection('codex', { codex: codexTokens })] };
-    expect((await shown()).connections[0]).toMatchObject({ account: 'p@example.com', plan: 'pro' });
   });
 
   test('the Claude Code login usage is asked of Claude Code itself, for a box with no connection and for each keyless Anthropic connection', async () => {
@@ -473,19 +459,21 @@ describe('the model setup as a whole, for the export file', () => {
 });
 
 describe('connecting ChatGPT for Codex from the page', () => {
-  test('login hands back the authorize link, the pasted callback finishes it, and the tokens never reach the page', async () => {
-    const started = (await (await codex('login', 'POST')).json()) as { url: string };
-    const url = new URL(started.url);
-    expect(url.searchParams.get('client_id')).toBe('app_EMoamEEZ73f0CkXaXp7hrann');
-    const state = url.searchParams.get('state') ?? '';
-    const stale = await codex('callback', 'POST', { url: 'http://localhost:1455/auth/callback?code=c&state=nope' });
-    expect(stale.status).toBe(400);
-    const done = await codex('callback', 'POST', { url: `http://localhost:1455/auth/callback?code=the-code&state=${state}` });
+  test("login registers Metro with this box's host id, the pasted callback finishes it, and the tokens never reach the page", async () => {
+    const { url, done } = await codexSignIn();
+    expect(url.origin + url.pathname).toBe(`${issuerBase}/api/accounts/authorize`);
+    expect(url.searchParams.get('client_id')).toBe('dynamic_agent_client');
+    expect(url.searchParams.get('agent_name_hint')).toBe('Metro');
+    const host = (JSON.parse(readFileSync(join(home, 'agents', 'chatgpt-host.json'), 'utf8')) as { hostId: string }).hostId;
+    expect(url.searchParams.get('ext_agent_host_id')).toBe(host);
     expect(done.status).toBe(200);
     const shown = (await done.json()) as { connections: Record<string, unknown>[] };
-    expect(shown.connections[0]).toMatchObject({ provider: 'codex', label: 'Codex (ChatGPT)', signedIn: true, account: 'less@example.com', plan: 'plus' });
+    expect(shown.connections[0]).toMatchObject({ provider: 'codex', label: 'Codex (ChatGPT)', signedIn: true, account: 'less@example.com', plan: null });
     expect(JSON.stringify(shown)).not.toContain('at-1');
-    expect(stored.connections[0]?.codex?.accessToken).toBe('at-1');
+    expect(stored.connections[0]?.codex).toMatchObject({ clientId: 'oaiapp_1', subject: 'user-1', accessToken: 'at-1', refreshToken: 'rt-1' });
+    expect(tokenForms[0]?.get('client_id')).toBe('oaiapp_1');
+    const stale = await codex('callback', 'POST', { url: 'http://127.0.0.1:1455/auth/callback?code=c&state=nope&client_id=oaiapp_1' });
+    expect(stale.status).toBe(400);
     const models = await codex('models', 'GET');
     expect(await models.json()).toEqual({ models: ['gpt-5.3-codex'] });
     const id = String(shown.connections[0]?.id);
@@ -494,17 +482,31 @@ describe('connecting ChatGPT for Codex from the page', () => {
     expect((await codex('models', 'GET')).status).toBe(400);
   });
 
-  test('the Codex CLI login on the box can be imported, and unknown codex routes are 404', async () => {
-    expect((await codex('import', 'POST')).status).toBe(400);
-    mkdirSync(join(home, '.codex'), { recursive: true });
-    writeFileSync(join(home, '.codex', 'auth.json'), JSON.stringify({ auth_mode: 'chatgpt', tokens: { id_token: idToken, access_token: 'cli-at', refresh_token: 'cli-rt', account_id: 'acct_1' } }));
-    const imported = await codex('import', 'POST');
-    expect(imported.status).toBe(200);
-    expect(stored.connections[0]?.codex?.accessToken).toBe('cli-at');
-    const twice = await codex('import', 'POST');
-    expect(twice.status).toBe(409);
+  test('a connection from the old Codex login signs in again in place, then reuses its client, and never takes another account', async () => {
+    stored = { version: 2, route: 'cn-codex', connections: [makeConnection('codex', { model: 'gpt-5.4' })], fallbacks: [{ connection: 'cn-codex', model: 'gpt-5.4-mini' }] };
+    expect((await shown()).connections[0]).toMatchObject({ id: 'cn-codex', signedIn: false });
+    const first = await codexSignIn('cn-codex');
+    expect(first.url.searchParams.get('client_id')).toBe('dynamic_agent_client');
+    expect(first.done.status).toBe(200);
     expect(stored.connections).toHaveLength(1);
-    expect((await codex('dance', 'POST')).status).toBe(404);
+    expect(stored.connections[0]).toMatchObject({ id: 'cn-codex', model: 'gpt-5.4', codex: { clientId: 'oaiapp_1' } });
+    expect(stored.fallbacks).toEqual([{ connection: 'cn-codex', model: 'gpt-5.4-mini' }]);
+    const again = await codexSignIn('cn-codex');
+    expect(again.url.searchParams.get('client_id')).toBe('oaiapp_1');
+    expect(again.url.searchParams.get('agent_name_hint')).toBeNull();
+    expect(again.url.searchParams.get('login_hint')).toBe('less@example.com');
+    expect(again.done.status).toBe(200);
+    signIn.sub = 'user-2';
+    const other = await codexSignIn('cn-codex');
+    expect(other.done.status).toBe(400);
+    expect(((await other.done.json()) as { error: string }).error).toContain('another ChatGPT account');
+    expect((await codex('login?connection=cn-nope', 'POST')).status).toBe(404);
+  });
+
+  test('the Codex CLI routes are gone: import and device code are 404, and a login is a POST', async () => {
+    expect((await codex('import', 'POST')).status).toBe(404);
+    expect((await codex('device', 'POST')).status).toBe(404);
+    expect((await codex('device/abcdefghijklmnopqrstuvwx', 'GET')).status).toBe(404);
     expect((await codex('login', 'GET')).status).toBe(405);
   });
 });
@@ -597,22 +599,6 @@ describe('connecting Google for Gemini from the page', () => {
   });
 });
 
-describe('the device-code sign-in from the page', () => {
-  test('a code is issued, the page polls, and the tokens land in the model file', async () => {
-    const started = await codex('device', 'POST');
-    expect(started.status).toBe(200);
-    const login = (await started.json()) as { id: string; user_code: string; verify_url: string; interval: number };
-    expect(login).toMatchObject({ user_code: 'ABCD-EFGH', verify_url: `${issuerBase}/codex/device`, interval: 1 });
-    const done = await codex(`device/${login.id}`, 'GET');
-    expect(done.status).toBe(200);
-    expect((await done.json() as { settings: { connections: Record<string, unknown>[] } }).settings.connections[0]).toMatchObject({ provider: 'codex', signedIn: true, account: 'less@example.com', plan: 'plus' });
-    expect(stored.connections[0]?.codex?.accessToken).toBe('at-1');
-    expect((await codex(`device/${login.id}`, 'GET')).status).toBe(400);
-    expect((await codex('device/short', 'GET')).status).toBe(404);
-    expect((await codex(`device/${login.id}`, 'POST')).status).toBe(405);
-  });
-});
-
 describe('picking an OpenRouter model without typing its id', () => {
   test('the daemon lists the chat models OpenRouter serves, newest first, dropping rows with no id, no tools or no text out', async () => {
     const res = await fetch(`${base}/api/model/openrouter/models`, {
@@ -629,24 +615,6 @@ describe('picking an OpenRouter model without typing its id', () => {
       headers: { authorization: await auth(OWNER) },
     });
     expect(wrong.status).toBe(404);
-  });
-});
-
-describe('the Codex client version metro announces', () => {
-  test('is the latest Codex CLI on npm, so the backend offers the newest models, and it can be overridden', async () => {
-    seenModelUrls.length = 0;
-    stored = { version: 2, route: 'cn-codex', connections: [{ id: 'cn-codex', provider: 'codex', label: 'Codex', model: '', apiKey: '', region: '', zdr: false, gemini: null, codex: { accessToken: 'at-1', refreshToken: 'rt-1', idToken, accountId: 'acct_1', email: null, plan: 'pro', savedAt: new Date().toISOString() } }] };
-    await codex('models', 'GET');
-    expect(seenModelUrls.at(-1)).toContain('client_version=0.158.2');
-    expect(codexVersion()).toBe('0.158.2');
-    process.env.METRO_CODEX_VERSION = '0.160.0';
-    await codex('models', 'GET');
-    expect(seenModelUrls.at(-1)).toContain('client_version=0.160.0');
-    expect(userAgent()).toContain('codex_cli_rs/0.160.0');
-    process.env.METRO_CODEX_VERSION = 'not a version';
-    expect(codexVersion()).toBe('0.158.2');
-    delete process.env.METRO_CODEX_VERSION;
-    stored = { version: 2, route: '', connections: [] };
   });
 });
 

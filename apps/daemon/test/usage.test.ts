@@ -3,7 +3,6 @@ import {
   anthropicUsage,
   claudeLoginUsage,
   codexUsage,
-  codexUsageBody,
   forgetUsage,
   mayProbe,
   noteUsageHeaders,
@@ -14,7 +13,7 @@ import {
   windowLabel,
 } from '../src/gateway/usage.ts';
 import { usageIn } from '../src/claude/usage-probe.ts';
-import { codexUsageAnswer, recordedClaudeUsageAnswer } from './usage-fixtures.ts';
+import { recordedClaudeUsageAnswer } from './usage-fixtures.ts';
 
 const NOW = new Date('2026-09-17T10:00:00.000Z');
 const RESET = Math.floor(new Date('2026-09-17T12:30:00.000Z').getTime() / 1000);
@@ -185,32 +184,6 @@ describe('what the page is handed', () => {
 });
 
 describe('usage asked for before any request', () => {
-  test('the ChatGPT usage endpoint reads like the Codex headers, credits included', () => {
-    expect(codexUsageBody(codexUsageAnswer, NOW)).toEqual({
-      windows: [
-        { label: '5-hour window', used: 0.07, resetAt: '2026-09-29T13:00:00.000Z', detail: null },
-        { label: 'Weekly', used: 0.03, resetAt: '2026-10-05T01:20:00.000Z', detail: null },
-        { label: 'Credits', used: null, resetAt: null, detail: '120 left' },
-      ],
-      note: null,
-      at: NOW.toISOString(),
-    });
-  });
-
-  test('a reached Codex limit is named, a relative reset is anchored to now, and an empty answer reports nothing', () => {
-    const walled = codexUsageBody(
-      {
-        rate_limit: { allowed: false, limit_reached: true, primary_window: { used_percent: 100, limit_window_seconds: 604800, reset_after_seconds: 900 } },
-        rate_limit_reached_type: { type: 'rate_limit_reached' },
-      },
-      NOW,
-    );
-    expect(walled?.windows).toEqual([{ label: 'Weekly', used: 1, resetAt: '2026-09-17T10:15:00.000Z', detail: null }]);
-    expect(walled?.note).toBe('rate limit reached');
-    expect(codexUsageBody({ plan_type: 'plus', rate_limit: null, credits: { has_credits: false, balance: '0' } }, NOW)).toBeNull();
-    expect(codexUsageBody('nope', NOW)).toBeNull();
-  });
-
   test('the Claude Code login usage, as Claude Code answered it on this box, becomes the same windows as its headers', () => {
     const usage = claudeLoginUsage(usageIn(recordedClaudeUsageAnswer), NOW);
     expect(usage).toEqual({

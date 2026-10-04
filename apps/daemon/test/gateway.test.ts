@@ -6,7 +6,7 @@ import { lastServed } from '../src/gateway/served.ts';
 import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
-import { conn, configOf, connectionId, jwt, makeConnection, use } from './model-fixture.ts';
+import { conn, configOf, connectionId, makeConnection, use } from './model-fixture.ts';
 import type { CodexTokens } from '../src/gateway/codex-auth.ts';
 import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
 import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
@@ -68,7 +68,7 @@ const geminiFailures: number[] = [];
 const geminiRefusals: string[] = [];
 const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
 const saved: CodexTokens[] = [];
-const tokens = (): CodexTokens => ({ accessToken: 'at-1', refreshToken: 'rt-1', idToken: '', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', savedAt: new Date().toISOString() });
+const tokens = (): CodexTokens => ({ clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
 const codexEvents = (): string[] => [
   JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }),
   JSON.stringify({ type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } }),
@@ -127,7 +127,7 @@ beforeAll(async () => {
     }
     if (req.url.startsWith('/models')) {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex' }, { slug: 'gpt-5.4' }] }));
+      res.end(JSON.stringify({ models: [{ slug: 'gpt-5.3-codex', visibility: 'list' }, { slug: 'gpt-5.4', visibility: 'list' }] }));
       return;
     }
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -136,7 +136,7 @@ beforeAll(async () => {
   });
   tokenIssuer = await fake((_req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ access_token: 'at-2', refresh_token: 'rt-2', id_token: jwt({ email: 'less@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_1', chatgpt_plan_type: 'pro' } }) }));
+    res.end(JSON.stringify({ access_token: 'at-2', refresh_token: 'rt-2', expires_in: 3600, token_type: 'Bearer' }));
   });
   geminiBackend = await fake((req, res) => {
     if (req.headers.authorization === 'Bearer stale') {
@@ -480,7 +480,7 @@ describe('what the picker can discover', () => {
 });
 
 describe('the Codex route', () => {
-  test('speaks the Codex CLI protocol with Claude Code\'s system prompt as its instructions, and translates the stream', async () => {
+  test('calls the public Responses API with the ChatGPT sign-in as its only credential, the system prompt as instructions, and translates the stream', async () => {
     use(cfg, 'codex');
     const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object' } }] }, { 'x-claude-code-session-id': 'sess-1' });
     expect(res.status).toBe(200);
@@ -501,12 +501,12 @@ describe('the Codex route', () => {
     expect(sent.input[0]).toMatchObject({ type: 'message', role: 'user' });
     expect(sent.tools[0]).toMatchObject({ type: 'function', name: 'Bash' });
     expect(sent).toMatchObject({ model: 'gpt-5.3-codex', store: false, stream: true, include: ['reasoning.encrypted_content'], prompt_cache_key: 'sess-1' });
+    expect(codexBackend.seen[0]?.url).toBe('/responses');
     const headers = codexBackend.seen[0]?.headers ?? {};
     expect(headers.authorization).toBe('Bearer at-1');
-    expect(headers['chatgpt-account-id']).toBe('acct_1');
-    expect(headers.originator).toBe('codex_cli_rs');
-    expect(headers['session-id']).toBe('sess-1');
-    expect(String(headers['user-agent'])).toMatch(/^codex_cli_rs\//);
+    expect(headers.accept).toBe('text/event-stream');
+    for (const name of ['chatgpt-account-id', 'originator', 'openai-beta', 'session-id']) expect(headers[name]).toBeUndefined();
+    expect(String(headers['user-agent'])).not.toContain('codex');
   });
 
   test('an image Read returns reaches Codex inside its tool output', async () => {
@@ -534,10 +534,27 @@ describe('the Codex route', () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
     expect(tokenIssuer.seen.length).toBe(1);
-    expect(JSON.parse(tokenIssuer.seen[0]?.body ?? '{}')).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'rt-1', client_id: 'app_EMoamEEZ73f0CkXaXp7hrann' });
+    expect(tokenIssuer.seen[0]?.url).toBe('/api/accounts/oauth/token');
+    expect(Object.fromEntries(new URLSearchParams(tokenIssuer.seen[0]?.body ?? ''))).toEqual({ grant_type: 'refresh_token', client_id: 'oaiapp_1', refresh_token: 'rt-1', resource: 'https://api.openai.com/v1' });
     expect(saved[0]?.accessToken).toBe('at-2');
     expect(codexBackend.seen.at(-1)?.headers.authorization).toBe('Bearer at-2');
     expect((JSON.parse(codexBackend.seen.at(-1)?.body ?? '{}') as { model: string }).model).toBe('gpt-5.4');
+  });
+
+  test('a used-up ChatGPT plan is a 429 rate limit that says where to manage the usage', async () => {
+    use(cfg, 'codex');
+    const answer = codexBackend.answer;
+    codexBackend.answer = (_req, res) => {
+      res.writeHead(429, { 'content-type': 'application/json' });
+      res.end('{"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"Usage limit reached."}}');
+    };
+    try {
+      const res = await post('/gateway/v1/messages', message('gpt-5.4', true));
+      expect(res.status).toBe(429);
+      expect(await res.json()).toEqual({ type: 'error', error: { type: 'rate_limit_error', message: 'Usage limit reached. Manage usage: https://chatgpt.com/settings/usage' } });
+    } finally {
+      codexBackend.answer = answer;
+    }
   });
 
   test('token counting is an estimate, a disconnected account is a 400, and the picker sees the route', async () => {
@@ -678,7 +695,7 @@ describe('what keeps a session alive through a bad hour', () => {
     const stale = new Date(Date.now() - 5_000).toISOString();
     conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired', savedAt: stale };
     expect((await post('/gateway/v1/messages', message('gpt-5.4', true))).status).toBe(200);
-    const second = makeConnection('codex', { id: 'cn-codex-two', model: 'gpt-5.4', codex: { ...tokens(), accessToken: 'expired', refreshToken: 'rt-second', accountId: 'acct_2', savedAt: stale } });
+    const second = makeConnection('codex', { id: 'cn-codex-two', model: 'gpt-5.4', codex: { ...tokens(), clientId: 'oaiapp_2', accessToken: 'expired', refreshToken: 'rt-second', savedAt: stale } });
     cfg.connections.push(second);
     cfg.route = second.id;
     const before = tokenIssuer.seen.length;
@@ -687,7 +704,7 @@ describe('what keeps a session alive through a bad hour', () => {
       expect(res.status).toBe(200);
       await res.text();
       expect(tokenIssuer.seen.length - before).toBe(1);
-      expect(JSON.parse(tokenIssuer.seen.at(-1)?.body ?? '{}')).toMatchObject({ refresh_token: 'rt-second' });
+      expect(Object.fromEntries(new URLSearchParams(tokenIssuer.seen.at(-1)?.body ?? ''))).toMatchObject({ client_id: 'oaiapp_2', refresh_token: 'rt-second' });
     } finally {
       cfg.connections = cfg.connections.filter((c) => c.id !== second.id);
     }

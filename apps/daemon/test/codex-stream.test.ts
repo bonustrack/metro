@@ -86,6 +86,11 @@ describe('a Codex response stream becomes an Anthropic one', () => {
     ]);
     expect(frames(err).at(-1)?.data).toEqual({ type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } });
     expect(assembleMessage(err)).toEqual({ type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } });
+    const walled = events(new CodexEventTranslator('gpt-5.4'), [
+      { type: 'response.created', response: { id: 'r5' } },
+      { type: 'response.failed', response: { id: 'r5', error: { code: 'subscription_sharing_usage_limit_exceeded', message: 'Usage limit reached.' } } },
+    ]);
+    expect(assembleMessage(walled)).toEqual({ type: 'error', error: { type: 'rate_limit_error', message: 'Usage limit reached. Manage usage: https://chatgpt.com/settings/usage' } });
     const cut = new CodexEventTranslator('gpt-5.4');
     cut.push('response.created', { response: { id: 'r4' } });
     expect(cut.close()).toContain('before completing');

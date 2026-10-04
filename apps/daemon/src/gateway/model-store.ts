@@ -15,7 +15,6 @@ export interface ModelApiDeps {
   write?: (cfg: ModelConfig) => void;
   issuer?: string;
   fetchImpl?: typeof fetch;
-  codexHome?: string;
   codexBase?: string;
   geminiAuthBase?: string;
   geminiTokenBase?: string;

@@ -1,11 +1,10 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { readClaudeUsage } from '../claude/usage-probe.js';
-import { codexUsageNow, sharedCodexState } from './codex.js';
 import { openrouterKey } from './openrouter.js';
 import { lastServed } from './served.js';
 import { claudeLoginUsage, geminiUsage, keepProbeAnswer, mayProbe, mergeUsage, noteUsage, openrouterUsage, probeAnswer, usageOf } from './usage.js';
 import { PASSTHROUGH_ID, readModelConfig, routedConnection, writeModelConfig, type Connection, type ModelConfig } from './model-config.js';
-import { codexDepsFor, geminiModelsOf } from './model-signin.js';
+import { geminiModelsOf } from './model-signin.js';
 import { claudeLoginDeps, CREDITS_TTL_MS, type ModelApiDeps, type Store } from './model-store.js';
 import { probeClaudeLogin } from './claude-logins.js';
 
@@ -31,14 +30,6 @@ async function refreshKey(conn: Connection, deps: ModelApiDeps, now: number): Pr
   if (conn.apiKey === '' || !due(conn.id, now)) return;
   await probe('OpenRouter key spend', async () => {
     noteUsage(conn.id, openrouterUsage(await openrouterKey(conn.apiKey, deps.openrouterBase, deps.fetchImpl), new Date(now)));
-  });
-}
-
-async function refreshCodex(conn: Connection, deps: ModelApiDeps, store: Store, now: number): Promise<void> {
-  if (conn.codex === null || !due(conn.id, now)) return;
-  await probe('Codex usage', async () => {
-    const usage = await codexUsageNow(conn, codexDepsFor(deps, store, conn.id), sharedCodexState);
-    if (usage !== null) noteUsage(conn.id, usage);
   });
 }
 
@@ -92,7 +83,6 @@ async function refreshLogin(cfg: ModelConfig, deps: ModelApiDeps, now: number): 
 
 function refreshOne(conn: Connection, cfg: ModelConfig, deps: ModelApiDeps, store: Store, now: number): Promise<void> {
   if (conn.provider === 'openrouter') return refreshKey(conn, deps, now);
-  if (conn.provider === 'codex') return refreshCodex(conn, deps, store, now);
   if (conn.provider === 'gemini') return refreshQuota(conn, deps, store, now);
   if (conn.provider === 'anthropic') return refreshOwnLogin(conn, cfg, deps, now);
   return Promise.resolve();

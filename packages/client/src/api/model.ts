@@ -25,7 +25,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'codex',
     label: 'Codex (ChatGPT)',
     site: 'https://openai.com',
-    blurb: 'GPT and Codex models on your ChatGPT subscription. Unofficial: OpenAI can cut it off at any time.',
+    blurb: "GPT models on your ChatGPT Plus or Pro plan, through OpenAI's official Sign in with ChatGPT.",
   },
   {
     id: 'gemini',
@@ -189,18 +189,14 @@ export async function dropConnection(id: string): Promise<ModelSettings> {
 
 const withConnection = (path: string, id: string): string => (id === '' ? path : `${path}?connection=${encodeURIComponent(id)}`);
 
-export async function beginCodexLogin(): Promise<string> {
-  const body = await call({ method: 'POST', base: modelUrl(), path: '/codex/login' });
+export async function beginCodexLogin(id = ''): Promise<string> {
+  const body = await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/login', id) });
   if (!isRecord(body) || typeof body.url !== 'string') throw unexpected();
   return body.url;
 }
 
 export async function finishCodexLogin(url: string, id = ''): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/callback', id), headers: json, body: JSON.stringify({ url }) }));
-}
-
-export async function codexImport(id = ''): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/import', id) }));
 }
 
 export async function beginGeminiLogin(): Promise<{ url: string; state: string }> {
@@ -227,30 +223,8 @@ export async function codexModels(id: string): Promise<string[]> {
 
 export const servedLabel = (served: Served): string => (served.provider === 'anthropic' ? served.model : `${served.provider}:${served.model}`);
 
-export interface DeviceLogin {
-  id: string;
-  userCode: string;
-  verifyUrl: string;
-  interval: number;
-}
-
-export type DevicePoll = { status: 'pending' } | { status: 'done' } | { status: 'failed'; error: string };
-
-export async function beginCodexDevice(): Promise<DeviceLogin> {
-  const body = await call({ method: 'POST', base: modelUrl(), path: '/codex/device' });
-  if (!isRecord(body) || typeof body.id !== 'string' || typeof body.user_code !== 'string' || typeof body.verify_url !== 'string') throw unexpected();
-  return { id: body.id, userCode: body.user_code, verifyUrl: body.verify_url, interval: typeof body.interval === 'number' && body.interval >= 1 ? body.interval : 5 };
-}
-
-export async function pollCodexDevice(id: string, connection = ''): Promise<DevicePoll> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: withConnection(`/codex/device/${id}`, connection) });
-  if (!isRecord(body)) throw unexpected();
-  if (body.status === 'done') return { status: 'done' };
-  if (body.status === 'failed') return { status: 'failed', error: typeof body.error === 'string' ? body.error : 'The sign-in did not finish.' };
-  return { status: 'pending' };
-}
-
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
+export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 export const ANTHROPIC_KEYS_URL = 'https://console.anthropic.com/settings/keys';
 const MATCH_MAX = 40;
 

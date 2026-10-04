@@ -22,7 +22,7 @@ import {
 } from './model-config.js';
 import { asApiError, BODY_MAX, claudeLoginDeps, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
 import { dropUnusedClaudeLogins } from './claude-logins.js';
-import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES } from './model-signin.js';
+import { CODEX_ROUTES, GEMINI_ROUTES } from './model-signin.js';
 import { refreshUsage } from './usage-refresh.js';
 
 const PATH = '/api/model';
@@ -36,8 +36,6 @@ const BEDROCK = '/api/model/bedrock/';
 const BUNDLE = '/api/model/bundle';
 const RESTORE = '/api/model/restore';
 const RESTORE_MAX = 64 * 1024;
-const DEVICE_PREFIX = 'device/';
-const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
 export type { ModelApiDeps } from './model-store.js';
 
@@ -164,21 +162,15 @@ function connectionsRoute(path: string, method: string | undefined): Route | num
   return 405;
 }
 
-function codexRoute(rest: string, method: string | undefined): Route | number {
-  if (rest in CODEX_ROUTES) return named(CODEX_ROUTES, rest, method);
-  const id = rest.startsWith(DEVICE_PREFIX) ? rest.slice(DEVICE_PREFIX.length) : '';
-  if (!DEVICE_ID_RE.test(id)) return 404;
-  return codexDeviceRoute(id, method);
-}
-
 const TABLES: [string, Record<string, Route>][] = [
   [OPENROUTER, OPENROUTER_ROUTES],
   [ANTHROPIC, ANTHROPIC_ROUTES],
   [BEDROCK, BEDROCK_ROUTES],
   [GEMINI, GEMINI_ROUTES],
+  [CODEX, CODEX_ROUTES],
 ];
 const EXACT = new Set([PATH, FALLBACKS, BUNDLE, RESTORE, CONNECTIONS]);
-const PREFIXES = [`${CONNECTIONS}/`, CODEX, ...TABLES.map(([prefix]) => prefix)];
+const PREFIXES = [`${CONNECTIONS}/`, ...TABLES.map(([prefix]) => prefix)];
 
 const mine = (path: string): boolean => EXACT.has(path) || PREFIXES.some((prefix) => path.startsWith(prefix));
 
@@ -187,8 +179,7 @@ function routeFor(path: string, method: string | undefined): Route | number {
   if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
   if (path === CONNECTIONS || path.startsWith(`${CONNECTIONS}/`)) return connectionsRoute(path, method);
   const table = TABLES.find(([prefix]) => path.startsWith(prefix));
-  if (table !== undefined) return named(table[1], path.slice(table[0].length), method);
-  return codexRoute(path.slice(CODEX.length), method);
+  return table === undefined ? 404 : named(table[1], path.slice(table[0].length), method);
 }
 
 export function handleModelRequest(req: IncomingMessage, res: ServerResponse, deps: ModelApiDeps): boolean {

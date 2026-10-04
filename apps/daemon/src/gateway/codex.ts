@@ -1,20 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { arch, platform, release } from 'node:os';
-import { codexVersion, learnCodexVersion } from './codex-version.js';
-import { refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
-import { CodexEventTranslator } from './codex-stream.js';
+import { isRecord } from '@metro-labs/core/is-record';
+import { stringOf } from '@metro-labs/http/api-http';
+import { OPENAI_API, CODEX_SIGN_IN, refreshTokens, tokensStale, type CodexTokens } from './codex-auth.js';
+import { CodexEventTranslator, withUsageLink } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
 import { GatewayError, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import { parseEvent, SseParser, type SseEvent } from './frames.js';
 import type { Connection } from './model-config.js';
 import { listCache } from './model-lists.js';
 import { answerWhole, currentOf, errorKind, reach, refreshed, relayTranslated, sessionHeader, type TokenSource, type TokenState } from './subscription.js';
-import { codexUsageBody, noteUsageHeaders, type Reported } from './usage.js';
+import { noteUsageHeaders } from './usage.js';
 
-const CODEX_BASE = 'https://chatgpt.com/backend-api/codex';
 const INVALID = [400, 404, 422];
-const USAGE_TIMEOUT_MS = 10_000;
 
 export interface CodexDeps {
   base?: string;
@@ -36,25 +34,14 @@ const sourceOf = (deps: CodexDeps): TokenSource<CodexTokens> => ({
   save: deps.save,
 });
 
-const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
-
-export const userAgent = (): string => `codex_cli_rs/${codexVersion()} (${OS_NAMES[platform()] ?? platform()} ${release()}; ${arch()}) metro`;
-
-function headersFor(tokens: CodexTokens, sessionId: string): Record<string, string> {
-  return {
-    authorization: `Bearer ${tokens.accessToken}`,
-    'chatgpt-account-id': tokens.accountId,
-    'content-type': 'application/json',
-    accept: 'text/event-stream',
-    originator: 'codex_cli_rs',
-    'user-agent': userAgent(),
-    'openai-beta': 'responses=experimental',
-    'session-id': sessionId,
-  };
-}
+const headersFor = (tokens: CodexTokens, accept: string): Record<string, string> => ({
+  authorization: `Bearer ${tokens.accessToken}`,
+  'content-type': 'application/json',
+  accept,
+});
 
 export const currentTokens = (conn: Connection, deps: CodexDeps, state: CodexState): Promise<CodexTokens> =>
-  currentOf(state, conn.id, conn.codex, sourceOf(deps), 'Codex is not connected: sign in on the Model page.');
+  currentOf(state, conn.id, conn.codex, sourceOf(deps), CODEX_SIGN_IN);
 
 interface Call {
   body: Record<string, unknown>;
@@ -67,13 +54,24 @@ interface Call {
 
 function send(call: Call, tokens: CodexTokens): Promise<Response> {
   const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.sessionId, names: call.names });
-  return (call.deps.fetchImpl ?? fetch)(`${call.deps.base ?? CODEX_BASE}/responses`, {
+  return (call.deps.fetchImpl ?? fetch)(`${call.deps.base ?? OPENAI_API}/responses`, {
     method: 'POST',
-    headers: headersFor(tokens, call.sessionId),
+    headers: headersFor(tokens, 'text/event-stream'),
     body: JSON.stringify(request),
     signal: call.watch.signal,
     redirect: 'manual',
   });
+}
+
+function refusalOf(text: string, status: number): string {
+  let code = '';
+  try {
+    const parsed: unknown = JSON.parse(text);
+    code = isRecord(parsed) && isRecord(parsed.error) ? stringOf(parsed.error.code) : '';
+  } catch {
+    code = '';
+  }
+  return withUsageLink(code, upstreamMessage(text, `OpenAI answered ${String(status)}`));
 }
 
 export async function codexMessages(
@@ -95,7 +93,7 @@ export async function codexMessages(
   noteUsageHeaders('codex', conn.id, upstream.headers);
   if (!upstream.ok) {
     const text = await upstream.text();
-    sendError(res, providerStatus(upstream.status), errorKind(upstream.status, INVALID), upstreamMessage(text, `Codex answered ${String(upstream.status)}`));
+    sendError(res, providerStatus(upstream.status), errorKind(upstream.status, INVALID), refusalOf(text, upstream.status));
     return;
   }
   const translator = new CodexEventTranslator(model, (name) => call.names.restore(name));
@@ -111,45 +109,15 @@ export async function codexMessages(
   answerWhole(res, frames + translator.close(), conn.id);
 }
 
-const jsonHeaders = (tokens: CodexTokens): Record<string, string> => ({ ...headersFor(tokens, randomUUID()), accept: 'application/json' });
-
-export const codexUsageUrl = (base = CODEX_BASE): string => `${base.replace(/\/codex\/?$/, '')}/wham/usage`;
-
-export async function codexUsageNow(conn: Connection, deps: CodexDeps, state: CodexState): Promise<Reported | null> {
-  const fetchImpl = deps.fetchImpl ?? fetch;
-  const res = await reach(
-    () => currentTokens(conn, deps, state),
-    (tokens) => refreshed(state, conn.id, tokens, sourceOf(deps)),
-    (tokens) => fetchImpl(codexUsageUrl(deps.base), { headers: jsonHeaders(tokens), redirect: 'manual', signal: AbortSignal.timeout(USAGE_TIMEOUT_MS) }),
-  );
-  if (!res.ok) {
-    await res.body?.cancel();
-    throw new GatewayError(res.status, errorKind(res.status, INVALID), `Codex would not report its usage (${String(res.status)})`);
-  }
-  return codexUsageBody(await res.json());
-}
-
 export async function codexModels(tokens: CodexTokens, deps: Omit<CodexDeps, 'save'>): Promise<string[]> {
-  const version = await learnCodexVersion();
-  const base = deps.base ?? CODEX_BASE;
-  return codexLists.get(`${base}:${tokens.accountId}:${version}`, () => listCodex(tokens, version, base, deps.fetchImpl ?? fetch));
+  const base = deps.base ?? OPENAI_API;
+  return codexLists.get(`${base}:${tokens.clientId}`, () => listCodex(tokens, base, deps.fetchImpl ?? fetch));
 }
 
-async function listCodex(tokens: CodexTokens, version: string, base: string, fetchImpl: typeof fetch): Promise<string[]> {
-  const res = await fetchImpl(`${base}/models?client_version=${version}`, {
-    headers: jsonHeaders(tokens),
-    redirect: 'manual',
-  });
-  if (!res.ok) throw new GatewayError(res.status, errorKind(res.status, INVALID), `Codex would not list models (${String(res.status)})`);
-  const slugs = new Set<string>();
-  const walk = (value: unknown): void => {
-    if (Array.isArray(value)) value.forEach(walk);
-    else if (typeof value === 'object' && value !== null) {
-      const record = value as Record<string, unknown>;
-      if (typeof record.slug === 'string' && record.slug !== '') slugs.add(record.slug);
-      Object.values(record).forEach(walk);
-    }
-  };
-  walk(await res.json());
-  return [...slugs];
+async function listCodex(tokens: CodexTokens, base: string, fetchImpl: typeof fetch): Promise<string[]> {
+  const res = await fetchImpl(`${base}/models`, { headers: headersFor(tokens, 'application/json'), redirect: 'manual' });
+  if (!res.ok) throw new GatewayError(res.status, errorKind(res.status, INVALID), `OpenAI would not list the models of this ChatGPT plan (${String(res.status)})`);
+  const body: unknown = await res.json();
+  const models: unknown[] = isRecord(body) && Array.isArray(body.models) ? body.models : [];
+  return models.filter(isRecord).flatMap((m) => (m.visibility === 'list' && stringOf(m.slug) !== '' ? [stringOf(m.slug)] : []));
 }

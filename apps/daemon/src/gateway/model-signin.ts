@@ -3,9 +3,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { readJsonBody } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { beginLogin, finishLogin, readCodexCliAuth, type CodexTokens } from './codex-auth.js';
-import { beginDeviceLogin, pollDeviceLogin } from './codex-device.js';
-import { codexModels, currentTokens, sharedCodexState } from './codex.js';
+import { beginLogin, chatgptHostId, finishLogin, type CodexTokens } from './codex-auth.js';
+import { codexModels, currentTokens, sharedCodexState, type CodexDeps } from './codex.js';
 import { beginLogin as beginGeminiLogin, exchangeCode as exchangeGeminiCode, userEmail, type GeminiTokens } from './gemini-auth.js';
 import { onboard, parseGeminiProject } from './gemini-setup.js';
 import { currentGeminiTokens, listGeminiModels, sharedGeminiState, type GeminiDeps } from './gemini.js';
@@ -40,21 +39,7 @@ const saved = (store: Store, cfg: ModelConfig, note: string, fields: { connectio
   return settingsBody(cfg);
 };
 
-function keepCodex(store: Store, req: IncomingMessage, tokens: CodexTokens | null, note: string): unknown {
-  const { cfg, id } = connectionToFill(store, req, 'codex');
-  const twin = cfg.connections.find((c) => c.id !== id && tokens !== null && c.codex?.refreshToken === tokens.refreshToken);
-  if (twin !== undefined) throw new ApiError(`this ChatGPT login is already connected as ${twin.label}; sign in with ChatGPT to add another one`, 409);
-  const next = setCodexAuth(cfg, id, tokens);
-  return saved(store, next, note, { connection: id, plan: tokens?.plan ?? null });
-}
-
-async function pollDevice(id: string, req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const result = await pollDeviceLogin(id, deps.fetchImpl).catch(asApiError);
-  if (result.status !== 'done') return result;
-  return { status: 'done', settings: keepCodex(store, req, result.tokens, 'model-api: Codex connected by device code') };
-}
-
-export const codexDepsFor = (deps: ModelApiDeps, store: Store, id: string): { issuer?: string; fetchImpl?: typeof fetch; base?: string; save: (connId: string, t: CodexTokens) => void } => ({
+const codexDepsFor = (deps: ModelApiDeps, store: Store, id: string): CodexDeps => ({
   issuer: deps.issuer,
   fetchImpl: deps.fetchImpl,
   base: deps.codexBase,
@@ -63,34 +48,21 @@ export const codexDepsFor = (deps: ModelApiDeps, store: Store, id: string): { is
   },
 });
 
+const renewing = (store: Store, req: IncomingMessage): CodexTokens | null => (askedConnection(req) === '' ? null : connectionFor(store.read(), req, 'codex').codex);
+
 export const CODEX_ROUTES: Record<string, Route> = {
-  device: {
+  login: {
     method: 'POST',
-    run: async (_req, deps) => {
-      const login = await beginDeviceLogin(deps.issuer, deps.fetchImpl).catch(asApiError);
-      return { id: login.id, user_code: login.userCode, verify_url: login.verifyUrl, interval: login.interval };
-    },
+    run: (req, deps, store) => Promise.resolve({ url: beginLogin(renewing(store, req), chatgptHostId(deps.setup?.agents), deps.issuer) }),
   },
-  login: { method: 'POST', run: (_req, deps) => Promise.resolve({ url: beginLogin(deps.issuer).url }) },
   callback: {
     method: 'POST',
     run: async (req, deps, store) => {
       const body = await readJsonBody(req, BODY_MAX);
       const raw = isRecord(body) && typeof body.url === 'string' ? body.url : '';
       const tokens = await finishLogin(raw, deps.issuer, deps.fetchImpl).catch(asApiError);
-      return keepCodex(store, req, tokens, 'model-api: Codex connected');
-    },
-  },
-  import: {
-    method: 'POST',
-    run: (_req, deps, store) => {
-      let tokens;
-      try {
-        tokens = readCodexCliAuth(deps.codexHome);
-      } catch (err) {
-        asApiError(err);
-      }
-      return Promise.resolve(keepCodex(store, _req, tokens, 'model-api: Codex CLI login imported'));
+      const { cfg, id } = connectionToFill(store, req, 'codex');
+      return saved(store, setCodexAuth(cfg, id, tokens), 'model-api: Codex connected with Sign in with ChatGPT', { connection: id });
     },
   },
   models: {
@@ -157,7 +129,3 @@ export const GEMINI_ROUTES: Record<string, Route> = {
     run: async (req, deps, store) => ({ models: await geminiIds(req, deps, store).catch(asApiError) }),
   },
 };
-
-export function codexDeviceRoute(id: string, method: string | undefined): Route | number {
-  return method === 'GET' ? { method: 'GET', run: (req, deps, store) => pollDevice(id, req, deps, store) } : 405;
-}

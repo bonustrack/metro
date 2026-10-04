@@ -15,7 +15,10 @@ const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
 
 export const usesKey = (p: Provider): boolean => KEY_PROVIDERS.includes(p);
 
-const signedAs = (c: ConnectionRow): string => [c.account ?? 'signed in', c.plan === null ? '' : `(${c.plan})`].filter((x) => x !== '').join(' ');
+function signedAs(c: ConnectionRow): string {
+  if (c.provider === 'codex' && !c.signedIn) return 'sign in again with ChatGPT';
+  return [c.account ?? 'signed in', c.plan === null ? '' : `(${c.plan})`].filter((x) => x !== '').join(' ');
+}
 
 export function connectionDetail(c: ConnectionRow): string {
   if (c.provider === 'bedrock') return [c.hasKey ? 'API key stored' : 'no key', c.region === '' ? 'no region' : c.region].join(' · ');

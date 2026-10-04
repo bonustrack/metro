@@ -271,36 +271,6 @@ const textOf = (raw: unknown): string | null => (typeof raw === 'number' || type
 
 const numberOf = (raw: unknown): number | null => (typeof raw === 'number' && Number.isFinite(raw) ? raw : null);
 
-const SECONDS_PER_MINUTE = 60;
-
-function codexBodyWindow(raw: unknown, now: Date): UsageWindow | null {
-  if (!isRecord(raw)) return null;
-  const percent = numberOf(raw.used_percent);
-  if (percent === null) return null;
-  const seconds = numberOf(raw.limit_window_seconds);
-  const minutes = seconds === null || seconds <= 0 ? null : Math.ceil(seconds / SECONDS_PER_MINUTE);
-  const resetAt = whenFrom(textOf(raw.reset_at), now) ?? whenFrom(textOf(raw.reset_after_seconds), now, true);
-  return { label: windowLabel(minutes), used: clamp(percent / 100), resetAt, detail: null };
-}
-
-function codexWall(limit: Record<string, unknown>, reached: unknown): string | null {
-  if (limit.limit_reached !== true && limit.allowed !== false) return null;
-  const kind = isRecord(reached) ? stringOf(reached.type) : '';
-  return kind === '' ? 'limit reached' : kind.replaceAll('_', ' ');
-}
-
-export function codexUsageBody(body: unknown, now = new Date()): Reported | null {
-  if (!isRecord(body)) return null;
-  const limit = isRecord(body.rate_limit) ? body.rate_limit : {};
-  const credits = isRecord(body.credits) ? body.credits : {};
-  const windows = [
-    codexBodyWindow(limit.primary_window, now),
-    codexBodyWindow(limit.secondary_window, now),
-    creditsLeft(credits.has_credits === true, textOf(credits.balance)),
-  ].filter(present);
-  return windows.length === 0 ? null : { windows, note: codexWall(limit, body.rate_limit_reached_type), at: now.toISOString() };
-}
-
 const CLAUDE_WINDOWS: [string, string][] = [
   ['five_hour', '5-hour window'],
   ['seven_day', 'Weekly'],

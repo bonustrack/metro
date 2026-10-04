@@ -15,8 +15,13 @@ interface Block {
 const responseOf = (data: Item): Item => (isRecord(data.response) ? data.response : {});
 const itemOf = (data: Item): Item => (isRecord(data.item) ? data.item : {});
 
+const PLAN_LIMIT = 'subscription_sharing_usage_limit_exceeded';
+const USAGE_URL = 'https://chatgpt.com/settings/usage';
+
+export const withUsageLink = (code: string, message: string): string => (code === PLAN_LIMIT ? `${message} Manage usage: ${USAGE_URL}` : message);
+
 function errorKind(code: string): string {
-  if (code === 'rate_limit_exceeded' || code === 'usage_limit_reached') return 'rate_limit_error';
+  if (code === 'rate_limit_exceeded' || code === 'usage_limit_reached' || code === PLAN_LIMIT) return 'rate_limit_error';
   if (code === 'context_length_exceeded' || code === 'invalid_prompt') return 'invalid_request_error';
   if (code === 'insufficient_quota') return 'permission_error';
   return 'api_error';
@@ -157,7 +162,8 @@ export class CodexEventTranslator {
   private failed(response: Item, fallback: string): string {
     this.done = true;
     const error = isRecord(response.error) ? response.error : {};
-    return errorFrame(errorKind(stringOf(error.code)), stringOf(error.message) || fallback);
+    const code = stringOf(error.code);
+    return errorFrame(errorKind(code), withUsageLink(code, stringOf(error.message) || fallback));
   }
 
   push(event: string, data: Item): string {

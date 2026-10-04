@@ -3,7 +3,7 @@ import { ID_RE, newId } from '@metro-labs/core/ids';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { agentsDir } from '../agents/files.js';
 import { isRecord } from '@metro-labs/core/is-record';
-import { claimsOf, type CodexTokens } from './codex-auth.js';
+import { CODEX_SIGN_IN, NEW_CLIENT, type CodexTokens } from './codex-auth.js';
 import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gemini-auth.js';
 
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
@@ -91,17 +91,17 @@ function claudeFromDisk(raw: unknown): ClaudeLogin | null {
 
 function codexFromDisk(raw: unknown): CodexTokens | null {
   if (!isRecord(raw)) return null;
+  const clientId = text(raw.clientId);
   const accessToken = text(raw.accessToken);
   const refreshToken = text(raw.refreshToken);
-  const accountId = text(raw.accountId);
-  if (accessToken === '' || refreshToken === '' || accountId === '') return null;
+  if (clientId === '' || clientId === NEW_CLIENT || accessToken === '' || refreshToken === '') return null;
   return {
+    clientId,
+    subject: text(raw.subject),
+    email: maybe(raw.email),
     accessToken,
     refreshToken,
-    idToken: text(raw.idToken),
-    accountId,
-    email: maybe(raw.email),
-    plan: maybe(raw.plan),
+    expiresAt: typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt) ? raw.expiresAt : 0,
     savedAt: text(raw.savedAt) === '' ? new Date(0).toISOString() : text(raw.savedAt),
   };
 }
@@ -186,7 +186,7 @@ const CHECKS: Record<Provider, [(c: Connection) => boolean, string][]> = {
     [(c) => c.model === '', 'OpenRouter needs a model id: choose one on the Model page.'],
   ],
   codex: [
-    [(c) => c.codex === null, 'Codex is not connected: sign in with ChatGPT on the Model page.'],
+    [(c) => c.codex === null, CODEX_SIGN_IN],
     [(c) => c.model === '', 'Codex needs a model id: choose one on the Model page.'],
   ],
   gemini: [
@@ -235,9 +235,8 @@ export const PASSTHROUGH_ID = 'passthrough';
 
 function signedInAs(c: Connection): { account: string | null; plan: string | null } {
   if (c.claude !== null) return { account: c.claude.email, plan: c.claude.plan };
-  if (c.codex === null) return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
-  const claims = claimsOf(c.codex.idToken);
-  return { account: c.codex.email ?? claims.email, plan: c.codex.plan ?? claims.plan };
+  if (c.codex !== null) return { account: c.codex.email, plan: null };
+  return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
 }
 
 function publicConnection(c: Connection): Record<string, unknown> {

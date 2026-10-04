@@ -46,7 +46,8 @@ describe('what a connection card says', () => {
     expect(connectionDetail(row({ id: 'a', provider: 'openrouter', hasKey: true, zdr: true }))).toBe('API key stored · zero data retention');
     expect(connectionDetail(row({ id: 'a', provider: 'anthropic' }))).toBe('your Claude Code login');
     expect(connectionDetail(row({ id: 'a', provider: 'anthropic', hasKey: true }))).toBe('API key stored');
-    expect(connectionDetail(row({ id: 'a', provider: 'codex', signedIn: true, account: 'less@x', plan: 'plus' }))).toBe('less@x (plus)');
+    expect(connectionDetail(row({ id: 'a', provider: 'codex', signedIn: true, account: 'less@x', plan: null }))).toBe('less@x');
+    expect(connectionDetail(row({ id: 'a', provider: 'codex', signedIn: false }))).toBe('sign in again with ChatGPT');
     expect(modelLabel(row({ id: 'a', provider: 'bedrock' }))).toBe(DEFAULT_MODEL);
     expect(modelLabel(row({ id: 'a', provider: 'codex', model: 'gpt-5.4' }))).toBe('gpt-5.4');
     expect(usesKey('openrouter')).toBe(true);

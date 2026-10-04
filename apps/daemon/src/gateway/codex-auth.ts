@@ -1,66 +1,106 @@
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
-import { PendingLogins } from './pkce.js';
+import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
+import { ticketStore } from '@metro-labs/core/tickets';
+import { agentsDir } from '../agents/files.js';
+import { newPkce } from './pkce.js';
 import { nonEmpty } from './text.js';
 
-export const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
-export const CODEX_ISSUER = 'https://auth.openai.com';
-export const CODEX_REDIRECT = 'http://localhost:1455/auth/callback';
-const SCOPE = 'openid profile email offline_access api.connectors.read api.connectors.invoke';
-const AUTH_CLAIM = 'https://api.openai.com/auth';
+const CODEX_ISSUER = 'https://auth.openai.com';
+export const CODEX_REDIRECT = 'http://127.0.0.1:1455/auth/callback';
+export const OPENAI_API = 'https://api.openai.com/v1';
+export const NEW_CLIENT = 'dynamic_agent_client';
+export const APP_NAME = 'Metro';
+export const PLAN_SCOPE = 'chatgpt.tokens.use.direct';
+export const CODEX_SIGN_IN = "Codex needs a ChatGPT sign-in: Metro now uses OpenAI's official Sign in with ChatGPT, so sign in again on the Model page.";
+const SCOPE = `openid profile email offline_access resource.invoke ${PLAN_SCOPE}`;
 const PROFILE_CLAIM = 'https://api.openai.com/profile';
-const ACCESS_TOKEN_TTL_MS = 55 * 60_000;
+const HOST_FILE = 'chatgpt-host.json';
+const HOST_RE = /^urn:uuid:[0-9a-f-]{36}$/;
+const PENDING_TTL_MS = 10 * 60_000;
+const DEFAULT_TTL_MS = 60 * 60_000;
+const RENEW_BEFORE_MS = 2 * 60_000;
+const AGAIN = 'press Continue with ChatGPT again';
 
 export interface CodexTokens {
+  clientId: string;
+  subject: string;
+  email: string | null;
   accessToken: string;
   refreshToken: string;
-  idToken: string;
-  accountId: string;
-  email: string | null;
-  plan: string | null;
+  expiresAt: number;
   savedAt: string;
 }
 
 export class CodexAuthError extends Error {}
 
-const pending = new PendingLogins(24);
+interface Pending {
+  verifier: string;
+  nonce: string;
+  clientId: string | null;
+  subject: string | null;
+}
 
-export function authorizeUrl(state: string, challenge: string, issuer = CODEX_ISSUER): string {
+const pending = ticketStore<Pending>(PENDING_TTL_MS, 24);
+
+export function chatgptHostId(dir = agentsDir()): string {
+  const path = join(dir, HOST_FILE);
+  const saved = readJson<unknown>(path, null);
+  if (isRecord(saved) && typeof saved.hostId === 'string' && HOST_RE.test(saved.hostId)) return saved.hostId;
+  const made = `urn:uuid:${randomUUID()}`;
+  writeSecure(path, JSON.stringify({ hostId: made }));
+  return made;
+}
+
+function returning(previous: CodexTokens | null): Record<string, string> {
+  if (previous === null) return { client_id: NEW_CLIENT, agent_name_hint: APP_NAME };
+  return { client_id: previous.clientId, ...(previous.email === null ? {} : { login_hint: previous.email }) };
+}
+
+export function beginLogin(previous: CodexTokens | null, hostId: string, issuer = CODEX_ISSUER, now = Date.now()): string {
+  const { verifier, challenge } = newPkce();
+  const nonce = randomBytes(32).toString('base64url');
+  const { ticket: state } = pending.mint({ verifier, nonce, clientId: previous?.clientId ?? null, subject: previous?.subject ?? null }, now);
   const query = new URLSearchParams({
+    ...returning(previous),
+    ext_agent_host_id: hostId,
     response_type: 'code',
-    client_id: CODEX_CLIENT_ID,
     redirect_uri: CODEX_REDIRECT,
     scope: SCOPE,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    id_token_add_organizations: 'true',
-    codex_cli_simplified_flow: 'true',
+    resource: OPENAI_API,
     state,
-    originator: 'codex_cli_rs',
+    nonce,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
   });
-  return `${issuer}/oauth/authorize?${query.toString()}`;
+  return `${issuer}/api/accounts/authorize?${query.toString()}`;
 }
 
-export function beginLogin(issuer = CODEX_ISSUER, now = Date.now()): { url: string; state: string } {
-  const { state, challenge } = pending.begin(now);
-  return { url: authorizeUrl(state, challenge, issuer), state };
-}
-
-export function parseCallback(raw: string): { code: string; state: string } {
+function queryOf(raw: string): URLSearchParams {
   const text = raw.trim();
-  let query: URLSearchParams;
   try {
-    query = new URL(text).searchParams;
+    return new URL(text).searchParams;
   } catch {
-    query = new URLSearchParams(text.replace(/^\?/, ''));
+    return new URLSearchParams(text.replace(/^\?/, ''));
   }
-  const code = query.get('code')?.trim() ?? '';
-  const state = query.get('state')?.trim() ?? '';
-  if (code === '' || state === '')
-    throw new CodexAuthError('paste the whole address the browser landed on; it carries code= and state=');
-  return { code, state };
+}
+
+const param = (query: URLSearchParams, name: string): string => query.get(name)?.trim() ?? '';
+
+function assertAllowed(query: URLSearchParams): void {
+  const error = param(query, 'error');
+  if (error === 'access_denied') throw new CodexAuthError('you did not allow Metro to use your ChatGPT plan, so nothing was saved');
+  if (error !== '') throw new CodexAuthError(`ChatGPT stopped the sign-in (${query.get('error_description') ?? error}); ${AGAIN}`);
+}
+
+export function parseCallback(raw: string): { code: string; state: string; clientId: string | null } {
+  const query = queryOf(raw);
+  assertAllowed(query);
+  const code = param(query, 'code');
+  const state = param(query, 'state');
+  if (code === '' || state === '') throw new CodexAuthError('paste the whole address the browser landed on; it carries code= and state=');
+  return { code, state, clientId: nonEmpty(param(query, 'client_id')) };
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> {
@@ -73,142 +113,74 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
   }
 }
 
-
-export function claimsOf(idToken: string): { accountId: string | null; email: string | null; plan: string | null } {
-  const payload = decodeJwtPayload(idToken);
-  const auth = isRecord(payload[AUTH_CLAIM]) ? payload[AUTH_CLAIM] : {};
-  const profile = isRecord(payload[PROFILE_CLAIM]) ? payload[PROFILE_CLAIM] : {};
-  return {
-    accountId: nonEmpty(auth.chatgpt_account_id),
-    email: nonEmpty(payload.email) ?? nonEmpty(profile.email),
-    plan: nonEmpty(auth.chatgpt_plan_type),
-  };
+function identityOf(idToken: unknown, expected: { issuer: string; clientId: string; nonce: string }): { subject: string; email: string | null } {
+  const claims = decodeJwtPayload(typeof idToken === 'string' ? idToken : '');
+  const audience: unknown[] = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  const subject = nonEmpty(claims.sub);
+  if (subject === null || claims.iss !== expected.issuer || !audience.includes(expected.clientId) || claims.nonce !== expected.nonce)
+    throw new CodexAuthError(`OpenAI sent back an identity that does not match this sign-in; ${AGAIN}`);
+  const profile = isRecord(claims[PROFILE_CLAIM]) ? claims[PROFILE_CLAIM] : {};
+  return { subject, email: nonEmpty(claims.email) ?? nonEmpty(profile.email) };
 }
 
-interface TokenResponse {
-  id_token?: unknown;
-  access_token?: unknown;
-  refresh_token?: unknown;
-}
-
-const EMPTY_TOKENS: CodexTokens = { accessToken: '', refreshToken: '', idToken: '', accountId: '', email: null, plan: null, savedAt: '' };
-
-function assertUsable(next: CodexTokens): CodexTokens {
-  if (next.accessToken === '' || next.refreshToken === '') throw new CodexAuthError('the token endpoint returned no usable tokens');
-  if (next.accountId === '') throw new CodexAuthError('the id token carries no ChatGPT account id; sign in with a ChatGPT account that has Codex');
-  return next;
-}
-
-const pick = (fresh: string | null, kept: string | null): string | null => fresh ?? kept;
-
-export function tokensFrom(body: unknown, previous: CodexTokens | null, now = new Date()): CodexTokens {
-  const res = (isRecord(body) ? body : {}) as TokenResponse;
-  const kept = previous ?? EMPTY_TOKENS;
-  const idToken = pick(nonEmpty(res.id_token), kept.idToken) ?? '';
-  const claims = claimsOf(idToken);
-  return assertUsable({
-    accessToken: nonEmpty(res.access_token) ?? '',
-    refreshToken: pick(nonEmpty(res.refresh_token), kept.refreshToken) ?? '',
-    idToken,
-    accountId: pick(claims.accountId, kept.accountId) ?? '',
-    email: pick(claims.email, kept.email),
-    plan: pick(claims.plan, kept.plan),
-    savedAt: now.toISOString(),
+async function tokenCall(issuer: string, form: Record<string, string>, fetchImpl: typeof fetch): Promise<Record<string, unknown>> {
+  const res = await fetchImpl(`${issuer}/api/accounts/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    body: new URLSearchParams(form).toString(),
   });
-}
-
-async function tokenCall(issuer: string, init: RequestInit, fetchImpl: typeof fetch): Promise<unknown> {
-  const res = await fetchImpl(`${issuer}/oauth/token`, init);
   const raw = await res.text();
-  if (!res.ok) {
-    let detail = raw.slice(0, 300);
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (isRecord(parsed)) detail = nonEmpty(parsed.error_description) ?? nonEmpty(parsed.error) ?? detail;
-    } catch {
-      detail = raw.slice(0, 300);
-    }
-    throw new CodexAuthError(`OpenAI refused the token request (${String(res.status)}): ${detail}`);
-  }
-  return JSON.parse(raw) as unknown;
-}
-
-export async function finishLogin(
-  callback: string,
-  issuer = CODEX_ISSUER,
-  fetchImpl: typeof fetch = fetch,
-  now = Date.now(),
-): Promise<CodexTokens> {
-  const { code, state } = parseCallback(callback);
-  const verifier = pending.take(state, now);
-  if (verifier === null) throw new CodexAuthError('this sign-in link has expired or was started elsewhere; press Connect again');
-  return exchangeCode(issuer, code, verifier, CODEX_REDIRECT, fetchImpl, now);
-}
-
-export async function exchangeCode(
-  issuer: string,
-  code: string,
-  verifier: string,
-  redirectUri: string,
-  fetchImpl: typeof fetch,
-  now = Date.now(),
-): Promise<CodexTokens> {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: redirectUri,
-    client_id: CODEX_CLIENT_ID,
-    code_verifier: verifier,
-  });
-  const res = await tokenCall(
-    issuer,
-    { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: body.toString() },
-    fetchImpl,
-  );
-  return tokensFrom(res, null, new Date(now));
-}
-
-export async function refreshTokens(previous: CodexTokens, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch): Promise<CodexTokens> {
-  const res = await tokenCall(
-    issuer,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ client_id: CODEX_CLIENT_ID, grant_type: 'refresh_token', refresh_token: previous.refreshToken }),
-    },
-    fetchImpl,
-  );
-  return tokensFrom(res, previous);
-}
-
-export const tokensStale = (tokens: CodexTokens, now = Date.now()): boolean =>
-  now - Date.parse(tokens.savedAt) > ACCESS_TOKEN_TTL_MS;
-
-function readAuthFile(home: string): Record<string, unknown> {
-  let raw: unknown;
+  let parsed: unknown = null;
   try {
-    raw = JSON.parse(readFileSync(join(home, '.codex', 'auth.json'), 'utf8'));
+    parsed = JSON.parse(raw);
   } catch {
-    throw new CodexAuthError('no Codex CLI login on this machine (~/.codex/auth.json); run codex login there first, or connect here');
+    parsed = null;
   }
-  return isRecord(raw) ? raw : {};
+  const body = isRecord(parsed) ? parsed : {};
+  if (!res.ok) throw new CodexAuthError(`OpenAI refused the token request (${String(res.status)}): ${nonEmpty(body.error_description) ?? nonEmpty(body.error) ?? raw.slice(0, 300)}`);
+  return body;
 }
 
-export function readCodexCliAuth(home = homedir()): CodexTokens {
-  const raw = readAuthFile(home);
-  if (!isRecord(raw.tokens)) throw new CodexAuthError('~/.codex/auth.json holds no ChatGPT tokens (an API-key login cannot be reused here)');
-  const stored = raw.tokens;
-  const idToken = nonEmpty(stored.id_token) ?? '';
-  const claims = claimsOf(idToken);
-  const found: CodexTokens = {
-    accessToken: nonEmpty(stored.access_token) ?? '',
-    refreshToken: nonEmpty(stored.refresh_token) ?? '',
-    idToken,
-    accountId: nonEmpty(stored.account_id) ?? claims.accountId ?? '',
-    email: claims.email,
-    plan: claims.plan,
-    savedAt: nonEmpty(raw.last_refresh) ?? new Date(0).toISOString(),
-  };
-  if ([found.accessToken, found.refreshToken, found.accountId].includes('')) throw new CodexAuthError('~/.codex/auth.json is missing a token or the account id');
-  return found;
+function tokensFrom(body: Record<string, unknown>, who: Pick<CodexTokens, 'clientId' | 'subject' | 'email'>, keptRefresh: string, now: number): CodexTokens {
+  const accessToken = nonEmpty(body.access_token) ?? '';
+  const refreshToken = nonEmpty(body.refresh_token) ?? keptRefresh;
+  if (accessToken === '' || refreshToken === '') throw new CodexAuthError(`OpenAI returned no usable tokens; ${AGAIN}`);
+  const ttl = typeof body.expires_in === 'number' && body.expires_in > 0 ? body.expires_in * 1000 : DEFAULT_TTL_MS;
+  return { clientId: who.clientId, subject: who.subject, email: who.email, accessToken, refreshToken, expiresAt: now + ttl, savedAt: new Date(now).toISOString() };
 }
+
+function clientOf(started: Pending, returned: string | null): string {
+  const clientId = started.clientId ?? returned;
+  if (clientId === null || clientId === NEW_CLIENT) throw new CodexAuthError(`ChatGPT did not finish registering Metro; ${AGAIN}`);
+  if (returned !== null && returned !== clientId) throw new CodexAuthError(`ChatGPT answered for another Metro registration; ${AGAIN}`);
+  return clientId;
+}
+
+export async function finishLogin(callback: string, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<CodexTokens> {
+  const { code, state, clientId: returned } = parseCallback(callback);
+  const started = pending.take(state, now);
+  if (started === undefined) throw new CodexAuthError(`this sign-in link has expired or was started elsewhere; ${AGAIN}`);
+  const clientId = clientOf(started, returned);
+  const body = await tokenCall(
+    issuer,
+    { grant_type: 'authorization_code', client_id: clientId, code, code_verifier: started.verifier, redirect_uri: CODEX_REDIRECT, resource: OPENAI_API },
+    fetchImpl,
+  );
+  const who = identityOf(body.id_token, { issuer, clientId, nonce: started.nonce });
+  if (started.subject !== null && who.subject !== started.subject)
+    throw new CodexAuthError('this is another ChatGPT account than the one this connection signed in with; add a new connection for it');
+  const scopes = (nonEmpty(body.scope) ?? '').split(/\s+/);
+  if (!scopes.includes(PLAN_SCOPE)) throw new CodexAuthError('ChatGPT did not allow Metro to use your plan: sign in again and allow it (it needs ChatGPT Plus or Pro)');
+  return tokensFrom(body, { clientId, ...who }, '', now);
+}
+
+export async function refreshTokens(previous: CodexTokens, issuer = CODEX_ISSUER, fetchImpl: typeof fetch = fetch, now = Date.now()): Promise<CodexTokens> {
+  const body = await tokenCall(
+    issuer,
+    { grant_type: 'refresh_token', client_id: previous.clientId, refresh_token: previous.refreshToken, resource: OPENAI_API },
+    fetchImpl,
+  );
+  return tokensFrom(body, previous, previous.refreshToken, now);
+}
+
+export const tokensStale = (tokens: CodexTokens, now = Date.now()): boolean => now >= tokens.expiresAt - RENEW_BEFORE_MS;
