@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Scroll } from '@stage-labs/kit/react-native/scroll';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { type Selection } from '@metro-labs/client/selection';
 import { NAV_GAP, NavRow } from './NavRow.js';
@@ -17,7 +18,7 @@ interface AgentSidebarProps {
 export function AgentSidebar({ project, selection, onSelect, offline = false }: AgentSidebarProps): ReactNode {
   return (
     <Col flex={1} minHeight={0}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <Scroll style={styles.scroll} contentContainerStyle={styles.content}>
         <Col gap={NAV_GAP}>
           {SECTIONS.map((section) => (
             <NavRow
@@ -31,7 +32,7 @@ export function AgentSidebar({ project, selection, onSelect, offline = false }: 
             />
           ))}
         </Col>
-      </ScrollView>
+      </Scroll>
     </Col>
   );
 }

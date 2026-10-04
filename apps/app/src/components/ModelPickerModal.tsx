@@ -10,9 +10,10 @@ import { priceLabel, PROVIDERS, saveConnection, chooseConnection, type Connectio
 import { pickRows, typedRow, type PickRow } from '@metro-labs/client/api/providers';
 import { queryError, refresh, useConnectionModelsQuery, useOpenRouterZdrQuery } from '../lib/queries.js';
 import { GROW } from '../lib/style.js';
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable } from 'react-native';
 import { useHover } from './ui/hover.js';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Scroll } from '@stage-labs/kit/react-native/scroll';
 
 const LOGO = 16;
 
@@ -69,7 +70,7 @@ function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; t
       </Text>
     );
   return (
-    <ScrollView style={LIST} nestedScrollEnabled pointerEvents={busy ? 'none' : 'auto'}>
+    <Scroll style={LIST} nestedScrollEnabled pointerEvents={busy ? 'none' : 'auto'}>
       <Col gap={16} style={busy ? BUSY : undefined}>
         {typed === null ? null : <RowButton row={{ ...typed, name: `Use “${typed.id}”` }} onPick={onPick} />}
         {connections.map((c) => {
@@ -90,7 +91,7 @@ function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; t
           );
         })}
       </Col>
-    </ScrollView>
+    </Scroll>
   );
 }
 

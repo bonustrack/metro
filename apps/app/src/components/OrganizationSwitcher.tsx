@@ -1,7 +1,8 @@
 import { type ReactNode, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
+import { Scroll } from '@stage-labs/kit/react-native/scroll';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Dialog } from '@stage-labs/kit/react-native/dialog';
@@ -78,7 +79,7 @@ function Floating({ place, onClose, children }: { place: Place | null; onClose: 
     <Dialog open={place !== null} onClose={onClose} animationType="none" backdropColor="transparent" fullBleedPanel>
       <Pressable accessible={false} onPress={onClose} style={styles.fill}>
         <Pressable accessible={false} onPress={(e) => { e.stopPropagation(); }} style={panel}>
-          <ScrollView>{children}</ScrollView>
+          <Scroll>{children}</Scroll>
         </Pressable>
       </Pressable>
     </Dialog>

@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Scroll } from '@stage-labs/kit/react-native/scroll';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Switch } from '@stage-labs/kit/react-native/switch';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -199,14 +200,14 @@ export function ModelStep({ conn, slot, draft, zdr, shared, onPick, onZdr }: Mod
       {conn.provider === 'openrouter' ? <ZdrSwitch conn={conn} on={draft.zdr} shared={shared} onChange={onZdr} /> : null}
       <FormField label="Search models" name="route-model-search" value={query} placeholder="Name or id" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
       <ListStatus loading={models.isFetching} empty={rows.length === 0 && typed === null} error={models.error === null ? null : queryError(models.error, `Could not list the models of ${conn.label}.`)} />
-      <ScrollView style={LIST} nestedScrollEnabled>
+      <Scroll style={LIST} nestedScrollEnabled>
         <Col>
           {typed === null ? null : <RowButton row={{ ...typed, name: `Use “${typed.id}”` }} onPick={pick} />}
           {rows.map((row) => (
             <RowButton key={row.id === '' ? 'default' : row.id} row={row} onPick={pick} />
           ))}
         </Col>
-      </ScrollView>
+      </Scroll>
     </Col>
   );
 }

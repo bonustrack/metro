@@ -37,6 +37,14 @@
       textarea {
         outline: none;
       }
+      @media (pointer: coarse) {
+        * {
+          scrollbar-width: none;
+        }
+        *::-webkit-scrollbar {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>

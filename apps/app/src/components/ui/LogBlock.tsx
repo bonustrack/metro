@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, type DimensionValue } from 'react-native';
+import { StyleSheet, View, type DimensionValue } from 'react-native';
+import { Scroll } from '@stage-labs/kit/react-native/scroll';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 
@@ -24,5 +25,5 @@ export function LogBlock({ lines, text, maxHeight = 360, muted = false }: LogBlo
       {body}
     </Text>
   );
-  return <View style={frame}>{maxHeight === null ? content : <ScrollView nestedScrollEnabled>{content}</ScrollView>}</View>;
+  return <View style={frame}>{maxHeight === null ? content : <Scroll nestedScrollEnabled>{content}</Scroll>}</View>;
 }
