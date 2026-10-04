@@ -3,14 +3,23 @@ import { defineConfig } from '@stage-labs/config';
 export default defineConfig({
   knip: {
     ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/metro-user/**'],
+    ignoreIssues: { 'apps/app/src/lib/**': ['exports'] },
   },
   workspaces: {
-    'apps/ui': {
+    'apps/app': {
+      type: 'react-native',
+      src: ['src/**'],
+      knip: {
+        entry: ['src/app/**/*.{ts,tsx}', 'src/**/*.web.{ts,tsx}', 'babel.config.js', 'fingerprint.config.js'],
+        project: ['src/**/*.{ts,tsx}'],
+        ignoreDependencies: ['babel-preset-expo'],
+      },
+    },
+    'packages/client': {
       type: 'library',
       knip: {
-        entry: ['index.html'],
-        project: ['src/**/*.{ts,tsx}'],
-        ignoreDependencies: ['react-native-web', '@types/qrcode'],
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
       },
     },
     'apps/api': {

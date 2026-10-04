@@ -1,0 +1,20 @@
+# metro.box (Netlify site metro-ui): the Expo web export of apps/app.
+# The site builds from the repo root, so this file sets the command and the
+# published folder for production and for every deploy preview.
+[build]
+  command = "bun install --frozen-lockfile && bun run --cwd apps/app build"
+  publish = "apps/app/dist"
+
+[build.environment]
+  BUN_VERSION = "1.4.0"
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/_expo/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

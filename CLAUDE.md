@@ -24,7 +24,8 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
   - `agents/` (agent file, key map, scope, accounts API, bundle), `stations/` (registry, attach, materialize, supervisor, train calls, runtime deps), `connectors/` (store, relay, OAuth, plugin sync, health, live tool list).
   - `mcp/` (MCP server at `/` and `/mcp`, a voice call's own session at `/mcp/voice`), `channels/` (bus events to `notifications/claude/channel`), `gateway/` (model gateway and Model API), `monitor/` (`/api/tail`).
   - `claude/` (transcripts, memory, settings, skills, setup, session watcher, login, plugin install), `terminal/`, `files/` (attachments, uploads), `net/` (tunnel), `server/` (control, machine, update, owner, cloudwatch), `voice/` (live Stage calls, see Voice calls).
-- `apps/ui`: the page (Vite, react-native-web, `@stage-labs/kit`).
+- `apps/app` (`@metro-labs/app`): metro.box and the phone app, one Expo app (Expo Router, React Native, react-native-web, `@stage-labs/kit`), like Stage's `apps/stage`. Web is the Expo web export on Netlify; Android and iOS run the same code in a dev client. Platform files (`*.web.tsx`) only where the web and the phone must differ.
+- `packages/client` (`@metro-labs/client`): the app's logic without React: the api.metro.box and box API clients, sign-in, the route grammar, the `.metro` export format. Storage, the address and the api base are seams set by the app (`platform.ts`, `configurePlatform`).
 - Stations: `packages/{xmtp,telegram-bot,telegram,discord-bot,whatsapp,threema,outlook,gmail,webhook}`. Each exports `.` (`src/station.ts`) and `./train` (`src/index.ts`).
 - `packages/cli`: `@stage-labs/metro`, the CLI. `plugin/`: the Claude Code plugin (not a workspace package).
 

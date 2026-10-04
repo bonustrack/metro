@@ -1,0 +1,9 @@
+{
+  "extends": ["expo/tsconfig.base", "@stage-labs/config/tsconfig/react-native.json"],
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "expo-env.d.ts"]
+}
