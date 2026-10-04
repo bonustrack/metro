@@ -6,7 +6,7 @@ const MODEL_LIST = 'The AI your agent thinks with: an ordered list of models, an
 const MODEL_RESTARTS = `${MODEL_LIST} Changing the first model restarts the agent, which takes a few seconds.`;
 const MODEL_LIVE = `${MODEL_LIST} The agent cannot pick another model itself, and changing the first model applies at once, with no restart.`;
 const NEEDS_KEY =
-  'Agent SDK needs an API key or a ChatGPT sign-in on every model of the Model page, the first one and each fallback: Anthropic with an API key, Amazon Bedrock, OpenRouter, or Codex signed in with ChatGPT. Anthropic does not allow products built on the Agent SDK to use a Claude login.';
+  'Agent SDK needs an API key or a ChatGPT sign-in on every model of the Model page, the first one and each fallback: Anthropic with an API key, Amazon Bedrock, OpenRouter, or a signed-in Codex connection (with ChatGPT or with a code). Anthropic does not allow products built on the Agent SDK to use a Claude login.';
 const KEYS_ONLY = 'Every model in the list needs an API key or a ChatGPT sign-in, or the agent goes back to Claude Code.';
 const ON_LOGIN = "The Metro operator allows the Agent SDK on this server's Claude login.";
 

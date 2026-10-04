@@ -12,7 +12,8 @@ import { readModelConfig } from '../src/gateway/model-config.js';
 import { auth, operatorAuth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const CHATGPT = { clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
+const CHATGPT = { method: 'chatgpt' as const, clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
+const CODE = { method: 'code' as const, accountId: 'acct_1', email: 'less@example.com', plan: 'plus', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
 const PLUGIN = join(import.meta.dir, '..', '..', '..', 'plugin');
 const SHIPPED_BEFORE = readFileSync(join(import.meta.dir, 'metro-orchestrator-shipped.md'), 'utf8');
 
@@ -265,7 +266,7 @@ describe('the permission mode of the session', () => {
     expect((await runnerOf(call('POST', { runner: 'cli' }))).runner).toBe('cli');
   });
 
-  test('the Agent SDK runner is refused on a Claude login, a keyless Anthropic connection, Gemini and a Codex connection not signed in, and taken with Bedrock or OpenRouter keys or a ChatGPT sign-in', async () => {
+  test('the Agent SDK runner is refused on a Claude login, a keyless Anthropic connection, Gemini and a Codex connection not signed in, and taken with Bedrock or OpenRouter keys or either Codex sign-in', async () => {
     const refused = await refusal(call('POST', { runner: 'sdk' }));
     expect(refused.status).toBe(403);
     expect(refused.error).toContain('needs an API key');
@@ -275,20 +276,20 @@ describe('the permission mode of the session', () => {
       expect((await call('POST', { runner: 'sdk' })).status).toBe(403);
     }
     expect((await runnerOf(call('GET'))).runner).toBe('cli');
-    for (const keyed of [makeConnection('bedrock', { apiKey: 'br-key', region: 'us-east-1' }), makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT })]) {
+    for (const keyed of [makeConnection('bedrock', { apiKey: 'br-key', region: 'us-east-1' }), makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT }), makeConnection('codex', { model: 'gpt-6', codex: CODE })]) {
       route(keyed);
       expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
       await call('POST', { runner: 'cli' });
     }
   });
 
-  test('every fallback model needs an API key or a ChatGPT sign-in too: one on a Claude login, Gemini or a Codex connection not signed in keeps the Agent SDK runner off', async () => {
+  test('every fallback model needs an API key or a Codex sign-in too: one on a Claude login, Gemini or a Codex connection not signed in keeps the Agent SDK runner off', async () => {
     const first = makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
     const fallingBackTo = (fallback: ReturnType<typeof makeConnection>): void => {
       const cfg = configOf('openrouter', [first, fallback]);
       writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify({ ...cfg, fallbacks: [{ connection: fallback.id, model: fallback.model === '' ? 'claude-opus-5-5' : fallback.model }] }));
     };
-    for (const allowed of [makeConnection('anthropic', { apiKey: 'sk-ant-test', model: 'claude-opus-5-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT })]) {
+    for (const allowed of [makeConnection('anthropic', { apiKey: 'sk-ant-test', model: 'claude-opus-5-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT }), makeConnection('codex', { model: 'gpt-6', codex: CODE })]) {
       fallingBackTo(allowed);
       expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
       await call('POST', { runner: 'cli' });
