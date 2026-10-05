@@ -202,7 +202,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     controlApi: { restart: deps.restart, stop: deps.stop },
     ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
     machineApi: {},
-    modelApi: { switchModel: deps.switchModel },
+    modelApi: { switchModel: deps.switchModel, owner: localOwner },
     gateway: { config: readModelConfig },
     terminalApi: {},
     mode: localModeInfo,

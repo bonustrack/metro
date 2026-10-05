@@ -9,6 +9,8 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { Modal } from '@stage-labs/kit/react-native/modal';
 import { CodexConnect } from './CodexConnect.js';
 import { GeminiConnect } from './GeminiConnect.js';
+import { OpenRouterConnect } from './OpenRouterConnect.js';
+import { daemonBase } from '@metro-labs/client/auth/daemon';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
 import { addConnection, ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, saveConnection, type ConnectionPatch, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
 import { providerLabel } from '@metro-labs/client/api/providers';
@@ -109,10 +111,20 @@ function KeyForm({ editing, onDone }: { editing: Chosen; onDone: () => void }): 
   );
 }
 
+function OpenRouterForm({ editing, onDone }: { editing: Chosen; onDone: () => void }): ReactNode {
+  const connection = editing.connection?.id ?? '';
+  return (
+    <OpenRouterConnect key={`${daemonBase()}:${connection}`} connection={connection} onDone={onDone}>
+      <KeyForm editing={editing} onDone={onDone} />
+    </OpenRouterConnect>
+  );
+}
+
 function Body({ editing, onDone }: { editing: Chosen; onDone: () => void }): ReactNode {
   const client = useQueryClient();
   if (editing.provider === 'codex') return <CodexConnect codex={editing.connection} />;
   if (editing.provider === 'gemini') return <GeminiConnect gemini={editing.connection} />;
+  if (editing.provider === 'openrouter') return <OpenRouterForm editing={editing} onDone={onDone} />;
   if (editing.provider === 'anthropic' && editing.connection?.hasKey !== true)
     return (
       <Col gap={20}>

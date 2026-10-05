@@ -25,6 +25,7 @@ import { asApiError, BODY_MAX, claudeLoginDeps, connectionFor, settingsBody, typ
 import { dropUnusedClaudeLogins } from './claude-logins.js';
 import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES } from './model-signin.js';
 import { refreshUsage } from './usage-refresh.js';
+import { handleOpenRouterSignIn } from './openrouter-signin.js';
 
 const PATH = '/api/model';
 const CONNECTIONS = '/api/model/connections';
@@ -230,11 +231,6 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  const route = routeFor(path, req.method);
-  if (typeof route === 'number') {
-    sendJson(req, res, route, { error: route === 404 ? 'not found' : 'method not allowed' });
-    return true;
-  }
   const store: Store = {
     read: deps.read ?? readModelConfig,
     write: (cfg) => {
@@ -242,6 +238,12 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
       (deps.write ?? writeModelConfig)(cfg);
     },
   };
+  if (handleOpenRouterSignIn(req, res, deps, store)) return true;
+  const route = routeFor(path, req.method);
+  if (typeof route === 'number') {
+    sendJson(req, res, route, { error: route === 404 ? 'not found' : 'method not allowed' });
+    return true;
+  }
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);

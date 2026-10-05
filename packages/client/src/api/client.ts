@@ -47,9 +47,11 @@ export interface CallInit {
   path?: string;
   headers?: Record<string, string>;
   body?: string;
+  checkAccount?: () => void;
 }
 
 async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
+  init.checkAccount?.();
   try {
     return await fetch(url, { method: init.method, headers: { authorization: `Bearer ${token}`, ...init.headers }, body: init.body });
   } catch {
@@ -66,10 +68,12 @@ function failure(res: Response, body: unknown): Error | null {
 
 async function answered(init: CallInit): Promise<Response> {
   const url = `${init.base ?? agentsUrl()}${init.path ?? ''}`;
+  init.checkAccount?.();
   const token = await accessToken();
   if (token === null) throw new AuthError('not signed in');
   const res = await sendBearer(url, init, token);
   if (res.status !== 401) return res;
+  init.checkAccount?.();
   const again = await refreshAccount();
   if (again === null) throw new AuthError('not signed in');
   return sendBearer(url, init, again.accessToken);

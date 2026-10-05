@@ -21,6 +21,9 @@ export interface ModelApiDeps {
   geminiUserBase?: string;
   geminiBase?: string;
   openrouterBase?: string;
+  owner?: () => string | null;
+  openrouterPublicBase?: () => string | null;
+  openrouterNow?: () => number;
   anthropicBase?: string;
   bedrockControlBase?: string;
   setup?: SetupDeps;

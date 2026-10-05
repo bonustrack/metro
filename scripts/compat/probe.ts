@@ -12,6 +12,8 @@ import * as conn from '../../packages/client/src/api/connectors.ts';
 import * as machine from '../../packages/client/src/api/machine.ts';
 import * as mode from '../../packages/client/src/api/mode.ts';
 import * as model from '../../packages/client/src/api/model.ts';
+import * as openrouter from '../../packages/client/src/api/openrouter-login.ts';
+import { olderThan } from '../../packages/client/src/api/version.ts';
 import * as term from '../../packages/client/src/api/terminal.ts';
 import type { Section } from '../../packages/client/src/export/pack.ts';
 import * as transfer from '../../packages/client/src/export/transfer.ts';
@@ -87,7 +89,7 @@ async function refused(name: string, want: RegExp, fn: () => Promise<unknown>): 
   }
 }
 
-await ok('fetchMode', () => mode.fetchMode());
+const daemonMode = await ok('fetchMode', () => mode.fetchMode());
 await ok('fetchSession', () => client.fetchSession());
 await ok('fetchStations', async () => {
   const view = await client.fetchStations();
@@ -142,6 +144,12 @@ await ok('fetchMemoryFile', () => claude.fetchMemoryFile(project, 'compat.md'));
 
 await ok('fetchModel', () => model.fetchModel());
 await ok('fetchModelBundle', () => model.fetchModelBundle());
+if (!olderThan(daemonMode?.version ?? null, openrouter.OPENROUTER_LOGIN_SINCE)) {
+  await refused('beginOpenRouterLogin without a public origin', /public HTTPS/, () => openrouter.beginOpenRouterLogin());
+  const login = { id: 'a'.repeat(32), url: 'https://openrouter.ai/auth', expiresAt: Date.now(), base: baseFromSegment(host), organization: org, user: 'user_01ABC' };
+  await refused('pollOpenRouterLogin unknown', /expired/, () => openrouter.pollOpenRouterLogin(login));
+  await refused('cancelOpenRouterLogin unknown', /expired/, () => openrouter.cancelOpenRouterLogin(login));
+}
 const added = await ok('addConnection', () => model.addConnection({ provider: 'openrouter', apiKey: 'sk-or-compat', model: 'openai/gpt-5' }));
 const cid = added?.connections[0]?.id ?? '';
 await ok('saveConnection', () => model.saveConnection(cid, { label: 'Renamed' }));

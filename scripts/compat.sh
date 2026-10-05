@@ -41,6 +41,7 @@ fi
 
 git worktree add --quiet --detach "$OLD" "$REF"
 (cd "$OLD" && bun install --frozen-lockfile >"$TMP/install.log" 2>&1) || { cat "$TMP/install.log"; exit 1; }
+DAEMON_VERSION=$(bun -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).version)' "$OLD/packages/cli/package.json")
 
 BOX="$TMP/box"
 mkdir -p "$BOX/bin" "$BOX/home" "$BOX/agents" "$BOX/state" "$BOX/trains" "$BOX/claude"
@@ -82,7 +83,7 @@ PORT=$((10000 + RANDOM % 20000))
 (cd "$OLD" && exec env -i PATH="$BOX/bin" HOME="$BOX/home" DYLD_FALLBACK_LIBRARY_PATH=/usr/lib \
   METRO_AGENTS_DIR="$BOX/agents" METRO_STATE_DIR="$BOX/state" METRO_TRAINS_DIR="$BOX/trains" \
   METRO_CLAUDE_DIR="$BOX/claude" CLAUDE_CONFIG_DIR="$BOX/claude" \
-  METRO_WEBHOOK_PORT="$PORT" METRO_HTTP_HOST=127.0.0.1 METRO_LOG_LEVEL=warn \
+  METRO_WEBHOOK_PORT="$PORT" METRO_HTTP_HOST=127.0.0.1 METRO_LOG_LEVEL=warn METRO_VERSION="$DAEMON_VERSION" \
   WORKOS_API_BASE="$ISSUER" WORKOS_CLIENT_ID=client_test METRO_CLI_BIN=/nonexistent \
   bun apps/daemon/src/server.ts >"$TMP/daemon.log" 2>&1) &
 PIDS+=("$!")
