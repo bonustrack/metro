@@ -93,6 +93,38 @@ describe('metadata action and independent mocked readback', () => {
     expect(cleared.category).toBeUndefined();
   });
 
+  test.each(['', null])('status and priority replace and clear with %j without changing other fields', async (clear) => {
+    const initial = { v: 3, labels: ['Bug'], category: 'Ops', assigned: [bob],
+      github: 'https://github.com/a/b', preview: 'https://example.com', custom: { keep: true } };
+    const { state, group, acct } = fixture(JSON.stringify(initial));
+    const read = () => buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2]);
+    await patch({ status: ' Waiting   for client ', priority: ' High ' });
+    expect(state.writes).toHaveLength(1);
+    expect(JSON.parse(state.raw)).toEqual({ ...initial, status: 'Waiting for client', priority: 'High' });
+    expect(await read()).toMatchObject({ status: 'Waiting for client', priority: 'High', appData: JSON.parse(state.raw), rawAppData: state.raw });
+    await patch({ status: 'Ready', priority: 'Low' });
+    expect(await read()).toMatchObject({ status: 'Ready', priority: 'Low' });
+    await patch({ status: clear });
+    expect(JSON.parse(state.raw)).toEqual({ ...initial, priority: 'Low' });
+    expect((await read()).status).toBeUndefined();
+    await patch({ priority: clear });
+    expect(JSON.parse(state.raw)).toEqual(initial);
+    expect((await read()).priority).toBeUndefined();
+    expect(state.names).toHaveLength(0);
+    expect(state.lookups).toHaveLength(0);
+  });
+
+  test.each([{ status: ['Ready'] }, { status: true }, { priority: 'Critical' }, { priority: 1 }])(
+    'invalid task fields refuse metadata and native writes: %j', async (metadata) => {
+      const { state } = fixture();
+      const before = state.raw;
+      await expect(patch(metadata, 'feat: must not rename')).rejects.toThrow();
+      expect(state.writes).toHaveLength(0);
+      expect(state.names).toHaveLength(0);
+      expect(state.raw).toBe(before);
+    },
+  );
+
   test('combined patch and explicit clearing use the existing updater', async () => {
     const { state, group } = fixture();
     await patch({ assigned: [alice], labels: ['In review'], custom: { active: true } }, 'feat: renamed');

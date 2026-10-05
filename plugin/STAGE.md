@@ -14,17 +14,20 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 - Rename: `set_channel_metadata {"line": "…", "name": "New title"}`. No tool sets the description or the picture.
 - Add or remove people: `add_members {"line": "…", "members": ["0x…"]}`. `remove_members` takes the same shape.
 - Leave: `close_channel {"line": "…", "removeSelf": true}`.
-- Read: `group_info {"line": "…"}` gives the name, `labels`, `assigned`, `appData` and the members (`inboxId`, `address`). `list_members {"line": "…"}` gives the members only.
+- Read: `group_info {"line": "…"}` gives the name, `labels`, `assigned`, `category`, `status`, `priority`, `appData` and the members (`inboxId`, `address`). `list_members {"line": "…"}` gives the members only.
 - Direct chat: `dm {"address": "0x…"}` opens a 1:1 chat and returns its line.
 - With several XMTP accounts, add `"account": "<id>"` to `create_group` and `dm`.
 
-**Labels, assignees and category.** They live in the channel's metadata, and Stage shows them on the channel.
-- Labels: `set_channel_metadata {"line": "…", "metadata": {"labels": ["🚧 In progress", "Metro"]}}`. At most 16 labels of 24 characters each.
+**Labels, assignees, category, status and priority.** They live in the channel's metadata, and Stage shows them on the channel.
+- Labels: `set_channel_metadata {"line": "…", "metadata": {"labels": ["Bug"]}}`. At most 16 labels of 24 characters each.
 - Assignees: `set_channel_metadata {"line": "…", "metadata": {"assigned": ["0x…"]}}`. Only 0x addresses of current members.
-- Category: `set_channel_metadata {"line": "…", "metadata": {"category": "Clients"}}`. One per channel, 24 characters at most; `""` clears it. `group_info` returns it as `category`.
-- Each key you send replaces that whole list. Keys you leave out stay as they are. To add one label or one assignee, read `group_info` first and send the old list plus the new one. `[]` clears a list. Read `group_info` again to check it saved.
+- Category: `set_channel_metadata {"line": "…", "metadata": {"category": "Clients"}}`.
+- Status: `set_channel_metadata {"line": "…", "metadata": {"status": "In review"}}`.
+- Category and status are each one free-form string per channel. Both are trimmed, whitespace is collapsed, and text is truncated to 24 characters. `""` or `null` clears either field. `group_info` returns them as `category` and `status`.
+- Priority: `set_channel_metadata {"line": "…", "metadata": {"priority": "High"}}`. Exactly `Urgent`, `High`, `Medium` or `Low` after trimming surrounding whitespace; empty text or `null` clears it. `group_info` returns it as `priority`.
+- Each key you send replaces that whole value. Keys you leave out stay as they are. To add one label or one assignee, read `group_info` first and send the old list plus the new one. `[]` clears a list. Read `group_info` again to check it saved.
 
-**Task status labels.** When a channel is a task, keep exactly one of these status labels, plus any project labels:
+**Task status labels.** Keep the owner's existing workflow. For a label-based task workflow, keep exactly one of these status labels, plus any project labels:
 - `🗒️ Backlog`
 - `🎯 To-do`
 - `🚧 In progress`
@@ -33,6 +36,8 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 - `🚫 Blocked`
 
 Move it from Backlog or To-do to In progress, then In review, then Done. Use Blocked while you wait on someone. To change it, read `group_info`, swap the old status for the new one in `labels`, keep the other labels, and send the whole list with `set_channel_metadata` `metadata.labels`.
+
+The separate `metadata.status` and `metadata.priority` fields are optional. Status is free-form, not limited to the label names above. Do not migrate or remove existing labels unless asked.
 
 **Messages.**
 - Send: `send {"line": "…", "text": "Hello"}`. Reply with a quote: `reply {"line": "…", "message_id": "…", "text": "…"}`.

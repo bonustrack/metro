@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mergeAppData, normalizeAssigned, readAppDataObject } from '../src/labels.ts';
+import { mergeAppData, normalizeAssigned, readAppData, readAppDataObject, PRIORITIES } from '../src/labels.ts';
 
 const alice = '0x' + 'a'.repeat(40);
 const bob = '0x' + 'b'.repeat(40);
@@ -54,6 +54,49 @@ describe('JSON metadata patches', () => {
     expect(mergeAppData(set, { category: '' }).merged).toEqual({ v: 1, labels: ['Blocked'] });
     expect(() => mergeAppData(set, { category: ['Ops'] })).toThrow('category must be a string or null');
     expect(() => mergeAppData(set, { category: 7 })).toThrow('category must be a string or null');
+  });
+
+  test('normalizes and replaces a free-form status without changing other metadata', () => {
+    const current = { v: 3, labels: ['Blocked'], category: 'Ops', assigned: [bob],
+      github: 'https://github.com/a/b', preview: 'https://example.com', priority: 'High', custom: { keep: true } };
+    const set = mergeAppData(JSON.stringify(current), { status: '  Waiting\n  for client  ' });
+    expect(JSON.parse(set.blob)).toEqual({ ...current, status: 'Waiting for client' });
+    expect(mergeAppData(set.blob, { status: 'x'.repeat(40) }).merged).toEqual({ ...current, status: 'x'.repeat(24) });
+    expect(mergeAppData(set.blob, { labels: ['Bug'] }).merged.status).toBe('Waiting for client');
+    for (const status of ['', null, ' \n\t ']) {
+      expect(mergeAppData(set.blob, { status }).merged).toEqual(current);
+    }
+  });
+
+  test.each([[], ['In review'], {}, true, 7].map((status) => ({ status })))('refuses a non-string status: %j', ({ status }) => {
+    expect(() => mergeAppData(undefined, { status })).toThrow('status must be a string or null');
+  });
+
+  test('priority accepts only the four options and can be replaced or cleared', () => {
+    const current = { v: 3, labels: ['Bug'], category: 'Ops', assigned: [bob], status: 'Waiting', custom: { keep: true } };
+    let blob = JSON.stringify(current);
+    for (const priority of PRIORITIES) {
+      const next = mergeAppData(blob, { priority: ` ${priority} ` });
+      expect(JSON.parse(next.blob)).toEqual({ ...current, priority });
+      blob = next.blob;
+    }
+    expect(mergeAppData(blob, { status: 'Ready' }).merged.priority).toBe('Low');
+    for (const priority of ['', ' ', null]) expect(mergeAppData(blob, { priority }).merged).toEqual(current);
+  });
+
+  test.each([[], ['High'], {}, true, 7, 'Critical', 'high'].map((priority) => ({ priority })))('refuses an invalid priority: %j', ({ priority }) => {
+    expect(() => mergeAppData(undefined, { priority })).toThrow('priority must be Urgent, High, Medium, Low, or null');
+  });
+
+  test('readback cleans status and only exposes valid priorities', () => {
+    expect(readAppData(JSON.stringify({ status: ' Waiting\n for client ', priority: ' High ' }))).toMatchObject({
+      status: 'Waiting for client', priority: 'High',
+    });
+    expect(readAppData(JSON.stringify({ status: 'x'.repeat(40) })).status).toBe('x'.repeat(24));
+    for (const status of ['', null, [], {}, true, 7]) {
+      expect(readAppData(JSON.stringify({ status })).status).toBeUndefined();
+    }
+    expect(readAppData('{"priority":"Critical"}').priority).toBeUndefined();
   });
 
   test('missing metadata can be initialized', () => {

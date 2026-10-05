@@ -13,6 +13,8 @@ export interface GroupLike {
 const MAX_LABELS = 16;
 const MAX_LABEL_LEN = 24;
 const MAX_APP_DATA_BYTES = 8192;
+export const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'] as const;
+type Priority = (typeof PRIORITIES)[number];
 
 function cleanLabel(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_LABEL_LEN);
@@ -74,13 +76,19 @@ function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' && v.trim() ? v.trim() : undefined;
 }
 
-function cleanCategory(v: unknown): string | undefined {
+function cleanMetadataText(v: unknown): string | undefined {
   return typeof v === 'string' ? cleanLabel(v) || undefined : undefined;
+}
+
+function cleanPriority(value: unknown): Priority | undefined {
+  return PRIORITIES.find((priority) => priority === (typeof value === 'string' ? value.trim() : value));
 }
 
 export function readAppData(appData: string | undefined): {
   labels: string[];
   category?: string;
+  status?: string;
+  priority?: Priority;
   github?: string;
   preview?: string;
 } {
@@ -91,7 +99,9 @@ export function readAppData(appData: string | undefined): {
     const rec = p as Record<string, unknown>;
     return {
       labels: cleanLabels(rec.labels),
-      category: cleanCategory(rec.category),
+      category: cleanMetadataText(rec.category),
+      status: cleanMetadataText(rec.status),
+      priority: cleanPriority(rec.priority),
       github: trimmedString(rec.github),
       preview: trimmedString(rec.preview),
     };
@@ -107,11 +117,20 @@ function checkedLabels(value: unknown): string[] {
   return cleanLabels(value);
 }
 
-function checkedCategory(value: unknown): string | undefined {
+function checkedMetadataText(key: string, value: unknown): string | undefined {
   if (value !== undefined && value !== null && typeof value !== 'string') {
-    throw new TrainError('INVALID_ARGS', 'category must be a string or null');
+    throw new TrainError('INVALID_ARGS', `${key} must be a string or null`);
   }
-  return cleanCategory(value);
+  return cleanMetadataText(value);
+}
+
+function checkedPriority(value: unknown): Priority | undefined {
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) return undefined;
+  const priority = cleanPriority(value);
+  if (!priority) {
+    throw new TrainError('INVALID_ARGS', 'priority must be Urgent, High, Medium, Low, or null');
+  }
+  return priority;
 }
 
 const KNOWN_FIELDS = new Map<string, (value: unknown) => unknown>([
@@ -119,7 +138,9 @@ const KNOWN_FIELDS = new Map<string, (value: unknown) => unknown>([
   ['assigned', normalizeAssigned],
   ['github', (value) => normalizeGithubUrl(value) || undefined],
   ['preview', (value) => normalizePreviewUrl(value) || undefined],
-  ['category', checkedCategory],
+  ['category', (value) => checkedMetadataText('category', value)],
+  ['status', (value) => checkedMetadataText('status', value)],
+  ['priority', checkedPriority],
 ]);
 
 function applyMergeKey(
