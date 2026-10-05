@@ -1,8 +1,11 @@
 import { type ReactNode } from 'react';
+import { Col } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
-import { CardUsage } from './AgentModel.js';
+import { CardUsage, useModelName } from './AgentModel.js';
+import { connectionWindow, usageModel } from '@metro-labs/client/api/model-usage';
 import type { MenuItem } from './Dropdown.js';
 import { PROVIDERS, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
 import { connectionDetail } from '@metro-labs/client/api/providers';
@@ -18,8 +21,8 @@ export function connectionNote(conn: ConnectionRow, account: string | null): str
 }
 
 export function mostUsed(settings: ModelSettings, id: string): number | null {
-  const windows = settings.usage[id]?.windows ?? [];
-  return windows.reduce<number | null>((most, w) => (w.used === null ? most : Math.max(most ?? 0, w.used)), null);
+  const conn = settings.connections.find((c) => c.id === id);
+  return connectionWindow(settings, conn)?.used ?? null;
 }
 
 export function roleOf(settings: ModelSettings, id: string): string {
@@ -38,13 +41,15 @@ interface ConnectionItemProps {
 export function ConnectionItem({ connection, settings, items, onOpen }: ConnectionItemProps): ReactNode {
   const note = [connectionNote(connection, useAccountOf(connection)), roleOf(settings, connection.id)].filter((part) => part !== '').join(' · ');
   const usage = settings.usage[connection.id];
+  const model = usageModel(settings, connection);
+  const name = useModelName(connection, model);
   return (
     <ListRow
       title={connection.label}
       detail={note}
       icon={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LIST_ICON_SIZE} />}
       extra={connection.provider === 'openrouter' && connection.zdr ? <Tag label="Zero data retention" /> : undefined}
-      below={usage === undefined ? undefined : <CardUsage usage={usage} />}
+      below={<Col gap={4}><Text size="2xs" role="secondary">{name}</Text><CardUsage usage={usage} provider={connection.provider} model={model} /></Col>}
       onPress={onOpen}
       trailing={<KebabMenu label={`${connection.label} menu`} items={items} />}
     />

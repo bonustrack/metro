@@ -29,7 +29,7 @@ export function forgetFallbackState(): void {
 }
 
 function scopeOf(label: string): string | null {
-  if (!label.startsWith(SCOPED)) return null;
+  if (!label.startsWith(SCOPED) || label === 'Weekly, all models') return null;
   return (label.slice(SCOPED.length).trim().split(/\s+/)[0] ?? '').toLowerCase();
 }
 

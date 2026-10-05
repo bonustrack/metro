@@ -371,7 +371,7 @@ describe('the Anthropic route', () => {
       const seen = usageSeen()[connectionId('anthropic')];
       expect(seen?.windows.map((w) => [w.label, w.used])).toEqual([
         ['5-hour window', 0.34],
-        ['Weekly', 0.61],
+        ['Weekly, all models', 0.61],
       ]);
       expect(anthropic.seen.length).toBe(1);
     } finally {

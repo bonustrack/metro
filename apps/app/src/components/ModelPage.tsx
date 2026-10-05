@@ -73,7 +73,7 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
         {settings.connections.length === 0 ? (
           <SettingsPad row>
             <Text size="2xs" role="secondary">{NONE_YET}</Text>
-            <CardUsage usage={settings.usage.passthrough} />
+            <CardUsage usage={settings.usage.passthrough} provider="anthropic" model={settings.lastServed?.model ?? ''} />
           </SettingsPad>
         ) : (
           settings.connections.map((c) => <ConnectionItem key={c.id} connection={c} settings={settings} items={menuFor(c, setEditing, run)} onOpen={() => { setEditing({ provider: c.provider, connection: c }); }} />)

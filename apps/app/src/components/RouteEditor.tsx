@@ -1,3 +1,4 @@
+import { ModelStep } from './ModelStep.js';
 import { type ReactNode, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
@@ -7,7 +8,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { nameIn } from './AgentModel.js';
 import { connectionNote } from './ProviderCard.js';
-import { ConnectionStep, ModelStep, Step } from './RouteSteps.js';
+import { ConnectionStep, Step } from './RouteSteps.js';
 import { useStacked } from './SettingsSection.js';
 import type { ConnectionRow, ModelSettings } from '@metro-labs/client/api/model';
 import { changesOf, draftOf, problemOf, saveRoute, sharesConnection, slotTitle, withConnection, type RouteChange, type RouteDraft, type Slot } from '@metro-labs/client/api/route-edit';
@@ -105,8 +106,8 @@ function Editor({ settings, slot, onClose }: { settings: ModelSettings; slot: Sl
   const name = useNames(settings, slot, draft);
   const problem = problemOf(settings, slot, draft, zdr.set);
   const { busy, error, save } = useSave(settings, slot, draft, onClose);
-  const pickConnection = useCallback((id: string) => {
-    setDraft(withConnection(settings, id));
+  const pickConnection = useCallback((id: string, saved?: RouteDraft) => {
+    setDraft(saved ?? withConnection(settings, id));
     setOpen('model');
   }, [settings]);
   const footer = <Footer changes={changesOf(settings, slot, draft, name)} problem={conn === undefined ? null : problem} error={error} busy={busy} restart={slot.kind === 'primary'} onSave={save} onCancel={onClose} />;
