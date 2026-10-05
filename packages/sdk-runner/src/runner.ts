@@ -6,6 +6,7 @@ import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
 import { Inbox, type Unanswered, type Uuid } from './inbox.js';
 import { CALL_ENDED, callStarted, callWords, FRONT_RULES } from './rules.js';
+import { INTERRUPTED_NOTICE } from './recovery.js';
 import type { SessionStore } from './session-store.js';
 import { SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
 import { SpeechRouter, type SpeechSink } from './speech.js';
@@ -79,6 +80,9 @@ export class Runner {
   private stall: ReturnType<typeof setTimeout> | null = null;
   private model: string | null = null;
   private switching: Promise<void> = Promise.resolve();
+  private ended = false;
+  private readonly interrupted: number;
+  private interruptionReported = false;
 
   constructor(private readonly parts: RunnerParts) {
     this.inbox = new Inbox((unanswered) => {
@@ -94,7 +98,8 @@ export class Runner {
       },
     });
     this.watch = new SessionWatch(parts.readOnly);
-    const again = parts.store.unanswered();
+    const { unanswered: again, interrupted } = parts.store.recover();
+    this.interrupted = interrupted.length;
     this.inbox.again(again);
     if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
   }
@@ -118,20 +123,33 @@ export class Runner {
 
   async run(observe?: (message: SDKMessage) => void): Promise<void> {
     if (this.session === null) throw new Error('the runner was not started');
-    for await (const message of this.session) {
-      const m: Record<string, unknown> = { ...message };
-      const started = startedCommand(m);
-      this.inbox.consumed([...(uuidsOf(m) ?? []), ...(started === null ? [] : [started])]);
-      this.watch.observe(m);
-      this.speech.observe(message);
-      this.note(m);
-      this.parts.activity?.observe(message);
-      observe?.(message);
+    try {
+      for await (const message of this.session) {
+        const m: Record<string, unknown> = { ...message };
+        this.trackInput(m);
+        this.watch.observe(m);
+        this.speech.observe(message);
+        this.note(m);
+        this.parts.activity?.observe(message);
+        observe?.(message);
+      }
+    } finally {
+      this.ended = true;
     }
   }
 
   chat(event: ChannelEvent): Uuid {
-    return this.inbox.push('chat', channelText(METRO_SERVER, event.content, event.meta));
+    try {
+      return this.inbox.push('chat', channelText(METRO_SERVER, event.content, event.meta));
+    } catch (err) {
+      log.error('sdk-runner: could not save incoming chat; stopping before further work');
+      try {
+        this.parts.activity?.fail(INTERRUPTED_NOTICE);
+      } finally {
+        this.close(false);
+      }
+      throw err;
+    }
   }
 
   callStarted(where: string): Uuid {
@@ -149,10 +167,14 @@ export class Runner {
     return this.inbox.push('note', CALL_ENDED);
   }
 
-  close(): void {
+  close(cancelActive = true): void {
     this.clearStall();
-    this.inbox.close();
-    this.session?.close();
+    try {
+      if (cancelActive && !this.ended) this.inbox.finished();
+    } finally {
+      this.inbox.close();
+      this.session?.close();
+    }
   }
 
   private callPush(text: string): Uuid {
@@ -199,6 +221,11 @@ export class Runner {
     if (session === null) return;
     await session.applyFlagSettings(allowedOnly(model));
     this.parts.activity?.connected();
+    if (this.interrupted > 0 && !this.interruptionReported) {
+      this.interruptionReported = true;
+      this.parts.activity?.fail(INTERRUPTED_NOTICE);
+      log.warn({ count: this.interrupted }, INTERRUPTED_NOTICE);
+    }
     if (model === this.model) return;
     const was = this.model;
     await session.setModel(model ?? undefined);
@@ -206,13 +233,20 @@ export class Runner {
     log.info({ was, now: model }, 'sdk-runner: the session thinks with the new model from now on, with no restart');
   }
 
-  private keep(unanswered: Unanswered[]): void {
-    this.parts.activity?.pending(unanswered.length);
-    try {
-      this.parts.store.saveUnanswered(unanswered);
-    } catch (err) {
-      log.warn({ err: errMsg(err) }, 'sdk-runner: could not keep the unanswered chat messages');
+  private trackInput(m: Record<string, unknown>): void {
+    if (m.parent_tool_use_id !== null && m.parent_tool_use_id !== undefined) return;
+    if (m.type === 'result') {
+      const uuids = uuidsOf(m);
+      if (uuids !== null) this.inbox.finished(uuids);
+      return;
     }
+    const started = startedCommand(m);
+    this.inbox.started([...(uuidsOf(m) ?? []), ...(started === null ? [] : [started])]);
+  }
+
+  private keep(unanswered: Unanswered[]): void {
+    this.parts.store.saveUnanswered(unanswered);
+    this.parts.activity?.pending(unanswered.filter((entry) => entry.state !== 'started').length);
   }
 
   private note(m: Record<string, unknown>): void {

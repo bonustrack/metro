@@ -1,4 +1,4 @@
-import type { RunnerActivity, RunnerEventKind, RunnerPhase, RunnerTask, RunnerTaskState, RunnerTool } from '@metro-labs/core/runner-activity';
+import { runnerFailureSummary, type RunnerActivity, type RunnerEventKind, type RunnerFailure, type RunnerPhase, type RunnerTask, type RunnerTaskState, type RunnerTool } from '@metro-labs/core/runner-activity';
 import type { ClaudeSessionStatus } from './claude-box.js';
 import { activityIsStale } from './runner.js';
 
@@ -135,14 +135,35 @@ function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
   });
 }
 
-function recentEvents(activity: RunnerActivity, now: number): string[] {
+function failureRow(failure: RunnerFailure, active: boolean, clock: Clock): { text: string; danger: boolean } {
+  const label = !active ? 'Historical failure' : clock.mode === 'live' ? 'Current failure' : 'Failure at last report (not live)';
+  const details = [date(failure.at), failure.tool, failure.taskId === null ? null : `worker ${failure.taskId}`, failure.toolUseId === undefined ? null : `tool call ${failure.toolUseId}`].filter((part) => part !== null).join(' · ');
+  return { text: `${label}: ${runnerFailureSummary(failure.code, failure.tool)} (${details})`, danger: active && clock.mode === 'live' };
+}
+
+function failures(activity: RunnerActivity, clock: Clock): { text: string; danger: boolean }[] {
+  const rows = [];
+  if (activity.activeFailure) rows.push(failureRow(activity.activeFailure, true, clock));
+  if (activity.lastFailure && activity.lastFailure.id !== activity.activeFailure?.id) rows.push(failureRow(activity.lastFailure, false, clock));
+  if (activity.activeFailure === undefined && activity.lastError !== null) {
+    const active = activity.mainPhase === 'error';
+    const label = !active ? 'Historical failure' : clock.mode === 'live' ? 'Current failure' : 'Failure at last report (not live)';
+    rows.push({ text: `${label}: ${activity.lastError} (time not reported)`, danger: active && clock.mode === 'live' });
+  }
+  return rows;
+}
+
+function recentEvents(activity: RunnerActivity, clock: Clock): string[] {
   return activity.events.map((event) => [
-    ago(event.at, now), EVENT[event.kind], event.tool, event.taskId === null ? null : `worker ${event.taskId}`,
+    ago(event.at, clock.now), EVENT[event.kind], event.tool, event.taskId === null ? null : `worker ${event.taskId}`,
+    event.code === undefined ? null : `${event.id === activity.activeFailure?.id && clock.mode === 'live' ? 'Current failure' : 'Historical failure'}: ${runnerFailureSummary(event.code, event.tool)}`,
+    event.code === undefined || event.id === undefined ? null : `event ${event.id}`,
+    event.toolUseId === undefined ? null : `tool call ${event.toolUseId}`,
   ].filter((part) => part !== null).join(' · '));
 }
 
 export function activityView(status: ClaudeSessionStatus, activity: RunnerActivity, now: number): {
-  mode: Mode; note: string; main: string; tools: string; workers: WorkerRow[]; events: string[];
+  mode: Mode; note: string; main: string; tools: string; workers: WorkerRow[]; events: string[]; failures: { text: string; danger: boolean }[];
 } {
   const clock = clockOf(status, activity, now);
   return {
@@ -151,6 +172,7 @@ export function activityView(status: ClaudeSessionStatus, activity: RunnerActivi
     main: mainStatus(activity, clock),
     tools: mainTools(activity, clock),
     workers: workerRows(activity, clock),
-    events: recentEvents(activity, now),
+    events: recentEvents(activity, clock),
+    failures: failures(activity, clock),
   };
 }

@@ -18,12 +18,21 @@ function sdkSavedSession(home: string): Record<string, unknown> | null {
   }
 }
 
+const inputState = (value: unknown): boolean => value === undefined || value === 'queued' || value === 'started';
+
+function sdkInput(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return typeof value.text === 'string' && typeof value.at === 'number' && Number.isFinite(value.at) && (value.uuid === undefined || sessionId(value.uuid) !== null) && inputState(value.state);
+}
+
+const sdkInputs = (value: unknown): value is unknown[] | undefined => value === undefined || (Array.isArray(value) && value.every(sdkInput));
+
 export function sdkPending(home: string): number | null {
   const state = sdkSavedSession(home);
   if (state === null) return null;
   if (state.sessionId !== undefined && state.sessionId !== null && sessionId(state.sessionId) === null) return null;
-  if (state.unanswered === undefined) return 0;
-  return Array.isArray(state.unanswered) ? state.unanswered.length : null;
+  if (!sdkInputs(state.unanswered) || !sdkInputs(state.interrupted)) return null;
+  return state.unanswered?.length ?? 0;
 }
 
 function projectFolder(home: string, dir: string): string {

@@ -14,7 +14,7 @@ export interface RunningAgent {
   runner: Runner;
   link: MetroLink;
   done: Promise<void>;
-  stop(): Promise<void>;
+  stop(cancelActive?: boolean): Promise<void>;
 }
 
 export interface AppHooks {
@@ -42,10 +42,10 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     lost: (reason) => { hooks.lost(reason); },
   });
   let stopped = false;
-  const stop = async (): Promise<void> => {
+  const stop = async (cancelActive = true): Promise<void> => {
     if (stopped) return;
     stopped = true;
-    runner.close();
+    runner.close(cancelActive);
     await link.close().catch(() => { log.debug('sdk-runner: closing the metro link failed'); });
     hooks.activity?.stop();
     await release();
@@ -57,7 +57,7 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     runner.start(runnerOptions(cfg, tools, approvalsThrough(link, (id, ask) => { hooks.activity?.approval(id, ask); }), resume, hooks.env));
     return { runner, link, done: runner.run(hooks.observe), stop };
   } catch (err) {
-    runner.close();
+    runner.close(false);
     await link.close().catch(() => { log.debug('sdk-runner: closing the metro link failed'); });
     throw err;
   }

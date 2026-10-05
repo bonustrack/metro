@@ -78,7 +78,7 @@ describe('SDK activity uses existing Terminal and a bounded private status snaps
     expect(activity.snapshot()).toMatchObject({ workers: 0, tools: [], tasks: [], lastError: null, phase: 'idle' });
     activity.observe(msg({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 't', name: 'Read', input: {} }] } }));
     activity.observe(msg({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', is_error: true, content: 'private file contents' }] } }));
-    expect(activity.snapshot().lastError).toBe('Read failed. See its result in Conversations.');
+    expect(activity.snapshot()).toMatchObject({ lastError: null, activeFailure: null, lastFailure: { code: 'tool_error', tool: 'Read', toolUseId: 't' } });
     expect(readFileSync(path, 'utf8')).not.toContain('private file');
     activity.stop();
   });
@@ -99,7 +99,7 @@ test('real task events expose worker lifecycle without prompts or summaries', ()
   expect(activity.snapshot().events.map(({ kind, taskId }) => [kind, taskId])).toEqual([
     ['task_failed', 'w1'], ['task_stopped', 'w2'], ['task_started', 'w2'], ['task_started', 'w1'],
   ]);
-  expect(activity.snapshot()).toMatchObject({ workers: 0, phase: 'idle', lastError: 'A background task failed. See Conversations and Terminal.' });
+  expect(activity.snapshot()).toMatchObject({ workers: 0, phase: 'idle', lastError: null, activeFailure: null, lastFailure: { code: 'task_error', taskId: 'w1' } });
   expect(readFileSync(path, 'utf8')).not.toContain('PRIVATE');
   activity.stop();
 });
@@ -186,7 +186,7 @@ test('records session, compaction, retry and denial events without private error
   activity.observe(msg({ type: 'system', subtype: 'api_retry', error: 'PRIVATE' }));
   activity.observe(msg({ type: 'system', subtype: 'permission_denied', tool_name: 'Bash', decision_reason: 'PRIVATE' }));
   activity.observe(msg({ type: 'system', subtype: 'status', status: null, compact_result: 'failed', compact_error: 'PRIVATE' }));
-  expect(activity.snapshot().lastError).toBe('Conversation compaction failed.');
+  expect(activity.snapshot()).toMatchObject({ lastError: null, activeFailure: null, lastFailure: { code: 'compact_error' } });
   activity.observe(msg({ type: 'system', subtype: 'session_state_changed', state: 'idle' }));
   expect(activity.snapshot().mainStartedAt).toBeNull();
   expect(activity.snapshot().events.map(({ kind }) => kind)).toEqual(['compact_failed', 'permission_denied', 'api_retry', 'compacted', 'compacting', 'turn_started']);

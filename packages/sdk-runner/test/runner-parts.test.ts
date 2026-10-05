@@ -52,19 +52,21 @@ describe('the inbox', () => {
     expect(inbox.kindOf(b)).toBe('call');
   });
 
-  test('keeps chat messages until a turn consumed them, so a restart can push them again', () => {
+  test('keeps chat messages until a turn finishes them, so unfinished work survives', () => {
     const kept: number[] = [];
     const inbox = new Inbox((left) => kept.push(left.length));
     const a = inbox.push('chat', 'one');
     inbox.push('chat', 'two');
     inbox.push('call', 'words');
     expect(inbox.unanswered().map((u) => u.text)).toEqual(['one', 'two']);
-    inbox.consumed([a]);
+    inbox.started([a]);
+    expect(inbox.unanswered().map((u) => u.state)).toEqual(['started', 'queued']);
+    inbox.finished([a]);
     expect(inbox.unanswered().map((u) => u.text)).toEqual(['two']);
-    expect(kept).toEqual([1, 2, 1]);
+    expect(kept).toEqual([1, 2, 2, 1]);
     const later = new Inbox();
     later.again([{ text: 'two', at: 5 }]);
-    expect(later.unanswered(10)).toEqual([{ text: 'two', at: 5 }]);
+    expect(later.unanswered(10)).toEqual([expect.objectContaining({ text: 'two', at: 5, state: 'queued' })]);
   });
 });
 

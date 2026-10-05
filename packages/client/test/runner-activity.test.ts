@@ -149,6 +149,42 @@ describe('recent sanitized events and polling', () => {
     expect(safe.events).toEqual(['just now · Tool started · Read']);
   });
 
+  test('recovered errors stay visible as neutral historical details, not a current warning', () => {
+    const failure = { id: 'failure-1', at: now - 2_000, kind: 'tool_failed', code: 'read_token_limit', tool: 'Read', toolUseId: 'tool-1', taskId: 'worker-1' };
+    const past = view({ mainPhase: 'idle', activeFailure: null, lastFailure: failure, events: [failure], lastError: 'PRIVATE stale banner' });
+    expect(past.failures).toHaveLength(1);
+    expect(past.failures[0]?.danger).toBe(false);
+    expect(past.failures[0]?.text).toContain('Historical failure: Read exceeded its token limit.');
+    expect(past.failures[0]?.text).toContain('offset and limit');
+    expect(past.failures[0]?.text).toContain('worker worker-1');
+    expect(past.failures[0]?.text).toContain('tool call tool-1');
+    expect(past.failures[0]?.text).toContain(new Date(failure.at).toLocaleString());
+    expect(past.events[0]).toContain('Historical failure: Read exceeded its token limit.');
+    expect(past.events[0]).toContain('event failure-1');
+    expect(JSON.stringify(past)).not.toContain('PRIVATE');
+    const current = view({ activeFailure: failure, lastFailure: failure });
+    expect(current.failures).toHaveLength(1);
+    expect(current.failures[0]?.danger).toBe(true);
+    expect(current.failures[0]?.text).toContain('Current failure:');
+    for (const historical of [view({ activeFailure: failure, lastFailure: failure }, now + 40_000), view({ activeFailure: failure }, now, { running: false }), view({ activeFailure: failure }, now, { runner: 'cli' })]) {
+      expect(historical.failures[0]?.danger).toBe(false);
+      expect(historical.failures[0]?.text).toContain('Failure at last report (not live):');
+    }
+  });
+
+  test('legacy last errors are historical unless the main agent still reports error', () => {
+    const lastError = 'SDK turn failed (provider_error). Check Conversations and the Model page.';
+    expect(view({ mainPhase: 'idle', lastError }).failures[0]).toEqual({ text: `Historical failure: ${lastError} (time not reported)`, danger: false });
+    expect(view({ mainPhase: 'error', lastError }).failures[0]).toEqual({ text: `Current failure: ${lastError} (time not reported)`, danger: true });
+    expect(view({ mainPhase: 'working', lastError }).failures[0]?.danger).toBe(false);
+    const current = { id: 'current', at: now, kind: 'turn_failed', code: 'authentication', taskId: null, tool: null };
+    const historical = { ...current, id: 'historical', kind: 'task_failed', code: 'task_error', taskId: 'worker-1' };
+    const mixed = view({ activeFailure: current, lastFailure: historical });
+    expect(mixed.failures.map((failure) => failure.danger)).toEqual([true, false]);
+    expect(mixed.failures[0]?.text).toContain('provider refused authentication');
+    expect(mixed.failures[1]?.text).toContain('Historical failure: A background task failed');
+  });
+
   test('only an open Harness observing a running SDK opts into two-second polling', () => {
     const sdk = toClaudeSession({ running: true, runner: 'sdk' });
     expect(sessionPollMs(sdk, true)).toBe(2_000);

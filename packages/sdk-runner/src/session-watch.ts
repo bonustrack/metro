@@ -40,6 +40,7 @@ export class SessionWatch {
   private readonly compacted: (() => void)[] = [];
   private compactingNow = false;
   private lastContext = 0;
+  private streamUsage: Record<string, unknown> = {};
 
   constructor(private readonly readOnly: (tool: string) => boolean) {}
 
@@ -60,6 +61,7 @@ export class SessionWatch {
     else if (m.type === 'result') this.settle();
     if (m.parent_tool_use_id !== null) return;
     if (m.type === 'assistant' && isRecord(m.message)) this.assistant(m.message);
+    else if (m.type === 'stream_event' && isRecord(m.event)) this.stream(m.event);
     else if (m.type === 'user') for (const id of toolResultIds(m.message)) this.done(id);
   }
 
@@ -77,7 +79,17 @@ export class SessionWatch {
     else if (m.subtype === 'compact_boundary') {
       this.setCompacting(false);
       this.lastContext = 0;
+      this.streamUsage = {};
     }
+  }
+
+  private stream(event: Record<string, unknown>): void {
+    if (event.type === 'message_start' && isRecord(event.message)) {
+      this.streamUsage = isRecord(event.message.usage) ? event.message.usage : {};
+    } else if (event.type === 'message_delta' && isRecord(event.usage)) {
+      this.streamUsage = { ...this.streamUsage, ...event.usage };
+    } else return;
+    this.lastContext = contextOf(this.streamUsage) || this.lastContext;
   }
 
   private setCompacting(on: boolean): void {

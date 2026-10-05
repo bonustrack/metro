@@ -8,6 +8,8 @@ export type Priority = 'now' | 'next' | 'later';
 export interface Unanswered {
   text: string;
   at: number;
+  uuid?: Uuid;
+  state?: 'queued' | 'started';
 }
 
 const KINDS_MAX = 2_000;
@@ -20,6 +22,7 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   private readonly ledger = new Map<string, Unanswered>();
   private wake: (() => void) | null = null;
   private closed = false;
+  private restoring = false;
 
   constructor(private readonly changed: (unanswered: Unanswered[]) => void = () => undefined) {}
 
@@ -49,14 +52,29 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
     return this.kinds.get(uuid);
   }
 
-  consumed(uuids: readonly string[]): void {
+  started(uuids: readonly string[]): void {
+    let changed = false;
+    for (const uuid of uuids) {
+      const entry = this.ledger.get(uuid);
+      if (entry === undefined || entry.state === 'started') continue;
+      this.ledger.set(uuid, { ...entry, state: 'started' });
+      changed = true;
+    }
+    if (changed) this.changed(this.unanswered());
+  }
+
+  finished(uuids = this.startedUuids()): void {
     let changed = false;
     for (const uuid of uuids) changed = this.ledger.delete(uuid) || changed;
     if (changed) this.changed(this.unanswered());
   }
 
+  startedUuids(): string[] {
+    return [...this.ledger].filter(([, entry]) => entry.state === 'started').map(([uuid]) => uuid);
+  }
+
   unanswered(now = Date.now()): Unanswered[] {
-    return [...this.ledger.values()].filter((entry) => now - entry.at < LEDGER_AGE_MS);
+    return [...this.ledger.values()].filter((entry) => entry.state === 'started' || now - entry.at < LEDGER_AGE_MS);
   }
 
   close(): void {
@@ -79,16 +97,23 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   }
 
   again(left: readonly Unanswered[]): void {
-    for (const entry of left) this.push('chat', entry.text, undefined, randomUUID(), entry.at);
+    if (left.length === 0) return;
+    this.restoring = true;
+    try {
+      for (const entry of left) this.push('chat', entry.text, undefined, entry.uuid ?? randomUUID(), entry.at);
+    } finally {
+      this.restoring = false;
+    }
+    this.changed(this.unanswered());
   }
 
-  private remember(uuid: string, text: string, at: number): void {
-    this.ledger.set(uuid, { text, at });
+  private remember(uuid: Uuid, text: string, at: number): void {
+    this.ledger.set(uuid, { text, at, uuid, state: 'queued' });
     while (this.ledger.size > LEDGER_MAX) {
-      const oldest = this.ledger.keys().next().value;
+      const oldest = [...this.ledger].find(([, entry]) => entry.state !== 'started')?.[0];
       if (oldest === undefined) break;
       this.ledger.delete(oldest);
     }
-    this.changed(this.unanswered());
+    if (!this.restoring) this.changed(this.unanswered());
   }
 }

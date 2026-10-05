@@ -21,6 +21,8 @@
     "sdk-runner-long": "bun scripts/sdk-runner/long.ts",
     "sdk-runner-model": "bun scripts/sdk-runner/model.ts",
     "sdk-runner-activity": "bun scripts/sdk-runner/activity.ts",
+    "sdk-runner-usage": "bun scripts/sdk-runner/usage.ts",
+    "sdk-runner-recovery": "bun scripts/sdk-runner/recovery.ts",
     "metro-user-check": "bash scripts/metro-user/run.sh",
     "secret-modes": "bash scripts/secret-modes.sh",
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"

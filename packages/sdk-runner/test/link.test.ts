@@ -95,6 +95,14 @@ test('the runner holds the metro chat link: channel messages come in, approvals 
   expect(await pending).toBe('deny');
 });
 
+test('an already cancelled approval is denied without sending an owner request', async () => {
+  const stopped = new AbortController();
+  stopped.abort();
+  expect(await link.ask({ request_id: 'defgh', tool_name: 'CancelledRead', description: '', input_preview: '{}' }, stopped.signal)).toBe('deny');
+  await link.listTools();
+  expect(asked).not.toContain('CancelledRead');
+});
+
 test('the session sees metro tools through the proxy, with their metadata, and calls reach metro', async () => {
   const tools = metroTools(link);
   const [a, b] = InMemoryTransport.createLinkedPair();

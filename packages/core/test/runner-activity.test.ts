@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseRunnerActivity } from '../src/runner-activity.ts';
+import { parseRunnerActivity, runnerFailureSummary } from '../src/runner-activity.ts';
 
 const valid = { runner: 'sdk', pid: 123, phase: 'idle', sessionId: '11111111-1111-4111-8111-111111111111', updatedAt: 123456, pending: 0, workers: 0, tools: [], lastError: null };
 
@@ -12,8 +12,22 @@ describe('runner activity is optional, validated and bounded', () => {
   test('keeps display fields only and supplies backward-compatible approval count', () => {
     expect(parseRunnerActivity({ ...valid, key: 'private' })).toEqual({ ...valid, approvals: 0, mainPhase: 'idle', mainStartedAt: null, activeTools: [], tasks: [], events: [] });
     expect(parseRunnerActivity({ ...valid, sessionId: '../bad', pending: Infinity, workers: -1, approvals: 2, tools: ['Bash', 'bad\nname', ...Array<string>(100).fill('Read')], lastError: 'x'.repeat(500) })).toMatchObject({
-      sessionId: null, pending: 0, workers: 0, approvals: 2, tools: ['Bash', ...Array<string>(19).fill('Read')], lastError: 'x'.repeat(300),
+      sessionId: null, pending: 0, workers: 0, approvals: 2, tools: ['Bash', ...Array<string>(19).fill('Read')], lastError: 'The Agent SDK session failed. Check Terminal and the Model page.',
     });
+  });
+
+  test('current and historical failures retain only known codes, event identity, time and attribution', () => {
+    const failure = { id: 'event-1', at: 123, kind: 'tool_failed', code: 'read_token_limit', tool: 'Read', toolUseId: 'tool-1', taskId: 'worker-1' };
+    const privateFields = { summary: 'PRIVATE', error: 'PRIVATE', content: 'PRIVATE', input: 'PRIVATE' };
+    const parsed = parseRunnerActivity({ ...valid, activeFailure: { ...failure, ...privateFields }, lastFailure: { ...failure, ...privateFields }, events: [{ ...failure, ...privateFields }], lastError: 'PRIVATE' });
+    expect(parsed).toMatchObject({ activeFailure: failure, lastFailure: failure, events: [failure], lastError: runnerFailureSummary('read_token_limit') });
+    expect(JSON.stringify(parsed)).not.toContain('PRIVATE');
+    expect(parseRunnerActivity({ ...valid, activeFailure: null, lastError: 'PRIVATE', lastFailure: failure })).toMatchObject({ activeFailure: null, lastError: null, lastFailure: failure });
+    for (const bad of [{ code: 'PRIVATE' }, { code: 'constructor' }, { kind: 'turn_started' }, { id: '../PRIVATE' }, { at: -1 }]) {
+      expect(parseRunnerActivity({ ...valid, activeFailure: { ...failure, ...bad }, lastFailure: { ...failure, ...bad }, lastError: 'PRIVATE' })).toMatchObject({ activeFailure: null, lastFailure: null, lastError: null });
+    }
+    expect(parseRunnerActivity({ ...valid, events: [{ ...failure, tool: 'PRIVATE path', taskId: 'PRIVATE prompt', toolUseId: 'PRIVATE output' }] })?.events[0]).toEqual({ ...failure, tool: null, taskId: null, toolUseId: undefined });
+    expect(parseRunnerActivity({ ...valid, lastError: 'Read failed. See its result in Conversations.' })?.lastError).toBe('Read failed. See its result in Conversations.');
   });
 
   test('process identity is optional and accepts only a bounded numeric start time', () => {

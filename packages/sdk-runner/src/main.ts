@@ -8,7 +8,7 @@ let agent: RunningAgent | null = null;
 let activity: Activity | null = null;
 
 async function exit(code: number): Promise<never> {
-  await agent?.stop();
+  await agent?.stop(code === 0);
   process.exit(code);
 }
 

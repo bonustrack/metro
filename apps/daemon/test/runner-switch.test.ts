@@ -119,6 +119,31 @@ test('pending or unreadable SDK input refuses a transition, and drained input pe
   expect(commands()).not.toContain('kill-session');
 });
 
+test('SDK switching validates interrupted recovery state and every input field without treating archived input as pending', async () => {
+  expect((await post({ runner: 'sdk' })).status).toBe(200);
+  const input = { text: 'review before retrying', at: Date.now(), uuid: '12345678-1234-1234-1234-123456789abc', state: 'started' };
+  for (const state of [
+    { interrupted: null },
+    { interrupted: {} },
+    { interrupted: [null] },
+    { interrupted: [{ ...input, text: 1 }] },
+    { interrupted: [{ ...input, at: 'now' }] },
+    { interrupted: [{ ...input, uuid: 'bad' }] },
+    { interrupted: [{ ...input, state: 'finished' }] },
+    { unanswered: [{ ...input, uuid: 'bad' }], interrupted: [] },
+    { unanswered: [{ ...input, state: 'finished' }], interrupted: [] },
+  ]) {
+    const text = JSON.stringify(state);
+    ledger(text);
+    expect((await post({ runner: 'cli' })).status).toBe(409);
+    expect(harnessRunner(agents())).toBe('sdk');
+    expect(readFileSync(join(home(), '.metro', 'agent-session.json'), 'utf8')).toBe(text);
+  }
+  ledger(JSON.stringify({ unanswered: [], interrupted: [input] }));
+  expect((await post({ runner: 'cli' })).status).toBe(200);
+  expect(prepares).toEqual(['sdk', 'cli']);
+});
+
 test('preparation serializes choices and holds Start and the watcher without killing anything', async () => {
   const gate = held();
   const pending = post({ runner: 'sdk' });

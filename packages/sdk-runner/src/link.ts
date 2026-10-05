@@ -79,6 +79,7 @@ export class MetroLink implements Asker {
   }
 
   ask(ask: PermissionAsk, signal: AbortSignal): Promise<Behavior> {
+    if (signal.aborted) return Promise.resolve('deny');
     return new Promise((resolve) => {
       const settle = (behavior: Behavior): void => {
         this.waiting.delete(ask.request_id);

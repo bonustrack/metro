@@ -21,7 +21,7 @@ export function RunnerActivity({ status, now, live }: { status: ClaudeSessionSta
         <Text size="2xs" role="secondary">{view.tools}</Text>
         <Text size="2xs" role="secondary">Pending messages: {String(activity.pending)} · Active workers at report: {String(activity.workers)} · Approvals: {String(activity.approvals)}</Text>
         <Text size="2xs" role="secondary">Session: {activity.sessionId ?? 'Not reported yet'}</Text>
-        {activity.lastError === null ? null : <Text size="2xs" role="danger">Last error: {activity.lastError}</Text>}
+        {view.failures.map((failure) => <Text key={failure.text} size="2xs" role={failure.danger ? 'danger' : 'secondary'}>{failure.text}</Text>)}
       </SettingsSection>
       <SettingsPad>
         <Text size="xs" weight="medium">Workers</Text>
