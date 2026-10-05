@@ -6,8 +6,8 @@ import { log } from '@metro-labs/core/log';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
 import { routeOf, syncAvailableModelsQuietly } from '../claude/setup.js';
-import { runnerInUse, runnerModel } from '../claude/runner.js';
-import { sessionRunning, stopSession } from '../claude/session.js';
+import { harnessRunner, runnerModel, sdkAllowed } from '../claude/runner.js';
+import { sessionLive, sessionRunning, stopSession } from '../claude/session.js';
 import { forgetOne, forgetReported } from './usage.js';
 import {
   addConnection,
@@ -48,22 +48,18 @@ function restartRunningSession(): boolean {
   return true;
 }
 
-function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps, restart: () => boolean): void {
+function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
   const [was, now] = [runnerModel(before), runnerModel(next)];
   if (was === now) return;
   if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
-  else if (restart()) log.info({ was, now }, 'model-api: the model changed and the Agent SDK session could not be told, so it restarts on it');
+  else if (runnerIsLive(deps)) throw new ApiError('The running Agent SDK could not be told about this model change. Nothing was saved. Let its work finish, stop it, then save and start it again.', 409);
 }
 
 function followModel(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
   const restart = deps.restartSession ?? restartRunningSession;
   const agents = deps.setup?.agents;
-  if (runnerInUse(agents, next) === 'sdk') {
-    switchLive(before, next, deps, restart);
-    return;
-  }
-  if (runnerInUse(agents, before) === 'sdk') {
-    if (restart()) log.info('model-api: a model on the list has no API key now, so the Agent SDK session stops and the agent goes back to Claude Code');
+  if (harnessRunner(agents) === 'sdk') {
+    if (sdkAllowed(agents, next)) switchLive(before, next, deps);
     return;
   }
   if (routeOf(next) !== routeOf(before) && restart())
@@ -73,9 +69,14 @@ function followModel(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps)
 function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
   const before = store.read();
   store.write(next);
+  try {
+    followModel(before, next, deps);
+  } catch (err) {
+    store.write(before);
+    throw err;
+  }
   syncAvailableModelsQuietly(deps.setup ?? {}, next);
   log.info(fields, note);
-  followModel(before, next, deps);
   return settingsBody(next);
 }
 
@@ -213,6 +214,15 @@ function routeFor(path: string, method: string | undefined): Route | number {
   return codexRoute(path.slice(CODEX.length), method);
 }
 
+const runnerIsLive = (deps: ModelApiDeps): boolean => (deps.sessionRunning ?? (() => sessionLive({ agents: deps.setup?.agents })))();
+
+function checkRunnerRoute(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
+  const agents = deps.setup?.agents;
+  if (harnessRunner(agents) !== 'sdk' || !sdkAllowed(agents, before) || sdkAllowed(agents, next)) return;
+  if (runnerIsLive(deps))
+    throw new ApiError('The Agent SDK session is running, and this change would leave a model or fallback it may not use. Let it finish its work, stop it, then save the change.', 409);
+}
+
 export function handleModelRequest(req: IncomingMessage, res: ServerResponse, deps: ModelApiDeps): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
   if (!mine(path)) return false;
@@ -225,7 +235,13 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
     sendJson(req, res, route, { error: route === 404 ? 'not found' : 'method not allowed' });
     return true;
   }
-  const store: Store = { read: deps.read ?? readModelConfig, write: deps.write ?? writeModelConfig };
+  const store: Store = {
+    read: deps.read ?? readModelConfig,
+    write: (cfg) => {
+      checkRunnerRoute(store.read(), cfg, deps);
+      (deps.write ?? writeModelConfig)(cfg);
+    },
+  };
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);

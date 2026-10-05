@@ -1,4 +1,3 @@
-import { log } from '@metro-labs/core/log';
 import { agentsDir } from '../agents/files.js';
 import type { CodexMethod } from '../gateway/codex-auth.js';
 import { connectionOf, readModelConfig, routedConnection, type Connection, type ModelConfig } from '../gateway/model-config.js';
@@ -35,19 +34,12 @@ const servingConnections = (cfg: ModelConfig): (Connection | null)[] => [routedC
 
 const permittedRoute = (cfg: ModelConfig): boolean => servingConnections(cfg).every(permitted);
 
-export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents)): boolean => permittedRoute(cfg) || sdkOnLogin(agents);
+export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents), loginAllowed = sdkOnLogin(agents)): boolean => permittedRoute(cfg) || loginAllowed;
 
-export const runnerInUse = (agents = agentsDir(), cfg?: ModelConfig): HarnessRunner => (harnessRunner(agents) === 'sdk' && sdkAllowed(agents, cfg) ? 'sdk' : 'cli');
+export const sdkConnectionAllowed = (connection: Connection, agents = agentsDir()): boolean => permitted(connection) || sdkOnLogin(agents);
 
 export function runnerModel(cfg: ModelConfig): string | null {
   const conn = routedConnection(cfg);
   if (conn === null || conn.model === '') return null;
   return conn.provider === 'anthropic' ? conn.model : `${conn.provider}:${conn.model}`;
-}
-
-export function settleRunner(agents = agentsDir()): boolean {
-  if (harnessRunner(agents) !== 'sdk' || sdkAllowed(agents)) return false;
-  setHarnessRunner('cli', agents);
-  log.warn('claude-runner: a model on the Model page (the first one or a fallback) has neither an API key nor a ChatGPT sign-in, and this box is not allowed the Agent SDK on a Claude login, so the agent goes back to the Claude Code session');
-  return true;
 }

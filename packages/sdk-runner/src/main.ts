@@ -1,8 +1,11 @@
-import { errMsg, log } from '@metro-labs/core/log';
+import { dirname, join } from 'node:path';
+import { log } from '@metro-labs/core/log';
+import { Activity, failureSummary } from './activity.js';
 import { startAgent, type RunningAgent } from './app.js';
 import { runnerConfig } from './config.js';
 
 let agent: RunningAgent | null = null;
+let activity: Activity | null = null;
 
 async function exit(code: number): Promise<never> {
   await agent?.stop();
@@ -16,23 +19,26 @@ const exitWith = (code: number) => (): void => {
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(signal, exitWith(0));
 
 try {
-  agent = await startAgent(runnerConfig(), {
+  const cfg = runnerConfig();
+  activity = new Activity(join(dirname(cfg.statePath), 'agent-status.json'));
+  agent = await startAgent(cfg, {
+    activity,
     speech: {
-      say: (text) => {
-        log.debug({ chars: text.length }, 'sdk-runner: speech');
-      },
-      done: () => {
-        log.debug('sdk-runner: speech done');
-      },
+      say: (text) => { log.debug({ chars: text.length }, 'sdk-runner: speech'); },
+      done: () => { log.debug('sdk-runner: speech done'); },
     },
-    lost: (reason) => {
-      log.error({ reason }, 'sdk-runner: lost the metro link; exiting so the session watcher starts the runner again');
+    lost: () => {
+      activity?.fail('The SDK lost its Metro connection. The session will restart.');
       exitWith(1)();
     },
   });
-  await agent.done;
-  log.warn('sdk-runner: the Agent SDK session ended');
+  try {
+    await agent.done;
+    activity.fail('The Agent SDK session ended unexpectedly.');
+  } catch (err) {
+    activity.fail(failureSummary(err));
+  }
 } catch (err) {
-  log.error({ err: errMsg(err) }, 'sdk-runner: the Agent SDK session failed');
+  log.error({ reason: failureSummary(err) }, 'sdk-runner: the Agent SDK session failed to start');
 }
 await exit(1);

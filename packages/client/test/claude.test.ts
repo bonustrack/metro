@@ -1,5 +1,45 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { toSettingsFile } from '../src/api/claude.js';
+import { controlClaudeSession, toClaudeSession } from '../src/api/claude-box.js';
+import { clearAccount } from '../src/auth/account.js';
+import { installTestAccount } from './account-fixture.js';
+
+const activity = {
+  pid: 123, runner: 'sdk', phase: 'working', sessionId: '12345678-1234-1234-1234-123456789abc',
+  updatedAt: 1_800_000_000_000, pending: 2, workers: 3, approvals: 1, tools: ['Read'], lastError: null,
+  mainPhase: 'working', mainStartedAt: null, activeTools: [], tasks: [], events: [],
+};
+
+describe('the optional SDK runtime status', () => {
+  test('old daemons keep their safe defaults and have no runtime details', () => {
+    expect(toClaudeSession({ running: true })).toEqual({
+      name: 'metro', running: true, runner: null, autostart: true, blocked: null, lastStartedAt: null, lastError: null, activity: null,
+    });
+    expect(toClaudeSession({ running: false, activity: { phase: 'idle' } }).activity).toBeNull();
+  });
+
+  test('reads the shared runtime shape without retaining chat or tool arguments', () => {
+    expect(toClaudeSession({ running: true, activity: { ...activity, toolArgs: { command: 'private' }, text: 'private' } }).activity).toEqual(activity);
+    expect(toClaudeSession({ running: true, activity: { ...activity, phase: 'approval' } }).activity?.phase).toBe('approval');
+  });
+});
+
+test('Start and Stop explicitly set autostart even for an older daemon', async () => {
+  installTestAccount();
+  const fetch = spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(Response.json({ running: false })));
+  try {
+    await controlClaudeSession({ action: 'stop' });
+    await controlClaudeSession({ action: 'start' });
+    await controlClaudeSession({ autostart: false });
+    expect(fetch.mock.calls.map((call) => call[1]?.body)).toEqual([
+      '{"action":"stop","autostart":false}', '{"action":"start","autostart":true}', '{"autostart":false}',
+    ]);
+    expect(fetch.mock.calls.map((call) => call[1]?.method)).toEqual(['POST', 'POST', 'POST']);
+  } finally {
+    fetch.mockRestore();
+    clearAccount();
+  }
+});
 
 describe('the settings files a daemon lists', () => {
   test('a well-formed row keeps every field, a row with an unknown scope is dropped, and missing fields fall back', () => {

@@ -4,13 +4,14 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { SDKMessage } from '../../packages/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs';
+import type { Activity } from '../../packages/sdk-runner/src/activity.ts';
 import { startStandIn, STANDIN_KEY, type StandIn } from './key-route.ts';
 import { startScripted, type ScriptedUpstream } from './scripted-upstream.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'sdk-runner-check-'));
 export const AGENTS = join(ROOT, 'agents');
 export const CLAUDE_DIR = join(ROOT, 'claude');
-const WORK = join(ROOT, 'work');
+export const WORK = join(ROOT, 'work');
 mkdirSync(AGENTS, { recursive: true });
 mkdirSync(WORK, { recursive: true });
 mkdirSync(CLAUDE_DIR, { recursive: true });
@@ -122,7 +123,7 @@ export function chat(from: string, text: string, line = LINE, extra: Record<stri
 
 const DROP = /^(CLAUDECODE|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_MESSAGING_SOCKET|CLAUDE_CODE_MESSAGING_TOKEN|CLAUDE_CODE_SESSION_ID|CLAUDE_PID|CLAUDE_CODE_SESSION_ATTENDED|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_EXECPATH|CLAUDE_EFFORT)$/;
 const inherited: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
-const throughGateway: NodeJS.ProcessEnv = gatewayOn ? { ...inherited, ANTHROPIC_BASE_URL: `${BASE}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}` } : inherited;
+const throughGateway: NodeJS.ProcessEnv = gatewayOn ? { ...inherited, ANTHROPIC_BASE_URL: `${BASE}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}\nx-metro-runner: sdk` } : inherited;
 const childEnv: NodeJS.ProcessEnv = scriptedRoute ? { ...throughGateway, CLAUDE_CONFIG_DIR: CLAUDE_DIR, ANTHROPIC_AUTH_TOKEN: KEY } : throughGateway;
 
 const cfg = runnerConfig(
@@ -169,8 +170,9 @@ const record = (m: SDKMessage): void => {
 
 let lostReason: string | null = null;
 export const lost = (): string | null => lostReason;
-export const boot = (compactAt: number): ReturnType<typeof startAgent> =>
+export const boot = (compactAt: number, activity?: Activity): ReturnType<typeof startAgent> =>
   startAgent(cfg, {
+    activity,
     speech: {
       say: (text) => {
         if (speaking === '') {

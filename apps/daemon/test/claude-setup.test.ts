@@ -143,7 +143,7 @@ describe('the setup over the API', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here') },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
       });
       if (!ok) res.writeHead(404).end();
     });
@@ -214,7 +214,7 @@ describe('the permission mode of the session', () => {
   let base = '';
   beforeEach(async () => {
     server = createServer((req, res) => {
-      const ok = handleClaudeRequest(req, res, { setup: deps(), session: { tmux: join(dir, 'no-tmux-here') } });
+      const ok = handleClaudeRequest(req, res, { setup: deps(), session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() } });
       if (!ok) res.writeHead(404).end();
     });
     await new Promise<void>((done) => {
@@ -337,7 +337,7 @@ describe('live messages to the session', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here') },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
         liveEvents: (on) => {
           told.push(on);
         },
@@ -398,7 +398,7 @@ describe('the daily memory routine switch', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here') },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
         memoryJob: (on) => {
           told.push(on);
         },

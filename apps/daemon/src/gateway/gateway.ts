@@ -2,6 +2,7 @@ import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
+import { sdkAllowed, sdkConnectionAllowed, SDK_NEEDS_KEY } from '../claude/runner.js';
 import {
   assertBedrockReady,
   bedrockBase,
@@ -95,6 +96,11 @@ const saveGeminiTokens = (id: string, tokens: GeminiTokens): void => {
 const keyOf = (req: IncomingMessage): string => {
   const raw = req.headers['x-metro-key'];
   return (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
+};
+
+const fromSdkRunner = (req: IncomingMessage): boolean => {
+  const raw = req.headers['x-metro-runner'];
+  return (Array.isArray(raw) ? raw[0] : raw)?.trim() === 'sdk';
 };
 
 const defaultIdentify = (key: string): boolean => key !== '' && agentIdForKey(key) !== undefined;
@@ -293,9 +299,15 @@ interface Request {
   cfg: ModelConfig;
 }
 
+function checkSdkRoute(req: IncomingMessage, route: Route, deps: GatewayDeps): void {
+  if (fromSdkRunner(req) && (!sdkAllowed(undefined, deps.config()) || !sdkConnectionAllowed(route.connection)))
+    throw new GatewayError(403, 'permission_error', SDK_NEEDS_KEY);
+}
+
 async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: GatewayDeps): Promise<void> {
   const { path, body } = ask;
   const conn = route.connection;
+  checkSdkRoute(req, route, deps);
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
   if (conn.provider === 'bedrock') {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
@@ -206,6 +206,27 @@ describe('the session store', () => {
     store.save('not-a-session');
     expect(store.unanswered()).toEqual([{ text: 'hello', at: 1 }]);
     expect(store.resumable()).toBe(id);
+  });
+
+  test('never overwrites malformed or unreadable saved input on restart', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sdk-runner-corrupt-'));
+    const path = join(dir, 'agent-session.json');
+    const store = new SessionStore(path, join(dir, 'claude'), dir);
+    try {
+      for (const text of ['{PRIVATE', 'null', '[]', '{"sessionId":"bad"}', '{"unanswered":null}', '{"unanswered":"PRIVATE"}', '{"unanswered":[{"text":"PRIVATE"}]}']) {
+        writeFileSync(path, text);
+        expect(() => store.unanswered()).toThrow('saved Agent SDK state');
+        expect(() => store.saveUnanswered([])).toThrow('saved Agent SDK state');
+        expect(() => store.save('3f4edfe1-a2ee-4543-9feb-5a956e26bdc2')).toThrow('saved Agent SDK state');
+        expect(readFileSync(path, 'utf8')).toBe(text);
+      }
+      rmSync(path);
+      mkdirSync(path);
+      expect(() => store.unanswered()).toThrow('saved Agent SDK state');
+      expect(() => store.saveUnanswered([])).toThrow('saved Agent SDK state');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

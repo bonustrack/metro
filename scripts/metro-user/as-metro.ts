@@ -72,7 +72,7 @@ check('and reads it', readMemoryFile('-home-agent', 'people/less.md', claudeDirO
 check('Skills lists the agent skill', listClaudeSkills(claudeDirOf).some((k) => k.name === 'demo-skill'));
 check('Settings lists the files', Array.isArray(listClaudeSettings(claudeDirOf)));
 check('the watcher sees there is a conversation to continue', hasConversation('/home/agent', claudeDirOf));
-startSession({ metro: ['sleep', '600'], agents: '/var/lib/metro/.metro/agents', continues: () => false });
+startSession({ metro: ['sh', '-c', 'sleep 600'], agents: '/var/lib/metro/.metro/agents' });
 await new Promise((r) => setTimeout(r, 1000));
 check('the Claude session starts under metro', sessionRunning());
 stopSession({ agents: '/var/lib/metro/.metro/agents' });

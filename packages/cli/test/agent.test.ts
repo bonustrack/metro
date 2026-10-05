@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentSession, claudePackage, prepareRunner, readRunnerManifest, runnerDependencies, runnerEnv, runnerStore } from '../src/agent.js';
+import { agentSession, claudePackage, prepareAgentRunner, prepareRunner, readRunnerManifest, runnerDependencies, runnerEnv, runnerStore, sdkGatewayEnv } from '../src/agent.js';
 import { launchClaude } from '../src/claude.js';
 import { harnessRunner } from '../src/route.js';
 
@@ -24,7 +24,7 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'metro-cli-agent-'));
   bun = join(root, 'bun');
   calls = join(root, 'calls.log');
-  writeFileSync(bun, `#!/bin/sh\necho "$PWD $*" >> ${calls}\nmkdir -p node_modules\n`);
+  writeFileSync(bun, `#!/bin/sh\necho "$PWD $*" >> ${calls}\nmkdir -p node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64\nprintf '#!/bin/sh\\nexit 0\\n' > node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude\nchmod +x node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude\n`);
   chmodSync(bun, 0o755);
 });
 
@@ -53,6 +53,41 @@ test('the runner store gets the staged sources, its SDKs and only the Claude Cod
   expect(readFileSync(entry, 'utf8')).toContain("'2'");
 });
 
+test('preparation checks the bundled executable without starting the runner, and missing Bun leaves it uninstalled', () => {
+  const options = { sources: stage('1'), store: join(root, 'store'), bun, log: (): undefined => undefined, claude: { name: '@anthropic-ai/claude-agent-sdk-linux-arm64', binary: 'claude' } };
+  prepareAgentRunner('sdk', options);
+  expect(readFileSync(calls, 'utf8')).toContain('install --no-summary --no-progress');
+  expect(() => prepareAgentRunner('sdk', { ...options, store: join(root, 'missing'), bun: join(root, 'not-bun') })).toThrow('bun install failed');
+  expect(existsSync(join(root, 'missing', 'node_modules', '.metro-installed'))).toBe(false);
+});
+
+test('a failed dependency upgrade clears the success marker and retries instead of accepting the failed install', () => {
+  const options = { sources: stage('1'), store: join(root, 'store'), bun, log: (): undefined => undefined, claude: { name: '@anthropic-ai/claude-agent-sdk-linux-arm64', binary: 'claude' } };
+  prepareRunner(options);
+  const stamp = join(options.sources, 'runner.json');
+  const manifest = JSON.parse(readFileSync(stamp, 'utf8')) as { dependencies: Record<string, string> };
+  manifest.dependencies.pino = '^10';
+  writeFileSync(stamp, JSON.stringify(manifest));
+  const installer = readFileSync(bun, 'utf8');
+  writeFileSync(bun, '#!/bin/sh\nexit 9\n');
+  expect(() => prepareRunner(options)).toThrow('exit 9');
+  expect(existsSync(join(options.store, 'node_modules', '.metro-installed'))).toBe(false);
+  writeFileSync(bun, installer);
+  prepareRunner(options);
+  expect(readFileSync(calls, 'utf8').trim().split('\n')).toHaveLength(2);
+  expect(existsSync(join(options.store, 'node_modules', '.metro-installed'))).toBe(true);
+});
+
+test('a bundled executable that cannot run clears the install marker and is repaired by the next preparation', () => {
+  const options = { sources: stage('1'), store: join(root, 'store'), bun, log: (): undefined => undefined, claude: { name: '@anthropic-ai/claude-agent-sdk-linux-arm64', binary: 'claude' } };
+  const prepared = prepareRunner(options);
+  writeFileSync(prepared.claude, '#!/bin/sh\nexit 9\n');
+  expect(() => prepareAgentRunner('sdk', options)).toThrow('Runner preflight failed');
+  expect(existsSync(join(options.store, 'node_modules', '.metro-installed'))).toBe(false);
+  prepareAgentRunner('sdk', options);
+  expect(readFileSync(calls, 'utf8').trim().split('\n')).toHaveLength(2);
+});
+
 test('the Claude Code package is the one the SDK itself would pick for this machine', () => {
   expect(claudePackage('linux', 'x64', false)).toEqual({ name: '@anthropic-ai/claude-agent-sdk-linux-x64', binary: 'claude' });
   expect(claudePackage('linux', 'arm64', true)).toEqual({ name: '@anthropic-ai/claude-agent-sdk-linux-arm64-musl', binary: 'claude' });
@@ -75,6 +110,12 @@ test('the runner is told where metro is, its key, the permission mode, the Harne
   expect(Object.keys(told).filter((name) => /FRONT|WORKER/.test(name))).toEqual([]);
   expect(runnerStore({ METRO_RUNNER_STORE: '/x' })).toBe('/x');
   expect(readRunnerManifest('{"version":"1","dependencies":{"a":"1","b":2}}')).toEqual({ version: '1', dependencies: { a: '1' } });
+});
+
+test('the SDK marks its gateway requests without losing credentials, headers or model settings', () => {
+  const env = { ANTHROPIC_CUSTOM_HEADERS: 'x-metro-key: mk_test\nx-own: value', ANTHROPIC_AUTH_TOKEN: 'login', METRO_RUNNER_MODEL: 'one' };
+  expect(sdkGatewayEnv(env)).toEqual({ ...env, ANTHROPIC_CUSTOM_HEADERS: `${env.ANTHROPIC_CUSTOM_HEADERS}\nx-metro-runner: sdk` });
+  expect(sdkGatewayEnv({}).ANTHROPIC_CUSTOM_HEADERS).toBe('x-metro-runner: sdk');
 });
 
 test('metro agent does not start while the Harness runs the agent as a Claude Code session', async () => {

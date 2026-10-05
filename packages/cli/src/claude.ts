@@ -6,7 +6,7 @@ import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
-import { keepInSession, takeBackConversation } from './background.js';
+import { keepInSession, resumeSessionId, takeBackConversation } from './background.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
 const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
@@ -181,9 +181,10 @@ export async function headlessEnv(): Promise<NodeJS.ProcessEnv> {
 const continues = (args: string[]): boolean => args.includes('-c') || args.includes('--continue');
 
 async function reclaimConversation(extra: string[]): Promise<void> {
-  if (!continues(extra)) return;
+  const sessionId = resumeSessionId(extra);
+  if (sessionId === undefined && !continues(extra)) return;
   try {
-    const note = await takeBackConversation();
+    const note = await takeBackConversation({ sessionId });
     if (note !== null) process.stderr.write(`metro claude: ${note}\n`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

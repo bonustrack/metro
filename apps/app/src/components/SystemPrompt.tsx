@@ -11,7 +11,7 @@ import { GROW } from '../lib/style.js';
 
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const NOTE = 'Who your agent is and how it should behave. Saving restarts the agent.';
+const NOTE = 'Who your agent is and how it should behave. Finish active work and press Stop before saving, then Start to apply it.';
 
 export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   const client = useQueryClient();

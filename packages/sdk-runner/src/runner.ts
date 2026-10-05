@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
+import type { Activity } from './activity.js';
 import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
 import { Inbox, type Unanswered, type Uuid } from './inbox.js';
@@ -64,6 +65,7 @@ export interface RunnerParts {
   readOnly: (tool: string) => boolean;
   compactAt?: number;
   open?: OpenSession;
+  activity?: Activity;
 }
 
 export class Runner {
@@ -92,6 +94,9 @@ export class Runner {
       },
     });
     this.watch = new SessionWatch(parts.readOnly);
+    const again = parts.store.unanswered();
+    this.inbox.again(again);
+    if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
   }
 
   get id(): string | null {
@@ -99,9 +104,7 @@ export class Runner {
   }
 
   start(options: Options): Query {
-    const again = this.parts.store.unanswered();
-    this.inbox.again(again);
-    if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
+    if (this.session !== null) throw new Error('the runner was already started');
     this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
     this.model = options.model ?? null;
     this.queueModel(this.model);
@@ -122,6 +125,7 @@ export class Runner {
       this.watch.observe(m);
       this.speech.observe(message);
       this.note(m);
+      this.parts.activity?.observe(message);
       observe?.(message);
     }
   }
@@ -185,6 +189,7 @@ export class Runner {
     this.switching = this.switching
       .then(() => this.applyModel(model))
       .catch((err: unknown) => {
+        this.parts.activity?.fail('The SDK could not apply the selected model. Check the Model page.');
         log.warn({ model, err: errMsg(err) }, 'sdk-runner: the session could not take the model the Model page picked');
       });
   }
@@ -193,6 +198,7 @@ export class Runner {
     const session = this.session;
     if (session === null) return;
     await session.applyFlagSettings(allowedOnly(model));
+    this.parts.activity?.connected();
     if (model === this.model) return;
     const was = this.model;
     await session.setModel(model ?? undefined);
@@ -201,6 +207,7 @@ export class Runner {
   }
 
   private keep(unanswered: Unanswered[]): void {
+    this.parts.activity?.pending(unanswered.length);
     try {
       this.parts.store.saveUnanswered(unanswered);
     } catch (err) {

@@ -5,10 +5,11 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, continueArgs, ensureSession, hasConversation, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import { autostartEnabled, ensureSession, hasConversation, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import { continueArgs } from '../src/claude/session-continuity.js';
 import { auth } from './identity-helper.ts';
 import { configOf, makeConnection } from './model-fixture.ts';
-import { runnerInUse, settleRunner } from '../src/claude/runner.js';
+import { sdkAllowed } from '../src/claude/runner.js';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const KEY = `mk_${'a'.repeat(43)}`;
@@ -95,6 +96,13 @@ describe('what stands in the way of a session', () => {
     expect(sessionBlocked(deps())).toBeNull();
   });
 
+  test('an SDK routed to an Anthropic API key needs no Claude login', () => {
+    agent();
+    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
+    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
+    expect(sessionBlocked(deps({ signedIn: () => false }))).toBeNull();
+  });
+
   test('a Model page routing to a ready provider counts as a credential', () => {
     agent();
     writeFileSync(
@@ -112,7 +120,7 @@ describe('starting the session', () => {
     const status = startSession(deps({ metro: ['metro', 'claude'] }));
     expect(status.running).toBe(true);
     await until(() => recorded().some((c) => c.startsWith('send-keys')));
-    expect(recorded()).toContain(`new-session -d -s metro -c ${join(dir, 'home')} -x 200 -y 50 metro claude`);
+    expect(recorded().find((c) => c.startsWith('new-session'))).toStartWith(`new-session -d -s metro -c ${join(dir, 'home')} -x 200 -y 50 metro claude --session-id `);
     expect(recorded()).toContain('send-keys -t metro Enter');
     const config = JSON.parse(readFileSync(join(dir, 'config', '.claude.json'), 'utf8')) as { projects: Record<string, { hasTrustDialogAccepted: boolean }> };
     expect(config.projects[realpathSync(join(dir, 'home'))]).toEqual({ hasTrustDialogAccepted: true });
@@ -131,62 +139,80 @@ describe('starting the session', () => {
     expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('running');
   });
 
-  test('continues the previous conversation when the folder has one, and starts clean when it has none', () => {
+  test('pins a fresh CLI session and never follows a newer unrelated home transcript', () => {
     agent();
     const home = join(dir, 'home');
     expect(hasConversation(home, join(dir, 'config'))).toBe(false);
     startSession(deps({ metro: ['metro', 'claude'] }));
-    expect(recorded().some((c) => c.endsWith(' metro claude'))).toBe(true);
-    expect(recorded().some((c) => c.endsWith(' -c'))).toBe(false);
-    const project = join(dir, 'config', 'projects', '-home');
+    const id = (JSON.parse(readFileSync(join(dir, 'agents', 'claude-session.json'), 'utf8')) as { cliSessionId: string }).cliSessionId;
+    const project = join(dir, 'config', 'projects', realpathSync(home).replace(/[^A-Za-z0-9]/g, '-'));
     mkdirSync(project, { recursive: true });
-    writeFileSync(join(project, 'abc.jsonl'), `${JSON.stringify({ type: 'user', cwd: realpathSync(home), message: { role: 'user', content: 'hi' } })}\n`);
+    writeFileSync(join(project, `${id}.jsonl`), `${JSON.stringify({ type: 'user', cwd: realpathSync(home), message: { role: 'user', content: 'hi' } })}\n`);
+    writeFileSync(join(project, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl'), '{}\n');
     expect(hasConversation(home, join(dir, 'config'))).toBe(true);
     stopSession(deps());
     startSession(deps({ metro: ['metro', 'claude'] }));
-    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude -c')).toBe(true);
-    startSession(deps({ metro: ['metro', 'claude'], continues: () => false }));
-    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude')).toBe(true);
+    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${id}`)).toBe(true);
+    startSession(deps({ metro: ['metro', 'claude'] }));
+    expect(recorded().filter((c) => c.startsWith('new-session'))).toHaveLength(2);
   });
 
-  test('with the Agent SDK runner the session runs metro agent, and back on Claude Code it resumes the SDK conversation when it is the newest', () => {
+  test('ambiguous history gets a new stable pin, and a missing pinned transcript is never replaced by the newest one', () => {
+    const home = join(dir, 'home');
+    const agents = join(dir, 'agents');
+    const config = join(dir, 'config');
+    const project = join(config, 'projects', realpathSync(home).replace(/[^A-Za-z0-9]/g, '-'));
+    mkdirSync(project, { recursive: true });
+    const ids = ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'];
+    for (const id of ids) writeFileSync(join(project, `${id}.jsonl`), '{}\n');
+    mkdirSync(join(home, '.metro'), { recursive: true });
+    writeFileSync(join(home, '.metro', 'agent-session.json'), JSON.stringify({ sessionId: ids[1], unanswered: [] }));
+    const args = continueArgs(home, config, agents);
+    expect(args[0]).toBe('--session-id');
+    expect(ids).not.toContain(args[1]);
+    expect(continueArgs(home, config, agents)).toEqual(args);
+  });
+
+  test('the SDK and CLI keep independent saved sessions even when the SDK transcript is newer', () => {
     agent();
     const home = join(dir, 'home');
-    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'sdk', sdkOnLogin: true }));
+    const agents = join(dir, 'agents');
+    writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk', sdkOnLogin: true }));
     startSession(deps({ runner: ['metro', 'agent'], metro: ['metro', 'claude'] }));
     expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro agent')).toBe(true);
     stopSession(deps());
-    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'cli' }));
+    writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'cli' }));
     const project = join(dir, 'config', 'projects', realpathSync(home).replace(/[^A-Za-z0-9]/g, '-'));
     mkdirSync(project, { recursive: true });
     const sdk = '3f4edfe1-a2ee-4543-9feb-5a956e26bdc2';
-    writeFileSync(join(project, 'old-cli-session.jsonl'), `${JSON.stringify({ type: 'user', cwd: realpathSync(home) })}\n`);
+    const cli = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    writeFileSync(join(agents, 'claude-session.json'), JSON.stringify({ cliSessionId: cli }));
+    writeFileSync(join(project, `${cli}.jsonl`), '{}\n');
     mkdirSync(join(home, '.metro'), { recursive: true });
-    writeFileSync(join(home, '.metro', 'agent-session.json'), JSON.stringify({ sessionId: sdk }));
-    expect(continueArgs(home, join(dir, 'config'), () => true)).toEqual(['-c']);
-    writeFileSync(join(project, `${sdk}.jsonl`), `${JSON.stringify({ type: 'user', cwd: realpathSync(home) })}\n`);
-    expect(continueArgs(home, join(dir, 'config'), () => true)).toEqual(['--resume', sdk]);
+    writeFileSync(join(home, '.metro', 'agent-session.json'), JSON.stringify({ sessionId: sdk, unanswered: [] }));
+    writeFileSync(join(project, `${sdk}.jsonl`), '{}\n');
+    expect(continueArgs(home, join(dir, 'config'), agents)).toEqual(['--resume', cli]);
     startSession(deps({ metro: ['metro', 'claude'] }));
-    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${sdk}`)).toBe(true);
+    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${cli}`)).toBe(true);
   });
 
-  test('the Agent SDK runner runs only on an API-key route or where the operator allowed the login, and otherwise falls back to Claude Code for good', () => {
+  test('an unpermitted SDK route blocks a start without changing the runner or killing its running session', () => {
     agent();
     const agents = join(dir, 'agents');
     const setup = (): Record<string, unknown> => JSON.parse(readFileSync(join(agents, 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
     writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
-    expect(runnerInUse(agents)).toBe('cli');
-    startSession(deps({ runner: ['metro', 'agent'], metro: ['metro', 'claude'], continues: () => false }));
-    expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(' metro claude')).toBe(true);
+    expect(sdkAllowed(agents)).toBe(false);
+    expect(() => startSession(deps())).toThrow('Agent SDK');
+    expect(recorded().some((c) => c.startsWith('new-session'))).toBe(false);
     writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
-    expect(runnerInUse(agents)).toBe('sdk');
-    expect(settleRunner(agents)).toBe(false);
+    expect(sdkAllowed(agents)).toBe(true);
+    startSession(deps({ runner: ['metro', 'agent'] }));
     writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('codex', [makeConnection('codex', { model: 'gpt-6' })])));
-    expect(settleRunner(agents)).toBe(true);
-    expect(setup().runner).toBe('cli');
-    writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
-    expect(runnerInUse(agents)).toBe('cli');
-    expect(settleRunner(agents)).toBe(false);
+    expect(ensureSession(deps())).toBe('running');
+    expect(recorded().some((c) => c.startsWith('kill-session'))).toBe(false);
+    stopSession(deps());
+    expect(ensureSession(deps())).toBe('blocked');
+    expect(setup().runner).toBe('sdk');
   });
 
   test('ensure starts once, then reports running, and honours the auto-start switch', () => {
@@ -237,8 +263,10 @@ describe('the session over the API', () => {
     agent();
     const started = (await (await call('POST', { action: 'start' })).json()) as { running: boolean };
     expect(started.running).toBe(true);
-    const stopped = (await (await call('POST', { action: 'stop', autostart: false })).json()) as { running: boolean; autostart: boolean };
+    const stopped = (await (await call('POST', { action: 'stop' })).json()) as { running: boolean; autostart: boolean };
     expect(stopped).toMatchObject({ running: false, autostart: false });
+    expect(ensureSession(deps())).toBe('off');
+    expect(await (await call('POST', { action: 'start' })).json()).toMatchObject({ running: true, autostart: true });
     expect((await call('POST', { action: 'sideways' })).status).toBe(400);
   });
 });

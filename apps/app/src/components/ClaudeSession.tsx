@@ -1,24 +1,19 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { SettingsSection } from './SettingsSection.js';
+import { TextLink } from './TextLink.js';
 import { controlClaudeSession, type ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
+import { sessionNote } from '@metro-labs/client/api/runner';
+import { RunnerActivity } from './RunnerActivity.js';
 import { queryError, refresh, useClaudeSessionQuery } from '../lib/queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
-import { openRoute } from '../lib/nav.js';
 
-const AUTOSTART = 'Starts the agent by itself when the server starts.';
-const TERMINAL = 'Watch the agent work, live, in a new tab.';
-
-function statusLine(status: ClaudeSessionStatus): string {
-  if (status.running) return 'Running.';
-  if (status.lastError !== null) return `Not running: ${status.lastError}`;
-  if (status.blocked !== null) return `Waiting: ${status.blocked}.`;
-  return status.autostart ? 'Starting in a few seconds.' : 'Not running.';
-}
+const AUTOSTART = 'Starts the agent by itself when the server starts. Stop cancels active work and turns this off. Start runs the agent and enables automatic starts again.';
+const CLOCK_MS = 1_000;
 
 type Send = (input: { action?: 'start' | 'stop'; autostart?: boolean }) => void;
 
@@ -41,12 +36,17 @@ function useSend(): { send: Send; busy: boolean; error: string | null } {
   return { send, busy, error };
 }
 
-function Rows({ status, project }: { status: ClaudeSessionStatus; project: string }): ReactNode {
+function Rows({ status, project, live }: { status: ClaudeSessionStatus; project: string; live: boolean }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { send, busy, error } = useSend();
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => { setNow(Date.now()); }, CLOCK_MS);
+    return () => { clearInterval(timer); };
+  }, []);
   return (
     <>
-      <SettingsSection title="Status" note={statusLine(status)}>
+      <SettingsSection title="Status" note={sessionNote(status, now)}>
         {status.running ? (
           <Button size="md" color="secondary" dark={dark} label="Stop" disabled={busy} onPress={() => { send({ action: 'stop' }); }} />
         ) : (
@@ -54,6 +54,12 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
         )}
         {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       </SettingsSection>
+      {status.running && status.runner !== null ? (
+        <SettingsSection title="Running runner">
+          <Text size="2xs" role="secondary">{status.runner === 'sdk' ? 'Agent SDK' : 'Claude Code'}</Text>
+        </SettingsSection>
+      ) : null}
+      <RunnerActivity status={status} now={now} live={live} />
       <SettingsSection title="Start by itself" note={AUTOSTART}>
         <Choice
           label="Start by itself"
@@ -65,25 +71,20 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
           }}
         />
       </SettingsSection>
+      <SettingsSection title="Conversations" note="Read saved turns and tool results. Each runner keeps its own conversation.">
+        <TextLink to={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })}>Open Conversations</TextLink>
+      </SettingsSection>
       {status.running ? (
-        <SettingsSection title="Terminal" note={TERMINAL}>
-          <Button
-            size="md"
-            color="secondary"
-            dark={dark}
-            label="Open"
-            onPress={() => {
-              openRoute(routeHash({ kind: 'terminal', project }));
-            }}
-          />
+        <SettingsSection title="Terminal" note="Inspect the session process and its output.">
+          <TextLink to={routeHash({ kind: 'terminal', project })}>Open Terminal</TextLink>
         </SettingsSection>
       ) : null}
     </>
   );
 }
 
-export function ClaudeSession({ project }: { project: string }): ReactNode {
-  const session = useClaudeSessionQuery();
+export function ClaudeSession({ project, live = false }: { project: string; live?: boolean }): ReactNode {
+  const session = useClaudeSessionQuery({ live });
   if (session.error !== null)
     return (
       <SettingsSection title="Status" note={queryError(session.error, 'Could not read the agent session.')}>
@@ -91,5 +92,5 @@ export function ClaudeSession({ project }: { project: string }): ReactNode {
       </SettingsSection>
     );
   if (session.data === undefined) return null;
-  return <Rows status={session.data} project={project} />;
+  return <Rows status={session.data} project={project} live={live} />;
 }

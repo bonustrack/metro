@@ -1,25 +1,29 @@
+import { parseRunnerActivity, type RunnerActivity } from '@metro-labs/core/runner-activity';
 import { filled, isRecord } from '../read.js';
 import { claudeCall } from './claude.js';
 
 export interface ClaudeSessionStatus {
   name: string;
   running: boolean;
+  runner: HarnessRunner | null;
   autostart: boolean;
   blocked: string | null;
   lastStartedAt: string | null;
   lastError: string | null;
+  activity: RunnerActivity | null;
 }
 
-
-function toClaudeSession(body: unknown): ClaudeSessionStatus {
+export function toClaudeSession(body: unknown): ClaudeSessionStatus {
   if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     name: typeof body.name === 'string' ? body.name : 'metro',
     running: body.running,
+    runner: body.runner === 'cli' || body.runner === 'sdk' ? body.runner : null,
     autostart: body.autostart !== false,
     blocked: filled(body.blocked),
     lastStartedAt: filled(body.lastStartedAt),
     lastError: filled(body.lastError),
+    activity: parseRunnerActivity(body.activity),
   };
 }
 
@@ -28,7 +32,8 @@ export async function fetchClaudeSession(): Promise<ClaudeSessionStatus> {
 }
 
 export async function controlClaudeSession(input: { action?: 'start' | 'stop'; autostart?: boolean }): Promise<ClaudeSessionStatus> {
-  return toClaudeSession(await claudeCall('POST', '/session', input));
+  const body = input.action === undefined ? input : { ...input, autostart: input.action === 'start' };
+  return toClaudeSession(await claudeCall('POST', '/session', body));
 }
 
 export type PermissionMode = 'auto' | 'bypass';

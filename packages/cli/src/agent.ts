@@ -1,4 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { headlessEnv, runClaude } from './claude.js';
@@ -75,10 +76,7 @@ export interface RunnerPrepare {
   claude?: ClaudePackage;
 }
 
-export function prepareRunner(opts: RunnerPrepare = {}): PreparedRunner {
-  const sources = opts.sources ?? join(runtimeDir(), RUNNER_SOURCES);
-  const stamp = readFileSync(join(sources, STAMP), 'utf8');
-  const store = opts.store ?? runnerStore();
+function stageSources(sources: string, store: string, stamp: string): void {
   mkdirSync(store, { recursive: true });
   if (readOrNull(join(store, STAMP)) !== stamp || !existsSync(join(store, ENTRY))) {
     rmSync(join(store, 'src'), { recursive: true, force: true });
@@ -88,14 +86,28 @@ export function prepareRunner(opts: RunnerPrepare = {}): PreparedRunner {
     writeFileSync(join(store, STAMP), stamp);
   }
   if (readOrNull(join(store, 'bunfig.toml')) !== BUNFIG) writeFileSync(join(store, 'bunfig.toml'), BUNFIG);
+}
+
+export function prepareRunner(opts: RunnerPrepare = {}): PreparedRunner {
+  const sources = opts.sources ?? join(runtimeDir(), RUNNER_SOURCES);
+  const stamp = readFileSync(join(sources, STAMP), 'utf8');
+  const store = opts.store ?? runnerStore();
+  stageSources(sources, store, stamp);
   const log =
     opts.log ??
     ((line: string): void => {
       process.stderr.write(`metro agent: ${line}\n`);
     });
   const pkg = opts.claude ?? claudePackage();
+  const claude = join(store, 'node_modules', ...pkg.name.split('/'), pkg.binary);
+  const marker = join(store, 'node_modules', '.metro-installed');
+  if (!existsSync(claude)) rmSync(marker, { force: true });
   installDependencies(store, runnerDependencies(readRunnerManifest(stamp), pkg), opts.bun ?? findBun(), log);
-  return { entry: join(store, ENTRY), claude: join(store, 'node_modules', ...pkg.name.split('/'), pkg.binary) };
+  if (!existsSync(claude)) {
+    rmSync(marker, { force: true });
+    throw new Error(`The Claude Code binary bundled with the Agent SDK is missing at ${claude}. Try preparing the runner again.`);
+  }
+  return { entry: join(store, ENTRY), claude };
 }
 
 export function runnerEnv(key: string, port: number, model: string | null, mode: PermissionMode, prompt: string | null, claude: string): Record<string, string> {
@@ -109,15 +121,46 @@ export function runnerEnv(key: string, port: number, model: string | null, mode:
   };
 }
 
-export async function agentSession(): Promise<number> {
+export function sdkGatewayEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const own = (env.ANTHROPIC_CUSTOM_HEADERS ?? '').trim();
+  const header = 'x-metro-runner: sdk';
+  return { ...env, ANTHROPIC_CUSTOM_HEADERS: own === '' ? header : `${own}\n${header}` };
+}
+
+function checkBinary(bin: string): void {
+  const run = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 30_000 });
+  if (run.error !== undefined || run.status !== 0) throw new Error(`Runner preflight failed: ${bin} cannot run (${run.error?.message ?? `exit ${String(run.status)}`}).`);
+}
+
+function checkPreparedRunner(opts: RunnerPrepare): void {
+  const prepared = prepareRunner(opts);
+  try {
+    checkBinary(prepared.claude);
+  } catch (err) {
+    rmSync(join(opts.store ?? runnerStore(), 'node_modules', '.metro-installed'), { force: true });
+    throw err;
+  }
+}
+
+export function prepareAgentRunner(runner: string, opts: RunnerPrepare = {}): void {
+  if (runner === 'cli') checkBinary('claude');
+  else if (runner === 'sdk') checkPreparedRunner(opts);
+  else throw new Error('metro agent --prepare needs cli or sdk');
+}
+
+export async function agentSession(args: string[] = []): Promise<number> {
+  if (args[0] === '--prepare' && args.length <= 2) {
+    prepareAgentRunner(args[1] ?? 'sdk');
+    return 0;
+  }
+  if (args.length > 0) throw new Error('metro agent accepts only --prepare [cli|sdk]');
   process.chdir(homedir());
   if (harnessRunner() !== 'sdk') throw new Error(NOT_THE_RUNNER);
   const agent = localAgent();
   if (agent === null) throw new Error('metro agent needs the agent of this machine, and there is none yet');
   const bun = findBun();
   const runner = prepareRunner({ bun });
-  if (!existsSync(runner.claude)) throw new Error(`the Claude Code that comes with the Agent SDK is missing at ${runner.claude}; remove ${runnerStore()} and start again`);
   process.stderr.write('metro agent: this agent runs as one Agent SDK session: a light front talks, background workers do the work\n');
-  const env = { ...(await headlessEnv()), ...runnerEnv(agent.key, localPort(), currentModel(), permissionMode(), systemPrompt(), runner.claude) };
+  const env = { ...sdkGatewayEnv(await headlessEnv()), ...runnerEnv(agent.key, localPort(), currentModel(), permissionMode(), systemPrompt(), runner.claude) };
   return runClaude([runner.entry], env, undefined, bun);
 }

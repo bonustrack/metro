@@ -8,6 +8,7 @@
     "./log": "./src/log.ts",
     "./events": "./src/events.ts",
     "./is-record": "./src/is-record.ts",
+    "./runner-activity": "./src/runner-activity.ts",
     "./secure-fs": "./src/secure-fs.ts",
     "./version": "./src/version.ts",
     "./train-error": "./src/train-error.ts",

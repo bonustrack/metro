@@ -242,6 +242,41 @@ describe('who the gateway answers', () => {
   });
 });
 
+describe('the SDK provider guard', () => {
+  test('an unpermitted login blocks SDK calls, not CLI, voice or memory calls', async () => {
+    const headers = { authorization: 'Bearer claude-login', 'x-metro-runner': 'sdk' };
+    expect((await post('/gateway/v1/messages', message('claude-sonnet-5'), headers)).status).toBe(403);
+    expect(anthropic.seen).toHaveLength(0);
+    expect((await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer claude-login' })).status).toBe(200);
+    expect(anthropic.seen).toHaveLength(1);
+  });
+
+  test('keyed SDK requests keep the model and effort policy but never forward the runner header', async () => {
+    cfg = configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-key', model: 'claude-opus-5' })]);
+    const body = { ...message('claude-sonnet-5'), output_config: { effort: 'high' } };
+    expect((await post('/gateway/v1/messages', body, { 'x-metro-runner': 'sdk', authorization: 'Bearer claude-login' })).status).toBe(200);
+    expect(anthropic.seen[0]?.headers['x-metro-runner']).toBeUndefined();
+    expect(anthropic.seen[0]?.headers['x-api-key']).toBe('sk-ant-key');
+    expect(anthropic.seen[0]?.headers.authorization).toBeUndefined();
+    expect(JSON.parse(anthropic.seen[0]?.body ?? '{}')).toMatchObject({ model: 'claude-opus-5', output_config: { effort: 'low' } });
+  });
+
+  test('an explicit unpermitted provider is refused even when the selected route is permitted', async () => {
+    cfg = configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-key' }), makeConnection('gemini', { gemini: geminiTokens() })]);
+    expect((await post('/gateway/v1/messages', message('gemini:gemini-3-pro-preview'), { 'x-metro-runner': 'sdk' })).status).toBe(403);
+    expect(anthropic.seen).toHaveLength(0);
+    expect(geminiBackend.seen).toHaveLength(0);
+  });
+
+  test('one unpermitted fallback blocks the SDK even when the primary has a key', async () => {
+    cfg = configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-key' }), makeConnection('gemini', { gemini: geminiTokens() })]);
+    cfg.fallbacks = [{ connection: connectionId('gemini'), model: 'gemini-3-pro-preview' }];
+    expect((await post('/gateway/v1/messages', message('claude-sonnet-5'), { 'x-metro-runner': 'sdk' })).status).toBe(403);
+    expect(anthropic.seen).toHaveLength(0);
+    expect(geminiBackend.seen).toHaveLength(0);
+  });
+});
+
 describe('the Anthropic route', () => {
   test('forwards the request as Claude Code sent it: path, query, headers, body bytes, and the login', async () => {
     const res = await post('/gateway/v1/messages?beta=true', message('claude-sonnet-5'), {

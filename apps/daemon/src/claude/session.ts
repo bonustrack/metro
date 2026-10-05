@@ -1,5 +1,11 @@
-import { spawnSync } from 'node:child_process';
-import { readdirNames, readFileSync, realpathSync, statSync } from '../agent-user/agent-fs.js';
+import { spawn, spawnSync } from 'node:child_process';
+import { realpathSync } from '../agent-user/agent-fs.js';
+import { ApiError } from '@metro-labs/http/api-error';
+import type { RunnerActivity } from '@metro-labs/core/runner-activity';
+import { readAgentActivity } from './runner-activity.js';
+import { sdkAlive, stopSdkRunner } from './runner-process.js';
+import { continueArgs, sdkPending } from './session-continuity.js';
+import { syncAgentView } from '../agent-user/view.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
@@ -9,7 +15,7 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
 import { claudeDir, listClaudeProjects } from './files.js';
-import { runnerInUse, settleRunner } from './runner.js';
+import { harnessRunner, isHarnessRunner, sdkAllowed, SDK_NEEDS_KEY, type HarnessRunner } from './runner.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
@@ -42,12 +48,14 @@ export interface SessionDeps {
   signedIn?: () => boolean;
   now?: () => number;
   version?: string;
-  continues?: (home: string) => boolean;
+  prepare?: (runner: HarnessRunner) => Promise<void>;
 }
 
 export interface SessionStatus {
   name: string;
   running: boolean;
+  runner?: HarnessRunner;
+  activity?: RunnerActivity | null;
   autostart: boolean;
   blocked: string | null;
   lastStartedAt: string | null;
@@ -120,41 +128,53 @@ export function metroCli(args: string[], fixed?: string[]): string[] {
   return env.length === 0 || fixed !== undefined ? base : ['env', ...env, ...base];
 }
 
-const SDK_SESSION_FILE = join('.metro', 'agent-session.json');
-const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const sessionHome = (deps: SessionDeps): string => deps.home ?? claudeHome() ?? homedir();
 
-function sdkSession(home: string): string | null {
+export function sessionRunner(deps: SessionDeps = {}): HarnessRunner {
+  const agents = deps.agents ?? agentsDir();
+  const runner = readState(agents).runner;
+  return isHarnessRunner(runner) ? runner : harnessRunner(agents);
+}
+
+export function assertSessionStopped(deps: SessionDeps = {}): void {
+  if (sessionLive(deps)) throw new ApiError('The session is running. Let it finish its work, stop it, then change its runner, permissions or prompt and start it again.', 409);
+}
+
+export function assertSdkDrained(deps: SessionDeps = {}): void {
+  if (sdkPending(sessionHome(deps)) !== 0)
+    throw new ApiError('The Agent SDK still has chat messages it has not answered, or its saved state cannot be read. Start it so it answers them (fix the Model page first if it cannot start), stop it, then switch runners.', 409);
+}
+
+let changing = false;
+
+export async function withSessionChange<T>(run: () => Promise<T>): Promise<T> {
+  if (changing) throw new ApiError('A session change is already being prepared. Try again when it finishes.', 409);
+  changing = true;
   try {
-    const parsed: unknown = JSON.parse(readFileSync(join(home, SDK_SESSION_FILE), 'utf8'));
-    const id = isRecord(parsed) ? parsed.sessionId : undefined;
-    return typeof id === 'string' && SESSION_ID_RE.test(id) ? id : null;
-  } catch {
-    return null;
+    return await run();
+  } finally {
+    changing = false;
   }
 }
 
-function newestTranscript(home: string, dir: string): string | null {
-  const project = join(dir, 'projects', encodedCwd(realDir(home)));
-  try {
-    const newest = readdirNames(project)
-      .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => ({ name, mtime: statSync(join(project, name)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime)[0];
-    return newest === undefined ? null : newest.name.slice(0, -'.jsonl'.length);
-  } catch {
-    return null;
-  }
-}
-
-export function continueArgs(home: string, dir = claudeDir(), continues: (home: string) => boolean = hasConversation): string[] {
-  const sdk = sdkSession(home);
-  if (sdk !== null && newestTranscript(home, dir) === sdk) return ['--resume', sdk];
-  return continues(home) ? ['-c'] : [];
+export async function prepareSessionRunner(runner: HarnessRunner, deps: SessionDeps = {}): Promise<void> {
+  if (deps.prepare !== undefined) return deps.prepare(runner);
+  const [bin = 'metro', ...args] = metroCli(['agent', '--prepare', runner]);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(...asAgent(bin, args), { stdio: ['ignore', 'ignore', 'pipe'], timeout: 16 * 60_000 });
+    let error = '';
+    child.stderr.on('data', (chunk: Buffer) => { error = (error + chunk.toString()).slice(-2000); });
+    child.on('error', (err) => { reject(new ApiError(`Runner preparation failed: ${errMsg(err)}`, 503)); });
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new ApiError(`Runner preparation failed. The runner choice was not changed. ${error.trim()}`, 503));
+    });
+  });
 }
 
 function metroCommand(deps: SessionDeps, home: string): string[] {
-  if (runnerInUse(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
-  return [...metroCli(['claude'], deps.metro), ...continueArgs(home, claudeDir(), deps.continues)];
+  if (harnessRunner(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
+  return [...metroCli(['claude'], deps.metro), ...continueArgs(home, claudeDir(), deps.agents)];
 }
 
 function credentialReady(deps: SessionDeps): string | null {
@@ -163,7 +183,7 @@ function credentialReady(deps: SessionDeps): string | null {
   try {
     const cfg = readModelConfig(deps.agents ?? agentsDir());
     const conn = routedConnection(cfg);
-    if (conn !== null && conn.provider !== 'anthropic' && notReady(cfg) === null) return null;
+    if (conn !== null && notReady(cfg) === null && (conn.provider !== 'anthropic' || conn.apiKey !== '')) return null;
   } catch (err) {
     return `the Model page is not readable (${errMsg(err)})`;
   }
@@ -178,7 +198,12 @@ const ROOT_REFUSED = 'Metro runs as root; reinstall it as the metro user';
 export function sessionBlocked(deps: SessionDeps = {}): string | null {
   if (runningAsRoot()) return ROOT_REFUSED;
   const agents = deps.agents ?? agentsDir();
+  if (harnessRunner(agents) === 'sdk' && !sdkAllowed(agents)) return SDK_NEEDS_KEY;
   if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
+  return launchBlocked(deps);
+}
+
+function launchBlocked(deps: SessionDeps): string | null {
   if (agentUserMissing(deps))
     return 'Claude Code runs as the user agent here, and that user is not ready yet; see the log';
   if (deps.metro === undefined && !claudeInstalled()) return 'Claude Code is not installed on this machine';
@@ -223,18 +248,29 @@ function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?
     return;
   }
   memory.lastError = null;
-  writeState(deps.agents ?? agentsDir(), { version: deps.version ?? METRO_VERSION });
+  const agents = deps.agents ?? agentsDir();
+  writeState(agents, { version: deps.version ?? METRO_VERSION, runner: harnessRunner(agents) });
   confirmChannels(tmux, now + CONFIRM_WAIT_MS);
 }
 
+function tmuxLaunch(deps: SessionDeps, tmux: string, args: string[]): [string, string[]] {
+  const launch = asAgent(tmux, args);
+  return deps.tmux === undefined && !tmuxServerUp(tmux) ? inSessionScope(launch) : launch;
+}
+
 export function startSession(deps: SessionDeps = {}): SessionStatus {
+  if (changing) throw new ApiError('A runner change is being prepared. Start the session after it finishes.', 409);
+  const status = sessionStatus(deps);
+  if (status.running) return status;
+  if (status.blocked !== null) throw new ApiError(`Cannot start the session: ${status.blocked}`, 409);
+  syncAgentView(undefined, deps.agents);
   const tmux = deps.tmux ?? 'tmux';
-  const home = deps.home ?? claudeHome() ?? homedir();
+  const home = sessionHome(deps);
   const now = (deps.now ?? Date.now)();
   const trusted = trustFolder(home);
   const [command = 'metro', ...args] = metroCommand(deps, home);
   const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
-  const launch = deps.tmux === undefined && !tmuxServerUp(tmux) ? inSessionScope(asAgent(tmux, tmuxArgs)) : asAgent(tmux, tmuxArgs);
+  const launch = tmuxLaunch(deps, tmux, tmuxArgs);
   const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: '/' });
   recordStart(deps, tmux, now, run);
   if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
@@ -243,13 +279,21 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
 
 export function stopSession(deps: SessionDeps = {}): SessionStatus {
   spawnSync(...asAgent(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME]), { stdio: 'ignore' });
+  stopSdkRunner(sessionHome(deps));
   return sessionStatus(deps);
 }
 
+export const sessionLive = (deps: SessionDeps = {}): boolean =>
+  sessionRunning(deps.tmux ?? 'tmux') || sdkAlive(readAgentActivity(sessionHome(deps)));
+
 export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
+  const activity = readAgentActivity(sessionHome(deps));
+  const sdk = sdkAlive(activity);
   return {
     name: SESSION_NAME,
-    running: sessionRunning(deps.tmux ?? 'tmux'),
+    running: sessionRunning(deps.tmux ?? 'tmux') || sdk,
+    runner: sdk ? 'sdk' : sessionRunner(deps),
+    activity,
     autostart: autostartEnabled(deps.agents ?? agentsDir()),
     blocked: sessionBlocked(deps),
     lastStartedAt: memory.lastStartedAt === null ? null : new Date(memory.lastStartedAt).toISOString(),
@@ -297,8 +341,9 @@ function situation(r: Resolved): 'running' | 'stale' | 'absent' {
 export function ensureSession(deps: SessionDeps = {}): Ensured {
   const r = resolved(deps);
   if (!autostartEnabled(r.agents)) return 'off';
+  if (changing) return 'blocked';
   const found = situation(r);
-  if (found === 'running') return 'running';
+  if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
   const held = holdsBack(deps, r.now);
   if (held !== null) return held;
   if (found === 'stale') {
@@ -315,10 +360,6 @@ export function watchSession(deps: SessionDeps = {}, everyMs = WATCH_MS): void {
   if (watcher !== null) return;
   const tick = (): void => {
     try {
-      if (settleRunner(deps.agents ?? agentsDir())) {
-        stopSession(deps);
-        return;
-      }
       const outcome = ensureSession(deps);
       if (outcome === 'started' || outcome === 'restarted') log.info({ outcome }, 'claude-session: Claude Code is up');
     } catch (err) {

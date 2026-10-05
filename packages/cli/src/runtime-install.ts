@@ -99,6 +99,7 @@ export function installDependencies(
   const wanted = packageText(deps);
   const marker = join(store, 'node_modules', '.metro-installed');
   if (existsSync(marker) && readOrNull(join(store, 'package.json')) === wanted) return false;
+  rmSync(marker, { force: true });
   writeFileSync(join(store, 'package.json'), wanted);
   log(`Installing the channel SDKs this machine needs into ${store}`);
   const run = spawnSync(bun, ['install', '--no-summary', '--no-progress'], {

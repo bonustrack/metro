@@ -20,6 +20,7 @@
     "sdk-runner-check": "bun scripts/sdk-runner/run.ts",
     "sdk-runner-long": "bun scripts/sdk-runner/long.ts",
     "sdk-runner-model": "bun scripts/sdk-runner/model.ts",
+    "sdk-runner-activity": "bun scripts/sdk-runner/activity.ts",
     "metro-user-check": "bash scripts/metro-user/run.sh",
     "secret-modes": "bash scripts/secret-modes.sh",
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"

@@ -25,6 +25,7 @@ export interface ModelApiDeps {
   bedrockControlBase?: string;
   setup?: SetupDeps;
   restartSession?: () => boolean;
+  sessionRunning?: () => boolean;
   switchModel?: (model: string | null) => boolean;
   claudeUsage?: (env?: Record<string, string>) => Promise<unknown>;
   claudeLoginsRoot?: string;

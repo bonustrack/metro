@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
-import { readJson, writeAtomic } from '@metro-labs/core/secure-fs';
+import { writeAtomic } from '@metro-labs/core/secure-fs';
 import type { Unanswered } from './inbox.js';
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -15,6 +15,19 @@ interface Stored {
 
 const entry = (raw: unknown): Unanswered | null =>
   isRecord(raw) && typeof raw.text === 'string' && typeof raw.at === 'number' ? { text: raw.text, at: raw.at } : null;
+
+const UNREADABLE = 'The saved Agent SDK state cannot be read. Restore it before starting.';
+
+function stored(raw: unknown): Stored {
+  if (!isRecord(raw)) throw new Error(UNREADABLE);
+  const id = raw.sessionId ?? null;
+  if (id !== null && (typeof id !== 'string' || !SESSION_ID.test(id))) throw new Error(UNREADABLE);
+  const list = raw.unanswered === undefined ? [] : raw.unanswered;
+  if (!Array.isArray(list)) throw new Error(UNREADABLE);
+  const unanswered = list.map(entry);
+  if (!unanswered.every((e): e is Unanswered => e !== null)) throw new Error(UNREADABLE);
+  return { sessionId: id, unanswered };
+}
 
 export class SessionStore {
   constructor(
@@ -44,11 +57,12 @@ export class SessionStore {
   }
 
   private read(): Stored {
-    const raw = readJson<unknown>(this.path, null);
-    if (!isRecord(raw)) return { sessionId: null, unanswered: [] };
-    const id = typeof raw.sessionId === 'string' && SESSION_ID.test(raw.sessionId) ? raw.sessionId : null;
-    const list = Array.isArray(raw.unanswered) ? raw.unanswered.map(entry).filter((e): e is Unanswered => e !== null) : [];
-    return { sessionId: id, unanswered: list };
+    try {
+      return stored(JSON.parse(readFileSync(this.path, 'utf8')));
+    } catch (err) {
+      if (isRecord(err) && err.code === 'ENOENT') return { sessionId: null, unanswered: [] };
+      throw new Error(UNREADABLE);
+    }
   }
 
   private write(stored: Stored): void {

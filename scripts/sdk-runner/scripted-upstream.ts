@@ -114,7 +114,9 @@ function serve(req: IncomingMessage, res: ServerResponse, raw: Buffer, state: St
     return;
   }
   state.seen.push({ t: Date.now() - state.t0, model, worker, efforts: effortsOf(body) });
-  stream(res, model, blocks);
+  const delay = worker ? Number(process.env.SDK_RUNNER_WORKER_DELAY_MS ?? 0) : 0;
+  if (delay > 0) setTimeout(() => { stream(res, model, blocks); }, delay);
+  else stream(res, model, blocks);
 }
 
 export function startScripted(port: number): Promise<ScriptedUpstream> {

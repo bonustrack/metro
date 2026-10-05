@@ -9,6 +9,7 @@ import {
   liveBackground,
   processAlive,
   projectDir,
+  resumeSessionId,
   takeBackConversation,
 } from '../src/background.ts';
 
@@ -126,6 +127,27 @@ describe('metro claude takes a held conversation back', () => {
     });
     expect(stopped).toEqual(['329ccd96']);
     expect(note).toContain('stopped that session');
+  });
+
+  test('explicit resume reclaims only its own pinned background conversation, never a newer unrelated one', async () => {
+    expect(resumeSessionId(['--resume', MAIN])).toBe(MAIN);
+    expect(resumeSessionId(['-r', MAIN])).toBe(MAIN);
+    expect(resumeSessionId(['--resume'])).toBeUndefined();
+    expect(resumeSessionId(['--resume', '../other'])).toBeUndefined();
+    transcript(MAIN, [turn(MAIN), handoff(MAIN, MOVED)], 1_000);
+    transcript(OTHER, [turn(OTHER)], 3_000);
+    register(101, MOVED, 'bg');
+    register(102, OTHER, 'bg');
+    let running = true;
+    const stopped: string[] = [];
+    const note = await takeBackConversation({
+      env: env(), cwd: '/home/agent', sessionId: MAIN,
+      alive: (pid) => pid === 102 || running,
+      stop: (id) => { stopped.push(id); running = false; return { ok: true, detail: '' }; },
+    });
+    expect(note).toContain('stopped that session');
+    expect(stopped).toEqual([MOVED.slice(0, 8)]);
+    expect(await takeBackConversation({ env: env(), cwd: '/home/agent', sessionId: MAIN, alive: (pid) => pid === 102 })).toBeNull();
   });
 
   test('a stop that fails is reported with what to run by hand', async () => {

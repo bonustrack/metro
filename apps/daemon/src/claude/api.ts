@@ -24,6 +24,7 @@ import {
 import { claudeLoginTarget, type ClaudeLoginDeps } from '../gateway/claude-logins.js';
 import { setupAnswer, type SetupApiDeps } from './setup-api.js';
 import {
+  autostartEnabled,
   ensureSession,
   sessionStatus,
   setAutostart,
@@ -139,12 +140,17 @@ const VERSION = 'version';
 function sessionCommand(body: Record<string, unknown>, session: SessionDeps): unknown {
   if (body.action === 'start') {
     const status = sessionStatus(session);
-    if (status.running) return status;
-    if (status.blocked !== null) throw new ApiError(`cannot start a Claude session: ${status.blocked}`, 409);
-    return startSession(session);
+    if (!status.running && status.blocked !== null) throw new ApiError(`cannot start a Claude session: ${status.blocked}`, 409);
+    const started = status.running ? status : startSession(session);
+    setAutostart(typeof body.autostart === 'boolean' ? body.autostart : true, session.agents);
+    return { ...started, autostart: autostartEnabled(session.agents) };
   }
-  if (body.action === 'stop') return stopSession(session);
+  if (body.action === 'stop') {
+    setAutostart(false, session.agents);
+    return stopSession(session);
+  }
   if (body.action !== undefined) throw new ApiError('action must be start or stop', 400);
+  if (typeof body.autostart === 'boolean') setAutostart(body.autostart, session.agents);
   if (body.autostart === true) ensureSession(session);
   return sessionStatus(session);
 }
@@ -156,7 +162,6 @@ async function sessionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise
   if (method !== 'POST') throw new ApiError('method not allowed', 405);
   const body = await readJsonBody(req);
   if (!isRecord(body)) throw new ApiError('a body is required', 400);
-  if (typeof body.autostart === 'boolean') setAutostart(body.autostart, session.agents);
   return sessionCommand(body, session);
 }
 

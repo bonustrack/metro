@@ -779,7 +779,7 @@ describe('the Agent SDK session follows the Model page live', () => {
     }
   });
 
-  test('fallback models are routed by the gateway, so a keyed list neither switches nor restarts the session, and a fallback without an API key stops it at once', async () => {
+  test('a running SDK rejects an unpermitted fallback before saving; stopped it stays selected but blocked, without a restart', async () => {
     const told: (string | null)[] = [];
     modelDeps.switchModel = (model) => {
       told.push(model);
@@ -801,31 +801,47 @@ describe('the Agent SDK session follows the Model page live', () => {
       const login = await add({ provider: 'anthropic' });
       expect(await fallbacks([{ connection: keyed, model: 'claude-opus-5-5' }])).toBe(200);
       expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 0 });
-      expect(await fallbacks([{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }])).toBe(200);
-      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 1 });
+      const unpermitted = [{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }];
+      modelDeps.sessionRunning = () => true;
+      expect(await fallbacks(unpermitted)).toBe(409);
+      expect(stored.fallbacks).toEqual([{ connection: keyed, model: 'claude-opus-5-5' }]);
+      modelDeps.sessionRunning = () => false;
+      expect(await fallbacks(unpermitted)).toBe(200);
+      expect(JSON.parse(readFileSync(setupFile(), 'utf8'))).toMatchObject({ runner: 'sdk' });
+      modelDeps.sessionRunning = () => true;
+      expect(await fallbacks(unpermitted)).toBe(200);
+      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 0 });
     } finally {
       modelDeps.switchModel = undefined;
+      modelDeps.sessionRunning = undefined;
       rmSync(setupFile(), { force: true });
     }
   });
 
-  test('a session that cannot be told restarts on the new model, and the Claude Code session keeps restarting as before', async () => {
+  test('an SDK session that cannot be told is never killed; incompatible route and key changes are refused while it runs', async () => {
     modelDeps.switchModel = () => false;
+    modelDeps.sessionRunning = () => false;
     runnerIs('sdk');
     try {
       const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
-      expect(restarts).toBe(1);
-      await conns('PUT', `/${one}`, { model: 'c/d' });
-      expect(restarts).toBe(2);
+      modelDeps.sessionRunning = () => true;
+      const before = structuredClone(stored);
+      const refused = await conns('PUT', `/${one}`, { model: 'c/d' });
+      expect(refused.status).toBe(409);
+      expect(await refused.text()).toContain('Nothing was saved');
+      expect(stored).toEqual(before);
+      expect(restarts).toBe(0);
+      const keyless = await add({ provider: 'anthropic', model: 'claude-opus-5-5' });
+      expect((await call('PUT', OWNER, { route: keyless })).status).toBe(409);
+      expect(stored.route).toBe(one);
+      expect((await conns('PUT', `/${one}`, { apiKey: '' })).status).toBe(409);
+      expect(stored.connections.find((c) => c.id === one)?.apiKey).toBe('or-key');
       runnerIs('cli');
       await conns('PUT', `/${one}`, { model: 'e/f' });
-      expect(restarts).toBe(3);
-      const keyless = await add({ provider: 'anthropic', model: 'claude-opus-5-5' });
-      runnerIs('sdk');
-      await call('PUT', OWNER, { route: keyless });
-      expect(restarts).toBe(4);
+      expect(restarts).toBe(1);
     } finally {
       modelDeps.switchModel = undefined;
+      modelDeps.sessionRunning = undefined;
       rmSync(setupFile(), { force: true });
     }
   });
