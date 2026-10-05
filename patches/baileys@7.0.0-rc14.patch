@@ -1,0 +1,31 @@
+diff --git a/lib/Types/Events.d.ts b/lib/Types/Events.d.ts
+index f55c4c325b08b8c25dc9d17032514ce5c80ad3fd..930cb143e813b9a656533ae765f9db70f6eb7ccd 100644
+--- a/lib/Types/Events.d.ts
++++ b/lib/Types/Events.d.ts
+@@ -46,6 +46,10 @@ export type BaileysEventMap = {
+     'lid-mapping.update': LIDMapping;
+     /** delete chats with given ID */
+     'chats.delete': string[];
++    'chats.clear': {
++        id: string;
++        messageRange?: proto.SyncActionValue.ISyncActionMessageRange | null;
++    };
+     /** presence of contact in a chat updated */
+     'presence.update': {
+         id: string;
+diff --git a/lib/Utils/chat-utils.js b/lib/Utils/chat-utils.js
+index c30265d36671bacd25a8c456cafedcd9fc2fdd9a..2be37df069eda49c546eac1eb3485e649432dbeb 100644
+--- a/lib/Utils/chat-utils.js
++++ b/lib/Utils/chat-utils.js
+@@ -763,7 +763,11 @@ export const processSyncAction = (syncAction, ev, me, initialSyncOpts, logger) =
+             }
+         ]);
+     }
++    else if (action?.clearChatAction || type === 'clearChat') {
++        ev.emit('chats.clear', { id, messageRange: action?.clearChatAction?.messageRange });
++    }
+     else if (action?.deleteChatAction || type === 'deleteChat') {
++        ev.emit('chats.clear', { id, messageRange: action?.deleteChatAction?.messageRange });
+         if (!isInitialSync) {
+             ev.emit('chats.delete', [id]);
+         }

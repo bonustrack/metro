@@ -1,6 +1,6 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { TrainError } from '@metro-labs/core/train-error';
-import type { WAMessage, WAMessageUpdate } from 'baileys';
+import type { proto, WAMessage, WAMessageUpdate } from 'baileys';
 import { HistoryEvents } from './history-events.js';
 import { HistoryState } from './history-state.js';
 import {
@@ -37,7 +37,7 @@ function boundedPage(result: HistoryPage, rows: StoredRow[], limit: number): His
     const message = shown(row);
     const added = Buffer.byteLength(JSON.stringify(message)) + 1;
     const cursor = Buffer.byteLength(JSON.stringify({ count: result.messages.length + 1, hasMore: true, nextBefore: message.messageId }));
-    if (bytes + added + cursor > HISTORY_LIMITS.pageBytes) break;
+    if (bytes + added + cursor > HISTORY_LIMITS.pageBytes - 128 * 1024) break;
     result.messages.push(message);
     bytes += added;
   }
@@ -49,7 +49,7 @@ function boundedPage(result: HistoryPage, rows: StoredRow[], limit: number): His
 
 function page(state: HistoryState, jid: string, options: HistoryOptions): HistoryPage {
   const { limit, since } = readBounds(options);
-  const rows = [...state.rows.values()].filter((row) => row.key.remoteJid === jid).sort(newestFirst);
+  const rows = [...state.rows.values()].filter((row) => state.same(row.key.remoteJid ?? '', jid)).sort(newestFirst);
   const before = options.before === undefined ? -1 : rows.findIndex((row) => row.key.id === options.before);
   if (options.before !== undefined && before < 0)
     throw new TrainError('whatsapp_history_cursor', 'The before message is not retained in this chat. Read without before to restart local pagination.');
@@ -58,7 +58,7 @@ function page(state: HistoryState, jid: string, options: HistoryOptions): Histor
     messages: [], count: 0, hasMore: false,
     coverage: {
       partial: true, source: 'local',
-      description: 'Only locally observed or synced messages and successful sends. Gaps remain; no older backfill or media downloads. View-once and unknown-expiry content is omitted. before is exclusive; since is inclusive. Pages stop at row or serialized-byte limits. hasMore describes retained local matches only.',
+      description: 'Only locally observed or synced messages and successful sends with known expiry state. Own sends with unknown expiry are omitted until observed or synced. Gaps remain; no older backfill or media downloads. View-once and unknown-expiry content is omitted. before is exclusive; since is inclusive. Pages reserve output-formatting overhead within the serialized-byte limit. hasMore describes retained local matches only.',
       oldest: rowTime(rows.at(-1)), newest: rowTime(rows[0]),
       retained: rows.length, retainedAfter: new Date(state.after(jid)).toISOString(), limits: HISTORY_LIMITS,
     },
@@ -107,17 +107,45 @@ class LocalHistory implements History {
   read(jid: string, options: HistoryOptions = {}): HistoryPage {
     this.assertOpen();
     this.changed(Date.now());
+    this.state.assertReadable(jid);
     return page(this.state, jid, options);
   }
 
   ingest(messages: readonly WAMessage[], selfJid?: string): void {
+    this.ingestAll(messages, selfJid);
+  }
+
+  ingestSent(messages: readonly WAMessage[], selfJid?: string, ephemeralExpiration?: number): void {
+    this.ingestAll(messages, selfJid, { expiration: ephemeralExpiration });
+  }
+
+  private ingestAll(messages: readonly WAMessage[], selfJid?: string, sent?: { expiration?: number }): void {
     this.assertOpen();
     const now = Date.now();
     for (const [index, message] of messages.entries()) {
-      this.events.ingest(message, now, selfJid);
+      this.events.ingest(message, now, selfJid, sent);
       if (index % 128 === 127) this.state.prune(now);
     }
     this.changed(now);
+  }
+
+  alias(pn: string, lid: string): void {
+    this.assertOpen();
+    const now = Date.now();
+    this.state.alias(pn, lid, now);
+    this.changed(now);
+  }
+
+  clearRange(jid: string, range?: proto.SyncActionValue.ISyncActionMessageRange | null): void {
+    this.assertOpen();
+    const now = Date.now();
+    this.state.clearRange(jid, range ?? {}, now);
+    this.changed(now);
+  }
+
+  invalidate(): void {
+    this.assertOpen();
+    this.state.invalidate(Date.now());
   }
 
   update(updates: readonly WAMessageUpdate[], selfJid?: string): void {

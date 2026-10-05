@@ -128,6 +128,41 @@ describe('WhatsApp read and roster handlers', () => {
     expect(await call('read', { line: LINE })).toMatchObject({ result: { messages: [{ id: 'long', truncated: true }] } });
   });
 
+  test('bounds the final formatted response and paginates escaped text without loss', async () => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    history.ingest(Array.from({ length: 70 }, (_, index) => ({
+      key: { remoteJid: JID, id: `escaped-${index}`, participant: `${'1'.repeat(240)}@lid` },
+      messageTimestamp: timestamp,
+      message: { documentMessage: {
+        caption: '\u0001'.repeat(16 * 1024), mimetype: 'application/pdf',
+        fileName: '\u0002'.repeat(256), fileLength: 123,
+      } },
+    })));
+    const seen = new Set<string>();
+    let before: string | undefined;
+    for (let page = 0; page < 70; page++) {
+      const response = await call('read', { line: LINE, limit: 100, before });
+      if (typeof response !== 'object' || response === null || !('result' in response))
+        throw new Error('Missing history response');
+      expect(Buffer.byteLength(JSON.stringify(response.result, null, 2))).toBeLessThanOrEqual(2 * 1024 * 1024);
+      const result = response.result;
+      if (typeof result !== 'object' || result === null || !('messages' in result) || !Array.isArray(result.messages))
+        throw new Error('Missing history messages');
+      expect(result.messages.length).toBeGreaterThan(0);
+      for (const message of result.messages) {
+        if (typeof message !== 'object' || message === null || !('id' in message) || typeof message.id !== 'string')
+          throw new Error('Missing history message ID');
+        expect(seen.has(message.id)).toBe(false);
+        seen.add(message.id);
+      }
+      if (!('hasMore' in result) || !result.hasMore) break;
+      if (!('nextBefore' in result) || typeof result.nextBefore !== 'string')
+        throw new Error('Missing history continuation');
+      before = result.nextBefore;
+    }
+    expect(seen.size).toBe(70);
+  });
+
   test('read refuses bad targets and invalid cursors rather than silently starting over', async () => {
     expect(await call('read', { line: 'metro://telegram/fixture/123' })).toMatchObject({ error: expect.stringContaining('bad line') });
     expect(await call('read', { account: 'fixture' })).toMatchObject({ error: expect.stringContaining('missing line') });

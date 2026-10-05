@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { localStations } from './local.js';
 import { STORE_ENTRY, daemonEntry, findBun, runtimeDir } from './runtime.js';
 
@@ -13,6 +13,7 @@ const INSTALL_TIMEOUT_MS = 15 * 60_000;
 export interface RuntimeManifest {
   core: Record<string, string>;
   stations: Record<string, Record<string, string>>;
+  patchedDependencies?: Record<string, string>;
 }
 
 export interface PreparedRuntime {
@@ -49,6 +50,7 @@ export function readManifest(path: string): RuntimeManifest {
   return {
     core: ranges(raw.core),
     stations: Object.fromEntries(Object.entries(stations).map(([name, deps]) => [name, ranges(deps)])),
+    ...(raw.patchedDependencies === undefined ? {} : { patchedDependencies: ranges(raw.patchedDependencies) }),
   };
 }
 
@@ -58,8 +60,21 @@ export function dependenciesFor(manifest: RuntimeManifest, stations: Iterable<st
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 }
 
-const packageText = (deps: Record<string, string>): string =>
-  `${JSON.stringify({ name: 'metro-runtime', private: true, dependencies: deps }, null, 2)}\n`;
+function packageText(deps: Record<string, string>, patches: Record<string, string>): string {
+  const patchedDependencies = Object.fromEntries(
+    Object.entries(deps).flatMap(([name, version]) => {
+      const key = `${name}@${version}`;
+      const path = patches[key];
+      return path === undefined ? [] : [[key, path]];
+    }),
+  );
+  return `${JSON.stringify({
+    name: 'metro-runtime',
+    private: true,
+    dependencies: deps,
+    ...(Object.keys(patchedDependencies).length === 0 ? {} : { patchedDependencies }),
+  }, null, 2)}\n`;
+}
 
 export function readOrNull(path: string): string | null {
   try {
@@ -95,8 +110,9 @@ export function installDependencies(
   deps: Record<string, string>,
   bun: string,
   log: (line: string) => void,
+  patches: Record<string, string> = {},
 ): boolean {
-  const wanted = packageText(deps);
+  const wanted = packageText(deps, patches);
   const marker = join(store, 'node_modules', '.metro-installed');
   if (existsSync(marker) && readOrNull(join(store, 'package.json')) === wanted) return false;
   rmSync(marker, { force: true });
@@ -125,11 +141,16 @@ export function prepareRuntime(opts: PrepareOptions = {}): PreparedRuntime {
     });
   mkdirSync(join(store, 'trains'), { recursive: true });
   syncSources(sources, store);
+  for (const path of Object.values(manifest.patchedDependencies ?? {})) {
+    mkdirSync(dirname(join(store, path)), { recursive: true });
+    copyFileSync(join(sources, path), join(store, path));
+  }
   installDependencies(
     store,
     dependenciesFor(manifest, localStations(opts.agents)),
     opts.bun ?? findBun(),
     log,
+    manifest.patchedDependencies,
   );
   return { dir: store, entry: daemonEntry(store), trains: join(store, 'trains'), manifest: manifestPath };
 }

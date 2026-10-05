@@ -1,4 +1,4 @@
-import { errMsg } from '../log.js';
+import { errMsg, logFatalSync } from '../log.js';
 import { readCalls } from '../protocol.js';
 import { TrainError } from '../train-error.js';
 import type { CallMsg } from './station-runtime.js';
@@ -18,12 +18,33 @@ export interface ClientTrain<A extends { id: string }, C> {
   loadAccounts: () => A[];
   createClient: (account: A) => C;
   startInbound: (client: C) => Promise<void>;
+  disconnectClient?: (client: C) => Promise<void>;
   makeHandleCall: (clientFor: (accountId: string) => C) => (msg: CallMsg) => Promise<void>;
 }
 
 export function runClientTrain<A extends { id: string }, C>(train: ClientTrain<A, C>): void {
   const clients = new Map<string, C>();
+  let stopping = false;
+  if (train.disconnectClient) {
+    const disconnect = train.disconnectClient;
+    const shutdown = (): void => {
+      if (stopping) return;
+      stopping = true;
+      process.stdin.pause();
+      Promise.allSettled([...clients.values()].map(async (client) => { await disconnect(client); })).then((results) => {
+        const errors = results.flatMap((result) => result.status === 'rejected' ? [errMsg(result.reason)] : []);
+        if (errors.length) logFatalSync({ station: train.station, errors }, 'train: shutdown failed');
+        process.exit(errors.length ? 1 : 0);
+      }).catch((err: unknown) => {
+        logFatalSync({ station: train.station, err: errMsg(err) }, 'train: shutdown failed');
+        process.exit(1);
+      });
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+  }
   const clientFor = (accountId: string): C => {
+    if (stopping) throw new TrainError('train_stopping', `${train.station} is shutting down`);
     const known = clients.get(accountId);
     if (known !== undefined) return known;
     const account = train.accounts.get(accountId);

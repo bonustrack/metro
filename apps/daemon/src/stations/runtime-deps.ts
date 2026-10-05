@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -11,6 +11,7 @@ const INSTALL_TIMEOUT_MS = 15 * 60_000;
 export interface RuntimeManifest {
   core: Record<string, string>;
   stations: Record<string, Record<string, string>>;
+  patchedDependencies?: Record<string, string>;
 }
 
 export interface RuntimeStore {
@@ -30,6 +31,7 @@ export function readManifest(path: string): RuntimeManifest {
   return {
     core: ranges(raw.core),
     stations: Object.fromEntries(Object.entries(stations).map(([name, deps]) => [name, ranges(deps)])),
+    ...(raw.patchedDependencies === undefined ? {} : { patchedDependencies: ranges(raw.patchedDependencies) }),
   };
 }
 
@@ -46,8 +48,21 @@ export function dependenciesFor(manifest: RuntimeManifest, stations: Iterable<st
   return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 }
 
-const packageText = (deps: Record<string, string>): string =>
-  `${JSON.stringify({ name: 'metro-runtime', private: true, dependencies: deps }, null, 2)}\n`;
+function packageText(deps: Record<string, string>, patches: Record<string, string>): string {
+  const patchedDependencies = Object.fromEntries(
+    Object.entries(deps).flatMap(([name, version]) => {
+      const key = `${name}@${version}`;
+      const path = patches[key];
+      return path === undefined ? [] : [[key, path]];
+    }),
+  );
+  return `${JSON.stringify({
+    name: 'metro-runtime',
+    private: true,
+    dependencies: deps,
+    ...(Object.keys(patchedDependencies).length === 0 ? {} : { patchedDependencies }),
+  }, null, 2)}\n`;
+}
 
 function current(dir: string): string | null {
   try {
@@ -58,9 +73,10 @@ function current(dir: string): string | null {
 }
 
 export function installRuntime(store: RuntimeStore, stations: Iterable<string>): boolean {
-  const wanted = packageText(dependenciesFor(store.manifest, stations));
-  const installed = existsSync(join(store.dir, 'node_modules', '.metro-installed'));
-  if (installed && current(store.dir) === wanted) return false;
+  const wanted = packageText(dependenciesFor(store.manifest, stations), store.manifest.patchedDependencies ?? {});
+  const marker = join(store.dir, 'node_modules', '.metro-installed');
+  if (existsSync(marker) && current(store.dir) === wanted) return false;
+  rmSync(marker, { force: true });
   mkdirSync(store.dir, { recursive: true });
   writeFileSync(join(store.dir, 'package.json'), wanted);
   log.info({ dir: store.dir }, 'runtime: installing the channel SDKs this machine needs');
@@ -71,7 +87,7 @@ export function installRuntime(store: RuntimeStore, stations: Iterable<string>):
   });
   if (run.error !== undefined || run.status !== 0)
     throw new Error(`bun install failed in ${store.dir}: ${run.error?.message ?? `exit ${String(run.status)}`}`);
-  writeFileSync(join(store.dir, 'node_modules', '.metro-installed'), `${new Date().toISOString()}\n`);
+  writeFileSync(marker, `${new Date().toISOString()}\n`);
   return true;
 }
 

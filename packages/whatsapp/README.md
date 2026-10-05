@@ -17,11 +17,15 @@ inclusive timestamp). An unknown or expired cursor is an error. Advanced filters
 are reported as ignored by the daemon. Account-wide reads are not supported.
 
 History contains text, captions and attachment metadata from messages observed or
-synced to this installation, including its own sends. It does not download historical
-attachments or replay history into the agent. Every result reports partial coverage
-and the retained range and limits. Empty results never prove the conversation is empty.
-This is not arbitrary server-side search or an automatic request for older history.
-A stored outgoing message is not proof of recipient delivery or reading.
+synced to this installation. Own sends are retained after the existing send verdict
+accepts them, only when their disappearing-message expiry is known. Unknown expiry
+means omitted history, not a failed send. It does not download historical attachments
+or replay history into the agent. Every result reports partial coverage and the retained
+range and limits. Empty results never prove the conversation is empty. This is not
+arbitrary server-side search or an automatic request for older history.
+A stored outgoing message is not proof of recipient delivery or reading. Group sends
+snapshot the current group timer. Direct-chat sends use explicit timer metadata
+observed on the current connection; missing metadata does not mean the timer is off.
 
 Local history is stored in `whatsapp-history-<account>.json`, mode 0600, under
 `WHATSAPP_TOKEN_DIR` or `~/.metro`. It retains at most 30 days, 5,000 messages per
@@ -29,9 +33,13 @@ account, 500 per conversation and 8 MiB per file. Text is capped at 16 KiB per
 message and reports truncation. A read returns at most 100 messages within a 2 MiB
 serialized page budget; `nextBefore` continues a page stopped by either limit.
 Expired and deleted content is removed; replay protection prevents old syncs from
-restoring it. View-once messages and disappearing content with an unknown expiry
-are not retained. Detaching an account removes its history and known atomic temporary
-files. Startup removes orphaned history files and this account's stale atomic files.
+restoring it. If a phone-side chat clear has no usable message range, reads of that
+conversation are refused rather than guessing which messages were cleared. Other
+conversations and newer stored rows are not deleted by that unknown range.
+View-once messages and disappearing content with an unknown expiry are not retained.
+Detaching an account removes its history and known atomic temporary files. Startup
+removes orphaned history files and this account's stale atomic files. On SIGTERM or
+SIGINT, the train stops accepting work and flushes history before awaiting socket close.
 
 `list_members` reads the current group metadata for a `@g.us` line. Original member
 IDs, phone and LID aliases and admin roles are preserved. A limited roster, a mismatch
@@ -40,6 +48,14 @@ return an unsupported capability. This adds no group-write operations.
 
 Both tools use the existing account scope and owner read policy. Receive Off still
 only stops live inbound delivery; it does not disable the account's tools.
+
+History requires the patched WhatsApp dependency shipped with the CLI. A long-lived
+`metro serve` parent from an older CLI can keep its old dependency installer after
+Update. Restart the parent service after updating; restarting only the daemon child
+is not enough. When deletion support is absent, history reads report unavailable,
+retention is disabled, and existing history is invalidated so missed phone-side clears
+cannot expose stale content later. Live messaging, sends and group-member lookup
+remain available.
 
 ## Persistence
 

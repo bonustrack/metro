@@ -90,7 +90,7 @@ describe('WhatsApp message retention without historical replay', () => {
     expect(history.read(JID).messages).toHaveLength(3);
   });
 
-  test('message deletions, revokes and chat deletion remove stored content', () => {
+  test('message deletions, revokes and ranged clears remove only matching stored content', () => {
     const f = fixture();
     const first = message('first');
     const second = message('second');
@@ -99,8 +99,45 @@ describe('WhatsApp message retention without historical replay', () => {
     f.ev.emit('messages.update', [{ key: second.key, update: { message: null } }]);
     expect(history.read(JID).messages.map((m) => m.messageId)).toEqual(['third']);
     f.ev.emit('chats.delete', [JID]);
+    expect(history.read(JID).messages.map((m) => m.messageId)).toEqual(['third']);
+    f.ev.emit('chats.clear', { id: JID, messageRange: { lastMessageTimestamp: Math.floor(Date.now() / 1000) } });
     expect(history.read(JID).messages).toEqual([]);
     expect(f.incoming).toEqual([]);
+  });
+
+  test('authoritative contacts and SDK mappings link history without replacing original keys', () => {
+    const f = fixture();
+    const pairs = [
+      { pn: '111@s.whatsapp.net', lid: '111@lid' },
+      { pn: '222@s.whatsapp.net', lid: '222@lid' },
+      { pn: '333@s.whatsapp.net', lid: '333@lid' },
+      { pn: '444@s.whatsapp.net', lid: '444@lid' },
+    ] as const;
+    const messages = pairs.map(({ lid }, i) => ({ ...message(`alias-${i}`), key: { id: `alias-${i}`, remoteJid: lid, fromMe: false } }));
+    f.ev.emit('messages.upsert', { messages, type: 'append' });
+    f.ev.emit('contacts.upsert', [{ id: pairs[0].pn, lid: pairs[0].lid, name: 'First' }]);
+    f.ev.emit('contacts.update', [{ id: pairs[1].lid, phoneNumber: pairs[1].pn }]);
+    f.ev.emit('lid-mapping.update', pairs[2]);
+    f.ev.emit('messaging-history.set', { chats: [], contacts: [], messages: [], lidPnMappings: [pairs[3]] });
+    for (const [i, { pn, lid }] of pairs.entries()) {
+      expect(history.read(pn).messages).toHaveLength(1);
+      expect(history.read(pn).messages[0]?.key).toEqual({ id: `alias-${i}`, remoteJid: lid, fromMe: false });
+    }
+    expect(f.incoming).toEqual([]);
+  });
+
+  test('stale contact and mapping events cannot introduce history aliases', () => {
+    const f = fixture();
+    const pn = '111@s.whatsapp.net';
+    const lid = '111@lid';
+    f.ev.emit('messages.upsert', { messages: [{ ...message('kept'), key: { id: 'kept', remoteJid: lid, fromMe: false } }], type: 'append' });
+    f.retire();
+    f.ev.emit('contacts.upsert', [{ id: pn, lid }]);
+    f.ev.emit('contacts.update', [{ id: lid, phoneNumber: pn }]);
+    f.ev.emit('lid-mapping.update', { pn, lid });
+    f.ev.emit('messaging-history.set', { chats: [], contacts: [], messages: [], lidPnMappings: [{ pn, lid }] });
+    expect(history.read(pn).messages).toEqual([]);
+    expect(history.read(lid).messages.map((m) => m.messageId)).toEqual(['kept']);
   });
 
   test('events from a superseded connection cannot mutate history or emit inbound', () => {
@@ -113,6 +150,7 @@ describe('WhatsApp message retention without historical replay', () => {
     f.ev.emit('messages.delete', { jid: JID, all: true });
     f.ev.emit('messages.update', [{ key: first.key, update: { message: null } }]);
     f.ev.emit('chats.delete', [JID]);
+    f.ev.emit('chats.clear', { id: JID, messageRange: { lastMessageTimestamp: Math.floor(Date.now() / 1000) } });
     expect(history.read(JID).messages.map((m) => m.messageId)).toEqual(['kept']);
     expect(f.incoming).toEqual([]);
   });

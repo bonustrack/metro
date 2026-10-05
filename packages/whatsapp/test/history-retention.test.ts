@@ -97,6 +97,7 @@ test('escaped-text pages stay within serialized byte limits and advance without 
     expect(page.count).toBe(page.messages.length);
     expect(page.count).toBeLessThan(input.length);
     expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(HISTORY_LIMITS.pageBytes);
+    expect(Buffer.byteLength(JSON.stringify(page, null, 2))).toBeLessThanOrEqual(HISTORY_LIMITS.pageBytes);
     expect(page.coverage.limits.pageBytes).toBe(HISTORY_LIMITS.pageBytes);
     expect(page.coverage.partial).toBe(true);
     ids.push(...page.messages.map((row) => row.messageId));
@@ -129,6 +130,39 @@ test('retention age is pruned on ingestion, read, and startup without admitting 
   expect(restored.read(JID).count).toBe(0);
   restored.ingest([message('retained', HISTORY_AGE_MS / 1000 - 1)]);
   expect(restored.read(JID).count).toBe(0);
+});
+
+test('aged-out privacy batches do not create fresh tombstones or erase recent retained rows', () => {
+  const history = open();
+  history.ingest([message('recent')]);
+  const aged = Array.from({ length: HISTORY_LIMITS.tombstones + 1 }, (_, i) => ({
+    ...message(`old-${i}`, HISTORY_AGE_MS / 1000 + 1),
+    ...(i % 2 ? { ephemeralDuration: 1 } : { message: { viewOnceMessage: { message: { imageMessage: { caption: 'secret' } } } } }),
+  }));
+  history.ingest(aged);
+  history.update(aged.map((row) => ({ key: row.key, update: { message: null, messageTimestamp: row.messageTimestamp } })));
+  expect(history.read(JID).messages.map((row) => row.messageId)).toEqual(['recent']);
+  expect(Date.parse(history.read(JID).coverage.retainedAfter)).toBe(NOW - HISTORY_AGE_MS);
+  history.close();
+  const disk: { tombstones: unknown[] } = JSON.parse(readFileSync(historyFiles.path('one'), 'utf8'));
+  expect(disk.tombstones).toEqual([]);
+  const restored = open();
+  restored.ingest(aged.map((row) => ({ ...row, ephemeralDuration: undefined, message: { conversation: 'stripped' } })));
+  expect(restored.read(JID).messages.map((row) => row.messageId)).toEqual(['recent']);
+});
+
+test('privacy omissions already behind a chat floor do not advance the account floor', () => {
+  const history = open();
+  history.clearRange(JID, { lastMessageTimestamp: NOW / 1000 - 30 });
+  history.ingest([message('recent'), message('other', 60, 'other@lid')]);
+  history.ingest(Array.from({ length: HISTORY_LIMITS.tombstones + 1 }, (_, i) => ({
+    ...message(`hidden-${i}`, 60), ephemeralDuration: 1,
+  })));
+  expect(history.read(JID).messages.map((row) => row.messageId)).toEqual(['recent']);
+  expect(history.read('other@lid').count).toBe(1);
+  history.flush();
+  const disk: { tombstones: unknown[] } = JSON.parse(readFileSync(historyFiles.path('one'), 'utf8'));
+  expect(disk.tombstones).toEqual([]);
 });
 
 test('tombstone eviction advances a durable floor so old sync cannot resurrect deleted content', () => {

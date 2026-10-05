@@ -1,4 +1,5 @@
-import { jidNormalizedUser, type WASocket } from 'baileys';
+import { jidNormalizedUser, type Contact, type WASocket } from 'baileys';
+import { bindAppState, noteHistoryContact } from './app-state.js';
 import type { InboundHandlers } from './client-types.js';
 import type { History } from './history.js';
 import type { KeyCache } from './keys.js';
@@ -17,6 +18,14 @@ interface MessageHooks {
 
 export function bindMessages(sock: Pick<WASocket, 'ev' | 'user'>, hooks: MessageHooks): void {
   const selfJid = (): string | undefined => sock.user?.id ? jidNormalizedUser(sock.user.id) : undefined;
+  const noteContacts = (contacts: Partial<Contact>[]): void => {
+    if (!hooks.current()) return;
+    for (const contact of contacts) {
+      noteContact(hooks.names, contact);
+      noteHistoryContact(hooks.history, contact);
+    }
+  };
+  bindAppState(sock.ev, hooks);
   sock.ev.on('messages.upsert', ({ messages, type }) => {
     if (!hooks.current()) return;
     for (const m of messages) hooks.keys.remember(m.key);
@@ -31,15 +40,12 @@ export function bindMessages(sock: Pick<WASocket, 'ev' | 'user'>, hooks: Message
       handlers.onMessage(inbound, m);
     }
   });
-  sock.ev.on('contacts.upsert', (contacts) => {
-    if (hooks.current()) for (const c of contacts) noteContact(hooks.names, c);
-  });
-  sock.ev.on('contacts.update', (contacts) => {
-    if (hooks.current()) for (const c of contacts) noteContact(hooks.names, c);
-  });
-  sock.ev.on('messaging-history.set', ({ contacts, messages }) => {
+  sock.ev.on('contacts.upsert', noteContacts);
+  sock.ev.on('contacts.update', noteContacts);
+  sock.ev.on('messaging-history.set', ({ contacts, messages, lidPnMappings }) => {
     if (!hooks.current()) return;
-    for (const c of contacts) noteContact(hooks.names, c);
+    noteContacts(contacts);
+    for (const { pn, lid } of lidPnMappings ?? []) hooks.history.alias(pn, lid);
     for (const m of messages) {
       hooks.keys.remember(m.key);
       if (m.key.fromMe !== true) hooks.names.note(m.key.participant ?? m.key.remoteJid, m.pushName);
@@ -51,9 +57,6 @@ export function bindMessages(sock: Pick<WASocket, 'ev' | 'user'>, hooks: Message
   });
   sock.ev.on('messages.delete', (event) => {
     if (hooks.current()) hooks.history.deleteMessages(event);
-  });
-  sock.ev.on('chats.delete', (jids) => {
-    if (hooks.current()) for (const jid of jids) hooks.history.deleteMessages({ jid, all: true });
   });
   sock.ev.on('messages.reaction', (events) => {
     if (!hooks.current()) return;

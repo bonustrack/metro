@@ -1,4 +1,4 @@
-import type { WAMessage, WAMessageKey, WAMessageUpdate } from 'baileys';
+import type { proto, WAMessage, WAMessageKey, WAMessageUpdate } from 'baileys';
 import type { WAMediaRef } from './media.js';
 
 export const HISTORY_LIMITS = Object.freeze({
@@ -9,6 +9,8 @@ export const HISTORY_LIMITS = Object.freeze({
   textBytes: 16 * 1024,
   tombstones: 5000,
   chatFloors: 1000,
+  unavailableChats: 1000,
+  aliases: 5000,
   pageSize: 100,
   pageBytes: 2 * 1024 * 1024,
 });
@@ -68,6 +70,10 @@ export type HistoryDelete = { keys: readonly WAMessageKey[] } | { jid: string; a
 export interface History {
   read(jid: string, options?: HistoryOptions): HistoryPage;
   ingest(messages: readonly WAMessage[], selfJid?: string): void;
+  ingestSent(messages: readonly WAMessage[], selfJid?: string, ephemeralExpiration?: number): void;
+  alias(pn: string, lid: string): void;
+  clearRange(jid: string, range?: proto.SyncActionValue.ISyncActionMessageRange | null): void;
+  invalidate(): void;
   update(updates: readonly WAMessageUpdate[], selfJid?: string): void;
   deleteMessages(event: HistoryDelete): void;
   edit(jid: string, messageId: string, text: string): void;

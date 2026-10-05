@@ -4,4 +4,4 @@ import { createClient } from './client.js';
 import { startInbound } from './inbound.js';
 import { makeHandleCall } from './actions.js';
 
-runClientTrain({ station: 'whatsapp', accounts, loadAccounts, createClient, startInbound, makeHandleCall });
+runClientTrain({ station: 'whatsapp', accounts, loadAccounts, createClient, startInbound, makeHandleCall, disconnectClient: (client) => client.disconnect() });

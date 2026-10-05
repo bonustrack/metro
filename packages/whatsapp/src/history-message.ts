@@ -16,7 +16,7 @@ const CONTEXT_NODES = [
 type Timestamp = number | { toNumber(): number } | null | undefined;
 
 export function numberOf(value: Timestamp): number | undefined {
-  const n = typeof value === 'number' ? value : value?.toNumber();
+  const n = typeof value === 'number' ? value : typeof value?.toNumber === 'function' ? value.toNumber() : undefined;
   return n !== undefined && Number.isSafeInteger(n) && n > 0 ? n : undefined;
 }
 
@@ -100,9 +100,9 @@ function contextOf(message: proto.IMessage): proto.IContextInfo | undefined {
 
 const durationGiven = (n: number | null | undefined): n is number => n !== undefined && n !== null && n !== 0;
 
-function expiry(message: WAMessage, content: Content, at: number): number | false | undefined {
+function expiry(message: WAMessage, content: Content, at: number, expiration?: number): number | false | undefined {
   const ctx = content.message ? contextOf(content.message) : undefined;
-  const duration = [message.ephemeralDuration, ctx?.expiration].filter(durationGiven);
+  const duration = [message.ephemeralDuration, ctx?.expiration, expiration].filter(durationGiven);
   if (duration.some((n) => !Number.isFinite(n) || n < 0)) return false;
   const ephemeral = [content.ephemeral, message.ephemeralStartTimestamp, ctx?.disappearingMode, ctx?.ephemeralSettingTimestamp].some(Boolean);
   if (!duration.length) return ephemeral ? false : undefined;
@@ -132,14 +132,14 @@ function retainedExpiry(value: number | false | undefined, now: number): value i
   return value !== false && (value === undefined || value > now);
 }
 
-export function projectMessage(message: WAMessage, now: number, selfJid?: string): StoredRow | 'omit' | undefined {
+export function projectMessage(message: WAMessage, now: number, selfJid?: string, expiration?: number): StoredRow | 'omit' | undefined {
   const key = historyKey(message.key);
   if (!key) return undefined;
   const content = historyContent(message.message);
   if (key.isViewOnce || content.forbidden) return 'omit';
   const at = (numberOf(message.messageTimestamp) ?? 0) * 1000;
   if (!at || at > now) return undefined;
-  const expiresAt = expiry(message, content, at);
+  const expiresAt = expiry(message, content, at, expiration);
   if (!retainedExpiry(expiresAt, now)) return 'omit';
   if (!content.message) return undefined;
   return projectBody(key, content.message, at, selfJid, expiresAt);

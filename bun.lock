@@ -127,7 +127,7 @@
     },
     "packages/cli": {
       "name": "@stage-labs/metro",
-      "version": "0.1.0-beta.256",
+      "version": "0.1.0-beta.263",
       "bin": {
         "metro": "dist/cli.js",
       },
@@ -341,6 +341,7 @@
   },
   "patchedDependencies": {
     "expo-dev-launcher@57.0.20": "patches/expo-dev-launcher@57.0.20.patch",
+    "baileys@7.0.0-rc14": "patches/baileys@7.0.0-rc14.patch",
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
   },
   "packages": {

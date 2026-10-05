@@ -15,9 +15,11 @@ import type { InboundHandlers, WAClient, WAMedia, ClientRuntime } from './client
 export type { InboundHandlers, WAClient, WAMedia } from './client-types.js';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import type { SelfRef } from './parse.js';
-import { createHistory, type History } from './history.js';
+import type { History } from './history.js';
+import { createClientHistory } from './client-history.js';
 import { bindMessages } from './messages.js';
 import { listMembers } from './members.js';
+import { SendExpiry } from './send-expiry.js';
 import { baileysLogger } from './logger.js';
 import { makeNameBook, nameFiles, phoneOf, type NameBook } from './names.js';
 import { useAccountAuthState } from './auth-state.js';
@@ -36,9 +38,11 @@ interface State {
   account: WhatsAppAccount;
   runtime: ClientRuntime;
   history: History;
+  expiry: SendExpiry;
   handlers?: InboundHandlers;
   sock?: WASocket;
   closed: boolean;
+  closing?: Promise<void>;
   openResolve?: () => void;
   openPromise: Promise<void>;
   keys: KeyCache;
@@ -153,7 +157,9 @@ async function connect(st: State): Promise<void> {
     st.account.credentials,
     st.account.id,
   );
+  if (st.closed) return;
   const { version, error } = await st.runtime.fetchVersion({});
+  if (st.closed) return;
   if (error) {
     throw new TrainError(
       'whatsapp_connect',
@@ -174,6 +180,7 @@ async function connect(st: State): Promise<void> {
   sock.ev.on('creds.update', () => void saveCreds());
   bindConnection(st, sock);
   bindInbound(st, sock);
+  st.expiry.bind(sock, () => !st.closed && st.sock === sock);
   bindDelivery(st, sock);
 }
 
@@ -190,7 +197,7 @@ async function lidFor(st: State, sock: WASocket, jid: string): Promise<string | 
 
 async function ready(st: State): Promise<WASocket> {
   await st.openPromise;
-  if (!st.sock) throw new TrainError('whatsapp_call', 'socket not connected');
+  if (st.closed || !st.sock) throw new TrainError('whatsapp_call', 'socket not connected');
   return st.sock;
 }
 
@@ -201,10 +208,13 @@ async function send(
   opts?: SendOpts,
 ): Promise<string> {
   const sock = await ready(st);
-  const sent = await sock.sendMessage(jid, content, opts);
-  st.keys.remember(sent?.key);
-  st.outbox.remember(sent?.key, sent?.message);
-  const messageId = sent?.key.id;
+  const expiration = await st.expiry.forSend(sock, jid, content);
+  if (st.closed || st.sock !== sock) throw new TrainError('whatsapp_call', 'socket not connected');
+  const sent = await sock.sendMessage(jid, content, expiration === undefined ? opts : { ...opts, ephemeralExpiration: expiration });
+  const key = sent?.key;
+  st.keys.remember(key);
+  st.outbox.remember(key, sent?.message);
+  const messageId = key?.id;
   if (!messageId)
     throw new TrainError(
       'whatsapp_call',
@@ -213,13 +223,13 @@ async function send(
   const ack = await st.acks.wait(messageId, ACK_WAIT_MS);
   const refused = ack ? rejection(ack) : undefined;
   if (refused) throw refused;
-  recordSent(st, sock, sent);
+  recordSent(st, sock, sent, expiration);
   return messageId;
 }
 
-function recordSent(st: State, sock: WASocket, sent: WAMessage | undefined): void {
+function recordSent(st: State, sock: WASocket, sent: WAMessage | undefined, expiration?: number): void {
   if (!sent || st.closed) return;
-  st.history.ingest([sent], sock.user?.id ? jidNormalizedUser(sock.user.id) : undefined);
+  st.history.ingestSent([sent], sock.user?.id ? jidNormalizedUser(sock.user.id) : undefined, expiration);
 }
 
 function quotedOpts(st: State, jid: string, quotedId: string): SendOpts {
@@ -265,12 +275,13 @@ async function readProfile(st: State, jid: string): Promise<SenderProfile> {
 
 async function disconnect(st: State): Promise<void> {
   st.closed = true;
+  st.openResolve?.();
   try {
-    await st.sock?.end(undefined);
-  } catch {
-    st.sock = undefined;
-  } finally {
     st.history.close();
+  } finally {
+    const sock = st.sock;
+    st.sock = undefined;
+    await sock?.end(undefined);
   }
 }
 
@@ -278,7 +289,8 @@ function initialState(account: WhatsAppAccount, runtime: ClientRuntime): State {
   const st: State = {
     account,
     runtime,
-    history: createHistory(account.id),
+    history: createClientHistory(account.id),
+    expiry: new SendExpiry(account.id),
     closed: false,
     openPromise: Promise.resolve(),
     keys: makeKeyCache(),
@@ -321,7 +333,7 @@ export function createClient(
       return Promise.resolve(page);
     },
     listMembers(jid, limit) {
-      return listMembers(jid, async (groupJid) => (await ready(st)).groupMetadata(groupJid), st.names, limit);
+      return listMembers(jid, async (node): Promise<unknown> => await (await ready(st)).query(node), st.names, limit);
     },
     sendText(jid, text, quotedId) {
       return send(
@@ -352,7 +364,6 @@ export function createClient(
         text,
         edit: knownKey(st.keys, jid, messageId, true),
       });
-      if (!st.closed) st.history.edit(jid, messageId, text);
     },
     async deleteMessage(jid, messageId) {
       await send(st, jid, {
@@ -382,6 +393,6 @@ export function createClient(
       }
     },
     senderProfile: (jid) => senders.get(jid),
-    disconnect: () => disconnect(st),
+    disconnect: () => st.closing ??= disconnect(st),
   };
 }

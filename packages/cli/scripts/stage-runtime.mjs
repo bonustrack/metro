@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +66,25 @@ const manifest = {
   ),
   stations: Object.fromEntries(STATION_SOURCES.map(([from, name]) => [name, vendor(from)])),
 };
+const runtimeDependencies = new Set(
+  [manifest.core, ...Object.values(manifest.stations)].flatMap((deps) =>
+    Object.entries(deps).map(([name, version]) => `${name}@${version}`),
+  ),
+);
+const { patchedDependencies = {} } = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
+const patches = Object.fromEntries(
+  Object.entries(patchedDependencies)
+    .filter(([name]) => runtimeDependencies.has(name))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, path]) => {
+      const content = readFileSync(join(REPO, path));
+      const target = `patches/${createHash('sha256').update(content).digest('hex')}.patch`;
+      mkdirSync(join(OUT, 'patches'), { recursive: true });
+      writeFileSync(join(OUT, target), content);
+      return [name, target];
+    }),
+);
+if (Object.keys(patches).length > 0) manifest.patchedDependencies = patches;
 writeFileSync(join(OUT, 'stations.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 const RUNNER = join(OUT, 'sdk-runner');

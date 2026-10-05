@@ -1,5 +1,7 @@
-import type { GroupMetadata, GroupParticipant } from 'baileys';
+import { getBinaryNodeChild, type BinaryNode, type GroupParticipant } from 'baileys';
+import { extractGroupMetadata } from 'baileys/lib/Socket/groups.js';
 import { TrainError } from '@metro-labs/core/train-error';
+import { isRecord } from '@metro-labs/core/is-record';
 import type { MemberCapability, MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import { isGroupJid } from './parse.js';
 import { phoneOf, type NameBook } from './names.js';
@@ -43,8 +45,19 @@ function memberLimit(limit: number | undefined): number {
   return Math.min(limit, 1000);
 }
 
-function memberTotal(size: number | undefined): number | undefined {
-  return typeof size === 'number' && Number.isInteger(size) && size >= 0 ? size : undefined;
+function binaryNode(value: unknown): value is BinaryNode {
+  if (!isRecord(value) || typeof value.tag !== 'string' || !isRecord(value.attrs)) return false;
+  if (!Object.values(value.attrs).every((attr) => typeof attr === 'string')) return false;
+  const content = value.content;
+  return content === undefined || typeof content === 'string' || content instanceof Uint8Array
+    || (Array.isArray(content) && content.every(binaryNode));
+}
+
+function memberTotal(response: BinaryNode): number | undefined {
+  const value = getBinaryNodeChild(response, 'group')?.attrs.size;
+  if (!value || !/^\d+$/.test(value)) return undefined;
+  const size = Number(value);
+  return Number.isSafeInteger(size) ? size : undefined;
 }
 
 function capability(total: number | undefined, fetched: number, returned: number): MemberCapability {
@@ -57,7 +70,7 @@ function capability(total: number | undefined, fetched: number, returned: number
 
 export async function listMembers(
   jid: string,
-  fetchGroup: (jid: string) => Promise<GroupMetadata>,
+  query: (node: BinaryNode) => Promise<unknown>,
   names: NameBook,
   limit?: number,
 ): Promise<MemberList> {
@@ -66,11 +79,16 @@ export async function listMembers(
     members: [],
     capability: { supported: false, complete: false, reason: 'WhatsApp member lookup requires a group line (@g.us)' },
   };
-  const group = await fetchGroup(jid);
+  const response = await query({
+    tag: 'iq', attrs: { type: 'get', xmlns: 'w:g2', to: jid },
+    content: [{ tag: 'query', attrs: { request: 'interactive' } }],
+  });
+  if (!binaryNode(response)) throw new TrainError('whatsapp_call', 'WhatsApp returned invalid group metadata');
+  const group = extractGroupMetadata(response);
   const participants = [...new Map(group.participants.map((p) => [p.id, p])).values()];
   const members = participants.slice(0, cap).map((p) => memberOf(p, names));
   return {
     members,
-    capability: capability(memberTotal(group.size), participants.length, members.length),
+    capability: capability(memberTotal(response), participants.length, members.length),
   };
 }
