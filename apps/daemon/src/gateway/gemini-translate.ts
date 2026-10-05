@@ -165,6 +165,7 @@ export function cleanSchema(schema: unknown): Item {
   if (!isRecord(schema)) return {};
   const out: Item = {};
   for (const [key, value] of Object.entries(schema)) schemaField(key, value, out);
+  if (out.nullable === true && Array.isArray(out.enum)) out.enum = out.enum.filter((value) => value !== null);
   return out;
 }
 

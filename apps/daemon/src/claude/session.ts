@@ -1,5 +1,4 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { realpathSync } from '../agent-user/agent-fs.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { RunnerActivity } from '@metro-labs/core/runner-activity';
 import { readAgentActivity } from './runner-activity.js';
@@ -14,7 +13,7 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
-import { claudeDir, listClaudeProjects } from './files.js';
+import { claudeDir } from './files.js';
 import { harnessRunner, isHarnessRunner, sdkAllowed, SDK_NEEDS_KEY, type HarnessRunner } from './runner.js';
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
@@ -101,24 +100,6 @@ function tmuxOk(tmux: string, args: string[]): boolean {
 export const sessionRunning = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['has-session', '-t', SESSION_NAME]);
 
 export const tmuxServerUp = (tmux = 'tmux'): boolean => tmuxOk(tmux, ['list-sessions']);
-
-function realDir(dir: string): string {
-  try {
-    return realpathSync(dir);
-  } catch {
-    return dir;
-  }
-}
-
-const encodedCwd = (dir: string): string => dir.replace(/[^A-Za-z0-9]/g, '-');
-
-export function hasConversation(home: string, dir = claudeDir()): boolean {
-  const cwd = realDir(home);
-  const folder = encodedCwd(cwd);
-  return listClaudeProjects(dir).some(
-    (project) => project.sessions > 0 && (project.id === folder || (project.cwd !== null && realDir(project.cwd) === cwd)),
-  );
-}
 
 export function metroCli(args: string[], fixed?: string[]): string[] {
   const bin = process.env.METRO_CLI_BIN?.trim() ?? '';

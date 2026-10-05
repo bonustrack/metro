@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { ALICE, BOB, boot, calls, chat, close, events, GROUP, LESS, LINE, lost, reactsTo, say, sendsOn, settled, sleep, spoken, turnsSince, until, wordsAfter, now, type Turn } from './harness.ts';
+import { ALICE, BOB, boot, calls, chat, close, CORE, events, GROUP, LESS, LINE, lost, reactsTo, say, sendsOn, settled, sleep, spoken, turnsSince, until, wordsAfter, now, type Turn } from './harness.ts';
 import { COMPACT_AT } from '../../packages/sdk-runner/src/runner.ts';
 
 const MESSAGES = Number(process.env.SDK_RUNNER_LONG_MESSAGES ?? 200);
@@ -7,7 +7,6 @@ const WORKERS = Number(process.env.SDK_RUNNER_LONG_WORKERS ?? 20);
 const CALL_AT = Math.round(MESSAGES * 0.6);
 const OUT = process.env.SDK_RUNNER_LONG_OUT ?? '/tmp/sdk-runner-long.json';
 const FILES = ['events.ts', 'ids.ts', 'is-record.ts', 'lines.ts', 'log.ts', 'protocol.ts', 'secure-fs.ts', 'station-names.ts', 'str.ts', 'tickets.ts', 'train-error.ts', 'version.ts', 'endpoints.ts'];
-const CORE = '/home/agent/ws-metro-119/metro/packages/core/src';
 const TOPICS = ['the Stage release', 'the MCI invoices', 'the Anderra flows', 'the Snapshot books', 'the box upgrade', 'the voice calls', 'the Gmail station', 'the X50 import'];
 const NOTE_LINE = 'Item: the team agreed to move the weekly sync to Thursday, keep the release train on beta, and check the invoice exports before Friday. ';
 

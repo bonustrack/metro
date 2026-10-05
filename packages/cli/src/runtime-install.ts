@@ -37,7 +37,7 @@ export function runtimeStore(): string {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
-const ranges = (raw: unknown): Record<string, string> =>
+export const ranges = (raw: unknown): Record<string, string> =>
   isRecord(raw)
     ? Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string'))
     : {};
@@ -61,7 +61,7 @@ export function dependenciesFor(manifest: RuntimeManifest, stations: Iterable<st
 const packageText = (deps: Record<string, string>): string =>
   `${JSON.stringify({ name: 'metro-runtime', private: true, dependencies: deps }, null, 2)}\n`;
 
-function readOrNull(path: string): string | null {
+export function readOrNull(path: string): string | null {
   try {
     return readFileSync(path, 'utf8');
   } catch {

@@ -181,7 +181,7 @@ function whenFrom(raw: string | null, now: Date, relative = false): string | nul
 
 const ANTHROPIC_WINDOWS: [string, string][] = [
   ['5h', '5-hour window'],
-  ['7d', 'Weekly'],
+  ['7d', 'Weekly, all models'],
   ['7d_sonnet', 'Weekly, Sonnet'],
 ];
 
@@ -273,7 +273,7 @@ const numberOf = (raw: unknown): number | null => (typeof raw === 'number' && Nu
 
 const CLAUDE_WINDOWS: [string, string][] = [
   ['five_hour', '5-hour window'],
-  ['seven_day', 'Weekly'],
+  ['seven_day', 'Weekly, all models'],
   ['seven_day_sonnet', 'Weekly, Sonnet'],
   ['seven_day_opus', 'Weekly, Opus'],
 ];

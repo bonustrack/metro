@@ -89,6 +89,14 @@ describe('a model over 95% of its usage is skipped', () => {
     expect(models(routesToTry(chainOf(opus(cfg), cfg, 'claude-opus-5-5'), NOW))).toEqual(['anthropic:claude-fable-5-1', 'openrouter:anthropic/claude-opus-5-5']);
   });
 
+  test('the explicitly shared weekly limit blocks Fable despite its low model bucket', () => {
+    const cfg = setup();
+    const chain = chainOf(opus(cfg), cfg, 'claude-opus-5-5');
+    login(window('Weekly, all models', 1), window('Weekly, Fable', 0.08));
+    expect(models(routesToTry(chain, NOW))).toEqual(['openrouter:anthropic/claude-opus-5-5']);
+    expect(holdOf({ connection: conn(cfg, 'anthropic'), model: 'claude-fable-5-1' }, NOW)).toEqual({ reason: 'Weekly, all models 100%', until: LATER });
+  });
+
   test('a per-minute token window never skips a model, and when every model is over, the first one is tried', () => {
     const cfg = setup();
     const keyed: Route = { connection: conn(cfg, 'openrouter'), model: 'openai/gpt-6' };

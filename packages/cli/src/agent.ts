@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { headlessEnv, runClaude } from './claude.js';
 import { localAgent } from './local.js';
 import { currentModel, harnessRunner, permissionMode, systemPrompt, type PermissionMode } from './route.js';
-import { installDependencies } from './runtime-install.js';
+import { installDependencies, ranges, readOrNull } from './runtime-install.js';
 import { findBun, localPort, runtimeDir } from './runtime.js';
 
 export const RUNNER_SOURCES = 'sdk-runner';
@@ -29,19 +29,10 @@ export function runnerStore(env: NodeJS.ProcessEnv = process.env): string {
 
 export function readRunnerManifest(text: string): RunnerManifest {
   const raw = JSON.parse(text) as { version?: unknown; dependencies?: unknown };
-  const deps = typeof raw.dependencies === 'object' && raw.dependencies !== null ? raw.dependencies : {};
   return {
     version: typeof raw.version === 'string' ? raw.version : '',
-    dependencies: Object.fromEntries(Object.entries(deps).filter((e): e is [string, string] => typeof e[1] === 'string')),
+    dependencies: ranges(raw.dependencies),
   };
-}
-
-function readOrNull(path: string): string | null {
-  try {
-    return readFileSync(path, 'utf8');
-  } catch {
-    return null;
-  }
 }
 
 export interface ClaudePackage {

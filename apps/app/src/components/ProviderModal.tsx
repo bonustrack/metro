@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
+import { ConnectionModel } from './ConnectionModel.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
@@ -11,7 +12,8 @@ import { GeminiConnect } from './GeminiConnect.js';
 import { ClaudeLoginCard } from './ClaudeLogin.js';
 import { addConnection, ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, saveConnection, type ConnectionPatch, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
 import { providerLabel } from '@metro-labs/client/api/providers';
-import { queryError, refresh } from '../lib/queries.js';
+import type { RouteDraft } from '@metro-labs/client/api/route-edit';
+import { queryError, refresh, useModelQuery } from '../lib/queries.js';
 import { GROW } from '../lib/style.js';
 import { TextLink } from './TextLink.js';
 import { ProviderChoices } from './ProviderChoices.js';
@@ -138,16 +140,20 @@ function Blurb({ editing }: { editing: Chosen }): ReactNode {
   );
 }
 
-export function ProviderSetup({ onDone, onBack }: { onDone: () => void; onBack?: () => void }): ReactNode {
+export function ProviderSetup({ onDone, onBack }: { onDone: (draft: RouteDraft) => void; onBack?: () => void }): ReactNode {
+  const settings = useModelQuery().data;
+  const known = useRef(settings?.connections.map((c) => c.id) ?? []);
   const [provider, setProvider] = useState<Provider | null>(null);
+  const fresh = settings?.connections.find((c) => c.provider === provider && !known.current.includes(c.id));
   const back = provider === null ? onBack : () => { setProvider(null); };
+  if (fresh !== undefined && settings !== undefined) return <ConnectionModel conn={fresh} settings={settings} onDone={onDone} />;
   return (
     <Col gap={16}>
       {provider === null ? <ProviderChoices onPick={setProvider} /> : (
         <Col gap={16}>
           <Text size="xs" weight="medium">{providerLabel(provider)}</Text>
           <Blurb editing={{ provider, connection: null }} />
-          <Body editing={{ provider, connection: null }} onDone={onDone} />
+          <Body editing={{ provider, connection: null }} onDone={() => undefined} />
         </Col>
       )}
       {back === undefined ? null : (
@@ -160,6 +166,7 @@ export function ProviderSetup({ onDone, onBack }: { onDone: () => void; onBack?:
 }
 
 export function ProviderModal({ editing, onClose }: { editing: Editing | null; onClose: () => void }): ReactNode {
+  const settings = useModelQuery().data;
   if (editing === null) return null;
   const { provider, connection } = editing;
   if (provider === null)
@@ -172,6 +179,7 @@ export function ProviderModal({ editing, onClose }: { editing: Editing | null; o
   return (
     <Modal title={title} open onClose={onClose}>
       <Col gap={16}>
+        {connection === null || settings === undefined ? null : <ConnectionModel key={connection.id} conn={connection} settings={settings} onDone={onClose} />}
         <Blurb editing={{ provider, connection }} />
         <Body editing={{ provider, connection }} onDone={onClose} />
       </Col>

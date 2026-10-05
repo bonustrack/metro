@@ -112,6 +112,58 @@ describe('handleBundler', () => {
     expect(channelsFetched()).toEqual(['feat_2fmetro-app', 'feat_2fmetro-app', 'feat-metro-app', 'main', 'main']);
   });
 
+  test('preserves Expo request headers and the multipart response without caching it', async () => {
+    const response = new Response('--boundary\r\nmanifest\r\n--boundary--', {
+      headers: {
+        'content-type': 'multipart/mixed; boundary=boundary',
+        'cache-control': 'no-cache, private, max-age=10',
+        'expo-protocol-version': '1',
+        'expo-update-id': 'update-id',
+      },
+    });
+    let forwarded: Headers | undefined;
+    globalThis.fetch = Object.assign(
+      (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        forwarded = new Headers(init?.headers);
+        return Promise.resolve(response);
+      },
+      { preconnect: realFetch.preconnect },
+    );
+    const result = await get('/main', {
+      ...EXPO_CLIENT,
+      host: 'bundler.metro.box',
+      'expo-protocol-version': '1',
+      'expo-expect-signature': 'sig, keyid="main"',
+      'expo-current-update-id': 'previous-id',
+    });
+    expect(forwarded?.get('host')).toBeNull();
+    expect(forwarded?.get('expo-platform')).toBe('android');
+    expect(forwarded?.get('expo-runtime-version')).toBe('abc123');
+    expect(forwarded?.get('expo-protocol-version')).toBe('1');
+    expect(forwarded?.get('expo-expect-signature')).toBe('sig, keyid="main"');
+    expect(forwarded?.get('expo-current-update-id')).toBe('previous-id');
+    expect(forwarded?.get('accept')).toBe('multipart/mixed');
+    expect(result).toBe(response);
+    expect(result.headers.get('cache-control')).toBe('no-cache, private, max-age=10');
+    expect(result.headers.get('expo-update-id')).toBe('update-id');
+    expect(await result.text()).toBe('--boundary\r\nmanifest\r\n--boundary--');
+  });
+
+  test('preserves no-update and error responses instead of falling back to another runtime', async () => {
+    for (const status of [204, 404]) {
+      const body = status === 204 ? null : 'No compatible update';
+      const response = new Response(body, { status });
+      globalThis.fetch = Object.assign(
+        (): Promise<Response> => Promise.resolve(response),
+        { preconnect: realFetch.preconnect },
+      );
+      const result = await get('/main', EXPO_CLIENT);
+      expect(result).toBe(response);
+      expect(result.status).toBe(status);
+      expect(await result.text()).toBe(body ?? '');
+    }
+  });
+
   test('answers 404 without calling EAS for paths that are not branches', async () => {
     stubFetch();
     for (const path of ['/preview-launcher.html', '/favicon.ico', '/feat//foo', '/.well-known/x']) {

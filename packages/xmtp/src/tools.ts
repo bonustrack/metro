@@ -1,4 +1,5 @@
 import type { StationTool } from '@metro-labs/core/stations/types';
+import { PRIORITIES } from './labels.js';
 import {
   str,
   setChannelMetadata,
@@ -114,7 +115,7 @@ export const XMTP_TOOLS: StationTool[] = [
     group: 'read',
     description:
       "Read an XMTP channel's current metadata + membership. Args: line (required). Returns " +
-      '{line, id, account, version (dm|group), name, memberCount, labels, category, github, preview, ' +
+      '{line, id, account, version (dm|group), name, memberCount, labels, category, status, priority, github, preview, ' +
       'assigned, appData (stored JSON object), rawAppData (stored JSON string), ' +
       'members:[{inboxId, address}]}. Syncs first and fails if metadata cannot be read. ' +
       'xmtp-only (daemon `groupInfo`). Use before ' +
@@ -172,10 +173,11 @@ export const XMTP_TOOLS: StationTool[] = [
       'any of metadata? (JSON object), github? (url), preview? (url), name? (string). ' +
       'metadata is a shallow appData patch: omitted keys are preserved, supplied nested ' +
       'values replace that key, and null deletes custom keys. v is reserved. Put labels, ' +
-      'assigned and category inside metadata. assigned replaces the array with normalized lowercase ' +
+      'assigned, category, status and priority inside metadata. assigned replaces the array with normalized lowercase ' +
       'Ethereum addresses of current members. Read group_info and union existing IDs to ' +
-      'add assignees. category is one string per channel (24 characters at most); "" or null ' +
-      'clears it. labels remains a legacy top-level alias. Duplicate top-level/metadata ' +
+      'add assignees. category and status are each one free-form string per channel, trimmed, ' +
+      'whitespace collapsed and truncated to 24 characters. priority is trimmed and must be Urgent, High, Medium or Low. ' +
+      '"" or null clears category, status or priority. labels remains a legacy top-level alias. Duplicate top-level/metadata ' +
       'label/link aliases are refused. All fields use one updateChannelMeta call. xmtp-only. ' +
       'Returns updated metadata. Reread group_info to verify persistence.',
     inputSchema: {
@@ -193,8 +195,17 @@ export const XMTP_TOOLS: StationTool[] = [
               items: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' },
             },
             category: {
-              type: 'string',
-              description: 'The one category of the channel, 24 characters at most. "" clears it.',
+              type: ['string', 'null'],
+              description: 'One free-form category, trimmed, whitespace collapsed, truncated to 24 characters. "" or null clears it.',
+            },
+            status: {
+              type: ['string', 'null'],
+              description: 'One free-form status, trimmed, whitespace collapsed, truncated to 24 characters. "" or null clears it.',
+            },
+            priority: {
+              type: ['string', 'null'],
+              enum: [...PRIORITIES, '', null],
+              description: 'One priority: Urgent, High, Medium or Low. Surrounding whitespace is trimmed; empty or null clears it.',
             },
             github: { type: 'string' },
             preview: { type: 'string' },

@@ -5,10 +5,9 @@ import { SettingsPad } from './SettingsSection.js';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useModeQuery } from '../lib/queries.js';
-import { USAGE_SINCE, windowLine, type UsageWindow } from '@metro-labs/client/api/usage';
+import { USAGE_SINCE } from '@metro-labs/client/api/usage';
 import { olderThan } from '@metro-labs/client/api/version';
 
-const HIGH = 0.8;
 
 function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
   const palette = useKitPalette();
@@ -21,15 +20,14 @@ function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
 }
 
 const CLIP = { overflow: 'hidden' } as const;
-const FIT = { maxWidth: '100%', flexShrink: 1 } as const;
 
-export function UsageBar({ used }: { used: number | null }): ReactNode {
+export function UsageBar({ used, blocked = false }: { used: number | null; blocked?: boolean }): ReactNode {
   if (used === null) return null;
-  const warn = used >= HIGH;
+  const warn = blocked;
   return (
     <Row gap={10} align="center">
       <Meter used={used} warn={warn} />
-      <Text size="2xs" role={warn ? 'danger' : 'secondary'}>
+      <Text size="2xs" role="secondary">
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
@@ -39,26 +37,9 @@ export function UsageBar({ used }: { used: number | null }): ReactNode {
 export function UsageShort({ used }: { used: number | null }): ReactNode {
   if (used === null) return null;
   return (
-    <Text size="2xs" role={used >= HIGH ? 'danger' : 'secondary'}>
+    <Text size="2xs" role="secondary">
       {`${String(Math.round(used * 100))}%`}
     </Text>
-  );
-}
-
-export function UsageLine({ window }: { window: UsageWindow }): ReactNode {
-  const note = windowLine({ ...window, used: null });
-  return (
-    <Row wrap align="center" gap={10} minWidth={0} style={FIT}>
-      <Text size="2xs" role="secondary">
-        {window.label}
-      </Text>
-      <UsageBar used={window.used} />
-      {note === '' ? null : (
-        <Text size="2xs" role="secondary">
-          {note}
-        </Text>
-      )}
-    </Row>
   );
 }
 

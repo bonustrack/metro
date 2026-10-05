@@ -1,13 +1,8 @@
-import { randomInt } from 'node:crypto';
+import { approvalId } from '@metro-labs/core/ids';
 import { errMsg, log } from '@metro-labs/core/log';
 import { forgetPromptsOf, holdPrompt, type Behavior } from '../approvals/pending.js';
 import { promptBody } from '../mcp/permission-prompt.js';
 import type { ToolAsk } from './brain.js';
-
-const ID_LETTERS = 'abcdefghijkmnopqrstuvwxyz';
-const ID_LENGTH = 5;
-
-export const approvalId = (): string => Array.from({ length: ID_LENGTH }, () => ID_LETTERS[randomInt(ID_LETTERS.length)]).join('');
 
 export class CallApprovals {
   private closed = false;

@@ -35,12 +35,9 @@ const USAGE = `metro: run your agent on this machine
                   open Claude Code with the metro channel and the metro MCP server, its
                   inference routed through the daemon's model gateway (the Model page);
                   every argument is passed through the same
-  metro agent     run the agent as one Agent SDK session instead of a Claude Code
-                  terminal session, when the Harness runner is the Agent SDK: chat
-                  messages, voice calls and worker reports go into one conversation,
-                  a light front (Sonnet) talks and delegates, background workers
-                  (Opus) do the work; it holds the metro chat and resumes its
-                  session after a restart
+  metro agent     run chat and background workers in one Agent SDK conversation,
+                  when the Harness runner is Agent SDK, using the Model page's model;
+                  resume it after a restart; voice calls remain separate
   metro agent --prepare [cli|sdk]
                   check the runner before selecting it; install the SDK runtime if needed,
                   without starting a session or connecting to chat

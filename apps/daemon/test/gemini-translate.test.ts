@@ -60,6 +60,22 @@ describe('a Messages request becomes a Code Assist request', () => {
     expect(none.requestId).toMatch(/^agent-/);
   });
 
+  test('nullable priority enums keep their string choices and express null only through nullable', () => {
+    const choices = ['Urgent', 'High', 'Medium', 'Low', ''];
+    const priority = { enum: [...choices, null], type: ['string', 'null'] };
+    const normalized = { type: 'string', nullable: true, enum: choices };
+    expect(toolDeclarations([{
+      name: 'set_channel_metadata',
+      input_schema: { type: 'object', properties: { metadata: { type: 'object', properties: { priority } } } },
+    }])).toEqual([{
+      name: 'set_channel_metadata',
+      description: '',
+      parameters: { type: 'object', properties: { metadata: { type: 'object', properties: { priority: normalized } } } },
+    }]);
+    expect(cleanSchema({ type: ['string', 'null'], enum: [...choices, null] })).toEqual(normalized);
+    expect(priority.enum).toEqual([...choices, null]);
+  });
+
   test('a call whose signature metro never saw carries the skip sentinel, and max_tokens is capped where Gemini refuses more', () => {
     const contents = contentsOf([{ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_unknown', name: 'Read', input: {} }] }]);
     const model = contents[0] as { parts: { thoughtSignature: string }[] };

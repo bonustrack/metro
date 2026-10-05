@@ -1,4 +1,4 @@
-import { ALICE, boot as bootAt, calls, chat, close, events, LESS, LINE, lost, OTHER, reactsTo, sendsOn, settled, sleep, spoken, standIn, stalls, turnsSince, until, wordsAfter, say, now } from './harness.ts';
+import { ALICE, boot as bootAt, calls, chat, close, CORE, events, LESS, LINE, lost, OTHER, reactsTo, sendsOn, settled, sleep, spoken, standIn, stalls, turnsSince, until, wordsAfter, say, now } from './harness.ts';
 
 const numbers: Record<string, unknown> = {};
 const COMPACT_AT = Number(process.env.SDK_RUNNER_CHECK_COMPACT_AT ?? 100_000);
@@ -32,7 +32,7 @@ await step('chat', async () => {
 
 await step('delegate', async () => {
   const at = now();
-  chat(LESS, 'Please count the TypeScript lines in each folder under /home/agent/ws-metro-119/metro/packages/core/src (wc -l is fine) and report the total here.');
+  chat(LESS, `Please count the TypeScript lines in each folder under ${CORE} (wc -l is fine) and report the total here.`);
   numbers.delegate_task_started_ms = await until('task started', () => events.some((e) => e.t >= at && e.kind === 'task_started'));
   numbers.delegate_react_ms = await until('react', () => calls.some((c) => c.t >= at && c.action === 'react'));
   await until('worker done', () => events.some((e) => e.t >= at && e.kind === 'task_notification'), 300_000);
@@ -104,7 +104,7 @@ await step('call_cuts_chat_turn', async () => {
 
 await step('worker_during_call', async () => {
   const at = now();
-  agent.runner.heard('Can you have a worker check how many files are in /home/agent/ws-metro-119/metro/packages/core/src? Tell me when it is done.');
+  agent.runner.heard(`Can you have a worker check how many files are in ${CORE}? Tell me when it is done.`);
   await until('task', () => events.some((e) => e.t >= at && e.kind === 'task_notification'), 300_000);
   const done = events.find((e) => e.t >= at && e.kind === 'task_notification')?.t ?? 0;
   await until('spoken result', () => spoken.some((s) => s.t >= done));

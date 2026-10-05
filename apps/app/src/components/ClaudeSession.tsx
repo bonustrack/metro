@@ -40,10 +40,13 @@ function Rows({ status, project, live }: { status: ClaudeSessionStatus; project:
   const dark = useKitScheme() === 'dark';
   const { send, busy, error } = useSend();
   const [now, setNow] = useState(Date.now);
+  const hasActivity = status.activity !== null;
   useEffect(() => {
+    if (!hasActivity) return;
+    setNow(Date.now());
     const timer = setInterval(() => { setNow(Date.now()); }, CLOCK_MS);
     return () => { clearInterval(timer); };
-  }, []);
+  }, [hasActivity]);
   return (
     <>
       <SettingsSection title="Status" note={sessionNote(status, now)}>

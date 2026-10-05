@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mergeAppData } from '../src/labels.ts';
 import { setChannelMetadata } from '../src/tools-handlers.ts';
+import { XMTP_TOOLS } from '../src/tools.ts';
 import type { ToolContext } from '@metro-labs/core/stations/types';
 
 function sequentialMerge(
@@ -101,6 +102,24 @@ describe('set_channel_metadata routes through one updateChannelMeta call', () =>
     }
   });
 
+  test('status and priority values or clears dispatch one metadata patch', async () => {
+    for (const metadata of [{ status: 'Waiting', priority: 'High' }, { status: '', priority: '' }, { status: null, priority: null }]) {
+      const { ctx, calls } = fakeCtx();
+      await setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata }, ctx);
+      expect(calls).toEqual([{ action: 'updateChannelMeta', args: { line: 'metro://xmtp/tony/g1', appData: metadata } }]);
+    }
+  });
+
+  test('metadata schema advertises free-form status and nullable priority options', () => {
+    expect(XMTP_TOOLS.find((tool) => tool.name === 'set_channel_metadata')?.inputSchema).toMatchObject({
+      properties: { metadata: { properties: {
+        category: { type: ['string', 'null'] },
+        status: { type: ['string', 'null'] },
+        priority: { type: ['string', 'null'], enum: ['Urgent', 'High', 'Medium', 'Low', '', null] },
+      }, additionalProperties: true } },
+    });
+  });
+
   test('invalid native names never dispatch otherwise valid metadata', async () => {
     const { ctx, calls } = fakeCtx();
     const result = await setChannelMetadata({ line: 'metro://xmtp/tony/g1', name: 42, metadata: { assigned: [] } }, ctx);
@@ -116,7 +135,8 @@ describe('set_channel_metadata routes through one updateChannelMeta call', () =>
     expect(calls).toHaveLength(0);
   });
 
-  test.each([null, [], 'text', { v: 2 }, { assigned: ['worker-id'] }, { labels: [4] }, { github: 'https://example.com' }])(
+  test.each([null, [], 'text', { v: 2 }, { assigned: ['worker-id'] }, { labels: [4] }, { github: 'https://example.com' },
+    { status: ['Ready'] }, { status: 7 }, { status: true }, { status: {} }, { priority: 'Critical' }, { priority: ['High'] }, { priority: true }])(
     'invalid metadata never dispatches: %j', async (metadata) => {
       const { ctx, calls } = fakeCtx();
       await expect(setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata }, ctx)).rejects.toThrow();

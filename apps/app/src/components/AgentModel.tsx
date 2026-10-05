@@ -4,8 +4,9 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { UsageLine, UsageUpdateHint } from './ModelUsage.js';
-import { PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings } from '@metro-labs/client/api/model';
+import { UsageBar, UsageUpdateHint } from './ModelUsage.js';
+import { limitingWindow, limitNote, modelWindows, usageModel, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
+import { PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
 import { DEFAULT_MODEL, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
 import { queryError, useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
 import { tallyLine } from '@metro-labs/client/api/usage';
@@ -14,7 +15,6 @@ import { type Selection } from '@metro-labs/client/selection';
 
 const LOGO_SIZE = 28;
 
-const LOW = 0.9;
 
 export function nameIn(options: ModelOption[] | undefined, model: string): string {
   if (model === '') return DEFAULT_MODEL;
@@ -29,33 +29,34 @@ export function useModelName(conn: ConnectionRow | undefined, model = conn?.mode
   return conn === undefined ? DEFAULT_MODEL : nameIn(models.data, model);
 }
 
-export function CardUsage({ usage }: { usage: ModelSettings['usage'][string] | undefined }): ReactNode {
+export function CardUsage({ usage, provider, model }: { usage: ModelSettings['usage'][string] | undefined; provider: Provider; model: string }): ReactNode {
   if (usage === undefined) return <UsageUpdateHint />;
-  if (usage.windows.length === 0)
-    return usage.tally === null ? null : (
-      <Text size="2xs" role="secondary">
-        {tallyLine(usage.tally)}
-      </Text>
-    );
+  const window = limitingWindow(modelWindows(usage.windows, provider, model));
+  if (window === null) {
+    const credit = usage.windows.find((w) => w.label === 'Credits')?.detail;
+    return <Text size="2xs" role="secondary">{credit ?? (usage.tally === null ? 'No current usage limit reported.' : tallyLine(usage.tally))}</Text>;
+  }
+  const blocked = (window.used ?? 0) > USAGE_LIMIT;
   return (
-    <Row wrap gap={4} style={USAGE_GAP} margin={{ top: 4 }}>
-      {usage.windows.map((window) => (
-        <UsageLine key={window.label} window={window} />
-      ))}
-    </Row>
+    <Col gap={4} margin={{ top: 4 }}>
+      <Row gap={10} align="center" wrap>
+        <UsageBar used={window.used} blocked={blocked} />
+        {blocked ? <Text size="2xs" role="secondary">Over the 95% switch limit</Text> : null}
+      </Row>
+      <Text size="2xs" role="secondary">{limitNote(window)}</Text>
+    </Col>
   );
 }
 
-const USAGE_GAP = { columnGap: 24, rowGap: 4 } as const;
 const CARD = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 } as const;
 
 function Card({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
   const palette = useKitPalette();
   const conn = routedConnection(settings);
-  const name = useModelName(conn);
+  const model = usageModel(settings, conn);
+  const name = useModelName(conn, model);
   const account = useAccountOf(conn);
   const usage = routedUsage(settings);
-  const low = usage?.windows.find((window) => window.used !== null && window.used >= LOW);
   const frame = [CARD, { borderColor: palette.border }];
   const hover = { borderColor: palette.sub };
   return (
@@ -68,16 +69,12 @@ function Card({ settings, href }: { settings: ModelSettings; href: string }): Re
         <Text size="2xs" role="secondary">
           {[conn?.label ?? 'Your Claude Code login', account].filter((part): part is string => part !== null).join(' · ')}
         </Text>
-        <CardUsage usage={usage} />
+        <CardUsage usage={usage} provider={conn?.provider ?? 'anthropic'} model={model} />
         {settings.reason !== null ? (
           <Text size="2xs" role="danger">
             {settings.reason}
           </Text>
-        ) : low === undefined ? null : (
-          <Text size="2xs" role="danger">
-            {`${low.label} almost used up (${String(Math.round((low.used ?? 0) * 100))}%). Top up or switch model.`}
-          </Text>
-        )}
+        ) : null}
       </Col>
       <Text size="2xs" role="link">
         Change

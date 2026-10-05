@@ -2,12 +2,14 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type { SDKMessage } from '../../packages/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs';
 import type { Activity } from '../../packages/sdk-runner/src/activity.ts';
 import { startStandIn, STANDIN_KEY, type StandIn } from './key-route.ts';
 import { startScripted, type ScriptedUpstream } from './scripted-upstream.ts';
 
+export const CORE = fileURLToPath(new URL('../../packages/core/src', import.meta.url));
 const ROOT = mkdtempSync(join(tmpdir(), 'sdk-runner-check-'));
 export const AGENTS = join(ROOT, 'agents');
 export const CLAUDE_DIR = join(ROOT, 'claude');

@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { approvalId, approvalsThrough } from '../src/approvals.ts';
+import { approvalId } from '@metro-labs/core/ids';
+import { approvalsThrough } from '../src/approvals.ts';
 import { channelEvent, channelText } from '../src/channel-text.ts';
 import { Inbox } from '../src/inbox.ts';
 import type { PermissionAsk } from '../src/link.ts';

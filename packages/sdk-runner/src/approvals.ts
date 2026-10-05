@@ -1,13 +1,9 @@
-import { randomInt } from 'node:crypto';
+import { approvalId } from '@metro-labs/core/ids';
 import type { CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { log } from '@metro-labs/core/log';
 import type { Asker } from './link.js';
 
-const ID_LETTERS = 'abcdefghijkmnopqrstuvwxyz';
-const ID_LENGTH = 5;
 const DENIED = 'The owner did not approve this.';
-
-export const approvalId = (): string => Array.from({ length: ID_LENGTH }, () => ID_LETTERS[randomInt(ID_LETTERS.length)]).join('');
 
 export interface ApprovalAsk { tool: string; worker: string | null }
 export type ApprovalWatch = (id: string, ask: ApprovalAsk | null) => void;

@@ -1,0 +1,78 @@
+name: Deploy bundler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/bundler/**'
+      - 'apps/app/public/preview-launcher.html'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/bundler.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bundler
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+      - run: bun --filter @metro-labs/bundler test
+      - name: Check the Worker bundle
+        run: bun --filter @metro-labs/bundler deploy --dry-run
+      - name: Check Cloudflare access and domain ownership
+        id: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo '::error::Add CLOUDFLARE_API_TOKEN with Workers Scripts Edit, Zone Read and DNS Read for the metro.box account and zone.'
+            exit 1
+          fi
+          cf() {
+            curl --fail-with-body --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/$1" | jq -e 'if .success then .result else error("Cloudflare refused the deployment preflight") end'
+          }
+          ZONE="$(cf 'zones?name=metro.box' | jq -ce 'if length == 1 then .[0] else error("Expected one metro.box zone") end')"
+          ACCOUNT_ID="$(jq -re '.account.id' <<< "$ZONE")"
+          ZONE_ID="$(jq -re '.id' <<< "$ZONE")"
+          HOST='bundler.metro.box'
+          WORKER='metro-bundler'
+          OWNED="$(cf "accounts/$ACCOUNT_ID/workers/domains?service=$WORKER")"
+          jq -e --arg host "$HOST" 'all(.[]; .hostname == $host)' <<< "$OWNED" > /dev/null || {
+            echo '::error::metro-bundler already has other custom domains. Refusing to remove them.'
+            exit 1
+          }
+          DOMAIN="$(cf "accounts/$ACCOUNT_ID/workers/domains?hostname=$HOST")"
+          jq -e --arg worker "$WORKER" --arg zone "$ZONE_ID" 'all(.[]; .service == $worker and .zone_id == $zone)' <<< "$DOMAIN" > /dev/null || {
+            echo '::error::bundler.metro.box belongs to another Worker. Refusing to replace it.'
+            exit 1
+          }
+          if [ "$(jq length <<< "$DOMAIN")" = 0 ]; then
+            DNS="$(cf "zones/$ZONE_ID/dns_records?name.exact=$HOST")"
+            jq -e 'length == 0' <<< "$DNS" > /dev/null || {
+              echo '::error::bundler.metro.box already has DNS records. Refusing to replace them.'
+              exit 1
+            }
+          fi
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+      - name: Deploy the Worker and its custom domain
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.cloudflare.outputs.account_id }}
+        run: bun --filter @metro-labs/bundler deploy
+      - name: Write the endpoint to the summary
+        run: printf '%s\n' 'Deployed https://bundler.metro.box/main. Verify DNS, TLS and the Expo manifest before marking it ready.' >> "$GITHUB_STEP_SUMMARY"

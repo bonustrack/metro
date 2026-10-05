@@ -9,7 +9,9 @@ import { rootHelper, runningAsMetro } from '../../apps/daemon/src/metro-user/pri
 import { listClaudeProjects, listClaudeSessions, listMemory, readMemoryFile, readTranscript } from '../../apps/daemon/src/claude/files.ts';
 import { listClaudeSkills } from '../../apps/daemon/src/claude/skills.ts';
 import { listClaudeSettings } from '../../apps/daemon/src/claude/settings.ts';
-import { hasConversation, sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
+import { sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
+import { continueArgs } from '../../apps/daemon/src/claude/session-continuity.ts';
+import { readJson, writeJson } from '../../packages/core/src/secure-fs.ts';
 import { provisionAgentUser } from '../../apps/daemon/src/agent-user/provision.ts';
 
 const results: string[] = [];
@@ -71,7 +73,10 @@ check('Memory lists a private file in a folder', listMemory('-home-agent', claud
 check('and reads it', readMemoryFile('-home-agent', 'people/less.md', claudeDirOf).includes('short answers'));
 check('Skills lists the agent skill', listClaudeSkills(claudeDirOf).some((k) => k.name === 'demo-skill'));
 check('Settings lists the files', Array.isArray(listClaudeSettings(claudeDirOf)));
-check('the watcher sees there is a conversation to continue', hasConversation('/home/agent', claudeDirOf));
+const sessionState = '/var/lib/metro/.metro/agents/claude-session.json';
+const pinned = '11111111-2222-4333-8444-555555555555';
+writeJson(sessionState, { ...readJson<Record<string, unknown>>(sessionState, {}), cliSessionId: pinned });
+check('the watcher resumes the pinned private transcript', JSON.stringify(continueArgs('/home/agent', claudeDirOf, '/var/lib/metro/.metro/agents')) === JSON.stringify(['--resume', pinned]));
 startSession({ metro: ['sh', '-c', 'sleep 600'], agents: '/var/lib/metro/.metro/agents' });
 await new Promise((r) => setTimeout(r, 1000));
 check('the Claude session starts under metro', sessionRunning());

@@ -34,7 +34,7 @@ const servingConnections = (cfg: ModelConfig): (Connection | null)[] => [routedC
 
 const permittedRoute = (cfg: ModelConfig): boolean => servingConnections(cfg).every(permitted);
 
-export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents), loginAllowed = sdkOnLogin(agents)): boolean => permittedRoute(cfg) || loginAllowed;
+export const sdkAllowed = (agents = agentsDir(), cfg: ModelConfig = readModelConfig(agents), loginAllowed?: boolean): boolean => permittedRoute(cfg) || (loginAllowed ?? sdkOnLogin(agents));
 
 export const sdkConnectionAllowed = (connection: Connection, agents = agentsDir()): boolean => permitted(connection) || sdkOnLogin(agents);
 

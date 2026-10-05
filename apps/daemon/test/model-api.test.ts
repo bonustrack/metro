@@ -408,7 +408,7 @@ describe('usage asked for before the agent sends anything', () => {
     const none = await shown();
     expect(none.usage.passthrough?.windows.map((w) => [w.label, w.used])).toEqual([
       ['5-hour window', 0.11],
-      ['Weekly', 0.7],
+      ['Weekly, all models', 0.7],
       ['Weekly, Fable', 0],
     ]);
     expect(login.asked).toBe(1);

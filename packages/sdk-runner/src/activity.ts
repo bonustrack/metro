@@ -13,7 +13,7 @@ const MAX_TOOLS = 20;
 const MAX_EVENTS = 40;
 const STATUS_UNAVAILABLE = 'The SDK status file cannot be written. Check its path and permissions before starting.';
 type System = Extract<SDKMessage, { type: 'system' }>;
-interface TrackedTool extends RunnerTool { main: boolean; parent: string | null }
+interface TrackedTool extends RunnerTool { parent: string | null }
 interface Approval { tool: string | null; taskId: string | null; worker: boolean }
 
 export function failureSummary(err: unknown): string {
@@ -197,7 +197,7 @@ export class Activity {
     this.busy = (message.queued_turn_count ?? 0) > 0;
     this.compacting = false;
     this.state.mainStartedAt = null;
-    for (const [id, tool] of this.tools) if (tool.main) this.tools.delete(id);
+    for (const [id, tool] of this.tools) if (tool.parent === null) this.tools.delete(id);
     this.failed = message.is_error || message.subtype !== 'success';
     if (!this.failed) {
       this.event('turn_finished');
@@ -226,7 +226,7 @@ export class Activity {
     if (this.tasks.isHidden(parent)) return;
     const name = activityName(rawName) ?? 'tool';
     const taskId = this.tasks.taskFor(parent);
-    this.tools.set(id, { id, name, taskId, startedAt: Date.now(), main: parent === null, parent });
+    this.tools.set(id, { id, name, taskId, startedAt: Date.now(), parent });
     if (parent === null) this.event('tool_started', name);
     log.info({ tool: name, worker: taskId }, 'sdk-runner: tool started');
   }
@@ -242,7 +242,7 @@ export class Activity {
       log.warn({ tool: name }, 'sdk-runner: tool failed');
       return;
     }
-    if (tool?.main === true) this.event('tool_finished', name);
+    if (tool?.parent === null) this.event('tool_finished', name);
     log.info({ tool: name }, 'sdk-runner: tool finished');
   }
 
@@ -262,7 +262,7 @@ export class Activity {
   private sync(): void {
     const tools = [...this.tools.values()];
     this.state.tools = [...new Set(tools.map((tool) => tool.name))].slice(0, MAX_TOOLS);
-    this.state.activeTools = tools.slice(0, MAX_TOOLS).map(({ id, name, taskId, startedAt, main }) => ({ id, name, taskId, startedAt, worker: !main }));
+    this.state.activeTools = tools.slice(0, MAX_TOOLS).map(({ id, name, taskId, startedAt, parent }) => ({ id, name, taskId, startedAt, worker: parent !== null }));
     this.state.tasks = this.tasks.snapshot();
     this.state.workers = this.tasks.running;
     this.state.approvals = this.approvals.size;
@@ -272,7 +272,7 @@ export class Activity {
     this.sync();
     const main = this.busy || this.state.pending > 0;
     const approvals = [...this.approvals.values()];
-    this.state.mainPhase = this.phaseOf(approvals.some((approval) => !approval.worker), main || [...this.tools.values()].some((tool) => tool.main));
+    this.state.mainPhase = this.phaseOf(approvals.some((approval) => !approval.worker), main || [...this.tools.values()].some((tool) => tool.parent === null));
     this.state.phase = this.phaseOf(approvals.length > 0, main || this.tools.size > 0 || this.state.workers > 0);
     this.flush();
   }

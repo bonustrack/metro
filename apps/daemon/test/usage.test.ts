@@ -38,7 +38,7 @@ describe('what Anthropic says about the login on every answer', () => {
     expect(usage).toEqual({
       windows: [
         { label: '5-hour window', used: 0.34, resetAt: '2026-09-17T12:30:00.000Z', detail: null },
-        { label: 'Weekly', used: 0.61, resetAt: '2026-09-19T09:00:00.000Z', detail: null },
+        { label: 'Weekly, all models', used: 0.61, resetAt: '2026-09-19T09:00:00.000Z', detail: null },
       ],
       note: null,
       at: NOW.toISOString(),
@@ -189,7 +189,7 @@ describe('usage asked for before any request', () => {
     expect(usage).toEqual({
       windows: [
         { label: '5-hour window', used: 0.11, resetAt: '2026-09-29T13:49:59.999Z', detail: null },
-        { label: 'Weekly', used: 0.7, resetAt: '2026-09-30T23:59:59.999Z', detail: null },
+        { label: 'Weekly, all models', used: 0.7, resetAt: '2026-09-30T23:59:59.999Z', detail: null },
         { label: 'Weekly, Fable', used: 0, resetAt: '2026-10-01T00:00:00.000Z', detail: null },
       ],
       note: null,

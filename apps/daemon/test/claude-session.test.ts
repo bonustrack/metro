@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, ensureSession, hasConversation, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import { autostartEnabled, ensureSession, sessionBlocked, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { continueArgs } from '../src/claude/session-continuity.js';
 import { auth } from './identity-helper.ts';
 import { configOf, makeConnection } from './model-fixture.ts';
@@ -142,14 +142,13 @@ describe('starting the session', () => {
   test('pins a fresh CLI session and never follows a newer unrelated home transcript', () => {
     agent();
     const home = join(dir, 'home');
-    expect(hasConversation(home, join(dir, 'config'))).toBe(false);
     startSession(deps({ metro: ['metro', 'claude'] }));
     const id = (JSON.parse(readFileSync(join(dir, 'agents', 'claude-session.json'), 'utf8')) as { cliSessionId: string }).cliSessionId;
     const project = join(dir, 'config', 'projects', realpathSync(home).replace(/[^A-Za-z0-9]/g, '-'));
     mkdirSync(project, { recursive: true });
     writeFileSync(join(project, `${id}.jsonl`), `${JSON.stringify({ type: 'user', cwd: realpathSync(home), message: { role: 'user', content: 'hi' } })}\n`);
     writeFileSync(join(project, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl'), '{}\n');
-    expect(hasConversation(home, join(dir, 'config'))).toBe(true);
+    expect(continueArgs(home, join(dir, 'config'), join(dir, 'agents'))).toEqual(['--resume', id]);
     stopSession(deps());
     startSession(deps({ metro: ['metro', 'claude'] }));
     expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${id}`)).toBe(true);
