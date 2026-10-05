@@ -14,6 +14,7 @@ import {
   isStandaloneGet,
   serveChannelGet,
 } from './raw-get-stream.js';
+import { errMsg } from '@metro-labs/core/log';
 import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
 
@@ -95,10 +96,21 @@ const isVoicePath = (req: IncomingMessage): boolean => (req.url ?? '').split('?'
 
 let activeSlots: SessionSlot[] = [];
 
+const MODEL_NOTICE = 'notifications/metro/model';
+
+function noticeModel(session: McpSession | undefined, model: string | null): boolean {
+  if (session?.streamAttached !== true) return false;
+  session.server.notification({ method: MODEL_NOTICE, params: { model } }).catch((err: unknown) => {
+    channelLog('session: the model notice failed', errMsg(err));
+  });
+  return true;
+}
+
 export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
   setLiveEvents: (on: boolean) => void;
+  switchModel: (model: string | null) => boolean;
 }> {
   await Promise.all(activeSlots.map((s) => s.close()));
   const slot = new SessionSlot(options.liveEvents);
@@ -146,5 +158,7 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
     slot.setLive(on);
   };
 
-  return { httpHandler, startInbound, setLiveEvents };
+  const switchModel = (model: string | null): boolean => noticeModel(slot.current, model);
+
+  return { httpHandler, startInbound, setLiveEvents, switchModel };
 }

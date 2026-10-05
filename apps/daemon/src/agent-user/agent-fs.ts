@@ -90,13 +90,13 @@ function openGuarded(path: string): number {
   }
 }
 
-function asAgentSh(script: string, args: string[]): Buffer {
+function asAgentSh(script: string, args: string[], failure = 'ENOENT'): Buffer {
   const [file, argv] = asUser(agentUser(), 'sh', ['-c', script, 'metro', ...args]);
   const run = spawnSync(file, argv, { maxBuffer: MAX_OUTPUT, stdio: ['ignore', 'pipe', 'pipe'] });
   if (run.error !== undefined) throw run.error;
   if (run.status !== 0) {
     const err = new Error(run.stderr.toString('utf8').trim() || `no such file or directory, ${args[0] ?? ''}`) as Error & { code: string };
-    err.code = 'ENOENT';
+    err.code = run.status === 66 ? 'ENOENT' : failure;
     throw err;
   }
   return run.stdout;
@@ -169,7 +169,7 @@ export function readFileSync(path: string, encoding: 'utf8'): string {
         fs.closeSync(fd);
       }
     },
-    () => asAgentSh('cat -- "$1"', [path]).toString('utf8'),
+    () => asAgentSh('if test -x "${1%/*}" && ! test -e "$1" && ! test -L "$1"; then exit 66; fi; cat -- "$1"', [path], 'EIO').toString('utf8'),
   );
 }
 

@@ -33,6 +33,7 @@ import { fetchClaudeAccount } from '@metro-labs/client/api/claude';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
 import { fetchClaudeSession, fetchClaudeSetup, fetchClaudeVersion, type ClaudeSessionStatus, type ClaudeSetup, type ClaudeVersion } from '@metro-labs/client/api/claude-box';
 import { fetchMode, type ModeInfo } from '@metro-labs/client/api/mode';
+import { sessionPollMs } from '@metro-labs/client/api/runner-activity';
 import { fetchUpdate, type UpdateCheck } from '@metro-labs/client/api/update';
 import { fetchServers, probeServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { fetchMachine, type Machine } from '@metro-labs/client/api/machine';
@@ -258,8 +259,8 @@ export const useUsageQuery = (serverId: string, range: ResourceRange): UseQueryR
 export const useLatestUsageQuery = (): UseQueryResult<Record<string, LatestUsage>> =>
   useQuery({ queryKey: orgKey('latest-usage'), queryFn: fetchLatestUsage, staleTime: 60_000, refetchInterval: 60_000, retry: false });
 
-export const useClaudeSessionQuery = (): UseQueryResult<ClaudeSessionStatus> =>
-  useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: 10_000 });
+export const useClaudeSessionQuery = ({ live = false }: { live?: boolean } = {}): UseQueryResult<ClaudeSessionStatus> =>
+  useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: (query) => sessionPollMs(query.state.data, live) });
 
 function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
   const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey && !conn.signedIn);

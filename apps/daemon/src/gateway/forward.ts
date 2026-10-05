@@ -28,6 +28,7 @@ const HOP_BY_HOP = new Set([
   'upgrade',
   'accept-encoding',
   'x-metro-key',
+  'x-metro-runner',
 ]);
 const RESPONSE_DROP = new Set(['content-length', 'content-encoding', 'transfer-encoding', 'connection', 'keep-alive']);
 

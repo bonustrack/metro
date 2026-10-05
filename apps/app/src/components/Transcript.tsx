@@ -9,12 +9,12 @@ import { MarkdownBlock } from './MarkdownBlock.js';
 import { StationIcon } from './StationIcon.js';
 import { parseChannelMessage } from './channel-message.js';
 import { atBottom, keepOffset, toBottom } from './chat-scroll.js';
+import { pollTranscript } from './transcript-poll.js';
 import { fetchTranscript, type Block, type TranscriptEntry } from '@metro-labs/client/api/claude';
 import { queryError } from '../lib/queries.js';
 import { Disclosure } from './ui/Disclosure.js';
 
 const PAGE = 20;
-const LIVE_MS = 4_000;
 const BUBBLE_WIDTH = '85%';
 const SENDER_ICON = 16;
 
@@ -109,7 +109,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
         setEntries(page.entries);
         setFrom(start);
         setTotal(page.total);
-        seen.current = page.total;
+        seen.current = page.next ?? page.total;
         toBottom();
       })
       .catch((err: unknown) => {
@@ -122,21 +122,20 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
 
   useEffect(() => {
     if (entries === null) return;
-    const timer = setInterval(() => {
-      fetchTranscript(project, id, seen.current, PAGE)
-        .then((page) => {
-          if (page.entries.length === 0) return;
-          const follow = atBottom();
-          seen.current = page.total;
-          setTotal(page.total);
-          setEntries((prev) => [...(prev ?? []), ...page.entries]);
-          if (follow) toBottom();
-        })
-        .catch(() => undefined);
-    }, LIVE_MS);
-    return () => {
-      clearInterval(timer);
-    };
+    return pollTranscript(
+      seen.current,
+      (offset) => fetchTranscript(project, id, offset, PAGE),
+      (page) => {
+        setError(null);
+        setTotal(page.total);
+        seen.current = page.next ?? page.total;
+        if (page.entries.length === 0) return;
+        const follow = atBottom();
+        setEntries((prev) => [...(prev ?? []), ...page.entries]);
+        if (follow) toBottom();
+      },
+      (err) => { setError(queryError(err, 'Could not refresh the session.')); },
+    );
   }, [project, id, entries === null]);
 
   const earlier = (): void => {
@@ -158,10 +157,10 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
       });
   };
 
-  if (error !== null) return <Text size="2xs" role="danger">{error}</Text>;
-  if (entries === null) return <Loading />;
+  if (entries === null) return error === null ? <Loading /> : <Text size="2xs" role="danger">{error}</Text>;
   return (
     <Col>
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       <Col gap={4}>
         {from > 0 ? (
           <Row justify="center" padding={{ bottom: 8 }}>

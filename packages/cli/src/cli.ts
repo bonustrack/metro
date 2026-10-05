@@ -2,6 +2,7 @@
 import { whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
+import { agentSession } from './agent.js';
 import { launchClaude } from './claude.js';
 import { memoryPaths, memoryRoutine } from './memory.js';
 import { update } from './update.js';
@@ -34,6 +35,12 @@ const USAGE = `metro: run your agent on this machine
                   open Claude Code with the metro channel and the metro MCP server, its
                   inference routed through the daemon's model gateway (the Model page);
                   every argument is passed through the same
+  metro agent     run chat and background workers in one Agent SDK conversation,
+                  when the Harness runner is Agent SDK, using the Model page's model;
+                  resume it after a restart; voice calls remain separate
+  metro agent --prepare [cli|sdk]
+                  check the runner before selecting it; install the SDK runtime if needed,
+                  without starting a session or connecting to chat
   metro memory [skill file]
                   run the memory routine once: when Claude Code transcripts changed since
                   the last run, Claude Code reads the memory skill (or the file given) and
@@ -80,6 +87,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
   claude: () => launchClaude(process.argv.slice(3)),
+  agent: () => agentSession(process.argv.slice(3)),
   memory: () => memoryRoutine(memoryPaths(process.env, process.argv[3])),
   voice: () => voiceSession(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),

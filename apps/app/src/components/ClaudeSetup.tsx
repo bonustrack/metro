@@ -3,8 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { setClaudeLiveEvents, setClaudeMemoryRoutine, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup, type MemoryJob } from '@metro-labs/client/api/claude-box';
-import { queryError, refresh, useClaudeSetupQuery } from '../lib/queries.js';
+import { setClaudeLiveEvents, setClaudeMemoryRoutine, setClaudePermissionMode, setClaudePrivacy, setHarnessRunner, setSdkOnLogin, type ClaudeSetup as Setup, type HarnessRunner, type MemoryJob } from '@metro-labs/client/api/claude-box';
+import { isOperator } from '@metro-labs/client/api/admin';
+import { OPERATOR_NOTE, runnerNote, sdkSelectable } from '@metro-labs/client/api/runner';
+import { activeAccount } from '@metro-labs/client/auth/account';
+import { queryError, refresh, useClaudeSessionQuery, useClaudeSetupQuery } from '../lib/queries.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
 import { Choice } from './Choice.js';
 import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
@@ -49,6 +52,62 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
       />
       {live.error === null ? null : <Text size="2xs" role="danger">{live.error}</Text>}
     </SettingsSection>
+  );
+}
+
+function Runner({ setup, runner }: { setup: Setup; runner: HarnessRunner }): ReactNode {
+  const flip = useFlip('Could not change how the agent runs.');
+  const session = useClaudeSessionQuery();
+  return (
+    <SettingsSection title="Selected runner" note={runnerNote(setup)}>
+      <Choice
+        label="Selected runner"
+        value={runner}
+        options={[
+          { value: 'cli', label: 'Claude Code' },
+          { value: 'sdk', label: 'Agent SDK (beta)', disabled: !sdkSelectable(setup) },
+        ]}
+        disabled={flip.busy || session.error !== null || session.data?.running !== false}
+        onChange={(next) => {
+          flip.run(() => setHarnessRunner(next));
+        }}
+      />
+      {session.error !== null ? (
+        <Text size="2xs" role="danger">{queryError(session.error, 'Could not check whether the session is stopped.')}</Text>
+      ) : (
+        <Text size="2xs" role="secondary">
+          {session.data === undefined ? 'Checking session status.' : session.data.running ? 'Session is running. Stop it before changing the runner.' : 'Session is stopped. Press Start after choosing the runner.'}
+        </Text>
+      )}
+      {flip.error === null ? null : <Text size="2xs" role="danger">{flip.error}</Text>}
+    </SettingsSection>
+  );
+}
+
+function SdkOnLogin({ on }: { on: boolean }): ReactNode {
+  const flip = useFlip('Could not change whether the Agent SDK may use the Claude login.');
+  return (
+    <SettingsSection title="Agent SDK on the Claude login" note={OPERATOR_NOTE}>
+      <Choice
+        label="Agent SDK on the Claude login"
+        value={on ? 'on' : 'off'}
+        options={[{ value: 'off', label: 'Not allowed' }, { value: 'on', label: 'Allowed' }]}
+        disabled={flip.busy}
+        onChange={(next) => {
+          flip.run(() => setSdkOnLogin(next === 'on'));
+        }}
+      />
+      {flip.error === null ? null : <Text size="2xs" role="danger">{flip.error}</Text>}
+    </SettingsSection>
+  );
+}
+
+function RunnerRows({ setup }: { setup: Setup }): ReactNode {
+  return (
+    <>
+      {setup.runner === null ? null : <Runner setup={setup} runner={setup.runner} />}
+      {setup.sdkOnLogin === null || !isOperator(activeAccount()) ? null : <SdkOnLogin on={setup.sdkOnLogin} />}
+    </>
   );
 }
 
@@ -107,6 +166,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
         />
         {mode.error === null ? null : <Text size="2xs" role="danger">{mode.error}</Text>}
       </SettingsSection>
+      <RunnerRows setup={setup} />
       {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
       {setup.memoryRoutine === null ? null : <MemoryRoutine on={setup.memoryRoutine} job={setup.memoryJob} />}
       {setup.skill ? (
@@ -141,7 +201,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
 const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
 const MEMORY_NOTE = 'Twice a day, at 00:00 and 12:00 UTC, when there was activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes, following the memory skill (MEMORY.md).';
-const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Changing this restarts the agent.';
+const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Finish active work and press Stop before changing this, then Start to apply it.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const setup = useClaudeSetupQuery();

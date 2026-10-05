@@ -16,10 +16,10 @@ import type { MenuItem } from './Dropdown.js';
 import { dropConnection, saveFallbacks, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
 import { usesKey } from '@metro-labs/client/api/providers';
 import { movedFallbacks, promoteFallback, type Slot } from '@metro-labs/client/api/route-edit';
-import { queryError, refresh, useModelQuery } from '../lib/queries.js';
+import { modelNote } from '@metro-labs/client/api/runner';
+import { queryError, refresh, useClaudeSetupQuery, useModelQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
-const HOW = 'The AI your agent thinks with: an ordered list of models, and the connections they run on. Changing the first model restarts the agent, which takes a few seconds.';
 const NONE_YET = 'No connection yet. Your agent uses the Claude login of its server until you add one.';
 const CONNECTIONS = 'The accounts and keys the list above can use. Each one shows its own usage.';
 
@@ -87,13 +87,14 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
 
 export function ModelPage(): ReactNode {
   const model = useModelQuery();
+  const setup = useClaudeSetupQuery();
   useDocumentTitle('Model');
   return (
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
         <Text size="2xs" role="secondary">
-          {HOW}
+          {modelNote(setup.data)}
         </Text>
       </Col>
       {model.error !== null ? (

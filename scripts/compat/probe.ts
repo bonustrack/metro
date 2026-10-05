@@ -112,6 +112,7 @@ if (typeof setup?.memoryRoutine === 'boolean') {
   await ok('setClaudeMemoryRoutine off', () => box.setClaudeMemoryRoutine(false));
   await ok('setClaudeMemoryRoutine on', () => box.setClaudeMemoryRoutine(true));
 }
+if (setup?.runner === 'cli') await ok('setHarnessRunner cli', () => box.setHarnessRunner('cli'));
 await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
 await ok('fetchSchedules', () => schedules.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());

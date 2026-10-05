@@ -1,7 +1,11 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 
 const ID_BYTES = 8;
 const REROLLS = 16;
+const APPROVAL_LETTERS = 'abcdefghijkmnopqrstuvwxyz';
+const APPROVAL_LENGTH = 5;
+
+export const approvalId = (): string => Array.from({ length: APPROVAL_LENGTH }, () => APPROVAL_LETTERS[randomInt(APPROVAL_LETTERS.length)]).join('');
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{10}$/;
 

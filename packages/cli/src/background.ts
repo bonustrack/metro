@@ -108,7 +108,22 @@ function stopBackground(id: string, env: NodeJS.ProcessEnv = process.env): Stopp
   return { ok: run.status === 0, detail: said === '' ? `exit ${String(run.status)}` : said };
 }
 
+export function resumeSessionId(args: string[]): string | undefined {
+  const index = args.findLastIndex((arg) => arg === '--resume' || arg === '-r');
+  const id = index === -1 ? undefined : args[index + 1];
+  return id !== undefined && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) ? id : undefined;
+}
+
+function pinnedHeld(dir: string, live: ReadonlySet<string>, id: string): string | null {
+  if (live.has(id)) return id;
+  const path = join(dir, `${id}.jsonl`);
+  if (!existsSync(path)) return null;
+  const moved = continuedIn(readFileSync(path, 'utf8'));
+  return moved !== null && live.has(moved) ? moved : null;
+}
+
 interface TakeBackDeps {
+  sessionId?: string;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   alive?: Alive;
@@ -128,12 +143,17 @@ async function settled(sessions: string, held: string, alive: Alive, ms: number)
   return settled(sessions, held, alive, ms - POLL_MS);
 }
 
+function heldFor(deps: TakeBackDeps, dir: string, live: ReadonlySet<string>): string | null {
+  const project = projectDir(dir, deps.cwd ?? process.cwd());
+  return deps.sessionId === undefined ? heldConversation(project, live) : pinnedHeld(project, live, deps.sessionId);
+}
+
 export async function takeBackConversation(deps: TakeBackDeps = {}): Promise<string | null> {
   const env = deps.env ?? process.env;
   const alive = deps.alive ?? processAlive;
   const dir = claudeDir(env);
   const sessions = join(dir, 'sessions');
-  const held = heldConversation(projectDir(dir, deps.cwd ?? process.cwd()), liveBackground(sessions, alive));
+  const held = heldFor(deps, dir, liveBackground(sessions, alive));
   if (held === null) return null;
   const id = held.slice(0, 8);
   const stopped = (deps.stop ?? stopBackground)(id, env);

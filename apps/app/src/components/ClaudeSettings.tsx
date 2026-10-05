@@ -9,6 +9,7 @@ import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
 import { PageTitle } from './PageTitle.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
+import { ClaudeSession } from './ClaudeSession.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { ClaudeVersion } from './ClaudeVersion.js';
 import { GROW } from '../lib/style.js';
@@ -179,6 +180,9 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Harness</PageTitle>
+      <SettingsGroup title="Session">
+        <ClaudeSession project={project} live />
+      </SettingsGroup>
       <ClaudeSetup project={project} />
       <SettingsGroup title="Version">
         <SettingsSection title="Claude Code" note="The program your agent runs on. Metro keeps it up to date when you ask.">

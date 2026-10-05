@@ -55,7 +55,7 @@ export function viewFiles(dir = agentsDir()): Map<string, string | null> {
 
 const written = new Map<string, string | null>();
 
-function syncAgentView(user: AgentUser | null = agentUser(), dir = agentsDir()): number {
+export function syncAgentView(user: AgentUser | null = agentUser(), dir = agentsDir()): number {
   if (user === null) return 0;
   const target = agentViewDir(user);
   let changed = 0;
