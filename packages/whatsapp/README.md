@@ -9,11 +9,37 @@ Config (`accounts` row `config` jsonb): `{ "phone": "<E.164 digits>" }`, optiona
 `account_id` convention: `w0`. Lines are `metro://whatsapp/<account>/<jid>` where `<jid>`
 is a WhatsApp jid (`<number>@s.whatsapp.net` for DMs, `<id>@g.us` for groups).
 
-## v1 scope
+## Message history and group members
 
-`send` / `reply` / `react` / `unreact` / `edit` / `delete`. Media, groups, and history
-(`read`) are deferred — Baileys cannot fetch arbitrary server-side history, so `read`
-is intentionally not advertised.
+`read` queries one conversation's account-local history, newest first. It supports
+`limit`, `before` (an exclusive message ID in that conversation) and `since` (an
+inclusive timestamp). An unknown or expired cursor is an error. Advanced filters
+are reported as ignored by the daemon. Account-wide reads are not supported.
+
+History contains text, captions and attachment metadata from messages observed or
+synced to this installation, including its own sends. It does not download historical
+attachments or replay history into the agent. Every result reports partial coverage
+and the retained range and limits. Empty results never prove the conversation is empty.
+This is not arbitrary server-side search or an automatic request for older history.
+A stored outgoing message is not proof of recipient delivery or reading.
+
+Local history is stored in `whatsapp-history-<account>.json`, mode 0600, under
+`WHATSAPP_TOKEN_DIR` or `~/.metro`. It retains at most 30 days, 5,000 messages per
+account, 500 per conversation and 8 MiB per file. Text is capped at 16 KiB per
+message and reports truncation. A read returns at most 100 messages within a 2 MiB
+serialized page budget; `nextBefore` continues a page stopped by either limit.
+Expired and deleted content is removed; replay protection prevents old syncs from
+restoring it. View-once messages and disappearing content with an unknown expiry
+are not retained. Detaching an account removes its history and known atomic temporary
+files. Startup removes orphaned history files and this account's stale atomic files.
+
+`list_members` reads the current group metadata for a `@g.us` line. Original member
+IDs, phone and LID aliases and admin roles are preserved. A limited roster, a mismatch
+with the server's member count, or a missing total is marked incomplete. Direct chats
+return an unsupported capability. This adds no group-write operations.
+
+Both tools use the existing account scope and owner read policy. Receive Off still
+only stops live inbound delivery; it does not disable the account's tools.
 
 ## Persistence
 
@@ -29,7 +55,7 @@ fallback) — run the login script to pair.
 
 Only the login script (a manual admin action) ever writes `accounts.credentials`.
 
-### The one thing that IS written to disk: the trusted-contact token cache
+### Trusted-contact token cache
 
 Baileys 7 attaches a **trusted-contact token** (`tctoken`) to every 1:1 send, and WhatsApp
 answers a 1:1 send that carries none with `ack error 463` — it counts the message as

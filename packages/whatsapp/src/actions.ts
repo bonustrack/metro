@@ -8,7 +8,7 @@ import {
   type StationHandler,
 } from '@metro-labs/core/stations/station-runtime';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
-import { accountFor, accounts, targetOf } from './accounts.js';
+import { accountFor, accounts, lineOf, targetOf } from './accounts.js';
 import { phoneNumberOf, senderLookup } from './resolve.js';
 import { assertImage, fieldsOf, parseProfileChange, type ProfileApplied } from '@metro-labs/core/stations/profile';
 import type { WAClient } from './client.js';
@@ -117,6 +117,35 @@ function makeSend(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeRead(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { accountId, client, jid } = resolve(args, clientFor);
+    const page = await guard(() => client.read(jid, {
+      limit: typeof args.limit === 'number' ? args.limit : undefined,
+      before: str(args.before),
+      since: str(args.since),
+    }));
+    const messages = page.messages.map((row) => ({
+      id: row.messageId,
+      ts: row.timestamp,
+      ...(row.senderJid ? { from: lineOf(accountId, `user/${row.senderJid}`) } : {}),
+      self: row.fromMe,
+      text: row.text,
+      ...(row.truncated ? { truncated: true } : {}),
+      ...(row.attachments ? { attachments: row.attachments } : {}),
+    }));
+    respond(id, { result: { ...page, line: lineOf(accountId, jid), account: accountId, messages } });
+  };
+}
+
+function makeListMembers(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const { client, jid } = resolve({ line: args.line }, clientFor);
+    const result = await guard(() => client.listMembers(jid, typeof args.limit === 'number' ? args.limit : undefined));
+    respond(id, { result });
+  };
+}
+
 function makeReact(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { accountId, client, jid } = resolve(args, clientFor);
@@ -208,6 +237,8 @@ export function makeHandleCall(
     handlers: {
       accounts: makeAccounts(clientFor),
       send: makeSend(clientFor),
+      read: makeRead(clientFor),
+      listMembers: makeListMembers(clientFor),
       react: makeReact(clientFor),
       typing: makeTyping(clientFor),
       edit: makeEdit(clientFor),

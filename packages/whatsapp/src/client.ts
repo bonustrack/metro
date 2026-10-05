@@ -11,13 +11,15 @@ import makeWASocket, {
 import { TrainError } from '@metro-labs/core/train-error';
 import { errMsg } from '@metro-labs/core/log';
 import type { WhatsAppAccount } from './types.js';
-import type { InboundMessage, ReactionInput } from './format.js';
-import type { SenderFound } from './resolve.js';
-import type { ProfileChange } from '@metro-labs/core/stations/profile';
+import type { InboundHandlers, WAClient, WAMedia, ClientRuntime } from './client-types.js';
+export type { InboundHandlers, WAClient, WAMedia } from './client-types.js';
 import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core/stations/sender-profile';
-import { toInbound, toReaction, type ReactionEvent, type SelfRef } from './parse.js';
+import type { SelfRef } from './parse.js';
+import { createHistory, type History } from './history.js';
+import { bindMessages } from './messages.js';
+import { listMembers } from './members.js';
 import { baileysLogger } from './logger.js';
-import { makeNameBook, nameFiles, noteContact, phoneOf, type NameBook } from './names.js';
+import { makeNameBook, nameFiles, phoneOf, type NameBook } from './names.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
@@ -30,38 +32,10 @@ import {
   type AckWatch,
 } from './ack.js';
 
-export interface InboundHandlers {
-  onMessage(m: InboundMessage, raw: WAMessage): void;
-  onReaction(r: ReactionInput): void;
-}
-
-export interface WAMedia {
-  kind: string;
-  path: string;
-  mime: string;
-  name: string;
-  caption?: string;
-}
-
-export interface WAClient {
-  account: WhatsAppAccount;
-  self(): string | null;
-  start(handlers: InboundHandlers): Promise<void>;
-  sendText(jid: string, text: string, quotedId?: string): Promise<string>;
-  sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
-  sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;
-  showTyping(jid: string): Promise<void>;
-  editMessage(jid: string, messageId: string, text: string): Promise<void>;
-  deleteMessage(jid: string, messageId: string): Promise<void>;
-  reuploadMedia(m: WAMessage): Promise<WAMessage>;
-  lookupSender(number: string): Promise<SenderFound>;
-  setProfile(change: ProfileChange): Promise<void>;
-  senderProfile(jid: string): Promise<SenderProfile | null>;
-  disconnect(): Promise<void>;
-}
-
 interface State {
   account: WhatsAppAccount;
+  runtime: ClientRuntime;
+  history: History;
   handlers?: InboundHandlers;
   sock?: WASocket;
   closed: boolean;
@@ -91,32 +65,14 @@ function selfRef(st: State, sock: WASocket): SelfRef {
 }
 
 function bindInbound(st: State, sock: WASocket): void {
-  sock.ev.on('messages.upsert', ({ messages, type }) => {
-    for (const m of messages) st.keys.remember(m.key);
-    if (type !== 'notify' || !st.handlers) return;
-    for (const m of messages) {
-      if (m.key.fromMe) continue;
-      const inbound = toInbound(st.account.id, m, selfRef(st, sock));
-      if (inbound) st.names.note(inbound.senderJid, inbound.pushName);
-      if (inbound) st.handlers.onMessage(inbound, m);
-    }
-  });
-  sock.ev.on('contacts.upsert', (contacts) => {
-    for (const c of contacts) noteContact(st.names, c);
-  });
-  sock.ev.on('contacts.update', (contacts) => {
-    for (const c of contacts) noteContact(st.names, c);
-  });
-  sock.ev.on('messaging-history.set', ({ contacts, messages }) => {
-    for (const c of contacts) noteContact(st.names, c);
-    for (const m of messages) if (m.key.fromMe !== true) st.names.note(m.key.participant ?? m.key.remoteJid, m.pushName);
-  });
-  sock.ev.on('messages.reaction', (events: ReactionEvent[]) => {
-    if (!st.handlers) return;
-    for (const event of events) {
-      const reaction = toReaction(st.account.id, event);
-      if (reaction) st.handlers.onReaction(reaction);
-    }
+  bindMessages(sock, {
+    accountId: st.account.id,
+    keys: st.keys,
+    names: st.names,
+    history: st.history,
+    current: () => !st.closed && st.sock === sock,
+    handlers: () => st.handlers,
+    self: () => selfRef(st, sock),
   });
 }
 
@@ -197,19 +153,20 @@ async function connect(st: State): Promise<void> {
     st.account.credentials,
     st.account.id,
   );
-  const { version, error } = await fetchLatestWaWebVersion({});
+  const { version, error } = await st.runtime.fetchVersion({});
   if (error) {
     throw new TrainError(
       'whatsapp_connect',
       `failed to fetch WhatsApp web version: ${errMsg(error)}`,
     );
   }
-  const sock = makeWASocket({
+  const sock = st.runtime.makeSocket({
     version,
     auth: state,
     browser: Browsers.macOS('Safari'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
+    emitOwnEvents: false,
     logger: baileysLogger(st.account.id),
     getMessage: (key) => Promise.resolve(servedFromOutbox(st, key)),
   });
@@ -256,7 +213,13 @@ async function send(
   const ack = await st.acks.wait(messageId, ACK_WAIT_MS);
   const refused = ack ? rejection(ack) : undefined;
   if (refused) throw refused;
+  recordSent(st, sock, sent);
   return messageId;
+}
+
+function recordSent(st: State, sock: WASocket, sent: WAMessage | undefined): void {
+  if (!sent || st.closed) return;
+  st.history.ingest([sent], sock.user?.id ? jidNormalizedUser(sock.user.id) : undefined);
 }
 
 function quotedOpts(st: State, jid: string, quotedId: string): SendOpts {
@@ -300,9 +263,22 @@ async function readProfile(st: State, jid: string): Promise<SenderProfile> {
   };
 }
 
-export function createClient(account: WhatsAppAccount): WAClient {
+async function disconnect(st: State): Promise<void> {
+  st.closed = true;
+  try {
+    await st.sock?.end(undefined);
+  } catch {
+    st.sock = undefined;
+  } finally {
+    st.history.close();
+  }
+}
+
+function initialState(account: WhatsAppAccount, runtime: ClientRuntime): State {
   const st: State = {
     account,
+    runtime,
+    history: createHistory(account.id),
     closed: false,
     openPromise: Promise.resolve(),
     keys: makeKeyCache(),
@@ -311,6 +287,14 @@ export function createClient(account: WhatsAppAccount): WAClient {
     names: makeNameBook(nameFiles.path(account.id)),
   };
   resetGate(st);
+  return st;
+}
+
+export function createClient(
+  account: WhatsAppAccount,
+  runtime: ClientRuntime = { makeSocket: makeWASocket, fetchVersion: fetchLatestWaWebVersion },
+): WAClient {
+  const st = initialState(account, runtime);
   const senders = makeProfileCache<SenderProfile>((jid) => readProfile(st, jid), {
     onError: (jid, err) => process.stderr.write(`whatsapp[${st.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`),
   });
@@ -330,6 +314,14 @@ export function createClient(account: WhatsAppAccount): WAClient {
           `whatsapp[${account.id}] connect failed: ${errMsg(e)}\n`,
         );
       }
+    },
+    read(jid, options) {
+      const page = st.history.read(jid, options);
+      for (const message of page.messages) st.keys.remember(message.key);
+      return Promise.resolve(page);
+    },
+    listMembers(jid, limit) {
+      return listMembers(jid, async (groupJid) => (await ready(st)).groupMetadata(groupJid), st.names, limit);
     },
     sendText(jid, text, quotedId) {
       return send(
@@ -360,11 +352,13 @@ export function createClient(account: WhatsAppAccount): WAClient {
         text,
         edit: knownKey(st.keys, jid, messageId, true),
       });
+      if (!st.closed) st.history.edit(jid, messageId, text);
     },
     async deleteMessage(jid, messageId) {
       await send(st, jid, {
         delete: knownKey(st.keys, jid, messageId, true),
       });
+      if (!st.closed) st.history.deleteMessages({ keys: [{ remoteJid: jid, id: messageId }] });
     },
     async reuploadMedia(m) {
       const sock = await ready(st);
@@ -388,13 +382,6 @@ export function createClient(account: WhatsAppAccount): WAClient {
       }
     },
     senderProfile: (jid) => senders.get(jid),
-    async disconnect() {
-      st.closed = true;
-      try {
-        await st.sock?.end(undefined);
-      } catch {
-        st.sock = undefined;
-      }
-    },
+    disconnect: () => disconnect(st),
   };
 }

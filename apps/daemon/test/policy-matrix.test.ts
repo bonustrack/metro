@@ -13,6 +13,11 @@ const AGENT = 'agent000001';
 const ACCOUNT = 'tg000000001';
 const LINE = `metro://telegram/${ACCOUNT}/-100555`;
 const TARGET = { kind: 'channel', station: 'telegram', account: ACCOUNT } as const;
+const WA = 'wa000000001';
+const WA_OTHER = 'wa000000002';
+const WA_FOREIGN = 'wa000000003';
+const WA_LINE = `metro://whatsapp/${WA}/123@g.us`;
+const WA_TARGET = { kind: 'channel', station: 'whatsapp', account: WA } as const;
 
 type Outcome = 'ran' | 'blocked' | 'waits';
 
@@ -70,7 +75,12 @@ let trainCalls: string[] = [];
 
 beforeAll(() => {
   process.env.METRO_AGENTS_DIR = mkdtempSync(join(tmpdir(), 'metro-policy-'));
-  setAgentMap({ [`telegram/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Andy' });
+  setAgentMap({
+    [`telegram/${ACCOUNT}`]: AGENT,
+    [`whatsapp/${WA}`]: AGENT,
+    [`whatsapp/${WA_OTHER}`]: AGENT,
+    [`whatsapp/${WA_FOREIGN}`]: 'agent000002',
+  }, { [AGENT]: 'Andy' });
 });
 
 afterAll(() => {
@@ -139,6 +149,74 @@ describe('the tool policy of a channel account, as the daemon enforces it', () =
   test('the API refuses a bad policy by name', () => {
     expect(() => normalizePolicy({ write: 'maybe' })).toThrow('write must be allow, ask or deny');
     expect(normalizePolicy({ read: 'ask', tools: { send: 'deny' } })).toEqual({ read: 'ask', tools: { send: 'deny' } });
+  });
+});
+
+describe('list_members policies follow the line, not an undeclared account argument', () => {
+  const args = { line: WA_LINE, account: WA_OTHER, limit: 5 };
+  const run = (input: Record<string, unknown> = args) => runWithIdentity({ kind: 'agent', agentId: AGENT }, () =>
+    callToolHandler({ params: { name: 'list_members', arguments: input } }),
+  );
+  const cases: [ToolPolicy, string][] = [
+    [{ read: 'deny' }, "Blocked by the owner's policy"],
+    [{ read: 'ask' }, "Needs the owner's approval"],
+    [{ read: 'allow', tools: { list_members: 'deny' } }, "Blocked by the owner's policy"],
+    [{ read: 'allow', tools: { list_members: 'ask' } }, "Needs the owner's approval"],
+  ];
+
+  beforeEach(() => forgetAllPrompts());
+
+  for (const [policy, prefix] of cases)
+    test(`an allowed account cannot bypass ${JSON.stringify(policy)} on the line account`, async () => {
+      setPolicies('channel', [[WA_TARGET, policy]]);
+      const res = await run();
+      expect(res.isError).toBe(true);
+      expect(res.content[0]?.text).toStartWith(`${prefix} for whatsapp (list_members)`);
+      expect(trainCalls).toEqual([]);
+    });
+
+  test('an exact grant allows one roster dispatch on the line account only', async () => {
+    setPolicies('channel', [[WA_TARGET, { read: 'ask' }]]);
+    const dispatched: unknown[] = [];
+    setTrainCallBackend((train, action, input) => {
+      trainCalls.push(`${train}:${action}`);
+      dispatched.push(input);
+      return Promise.resolve({ result: { members: [], capability: { supported: true, complete: true } } });
+    });
+    const approve = async (id: string, input: Record<string, unknown>): Promise<void> => {
+      holdPrompt({ requestId: id, tool: 'mcp__metro__list_members', description: '', preview: JSON.stringify(input), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
+      await answerPrompt(id, 'allow', 'page');
+    };
+    expect((await run()).isError).toBe(true);
+    await approve('aaaaa', { ...args, line: `metro://whatsapp/${WA_OTHER}/123@g.us` });
+    expect((await run()).isError).toBe(true);
+    expect(trainCalls).toEqual([]);
+    await approve('bbbbb', args);
+    expect((await run()).isError).not.toBe(true);
+    expect(trainCalls).toEqual(['whatsapp:listMembers']);
+    expect(dispatched).toEqual([{ line: WA_LINE, limit: 5 }]);
+    expect((await run()).content[0]?.text).toStartWith("Needs the owner's approval");
+    expect(trainCalls).toEqual(['whatsapp:listMembers']);
+  });
+
+  test('a surplus account cannot move a denial onto an allowed line', async () => {
+    setPolicies('channel', [[{ ...WA_TARGET, account: WA_OTHER }, { read: 'deny' }]]);
+    expect((await run()).isError).not.toBe(true);
+    expect(trainCalls).toEqual(['whatsapp:listMembers']);
+  });
+
+  test('the line and surplus account still both need to be in scope', async () => {
+    setPolicies('channel', []);
+    const inputs = [
+      { ...args, account: WA_FOREIGN },
+      { ...args, line: `metro://whatsapp/${WA_FOREIGN}/123@g.us` },
+    ];
+    for (const input of inputs) {
+      const res = await run(input);
+      expect(res.isError).toBe(true);
+      expect(res.content[0]?.text).toBe('metro: this account is outside your authorized scope');
+    }
+    expect(trainCalls).toEqual([]);
   });
 });
 

@@ -13,9 +13,9 @@ type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
 
 export const UNGATED = new Set<string>(['list_accounts', 'create_upload']);
 
-function fromLine(line: string, override: string | undefined): ChannelTarget[] {
+function fromLine(line: string, override = ''): ChannelTarget[] {
   const acct = accountFromLine(line);
-  return acct === undefined ? [] : [{ kind: 'channel', station: acct.station, account: override ?? acct.accountId }];
+  return acct === undefined ? [] : [{ kind: 'channel', station: acct.station, account: override || acct.accountId }];
 }
 
 function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget[] {
@@ -26,7 +26,7 @@ function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget
   }
   const account = str(a.account);
   const line = str(a.line);
-  if (line) return fromLine(line, account || undefined);
+  if (line) return fromLine(line, name === 'list_members' ? undefined : account);
   const station = stationForTool(name, a) ?? (account ? stationOfAccount(account) : undefined);
   if (station === undefined) return [];
   if (account) return [{ kind: 'channel', station, account }];

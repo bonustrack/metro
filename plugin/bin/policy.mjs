@@ -36,7 +36,7 @@ function targets(snap, name, input) {
   if (Array.isArray(snap.ungated) && snap.ungated.includes(name)) return [];
   const account = text(input.account);
   const line = text(input[LINE_FIELD[name] ?? 'line']);
-  if (line) return fromLine(line, name in LINE_FIELD ? '' : account);
+  if (line) return fromLine(line, name in LINE_FIELD || name === 'list_members' ? '' : account);
   const owners = isRecord(snap.owners) ? snap.owners : {};
   const station = (STATION_ARG.has(name) ? text(input.station) : text(owners[name])) || (account ? stationOfAccount(snap, account) : undefined);
   if (!station) return [];

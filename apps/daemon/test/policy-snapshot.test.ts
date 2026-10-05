@@ -12,6 +12,8 @@ const GUARD = join(import.meta.dir, '..', '..', '..', 'plugin', 'bin', 'guard.mj
 const AGENT = 'agent000001';
 const TG = 'tg000000001';
 const XM = 'xm000000001';
+const WA = 'wa000000001';
+const WA_OTHER = 'wa000000002';
 const LINE = `metro://telegram/${TG}/-100555`;
 
 let dir = '';
@@ -32,7 +34,12 @@ function hook(tool: string, input: Record<string, unknown>): string {
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-policy-snapshot-'));
   process.env.METRO_AGENTS_DIR = dir;
-  setAgentMap({ [`telegram/${TG}`]: AGENT, [`xmtp/${XM}`]: AGENT }, { [AGENT]: 'Andy' });
+  setAgentMap({
+    [`telegram/${TG}`]: AGENT,
+    [`xmtp/${XM}`]: AGENT,
+    [`whatsapp/${WA}`]: AGENT,
+    [`whatsapp/${WA_OTHER}`]: AGENT,
+  }, { [AGENT]: 'Andy' });
   stop = watchPolicySnapshot();
 });
 
@@ -73,4 +80,21 @@ describe('the policy snapshot the plugin hook reads', () => {
     ];
     for (const [tool, input] of calls) expect(`${tool}: ${hook(tool, input)}`).toBe(`${tool}: ${channelDecision(tool, input).access}`);
   });
+
+  for (const access of ['deny', 'ask'] as const)
+    test(`roster uses the line policy (${access}) while read keeps its forwarded account override`, () => {
+      setPolicies('channel', [[{ kind: 'channel', station: 'whatsapp', account: WA }, { read: access }]]);
+      const restrictedLine = { line: `metro://whatsapp/${WA}/123@g.us`, account: WA_OTHER };
+      const allowedLine = { line: `metro://whatsapp/${WA_OTHER}/123@g.us`, account: WA };
+      const calls: [string, Record<string, unknown>, string][] = [
+        ['list_members', restrictedLine, access],
+        ['list_members', allowedLine, 'allow'],
+        ['read', restrictedLine, 'allow'],
+        ['read', allowedLine, access],
+      ];
+      for (const [tool, input, expected] of calls) {
+        expect(channelDecision(tool, input).access).toBe(expected);
+        expect(hook(tool, input)).toBe(expected);
+      }
+    });
 });
