@@ -200,6 +200,17 @@ Always commit `bun.lock`: CI and Docker install with `--frozen-lockfile`.
   the root `netlify.toml`). Every pull request gets a deploy preview. The phone app runs
   in a dev client: `App dev client APK` builds an APK when the native runtime changes,
   and `App preview` publishes every push as an EAS Update for that branch.
+- **apps/bundler** serves https://bundler.metro.box/main and `/<branch>` for the dev
+  client. It proxies the branch's EAS Update with the phone's Expo platform and runtime
+  headers. Browsers get an Open in dev client button and a QR code. No dev server runs.
+  The `Deploy bundler` workflow deploys the `metro-bundler` Cloudflare Worker from main
+  when its code or launcher changes, or through Run workflow after the first setup.
+  Add the repository secret `CLOUDFLARE_API_TOKEN`, scoped to the metro.box account and
+  zone with Workers Scripts Edit, Zone Read and DNS Read. The
+  workflow discovers the account from that zone and refuses conflicting DNS records
+  or custom domains. The Worker's Custom Domain creates its DNS record and certificate.
+  Expo updates and the installed APK runtime are unchanged. Verify DNS, TLS and a
+  manifest with the installed APK's runtime after deployment.
 - **The CLI** (`@stage-labs/metro`) is published by hand with the "Publish
   @stage-labs/metro" workflow in the GitHub Actions tab. It always publishes under the
   `beta` tag. Boxes pick it up with `metro update` or the Update button on the page.
