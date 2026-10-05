@@ -19,6 +19,7 @@ import type { Section } from '../../packages/client/src/export/pack.ts';
 import * as transfer from '../../packages/client/src/export/transfer.ts';
 import * as schedules from '../../packages/client/src/api/schedules.ts';
 import * as voice from '../../packages/client/src/api/voice.ts';
+import { getRunEvents, RUN_EVENTS_SINCE } from '../../packages/client/src/api/run-events.js';
 
 const need = (name: string): string => {
   const v = process.env[name];
@@ -95,6 +96,10 @@ await ok('fetchStations', async () => {
   const view = await client.fetchStations();
   if (view.agent?.id !== agent) throw new Error(`the agent list names ${view.agent?.id ?? 'no agent'}, not ${agent}`);
 });
+if (!olderThan(daemonMode?.version ?? null, RUN_EVENTS_SINCE)) {
+  const events = await ok('getRunEvents', () => getRunEvents(agent, { limit: 10 }));
+  if (events !== undefined) await ok('getRunEvents cursor', () => getRunEvents(agent, { limit: 10, cursor: events.cursor }));
+}
 await ok('fetchMachine', () => machine.fetchMachine());
 await ok('terminalStatus', () => term.terminalStatus());
 await ok('mintTerminalTicket', () => term.mintTerminalTicket('metro'));

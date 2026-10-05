@@ -85,7 +85,51 @@ export interface BufferedEvent {
   event: MetroEvent;
 }
 
-const BUS_BUFFER_MAX = 500;
+export const BUS_BUFFER_MAX = 500;
+
+export interface RunEventMetadata {
+  isPrivate?: boolean;
+  senderVerified?: boolean;
+  mentionsSelf?: boolean;
+  replyToSelf?: boolean;
+  emoji?: string;
+  removed?: boolean;
+  targetId?: string;
+  attachmentCount?: number;
+  attachmentTypes?: ('image' | 'video' | 'audio' | 'file')[];
+  attachmentStatus?: 'saved' | 'failed';
+  attachmentFor?: string;
+}
+
+export interface RunEvent {
+  id: string;
+  seq: number;
+  ts: string;
+  kind: StructuredEvent['type'];
+  direction: 'inbound' | 'outbound' | 'system';
+  agentId: string;
+  station: string;
+  accountId: string | null;
+  line: string;
+  lineName?: string;
+  from?: string;
+  fromName?: string;
+  fromDisplayName?: string;
+  to?: string;
+  text?: string;
+  truncated: boolean;
+  messageId?: string;
+  replyTo?: string;
+  metadata: RunEventMetadata;
+}
+
+export interface RunEventsPage {
+  events: RunEvent[];
+  cursor: string;
+  hasMore: boolean;
+  reset: boolean;
+  retention: { capacity: number; oldestAt: string | null; oldestSeq: number | null };
+}
 
 const listeners = new Set<BusListener>();
 const buffer: BufferedEvent[] = [];

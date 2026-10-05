@@ -16,6 +16,8 @@ export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
   agentNames = names;
 }
 
+export const knownAgentIds = (): string[] => Object.keys(agentNames);
+
 export function setAllowlistMap(map: AllowlistMap): void {
   allowlistMap = map;
 }

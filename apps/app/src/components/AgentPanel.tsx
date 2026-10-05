@@ -4,6 +4,7 @@ import { type Selection } from '@metro-labs/client/selection';
 import { ConnectorPage } from './ConnectorPage.js';
 import { Connectors } from './Connectors.js';
 import { Home } from './Home.js';
+import { RunPage } from './RunPage.js';
 import { Memory } from './Memory.js';
 import { Sessions } from './Sessions.js';
 import { ServerPage } from './ServerPage.js';
@@ -59,6 +60,7 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (connector !== null) return connector;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
+  if (selection.kind === 'run') return <RunPage key={project} />;
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'model') return <ModelPage />;

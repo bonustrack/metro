@@ -23,6 +23,7 @@ import { eventInScope } from '../src/agents/scope.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { asLine } from '@metro-labs/core/lines';
+import { auth, TEST_OWNER } from './identity-helper.js';
 
 const STREAM = '_GET_stream';
 
@@ -236,6 +237,15 @@ async function monitorTail(reader: Reader, line: string, text: string): Promise<
   return buf.includes(text);
 }
 
+async function runEvents(reader: Reader, line: string, text: string): Promise<boolean> {
+  publishEvent(inbound(line, text));
+  const headers = reader.token === undefined ? {} : { authorization: await auth(TEST_OWNER) };
+  const response = await fetch(`${monitorBase}/api/run/events?agent=agent000001`, { headers });
+  if (response.status !== 200) return false;
+  const page = await response.json() as { events: { text?: string }[] };
+  return page.events.some((event) => event.text === text);
+}
+
 const EGRESS: Record<
   string,
   (reader: Reader, line: string, text: string) => Promise<boolean>
@@ -244,6 +254,7 @@ const EGRESS: Record<
   'channel bus replay after reconnect': busReplayAfterReconnect,
   'SSE resumption from Last-Event-ID': sseResume,
   'monitor tail': monitorTail,
+  'Run events': runEvents,
 };
 
 describe('every egress applies the same scope predicate', () => {
@@ -257,6 +268,7 @@ describe('every egress applies the same scope predicate', () => {
 
   test('the matrix covers every place eventInScope is consulted', () => {
     expect(Object.keys(EGRESS).sort()).toEqual([
+      'Run events',
       'SSE resumption from Last-Event-ID',
       'channel bus replay after reconnect',
       'channel live delivery',

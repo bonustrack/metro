@@ -20,6 +20,7 @@ describe('the first segment is the daemon', () => {
     for (const project of HOSTS) {
       const cases: Selection[] = [
         { kind: 'home', project },
+        { kind: 'run', project },
         { kind: 'stations', project },
         { kind: 'station', project, accountId: 'a1-e5036b5f' },
         { kind: 'connectors', project },
@@ -75,6 +76,29 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/aB3-_xYz9Qw/terminal')).toEqual({ kind: 'terminal', project: 'aB3-_xYz9Qw' });
     expect(routeHash({ kind: 'terminal', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/terminal');
     expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/connectors');
+  });
+
+  test('Run stays scoped through slugs and agent switching', () => {
+    expect(routeSelection('#/demo-agent/run')).toEqual({ kind: 'run', project: 'demo-agent' });
+    expect(routeSelection('#/demo-org/demo-agent/run')).toEqual({ kind: 'run', project: 'demo-agent' });
+    expect(routeHash({ kind: 'run', project: 'demo-agent' })).toBe('#/demo-org/demo-agent/run');
+    expect(sameViewOn({ kind: 'run', project: 'agent-one' }, 'agent-two')).toEqual({ kind: 'run', project: 'agent-two' });
+  });
+
+  test('an agent slug named run remains scoped to the known organization', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'demo-org' });
+    for (const organization of ['demo-org', TEST_ORGANIZATION]) {
+      expect(splitOrganization(`#/${organization}/run`)).toEqual({ organization, rest: '#/run' });
+      expect(routeSelection(`#/${organization}/run`)).toEqual({ kind: 'home', project: 'run' });
+      expect(routeSelection(`#/${organization}/run/run`)).toEqual({ kind: 'run', project: 'run' });
+      expect(routeSelection(`#/${organization}/run/server`)).toEqual({ kind: 'server', project: 'run' });
+      expect(routedSegment(`#/${organization}/run/run`)).toBe('run');
+    }
+    const selection: Selection = { kind: 'run', project: 'run' };
+    expect(routeHash(selection)).toBe('#/demo-org/run/run');
+    expect(routeSelection(routeHash(selection))).toEqual(selection);
+    expect(sameViewOn({ kind: 'run', project: 'another-agent' }, 'run')).toEqual(selection);
+    expect(routeSelection('#/another-agent/run')).toEqual({ kind: 'run', project: 'another-agent' });
   });
 
   test('what is not a route', () => {

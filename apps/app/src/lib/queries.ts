@@ -46,6 +46,7 @@ import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, 
 import { fetchSchedules, type Schedules } from '@metro-labs/client/api/schedules';
 import { currentOrganization } from '@metro-labs/client/auth/org-route';
 import { readItem, writeItem } from '@metro-labs/client/platform';
+import { clearDeniedRunCache } from './run-cache.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -58,6 +59,7 @@ type BoxName =
   | 'update'
   | 'approvals'
   | 'machine'
+  | 'run-events'
   | 'claude-session'
   | 'claude-setup'
   | 'claude-account'
@@ -109,12 +111,14 @@ function refreshQuietly(client: QueryClient, keys: BoxKey[]): void {
 const stationsKey = (): string[] => boxKey('stations');
 
 export function makeQueryClient(onAuthError: () => void): QueryClient {
+  const queryCache = new QueryCache({
+    onError: (err, query) => {
+      clearDeniedRunCache(queryCache, query.queryKey, err);
+      if (err instanceof AuthError && !err.refused) onAuthError();
+    },
+  });
   return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (err) => {
-        if (err instanceof AuthError && !err.refused) onAuthError();
-      },
-    }),
+    queryCache,
     defaultOptions: {
       queries: {
         staleTime: STALE_MS,

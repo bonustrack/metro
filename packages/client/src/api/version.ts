@@ -27,6 +27,8 @@ function compare(a: Parsed, b: Parsed): number {
   return release !== 0 ? release : preOrder(a.pre, b.pre);
 }
 
+export const isVersion = (version: string | null | undefined): boolean => version !== null && version !== undefined && parseVersion(version) !== null;
+
 export function olderThan(version: string | null, floor: string): boolean {
   if (version === null) return false;
   const a = parseVersion(version);

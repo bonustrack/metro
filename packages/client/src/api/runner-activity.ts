@@ -24,6 +24,9 @@ const EVENT: Record<RunnerEventKind, string> = {
   permission_denied: 'Permission denied', session_failed: 'Session failed',
 };
 
+export { runnerFailureSummary };
+export const runnerEventLabel = (kind: RunnerEventKind): string => EVENT[kind];
+
 export const sessionPollMs = (status: ClaudeSessionStatus | undefined, live: boolean): number =>
   live && status?.running === true && status.runner === 'sdk' ? 2_000 : 10_000;
 

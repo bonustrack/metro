@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { clearAccount, storeAccount } from '../src/auth/account.ts';
-import { AuthError, call } from '../src/api/client.ts';
+import { AuthError, ForbiddenError, call, callRaw } from '../src/api/client.js';
 import { builtInDaemon } from '../src/auth/daemon.ts';
 
 const b64 = (o: unknown): string => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -54,6 +54,20 @@ describe('every request carries the account token', () => {
     ]);
     expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).toEqual({ subject: 'org_1', role: 'admin' });
     expect(seen.map((s) => s.url.split('/api/')[1])).toEqual(['session', 'auth/refresh', 'session']);
+  });
+
+  test('403 is typed on parsed and raw calls without refreshing or signing the account out', async () => {
+    account(jwt(Math.floor(Date.now() / 1000) + 300));
+    for (const request of [call, callRaw]) {
+      serve([{ status: 403, body: { error: 'this machine belongs to another organization' } }]);
+      const error = await request({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' }).catch((err: unknown) => err);
+      expect(error).toBeInstanceOf(ForbiddenError);
+      expect(error).not.toBeInstanceOf(AuthError);
+      expect(error).toHaveProperty('message', 'this machine belongs to another organization');
+      expect(seen.map((entry) => entry.url)).toEqual(['http://127.0.0.1:8420/api/session']);
+    }
+    serve([{ status: 200, body: { subject: 'org_1' } }]);
+    expect(await call({ method: 'GET', base: 'http://127.0.0.1:8420/api/session' })).toEqual({ subject: 'org_1' });
   });
 
   test('with no account the call is refused before any request; a 403 from a box is an error with its message', async () => {

@@ -36,6 +36,7 @@ const SETTINGS_TABS: SectionTab[] = [
 
 export const SECTIONS: Section[] = [
   { id: 'home', label: 'Home', icon: 'home', kinds: ['home', 'none'], target: (project) => ({ kind: 'home', project }) },
+  { id: 'run', label: 'Run', icon: 'chartBar', kinds: ['run'], target: (project) => ({ kind: 'run', project }) },
   { id: 'channels', label: 'Channels', icon: 'chat', kinds: ['stations', 'station'], target: (project) => ({ kind: 'stations', project }) },
   { id: 'connectors', label: 'Connectors', icon: 'viewGridAdd', kinds: ['connectors', 'connector'], target: (project) => ({ kind: 'connectors', project }) },
   { id: 'model', label: 'Model', icon: 'chip', kinds: ['model'], target: (project) => ({ kind: 'model', project }) },

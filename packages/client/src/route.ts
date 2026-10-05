@@ -22,6 +22,7 @@ const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
+const RUN_PATH = new RegExp(`^#?/(${HOST})/run$`);
 const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
@@ -61,6 +62,7 @@ function exactSelection(hash: string): Selection | null {
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
   [HOME_PATH, (project) => ({ kind: 'home', project })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
+  [RUN_PATH, (project) => ({ kind: 'run', project })],
   [AGENT_SETTINGS_PATH, (project) => ({ kind: 'agent-settings', project })],
   [TERMINAL_PATH, (project) => ({ kind: 'terminal', project })],
   [MODEL_PATH, (project) => ({ kind: 'model', project })],
@@ -140,6 +142,7 @@ function plainSelection(bare: string): Selection {
 
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
+  run: () => '/run',
   server: () => '/server',
   'agent-settings': () => '/settings',
   terminal: () => '/terminal',

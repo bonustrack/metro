@@ -22,6 +22,7 @@ import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 import { handleFilesRequest } from '../agent-user/files-api.js';
 import { handleVaultRequest } from '../vault/api.js';
 import { handleVoiceRequest } from '../voice/api.js';
+import { handleRunEventsRequest } from '../monitor/run-events.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -50,6 +51,7 @@ export function handleSessionApis(
 ): boolean {
   const routes: (() => boolean)[] = [
     () => handleSessionApiRequest(req, res),
+    () => handleRunEventsRequest(req, res),
     () => handleApprovalsRequest(req, res),
     ...when(apis.connectorTransfers, (d) => d.handle(req, res)),
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
