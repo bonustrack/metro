@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { approvalId } from '@metro-labs/core/ids';
 import { approvalsThrough } from '../src/approvals.ts';
 import { channelEvent, channelText } from '../src/channel-text.ts';
@@ -13,16 +12,8 @@ import { SessionWatch } from '../src/session-watch.ts';
 import { runnerConfig } from '../src/config.ts';
 import { allowedOnly, compactDue, Runner, runnerOptions, type OpenSession } from '../src/runner.ts';
 import type { MetroTools } from '../src/tool-proxy.ts';
-import { SpeechRouter } from '../src/speech.ts';
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
-
-const msg = (m: Record<string, unknown>): SDKMessage => m as unknown as SDKMessage;
-const init = msg({ type: 'system', subtype: 'init', session_id: 's1' });
-const result = msg({ type: 'result', subtype: 'success' });
-const stamp = (uuids: string[]): SDKMessage => msg({ type: 'stream_event', parent_tool_use_id: null, user_message_uuids: uuids, event: { type: 'message_start' } });
-const text = (t: string, parent: string | null = null): SDKMessage =>
-  msg({ type: 'stream_event', parent_tool_use_id: parent, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: t } } });
 
 describe('a chat message reaches the front as the same <channel> block Claude Code shows', () => {
   test('meta becomes attributes, keys that are not identifiers are dropped, quotes are escaped', () => {
@@ -35,7 +26,7 @@ describe('a chat message reaches the front as the same <channel> block Claude Co
 });
 
 describe('the inbox', () => {
-  test('pushes user messages with a uuid, the channel origin and the priority, in order', async () => {
+  test('pushes user messages with a uuid and channel origin, never interrupt priority', async () => {
     const inbox = new Inbox();
     const a = inbox.push('chat', 'first');
     const b = inbox.push('call', 'second', 'now');
@@ -46,8 +37,9 @@ describe('the inbox', () => {
     }
     expect(seen).toEqual([
       expect.objectContaining({ uuid: a, origin: { kind: 'channel', server: 'metro' }, message: { role: 'user', content: 'first' } }),
-      expect.objectContaining({ uuid: b, priority: 'now' }),
+      expect.objectContaining({ uuid: b }),
     ]);
+    expect(seen.some((item) => typeof item === 'object' && item !== null && 'priority' in item)).toBe(false);
     expect(inbox.kindOf(a)).toBe('chat');
     expect(inbox.kindOf(b)).toBe('call');
   });
@@ -70,62 +62,6 @@ describe('the inbox', () => {
   });
 });
 
-describe('only words that answer a call are spoken', () => {
-  const setup = (): { router: SpeechRouter; said: string[]; inbox: Inbox } => {
-    const said: string[] = [];
-    const inbox = new Inbox();
-    let current = '';
-    const router = new SpeechRouter((u) => inbox.kindOf(u), {
-      say: (t) => {
-        current += t;
-      },
-      done: () => {
-        said.push(current);
-        current = '';
-      },
-    });
-    return { router, said, inbox };
-  };
-
-  test('a chat turn during a call is not spoken; a call turn and a worker report are', () => {
-    const { router, said, inbox } = setup();
-    router.setCallLive(true);
-    const chat = inbox.push('chat', 'alice asks');
-    const call = inbox.push('call', 'caller asks');
-    for (const m of [init, stamp([chat]), text("I've sent that to Alice in chat."), result]) router.observe(m);
-    for (const m of [init, stamp([call]), text('Paris.'), result]) router.observe(m);
-    for (const m of [init, text('The count is done.'), result]) router.observe(m);
-    expect(said).toEqual(['Paris.', 'The count is done.']);
-  });
-
-  test('a call folded into a running chat turn is spoken from the fold on, worker text never is', () => {
-    const { router, said, inbox } = setup();
-    router.setCallLive(true);
-    const chat = inbox.push('chat', 'note please');
-    const call = inbox.push('call', 'quick question');
-    for (const m of [init, stamp([chat]), text('Writing the note.'), stamp([chat, call]), text('It is Paris.'), text('worker text', 'toolu_1'), result]) router.observe(m);
-    expect(said).toEqual(['It is Paris.']);
-  });
-
-  test('call words folded into a running chat turn are spoken from the moment Claude Code starts them', () => {
-    const { router, said, inbox } = setup();
-    router.setCallLive(true);
-    const chat = inbox.push('chat', 'a long log');
-    const call = inbox.push('call', 'hello?');
-    const started = msg({ type: 'command_lifecycle', command_uuid: call, state: 'started' });
-    for (const m of [init, stamp([chat]), text('noted'), started, text("I'm on the line."), result]) router.observe(m);
-    for (const m of [msg({ type: 'command_lifecycle', command_uuid: chat, state: 'started' }), init, text('later chat work'), result]) router.observe(m);
-    expect(said).toEqual(["I'm on the line."]);
-  });
-
-  test('nothing is spoken without a live call', () => {
-    const { router, said, inbox } = setup();
-    const call = inbox.push('call', 'late words');
-    for (const m of [init, stamp([call]), text('Hello?'), result]) router.observe(m);
-    expect(said).toEqual([]);
-  });
-});
-
 describe('the session watch', () => {
   const toolUse = (id: string, name: string): Record<string, unknown> => ({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name }], usage: { input_tokens: 10, cache_read_input_tokens: 1000, cache_creation_input_tokens: 5 } } });
   const toolResult = (id: string): Record<string, unknown> => ({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: id }] } });
@@ -139,7 +75,7 @@ describe('the session watch', () => {
     expect(watch.writing).toBe(true);
     expect(watch.context).toBe(1015);
     let released = false;
-    const waiting = watch.whenNotWriting(5_000).then(() => {
+    const waiting = watch.whenNotWriting().then(() => {
       released = true;
     });
     await Bun.sleep(20);
@@ -149,16 +85,19 @@ describe('the session watch', () => {
     expect(released).toBe(true);
   });
 
-  test('gives up waiting after the cap, and holds call words until a compaction ends', async () => {
+  test('waits for evidence that writes and compaction ended, never an elapsed cap', async () => {
     const watch = new SessionWatch(() => false);
     watch.observe(toolUse('t1', 'mcp__metro__send'));
-    const started = performance.now();
-    await watch.whenNotWriting(50);
-    expect(performance.now() - started).toBeLessThan(1_000);
+    let written = false;
+    const writing = watch.whenNotWriting().then(() => { written = true; });
+    await Bun.sleep(50);
+    expect(written).toBe(false);
+    watch.observe(toolResult('t1'));
+    await writing;
     watch.observe({ type: 'system', subtype: 'status', status: 'compacting' });
     expect(watch.compacting).toBe(true);
     let after = false;
-    const held = watch.whenNotCompacting(5_000).then(() => {
+    const held = watch.whenNotCompacting().then(() => {
       after = true;
     });
     await Bun.sleep(20);
@@ -216,7 +155,7 @@ describe('the session store', () => {
     const path = join(dir, 'agent-session.json');
     const store = new SessionStore(path, join(dir, 'claude'), dir);
     try {
-      for (const text of ['{PRIVATE', 'null', '[]', '{"sessionId":"bad"}', '{"unanswered":null}', '{"unanswered":"PRIVATE"}', '{"unanswered":[{"text":"PRIVATE"}]}']) {
+      for (const text of ['{PRIVATE', 'null', '[]', '{"sessionId":"bad"}', '{"unanswered":null}', '{"unanswered":"PRIVATE"}', '{"unanswered":[{"text":"PRIVATE"}]}', '{"context":-1}', '{"context":"PRIVATE"}', '{"context":null}']) {
         writeFileSync(path, text);
         expect(() => store.unanswered()).toThrow('saved Agent SDK state');
         expect(() => store.saveUnanswered([])).toThrow('saved Agent SDK state');
@@ -307,7 +246,7 @@ describe('the session thinks with the one model the Model page picked', () => {
       return fake as never;
     };
     const dir = mkdtempSync(join(tmpdir(), 'sdk-runner-model-'));
-    const runner = new Runner({ store: new SessionStore(join(dir, 's.json'), join(dir, 'claude'), dir), sink: { say: () => undefined, done: () => undefined }, readOnly: () => false, open });
+    const runner = new Runner({ store: new SessionStore(join(dir, 's.json'), join(dir, 'claude'), dir), readOnly: () => false, open });
     const cfg = runnerConfig({ ...base, METRO_RUNNER_MODEL: 'claude-sonnet-5-5' }, dir);
     runner.start(runnerOptions(cfg, tools, allow, null, {}));
     await runner.switchModel('claude-sonnet-5-5');

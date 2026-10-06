@@ -9,7 +9,7 @@ const CHUNK_SAMPLES = STT_RATE / 10;
 const HELD_SAMPLES = STT_RATE * 2;
 export const VAD_SILENCE_SECS = 0.5;
 
-interface Heard {
+export interface Heard {
   partial(text: string): void;
   committed(text: string): void;
   failed(reason: string): void;
@@ -54,6 +54,7 @@ export class Scribe {
   private readonly ws: WebSocket;
   private buffer: Int16Array[] = [];
   private buffered = 0;
+  private closed = false;
 
   constructor(apiKey: string, language: string | null, private readonly heard: Heard) {
     this.ws = new WebSocket(sttUrl(language), { headers: { 'xi-api-key': apiKey } });
@@ -61,14 +62,20 @@ export class Scribe {
       this.onMessage(wsText(data));
     });
     this.ws.on('error', (err) => {
+      if (this.closed) return;
       log.warn({ err: errMsg(err) }, 'voice: speech to text connection error');
     });
     this.ws.on('close', (code) => {
-      if (code !== 1000) this.heard.failed(`speech to text closed (${String(code)})`);
+      if (this.closed) return;
+      this.closed = true;
+      this.buffer = [];
+      this.buffered = 0;
+      this.heard.failed(`speech to text closed (${String(code)})`);
     });
   }
 
   send(pcm16k: Int16Array): void {
+    if (this.closed) return;
     this.buffer.push(pcm16k);
     this.buffered += pcm16k.length;
     while (this.buffered > HELD_SAMPLES) this.buffered -= this.buffer.shift()?.length ?? this.buffered;
@@ -87,10 +94,15 @@ export class Scribe {
   }
 
   close(): void {
-    this.ws.close(1000);
+    if (this.closed) return;
+    this.closed = true;
+    this.buffer = [];
+    this.buffered = 0;
+    this.ws.terminate();
   }
 
   private onMessage(raw: string): void {
+    if (this.closed) return;
     const msg = parsed(raw);
     const type = typeof msg.message_type === 'string' ? msg.message_type : '';
     const text = typeof msg.text === 'string' ? msg.text.trim() : '';

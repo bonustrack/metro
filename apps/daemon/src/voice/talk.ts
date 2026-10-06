@@ -58,7 +58,7 @@ export class Talk implements Thinking {
 
   constructor(
     private readonly cfg: VoiceConfig,
-    out: (opus: Buffer, timestamp: number, marker: boolean) => void,
+    out: Playback['send'],
     private readonly ended: (reason: string) => void,
     private readonly approvals: CallApprovals,
   ) {
@@ -71,6 +71,9 @@ export class Talk implements Thinking {
     this.player = new Player(playback);
     this.player.whenFirstPlayed(() => {
       this.firstPlayed();
+    });
+    this.player.whenFailed((reason) => {
+      if (!this.finished) this.ended(`audio playback failed: ${reason}`);
     });
     this.brain = new Brain(brainModel(cfg), this);
     this.scribe = new Scribe(cfg.apiKey, languageOf(cfg), {
@@ -88,10 +91,11 @@ export class Talk implements Thinking {
   }
 
   prime(context: string): void {
-    this.brain.tell(context);
+    if (!this.finished) this.brain.tell(context);
   }
 
   connect(): void {
+    if (this.finished || this.live) return;
     this.live = true;
     this.spare ??= this.utterance();
     this.player.start();
@@ -118,8 +122,8 @@ export class Talk implements Thinking {
   }
 
   turnStarted(): void {
-    this.muted = false;
     if (this.finished) return;
+    this.muted = false;
     this.reply = {
       utterance: this.takeUtterance(),
       said: '',
@@ -137,19 +141,20 @@ export class Talk implements Thinking {
 
   text(delta: string): void {
     const reply = this.reply;
-    if (this.muted || reply === null) return;
+    if (this.finished || this.muted || reply === null) return;
     reply.firstText ??= performance.now();
     this.speak(reply, reply.chunker.add(delta));
   }
 
   tool(name: string): void {
+    if (this.finished) return;
     log.info({ tool: name }, 'voice: the agent uses a tool during the call');
     if (this.reply !== null && !this.muted) this.speak(this.reply, this.reply.chunker.flush());
   }
 
   turnEnded(): void {
     const reply = this.reply;
-    if (reply === null || this.muted) return;
+    if (this.finished || reply === null || this.muted) return;
     this.speak(reply, reply.chunker.flush());
     reply.utterance.end();
     log.info(
@@ -171,6 +176,7 @@ export class Talk implements Thinking {
   }
 
   exited(reason: string): void {
+    if (this.finished) return;
     log.warn({ reason }, 'voice: the agent session for the call ended');
     this.ended(`agent session ${reason}`);
   }
@@ -183,13 +189,13 @@ export class Talk implements Thinking {
     ready.attach({
       audio: (pcm, chars) => {
         const current = reply();
-        if (current?.utterance !== ready) return;
+        if (this.finished || this.muted || current?.utterance !== ready) return;
         this.spoke = true;
         current.firstAudio ??= performance.now();
         this.player.push(pcm, chars);
       },
       done: () => {
-        this.player.finish();
+        if (!this.finished && !this.muted && this.reply?.utterance === ready) this.player.finish();
       },
     });
     return ready;
@@ -239,11 +245,13 @@ export class Talk implements Thinking {
   }
 
   private partial(text: string): void {
+    if (this.finished) return;
     if (text !== '') this.lastHeardAt = performance.now();
     if (this.interrupts(text)) this.cutOff();
   }
 
   private committed(text: string): void {
+    if (this.finished) return;
     if (this.interrupts(text)) this.cutOff();
     const note = this.cut;
     const now = this.muted;

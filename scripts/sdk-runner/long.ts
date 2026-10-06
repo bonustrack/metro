@@ -1,10 +1,9 @@
 import { writeFileSync } from 'node:fs';
-import { ALICE, BOB, boot, calls, chat, close, CORE, events, GROUP, LESS, LINE, lost, reactsTo, say, sendsOn, settled, sleep, spoken, turnsSince, until, wordsAfter, now, type Turn } from './harness.ts';
+import { ALICE, BOB, boot, calls, chat, close, CORE, events, GROUP, LESS, LINE, lost, reactsTo, say, sendsOn, settled, sleep, turnsSince, until, now, type Turn } from './harness.ts';
 import { COMPACT_AT } from '../../packages/sdk-runner/src/runner.ts';
 
 const MESSAGES = Number(process.env.SDK_RUNNER_LONG_MESSAGES ?? 200);
 const WORKERS = Number(process.env.SDK_RUNNER_LONG_WORKERS ?? 20);
-const CALL_AT = Math.round(MESSAGES * 0.6);
 const OUT = process.env.SDK_RUNNER_LONG_OUT ?? '/tmp/sdk-runner-long.json';
 const FILES = ['events.ts', 'ids.ts', 'is-record.ts', 'lines.ts', 'log.ts', 'protocol.ts', 'secure-fs.ts', 'station-names.ts', 'str.ts', 'tickets.ts', 'train-error.ts', 'version.ts', 'endpoints.ts'];
 const TOPICS = ['the Stage release', 'the MCI invoices', 'the Anderra flows', 'the Snapshot books', 'the box upgrade', 'the voice calls', 'the Gmail station', 'the X50 import'];
@@ -86,26 +85,6 @@ async function handle(i: number, p: Plan): Promise<void> {
   });
 }
 
-const callNumbers: Record<string, unknown> = {};
-async function call(agent: Awaited<ReturnType<typeof boot>>): Promise<void> {
-  await settled(1_500, false);
-  const at = now();
-  agent.runner.callStarted(`in your direct chat with Less on telegram-bot, line ${LINE}`);
-  await until('greeting', () => spoken.some((s) => s.t >= at), 60_000).catch(() => 0);
-  const words: number[] = [wordsAfter(at)];
-  for (const sentence of ['Hi Emma, how many worker reports came in so far?', 'And what were the meeting notes about?', 'What was the last multiplication I asked you?', 'Thanks, that is all.']) {
-    await sleep(1_500);
-    const q = now();
-    agent.runner.heard(sentence);
-    await until('answer', () => spoken.some((s) => s.t >= q), 60_000).catch(() => 0);
-    words.push(wordsAfter(q));
-  }
-  await sleep(2_000);
-  agent.runner.callEnded();
-  callNumbers.first_words_ms = words;
-  callNumbers.spoken = spoken.filter((s) => s.t >= at).map((s) => s.text.slice(0, 160));
-}
-
 const quantile = (values: number[], q: number): number | null => {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted.length === 0 ? null : (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? null);
@@ -137,7 +116,6 @@ const agent = await boot(COMPACT_AT);
 const asked: string[] = [];
 const started = now();
 for (let i = 0; i < MESSAGES; i += 1) {
-  if (i === CALL_AT) await call(agent);
   const burst = i % 25 === 12 ? 3 : 1;
   const group = Array.from({ length: Math.min(burst, MESSAGES - i) }, (_, k) => plan(i + k, asked));
   if (group.length > 1) {
@@ -167,7 +145,6 @@ const summary = {
   chatterAnswered: samples.filter((s) => s.kind === 'chatter' && sendsOn(GROUP, s.t).some((c) => c.t - s.t < 60_000)).length,
   chatterTotal: samples.filter((s) => s.kind === 'chatter').length,
   workers: { started: events.filter((e) => e.kind === 'task_started').length, reported: events.filter((e) => e.kind === 'task_notification').length, relayMs: spread(workerRelays()) },
-  call: callNumbers,
   lost: lost(),
   claude: lastOf('init')?.data.claude,
 };

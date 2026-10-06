@@ -1,8 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 
 const METRO_TOOL = /^mcp__metro__(.+)$/;
-const GATE_CAP_MS = 5_000;
-const COMPACT_CAP_MS = 20_000;
 
 export const uuidsOf = (m: Record<string, unknown>): string[] | null => {
   if (Array.isArray(m.user_message_uuids)) return m.user_message_uuids.filter((u): u is string => typeof u === 'string');
@@ -24,21 +22,14 @@ function toolResultIds(message: unknown): string[] {
   return message.content.filter(isRecord).filter((b) => b.type === 'tool_result' && typeof b.tool_use_id === 'string').map((b) => String(b.tool_use_id));
 }
 
-function capped(waiters: (() => void)[], capMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, capMs);
-    waiters.push(() => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
-}
 
 export class SessionWatch {
   private readonly writes = new Set<string>();
   private readonly idle: (() => void)[] = [];
   private readonly compacted: (() => void)[] = [];
   private compactingNow = false;
+  private busy = false;
+  private sessionStateSeen = false;
   private lastContext = 0;
   private streamUsage: Record<string, unknown> = {};
 
@@ -56,26 +47,42 @@ export class SessionWatch {
     return this.writes.size > 0;
   }
 
+  get safe(): boolean { return !this.busy && !this.writing && !this.compacting; }
+
+  dispatched(): void { this.busy = true; }
+  restoreContext(context: number): void { this.lastContext = context; }
+
   observe(m: Record<string, unknown>): void {
-    if (m.type === 'system') this.system(m);
-    else if (m.type === 'result') this.settle();
-    if (m.parent_tool_use_id !== null) return;
+    if (m.parent_tool_use_id !== null && m.parent_tool_use_id !== undefined) return;
+    this.lifecycle(m);
     if (m.type === 'assistant' && isRecord(m.message)) this.assistant(m.message);
     else if (m.type === 'stream_event' && isRecord(m.event)) this.stream(m.event);
     else if (m.type === 'user') for (const id of toolResultIds(m.message)) this.done(id);
   }
 
-  whenNotWriting(capMs = GATE_CAP_MS): Promise<void> {
-    return this.writing ? capped(this.idle, capMs) : Promise.resolve();
+  whenNotWriting(): Promise<void> {
+    return this.writing ? new Promise((resolve) => { this.idle.push(resolve); }) : Promise.resolve();
   }
 
-  whenNotCompacting(capMs = COMPACT_CAP_MS): Promise<void> {
-    return this.compactingNow ? capped(this.compacted, capMs) : Promise.resolve();
+  whenNotCompacting(): Promise<void> {
+    return this.compactingNow ? new Promise((resolve) => { this.compacted.push(resolve); }) : Promise.resolve();
+  }
+
+  private lifecycle(m: Record<string, unknown>): void {
+    if (m.type === 'system') this.system(m);
+    else if (m.type === 'result' && !this.sessionStateSeen) {
+      this.busy = typeof m.queued_turn_count === 'number' && m.queued_turn_count > 0;
+      this.settle();
+    }
+    if (m.type === 'assistant' || m.type === 'stream_event' || startedCommand(m) !== null) this.busy = true;
   }
 
   private system(m: Record<string, unknown>): void {
-    if (m.subtype === 'init') this.settle();
-    else if (m.subtype === 'status') this.setCompacting(m.status === 'compacting');
+    if (m.subtype === 'session_state_changed') {
+      this.sessionStateSeen = true;
+      if (m.state === 'running' || m.state === 'requires_action') this.busy = true;
+      else if (m.state === 'idle') { this.busy = false; this.settle(); }
+    } else if (m.subtype === 'status') this.setCompacting(m.status === 'compacting');
     else if (m.subtype === 'compact_boundary') {
       this.setCompacting(false);
       this.lastContext = 0;

@@ -72,7 +72,7 @@ const emit = makeEmit();
 
 supervisor.onTrainEvent((env, train) => {
   if (isCallEvent(env)) {
-    onCallEvent(env);
+    onCallEvent(env, train);
     return;
   }
   const entry = trainEventToMetroEvent(env, train);

@@ -1,19 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
+import { isRecord } from '@metro-labs/core/is-record';
 import type { Activity } from './activity.js';
+import { RunnerCalls } from './calls.js';
 import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
 import { Inbox, type Unanswered, type Uuid } from './inbox.js';
-import { CALL_ENDED, callStarted, callWords, FRONT_RULES } from './rules.js';
+import { FRONT_RULES } from './rules.js';
 import { INTERRUPTED_NOTICE } from './recovery.js';
 import type { SessionStore } from './session-store.js';
 import { SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
-import { SpeechRouter, type SpeechSink } from './speech.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
-const STALL_MS = 2_000;
 export const COMPACT_AT = 120_000;
 
 const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL']);
@@ -62,22 +61,33 @@ export type OpenSession = (params: { prompt: AsyncIterable<SDKUserMessage>; opti
 
 export interface RunnerParts {
   store: SessionStore;
-  sink: SpeechSink;
   readOnly: (tool: string) => boolean;
   compactAt?: number;
   open?: OpenSession;
   activity?: Activity;
 }
 
+function streamOutput(event: Record<string, unknown>): boolean {
+  if (event.type === 'content_block_start' && isRecord(event.content_block)) return event.content_block.type === 'tool_use';
+  return event.type === 'content_block_delta' && isRecord(event.delta) && event.delta.type === 'text_delta' && typeof event.delta.text === 'string' && event.delta.text.length > 0;
+}
+
+function visibleOutput(m: Record<string, unknown>): boolean {
+  if (m.type === 'assistant' && isRecord(m.message) && Array.isArray(m.message.content)) {
+    return m.message.content.some((block: unknown) => isRecord(block) && (block.type === 'tool_use' || (block.type === 'text' && typeof block.text === 'string' && block.text.length > 0)));
+  }
+  return m.type === 'stream_event' && isRecord(m.event) && streamOutput(m.event);
+}
+
 export class Runner {
   readonly inbox: Inbox;
-  private readonly speech: SpeechRouter;
+  readonly calls: RunnerCalls;
   private readonly watch: SessionWatch;
   private session: Query | null = null;
   private sessionId: string | null = null;
-  private compactAsked = false;
+  private compactAsked: Uuid | null = null;
   private compactFloor: number | null = null;
-  private stall: ReturnType<typeof setTimeout> | null = null;
+  private compacted = false;
   private model: string | null = null;
   private switching: Promise<void> = Promise.resolve();
   private ended = false;
@@ -85,31 +95,27 @@ export class Runner {
   private interruptionReported = false;
 
   constructor(private readonly parts: RunnerParts) {
-    this.inbox = new Inbox((unanswered) => {
-      this.keep(unanswered);
-    });
-    this.speech = new SpeechRouter((uuid) => this.inbox.kindOf(uuid), {
-      say: (text) => {
-        this.clearStall();
-        parts.sink.say(text);
-      },
-      done: () => {
-        parts.sink.done();
-      },
-    });
     this.watch = new SessionWatch(parts.readOnly);
-    const { unanswered: again, interrupted } = parts.store.recover();
+    this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
+      ready: () => this.watch.safe,
+      dispatch: () => { this.watch.dispatched(); },
+      input: (input) => { parts.activity?.input(input); },
+      queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
+    });
+    this.calls = new RunnerCalls(this.inbox, parts.activity);
+    const { unanswered: again, interrupted, context } = parts.store.recover();
+    this.watch.restoreContext(context ?? 0);
     this.interrupted = interrupted.length;
     this.inbox.again(again);
     if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
   }
 
-  get id(): string | null {
-    return this.sessionId;
-  }
+  get id(): string | null { return this.sessionId; }
 
   start(options: Options): Query {
     if (this.session !== null) throw new Error('the runner was already started');
+    if (options.resume === undefined) this.watch.restoreContext(0);
+    else this.maybeCompact(true);
     this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
     this.model = options.model ?? null;
     this.queueModel(this.model);
@@ -128,9 +134,9 @@ export class Runner {
         const m: Record<string, unknown> = { ...message };
         this.trackInput(m);
         this.watch.observe(m);
-        this.speech.observe(message);
         this.note(m);
         this.parts.activity?.observe(message);
+        this.inbox.notify();
         observe?.(message);
       }
     } finally {
@@ -140,7 +146,9 @@ export class Runner {
 
   chat(event: ChannelEvent): Uuid {
     try {
-      return this.inbox.push('chat', channelText(METRO_SERVER, event.content, event.meta));
+      const uuid = this.inbox.push('chat', channelText(METRO_SERVER, event.content, event.meta));
+      this.calls.chat(event);
+      return uuid;
     } catch (err) {
       log.error('sdk-runner: could not save incoming chat; stopping before further work');
       try {
@@ -152,59 +160,14 @@ export class Runner {
     }
   }
 
-  callStarted(where: string): Uuid {
-    this.speech.setCallLive(true);
-    return this.callPush(callStarted(where));
-  }
-
-  heard(text: string): Uuid {
-    return this.callPush(callWords(text));
-  }
-
-  callEnded(): Uuid {
-    this.speech.setCallLive(false);
-    this.clearStall();
-    return this.inbox.push('note', CALL_ENDED);
-  }
-
   close(cancelActive = true): void {
-    this.clearStall();
+    this.calls.close();
     try {
       if (cancelActive && !this.ended) this.inbox.finished();
     } finally {
       this.inbox.close();
       this.session?.close();
     }
-  }
-
-  private callPush(text: string): Uuid {
-    const uuid = randomUUID();
-    this.inbox.mark(uuid, 'call');
-    this.armStall();
-    if (this.watch.compacting) log.info('sdk-runner: a call message waits for the compaction to finish');
-    this.watch
-      .whenNotCompacting()
-      .then(() => this.watch.whenNotWriting())
-      .then(() => this.inbox.push('call', text, 'now', uuid))
-      .catch((err: unknown) => {
-        log.warn({ err: errMsg(err) }, 'sdk-runner: could not hand a call message to the session');
-      });
-    return uuid;
-  }
-
-  private armStall(): void {
-    this.clearStall();
-    if (this.parts.sink.stalled === undefined) return;
-    this.stall = setTimeout(() => {
-      this.stall = null;
-      if (this.speech.callLive && !this.speech.talking) this.parts.sink.stalled?.();
-    }, STALL_MS);
-    this.stall.unref();
-  }
-
-  private clearStall(): void {
-    if (this.stall !== null) clearTimeout(this.stall);
-    this.stall = null;
   }
 
   private queueModel(model: string | null): void {
@@ -238,37 +201,50 @@ export class Runner {
     if (m.type === 'result') {
       const uuids = uuidsOf(m);
       if (uuids !== null) this.inbox.finished(uuids);
+      this.inbox.boundary();
       return;
     }
     const started = startedCommand(m);
     this.inbox.started([...(uuidsOf(m) ?? []), ...(started === null ? [] : [started])]);
+    if (visibleOutput(m)) this.inbox.output();
   }
 
-  private keep(unanswered: Unanswered[]): void {
-    this.parts.store.saveUnanswered(unanswered);
-    this.parts.activity?.pending(unanswered.filter((entry) => entry.state !== 'started').length);
-  }
+  private keep(unanswered: Unanswered[]): void { this.parts.store.saveUnanswered(unanswered); }
 
   private note(m: Record<string, unknown>): void {
-    if (m.type === 'system' && m.subtype === 'init') this.started(m);
-    else if (m.type === 'result') this.turnDone(m);
-    else if (m.type === 'system' && (m.subtype === 'task_started' || m.subtype === 'task_notification')) log.info({ task: m.task_id, status: m.status ?? 'started' }, `sdk-runner: worker ${m.subtype}`);
-    else if (m.type === 'system' && m.subtype === 'compact_boundary') {
-      this.compactAsked = false;
+    if (m.parent_tool_use_id !== null && m.parent_tool_use_id !== undefined) return;
+    if (m.type === 'result') this.turnDone(m);
+    if (m.type !== 'system') return;
+    if (m.subtype === 'init') this.started(m);
+    else if (m.subtype === 'session_state_changed' && m.state === 'idle') this.maybeCompact();
+    else if (m.subtype === 'compact_boundary') {
+      this.compacted = true;
       this.compactFloor = null;
+      this.parts.store.saveContext(0);
       log.info({ compact: m.compact_metadata }, 'sdk-runner: the conversation was compacted');
     }
   }
 
   private turnDone(m: Record<string, unknown>): void {
-    log.info({ turnMs: m.duration_ms, context: this.watch.context, costUsd: m.total_cost_usd, subtype: m.subtype }, 'sdk-runner: turn done');
-    const limit = this.parts.compactAt ?? COMPACT_AT;
     const context = this.watch.context;
-    if (context > 0) this.compactFloor ??= context;
-    if (!compactDue({ context, floor: this.compactFloor, limit, busy: this.compactAsked || this.speech.callLive || this.watch.compacting })) return;
-    this.compactAsked = true;
-    log.info({ context: this.watch.context }, 'sdk-runner: compacting while no call is live');
-    this.inbox.push('note', '/compact');
+    log.info({ turnMs: m.duration_ms, context, costUsd: m.total_cost_usd, subtype: m.subtype }, 'sdk-runner: turn done');
+    this.parts.store.saveContext(context);
+    if (this.compactAsked !== null && uuidsOf(m)?.includes(this.compactAsked)) {
+      this.compactAsked = null;
+      if (!this.compacted) this.compactFloor = context;
+    }
+    if (this.compacted && context > 0) {
+      this.compactFloor = context;
+      this.compacted = false;
+    }
+    this.maybeCompact();
+  }
+
+  private maybeCompact(resuming = false): void {
+    const busy = this.compactAsked !== null || !this.watch.safe || (!resuming && (this.calls.live || this.inbox.pending > 0));
+    if (!compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy })) return;
+    this.compactAsked = this.inbox.compact();
+    log.info({ context: this.watch.context, resuming }, 'sdk-runner: compacting at a safe idle boundary');
   }
 
   private started(m: Record<string, unknown>): void {

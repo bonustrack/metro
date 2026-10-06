@@ -36,7 +36,7 @@ function runnerFor(store: SessionStore, events: () => AsyncGenerator<SDKMessage>
     applyFlagSettings: () => Promise.resolve(),
     close,
   }) as ReturnType<OpenSession>;
-  const runner = new Runner({ store, open, ...(activity === undefined ? {} : { activity }), readOnly: () => false, sink: { say: () => undefined, done: () => undefined } });
+  const runner = new Runner({ store, open, ...(activity === undefined ? {} : { activity }), readOnly: () => false });
   runner.start({});
   return runner;
 }
@@ -213,7 +213,8 @@ describe('unfinished SDK input recovery', () => {
     const inbox = new Inbox();
     const active = inbox.push('chat', 'old but unfinished', undefined, undefined, 0);
     inbox.started([active]);
-    for (let i = 0; i < 110; i += 1) inbox.push('chat', 'queued');
+    for (let i = 0; i < 99; i += 1) inbox.push('chat', 'queued');
+    expect(() => inbox.push('chat', 'overflow')).toThrow('queue is full');
     expect(inbox.unanswered()).toContainEqual(expect.objectContaining({ uuid: active, state: 'started' }));
     expect(recoverInputs(inbox.unanswered(), null).interrupted).toContainEqual(expect.objectContaining({ uuid: active }));
   });

@@ -50,15 +50,21 @@ function streamEvent(msg: Record<string, unknown>, mind: Thinking): void {
   if (event.type === 'content_block_start' && block.type === 'tool_use') mind.tool(typeof block.name === 'string' ? block.name : 'tool');
 }
 
+function startBrain(model: string): ChildProcessWithoutNullStreams {
+  const [command = 'metro', ...args] = metroCli(['voice', '--model', model]);
+  const [file, argv] = asAgent(command, args);
+  return spawn(file, argv, { stdio: ['pipe', 'pipe', 'pipe'], cwd: '/' });
+}
+
 export class Brain {
   private readonly child: ChildProcessWithoutNullStreams;
   private out = '';
   private gone = false;
+  private closing = false;
+  private killTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(model: string, private readonly mind: Thinking) {
-    const [command = 'metro', ...args] = metroCli(['voice', '--model', model]);
-    const [file, argv] = asAgent(command, args);
-    this.child = spawn(file, argv, { stdio: ['pipe', 'pipe', 'pipe'], cwd: '/' });
+  constructor(model: string, private readonly mind: Thinking, launch = startBrain) {
+    this.child = launch(model);
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (chunk: string) => {
       this.out = drainLines('voice-brain', this.out + chunk, (line) => {
@@ -91,18 +97,22 @@ export class Brain {
   }
 
   close(): void {
-    if (this.gone) return;
+    if (this.gone || this.closing) return;
+    this.closing = true;
     this.child.stdin.end();
-    setTimeout(() => {
+    this.child.kill('SIGTERM');
+    this.killTimer = setTimeout(() => {
       if (!this.gone) this.child.kill('SIGKILL');
-    }, CLOSE_GRACE_MS).unref();
+    }, CLOSE_GRACE_MS);
+    this.killTimer.unref();
   }
 
   private write(message: Record<string, unknown>): void {
-    if (!this.gone && this.child.stdin.writable) this.child.stdin.write(`${JSON.stringify(message)}\n`);
+    if (!this.gone && !this.closing && this.child.stdin.writable) this.child.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
   private read(line: string): void {
+    if (this.closing || this.gone) return;
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
@@ -130,6 +140,7 @@ export class Brain {
   private exit(reason: string): void {
     if (this.gone) return;
     this.gone = true;
-    this.mind.exited(reason);
+    clearTimeout(this.killTimer);
+    if (!this.closing) this.mind.exited(reason);
   }
 }

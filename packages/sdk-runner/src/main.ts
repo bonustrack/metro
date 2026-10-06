@@ -23,10 +23,6 @@ try {
   activity = new Activity(join(dirname(cfg.statePath), 'agent-status.json'));
   agent = await startAgent(cfg, {
     activity,
-    speech: {
-      say: (text) => { log.debug({ chars: text.length }, 'sdk-runner: speech'); },
-      done: () => { log.debug('sdk-runner: speech done'); },
-    },
     lost: () => {
       activity?.fail('The SDK lost its Metro connection. The session will restart.');
       exitWith(1)();

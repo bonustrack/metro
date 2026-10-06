@@ -1,4 +1,4 @@
-import { ALICE, boot as bootAt, calls, chat, close, CORE, events, LESS, LINE, lost, OTHER, reactsTo, sendsOn, settled, sleep, spoken, standIn, stalls, turnsSince, until, wordsAfter, say, now } from './harness.ts';
+import { boot as bootAt, calls, chat, close, CORE, events, LESS, LINE, lost, OTHER, reactsTo, sendsOn, settled, sleep, standIn, turnsSince, until, say, now } from './harness.ts';
 
 const numbers: Record<string, unknown> = {};
 const COMPACT_AT = Number(process.env.SDK_RUNNER_CHECK_COMPACT_AT ?? 100_000);
@@ -7,8 +7,7 @@ const boot = (): ReturnType<typeof bootAt> => bootAt(COMPACT_AT);
 const ONLY = (process.env.SDK_RUNNER_CHECK_STEPS ?? '').split(',').filter((n) => n !== '');
 const step = async (name: string, body: () => Promise<void>): Promise<void> => {
   if (ONLY.length > 0 && !ONLY.includes(name)) return;
-  if (name !== 'call_cuts_chat_turn' && name !== 'chat_during_call' && name !== 'worker_during_call' && name !== 'call_end') await settled();
-  else await settled(1_500);
+  await settled();
   say('step', { name });
   try {
     await body();
@@ -59,75 +58,13 @@ await step('approval', async () => {
   numbers.approval_sent_text = sendsOn(OTHER, yesAt)[0]?.args.text;
 });
 
-await step('call', async () => {
-  const at = now();
-  agent.runner.callStarted('in your direct chat with Less on telegram-bot, line ' + LINE);
-  await until('greeting', () => spoken.some((s) => s.t >= at));
-  numbers.call_greeting_first_words_ms = wordsAfter(at);
-  const q1 = now();
-  agent.runner.heard('Hey Emma, what did the line count find?');
-  await until('answer', () => spoken.some((s) => s.t >= q1));
-  numbers.call_answer_first_words_ms = wordsAfter(q1);
-  numbers.call_answer = spoken.find((s) => s.t >= q1)?.text;
-});
-
-await step('chat_during_call', async () => {
-  const at = now();
-  const before = spoken.length;
-  chat(ALICE, 'Hi Emma, quick one: what is 17 times 3?');
-  await until('alice answered', () => sendsOn(LINE, at).length > 0);
-  await until('turn end', () => turnsSince(at) > 0);
-  await sleep(1500);
-  numbers.chat_during_call_spoken = spoken.slice(before).map((s) => s.text);
-});
-
-await step('call_cuts_chat_turn', async () => {
-  const at = now();
-  const before = spoken.length;
-  const id = chat(LESS, 'Write a 150 word note about why the sky is blue and send it here as one message.');
-  await until('chat turn running', () => reactsTo(id).length > 0);
-  const cut = now();
-  agent.runner.heard('Sorry, quick question: what is the capital of France?');
-  await until('speech', () => spoken.slice(before).some((s) => s.t >= cut));
-  numbers.cut_first_words_ms = wordsAfter(cut);
-  numbers.cut_speech = spoken.slice(before).map((s) => s.text);
-  await until('chat note sent', () => sendsOn(LINE, at).some((c) => String(c.args.text).length > 300), 180_000).then(
-    (ms) => {
-      numbers.cut_chat_completed_ms = ms;
-    },
-    () => {
-      numbers.cut_chat_completed_ms = null;
-    },
-  );
-  numbers.cut_chat_sends = sendsOn(LINE, at).map((c) => String(c.args.text).slice(0, 80));
-});
-
-await step('worker_during_call', async () => {
-  const at = now();
-  agent.runner.heard(`Can you have a worker check how many files are in ${CORE}? Tell me when it is done.`);
-  await until('task', () => events.some((e) => e.t >= at && e.kind === 'task_notification'), 300_000);
-  const done = events.find((e) => e.t >= at && e.kind === 'task_notification')?.t ?? 0;
-  await until('spoken result', () => spoken.some((s) => s.t >= done));
-  numbers.worker_during_call_first_words_after_done_ms = wordsAfter(done);
-  numbers.worker_during_call_speech = spoken.find((s) => s.t >= done)?.text;
-});
-
-await step('call_end', async () => {
-  agent.runner.heard('Thanks, bye for now.');
-  await sleep(4000);
-  const at = now();
-  agent.runner.callEnded();
-  await until('turn end', () => turnsSince(at) > 0).catch(() => 0);
-  numbers.spoken_after_end = spoken.filter((s) => s.t > at + 50).length;
-});
-
 await step('restart', async () => {
   const before = agent.runner.id;
   await agent.stop();
   await agent.done.catch(() => undefined);
   const at = now();
   agent = await boot();
-  const id = chat(LESS, 'Quick check after a restart: what did I ask you on the call, and what did the line count find? Two lines.');
+  const id = chat(LESS, 'Quick check after a restart: what multiplication did I ask about, and what did the line count find? Two lines.');
   numbers.restart_first_react_ms = await until('react', () => reactsTo(id).length > 0);
   await until('answer', () => sendsOn(LINE, at).length > 0);
   numbers.restart_answer_ms = (sendsOn(LINE, at)[0]?.t ?? 0) - at;
@@ -165,19 +102,12 @@ await step('compact', async () => {
   numbers.compact_big_turn_answer_ms = (sendsOn(LINE, big)[0]?.t ?? 0) - big;
   await until('auto compaction starts', () => events.some((e) => e.t >= big && e.kind === 'status' && e.data.status === 'compacting'), 120_000);
   const started = events.find((e) => e.t >= big && e.kind === 'status' && e.data.status === 'compacting')?.t ?? now();
-  await sleep(2000);
-  const cut = now();
-  agent.runner.callStarted('in your direct chat with Less on telegram-bot, line ' + LINE);
-  await until('greeting during compaction', () => spoken.some((s) => s.t >= cut), 180_000);
-  numbers.compact_call_greeting_first_words_ms = wordsAfter(cut);
-  numbers.compact_stalled_signal = stalls.some((t) => t >= cut);
   await until('compacted', () => events.some((e) => e.t >= started && e.kind === 'compact_boundary'), 600_000).catch(() => 0);
   numbers.compact_ms = (events.find((e) => e.t >= started && e.kind === 'compact_boundary')?.t ?? 0) - started;
   numbers.compact_meta = events.find((e) => e.t >= started && e.kind === 'compact_boundary')?.data.meta;
-  agent.runner.callEnded();
   await sleep(3000);
   const q = now();
-  chat(LESS, 'After the compaction: what was 6 times 7 earlier, and who asked you about 17 times 3? One line.');
+  chat(LESS, 'After the compaction: what was 6 times 7 earlier, and what did the line count find? One line.');
   await until('answer', () => sendsOn(LINE, q).length > 0);
   numbers.compact_after_answer_ms = (sendsOn(LINE, q)[0]?.t ?? 0) - q;
   numbers.compact_after_answer = sendsOn(LINE, q)[0]?.args.text;

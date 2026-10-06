@@ -51,6 +51,7 @@ interface InboundDeps {
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   approves?: (station: string) => boolean;
+  callMeta?: (event: Record<string, unknown>) => () => Record<string, string>;
   answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string, from: string) => Promise<boolean>;
 }
 
@@ -91,12 +92,7 @@ export class InboundRelay {
     return this.deps.mcp.notification({ method, params });
   }
 
-  private isDuplicate(
-    station: string,
-    line: string,
-    kind: string,
-    messageId: string,
-  ): boolean {
+  private isDuplicate(station: string, line: string, kind: string, messageId: string): boolean {
     if (!messageId) return false;
     const key = dedupeKey(station, line, kind, messageId);
     const now = Date.now();
@@ -129,6 +125,7 @@ export class InboundRelay {
         mime: p.mime ?? '',
         name: note.name,
         ...extra,
+        ...ctx.callMeta?.(),
       },
     });
   }
@@ -172,6 +169,7 @@ export class InboundRelay {
         from_name: e.fromName,
         ...displayNameMeta(e.fromDisplayName),
         ...e.reply,
+        ...e.callMeta?.(),
       },
     });
   }
@@ -201,13 +199,14 @@ export class InboundRelay {
     };
   }
 
-  private async routeAttachment(ev: Record<string, unknown>): Promise<boolean> {
+  private async routeAttachment(ev: Record<string, unknown>, replay: boolean): Promise<boolean> {
     const p = ev.payload as SavedMedia | undefined;
     if (!p) return false;
     const type = p.contentType;
     if (type !== 'attachmentSaved' && type !== 'attachmentFailed') return false;
     const ctx = this.mediaCtxFor(ev, p);
     if (!ctx) return true;
+    if (replay) ctx.callMeta = undefined;
     if (type === 'attachmentFailed') await this.surfaceMediaFailure(ctx, p);
     else await this.surfaceMedia(ctx, p);
     return true;
@@ -215,8 +214,9 @@ export class InboundRelay {
 
   private bufferAttachments(
     ev: Record<string, unknown>,
-    base: { line: string; from: string; station: string; text: string },
+    base: EventBase,
     atts: PendingAtt[],
+    replay: boolean,
   ): void {
     const id = str(ev.id);
     if (!id) return;
@@ -230,6 +230,7 @@ export class InboundRelay {
       fromName: str(ev.fromName),
       fromDisplayName: str(ev.fromDisplayName),
       reply: replyMeta(ev, this.sentIds),
+      callMeta: !replay && base.evType === 'msg' ? this.deps.callMeta?.(ev) : undefined,
       attachments: atts.map((a) => ({ kind: a.kind, name: a.name })),
       saved: new Set<number>(),
       timer: setTimeout(() => {
@@ -337,6 +338,7 @@ export class InboundRelay {
   private async emitMessage(
     ev: Record<string, unknown>,
     base: EventBase,
+    replay: boolean,
   ): Promise<void> {
     if (base.evType === 'msg' && base.text.trim() === '') {
       this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
@@ -358,6 +360,7 @@ export class InboundRelay {
         from_name: str(ev.fromName),
         ...displayNameMeta(ev.fromDisplayName),
         ...replyMeta(ev, this.sentIds),
+        ...(!replay && base.evType === 'msg' ? this.deps.callMeta?.(ev)?.() : {}),
       },
     });
   }
@@ -366,7 +369,7 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay = false,
   ): Promise<void> {
-    if (await this.routeAttachment(ev)) return;
+    if (await this.routeAttachment(ev, replay)) return;
 
     const base = this.routable(ev, replay);
     if (!base) return;
@@ -375,7 +378,7 @@ export class InboundRelay {
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;
     if (Array.isArray(atts) && atts.length) {
-      this.bufferAttachments(ev, base, atts);
+      this.bufferAttachments(ev, base, atts, replay);
       return;
     }
 
@@ -383,7 +386,7 @@ export class InboundRelay {
       await this.handleReact(ev, base);
       return;
     }
-    await this.emitMessage(ev, base);
+    await this.emitMessage(ev, base, replay);
   }
 }
 

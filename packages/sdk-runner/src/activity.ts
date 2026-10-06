@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { runnerFailureSummary, type RunnerActivity, type RunnerEvent, type RunnerEventKind, type RunnerFailure, type RunnerFailureCode, type RunnerPhase, type RunnerTool } from '@metro-labs/core/runner-activity';
+import { runnerFailureSummary, type RunnerActivity, type RunnerEvent, type RunnerEventKind, type RunnerFailure, type RunnerFailureCode, type RunnerInput, type RunnerPhase, type RunnerTool } from '@metro-labs/core/runner-activity';
 import { writeAtomic } from '@metro-labs/core/secure-fs';
 import { ActivityTasks, activityName } from './activity-tasks.js';
 import type { ApprovalAsk } from './approvals.js';
@@ -91,12 +91,24 @@ export class Activity {
     return {
       ...s, tools: [...s.tools], activeTools: s.activeTools.map((tool) => ({ ...tool })),
       tasks: s.tasks.map((task) => ({ ...task })), events: s.events.map((event) => ({ ...event })),
+      ...(s.inputs === undefined ? {} : { inputs: s.inputs.map((input) => ({ ...input })) }),
       activeFailure: s.activeFailure ? { ...s.activeFailure } : null, lastFailure: s.lastFailure ? { ...s.lastFailure } : null,
     };
   }
 
-  pending(count: number): void {
+  pending(count: number, oldest?: number | null): void {
     this.state.pending = count;
+    if (oldest !== undefined) this.state.queueOldestAt = oldest;
+    this.update();
+  }
+
+  input(input: RunnerInput): void {
+    this.state.inputs = [input, ...(this.state.inputs ?? []).filter((entry) => entry.id !== input.id)].slice(0, MAX_EVENTS);
+    this.update();
+  }
+
+  call(state: NonNullable<RunnerActivity['callState']>): void {
+    this.state.callState = state;
     this.update();
   }
 

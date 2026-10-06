@@ -10,6 +10,7 @@ import { errResult, makeCtx, ok, toErr } from './ctx.js';
 import { runRead } from './read-tool.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
+import { sendSpeech } from './speech-send.js';
 
 type Station = NonNullable<ReturnType<typeof stationForLine>>;
 
@@ -143,6 +144,7 @@ function noteSent(m: MessageArgs, messageId: string | undefined): void {
 }
 
 async function handleSend(m: MessageArgs): Promise<ToolResult> {
+  if (m.a.speech !== undefined) return sendSpeech(m.line, m.a);
   const text = m.a.text as string | undefined;
   const replyTo = m.a.reply_to as string | undefined;
   const requested = (m.a.attachments as CanonicalAttachment[] | undefined) ?? [];

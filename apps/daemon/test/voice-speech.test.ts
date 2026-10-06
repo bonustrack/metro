@@ -2,13 +2,14 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Utterance } from '../src/voice/speech.ts';
+import { Scribe } from '../src/voice/scribe.ts';
 
 const saved = process.env.METRO_ELEVENLABS_URL;
 let server: WebSocketServer;
 let answer: (ws: WebSocket) => void = () => undefined;
 
 beforeAll(async () => {
-  server = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+  server = new WebSocketServer({ port: 10_000 + Math.floor(Math.random() * 20_000), host: '127.0.0.1' });
   server.on('connection', (ws) => {
     answer(ws);
   });
@@ -51,4 +52,57 @@ test('audio then a normal close is not a failure', async () => {
 
 test('our own abort is not a failure', async () => {
   expect(await speak(() => undefined, true)).toBeNull();
+});
+
+test('a TTS failure after some audio is failed instead of reporting a normal finish', async () => {
+  expect(await speak((ws) => {
+    ws.send(JSON.stringify({ audio: Buffer.alloc(480).toString('base64') }));
+    ws.close(1011, 'provider unavailable');
+  })).toBe('provider unavailable');
+});
+
+test('TTS final completes once even if the socket stays open, and abort ignores late audio', async () => {
+  const connected = Promise.withResolvers<WebSocket>();
+  answer = (ws) => connected.resolve(ws);
+  const events: string[] = [];
+  const utterance = new Utterance('key', 'voice', (reason) => events.push(reason));
+  utterance.attach({ audio: () => events.push('audio'), done: () => events.push('done') });
+  const ws = await connected.promise;
+  ws.send(JSON.stringify({ audio: Buffer.alloc(480).toString('base64'), isFinal: true }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(events).toEqual(['audio', 'done']);
+  utterance.abort();
+  utterance.abort();
+  ws.close();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(events).toEqual(['audio', 'done']);
+});
+
+test('STT close immediately cancels even a connecting socket and never emits failure afterward', async () => {
+  answer = () => undefined;
+  const heard: string[] = [];
+  const scribe = new Scribe('key', 'en', {
+    partial: (text) => heard.push(text), committed: (text) => heard.push(text), failed: (reason) => heard.push(reason),
+  });
+  scribe.close();
+  scribe.close();
+  scribe.send(new Int16Array(1600));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(heard).toEqual([]);
+});
+
+test('STT receives committed words before cancellation and ignores queued network words afterward', async () => {
+  const connected = Promise.withResolvers<WebSocket>();
+  answer = (ws) => connected.resolve(ws);
+  const heard: string[] = [];
+  const scribe = new Scribe('key', 'en', {
+    partial: (text) => heard.push(`partial ${text}`), committed: (text) => heard.push(text), failed: (reason) => heard.push(reason),
+  });
+  const ws = await connected.promise;
+  ws.send(JSON.stringify({ message_type: 'committed_transcript', text: 'before' }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  scribe.close();
+  ws.send(JSON.stringify({ message_type: 'committed_transcript', text: 'after' }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(heard).toEqual(['before']);
 });

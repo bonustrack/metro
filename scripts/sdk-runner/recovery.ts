@@ -51,7 +51,7 @@ function boot(): void {
       return Promise.resolve({ content: [{ type: 'text', text: 'fixture recorded' }] });
     },
   });
-  runner = new Runner({ store, activity, readOnly: () => false, compactAt: 10_000_000, sink: { say: () => undefined, done: () => undefined } });
+  runner = new Runner({ store, activity, readOnly: () => false, compactAt: 10_000_000 });
   runner.start({
     ...runnerOptions(cfg, tools, () => Promise.resolve({ behavior: 'deny', message: 'Only fixture tools are allowed.' }), store.resumable(), env),
     settingSources: [], tools: [], allowedTools: ['mcp__metro__send'],

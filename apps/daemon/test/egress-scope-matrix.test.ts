@@ -20,6 +20,7 @@ import { serveStandaloneGet } from '../src/mcp/raw-get-stream.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { eventInScope } from '../src/agents/scope.ts';
+import { callInScope } from '../src/mcp/call-bridge.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { asLine } from '@metro-labs/core/lines';
@@ -250,6 +251,9 @@ const EGRESS: Record<
   string,
   (reader: Reader, line: string, text: string) => Promise<boolean>
 > = {
+  'shared call notification': (reader, line) => Promise.resolve(callInScope(reader.scope, {
+    agentId: 'agent000001', line, from: 'caller', callId: 'call', generation: 'generation',
+  })),
   'channel live delivery': liveChannel,
   'channel bus replay after reconnect': busReplayAfterReconnect,
   'SSE resumption from Last-Event-ID': sseResume,
@@ -273,6 +277,7 @@ describe('every egress applies the same scope predicate', () => {
       'channel bus replay after reconnect',
       'channel live delivery',
       'monitor tail',
+      'shared call notification',
     ]);
   });
 

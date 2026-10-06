@@ -1,5 +1,15 @@
 # Metro history
 
+## 2026-10-05: Shared SDK chat and calls
+
+Less approved one persistent SDK conversation for typed chat, call words and worker results. When the SDK runner is selected, a call does not start a second Brain or copy recent chat. The daemon sends ephemeral, scoped call notices over the existing authenticated local MCP session. Call payloads never enter the bus or SSE replay history. Each GET reattachment sends only the current call route or no call, so a missed hangup clears stale call state without replaying speech or restarting the conversation. The CLI runner keeps its separate call Brain.
+
+Speech is an explicit action on the existing write-policy-gated `send` tool: `speech: { callId, generation, sourceId }`. It sends audio only, never a duplicate chat post. Ordinary chat and worker output are silent. The source must be a real input from the authorized caller on that exact live call. The daemon deduplicates each source, binds approvals to the route and source, and rechecks authorization before audio delivery. No installed guard or permission policy changes are needed.
+
+Audio is independent of reasoning. The bounded TTS queue reports acceptance, queueing, transport start, completion, interruption and failure. Transport completion does not prove the caller heard the audio. Hangup revokes the route, pending speech and call-bound approvals, stops local audio and STT, and frees the slot before bounded background leave signalling. It never closes the persistent SDK Query or unrelated workers. Revoking the MCP session also closes the physical call. Unusable speech synthesis ends the call and leaves a safe failure fact in the conversation. The per-call source limit ends the call instead of leaving it silent. CLI cleanup signals only the call's own child.
+
+The runner schedules bounded chat, call and status-note lanes fairly at observed safe boundaries, without priority interrupts, timeout restarts or blind side-effect replay. Startup can compact a saved conversation at 120,000 input and cache tokens before ordinary inputs. Idle compaction uses the same threshold but skips live calls and pending input. After compaction it waits for 60,000 tokens of growth before asking again. Compaction may still take minutes; nothing claims or simulates faster output. Exact UUID settlement and interrupted-input recovery remain separate from scheduler readiness. Activity shows safe input acceptance, dispatch, consumption, first SDK output, completion and queue age; a tool call is not a delivered reply.
+
 This is the CLAUDE.md of 2026-09-23 before it was cut to the rules, kept word for word: the dates, incidents and reasons behind the current rules. It is not loaded into sessions and it is not kept up to date. Search it before changing a load-bearing behaviour.
 
 # CLAUDE.md

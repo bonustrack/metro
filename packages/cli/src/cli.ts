@@ -35,9 +35,9 @@ const USAGE = `metro: run your agent on this machine
                   open Claude Code with the metro channel and the metro MCP server, its
                   inference routed through the daemon's model gateway (the Model page);
                   every argument is passed through the same
-  metro agent     run chat and background workers in one Agent SDK conversation,
+  metro agent     run chat, calls and background workers in one Agent SDK conversation,
                   when the Harness runner is Agent SDK, using the Model page's model;
-                  resume it after a restart; voice calls remain separate
+                  resume it after a restart; call audio runs independently
   metro agent --prepare [cli|sdk]
                   check the runner before selecting it; install the SDK runtime if needed,
                   without starting a session or connecting to chat

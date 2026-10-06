@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { answerPrompt, pendingPrompts, takeGrant } from '../src/approvals/pending.ts';
 import { CallApprovals } from '../src/voice/approvals.ts';
-import { toolAsk } from '../src/voice/brain.ts';
+import { spawn } from 'node:child_process';
+import { Brain, toolAsk } from '../src/voice/brain.ts';
 import { opening } from '../src/voice/call.ts';
 
 const line = 'metro://xmtp/acct/conv1';
@@ -50,6 +51,31 @@ test('an approval asked during a call goes to the chat of the call, and a yes th
   expect(answers).toEqual(['allow']);
   expect(takeGrant((tool) => tool.endsWith('__send'), input)).toBe(true);
   expect(takeGrant((tool) => tool.endsWith('__send'), input)).toBe(false);
+});
+
+test('closing a CLI Brain terminates only its own child and ignores late output', async () => {
+  const other = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+  const events: string[] = [];
+  const brain = new Brain('fake-model', {
+    turnStarted: () => events.push('started'), text: () => events.push('text'), tool: () => events.push('tool'),
+    turnEnded: () => events.push('ended'), asked: () => events.push('asked'), exited: () => events.push('exited'),
+  }, () => child);
+  try {
+    brain.close();
+    brain.close();
+    child.stdout.emit('data', '{"type":"system","subtype":"init"}\n');
+    brain.tell('late words');
+    await exited;
+    expect(child.signalCode).toBe('SIGTERM');
+    expect(other.exitCode).toBeNull();
+    expect(other.signalCode).toBeNull();
+    expect(events).toEqual([]);
+  } finally {
+    other.kill('SIGTERM');
+    child.kill('SIGTERM');
+  }
 });
 
 test('approvals still open when the call ends are dropped, and none are asked after', () => {

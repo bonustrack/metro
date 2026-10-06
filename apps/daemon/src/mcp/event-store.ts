@@ -6,6 +6,7 @@ import type {
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { str } from '@metro-labs/core/str';
 import { eventInScope } from '../agents/scope.js';
+import { CALL_NOTICE, CALL_STATE } from '@metro-labs/core/call';
 
 const EVENT_STORE_MAX = 500;
 
@@ -14,6 +15,7 @@ interface StoredEvent {
   streamId: StreamId;
   message: JSONRPCMessage;
   line: string | undefined;
+  replays: boolean;
 }
 
 export interface ScopedReplay {
@@ -31,6 +33,8 @@ function frameLine(message: JSONRPCMessage): string | undefined {
   if (typeof meta !== 'object' || meta === null) return undefined;
   return str((meta as { line?: unknown }).line) || undefined;
 }
+
+const isCallNotice = (message: JSONRPCMessage): boolean => 'method' in message && (message.method === CALL_NOTICE || message.method === CALL_STATE);
 
 const encodeEventId = (streamId: StreamId, seq: number): EventId =>
   `${streamId}${SEP}${seq}`;
@@ -52,11 +56,13 @@ export class BoundedEventStore implements EventStore {
 
   storeEvent(streamId: StreamId, message: JSONRPCMessage): Promise<EventId> {
     const eventId = encodeEventId(streamId, ++this.seq);
+    const replays = !isCallNotice(message);
     this.events.push({
       eventId,
       streamId,
-      message,
-      line: frameLine(message),
+      message: replays ? message : { jsonrpc: message.jsonrpc, method: CALL_NOTICE },
+      line: replays ? frameLine(message) : undefined,
+      replays,
     });
     if (this.events.length > this.max) this.events.shift();
     return Promise.resolve(eventId);
@@ -79,6 +85,7 @@ export class BoundedEventStore implements EventStore {
         if (e.eventId === lastEventId) seen = true;
         continue;
       }
+      if (!e.replays) continue;
       if (e.line !== undefined && !eventInScope(scope, e.line)) {
         onWithheld?.(e.eventId, e.line);
         continue;

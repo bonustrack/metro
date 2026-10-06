@@ -7,6 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CALL_NOTICE, CALL_STATE, type CallNotice, type CallRoute, type CallState } from '@metro-labs/core/call';
 import type { ChannelEvent } from '../src/channel-text.ts';
 import { MetroLink } from '../src/link.ts';
 import { metroTools } from '../src/tool-proxy.ts';
@@ -14,11 +15,17 @@ import { metroTools } from '../src/tool-proxy.ts';
 const KEY = 'mk_link_test';
 const PORT = 10000 + Math.floor(Math.random() * 19000);
 const PermissionRequest = z.object({ method: z.literal('notifications/claude/channel/permission_request'), params: z.object({ request_id: z.string(), tool_name: z.string() }).passthrough() });
+const PermissionCancel = z.object({ method: z.literal('notifications/metro/permission_cancel'), params: z.object({ request_id: z.string() }) });
+const route: CallRoute = { agentId: 'agent', line: 'metro://xmtp/a/c', from: 'metro://xmtp/a/user/caller', callId: 'call', generation: 'generation' };
 
 let http: HttpServer;
 let daemon: Server | null = null;
 const calls: unknown[] = [];
 const asked: string[] = [];
+const cancelled: string[] = [];
+const notices: CallNotice[] = [];
+const states: CallState[] = [];
+const bindings: unknown[] = [];
 const events: ChannelEvent[] = [];
 const models: (string | null)[] = [];
 let link: MetroLink;
@@ -37,8 +44,11 @@ function fakeDaemon(): Server {
   });
   server.setNotificationHandler(PermissionRequest, async (n) => {
     asked.push(n.params.tool_name);
+    if (n.params.call !== undefined) bindings.push(n.params.call);
+    if (n.params.request_id === 'efghj') return;
     await server.notification({ method: 'notifications/claude/channel/permission', params: { request_id: n.params.request_id, behavior: n.params.tool_name === 'Bash' ? 'deny' : 'allow' } });
   });
+  server.setNotificationHandler(PermissionCancel, (n) => { cancelled.push(n.params.request_id); });
   return server;
 }
 
@@ -67,6 +77,8 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => http.listen(PORT, '127.0.0.1', () => resolve()));
   link = await MetroLink.open(`http://127.0.0.1:${String(PORT)}/mcp`, KEY, {
     channel: (event) => events.push(event),
+    call: (notice) => notices.push(notice),
+    callState: (state) => states.push(state),
     toolsChanged: () => undefined,
     model: (model) => models.push(model),
     lost: () => undefined,
@@ -101,6 +113,48 @@ test('an already cancelled approval is denied without sending an owner request',
   expect(await link.ask({ request_id: 'defgh', tool_name: 'CancelledRead', description: '', input_preview: '{}' }, stopped.signal)).toBe('deny');
   await link.listTools();
   expect(asked).not.toContain('CancelledRead');
+});
+
+test('a call-bound approval is correlated over the wire and explicitly cancelled on abort', async () => {
+  const stopped = new AbortController();
+  const call = { route, sourceId: 'heard' };
+  const pending = link.ask({ request_id: 'efghj', tool_name: 'mcp__metro__send', description: '', input_preview: '{}', call }, stopped.signal);
+  for (let i = 0; i < 100 && bindings.length === 0; i += 1) await Bun.sleep(20);
+  expect(bindings).toEqual([call]);
+  stopped.abort();
+  expect(await pending).toBe('deny');
+  for (let i = 0; i < 100 && !cancelled.includes('efghj'); i += 1) await Bun.sleep(20);
+  expect(cancelled).toContain('efghj');
+  await daemon?.notification({ method: 'notifications/claude/channel/permission', params: { request_id: 'efghj', behavior: 'allow' } });
+  expect(await pending).toBe('deny');
+});
+
+test('validated call events arrive on the same authenticated link without entering chat', async () => {
+  const valid: CallNotice[] = [
+    { type: 'started', route, sourceId: 'greeting' },
+    { type: 'heard', route, sourceId: 'heard', text: 'hello' },
+    { type: 'speech', route, sourceId: 'heard', actionId: 'action', status: 'completed' },
+    { type: 'ended', route },
+  ];
+  const chatCount = events.length;
+  await daemon?.notification({ method: CALL_NOTICE, params: { type: 'heard', route, text: 'missing source' } });
+  await daemon?.notification({ method: CALL_NOTICE, params: { type: 'started', route: { ...route, generation: '' }, sourceId: 'invalid' } });
+  await daemon?.notification({ method: CALL_NOTICE, params: { type: 'speech', route, sourceId: 'heard', actionId: 'action', status: 'unknown' } });
+  for (const notice of valid) await daemon?.notification({ method: CALL_NOTICE, params: { ...notice } });
+  for (let i = 0; i < 100 && notices.length < valid.length; i += 1) await Bun.sleep(20);
+  expect(notices).toEqual(valid);
+  expect(events).toHaveLength(chatCount);
+});
+
+test('current call snapshots are validated separately from ephemeral call events', async () => {
+  const noticeCount = notices.length;
+  await daemon?.notification({ method: CALL_STATE, params: {} });
+  await daemon?.notification({ method: CALL_STATE, params: { route: { ...route, generation: '' } } });
+  await daemon?.notification({ method: CALL_STATE, params: { route } });
+  await daemon?.notification({ method: CALL_STATE, params: { route: null } });
+  for (let i = 0; i < 100 && states.length < 2; i += 1) await Bun.sleep(20);
+  expect(states).toEqual([{ route }, { route: null }]);
+  expect(notices).toHaveLength(noticeCount);
 });
 
 test('the session sees metro tools through the proxy, with their metadata, and calls reach metro', async () => {

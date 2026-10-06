@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { CallToolResultSchema, type CallToolRequest, type CallToolResult, type ListToolsResult, type Notification } from '@modelcontextprotocol/sdk/types.js';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
+import { CALL_NOTICE, CALL_STATE, callNotice, callState, type CallNotice, type CallSource, type CallState } from '@metro-labs/core/call';
 import { channelEvent, type ChannelEvent } from './channel-text.js';
 
 const CHANNEL = 'notifications/claude/channel';
@@ -23,10 +24,13 @@ export interface PermissionAsk {
   tool_name: string;
   description: string;
   input_preview: string;
+  call?: CallSource;
 }
 
 export interface LinkEvents {
   channel(event: ChannelEvent): void;
+  call?(notice: CallNotice): void;
+  callState?(state: CallState): void;
   toolsChanged(): void;
   model(model: string | null): void;
   lost(reason: string): void;
@@ -81,14 +85,19 @@ export class MetroLink implements Asker {
   ask(ask: PermissionAsk, signal: AbortSignal): Promise<Behavior> {
     if (signal.aborted) return Promise.resolve('deny');
     return new Promise((resolve) => {
+      const abort = (): void => {
+        settle('deny');
+        this.client.notification({ method: 'notifications/metro/permission_cancel', params: { request_id: ask.request_id } }).catch(() => {
+          log.warn('sdk-runner: could not cancel a pending approval with metro');
+        });
+      };
       const settle = (behavior: Behavior): void => {
-        this.waiting.delete(ask.request_id);
+        signal.removeEventListener('abort', abort);
+        if (!this.waiting.delete(ask.request_id)) return;
         resolve(behavior);
       };
       this.waiting.set(ask.request_id, settle);
-      signal.addEventListener('abort', () => {
-        settle('deny');
-      }, { once: true });
+      signal.addEventListener('abort', abort, { once: true });
       this.client.notification({ method: ASK, params: { ...ask } }).catch((err: unknown) => {
         log.warn({ err: errMsg(err), id: ask.request_id }, 'sdk-runner: could not hand an approval to metro');
         settle('deny');
@@ -106,6 +115,10 @@ export class MetroLink implements Asker {
     if (notification.method === CHANNEL) {
       const event = channelEvent(params);
       if (event !== null) this.events.channel(event);
+    } else if (notification.method === CALL_NOTICE) {
+      this.callNotified(params);
+    } else if (notification.method === CALL_STATE) {
+      this.reconciled(params);
     } else if (notification.method === ANSWER) {
       this.answered(params);
     } else if (notification.method === TOOLS_CHANGED) {
@@ -113,6 +126,16 @@ export class MetroLink implements Asker {
     } else if (notification.method === MODEL) {
       this.events.model(modelIn(params));
     }
+  }
+
+  private callNotified(params: Record<string, unknown>): void {
+    const notice = callNotice(params);
+    if (notice !== null) this.events.call?.(notice);
+  }
+
+  private reconciled(params: Record<string, unknown>): void {
+    const state = callState(params);
+    if (state !== null) this.events.callState?.(state);
   }
 
   private answered(params: Record<string, unknown>): void {

@@ -45,13 +45,14 @@ function argText(value: unknown): string | undefined {
 
 function fieldText(key: string, value: unknown): string | undefined {
   if (key === 'attachments' && Array.isArray(value)) return `${String(value.length)} file(s)`;
-  return key === 'frame' || key === 'wallet' ? argText(value) : valueText(value);
+  return key === 'frame' || key === 'wallet' || key === 'speech' ? argText(value) : valueText(value);
 }
 
 function metroLines(tool: string, input: Record<string, unknown>): string[] {
   const lines = [`Approval needed: ${tool}`];
   const channel = channelOf(input);
   if (channel !== undefined) lines.push(`Channel: ${channel}`);
+  if (tool === 'send' && input.speech !== undefined) lines.push('Delivery: voice call only, no chat post');
   const keys = [...LEAD, ...Object.keys(input).filter((k) => !LEAD.includes(k))];
   for (const key of keys) {
     if (PLACE.has(key)) continue;

@@ -1,4 +1,4 @@
-import { runnerFailureSummary, type RunnerActivity, type RunnerEventKind, type RunnerFailure, type RunnerPhase, type RunnerTask, type RunnerTaskState, type RunnerTool } from '@metro-labs/core/runner-activity';
+import { runnerFailureSummary, type RunnerActivity, type RunnerEventKind, type RunnerFailure, type RunnerInput, type RunnerPhase, type RunnerTask, type RunnerTaskState, type RunnerTool } from '@metro-labs/core/runner-activity';
 import type { ClaudeSessionStatus } from './claude-box.js';
 import { activityIsStale } from './runner.js';
 
@@ -165,8 +165,43 @@ function recentEvents(activity: RunnerActivity, clock: Clock): string[] {
   ].filter((part) => part !== null).join(' · '));
 }
 
+const INPUT_KIND: Record<RunnerInput['kind'], string> = { chat: 'Chat', call: 'Call', note: 'Status note' };
+const INPUT_STATE: Record<RunnerInput['state'], string> = { accepted: 'accepted', consumed: 'consumed by SDK', output: 'first SDK output', completed: 'completed', cancelled: 'cancelled' };
+const CALL_STATE: Record<NonNullable<RunnerActivity['callState']>, string> = {
+  started: 'started', ended: 'ended', accepted: 'speech accepted', queued: 'speech queued', speaking: 'sending audio',
+  completed: 'audio transport completed', interrupted: 'speech interrupted', failed: 'speech failed',
+};
+
+function inputDelay(start: number, end: number | null): string {
+  if (start <= 0 || end === null) return 'Not reported';
+  const ms = Math.max(0, end - start);
+  return ms < 1_000 ? `${ms} ms` : duration(ms);
+}
+
+function inputRows(activity: RunnerActivity): WorkerRow[] {
+  return (activity.inputs ?? []).map((input) => ({
+    id: input.id,
+    summary: `${INPUT_KIND[input.kind]} · ${INPUT_STATE[input.state]} · accepted ${date(input.acceptedAt)}`,
+    details: [
+      `Input ID: ${input.id}`, `Accepted: ${date(input.acceptedAt)}`,
+      `Dispatched to SDK: ${date(input.dispatchedAt)} (${inputDelay(input.acceptedAt, input.dispatchedAt)} after acceptance)`,
+      `Consumed by SDK: ${date(input.consumedAt)} (${inputDelay(input.acceptedAt, input.consumedAt)} after acceptance)`,
+      `First SDK output: ${date(input.firstOutputAt)} (${inputDelay(input.acceptedAt, input.firstOutputAt)} after acceptance)`,
+      `${input.state === 'cancelled' ? 'Cancelled' : 'Completed'}: ${date(input.completedAt)} (${inputDelay(input.acceptedAt, input.completedAt)} after acceptance)`,
+    ].join('\n'),
+    danger: false,
+  }));
+}
+
+function queueStatus(activity: RunnerActivity, clock: Clock): string | null {
+  if (activity.queueOldestAt === undefined) return null;
+  const age = elapsed(activity.queueOldestAt, clock.at);
+  return `Oldest queued input${clock.mode === 'live' ? '' : ' at the last report'}: ${age ?? 'None reported'}`;
+}
+
 export function activityView(status: ClaudeSessionStatus, activity: RunnerActivity, now: number): {
   mode: Mode; note: string; main: string; tools: string; workers: WorkerRow[]; events: string[]; failures: { text: string; danger: boolean }[];
+  queue: string | null; call: string | null; inputs: WorkerRow[];
 } {
   const clock = clockOf(status, activity, now);
   return {
@@ -177,5 +212,8 @@ export function activityView(status: ClaudeSessionStatus, activity: RunnerActivi
     workers: workerRows(activity, clock),
     events: recentEvents(activity, clock),
     failures: failures(activity, clock),
+    queue: queueStatus(activity, clock),
+    call: activity.callState === undefined ? null : `Call${clock.mode === 'live' ? '' : ' at the last report'}: ${CALL_STATE[activity.callState]}. Transport status is not proof the caller heard it.`,
+    inputs: inputRows(activity),
   };
 }

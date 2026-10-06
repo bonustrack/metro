@@ -17,6 +17,7 @@ import {
 import { errMsg } from '@metro-labs/core/log';
 import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
+import { connectCallBridge } from './call-bridge.js';
 
 const isInitialize = (b: unknown): boolean =>
   !!b &&
@@ -116,6 +117,7 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
   const slot = new SessionSlot(options.liveEvents);
   const voiceSlot = new SessionSlot(false, 'voice');
   activeSlots = [slot, voiceSlot];
+  connectCallBridge(() => slot.current);
 
   const httpHandler = async (
     req: IncomingMessage,

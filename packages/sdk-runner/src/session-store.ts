@@ -13,6 +13,7 @@ interface Stored {
   sessionId: string | null;
   unanswered: Unanswered[];
   interrupted: Unanswered[];
+  context?: number;
 }
 
 function inputId(raw: unknown): Uuid | undefined {
@@ -35,11 +36,18 @@ function entry(raw: unknown): Unanswered | null {
 
 const UNREADABLE = 'The saved Agent SDK state cannot be read. Restore it before starting.';
 
+function contextOf(raw: unknown): number | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 0) throw new Error(UNREADABLE);
+  return raw;
+}
+
 function stored(raw: unknown): Stored {
   if (!isRecord(raw)) throw new Error(UNREADABLE);
   const id = raw.sessionId ?? null;
   if (id !== null && (typeof id !== 'string' || !SESSION_ID.test(id))) throw new Error(UNREADABLE);
-  return { sessionId: id, unanswered: entries(raw.unanswered), interrupted: entries(raw.interrupted) };
+  const context = contextOf(raw.context);
+  return { sessionId: id, unanswered: entries(raw.unanswered), interrupted: entries(raw.interrupted), ...(context === undefined ? {} : { context }) };
 }
 
 function entries(raw: unknown): Unanswered[] {
@@ -84,6 +92,11 @@ export class SessionStore {
 
   saveUnanswered(unanswered: Unanswered[]): void {
     this.write({ ...this.read(), unanswered });
+  }
+
+  saveContext(context: number): void {
+    const stored = this.read();
+    if (stored.context !== context) this.write({ ...stored, context });
   }
 
   private read(): Stored {

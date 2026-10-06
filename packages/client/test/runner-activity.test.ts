@@ -116,6 +116,32 @@ describe('main agent and worker activity', () => {
     expect(toClaudeSession({ running: true }).activity).toBeNull();
   });
 
+  test('input timings and call transport status stay distinct and freeze when stale', () => {
+    const input = {
+      id: '01234567-89ab-cdef-0123-456789abcdef', kind: 'call', state: 'output', acceptedAt: now - 5_000,
+      dispatchedAt: now - 4_950, consumedAt: now - 4_900, firstOutputAt: now - 2_000, completedAt: null,
+      text: 'private-transcript', route: { from: 'private-caller' },
+    };
+    const over = { inputs: [input], queueOldestAt: now - 10_000, callState: 'completed' };
+    const active = view(over, now + 2_000);
+    expect(active.queue).toBe('Oldest queued input: 12 s');
+    expect(active.call).toContain('audio transport completed');
+    expect(active.call).toContain('not proof the caller heard it');
+    expect(active.inputs[0]?.summary).toContain('Call · first SDK output');
+    expect(active.inputs[0]?.details).toContain('(50 ms after acceptance)');
+    expect(active.inputs[0]?.details).toContain('(100 ms after acceptance)');
+    expect(active.inputs[0]?.details).toContain('(3 s after acceptance)');
+    expect(JSON.stringify(active)).not.toContain('private-');
+    const stale = view(over, now + 40_000);
+    expect(stale.queue).toBe('Oldest queued input at the last report: 10 s');
+    expect(stale.call).toContain('at the last report');
+    expect(view(over, now + 90_000).queue).toBe(stale.queue);
+    expect(view({ inputs: [{ ...input, state: 'cancelled', completedAt: now }] }).inputs[0]?.details).toContain('Cancelled:');
+    expect(view().queue).toBeNull();
+    expect(view().call).toBeNull();
+    expect(view().inputs).toEqual([]);
+  });
+
   test('a long active tool list stays compact', () => {
     const activeTools = Array.from({ length: 5 }, (_, i) => ({ ...mainTool, id: `tool-${i}`, name: `Tool${i}` }));
     expect(view({ activeTools }).tools).toBe('Main tools: Tool0 (10 s), Tool1 (10 s), Tool2 (10 s), +2 more');

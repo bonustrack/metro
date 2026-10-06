@@ -74,6 +74,17 @@ export interface RunnerFailure extends RunnerEvent {
   code: RunnerFailureCode;
 }
 
+export interface RunnerInput {
+  id: string;
+  kind: 'chat' | 'call' | 'note';
+  state: 'accepted' | 'consumed' | 'output' | 'completed' | 'cancelled';
+  acceptedAt: number;
+  dispatchedAt: number | null;
+  consumedAt: number | null;
+  firstOutputAt: number | null;
+  completedAt: number | null;
+}
+
 export interface RunnerActivity {
   pid: number;
   procStart?: string;
@@ -84,6 +95,9 @@ export interface RunnerActivity {
   sessionId: string | null;
   updatedAt: number;
   pending: number;
+  queueOldestAt?: number | null;
+  inputs?: RunnerInput[];
+  callState?: 'started' | 'ended' | 'accepted' | 'queued' | 'speaking' | 'completed' | 'interrupted' | 'failed';
   workers: number;
   approvals: number;
   tools: string[];
@@ -160,6 +174,28 @@ function failureFields(raw: Record<string, unknown>): Pick<RunnerActivity, 'last
   };
 }
 
+function input(raw: unknown): RunnerInput | null {
+  if (!isRecord(raw) || sessionId(raw.id) === null) return null;
+  const kind = (['chat', 'call', 'note'] as const).find((value) => value === raw.kind);
+  const state = (['accepted', 'consumed', 'output', 'completed', 'cancelled'] as const).find((value) => value === raw.state);
+  if (kind === undefined || state === undefined) return null;
+  return {
+    id: String(raw.id), kind, state, acceptedAt: count(raw.acceptedAt),
+    dispatchedAt: count(raw.dispatchedAt) || null, consumedAt: count(raw.consumedAt) || null,
+    firstOutputAt: count(raw.firstOutputAt) || null, completedAt: count(raw.completedAt) || null,
+  };
+}
+
+function inputFields(raw: Record<string, unknown>): Pick<RunnerActivity, 'inputs' | 'queueOldestAt' | 'callState'> {
+  const states = ['started', 'ended', 'accepted', 'queued', 'speaking', 'completed', 'interrupted', 'failed'] as const;
+  const callState = states.find((state) => state === raw.callState);
+  return {
+    ...(raw.inputs === undefined ? {} : { inputs: list(raw.inputs, input, 40) }),
+    ...(raw.queueOldestAt === undefined ? {} : { queueOldestAt: count(raw.queueOldestAt) || null }),
+    ...(callState === undefined ? {} : { callState }),
+  };
+}
+
 export function parseRunnerActivity(raw: unknown): RunnerActivity | null {
   if (!isRecord(raw) || raw.runner !== 'sdk' || !phase(raw.phase) || count(raw.pid) === 0 || count(raw.updatedAt) === 0) return null;
   return {
@@ -168,6 +204,6 @@ export function parseRunnerActivity(raw: unknown): RunnerActivity | null {
     pending: count(raw.pending), workers: count(raw.workers), approvals: count(raw.approvals),
     tools: list(raw.tools, name, 20), activeTools: list(raw.activeTools, tool, 20),
     tasks: list(raw.tasks, task, 30), events: list(raw.events, event, 40),
-    ...failureFields(raw),
+    ...failureFields(raw), ...inputFields(raw),
   };
 }

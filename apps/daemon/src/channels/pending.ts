@@ -16,6 +16,7 @@ export interface PendingMsg {
   fromName: string;
   fromDisplayName: string;
   reply: Record<string, string>;
+  callMeta?: () => Record<string, string>;
   attachments: PendingAtt[];
   saved: Set<number>;
   timer: ReturnType<typeof setTimeout>;
@@ -32,6 +33,7 @@ export interface MediaCtx {
   fromName?: string;
   fromDisplayName?: string;
   reply?: Record<string, string>;
+  callMeta?: () => Record<string, string>;
 }
 
 export function capSet(set: Set<string>, max: number): void {
@@ -72,6 +74,7 @@ export function takeMediaCtx(buf: PendingMsg): MediaCtx {
     fromName: buf.fromName,
     fromDisplayName: buf.fromDisplayName,
     reply: buf.reply,
+    callMeta: buf.callMeta,
   };
   buf.text = '';
   return ctx;

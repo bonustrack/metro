@@ -146,11 +146,6 @@ export interface Turn {
   data: Record<string, unknown>;
 }
 export const events: Turn[] = [];
-export const spoken: { t: number; text: string }[] = [];
-export const stalls: number[] = [];
-const firstWords: number[] = [];
-export const wordsAfter = (at: number): number => (firstWords.find((t) => t >= at) ?? at) - at;
-let speaking = '';
 const record = (m: SDKMessage): void => {
   const r: Record<string, unknown> = { ...m };
   if (r.type === 'system' && r.subtype === 'init') events.push({ t: now(), kind: 'init', data: { session: r.session_id, claude: r.claude_code_version } });
@@ -175,24 +170,6 @@ export const lost = (): string | null => lostReason;
 export const boot = (compactAt: number, activity?: Activity): ReturnType<typeof startAgent> =>
   startAgent(cfg, {
     activity,
-    speech: {
-      say: (text) => {
-        if (speaking === '') {
-          firstWords.push(now());
-          say('first_words');
-        }
-        speaking += text;
-      },
-      stalled: () => {
-        say('stalled');
-        stalls.push(now());
-      },
-      done: () => {
-        spoken.push({ t: now(), text: speaking.trim() });
-        say('spoken', { text: speaking.trim().slice(0, 200) });
-        speaking = '';
-      },
-    },
     lost: (reason) => {
       lostReason = reason;
     },

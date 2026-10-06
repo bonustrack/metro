@@ -227,7 +227,7 @@ test('unwritable initial status refuses startup before MCP connects and releases
   const server = Bun.serve({ port: 10_000 + Math.floor(Math.random() * 20_000), hostname: '127.0.0.1', fetch: () => { calls++; return new Response('PRIVATE', { status: 503 }); } });
   try {
     const cfg = runnerConfig({ METRO_AGENT_KEY: 'fixture-key', METRO_RUNNER_MCP_URL: `${server.url}mcp` }, home);
-    await expect(startAgent(cfg, { activity, lost: () => undefined, speech: { say: () => undefined, done: () => undefined } })).rejects.toThrow('SDK status file cannot be written');
+    await expect(startAgent(cfg, { activity, lost: () => undefined })).rejects.toThrow('SDK status file cannot be written');
     expect(calls).toBe(0);
     expect(activity.snapshot()).toMatchObject({ phase: 'error', lastError: 'The SDK status file cannot be written. Check its path and permissions before starting.' });
     expect(statSync(path).isDirectory()).toBe(true);
@@ -244,7 +244,7 @@ test('failed startup releases ownership and publishes a safe error', async () =>
   const server = Bun.serve({ port: 10_000 + Math.floor(Math.random() * 20_000), hostname: '127.0.0.1', fetch: () => new Response('PRIVATE', { status: 503 }) });
   try {
     const cfg = runnerConfig({ METRO_AGENT_KEY: 'fixture-key', METRO_RUNNER_MCP_URL: `${server.url}mcp` }, home);
-    await expect(startAgent(cfg, { activity, lost: () => undefined, speech: { say: () => undefined, done: () => undefined } })).rejects.toThrow();
+    await expect(startAgent(cfg, { activity, lost: () => undefined })).rejects.toThrow();
     expect(activity.snapshot().phase).toBe('error');
     expect(activity.snapshot().lastError).not.toContain('PRIVATE');
     if (process.platform === 'linux') expect(activity.snapshot().procStart).toMatch(/^\d+$/);
@@ -277,13 +277,17 @@ test('a chat arriving between MCP connect and query start is queued once, alongs
   const dir = fixture();
   const store = new SessionStore(join(dir, 's.json'), join(dir, 'claude'), dir);
   store.saveUnanswered([{ text: 'saved', at: Date.now() }]);
-  const open: OpenSession = () => ({ applyFlagSettings: () => Promise.resolve(), close: () => undefined }) as never;
-  const runner = new Runner({ store, open, readOnly: () => false, sink: { say: () => undefined, done: () => undefined } });
+  const open: OpenSession = () => ({
+    applyFlagSettings: () => Promise.resolve(), close: () => undefined,
+    [Symbol.asyncIterator]: async function* () { yield msg({ type: 'system', subtype: 'session_state_changed', state: 'idle' }); },
+  }) as ReturnType<OpenSession>;
+  const runner = new Runner({ store, open, readOnly: () => false });
   runner.chat({ content: 'new event', meta: { line: 'metro://fixture/a/b' } });
   runner.start({});
   expect(store.unanswered()).toHaveLength(2);
   const messages = runner.inbox[Symbol.asyncIterator]();
   expect((await messages.next()).value?.message.content).toBe('saved');
+  await runner.run();
   expect((await messages.next()).value?.message.content).toContain('new event');
   expect(() => runner.start({})).toThrow('already started');
   runner.close();

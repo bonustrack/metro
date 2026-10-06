@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
-import { lineReceives, mayApprove } from '../agents/map.js';
-import { Call, trainCall } from './call.js';
-import { readVoice, voiceReady } from './store.js';
+import { agentIdForLine, allowlistForLine, lineReceives, mayApprove, senderPermitted } from '../agents/map.js';
+import { Call, trainCall, type CallStart } from './call.js';
+import { readVoice, voiceReady, type VoiceConfig } from './store.js';
 
 const RING_MS = 40_000;
 const CALL_TYPES = new Set(['callInvite', 'callSignal']);
@@ -12,21 +13,30 @@ const SWEEP_FIRST_MS = 5_000;
 const SWEEP_EVERY_MS = 10_000;
 const SWEEP_TRIES = 12;
 
-let current: Call | null = null;
+type CallHandle = Pick<Call, 'start' | 'begin' | 'hangUp' | 'leave' | 'signalled'>;
+type MakeCall = (start: CallStart, cfg: VoiceConfig, onOver: () => void) => CallHandle;
+
+let current: CallHandle | null = null;
+const invites = new Set<string>();
+const INVITES_MAX = 256;
+const makeCall: MakeCall = (start, cfg, onOver) => new Call(start, cfg, onOver);
 
 const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const contentTypeOf = (env: TrainEvent): string => str(record(env.payload).contentType);
+const sourceIdOf = (env: TrainEvent): string => str(env.message_id) || str(env.id) || randomUUID();
+const callerNameOf = (env: TrainEvent): string => str(env.from_display_name) || str(env.from_name) || 'the caller';
 
 export const isCallEvent = (env: TrainEvent): boolean => CALL_TYPES.has(contentTypeOf(env));
 
-const sameCaller = (call: Call, line: string, from: string): boolean => call.start.line === line && call.start.from === from;
+const sameCaller = (call: CallHandle, line: string, from: string): boolean => call.start.line === line && call.start.from === from;
 
 function refusal(line: string, from: string): string | null {
   if (current !== null && !sameCaller(current, line, from)) return 'already in a call';
   if (!voiceReady(readVoice())) return 'voice is off or has no API key on the Voice page';
-  if (!lineReceives(line) || !mayApprove(line, from)) return 'the caller is not someone who can approve for this channel';
+  if (!lineReceives(line) || !mayApprove(line, from) || !senderPermitted(allowlistForLine(line), from)) return 'the caller is not someone who can approve for this channel';
+  if (agentIdForLine(line) === undefined) return 'the channel does not belong to this agent';
   return null;
 }
 
@@ -38,15 +48,17 @@ function decline(line: string, callId: string): void {
 
 function ringing(env: TrainEvent): boolean {
   const sent = Date.parse(str(env.ts));
-  return !Number.isNaN(sent) && Date.now() - sent < RING_MS;
+  const age = Date.now() - sent;
+  return Number.isFinite(age) && age >= -5_000 && age < RING_MS;
 }
 
-function invite(env: TrainEvent, body: Record<string, unknown>): void {
+function invite(env: TrainEvent, body: Record<string, unknown>, create: MakeCall): void {
   const line = str(env.line);
   const from = str(env.from);
   const callId = str(body.callId);
   const callerPeer = str(body.from);
-  if (callId === '' || callerPeer === '' || current?.start.callId === callId) return;
+  const key = JSON.stringify([line, from, callId]);
+  if (callId === '' || callerPeer === '' || invites.has(key)) return;
   if (!ringing(env)) {
     log.info({ line }, 'voice: an invite came in after the caller stopped ringing, not answered');
     return;
@@ -57,10 +69,15 @@ function invite(env: TrainEvent, body: Record<string, unknown>): void {
     decline(line, callId);
     return;
   }
+  const agentId = agentIdForLine(line);
+  if (agentId === undefined) return;
+  invites.add(key);
+  if (invites.size > INVITES_MAX) invites.delete(invites.values().next().value ?? '');
   current?.hangUp('the caller started a new call');
-  const callerName = str(env.from_display_name) || str(env.from_name) || 'the caller';
-  const start = { line, lineName: str(env.line_name), direct: env.is_private === true, from, callerName, callId, callerPeer };
-  const call = new Call(start, readVoice(), () => {
+  const callerName = callerNameOf(env);
+  const sourceId = sourceIdOf(env);
+  const start = { agentId, sourceId, line, lineName: str(env.line_name), direct: env.is_private === true, from, callerName, callId, callerPeer };
+  const call = create(start, readVoice(), () => {
     if (current === call) current = null;
   });
   current = call;
@@ -69,10 +86,19 @@ function invite(env: TrainEvent, body: Record<string, unknown>): void {
   });
 }
 
-export function onCallEvent(env: TrainEvent): void {
+function authenticated(env: TrainEvent): boolean {
+  if (env.sender_verified === false || (env.station !== undefined && env.station !== 'xmtp')) return false;
+  const line = str(env.line);
+  const match = /^metro:\/\/xmtp\/([^/]+)\/[^/]+$/.exec(line);
+  return match !== null && str(env.from).startsWith(`metro://xmtp/${String(match[1])}/user/`) && str(env.from).split('/').length === 6;
+}
+
+export function onCallEvent(env: TrainEvent, train = 'xmtp', create: MakeCall = makeCall): void {
+  if (train !== 'xmtp' || !authenticated(env)) return;
   const body = record(record(env.payload).call);
-  if (contentTypeOf(env) === 'callInvite') invite(env, body);
-  else if (current !== null && env.line === current.start.line) current.signalled(body);
+  if (contentTypeOf(env) === 'callInvite') invite(env, body, create);
+  else if (contentTypeOf(env) === 'callSignal' && current !== null && sameCaller(current, str(env.line), str(env.from)))
+    current.signalled(body);
 }
 
 export function leaveCallsForShutdown(): Promise<void> {

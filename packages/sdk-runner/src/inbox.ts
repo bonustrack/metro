@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { RunnerInput } from '@metro-labs/core/runner-activity';
+import { InputQueue } from './input-queue.js';
+import { InputTiming, type InputWatch } from './input-timing.js';
 
 export type Uuid = ReturnType<typeof randomUUID>;
-export type InputKind = 'chat' | 'call' | 'note';
+export type InputKind = RunnerInput['kind'];
 export type Priority = 'now' | 'next' | 'later';
 
 export interface Unanswered {
@@ -12,32 +15,49 @@ export interface Unanswered {
   state?: 'queued' | 'started';
 }
 
+interface InboxHooks {
+  ready?(): boolean;
+  dispatch?(): void;
+  queue?(count: number, oldest: number | null): void;
+  input?: InputWatch;
+}
+
 const KINDS_MAX = 2_000;
 const LEDGER_MAX = 100;
 const LEDGER_AGE_MS = 6 * 60 * 60_000;
 
 export class Inbox implements AsyncIterable<SDKUserMessage> {
-  private readonly queue: SDKUserMessage[] = [];
+  private readonly queue = new InputQueue();
   private readonly kinds = new Map<string, InputKind>();
   private readonly ledger = new Map<string, Unanswered>();
+  private readonly timing: InputTiming;
   private wake: (() => void) | null = null;
   private closed = false;
   private restoring = false;
 
-  constructor(private readonly changed: (unanswered: Unanswered[]) => void = () => undefined) {}
+  constructor(private readonly changed: (unanswered: Unanswered[]) => void = () => undefined, private readonly hooks: InboxHooks = {}) {
+    this.timing = new InputTiming(hooks.input ?? (() => undefined));
+  }
 
-  push(kind: InputKind, text: string, priority?: Priority, uuid: Uuid = randomUUID(), at = Date.now()): Uuid {
-    this.mark(uuid, kind);
+  get pending(): number { return this.queue.size; }
+
+  compact(): Uuid {
+    const uuid = this.push('note', '/compact');
+    this.queue.prefer(uuid);
+    return uuid;
+  }
+
+  push(kind: InputKind, text: string, _priority?: Priority, uuid: Uuid = randomUUID(), at = Date.now()): Uuid {
+    if (this.closed) throw new Error('The SDK input queue is closed.');
+    this.queue.check(kind, text);
     if (kind === 'chat') this.remember(uuid, text, at);
-    this.queue.push({
-      type: 'user',
-      message: { role: 'user', content: text },
-      parent_tool_use_id: null,
-      uuid,
-      origin: { kind: 'channel', server: 'metro' },
-      ...(priority === undefined ? {} : { priority }),
-    });
-    this.wake?.();
+    this.mark(uuid, kind);
+    this.queue.push(kind, {
+      type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null,
+      uuid, origin: { kind: 'channel', server: 'metro' },
+    }, text, at);
+    this.timing.accept(uuid, kind, at);
+    this.notify();
     return uuid;
   }
 
@@ -48,9 +68,7 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
     if (oldest !== undefined) this.kinds.delete(oldest);
   }
 
-  kindOf(uuid: string): InputKind | undefined {
-    return this.kinds.get(uuid);
-  }
+  kindOf(uuid: string): InputKind | undefined { return this.kinds.get(uuid); }
 
   started(uuids: readonly string[]): void {
     let changed = false;
@@ -61,12 +79,24 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
       changed = true;
     }
     if (changed) this.changed(this.unanswered());
+    this.timing.consume(uuids);
   }
+
+  output(): void { this.timing.output(); }
+  boundary(): void { this.timing.boundary(); }
 
   finished(uuids = this.startedUuids()): void {
     let changed = false;
     for (const uuid of uuids) changed = this.ledger.delete(uuid) || changed;
     if (changed) this.changed(this.unanswered());
+    this.timing.finish(uuids);
+  }
+
+  cancel(uuids: readonly string[]): void {
+    const ephemeral = uuids.filter((uuid) => this.kindOf(uuid) !== 'chat');
+    this.queue.cancel(new Set(ephemeral));
+    this.timing.finish(ephemeral, true);
+    this.notify();
   }
 
   startedUuids(): string[] {
@@ -82,16 +112,22 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
     this.wake?.();
   }
 
+  notify(): void {
+    this.hooks.queue?.(this.queue.size, this.queue.oldest);
+    this.wake?.();
+  }
+
   async *[Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
     while (!this.closed) {
-      const next = this.queue.shift();
+      const next = (this.hooks.ready?.() ?? true) ? this.queue.take() : undefined;
       if (next !== undefined) {
+        this.hooks.dispatch?.();
+        if (next.uuid !== undefined) this.timing.dispatch(next.uuid);
+        this.notify();
         yield next;
         continue;
       }
-      await new Promise<void>((resolve) => {
-        this.wake = resolve;
-      });
+      await new Promise<void>((resolve) => { this.wake = resolve; });
       this.wake = null;
     }
   }
@@ -108,12 +144,8 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   }
 
   private remember(uuid: Uuid, text: string, at: number): void {
+    if (!this.ledger.has(uuid) && this.ledger.size >= LEDGER_MAX) throw new Error('The SDK input queue is full. Wait for queued work to finish before retrying.');
     this.ledger.set(uuid, { text, at, uuid, state: 'queued' });
-    while (this.ledger.size > LEDGER_MAX) {
-      const oldest = [...this.ledger].find(([, entry]) => entry.state !== 'started')?.[0];
-      if (oldest === undefined) break;
-      this.ledger.delete(oldest);
-    }
     if (!this.restoring) this.changed(this.unanswered());
   }
 }

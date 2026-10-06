@@ -1,10 +1,11 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
-import { holdPrompt, type Behavior } from '../approvals/pending.js';
+import { cancelPrompt, holdPrompt, type Behavior } from '../approvals/pending.js';
 import { approversForLine, lineReceives } from '../agents/map.js';
 import { metroCall } from './ctx.js';
 import { promptBody } from './permission-prompt.js';
+import { permissionCall } from './call-permission.js';
 
 const PermissionRequestSchema = z.object({
   method: z.literal('notifications/claude/channel/permission_request'),
@@ -13,6 +14,7 @@ const PermissionRequestSchema = z.object({
     tool_name: z.string(),
     description: z.string(),
     input_preview: z.string(),
+    call: z.unknown().optional(),
   }),
 });
 
@@ -32,12 +34,12 @@ export interface PermissionRelayDeps {
   log: (...a: unknown[]) => void;
 }
 
-function relayLine(deps: PermissionRelayDeps, requestId: string): string | undefined {
+function relayLine(deps: PermissionRelayDeps, requestId: string, callLine?: string): string | undefined {
   if (!deps.live()) {
     deps.log('permission_request: live events are off, so no chat answer can arrive; held for the page only', requestId);
     return undefined;
   }
-  const line = deps.relay.knownLine;
+  const line = callLine ?? deps.relay.knownLine;
   if (!line) {
     deps.log('permission_request: no known line, held for the page only', requestId);
     return undefined;
@@ -59,12 +61,20 @@ function relayLine(deps: PermissionRelayDeps, requestId: string): string | undef
 
 export function registerPermissionRelay(deps: PermissionRelayDeps): void {
   const { mcp, log } = deps;
+  mcp.setNotificationHandler(z.object({ method: z.literal('notifications/metro/permission_cancel'), params: z.object({ request_id: z.string() }) }), (notice) => {
+    cancelPrompt(notice.params.request_id, mcp);
+  });
   const answer = (requestId: string) => async (behavior: Behavior): Promise<void> => {
     await mcp.notification({ method: 'notifications/claude/channel/permission', params: { request_id: requestId, behavior } });
   };
   mcp.setNotificationHandler(PermissionRequestSchema as never, async (n: PermissionRequest) => {
     const { params } = n;
-    const line = relayLine(deps, params.request_id);
+    const call = permissionCall(params, deps.inScope);
+    if (call === null) {
+      await answer(params.request_id)('deny');
+      return;
+    }
+    const line = relayLine(deps, params.request_id, call?.route.line);
     holdPrompt(
       {
         requestId: params.request_id,
@@ -73,6 +83,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
         preview: params.input_preview,
         line,
         at: Date.now(),
+        ...(call === undefined ? {} : { call }),
       },
       mcp,
       answer(params.request_id),

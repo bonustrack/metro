@@ -7,6 +7,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { BoundedEventStore } from '../src/mcp/event-store.ts';
+import { CALL_NOTICE, CALL_STATE } from '@metro-labs/core/call';
 import { setAgentMap } from '../src/agents/map.ts';
 
 const STREAM = '_GET_stream';
@@ -87,6 +88,18 @@ describe('BoundedEventStore', () => {
     const seq0 = Number(id0.slice(id0.lastIndexOf('_') + 1));
     const seq1 = Number(id1.slice(id1.lastIndexOf('_') + 1));
     expect(seq1).toBeGreaterThan(seq0);
+  });
+
+  test('call events and current-state snapshots stay ephemeral while ordinary replay survives', async () => {
+    const store = storeFor();
+    const baseline = await store.storeEvent(STREAM, note(0, TONY_LINE));
+    for (const method of [CALL_NOTICE, CALL_STATE]) {
+      const id = await store.storeEvent(STREAM, { jsonrpc: '2.0', method, params: { route: { line: TONY_LINE }, text: 'private call', meta: { line: TONY_LINE } } });
+      expect(await store.getStreamIdForEventId(id)).toBe(STREAM);
+    }
+    await store.storeEvent(STREAM, note(1, TONY_LINE));
+    expect(ns(await collect(store, baseline, TONY))).toEqual([1]);
+    expect(JSON.stringify(store)).not.toContain('private call');
   });
 
   test('a notification stored while no stream is attached is later replayable', async () => {

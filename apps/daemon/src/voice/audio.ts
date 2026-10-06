@@ -5,6 +5,7 @@ const RATE = 48_000;
 const FRAME = 960;
 const FRAME_MS = 20;
 const MAX_LATE_FRAMES = 5;
+const MAX_QUEUED_FRAMES = 3_000;
 
 interface Frame {
   pcm: Int16Array;
@@ -55,7 +56,7 @@ export class OpusIn {
 }
 
 export interface Playback {
-  send(opus: Buffer, timestamp: number, marker: boolean): void;
+  send(opus: Buffer, timestamp: number, marker: boolean): void | Promise<void>;
   played(chars: number): void;
 }
 
@@ -70,11 +71,15 @@ export class Player {
   private speaking = false;
   private onIdle: (() => void) | null = null;
   private onFirst: (() => void) | null = null;
+  private onFailed: ((reason: string) => void) | null = null;
+  private generation = 0;
+  private inFlight = 0;
+  private closed = false;
 
   constructor(private readonly out: Playback) {}
 
   get busy(): boolean {
-    return this.queue.length > 0 || this.pending.length > 0;
+    return this.queue.length > 0 || this.pending.length > 0 || this.inFlight > 0;
   }
 
   whenFirstPlayed(fn: () => void): void {
@@ -85,7 +90,16 @@ export class Player {
     this.onIdle = fn;
   }
 
+  whenFailed(fn: (reason: string) => void): void {
+    this.onFailed = fn;
+  }
+
   push(pcm: Int16Array, chars: number): void {
+    if (this.closed) return;
+    if (this.queue.length + this.inFlight + Math.ceil((this.pending.length + pcm.length) / FRAME) > MAX_QUEUED_FRAMES) {
+      this.failed('audio queue is full');
+      return;
+    }
     const joined = new Int16Array(this.pending.length + pcm.length);
     joined.set(this.pending);
     joined.set(pcm, this.pending.length);
@@ -101,7 +115,7 @@ export class Player {
   }
 
   finish(): void {
-    if (this.pending.length === 0) return;
+    if (this.closed || this.pending.length === 0) return;
     const pcm = new Int16Array(FRAME);
     pcm.set(this.pending);
     this.queue.push({ pcm, chars: this.pendingChars });
@@ -110,28 +124,36 @@ export class Player {
   }
 
   clear(): void {
+    this.generation += 1;
+    this.inFlight = 0;
+    this.speaking = false;
     this.queue.length = 0;
     this.pending = new Int16Array(0);
     this.pendingChars = 0;
   }
 
   start(): void {
-    if (this.timer !== null) return;
+    if (this.closed || this.timer !== null) return;
     this.started = performance.now();
     this.sent = 0;
     this.tick();
   }
 
   stop(): void {
+    if (this.closed) return;
+    this.closed = true;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
+    this.clear();
     this.encoder.delete();
   }
 
   private tick(): void {
+    if (this.closed) return;
     const due = Math.floor((performance.now() - this.started) / FRAME_MS) + 1;
     if (due - this.sent > MAX_LATE_FRAMES) this.sent = due - 1;
-    while (this.sent < due) this.sendOne();
+    while (!this.closed && this.sent < due) this.sendOne();
+    if (this.closed) return;
     const next = this.started + this.sent * FRAME_MS;
     this.timer = setTimeout(() => {
       this.tick();
@@ -143,11 +165,29 @@ export class Player {
     const marker = frame !== undefined && !this.speaking;
     this.speaking = frame !== undefined;
     const pcm = frame?.pcm ?? new Int16Array(FRAME);
-    this.out.send(this.encoder.encode(bytesOf(pcm), FRAME), (this.sent * FRAME) >>> 0, marker);
+    const timestamp = (this.sent * FRAME) >>> 0;
     this.sent += 1;
-    if (frame === undefined) return;
-    if (marker) this.onFirst?.();
-    if (frame.chars > 0) this.out.played(frame.chars);
-    if (!this.busy) this.onIdle?.();
+    const generation = this.generation;
+    if (frame !== undefined) this.inFlight += 1;
+    try {
+      const sent = this.out.send(this.encoder.encode(bytesOf(pcm), FRAME), timestamp, marker);
+      Promise.resolve(sent).then(() => {
+        if (this.closed || generation !== this.generation || frame === undefined) return;
+        this.inFlight -= 1;
+        if (marker) this.onFirst?.();
+        if (frame.chars > 0) this.out.played(frame.chars);
+        if (!this.busy) this.onIdle?.();
+      }).catch((err: unknown) => {
+        if (!this.closed && generation === this.generation) this.failed(errMsg(err));
+      });
+    } catch (err) {
+      if (!this.closed && generation === this.generation) this.failed(errMsg(err));
+    }
+  }
+
+  private failed(reason: string): void {
+    this.clear();
+    log.warn({ reason }, 'voice: audio playback failed');
+    this.onFailed?.(reason);
   }
 }

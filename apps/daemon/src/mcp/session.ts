@@ -12,6 +12,8 @@ import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
 import { web, type RawGetSink } from './raw-get-stream.js';
+import { sharedCalls } from '../voice/shared.js';
+import { CALL_STATE } from '@metro-labs/core/call';
 
 export const channelLog = (...a: unknown[]): void => {
   console.error('[metro-mcp]', ...a);
@@ -76,9 +78,11 @@ export class McpSession {
   private issuedSchema: string | undefined;
   private announcing = false;
   private readonly onClosed: (session: McpSession) => void;
+  private readonly kind: SessionKind;
 
   private constructor(init: SessionInit) {
     this.id = init.id;
+    this.kind = init.kind ?? 'chat';
     this.scope = init.scope;
     this.live = init.live;
     this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
@@ -112,6 +116,7 @@ export class McpSession {
       senderAllowed,
       approves,
       answerPermission,
+      callMeta: (event) => voice ? () => ({}) : sharedCalls.bindChat(event, this.scope),
     });
     if (!voice)
       registerPermissionRelay({
@@ -167,7 +172,20 @@ export class McpSession {
 
   bindSink(sink: RawGetSink | undefined): void {
     this.sink = sink;
-    if (sink !== undefined) this.announceToolSchema();
+    if (sink !== undefined) {
+      this.announceCallState();
+      this.announceToolSchema();
+    }
+  }
+
+  private announceCallState(): void {
+    if (this.kind !== 'chat' || !this.streamAttached || this.server.getClientVersion()?.name !== 'metro-sdk-runner') return;
+    const active = sharedCalls.snapshot();
+    const route = active !== null && this.scope.has(active.agentId) && eventInScope(this.scope, active.line) ? active : null;
+    this.server.notification({ method: CALL_STATE, params: { route, ...(route === null ? {} : { meta: { line: route.line } }) } }).catch((err: unknown) => {
+      channelLog('session: call state notification failed', errMsg(err));
+      if (route !== null) sharedCalls.end(route);
+    });
   }
 
   private get schemaNoticeDue(): boolean {
@@ -206,6 +224,7 @@ export class McpSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    if (this.kind === 'chat') sharedCalls.revoke();
     this.onClosed(this);
     forgetPromptsOf(this.server);
     this.dropStream();

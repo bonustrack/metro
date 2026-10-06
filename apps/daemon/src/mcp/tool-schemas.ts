@@ -1,5 +1,6 @@
 import type { ToolDef } from './tool-def.js';
 import { attachmentItem, CREATE_UPLOAD_TOOL } from './attachment-schema.js';
+import { speechSchema } from './speech-schema.js';
 
 const lineProp = {
   type: 'string',
@@ -34,7 +35,7 @@ export const COMMON_TOOLS: ToolDef[] = [
     group: 'write',
     description:
       'Send a message (and/or media) to a Metro conversation. Args: line, text?, reply_to?, ' +
-      'subject?, attachments?, frame?, wallet?. The station is derived from the line. Outlook and Gmail: send to ' +
+      'subject?, attachments?, frame?, wallet?, speech?. `speech` speaks text only in an authorized active call, never posts it in chat. The station is derived from the line. Outlook and Gmail: send to ' +
       'metro://<outlook|gmail>/<account>/<email address> to start a new email (subject defaults to the ' +
       'first line of text); the result names the new thread line. Each attachment names EXACTLY ONE ' +
       'source, and the choice matters: `upload` (an `upload_id` from `create_upload`, the ' +
@@ -54,6 +55,7 @@ export const COMMON_TOOLS: ToolDef[] = [
           type: 'string',
           description: 'The message text (optional if sending only media).',
         },
+        speech: speechSchema,
         reply_to: {
           type: 'string',
           description: 'Optional message_id to quote/reply to.',

@@ -7,7 +7,6 @@ import { MetroLink } from './link.js';
 import { Runner, runnerOptions } from './runner.js';
 import { SessionStore } from './session-store.js';
 import { claimRunner } from './singleton.js';
-import type { SpeechSink } from './speech.js';
 import { metroTools, type MetroTools } from './tool-proxy.js';
 
 export interface RunningAgent {
@@ -18,7 +17,6 @@ export interface RunningAgent {
 }
 
 export interface AppHooks {
-  speech: SpeechSink;
   lost(reason: string): void;
   observe?: (message: SDKMessage) => void;
   env?: NodeJS.ProcessEnv;
@@ -29,9 +27,11 @@ export interface AppHooks {
 async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Promise<void>): Promise<RunningAgent> {
   const store = new SessionStore(cfg.statePath, cfg.claudeDir, cfg.cwd);
   let tools: MetroTools | null = null;
-  const runner = new Runner({ store, sink: hooks.speech, readOnly: (tool) => tools?.readOnly(tool) ?? false, ...hooks });
+  const runner = new Runner({ store, readOnly: (tool) => tools?.readOnly(tool) ?? false, ...hooks });
   const link = await MetroLink.open(cfg.mcpUrl, cfg.key, {
     channel: (event) => { runner.chat(event); },
+    call: (notice) => { runner.calls.notice(notice); },
+    callState: (state) => { runner.calls.reconcile(state.route); },
     toolsChanged: () => { tools?.changed(); },
     model: (model) => {
       log.info({ model }, 'sdk-runner: the Model page picked a model');
@@ -54,7 +54,8 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     tools = metroTools(link);
     const resume = store.resumable();
     log.info({ resume, model: cfg.model, mode: cfg.permissionMode }, 'sdk-runner: starting the Agent SDK session');
-    runner.start(runnerOptions(cfg, tools, approvalsThrough(link, (id, ask) => { hooks.activity?.approval(id, ask); }), resume, hooks.env));
+    const approvals = approvalsThrough(link, (id, ask) => { hooks.activity?.approval(id, ask); }, (tool, input) => runner.calls.approval(tool, input));
+    runner.start(runnerOptions(cfg, tools, approvals, resume, hooks.env));
     return { runner, link, done: runner.run(hooks.observe), stop };
   } catch (err) {
     runner.close(false);
