@@ -1,6 +1,7 @@
 import type { OrgAgent, OrganizationRow } from './auth.js';
 import type { RuntimeSnapshot } from './claude-box.js';
 import type { ModelSettings } from './model.js';
+import type { ModeInfo } from './mode.js';
 import { modelOrder, type ModelOrderItem } from './model-order.js';
 import { filled } from '../read.js';
 import { limitingWindow, missingUsage, modelWindows, usageDetail, usageReported } from './model-usage.js';
@@ -18,6 +19,7 @@ export interface DashboardRow {
   key: string;
   organization: OrganizationRow;
   agent: OrgAgent;
+  mode: DashboardReading<ModeInfo>;
   session: DashboardReading<RuntimeSnapshot>;
   model: DashboardReading<ModelSettings>;
 }
@@ -88,7 +90,7 @@ function observation(reading: DashboardReading<RuntimeSnapshot>, stale: boolean,
 }
 
 const harnessName = (data: RuntimeSnapshot): string => data.runner === 'sdk' ? 'Agent SDK' : data.runner === 'cli' ? 'Claude Code' : 'Unknown';
-const staleReading = (reading: DashboardReading<RuntimeSnapshot>, now: number): boolean => reading.error !== null || reading.at === null || now - reading.at > 60_000 || reading.at > now;
+export const dashboardReadingStale = <T>(reading: DashboardReading<T>, now: number): boolean => reading.error !== null || reading.at === null || now - reading.at > 60_000 || reading.at > now;
 
 export function dashboardSession(reading: DashboardReading<RuntimeSnapshot>, now = Date.now()): { status: string; harness: string; observed: string | null } {
   const { data } = reading;
@@ -96,7 +98,7 @@ export function dashboardSession(reading: DashboardReading<RuntimeSnapshot>, now
     status: missingStatus(reading), harness: 'Unknown',
     observed: reading.unavailable ? 'Update Metro to see runtime status.' : reading.error,
   };
-  const stale = staleReading(reading, now);
+  const stale = dashboardReadingStale(reading, now);
   const harness = harnessName(data);
   const status = sessionState(data, now);
   return {

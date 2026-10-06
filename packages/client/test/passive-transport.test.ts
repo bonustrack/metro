@@ -50,7 +50,7 @@ function row(): DashboardRow {
   return {
     key: dashboardKey('org-passive', agent), agent,
     organization: { id: 'org-passive', name: 'Passive', slug: null, role: 'member', agents: [agent] },
-    session: emptyReading(), model: emptyReading(),
+    mode: emptyReading(), session: emptyReading(), model: emptyReading(),
   };
 }
 

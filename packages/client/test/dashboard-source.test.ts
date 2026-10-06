@@ -32,7 +32,7 @@ function row(organization = 'org-a', host = 'one.example.invalid'): DashboardRow
   const agent = { id: 'same-id', host, name: 'Same name', slug: null, avatar: null };
   return {
     key: dashboardKey(organization, agent), agent, organization: { id: organization, name: organization, slug: null, role: 'member', agents: [agent] },
-    session: emptyReading(), model: emptyReading(),
+    mode: emptyReading(), session: emptyReading(), model: emptyReading(),
   };
 }
 
@@ -130,7 +130,7 @@ describe('passive dashboard network source', () => {
     };
     const network = source();
     expect(await network.organizations(signal())).toEqual([first.organization, second.organization]);
-    await Promise.all([network.session(first, 'token-a', signal()), network.model(first, 'token-a', signal()),
+    await Promise.all([network.mode(first, signal()), network.session(first, 'token-a', signal()), network.model(first, 'token-a', signal()),
       network.session(second, 'token-b', signal()), network.model(second, 'token-b', signal())]);
     expect(seen.map((request) => [request.url, request.headers.get('authorization')])).toEqual([
       [`${API}/api/auth/organizations`, `Bearer ${activeAccount()?.accessToken}`],
@@ -220,6 +220,8 @@ describe('passive dashboard network source', () => {
   ])('unsupported, stopped or wrong-owner mode never receives a bearer: %j', async (body, error) => {
     answer = () => json(body);
     const network = source();
+    if (body.owner === 'org-a') expect(await network.mode(row(), signal())).toMatchObject({ version: body.version });
+    else await expect(network.mode(row(), signal())).rejects.toBeInstanceOf(ForbiddenError);
     const results = await Promise.allSettled([network.session(row(), 'token-a', signal()), network.model(row(), 'token-a', signal())]);
     expect(results.every((result) => result.status === 'rejected' && result.reason instanceof error)).toBe(true);
     expect(seen.map((request) => [request.url, request.headers.get('authorization')])).toEqual([['https://one.example.invalid/api/mode', null]]);

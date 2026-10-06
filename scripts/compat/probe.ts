@@ -114,8 +114,9 @@ const dashboardAgent = { id: agent, host, name: null, slug: null, avatar: null }
 const dashboardRow: DashboardRow = {
   key: dashboardKey(org, dashboardAgent), agent: dashboardAgent,
   organization: { id: org, name: null, role: 'admin', slug: null, agents: [dashboardAgent] },
-  session: emptyReading(), model: emptyReading(),
+  mode: emptyReading(), session: emptyReading(), model: emptyReading(),
 };
+await ok('dashboard reported mode and version', () => dashboard.mode(dashboardRow, new AbortController().signal));
 for (const read of ['session', 'model'] as const) await ok(`dashboard ${read} snapshot or explicit upgrade notice`, async () => {
   try {
     await dashboard[read](dashboardRow, token, new AbortController().signal);

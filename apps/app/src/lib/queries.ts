@@ -252,7 +252,7 @@ export function refreshServerStatus(client: QueryClient, host: string): Promise<
   return client.invalidateQueries({ queryKey: ['server-status', host] });
 }
 
-export const useUpdateQuery = (): UseQueryResult<UpdateCheck> => useBoxQuery('update', fetchUpdate, { staleTime: LONG_MS, retry: false });
+export const useUpdateQuery = (): UseQueryResult<UpdateCheck> => useBoxQuery('update', fetchUpdate, { staleTime: 60_000, refetchInterval: 60_000, refetchOnMount: true, refetchOnWindowFocus: true, retry: false });
 
 export const useMachineQuery = (): UseQueryResult<Machine> =>
   useBoxQuery('machine', fetchMachine, { staleTime: 30_000, refetchInterval: 60_000 });
@@ -307,7 +307,8 @@ export function useConnectionModelsQuery(connection: { id: string; provider: str
 export const useApprovalsQuery = (): UseQueryResult<Approval[]> =>
   useBoxQuery('approvals', fetchApprovals, { staleTime: 5_000, refetchInterval: 15_000 });
 
-export const useModeQuery = (): UseQueryResult<ModeInfo> => useBoxQuery('mode', fetchMode, { staleTime: 60_000 });
+export const useModeQuery = ({ live = false }: { live?: boolean } = {}): UseQueryResult<ModeInfo> =>
+  useBoxQuery('mode', fetchMode, { staleTime: 60_000, ...(live ? { refetchInterval: 60_000, refetchOnMount: true, refetchOnWindowFocus: true, retry: false } : {}) });
 
 export const useSessionQuery = (): UseQueryResult<string> => useBoxQuery('session', fetchSession, { staleTime: 5 * 60_000 });
 

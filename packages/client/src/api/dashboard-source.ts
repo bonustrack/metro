@@ -67,7 +67,7 @@ export function dashboardSource(scope: number, alive: () => boolean): DashboardS
   const current = (): boolean => alive() && accountScopeIdentity() === scope;
   const check = (): void => { if (!current()) throw new AuthError('Your account changed.'); };
   const modes = new Map<string, { at: number; value: Promise<ModeInfo> }>();
-  const get = async (row: DashboardRow, token: string, signal: AbortSignal, path: string): Promise<unknown> => {
+  const readMode = async (row: DashboardRow, signal: AbortSignal): Promise<ModeInfo> => {
     check();
     let cached = modes.get(row.key);
     if (cached === undefined || Date.now() - cached.at > 20_000) {
@@ -77,12 +77,16 @@ export function dashboardSource(scope: number, alive: () => boolean): DashboardS
     const mode = await cached.value;
     check();
     if (mode.owner !== row.organization.id) throw new ForbiddenError('This agent no longer belongs to this organization.');
+    return mode;
+  };
+  const get = async (row: DashboardRow, token: string, signal: AbortSignal, path: string): Promise<unknown> => {
+    const mode = await readMode(row, signal);
     if (mode.stopped) throw new StoppedError('Metro is stopped.');
     if (olderThan(mode.version, DASHBOARD_SINCE)) throw new NotFoundError('Update Metro to see dashboard readings.');
     return timed(signal, (bounded) => callBearer({ base: rowBase(row), path, method: 'GET', signal: bounded, checkAccount: check }, token));
   };
   return {
-    current,
+    current, mode: readMode,
     forgetToken: (organization) => { tokens.delete(organization); },
     organizations: async (signal) => {
       const organizations = await inventory(signal, check);

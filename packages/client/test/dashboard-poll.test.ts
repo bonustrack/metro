@@ -52,6 +52,7 @@ function harness(overrides: Partial<DashboardSource> = {}) {
   const source: DashboardSource = {
     organizations: mock(() => Promise.resolve([organization('org-a')])),
     token: mock((id: string) => Promise.resolve(`token:${id}`)),
+    mode: mock((row) => Promise.resolve({ mode: 'local', owner: row.organization.id, version: '0.1.0-beta.271', stopped: false })),
     session: mock(() => Promise.resolve(SESSION)), model: mock(() => Promise.resolve(MODEL)),
     current: () => true, forgetToken: mock(() => undefined), ...overrides,
   };

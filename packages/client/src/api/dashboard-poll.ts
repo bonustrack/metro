@@ -3,10 +3,12 @@ import type { OrganizationRow } from './auth.js';
 import { dashboardKey, emptyReading, type DashboardReading, type DashboardRow, type DashboardState } from './dashboard.js';
 import type { RuntimeSnapshot } from './claude-box.js';
 import type { ModelSettings } from './model.js';
+import type { ModeInfo } from './mode.js';
 
 export interface DashboardSource {
   organizations: (signal: AbortSignal) => Promise<OrganizationRow[]>;
   token: (organization: string, signal: AbortSignal) => Promise<string>;
+  mode: (row: DashboardRow, signal: AbortSignal) => Promise<ModeInfo>;
   session: (row: DashboardRow, token: string, signal: AbortSignal) => Promise<RuntimeSnapshot>;
   model: (row: DashboardRow, token: string, signal: AbortSignal) => Promise<ModelSettings>;
   current: () => boolean;
@@ -40,7 +42,7 @@ function rowsOf(organizations: OrganizationRow[], previous: DashboardRow[]): Das
   return organizations.flatMap((organization) => (organization.agents ?? []).map((agent) => {
     const key = dashboardKey(organization.id, agent);
     const old = known.get(key);
-    return { key, organization, agent, session: old?.session ?? emptyReading<RuntimeSnapshot>(), model: old?.model ?? emptyReading<ModelSettings>() };
+    return { key, organization, agent, mode: old?.mode ?? emptyReading<ModeInfo>(), session: old?.session ?? emptyReading<RuntimeSnapshot>(), model: old?.model ?? emptyReading<ModelSettings>() };
   }));
 }
 
@@ -73,28 +75,36 @@ export class DashboardPoll {
     this.publish(state);
   }
 
-  private row(row: DashboardRow): void {
-    this.update({ ...this.state, rows: this.state.rows.map((current) => current.key === row.key ? row : current) });
+  private row(key: string, patch: Partial<Pick<DashboardRow, 'mode' | 'session' | 'model'>>): void {
+    this.update({ ...this.state, rows: this.state.rows.map((current) => current.key === key ? { ...current, ...patch } : current) });
   }
 
-  private async enrich(row: DashboardRow, token: Promise<string>, signal: AbortSignal): Promise<void> {
+  private async snapshots(row: DashboardRow, token: Promise<string>, signal: AbortSignal): Promise<Pick<DashboardRow, 'session' | 'model'>> {
     try {
       const bearer = await token;
-      if (signal.aborted) return;
-      if (!this.source.current()) return;
+      if (signal.aborted || !this.source.current()) return row;
       const [session, model] = await Promise.allSettled([
         reading(row.session, () => this.source.session(row, bearer, signal)),
         reading(row.model, () => this.source.model(row, bearer, signal)),
       ]);
-      if (signal.aborted) return;
       if (session.status === 'rejected') throw session.reason;
       if (model.status === 'rejected') throw model.reason;
-      this.row({ ...row, session: session.value, model: model.value });
+      return { session: session.value, model: model.value };
     } catch (error) {
-      if (signal.aborted) return;
-      this.source.forgetToken(row.organization.id);
-      this.row({ ...row, session: failedReading(row.session, error), model: failedReading(row.model, error) });
+      if (!signal.aborted) this.source.forgetToken(row.organization.id);
+      return { session: failedReading(row.session, error), model: failedReading(row.model, error) };
     }
+  }
+
+  private async enrich(row: DashboardRow, token: Promise<string>, signal: AbortSignal): Promise<void> {
+    await Promise.all([
+      reading(row.mode, () => this.source.mode(row, signal)).catch((error: unknown) => failedReading(row.mode, error)).then((mode) => {
+        if (!signal.aborted) this.row(row.key, { mode });
+      }),
+      this.snapshots(row, token, signal).then((snapshots) => {
+        if (!signal.aborted) this.row(row.key, snapshots);
+      }),
+    ]);
   }
 
   private async enrichAll(rows: DashboardRow[], signal: AbortSignal): Promise<void> {
@@ -147,7 +157,7 @@ export class DashboardPoll {
     } catch (error) {
       if (signal.aborted) return;
       const state = denied(error) ? initialDashboard() : this.state;
-      const rows = state.rows.map((row) => ({ ...row, session: failedReading(row.session, error), model: failedReading(row.model, error) }));
+      const rows = state.rows.map((row) => ({ ...row, mode: failedReading(row.mode, error), session: failedReading(row.session, error), model: failedReading(row.model, error) }));
       this.update({ ...state, rows, loading: false, refreshing: false, error: message(error) });
     } finally {
       this.schedule(controller);
