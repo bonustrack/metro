@@ -27,6 +27,25 @@ running on the **XMTP production network**. Lines are
   `actions-push.ts`). Attachments are saved/normalized via `attachments.ts`; voice
   notes can be transcribed (`transcribe.ts`).
 
+## Channel discovery
+
+`list_channels` requires this station's account id. It discovers existing DMs and
+groups even when Metro has seen no recent messages. Names, ids and canonical
+`metro://xmtp/<account>/<conversation>` lines support case-insensitive search;
+results use bounded snapshot pagination.
+
+Discovery synchronizes conversation welcomes with `conversations.sync()`, then
+lists at most 5,001 conversation metadata records to return a 5,000-entry snapshot.
+It never calls `syncAll()`, reads conversation messages, expands members or looks
+up profiles. Group names come from local metadata and may be stale. Results are
+always partial: this installation does not necessarily know every conversation on
+other devices. Duplicate DMs are excluded by the SDK.
+
+Concurrent listings share a pending welcome sync through the existing sync queue
+and network cooldown. Cursor pages stay local and remain usable during a cooldown.
+A sync queued for 30 seconds is refused before it starts; an in-flight native sync
+has no cancellation or time limit, so it can outlast the train call timeout.
+
 ## Configuration
 
 Account config lives in the DB (`accounts.config` jsonb): `{ privateKey }`, the raw

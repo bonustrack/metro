@@ -27,6 +27,33 @@ other unconfigured station.
 - Message verbs: `send`, `reply`, `react`, `unreact`, `edit`, `delete`, `read`.
 - Attachments normalized to the canonical form.
 - Inbound updates over the MTProto event stream via `@mtcute/bun`.
+- Channel discovery with `list_channels {station: "telegram", account, query?, limit?, cursor?}`.
+
+### Channel discovery
+
+An explicit attached account is required. Discovery lists its Telegram dialogs from
+MTProto, including pinned and archived chats, without relying on recently received
+Metro messages. It does not expand contacts, create chats, or enumerate forum topics
+or members. Broadcast channels have kind `channel`, users `direct`, and other chats
+`group`. Each entry contains only `id`, the account-scoped `line`, `kind`, and an
+available display `name`. No message bodies, avatars, or member data are returned.
+
+`query` searches names, ids, and lines case-insensitively, up to 200 characters.
+`limit` defaults to 50 and accepts 1 to 100. Results are deduplicated and sorted by
+line. Follow `next_cursor` with the same account and query for the next page of the
+snapshot. Cursors expire after five minutes and disappear when the train restarts.
+
+The source is `remote`. Pinned dialogs in the normal and archived folders are fetched
+separately, then unpinned dialogs are paged with both folders included. The scan stops
+after at most 5,001 dialogs and the shared directory retains at most 5,000 entries
+within its metadata size limit. `capability.complete` is false when another page is
+available or a bound was reached; a partial scan remains partial on its last page.
+Search covers only that bounded snapshot. A 30-second scan budget is checked between
+yielded dialogs and before each folder scan, with a partial result when reached.
+An SDK request already in flight cannot be cancelled here and can exceed that budget.
+MTProto dialog responses also carry their latest messages; the SDK uses their ids
+and dates for pagination. Metro projects only the channel metadata above and does
+not call message history or profile endpoints for discovery.
 
 ## Configuration
 

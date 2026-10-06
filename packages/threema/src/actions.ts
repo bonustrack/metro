@@ -7,6 +7,7 @@ import {
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { accountFor, accounts, publicKeyFor, targetOf, type Account } from './accounts.js';
 import { hexToBytes, macMatches, open } from './crypto.js';
+import { listChannels } from './channels.js';
 import { groupLineOf, type InboundMeta } from './format.js';
 import { groupKey } from './groups.js';
 import { deliver } from './inbound.js';
@@ -119,6 +120,11 @@ async function callback(id: string, args: Args): Promise<void> {
 }
 
 export const handleCall = makeStation({
-  handlers: { accounts: listAccounts, send, react, callback, listMembers },
+  handlers: {
+    accounts: listAccounts, send, react, callback, listMembers,
+    async listChannels(id, args) {
+      respond(id, { result: await listChannels(args) });
+    },
+  },
   normalize: messagingAliases({ action: 'removed' }),
 });

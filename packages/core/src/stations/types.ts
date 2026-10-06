@@ -110,6 +110,7 @@ export interface Station {
   profileFields?: ReadonlySet<ProfileField>;
   claimsName?: boolean;
   readsProfiles?: boolean;
+  discoversChannels?: boolean;
   readFilters?: ReadonlySet<ReadFilter>;
   approvals?: boolean;
   sendsFrames?: boolean;

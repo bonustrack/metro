@@ -37,6 +37,7 @@ async function deliver(acct: Account, to: string, plain: Uint8Array, group: bool
   const { nonce, box } = seal(plain, await publicKeyFor(acct, to), acct.keys);
   const messageId = await sendE2E(acct.cfg, to, bytesToHex(nonce), bytesToHex(box), group);
   noteSent(messageId);
+  if (!group) acct.chats.note(to);
   return messageId;
 }
 

@@ -1,5 +1,6 @@
 import { makeStation, respond } from '@metro-labs/core/stations/station-runtime';
 import { accounts } from './accounts.js';
+import { listChannels } from './channels.js';
 import { MAILBOX_URL } from './config.js';
 import { reply, send } from './outbound.js';
 import { read } from './query.js';
@@ -10,5 +11,5 @@ function listAccounts(id: string): void {
 }
 
 export const handleCall = makeStation({
-  handlers: { accounts: listAccounts, send, reply, read },
+  handlers: { accounts: listAccounts, listChannels, send, reply, read },
 });

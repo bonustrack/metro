@@ -5,6 +5,7 @@ describe('telegram station descriptor', () => {
   test('name and account flag', () => {
     expect(telegramStation.name).toBe('telegram');
     expect(telegramStation.hasAccounts).toBe(true);
+    expect(telegramStation.discoversChannels).toBe(true);
     expect(telegramStation.attachmentMode).toBe('canonical');
   });
 

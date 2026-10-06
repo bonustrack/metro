@@ -57,6 +57,33 @@ retention is disabled, and existing history is invalidated so missed phone-side 
 cannot expose stale content later. Live messaging, sends and group-member lookup
 remain available.
 
+## Channel discovery
+
+`list_channels` requires an account and returns metadata only: canonical `line`, `id`,
+optional `name` and `kind`. Every fresh listing reads participating groups with the
+existing socket's `groupFetchAllParticipating`, including groups with no recent message.
+Direct chats come only from chat metadata in live chat events and history syncs, never
+from the contact roster or message bodies. WhatsApp has no API to enumerate all direct
+chats, and this tool does not enumerate WhatsApp channels, so coverage is always partial
+(`source: mixed`, `complete: false`). A remote group-list failure is reported, not replaced
+by a misleading empty list.
+
+At most 5,000 observed direct-chat records, including deletion markers, are retained in
+`whatsapp-channels-<account>.json` under `WHATSAPP_TOKEN_DIR` or `~/.metro`, mode 0600.
+Only chat IDs and names are stored, with names capped at 256 characters. Chat deletion
+or clearing removes the entry; retained deletion markers stop an older history sync
+from restoring it until a new live chat upsert. This conservatively omits cleared chats.
+Detaching an account and startup orphan cleanup remove its channel metadata file.
+No historical message or media is replayed or downloaded by discovery, and no new socket,
+contact lookup, send or history request is started. Existing history deletion and send
+expiry handling are unchanged.
+
+`query` is a case-insensitive substring of a name or ID (200 characters at most).
+`limit` defaults to 50 and accepts integers from 1 to 100. `next_cursor` continues the same bounded
+metadata snapshot, tied to the account and query and expiring after five minutes.
+Exhausting a snapshot never makes a partial directory complete. Receive Off still only
+stops inbound delivery, not read tools.
+
 ## Persistence
 
 The Baileys auth blob (`{ creds }`) lives in **Postgres**, in the `credentials` jsonb

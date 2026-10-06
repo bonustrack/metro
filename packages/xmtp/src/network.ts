@@ -108,3 +108,7 @@ const syncs = new SyncRequests();
 export function syncConversation(owner: object, conv: { id: string; sync: () => Promise<unknown> }): Promise<unknown> {
   return syncs.run(owner, conv.id, () => conv.sync());
 }
+
+export function syncConversations(source: { sync: () => Promise<unknown> }): Promise<unknown> {
+  return syncs.run(source, 'directory', () => source.sync());
+}

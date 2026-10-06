@@ -35,6 +35,10 @@ function stationOfAccount(snap, account) {
 function targets(snap, name, input) {
   if (Array.isArray(snap.ungated) && snap.ungated.includes(name)) return [];
   const account = text(input.account);
+  if (name === 'list_channels') {
+    const station = stationOfAccount(snap, account);
+    return station === undefined ? [] : [{ station, account }];
+  }
   const line = text(input[LINE_FIELD[name] ?? 'line']);
   if (line) return fromLine(line, name in LINE_FIELD || name === 'list_members' ? '' : account);
   const owners = isRecord(snap.owners) ? snap.owners : {};

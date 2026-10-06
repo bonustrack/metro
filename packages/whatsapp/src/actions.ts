@@ -138,6 +138,16 @@ function makeRead(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeListChannels(clientFor: ClientFor): StationHandler {
+  return async (id, args) => {
+    const account = str(args.account);
+    if (!account) throw new TrainError('bad_request', 'listChannels requires an account');
+    const accountId = accountFor({ account });
+    const result = await guard(() => clientFor(accountId).listChannels(args));
+    respond(id, { result });
+  };
+}
+
 function makeListMembers(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { client, jid } = resolve({ line: args.line }, clientFor);
@@ -239,6 +249,7 @@ export function makeHandleCall(
       send: makeSend(clientFor),
       read: makeRead(clientFor),
       listMembers: makeListMembers(clientFor),
+      listChannels: makeListChannels(clientFor),
       react: makeReact(clientFor),
       typing: makeTyping(clientFor),
       edit: makeEdit(clientFor),

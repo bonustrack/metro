@@ -1,6 +1,7 @@
 import type makeWASocket from 'baileys';
 import type { fetchLatestWaWebVersion, WAMessage } from 'baileys';
 import type { MemberList } from '@metro-labs/core/stations/types';
+import type { ChannelList } from '@metro-labs/core/stations/channel-directory';
 import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import type { SenderProfile } from '@metro-labs/core/stations/sender-profile';
 import type { WhatsAppAccount } from './types.js';
@@ -27,6 +28,7 @@ export interface WAClient {
   start(handlers: InboundHandlers): Promise<void>;
   read(jid: string, options?: HistoryOptions): Promise<HistoryPage>;
   listMembers(jid: string, limit?: number): Promise<MemberList>;
+  listChannels(args: Record<string, unknown>): Promise<ChannelList>;
   sendText(jid: string, text: string, quotedId?: string): Promise<string>;
   sendMedia(jid: string, media: WAMedia, quotedId?: string): Promise<string>;
   sendReaction(jid: string, messageId: string, emoji: string): Promise<void>;

@@ -25,8 +25,14 @@ function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget
     return line === undefined ? [] : fromLine(line, undefined);
   }
   const account = str(a.account);
+  if (name === 'list_channels') return accountTargets(name, { account });
   const line = str(a.line);
   if (line) return fromLine(line, name === 'list_members' ? undefined : account);
+  return accountTargets(name, a);
+}
+
+function accountTargets(name: string, a: Record<string, unknown>): ChannelTarget[] {
+  const account = str(a.account);
   const station = stationForTool(name, a) ?? (account ? stationOfAccount(account) : undefined);
   if (station === undefined) return [];
   if (account) return [{ kind: 'channel', station, account }];

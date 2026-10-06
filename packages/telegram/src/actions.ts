@@ -13,6 +13,8 @@ import {
   sendAttachments,
   type CanonicalAttachment,
 } from './media-actions.js';
+import { ChannelDirectory } from '@metro-labs/core/stations/channel-directory';
+import { fetchChannels } from './channels.js';
 import { clampLimit, shapeHistory } from './history.js';
 import { makeReadProfile, makeSetProfile } from './profile.js';
 import { fetchMembers, isRestricted, restrictedMemberList } from './members.js';
@@ -159,6 +161,22 @@ function makeRead(clientFor: ClientFor): StationHandler {
   };
 }
 
+function makeListChannels(clientFor: ClientFor): StationHandler {
+  const directories = new WeakMap<UserClient, ChannelDirectory>();
+  return async (id, args) => {
+    const account = str(args.account);
+    if (!account) throw new TrainError('bad_request', 'missing account');
+    const accountId = accountFor({ account });
+    const client = clientFor(accountId);
+    const directory = directories.get(client) ?? new ChannelDirectory();
+    directories.set(client, directory);
+    const result = await directory.list(accountId, args, () =>
+      guard(() => fetchChannels(accountId, client.tg)),
+    );
+    respond(id, { result });
+  };
+}
+
 function makeListMembers(clientFor: ClientFor): StationHandler {
   return async (id, args) => {
     const { client, chatId } = resolve(args, clientFor);
@@ -243,6 +261,7 @@ export function makeHandleCall(
       edit: makeEdit(clientFor),
       delete: makeDelete(clientFor),
       read: makeRead(clientFor),
+      listChannels: makeListChannels(clientFor),
       listMembers: makeListMembers(clientFor),
       groupCreate: makeGroupCreate(clientFor),
       groupAddMembers: makeGroupAdd(clientFor),

@@ -91,6 +91,7 @@ describe('send', () => {
   test('seals the text for the recipient, posts it and reports the message id', async () => {
     await call('send', { line: LINE, text: 'hello' });
     expect(sends).toHaveLength(1);
+    expect(accounts.get('t0')?.chats.list()).toEqual([{ id: 'ECHOECHO' }]);
     const form = sends[0] ?? new URLSearchParams();
     expect([form.get('from'), form.get('to'), form.get('secret')]).toEqual(['*METRO01', 'ECHOECHO', SECRET]);
     expect(opened(form)).toBe('hello');
@@ -129,11 +130,13 @@ describe('send', () => {
       expect(cap.written.responses[0]).toMatchObject({ errorInfo: { code } });
     }
     expect(sends).toHaveLength(0);
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
   });
 
   test('an unknown recipient is Threema refusal, named', async () => {
     await call('send', { line: 'metro://threema/t0/NOBODY01', text: 'x' });
     expect(cap.written.responses[0]).toMatchObject({ errorInfo: { code: 'threema_unknown_id' } });
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
   });
 });
 
@@ -167,6 +170,7 @@ describe('callback', () => {
       payload: { account: 't0' },
     });
     expect(cap.written.events[0]).not.toHaveProperty('reply_to');
+    expect(accounts.get('t0')?.chats.list()).toEqual([{ id: 'ECHOECHO', name: 'Alice' }]);
   });
 
   test('a quoted text is a reply, and a quote of our own message says so', async () => {
@@ -201,6 +205,7 @@ describe('callback', () => {
     await call('callback', inbound(new Uint8Array([0x17, 0x7b, 0x7d])));
     expect(cap.written.responses[0]).toMatchObject({ result: { ok: true, kind: 'ignored:0x17' } });
     expect(cap.written.events).toHaveLength(0);
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
   });
 
   test('a wrong MAC, a foreign recipient or a missing field is refused and emits nothing', async () => {
@@ -218,6 +223,7 @@ describe('callback', () => {
       else expect(cap.written.responses[0]).toMatchObject({ errorInfo: { code } });
     }
     expect(cap.written.events).toHaveLength(0);
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
   });
 
   test('a box that does not open with our key is refused', async () => {
@@ -226,6 +232,32 @@ describe('callback', () => {
     const fields = { from: 'ECHOECHO', to: '*METRO01', messageId: 'fedcba9876543210', date: '1', nonce: bytesToHex(nonce), box: bytesToHex(box) };
     await call('callback', { account: 't0', ...fields, mac: callbackMac(SECRET, fields) });
     expect(cap.written.responses[0]).toMatchObject({ errorInfo: { code: 'threema_undecryptable' } });
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
+  });
+});
+
+describe('listChannels', () => {
+  test('the train exposes only metadata with no message replay', async () => {
+    await call('callback', inbound(encodeText('body must not reach the directory')));
+    cap.written.responses.length = 0;
+    cap.written.events.length = 0;
+    await call('listChannels', { account: 't0' });
+    expect(cap.written.responses[0]).toMatchObject({
+      result: {
+        channels: [{ id: 'ECHOECHO', line: LINE, name: 'Alice', kind: 'direct' }],
+        capability: { supported: true, complete: false, source: 'local' },
+      },
+    });
+    expect(JSON.stringify(cap.written.responses)).not.toContain('body must not reach the directory');
+    expect(cap.written.events).toHaveLength(0);
+    expect(sends).toHaveLength(0);
+  });
+
+  test('the train refuses discovery without an explicit account', async () => {
+    await call('listChannels', { line: LINE });
+    expect(cap.written.responses[0]).toMatchObject({ errorInfo: { code: 'bad_request' } });
+    expect(cap.written.events).toHaveLength(0);
+    expect(sends).toHaveLength(0);
   });
 });
 

@@ -1,43 +1,12 @@
 import { errMsg } from '@metro-labs/core/log';
 import { accounts, loadAccounts, tg, type Account } from './accounts.js';
-import { emitInbound } from '@metro-labs/core/stations/train-events';
 import { announceAccounts } from '@metro-labs/core/stations/train-boot';
-import {
-  envelope,
-  reactionCountEnvelope,
-  reactionEnvelope,
-  saveMediaAndEmit,
-  type TgMsg,
-  type TgReaction,
-  type TgReactionCount,
-} from './format.js';
 import { readCalls } from '@metro-labs/core/trains/protocol';
 import { handleCall } from './actions.js';
+import { handleUpdate } from './updates.js';
+import type { TgUpdate } from './types.js';
 
 readCalls('telegram-bot', handleCall);
-
-interface Update {
-  update_id: number;
-  message?: TgMsg;
-  message_reaction?: TgReaction;
-  message_reaction_count?: TgReactionCount;
-}
-
-function handleUpdate(id: string, u: Update): void {
-  if (u.message && !u.message.from?.is_bot) {
-    const env = envelope(id, u.message);
-    emitInbound(id, env);
-    saveMediaAndEmit(id, u.message, env.id as string);
-  }
-  if (u.message_reaction) {
-    const env = reactionEnvelope(id, u.message_reaction);
-    if (env) emitInbound(id, env);
-  }
-  if (u.message_reaction_count) {
-    const env = reactionCountEnvelope(id, u.message_reaction_count);
-    if (env) emitInbound(id, env);
-  }
-}
 
 async function runAccount(acct: Account): Promise<void> {
   const { id } = acct.cfg;
@@ -57,7 +26,7 @@ async function runAccount(acct: Account): Promise<void> {
 
   for (;;) {
     try {
-      const updates = await tg<Update[]>(
+      const updates = await tg<TgUpdate[]>(
         id,
         'getUpdates',
         {
@@ -65,6 +34,8 @@ async function runAccount(acct: Account): Promise<void> {
           timeout: 25,
           allowed_updates: [
             'message',
+            'channel_post',
+            'my_chat_member',
             'message_reaction',
             'message_reaction_count',
           ],

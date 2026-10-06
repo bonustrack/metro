@@ -5,6 +5,7 @@ export const gmailStation: Station = {
   name: 'gmail',
   hasAccounts: true,
   hasTrain: true,
+  discoversChannels: true,
   messageVerbs: new Set<Verb>(['send', 'reply', 'read']),
   readFilters: new Set<ReadFilter>(['account', 'query', 'from', 'until', 'unread_only', 'message_id']),
   approvals: false,

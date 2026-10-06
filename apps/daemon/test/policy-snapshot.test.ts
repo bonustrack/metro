@@ -59,6 +59,7 @@ describe('the policy snapshot the plugin hook reads', () => {
     expect(snap.accounts).toEqual({ [`telegram/${TG}`]: { write: 'ask', tools: { delete: 'deny' } } });
     expect((snap.tools as Record<string, string>).send).toBe('write');
     expect((snap.tools as Record<string, string>).read).toBe('read');
+    expect((snap.tools as Record<string, string>).list_channels).toBe('read');
     expect((snap.owners as Record<string, string>).group_info).toBe('xmtp');
     expect(snap.ungated).toEqual(['list_accounts', 'create_upload']);
   });
@@ -79,6 +80,30 @@ describe('the policy snapshot the plugin hook reads', () => {
       ['list_accounts', {}],
     ];
     for (const [tool, input] of calls) expect(`${tool}: ${hook(tool, input)}`).toBe(`${tool}: ${channelDecision(tool, input).access}`);
+  });
+
+  for (const access of ['deny', 'ask'] as const)
+    test(`discovery uses only the required account policy (${access}) in the hook and daemon`, () => {
+      setPolicies('channel', [[{ kind: 'channel', station: 'telegram', account: TG }, { read: access }]]);
+      const calls: [Record<string, unknown>, string][] = [
+        [{ account: TG }, access],
+        [{ account: TG, line: `metro://xmtp/${XM}/wrong`, station: 'xmtp' }, access],
+        [{ account: XM, line: LINE, station: 'telegram' }, 'allow'],
+        [{ line: LINE, station: 'telegram' }, 'allow'],
+      ];
+      for (const [input, expected] of calls) {
+        expect(channelDecision('list_channels', input).access).toBe(expected);
+        expect(hook('list_channels', input)).toBe(expected);
+      }
+    });
+
+  test('the discovery hook applies per-tool read overrides rather than write defaults', () => {
+    setPolicies('channel', [[{ kind: 'channel', station: 'telegram', account: TG }, { write: 'deny', read: 'deny', tools: { list_channels: 'allow' } }]]);
+    expect(channelDecision('list_channels', { account: TG }).access).toBe('allow');
+    expect(hook('list_channels', { account: TG })).toBe('allow');
+    setPolicies('channel', [[{ kind: 'channel', station: 'telegram', account: TG }, { read: 'allow', tools: { list_channels: 'ask' } }]]);
+    expect(channelDecision('list_channels', { account: TG }).access).toBe('ask');
+    expect(hook('list_channels', { account: TG })).toBe('ask');
   });
 
   for (const access of ['deny', 'ask'] as const)

@@ -76,7 +76,12 @@ function chat(acct: Account, m: InboundMeta, d: Decoded): string | null {
   return null;
 }
 
+function isDirectChat(d: Decoded): boolean {
+  return d.kind === 'text' || ((d.kind === 'file' || d.kind === 'reaction' || d.kind === 'receipt') && d.group === null);
+}
+
 export function deliver(acct: Account, m: InboundMeta, d: Decoded): string {
+  if (isDirectChat(d)) acct.chats.note(m.from, m.nickname);
   const handled = control(acct, m, d) ?? chat(acct, m, d);
   if (handled !== null) return handled;
   if (d.kind === 'receipt') return reactions(acct, m, d);

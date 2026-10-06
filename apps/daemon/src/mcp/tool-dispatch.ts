@@ -37,6 +37,7 @@ import {
 } from './request-identity.js';
 import { str } from '@metro-labs/core/str';
 import { linelessRead, stationOfAccount } from './read-tool.js';
+import { channelArgsError, channelScopeDenied, dispatchListChannels } from './channel-tool.js';
 
 const STATION_TOOLS = new Map<
   string,
@@ -50,6 +51,7 @@ const CORE_DISPATCH: Record<
   (a: Record<string, unknown>) => Promise<ToolResult>
 > = {
   list_members: dispatchListMembers,
+  list_channels: dispatchListChannels,
   create_group: dispatchCreateGroup,
   add_members: dispatchAddMembers,
   remove_members: dispatchRemoveMembers,
@@ -91,6 +93,7 @@ export function scopeDenied(
   args: Record<string, unknown>,
 ): boolean {
   const allowed = allowedAgents(identity);
+  if (name === 'list_channels') return channelScopeDenied(allowed, args);
   if (name === 'read' && !str(args.line)) {
     const account = str(args.account);
     if (!account) return false;
@@ -147,6 +150,10 @@ async function runTool(
 ): Promise<ToolResult> {
   const name = req.params.name;
   const a = req.params.arguments ?? {};
+  if (name === 'list_channels') {
+    const invalid = channelArgsError(a);
+    if (invalid) return invalid;
+  }
 
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))

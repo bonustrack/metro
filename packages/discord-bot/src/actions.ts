@@ -15,6 +15,7 @@ import {
 import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { readProfile, setProfile } from './profile.js';
 import { discordMembers } from './members.js';
+import { listChannels } from './channels.js';
 import {
   groupAddHandler,
   groupCreateHandler,
@@ -210,6 +211,7 @@ const HANDLERS: Record<string, StationHandler> = {
   delete: remove,
   read,
   listMembers,
+  listChannels,
   set_profile: setProfile,
   profile: readProfile,
 };

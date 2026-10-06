@@ -1,5 +1,6 @@
 import { makeStation, respond } from '@metro-labs/core/stations/station-runtime';
 import { accountOf, accounts } from './accounts.js';
+import { listChannels } from './channels.js';
 import { MAILBOX_URL } from './config.js';
 import { reply, send } from './outbound.js';
 import { read } from './query.js';
@@ -15,5 +16,5 @@ async function disconnect(id: string, args: Record<string, unknown>): Promise<vo
 }
 
 export const handleCall = makeStation({
-  handlers: { accounts: listAccounts, send, reply, read, disconnect },
+  handlers: { accounts: listAccounts, listChannels, send, reply, read, disconnect },
 });

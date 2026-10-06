@@ -6,6 +6,7 @@ export const xmtpStation: Station = {
   name: 'xmtp',
   hasAccounts: true,
   hasTrain: true,
+  discoversChannels: true,
   messageVerbs: new Set<Verb>(['send', 'reply', 'react', 'unreact', 'delete', 'read']),
   readFilters: new Set(['message_id']),
   groupOps: new Set<GroupOp>(['create_group', 'add_members', 'remove_members']),

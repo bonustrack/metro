@@ -173,6 +173,7 @@ describe('groups on the wire', () => {
     cap.written.events.length = 0;
     await call('callback', inboundFrom('ALICE001', encodeGroupText(GROUP, 'named now')));
     expect(cap.written.events[0]).toMatchObject({ line_name: 'Ops' });
+    expect(accounts.get('t0')?.chats.list()).toEqual([]);
   });
 
   test('a fresh account with the same id requests its unknown roster independently', async () => {

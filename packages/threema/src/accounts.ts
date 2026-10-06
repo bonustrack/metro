@@ -4,6 +4,8 @@ import {
   type Die,
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
+import { ChannelDirectory } from '@metro-labs/core/stations/channel-directory';
+import { DirectStore } from './chats.js';
 import { fetchPublicKey } from './api.js';
 import { hexToBytes, keyPairFrom, type KeyPair } from './crypto.js';
 import { isGatewayId, normalizeThreemaId, parsePrivateKey } from './ids.js';
@@ -47,6 +49,8 @@ export interface Account {
   publicKeys: Map<string, Uint8Array>;
   requestedRosters: Set<string>;
   groups: GroupStore;
+  chats: DirectStore;
+  directory: ChannelDirectory;
 }
 
 export type Target = { kind: 'user'; id: string } | { kind: 'group'; group: GroupRef };
@@ -56,7 +60,15 @@ export const accounts = new Map<string, Account>();
 export function bootAccount(cfg: AccountConfig): Account {
   const key = parsePrivateKey(cfg.privateKey);
   if (key === null) throw new Error(`account '${cfg.id}' has no usable private key`);
-  return { cfg, keys: keyPairFrom(key), publicKeys: new Map(), requestedRosters: new Set(), groups: new GroupStore(cfg.id, cfg.gatewayId) };
+  return {
+    cfg,
+    keys: keyPairFrom(key),
+    publicKeys: new Map(),
+    requestedRosters: new Set(),
+    groups: new GroupStore(cfg.id, cfg.gatewayId),
+    chats: new DirectStore(cfg.id),
+    directory: new ChannelDirectory(),
+  };
 }
 
 export function accountFor(id: string): Account {

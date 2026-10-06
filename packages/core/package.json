@@ -21,6 +21,8 @@
     "./lines": "./src/lines.ts",
     "./endpoints": "./src/endpoints.ts",
     "./stations/types": "./src/stations/types.ts",
+    "./stations/channel-directory": "./src/stations/channel-directory.ts",
+    "./stations/channel-pages": "./src/stations/channel-pages.ts",
     "./stations/account-files": "./src/stations/account-files.ts",
     "./stations/station-runtime": "./src/stations/station-runtime.ts",
     "./stations/account-store": "./src/stations/account-store.ts",

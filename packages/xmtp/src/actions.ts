@@ -24,6 +24,7 @@ import { TrainError } from '@metro-labs/core/train-error';
 import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { profileAction } from './sender.js';
 import { resolveSenderAction } from './resolve.js';
+import { listChannels } from './channels.js';
 import { makeStation, respond, type CallMsg } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
@@ -234,6 +235,7 @@ async function accountsAction(id: string): Promise<void> {
 
 const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   accounts: (id) => accountsAction(id),
+  listChannels,
   set_profile: setProfile,
   claim_name: claimNameAction,
   name: nameAction,
@@ -256,7 +258,7 @@ export type { CallMsg };
 export const handleCall = makeStation({
   handlers: Object.fromEntries(Object.entries(handlers).map(([action, handler]) => [
     action,
-    action === 'accounts' || action === 'callLeftovers'
+    action === 'accounts' || action === 'callLeftovers' || action === 'listChannels'
       ? handler
       : (id: string, args: Args) => network.run(() => handler(id, args)),
   ])),

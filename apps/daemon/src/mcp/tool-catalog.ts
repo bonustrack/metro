@@ -3,6 +3,7 @@ import { STATIONS } from '../stations/registry.js';
 import { COMMON_TOOLS, LIST_ACCOUNTS_TOOL } from './tool-schemas.js';
 import { SET_PROFILE_TOOL } from './profile-tool.js';
 import { GET_PROFILE_TOOL } from './profile-lookup.js';
+import { LIST_CHANNELS_TOOL } from './channel-tool.js';
 import type { ToolDef } from './tool-def.js';
 
 const defOf = (tool: StationTool): ToolDef => ({
@@ -17,6 +18,7 @@ export const TOOL_DEFS: ToolDef[] = [
   ...COMMON_TOOLS,
   ...STATIONS.flatMap((s) => s.tools.map(defOf)),
   LIST_ACCOUNTS_TOOL,
+  LIST_CHANNELS_TOOL,
   SET_PROFILE_TOOL,
   GET_PROFILE_TOOL,
 ];
@@ -85,7 +87,8 @@ export const stationToolGroups = (): Record<string, GroupedTool[]> =>
 export function channelToolsOf(station: Station): GroupedTool[] {
   const names: string[] = [...station.messageVerbs];
   if (station.hasTrain && station.hasAccounts) names.push('list_members');
-  for (const op of station.groupOps ?? []) names.push(GROUP_OP_TOOLS[op]);
+  if (station.hasTrain && station.discoversChannels === true) names.push('list_channels');
+  names.push(...Array.from(station.groupOps ?? [], (op) => GROUP_OP_TOOLS[op]));
   if ((station.profileFields?.size ?? 0) > 0) names.push('set_profile');
   if (station.readsProfiles === true) names.push('get_profile');
   names.push(...station.tools.map((t) => t.name));

@@ -1,10 +1,14 @@
 import type { Station, Verb } from '@metro-labs/core/stations/types';
 import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
+import { channelFiles } from './channel-files.js';
 
 export const telegramBotStation: Station = {
   name: 'telegram-bot',
   hasAccounts: true,
   hasTrain: true,
+  discoversChannels: true,
+  forget: channelFiles.forget,
+  forgetExcept: channelFiles.forgetExcept,
   messageVerbs: new Set<Verb>([
     'send',
     'reply',

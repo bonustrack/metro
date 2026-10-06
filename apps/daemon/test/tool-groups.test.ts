@@ -3,7 +3,7 @@ import { toolList } from '../src/mcp/tool-dispatch.ts';
 import { channelToolsOf, declaredGroup, toolGroupOf } from '../src/mcp/tool-catalog.ts';
 import { stationByName } from '../src/stations/registry.ts';
 
-const READ_TOOLS = ['get_profile', 'group_info', 'list_accounts', 'list_members', 'read'];
+const READ_TOOLS = ['get_profile', 'group_info', 'list_accounts', 'list_channels', 'list_members', 'read'];
 
 describe('tool groups', () => {
   test('every listed tool declares its group next to its definition', () => {

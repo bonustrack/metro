@@ -15,6 +15,7 @@ import {
   sendMedia,
 } from './media-actions.js';
 import { readProfile, setProfile } from './profile.js';
+import { listChannels } from './channels.js';
 
 export type { CallMsg };
 
@@ -230,6 +231,7 @@ const HANDLERS: Record<string, StationHandler> = {
   edit,
   delete: remove,
   listMembers,
+  listChannels,
   set_profile: setProfile,
   profile: readProfile,
 };

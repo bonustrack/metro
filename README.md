@@ -19,12 +19,39 @@ networks to Claude Code through MCP (the Model Context Protocol):
 Inbound messages reach the Claude Code session as channel events. The agent answers with
 the `mcp__metro__*` tools: `send`, `reply`, `react`, `unreact`, `edit`, `delete`, `read`,
 `list_members`, `create_group`, `add_members`, `remove_members`, `export_invite`,
-`create_upload`, `list_accounts`, `set_profile` and `get_profile`. Support for each verb
+`create_upload`, `list_accounts`, `list_channels`, `set_profile` and `get_profile`. Support for each verb
 depends on the network; an unsupported verb answers with the reason.
 
 > `telegram` and `whatsapp` sign in as real user accounts. Their stored sessions are
 > full-account secrets, both networks may ban an account used this way, and only one
 > process may use an account at a time. Use an identity you can dedicate to the agent.
+
+## Find a channel
+
+Use `list_accounts` to choose an account, then call `list_channels` with that account.
+It discovers existing conversations without requiring a recent inbound message. The optional
+`query` is a case-insensitive substring of a name, ID or line (up to 200 characters).
+`limit` defaults to 50 and accepts 1–100. Each entry has an ID, kind, an account-qualified
+`metro://` line usable by other tools, and a name when the station knows one.
+
+Follow `next_cursor` with the same account and query to continue. Cursors expire after five
+minutes and can also expire after enough other listings or a train restart. Start without a
+cursor to refresh. A page can be empty and still have a cursor, especially when searching
+mail: continue until the cursor ends. Directory scans stop at 5,000 source entries and retain
+bounded metadata rather than building an unbounded account index.
+
+Always check `capability`: `supported` says whether discovery exists, `source` identifies
+remote, local or mixed metadata, and `complete` is false while more pages or coverage gaps
+remain. `reason` explains the limitation. Exhausting a local cache does not make it complete.
+Telegram user accounts can enumerate dialogs; other stations may have installation-local
+conversations, observed bot chats, cached direct chats, missing archived threads or mailbox
+scope limits. Webhooks explicitly report discovery as unsupported. Station READMEs describe
+the exact coverage.
+
+Results contain channel metadata only, not message bodies, snippets, attachments or contacts.
+Discovery never creates a conversation. Account access and the owner's read deny/approval
+policy apply before listing; Receive Off only suppresses inbound delivery and does not block
+an otherwise permitted explicit lookup.
 
 ## The pieces
 

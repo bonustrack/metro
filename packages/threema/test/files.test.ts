@@ -126,6 +126,7 @@ describe('files on the wire', () => {
     blobs.set('d'.repeat(32), sealBlob(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), key));
     await call('callback', inboundFrom('ALICE001', encodeFile({ blobId: 'd'.repeat(32), key: bytesToHex(key), mime: 'image/png', name: 'cat.png', size: 4, caption: 'my cat', media: true })));
     expect(cap.written.responses[0]).toMatchObject({ result: { ok: true, kind: 'file' } });
+    expect(accounts.get('t0')?.chats.list()).toEqual([{ id: 'ALICE001', name: 'Alice' }]);
     const message = cap.written.events[0] ?? {};
     expect(message).toMatchObject({ line: 'metro://threema/t0/ALICE001', text: 'my cat', message_id: 'aaaaaaaaaaaaaaaa', payload: { attachments: [{ kind: 'image', name: 'cat.png', mime: 'image/png', size: 4 }] } });
     await eventCount(2);

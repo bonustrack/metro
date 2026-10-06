@@ -17,6 +17,7 @@ import { makeProfileCache, nonEmpty, type SenderProfile } from '@metro-labs/core
 import type { SelfRef } from './parse.js';
 import type { History } from './history.js';
 import { createClientHistory } from './client-history.js';
+import { WhatsAppChannels } from './channels.js';
 import { bindMessages } from './messages.js';
 import { listMembers } from './members.js';
 import { SendExpiry } from './send-expiry.js';
@@ -49,17 +50,15 @@ interface State {
   outbox: Outbox;
   acks: AckWatch;
   names: NameBook;
+  channels: WhatsAppChannels;
 }
-
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
 type SendContent = Parameters<WASocket['sendMessage']>[1];
-
 function resetGate(st: State): void {
   st.openPromise = new Promise<void>((resolve) => {
     st.openResolve = resolve;
   });
 }
-
 function selfRef(st: State, sock: WASocket): SelfRef {
   const jids = new Set<string>();
   const me = sock.user;
@@ -180,6 +179,7 @@ async function connect(st: State): Promise<void> {
   sock.ev.on('creds.update', () => void saveCreds());
   bindConnection(st, sock);
   bindInbound(st, sock);
+  st.channels.bind(sock, () => !st.closed && st.sock === sock);
   st.expiry.bind(sock, () => !st.closed && st.sock === sock);
   bindDelivery(st, sock);
 }
@@ -297,6 +297,7 @@ function initialState(account: WhatsAppAccount, runtime: ClientRuntime): State {
     outbox: makeOutbox(),
     acks: makeAckWatch(),
     names: makeNameBook(nameFiles.path(account.id)),
+    channels: new WhatsAppChannels(account.id),
   };
   resetGate(st);
   return st;
@@ -335,6 +336,7 @@ export function createClient(
     listMembers(jid, limit) {
       return listMembers(jid, async (node): Promise<unknown> => await (await ready(st)).query(node), st.names, limit);
     },
+    async listChannels(args) { return st.channels.list(await ready(st), args); },
     sendText(jid, text, quotedId) {
       return send(
         st,

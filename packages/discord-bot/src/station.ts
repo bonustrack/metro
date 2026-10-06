@@ -19,5 +19,6 @@ export const discordBotStation: Station = {
   attachmentMode: 'canonical',
   profileFields: new Set<ProfileField>(PROFILE_FIELDS),
   readsProfiles: true,
+  discoversChannels: true,
   tools: [],
 };

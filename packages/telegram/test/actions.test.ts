@@ -12,6 +12,13 @@ interface Captured {
 
 function fakeClient(calls: Captured[]): UserClient {
   const tg = {
+    async *iterDialogs(params: { pinned: string; archived: string; limit: number }) {
+      await Promise.resolve();
+      calls.push({ method: 'iterDialogs', args: [params] });
+      if (params.pinned === 'exclude') {
+        yield { peer: { id: 12345, type: 'user', displayName: 'Quiet direct' } };
+      }
+    },
     resolvePeer: (chatId: number): Promise<unknown> => {
       calls.push({ method: 'resolvePeer', args: [chatId] });
       return Promise.resolve({ peer: chatId });
@@ -79,6 +86,45 @@ describe('telegram outbound handlers', () => {
   });
   afterEach(() => {
     accounts.clear();
+  });
+
+  test('listChannels uses the explicit account and only calls dialog discovery', async () => {
+    const handle = makeHandleCall(() => fakeClient(calls));
+    const cap = captureResponses();
+    try {
+      await handle({ op: 'call', id: 'channels', action: 'listChannels', args: { account: 'default', query: 'QUIET' } });
+    } finally {
+      cap.restore();
+    }
+    expect(calls.map((call) => call.method)).toEqual(['iterDialogs', 'iterDialogs', 'iterDialogs']);
+    expect(cap.responses).toEqual([{
+      op: 'response',
+      id: 'channels',
+      result: {
+        channels: [{ id: '12345', line: LINE, name: 'Quiet direct', kind: 'direct' }],
+        capability: { supported: true, complete: true, source: 'remote' },
+      },
+    }]);
+  });
+
+  test('listChannels refuses an absent or unknown account without selecting a client', async () => {
+    const selected: string[] = [];
+    const handle = makeHandleCall((account) => {
+      selected.push(account);
+      return fakeClient(calls);
+    });
+    const cap = captureResponses();
+    try {
+      for (const args of [{}, { line: LINE }, { account: '' }, { account: 1 }, { account: 'missing' }]) {
+        await handle({ op: 'call', id: 'channels', action: 'listChannels', args });
+      }
+    } finally {
+      cap.restore();
+    }
+    expect(selected).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(cap.responses).toHaveLength(5);
+    for (const response of cap.responses) expect(response).toHaveProperty('error');
   });
 
   test('send resolves peer and calls sendText, returns messageId+account', async () => {
