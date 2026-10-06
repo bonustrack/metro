@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brandLogo, brandSrc } from '../src/api/brands.js';
 
@@ -18,6 +19,17 @@ describe('brand logos', () => {
       expect(brandSrc('https://docs.xmtp.org', dark)).toBe('/brands/xmtp.svg');
     }
     expect(brandLogo('https://notxmtp.org')).toBeNull();
+  });
+
+  test('Gmail preserves Google’s padded multicolor SVG in both themes', () => {
+    for (const dark of [false, true]) {
+      expect(brandSrc('https://mail.google.com', dark)).toBe('/brands/gmail.svg');
+      expect(brandSrc('https://gmailmcp.googleapis.com', dark)).toBe('/brands/gmail.svg');
+    }
+    const svg = readFileSync(join(pub, 'brands', 'gmail.svg'));
+    expect(createHash('sha256').update(svg).digest('hex')).toBe(
+      '0a242131424b796a26247a8edd41d66fa294da6d177897526a19b7e81aedfdb8',
+    );
   });
 
   test('an unknown or broken url has no logo, so the favicon is used', () => {
