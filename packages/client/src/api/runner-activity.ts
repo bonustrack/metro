@@ -5,7 +5,10 @@ import { activityIsStale } from './runner.js';
 type Mode = 'live' | 'stale' | 'past';
 interface Clock { mode: Mode; at: number; now: number }
 interface ActivityRow { id: string; summary: string; details: string; danger: boolean }
-interface WorkerRow extends ActivityRow { title: string; lastObservedModel: string; status: RunnerTaskState }
+interface WorkerRow extends ActivityRow {
+  title: string; lastObservedModel: string; status: RunnerTaskState;
+  stateLabel: string; tools: string; progress: string;
+}
 
 const PHASE: Record<RunnerPhase, string> = {
   starting: 'starting', idle: 'idle', working: 'working', approval: 'waiting for approval',
@@ -94,12 +97,13 @@ function taskDuration(task: RunnerTask, clock: Clock): string | null {
   return task.endedAt === null ? null : elapsed(task.startedAt, task.endedAt);
 }
 
-function taskStatus(task: RunnerTask, clock: Clock): string {
+function taskStatus(task: RunnerTask, clock: Clock, history: 'prefix' | 'suffix' = 'suffix'): string {
   const time = taskDuration(task, clock);
   const label = STATE[task.status];
   if (terminal(task)) return `${label}${time === null ? '' : ` in ${time}`}`;
   const timed = `${label}${time === null || task.status === 'unknown' ? '' : ` (${time})`}`;
-  return clock.mode === 'live' ? timed : `${timed} at the last report`;
+  if (clock.mode === 'live') return timed;
+  return history === 'prefix' ? `Last report: ${timed}` : `${timed} at the last report`;
 }
 
 function taskTools(task: RunnerTask, tools: RunnerTool[], clock: Clock): string {
@@ -134,12 +138,17 @@ function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
     const tools = activity.activeTools.filter((tool) => tool.taskId === task.id);
     const progress = terminal(task) && task.endedAt !== null ? `ended ${ago(task.endedAt, clock.now)}` : `last progress ${ago(task.updatedAt, clock.now)}`;
     const uses = terminal(task) ? ` · ${task.toolUses} tool uses` : '';
+    const stateLabel = taskStatus(task, clock);
+    const toolLabel = `${taskTools(task, tools, clock)}${uses}`;
     return {
       id: task.id,
       status: task.status,
       title: task.description ?? 'Unknown task',
       lastObservedModel: task.lastObservedModel ?? 'Unknown',
-      summary: `${task.agent ?? task.kind ?? 'Worker'} · ${taskStatus(task, clock)} · ${taskTools(task, tools, clock)}${uses} · ${progress}`,
+      stateLabel: taskStatus(task, clock, 'prefix'),
+      tools: toolLabel,
+      progress,
+      summary: `${task.agent ?? task.kind ?? 'Worker'} · ${stateLabel} · ${toolLabel} · ${progress}`,
       details: taskDetails(task, tools, clock),
       danger: task.status === 'failed',
     };

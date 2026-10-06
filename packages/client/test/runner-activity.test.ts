@@ -27,6 +27,7 @@ describe('main agent and worker activity', () => {
     expect(active.tools).toBe('Main tools: Agent (10 s)');
     expect(active.workers[0]?.summary).toContain('Explore · running (1 min) · using Bash (5 s)');
     expect(active.workers[0]?.summary).toContain('last progress 5 s ago');
+    expect(active.workers[0]).toMatchObject({ stateLabel: 'running (1 min)', tools: 'using Bash (5 s)', progress: 'last progress 5 s ago' });
     expect(active.workers[0]?.details).toContain('Background: Yes');
     expect(active.workers[0]?.details).toContain('Tool uses: 3');
     expect(view({ mainPhase: 'idle', mainStartedAt: null }).main).toBe('Main agent: idle');
@@ -76,6 +77,9 @@ describe('main agent and worker activity', () => {
     expect(stale.workers[0]?.summary).toContain('running (1 min) at the last report · was using Bash (5 s)');
     expect(later.workers[0]?.summary).toContain('running (1 min) at the last report · was using Bash (5 s)');
     expect(later.workers[0]?.summary).toContain('last progress 1 min 35 s ago');
+    expect(stale.workers[0]).toMatchObject({ stateLabel: 'Last report: running (1 min)', tools: 'was using Bash (5 s)', progress: 'last progress 45 s ago' });
+    expect(later.workers[0]?.stateLabel).toBe(stale.workers[0]?.stateLabel);
+    expect(later.workers[0]?.tools).toBe(stale.workers[0]?.tools);
   });
 
   test('stopped processes, stopped SDK reports and old reports while CLI runs are historical', () => {
@@ -106,10 +110,13 @@ describe('main agent and worker activity', () => {
       expect(row?.summary).toContain(`${state} in 45 s`);
       expect(row?.summary).toContain('last tool Read · 3 tool uses · ended 2 s ago');
       expect(row?.danger).toBe(state === 'failed');
+      expect(row).toMatchObject({ stateLabel: `${state} in 45 s`, tools: 'last tool Read · 3 tool uses', progress: 'ended 2 s ago' });
     }
     for (const status of ['pending', 'running', 'completed', 'failed', 'stopped', 'paused', 'unknown']) {
       for (const at of [now, now + 40_000]) expect(view({ tasks: [{ ...task, status }] }, at).workers[0]?.status).toBe(status);
-      expect(view({ tasks: [{ ...task, status }] }, now, { running: false }).workers[0]?.status).toBe(status);
+      const historical = view({ tasks: [{ ...task, status }] }, now, { running: false }).workers[0];
+      expect(historical?.status).toBe(status);
+      expect(historical?.stateLabel.startsWith('Last report: ')).toBe(!['completed', 'failed', 'stopped'].includes(status));
     }
     expect(view({ tasks: [{ ...task, status: 'paused' }] }).workers[0]?.summary).toContain('paused (1 min)');
     expect(view({ tasks: [{ ...task, status: 'pending' }] }).workers[0]?.summary).toContain('waiting to start (1 min)');
@@ -125,6 +132,7 @@ describe('main agent and worker activity', () => {
     expect(missing.workers[0]?.summary).toContain('last progress not reported');
     expect(missing.workers[0]?.details).toContain('Elapsed: Not reported');
     expect(missing.workers[0]?.details).toContain('Started: Not reported');
+    expect(missing.workers[0]).toMatchObject({ stateLabel: 'state unknown', tools: 'no tool reported', progress: 'last progress not reported' });
   });
 
   test('old SDK reports have safe empty arrays and legacy tool names still show', () => {

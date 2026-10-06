@@ -9,11 +9,13 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { statusColor } from '../../lib/theme.js';
 import { Icon } from '../Icon.js';
-import { WORKER_STATE } from './worker-state.js';
+import { Dropdown } from '../Dropdown.js';
+import { Grid } from '../ui/Grid.js';
+import { WORKER_FILTERS, WORKER_STATE, workerSelection, type WorkerFilter } from './worker-state.js';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { freshness, sessionView, type Activity, type Freshness } from './session.js';
 
-const styles = StyleSheet.create({ worker: { flex: 1, minWidth: 220 }, title: { flex: 1, minWidth: 0 } });
+const styles = StyleSheet.create({ title: { flex: 1, minWidth: 0 }, controls: { maxWidth: '100%' } });
 
 interface Props {
   status: ClaudeSessionStatus | undefined;
@@ -81,25 +83,51 @@ function WorkerCard({ row, dark, onDetails, onWorker }: { row: Worker; dark: boo
   const palette = useKitPalette();
   const mark = WORKER_STATE[row.status];
   const color = mark.color === null ? palette.text : statusColor(mark.color, dark ? 'dark' : 'light');
-  return <Col style={styles.worker}><Card dark={dark}><Col gap={8}>
-    <Text size="sm" weight="semibold" numberOfLines={1}>{row.title}</Text>
-    <Text size="2xs" role="secondary" numberOfLines={1}>Last observed model: {row.lastObservedModel}</Text>
-    <Row gap={8} align="start"><Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={mark.icon} size={18} color={color} /></Box><Text size="sm" style={styles.title}>{row.summary}</Text></Row>
-    <Row gap={8} wrap><Button dark={dark} color="secondary" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
+  return <Box testID={`worker-card-${row.id}`}><Card dark={dark}><Col gap={8}>
+    <Text size="sm" weight="semibold" numberOfLines={1} testID="worker-title">{row.title}</Text>
+    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-model">Last observed model: {row.lastObservedModel}</Text>
+    <Row gap={8} align="center"><Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={mark.icon} size={18} color={color} /></Box><Text size="sm" style={styles.title} numberOfLines={1} testID="worker-state">{row.stateLabel}</Text></Row>
+    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-tools">{row.tools}</Text>
+    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-progress">{row.progress}</Text>
+    <Row gap={8} wrap testID="worker-actions"><Button dark={dark} color="secondary" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
       <Button dark={dark} color="secondary" label="Activity" accessibilityLabel={`Filter activity for worker ${row.id}`} onPress={() => { onWorker(row.id); }} /></Row>
-  </Col></Card></Col>;
+  </Col></Card></Box>;
+}
+
+interface WorkerControlsProps {
+  filter: WorkerFilter;
+  expanded: boolean;
+  count: number;
+  narrow: boolean;
+  dark: boolean;
+  onFilter: (filter: WorkerFilter) => void;
+  onExpand: () => void;
+}
+
+function WorkerControls({ filter, expanded, count, narrow, dark, onFilter, onExpand }: WorkerControlsProps): ReactNode {
+  const label = WORKER_FILTERS.find((option) => option.value === filter)?.label ?? 'All';
+  return <Row gap={8} wrap style={styles.controls}>
+    <Dropdown label="Filter worker status" button={{ label: `Status: ${label}`, color: 'secondary' }} items={WORKER_FILTERS.map((option) => ({
+      label: option.label, selected: option.value === filter, onSelect: () => { onFilter(option.value); },
+    }))} />
+    {count > (narrow ? 0 : 3) && <Button dark={dark} color="secondary" label={expanded ? 'Show fewer workers' : `Show all workers (${String(count)})`} onPress={onExpand} accessibilityState={{ expanded }} />}
+  </Row>;
 }
 
 function CurrentWorkers({ workers, observed, dark, narrow, onWorker }: Pick<Props, 'narrow' | 'onWorker'> & { workers: Worker[]; observed: boolean; dark: boolean }): ReactNode {
   const [expanded, setExpanded] = useState(false);
+  const [filter, setFilter] = useState<WorkerFilter>('all');
   const [workerId, setWorkerId] = useState<string | null>(null);
   const worker = workers.find((row) => row.id === workerId);
-  const shown = expanded ? workers : narrow ? [] : workers.slice(0, 3);
+  const { matching, shown } = workerSelection(workers, filter, expanded, narrow);
   return <>
-    {workers.length > 0 && <Col gap={10}>
+    {(workers.length > 0 || filter !== 'all') && <Col gap={10} testID="current-workers">
       <Row justify="between" align="center" wrap gap={8}><Text size="sm" weight="semibold">{observed ? 'Workers' : 'Last reported workers'}</Text>
-        <Button dark={dark} color="secondary" label={expanded ? 'Show fewer workers' : `Show all workers (${String(workers.length)})`} onPress={() => { setExpanded(!expanded); }} accessibilityState={{ expanded }} /></Row>
-      <Row gap={12} wrap align="start">{shown.map((row) => <WorkerCard key={row.id} row={row} dark={dark} onDetails={setWorkerId} onWorker={onWorker} />)}</Row>
+        <WorkerControls filter={filter} expanded={expanded} count={matching.length} narrow={narrow} dark={dark}
+          onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} /></Row>
+      <Text size="2xs" role="secondary" accessibilityLiveRegion="polite">Showing {shown.length} of {matching.length} {filter === 'all' ? 'workers' : `matching workers (${String(workers.length)} total)`}</Text>
+      {matching.length === 0 && <Text size="sm" role="secondary">No workers with this status.</Text>}
+      <Grid min={240} gap={12}>{shown.map((row) => <WorkerCard key={row.id} row={row} dark={dark} onDetails={setWorkerId} onWorker={onWorker} />)}</Grid>
       <Text size="2xs" role="secondary">Members of this SDK session, not a nested tree. Up to 30 recent tasks, including completed and background work.</Text>
     </Col>}
     <Modal open={worker !== undefined} onClose={() => { setWorkerId(null); }} title="Worker details" side={narrow ? 'bottom' : 'center'}>

@@ -1,4 +1,4 @@
-import { Children, type ReactNode, useState } from 'react';
+import { Children, isValidElement, type ReactNode, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 
 interface GridProps {
@@ -26,7 +26,7 @@ export function Grid({ min, gap, children }: GridProps): ReactNode {
   return (
     <View style={layout} onLayout={onLayout}>
       {items.map((item, index) => (
-        <View key={index} style={box}>
+        <View key={isValidElement(item) ? item.key ?? index : index} style={box}>
           {item}
         </View>
       ))}
