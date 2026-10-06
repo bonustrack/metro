@@ -1,5 +1,5 @@
 import type { ConnectionRow, ModelSettings, Provider } from './model.js';
-import { untilLabel, type UsageWindow } from './usage.js';
+import { tallyLine, untilLabel, type UsageWindow } from './usage.js';
 
 const SCOPED = 'Weekly, ';
 export const USAGE_LIMIT = 0.95;
@@ -32,6 +32,28 @@ export function usageModel(settings: ModelSettings, conn: ConnectionRow | undefi
 
 export function connectionWindow(settings: ModelSettings, conn: ConnectionRow | undefined): UsageWindow | null {
   return limitingWindow(modelWindows(settings.usage[conn?.id ?? 'passthrough']?.windows ?? [], conn?.provider ?? 'anthropic', usageModel(settings, conn)));
+}
+
+export function missingUsage(provider: Provider): string {
+  if (provider === 'bedrock') return 'Usage limits are not reported by Bedrock.';
+  if (provider === 'codex') return 'Usage unavailable. ChatGPT has not reported a limit.';
+  return 'Usage unavailable. No reading reported yet.';
+}
+
+export function usageDetail(usage: ModelSettings['usage'][string], provider: Provider, model: string, now = Date.now()): string {
+  const credit = usage.windows.find((w) => w.label === 'Credits')?.detail;
+  if (credit != null) return credit;
+  if (usage.tally !== null) return `${tallyLine(usage.tally)} · No current usage limit reported.`;
+  const previous = modelWindows(usage.windows, provider, model, Number.NEGATIVE_INFINITY);
+  return previous.some((w) => w.resetAt !== null && Date.parse(w.resetAt) <= now) ? 'Usage window reset. Waiting for a new reading.' : missingUsage(provider);
+}
+
+export function usageReported(usage: ModelSettings['usage'][string], now = Date.now()): string | null {
+  if (usage.windows.length === 0) return null;
+  const at = Date.parse(usage.at);
+  if (!Number.isFinite(at)) return 'Report time unavailable.';
+  const time = new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `Last report ${time}${now - at >= 5 * 60_000 ? '. May be out of date.' : ''}`;
 }
 
 export function limitNote(window: UsageWindow): string {

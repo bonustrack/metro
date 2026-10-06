@@ -4,12 +4,11 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { UsageBar, UsageUpdateHint } from './ModelUsage.js';
-import { limitingWindow, limitNote, modelWindows, usageModel, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
+import { ModelReadError, UsageBar, UsageUnavailable } from './ModelUsage.js';
+import { limitingWindow, limitNote, modelWindows, usageDetail, usageModel, usageReported, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
 import { PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
 import { DEFAULT_MODEL, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
-import { queryError, useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
-import { tallyLine } from '@metro-labs/client/api/usage';
+import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 
@@ -30,20 +29,22 @@ export function useModelName(conn: ConnectionRow | undefined, model = conn?.mode
 }
 
 export function CardUsage({ usage, provider, model }: { usage: ModelSettings['usage'][string] | undefined; provider: Provider; model: string }): ReactNode {
-  if (usage === undefined) return <UsageUpdateHint />;
+  if (usage === undefined) return <UsageUnavailable provider={provider} />;
   const window = limitingWindow(modelWindows(usage.windows, provider, model));
-  if (window === null) {
-    const credit = usage.windows.find((w) => w.label === 'Credits')?.detail;
-    return <Text size="2xs" role="secondary">{credit ?? (usage.tally === null ? 'No current usage limit reported.' : tallyLine(usage.tally))}</Text>;
-  }
-  const blocked = (window.used ?? 0) > USAGE_LIMIT;
+  const blocked = (window?.used ?? 0) > USAGE_LIMIT;
+  const reported = usageReported(usage);
   return (
     <Col gap={4} margin={{ top: 4 }}>
-      <Row gap={10} align="center" wrap>
-        <UsageBar used={window.used} blocked={blocked} />
-        {blocked ? <Text size="2xs" role="secondary">Over the 95% switch limit</Text> : null}
-      </Row>
-      <Text size="2xs" role="secondary">{limitNote(window)}</Text>
+      {window === null ? (
+        <Text size="2xs" role="secondary">{usageDetail(usage, provider, model)}</Text>
+      ) : (
+        <Row gap={10} align="center" wrap>
+          <UsageBar used={window.used} blocked={blocked} />
+          <Text size="2xs" role="secondary">{limitNote(window)}</Text>
+          {blocked ? <Text size="2xs" role="secondary">Over the 95% switch limit</Text> : null}
+        </Row>
+      )}
+      {reported === null ? null : <Text size="2xs" role="secondary">{reported}</Text>}
     </Col>
   );
 }
@@ -86,12 +87,10 @@ function Card({ settings, href }: { settings: ModelSettings; href: string }): Re
 export function AgentRoute({ project }: { project: string }): ReactNode {
   const model = useModelQuery();
   const target: Selection = { kind: 'model', project };
-  if (model.error !== null)
-    return (
-      <Text size="2xs" role="danger">
-        {queryError(model.error, 'Could not read the model settings.')}
-      </Text>
-    );
-  if (model.data === undefined) return null;
-  return <Card settings={model.data} href={routeHash(target)} />;
+  return (
+    <Col gap={8}>
+      <ModelReadError error={model.error} cached={model.data !== undefined} />
+      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} />}
+    </Col>
+  );
 }

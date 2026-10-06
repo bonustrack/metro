@@ -3,7 +3,7 @@ import { AuthError, ForbiddenError, NotFoundError } from '@metro-labs/client/api
 import { makeQueryClient } from '../src/lib/queries.js';
 
 const BASE = 'https://run-test.invalid';
-const SOURCES = ['run-events', 'claude-session', 'model', 'stations'];
+const SOURCES = ['run-events', 'claude-session', 'claude-account', 'model', 'stations'];
 
 describe('Run authorization revocation', () => {
   for (const refusal of [new AuthError('refused', true), new ForbiddenError('wrong owner'), new NotFoundError('agent missing')]) {
@@ -45,6 +45,23 @@ describe('Run authorization revocation', () => {
       await inFlight;
       expect(client.getQueryData(['claude-session', BASE])).toBeUndefined();
       expect(client.getQueryState(['claude-session', BASE])?.error).toBe(refusal);
+    } finally {
+      client.clear();
+    }
+  });
+
+  test('model refusal cancels a pending server account lookup', async () => {
+    const client = makeQueryClient(() => undefined);
+    const pending = Promise.withResolvers<string>();
+    try {
+      client.setQueryData(['claude-account', BASE], 'old@example.invalid');
+      const inFlight = client.fetchQuery({ queryKey: ['claude-account', BASE], staleTime: 0, queryFn: () => pending.promise }).catch(() => 'cancelled');
+      const refusal = new ForbiddenError('wrong owner');
+      await expect(client.fetchQuery({ queryKey: ['model', BASE], queryFn: () => Promise.reject(refusal) })).rejects.toBe(refusal);
+      pending.resolve('late@example.invalid');
+      await inFlight;
+      expect(client.getQueryData(['claude-account', BASE])).toBeUndefined();
+      expect(client.getQueryState(['claude-account', BASE])?.error).toBe(refusal);
     } finally {
       client.clear();
     }

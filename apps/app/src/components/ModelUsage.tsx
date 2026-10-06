@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { SettingsPad } from './SettingsSection.js';
+import type { Provider } from '@metro-labs/client/api/model';
+import { missingUsage } from '@metro-labs/client/api/model-usage';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { useModeQuery } from '../lib/queries.js';
+import { useIsFetching } from '@tanstack/react-query';
+import { boxKey, queryError, useModeQuery } from '../lib/queries.js';
 import { USAGE_SINCE } from '@metro-labs/client/api/usage';
 import { olderThan } from '@metro-labs/client/api/version';
 
@@ -43,13 +45,18 @@ export function UsageShort({ used }: { used: number | null }): ReactNode {
   );
 }
 
-export function UsageUpdateHint({ pad = false }: { pad?: boolean }): ReactNode {
+export function ModelReadError({ error, cached }: { error: Error | null; cached: boolean }): ReactNode {
+  if (error === null) return null;
+  return <Text size="2xs" role="danger">{cached ? 'Could not refresh model settings. Showing the last reading.' : queryError(error, 'Could not read the model settings.')}</Text>;
+}
+
+export function UsageUnavailable({ provider }: { provider: Provider }): ReactNode {
   const mode = useModeQuery();
-  if (!olderThan(mode.data?.version ?? null, USAGE_SINCE)) return null;
-  const hint = (
+  const fetching = useIsFetching({ queryKey: boxKey('model'), exact: true }) > 0;
+  const old = olderThan(mode.data?.version ?? null, USAGE_SINCE);
+  return (
     <Text size="2xs" role="secondary">
-      Update Metro to see the usage.
+      {old ? 'Update Metro to see the usage.' : fetching ? 'Checking usage...' : missingUsage(provider)}
     </Text>
   );
-  return pad ? <SettingsPad>{hint}</SettingsPad> : hint;
 }

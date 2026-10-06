@@ -8,6 +8,7 @@ import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { ConnectionItem } from './ProviderCard.js';
 import { CardUsage } from './AgentModel.js';
+import { ModelReadError } from './ModelUsage.js';
 import { ModelRouting, type RouteActions } from './ModelRouting.js';
 import { RouteEditor } from './RouteEditor.js';
 import { SettingsGroup, SettingsPad } from './SettingsSection.js';
@@ -97,15 +98,8 @@ export function ModelPage(): ReactNode {
           {modelNote(setup.data)}
         </Text>
       </Col>
-      {model.error !== null ? (
-        <Text size="2xs" role="danger">
-          {queryError(model.error, 'Could not read the model settings.')}
-        </Text>
-      ) : model.data === undefined ? (
-        <Loading />
-      ) : (
-        <Body settings={model.data} />
-      )}
+      <ModelReadError error={model.error} cached={model.data !== undefined} />
+      {model.data !== undefined ? <Body settings={model.data} /> : model.error === null ? <Loading /> : null}
     </Col>
   );
 }

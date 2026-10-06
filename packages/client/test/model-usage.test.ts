@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { connectionWindow, limitNote, limitingWindow, modelWindows, usageLabel, usageModel, USAGE_LIMIT } from '../src/api/model-usage.js';
+import { connectionWindow, limitNote, limitingWindow, missingUsage, modelWindows, usageDetail, usageLabel, usageModel, usageReported, USAGE_LIMIT } from '../src/api/model-usage.js';
 import type { UsageWindow } from '../src/api/usage.js';
 import { toModelSettings } from '../src/api/model.js';
 
@@ -35,6 +35,28 @@ describe('usage for the selected model', () => {
     expect(focus([window('Weekly', 1, new Date(NOW).toISOString()), window('Credits', null), window('Tokens per minute', 1)])).toBeNull();
     expect(focus([])).toBeNull();
     expect(limitNote(window('Credits', 0.2, null))).toBe('Credits');
+  });
+
+  test('zero, unavailable and reset readings remain different', () => {
+    expect(focus([window('Weekly', 0)])?.used).toBe(0);
+    expect(missingUsage('codex')).toContain('ChatGPT has not reported a limit');
+    expect(missingUsage('bedrock')).toContain('not reported by Bedrock');
+    expect(missingUsage('anthropic')).toContain('No reading reported yet');
+    const usage = { at: new Date(NOW).toISOString(), windows: [window('Weekly', 0.7, new Date(NOW).toISOString())], note: null, tally: null };
+    expect(usageDetail(usage, 'codex', 'gpt-6-astra', NOW)).toContain('Usage window reset');
+    expect(usageDetail(usage, 'gemini', 'gemini-other', NOW)).toContain('Usage unavailable');
+  });
+
+  test('reports carry their age without dating a tally as a provider reading', () => {
+    const usage = { at: new Date(NOW).toISOString(), windows: [window('Weekly', 0.5)], note: null, tally: null };
+    expect(usageReported(usage, NOW)).toStartWith('Last report ');
+    expect(usageReported(usage, NOW)).not.toContain('out of date');
+    expect(usageReported(usage, NOW + 5 * 60_000)).toContain('May be out of date');
+    expect(usageReported({ ...usage, at: 'invalid' }, NOW)).toBe('Report time unavailable.');
+    expect(usageReported({ ...usage, windows: [] }, NOW)).toBeNull();
+    const tally = { requests: 2, input: 10, output: 5, cached: 0, since: usage.at };
+    expect(usageDetail({ ...usage, windows: [], tally }, 'bedrock', '', NOW)).toContain('No current usage limit reported');
+    expect(usageDetail({ ...usage, windows: [{ ...window('Credits', null), detail: '$4 remaining' }] }, 'openrouter', '', NOW)).toBe('$4 remaining');
   });
 
   test('Gemini quotas belong to exact model ids', () => {

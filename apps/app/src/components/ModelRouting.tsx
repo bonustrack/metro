@@ -1,23 +1,22 @@
 import { type ReactNode } from 'react';
 import { View } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { useModelName } from './AgentModel.js';
-import { mostUsed } from './ProviderCard.js';
+import { CardUsage, useModelName } from './AgentModel.js';
+import { useAccountOf } from '../lib/queries.js';
+import { modelAccount, modelOrder, type ModelOrderItem } from '@metro-labs/client/api/model-order';
 import { SettingsGroup, SettingsPad } from './SettingsSection.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Tag } from './Tag.js';
 import type { MenuItem } from './Dropdown.js';
-import { holdLine, PROVIDERS, type ChainRow, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
-import { routedConnection } from '@metro-labs/client/api/providers';
-import { sameRoute, type Slot } from '@metro-labs/client/api/route-edit';
+import { holdLine, PROVIDERS, type ModelSettings } from '@metro-labs/client/api/model';
+import type { Slot } from '@metro-labs/client/api/route-edit';
 
 const NOTE = 'Uses the first available model. Switches above 95% usage and returns when the limit resets. Tap a model to edit.';
-const PASSTHROUGH = 'passthrough';
 const OLD = 'Update Metro to add fallback models.';
 const NONE = 'No fallback yet. Add one so the agent keeps working when its model runs out.';
 const MARK = 22;
@@ -27,27 +26,6 @@ export interface RouteActions {
   move: (at: number, by: number) => void;
   promote: (at: number) => void;
   remove: (at: number) => void;
-}
-
-interface Item {
-  slot: Slot;
-  connection: ConnectionRow | undefined;
-  model: string;
-  row: ChainRow | undefined;
-}
-
-function itemsOf(settings: ModelSettings): Item[] {
-  const routed = routedConnection(settings);
-  const head = settings.chain[0];
-  const server: ChainRow = { connection: '', model: '', used: mostUsed(settings, PASSTHROUGH), hold: null, active: true };
-  const primary: Item = { slot: { kind: 'primary' }, connection: routed, model: routed?.model !== '' ? (routed?.model ?? '') : (head?.model ?? ''), row: head ?? (routed === undefined ? server : undefined) };
-  const rest = (settings.fallbacks ?? []).map((f, at): Item => ({
-    slot: { kind: 'fallback', at },
-    connection: settings.connections.find((c) => c.id === f.connection),
-    model: f.model,
-    row: settings.chain.slice(1).find((r) => sameRoute(r, f)),
-  }));
-  return [primary, ...rest];
 }
 
 function Mark({ n, active }: { n: number; active: boolean }): ReactNode {
@@ -60,7 +38,7 @@ function Mark({ n, active }: { n: number; active: boolean }): ReactNode {
   );
 }
 
-function menuOf(item: Item, last: boolean, actions: RouteActions): MenuItem[] {
+function menuOf(item: ModelOrderItem, last: boolean, actions: RouteActions): MenuItem[] {
   const edit: MenuItem[] = [{ label: 'Edit', onSelect: () => { actions.edit(item.slot); } }];
   if (item.slot.kind !== 'fallback') return edit;
   const { at } = item.slot;
@@ -73,7 +51,7 @@ function menuOf(item: Item, last: boolean, actions: RouteActions): MenuItem[] {
   ];
 }
 
-function noteOf(item: Item): string {
+function noteOf(item: ModelOrderItem): string {
   const where = item.connection?.label ?? 'Claude Code login of the server';
   const hold = item.row?.hold;
   const reason = hold == null ? '' : holdLine(hold);
@@ -81,8 +59,9 @@ function noteOf(item: Item): string {
   return [where, hold == null ? '' : `Skipped: ${clarified}`].filter((part) => part !== '').join(' · ');
 }
 
-function RouteRow({ item, n, last, busy, actions }: { item: Item; n: number; last: boolean; busy: boolean; actions: RouteActions }): ReactNode {
+function RouteRow({ item, n, last, busy, actions }: { item: ModelOrderItem; n: number; last: boolean; busy: boolean; actions: RouteActions }): ReactNode {
   const name = useModelName(item.connection, item.model);
+  const account = modelAccount(item, useAccountOf(item.connection));
   const menu = menuOf(item, last, actions);
   const icon = (
     <Row align="center" gap={12}>
@@ -94,6 +73,12 @@ function RouteRow({ item, n, last, busy, actions }: { item: Item; n: number; las
     <ListRow
       title={name}
       detail={noteOf(item)}
+      below={(
+        <Col gap={4}>
+          <Text size="2xs" role="secondary" numberOfLines={1}>{account}</Text>
+          <CardUsage usage={item.usage} provider={item.connection?.provider ?? 'anthropic'} model={item.model} />
+        </Col>
+      )}
       muted={item.row?.hold != null}
       icon={icon}
       extra={item.row?.active === true ? <Tag label="In use" /> : undefined}
@@ -105,7 +90,7 @@ function RouteRow({ item, n, last, busy, actions }: { item: Item; n: number; las
 
 export function ModelRouting({ settings, busy, actions }: { settings: ModelSettings; busy: boolean; actions: RouteActions }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const items = itemsOf(settings);
+  const items = modelOrder(settings);
   const canAdd = settings.fallbacks !== null && settings.connections.length > 0;
   const add = <Button size="md" dark={dark} label="Add fallback" disabled={busy || !canAdd} onPress={() => { actions.edit({ kind: 'new' }); }} />;
   return (

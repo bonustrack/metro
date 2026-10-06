@@ -1,7 +1,7 @@
 import { AuthError, ForbiddenError, NotFoundError } from '@metro-labs/client/api/client';
 import type { QueryCache, QueryKey } from '@tanstack/react-query';
 
-const PRIVATE_SOURCES = new Set(['run-events', 'claude-session', 'model', 'stations']);
+const PRIVATE_SOURCES = new Set(['run-events', 'claude-session', 'claude-account', 'model', 'stations']);
 
 export const runAccessDenied = (error: unknown): boolean =>
   error instanceof AuthError || error instanceof ForbiddenError || error instanceof NotFoundError;
