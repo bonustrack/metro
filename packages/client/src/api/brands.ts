@@ -8,8 +8,8 @@ interface BrandLogo {
 const BY_HOST: Record<string, string> = {
   'gemini.google.com': 'gemini',
   'aws.amazon.com': 'aws',
-  'mail.google.com': 'gmail',
-  'gmailmcp.googleapis.com': 'gmail',
+  'mail.google.com': 'gmail-0a242131',
+  'gmailmcp.googleapis.com': 'gmail-0a242131',
   'drive.google.com': 'googledrive',
 };
 

@@ -21,15 +21,17 @@ describe('brand logos', () => {
     expect(brandLogo('https://notxmtp.org')).toBeNull();
   });
 
-  test('Gmail preserves Google’s padded multicolor SVG in both themes', () => {
+  test('Gmail bypasses the cached red mark with Google’s padded SVG in both themes', () => {
+    const src = '/brands/gmail-0a242131.svg';
     for (const dark of [false, true]) {
-      expect(brandSrc('https://mail.google.com', dark)).toBe('/brands/gmail.svg');
-      expect(brandSrc('https://gmailmcp.googleapis.com', dark)).toBe('/brands/gmail.svg');
+      expect(brandSrc('https://mail.google.com', dark)).toBe(src);
+      expect(brandSrc('https://gmailmcp.googleapis.com', dark)).toBe(src);
     }
-    const svg = readFileSync(join(pub, 'brands', 'gmail.svg'));
+    const svg = readFileSync(join(pub, src.slice(1)));
     expect(createHash('sha256').update(svg).digest('hex')).toBe(
       '0a242131424b796a26247a8edd41d66fa294da6d177897526a19b7e81aedfdb8',
     );
+    expect(readFileSync(join(pub, 'brands', 'gmail.svg'))).toEqual(svg);
   });
 
   test('an unknown or broken url has no logo, so the favicon is used', () => {
