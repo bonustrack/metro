@@ -11,6 +11,7 @@ import { DEFAULT_MODEL, routedConnection, routedUsage } from '@metro-labs/client
 import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
+import { useNow } from '../lib/use-now.js';
 
 const LOGO_SIZE = 28;
 
@@ -29,14 +30,15 @@ export function useModelName(conn: ConnectionRow | undefined, model = conn?.mode
 }
 
 export function CardUsage({ usage, provider, model }: { usage: ModelSettings['usage'][string] | undefined; provider: Provider; model: string }): ReactNode {
+  const now = useNow(15_000);
   if (usage === undefined) return <UsageUnavailable provider={provider} />;
-  const window = limitingWindow(modelWindows(usage.windows, provider, model));
+  const window = limitingWindow(modelWindows(usage.windows, provider, model, now));
   const blocked = (window?.used ?? 0) > USAGE_LIMIT;
-  const reported = usageReported(usage);
+  const reported = usageReported(usage, now);
   return (
     <Col gap={4} margin={{ top: 4 }}>
       {window === null ? (
-        <Text size="2xs" role="secondary">{usageDetail(usage, provider, model)}</Text>
+        <Text size="2xs" role="secondary">{usageDetail(usage, provider, model, now)}</Text>
       ) : (
         <Row gap={10} align="center" wrap>
           <UsageBar used={window.used} blocked={blocked} />

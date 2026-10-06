@@ -22,6 +22,15 @@ describe('ranked model accounts and usage', () => {
     expect(rows.map((r) => r.row?.active)).toEqual([true, false]);
   });
 
+  test('a fallback matching the primary cannot borrow its active chain entry', () => {
+    const value = settings();
+    value.fallbacks = [{ connection: 'a', model: 'gpt-6-astra' }];
+    const rows = modelOrder(value);
+    expect(rows[0]?.row?.active).toBe(true);
+    expect(rows[1]?.row).toBeUndefined();
+    expect(rows[1]?.usage).toBe(value.usage.a);
+  });
+
   test('missing identities do not borrow the server account or another connection', () => {
     const value = settings();
     value.connections = value.connections.map((c) => ({ ...c, account: null }));

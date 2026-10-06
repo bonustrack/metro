@@ -43,9 +43,11 @@ export function missingUsage(provider: Provider): string {
 export function usageDetail(usage: ModelSettings['usage'][string], provider: Provider, model: string, now = Date.now()): string {
   const credit = usage.windows.find((w) => w.label === 'Credits')?.detail;
   if (credit != null) return credit;
-  if (usage.tally !== null) return `${tallyLine(usage.tally)} · No current usage limit reported.`;
   const previous = modelWindows(usage.windows, provider, model, Number.NEGATIVE_INFINITY);
-  return previous.some((w) => w.resetAt !== null && Date.parse(w.resetAt) <= now) ? 'Usage window reset. Waiting for a new reading.' : missingUsage(provider);
+  const reset = previous.some((w) => w.resetAt !== null && Date.parse(w.resetAt) <= now);
+  const note = reset ? 'Usage window reset. Waiting for a new reading.' : 'No current usage limit reported.';
+  if (usage.tally !== null) return `${tallyLine(usage.tally)} · ${note}`;
+  return reset ? note : missingUsage(provider);
 }
 
 export function usageReported(usage: ModelSettings['usage'][string], now = Date.now()): string | null {

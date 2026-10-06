@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -13,6 +13,7 @@ import { olderThan } from '@metro-labs/client/api/version';
 import { daemonBase } from '@metro-labs/client/auth/daemon';
 import { queryError, useClaudeSessionQuery, useModeQuery, useModelQuery, useStationsQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
+import { useNow } from '../lib/use-now.js';
 import { runAccessDenied } from '../lib/run-cache.js';
 import { PageTitle } from './PageTitle.js';
 import { RunCoverage } from './run/Coverage.js';
@@ -25,15 +26,6 @@ import { freshness, sdkEntries, sessionIdentity } from './run/session.js';
 import { useRunFeed } from './run/use-run-feed.js';
 
 const styles = StyleSheet.create({ grow: { flex: 1, minWidth: 0 } });
-
-function useNow(): number {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => { setNow(Date.now()); }, 1_000);
-    return () => { clearInterval(timer); };
-  }, []);
-  return now;
-}
 
 function FeedNotice({ unsupported, pending, error, updatedAt, catchingUp }: {
   unsupported: boolean; pending: boolean; error: Error | null; updatedAt: number; catchingUp: boolean;

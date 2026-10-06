@@ -26,7 +26,7 @@ export function modelOrder(settings: ModelSettings): ModelOrderItem[] {
     const conn = settings.connections.find((c) => c.id === f.connection);
     return {
       slot: { kind: 'fallback', at }, connection: conn, model: f.model, passthrough: false,
-      row: settings.chain.find((r) => sameRoute(r, f)),
+      row: settings.chain.find((r) => r !== head && sameRoute(r, f)),
       usage: conn === undefined ? undefined : settings.usage[conn.id],
     };
   })];

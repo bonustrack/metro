@@ -44,6 +44,10 @@ describe('usage for the selected model', () => {
     expect(missingUsage('anthropic')).toContain('No reading reported yet');
     const usage = { at: new Date(NOW).toISOString(), windows: [window('Weekly', 0.7, new Date(NOW).toISOString())], note: null, tally: null };
     expect(usageDetail(usage, 'codex', 'gpt-6-astra', NOW)).toContain('Usage window reset');
+    const withTally = { ...usage, tally: { requests: 2, input: 10, output: 5, cached: 0, since: usage.at } };
+    const resetWithTally = usageDetail(withTally, 'codex', 'gpt-6-astra', NOW);
+    expect(resetWithTally).toContain('2 requests');
+    expect(resetWithTally).toContain('Usage window reset. Waiting for a new reading.');
     expect(usageDetail(usage, 'gemini', 'gemini-other', NOW)).toContain('Usage unavailable');
   });
 

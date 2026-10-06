@@ -268,8 +268,8 @@ export const useClaudeSessionQuery = ({ live = false }: { live?: boolean } = {})
 
 function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
   const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey && !conn.signedIn);
-  const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 60_000, enabled: own });
-  return own ? (account.data?.account ?? null) : null;
+  const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS, enabled: own });
+  return own && account.error === null ? (account.data?.account ?? null) : null;
 }
 
 export function useAccountOf(conn: ConnectionRow | undefined): string | null {
