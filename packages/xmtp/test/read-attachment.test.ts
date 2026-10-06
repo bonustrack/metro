@@ -133,6 +133,18 @@ describe('XMTP exact-message attachment reads', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
+  test('attachment-host throttling does not block later XMTP reads', async () => {
+    seed(message('limited1', 'remoteStaticAttachment', entry));
+    serve(429);
+    const failed = await read('limited1');
+    expect(failed.error).toContain('429');
+    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS);
+    seed(message('next1', 'text', 'still available'));
+    const next = await read();
+    expect(next.error).toBeUndefined();
+    expect(next.result?.messages?.[0]?.text).toBe('still available');
+  });
+
   test('does not save corrupted ciphertext as a ZIP', async () => {
     seed(message('bad1', 'remoteStaticAttachment', entry));
     serve(200, new Uint8Array([1, 2, 3]));

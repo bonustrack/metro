@@ -2,7 +2,7 @@ import { IdentifierKind, type DecodedMessage } from '@xmtp/node-sdk';
 import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { resolveMsgId } from './wire.js';
-import { TrainError } from '@metro-labs/core/train-error';
+import { serializeTrainError, TrainError } from '@metro-labs/core/train-error';
 import {
   buildGroupInfo,
   buildMemberList,
@@ -80,8 +80,12 @@ async function read(id: string, args: Args): Promise<void> {
     if (message?.conversationId !== conv.id || isDeleteRequest(message) || isCallSignal(message))
       throw new TrainError('NOT_FOUND', `message ${messageId} is not in this conversation`);
     const deleted = deletedByRequests([...all, message], superAdminCheck(conv));
-    const attachments = deleted.has(message.id) ? [] : await readAttachments(message);
-    respond(id, { result: { line, account: acct.cfg.id, message: { ...messageOf(acct, message, deleted), attachments } } });
+    try {
+      const attachments = deleted.has(message.id) ? [] : await readAttachments(message);
+      respond(id, { result: { line, account: acct.cfg.id, message: { ...messageOf(acct, message, deleted), attachments } } });
+    } catch (error) {
+      respond(id, serializeTrainError(error));
+    }
     return;
   }
   const lim = Math.min(Math.max(1, limit ?? 20), 200);

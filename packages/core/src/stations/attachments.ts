@@ -106,9 +106,16 @@ export const saveBufferToCache = async (
   meta: { mime?: string; name?: string },
 ): Promise<SavedAttachment> => {
   assertAttachmentSize(data.length);
-  const { writeFile } = await import('node:fs/promises');
+  const { writeFile, rename, rm } = await import('node:fs/promises');
+  const { randomUUID } = await import('node:crypto');
   const path = await cachePathFor(messageId, index, meta);
-  await writeFile(path, data);
+  const part = `${await cachePathFor(randomUUID(), index, meta)}.part`;
+  try {
+    await writeFile(part, data);
+    await rename(part, path);
+  } finally {
+    await rm(part, { force: true });
+  }
   return { path, mime: meta.mime, name: meta.name, bytes: data.length };
 };
 
