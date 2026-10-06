@@ -1,11 +1,14 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import * as agentUser from '../src/agent-user/user.js';
 import { handleClaudeRequest } from '../src/claude/api.js';
+import type { SessionDeps } from '../src/claude/session.js';
 import { claudeVersion, forgetClaudeVersion, newerThan, updateClaude } from '../src/claude/version.js';
+import * as privilege from '../src/metro-user/privilege.js';
 import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
@@ -26,15 +29,25 @@ const fakeClaude = (): string =>
 
 const fakeTmux = (): string => script('tmux', `case "$1" in has-session) exit 0;; kill-session) touch ${dir}/killed;; esac; exit 0`);
 
+const session = (): SessionDeps => ({ tmux: fakeTmux(), home: join(dir, 'home'), agents: join(dir, 'agents') });
+
 const npm = (version: string): typeof fetch => (() => Promise.resolve(new Response(JSON.stringify({ version }), { status: 200 }))) as unknown as typeof fetch;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-claude-version-'));
+  const ambientHome = join(dir, 'ambient');
+  mkdirSync(join(ambientHome, '.metro'), { recursive: true });
+  writeFileSync(join(ambientHome, '.metro', 'agent-status.json'), JSON.stringify({
+    runner: 'sdk', pid: process.pid, updatedAt: 1, phase: 'working',
+  }));
+  spyOn(privilege, 'runningAsMetro').mockReturnValue(false);
+  spyOn(agentUser, 'claudeHome').mockReturnValue(ambientHome);
   writeFileSync(join(dir, 'installed'), '2.1.272');
   forgetClaudeVersion();
 });
 
 afterEach(() => {
+  mock.restore();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -58,10 +71,9 @@ describe('the Claude Code version on a box', () => {
     expect(await claudeVersion({ claude: join(dir, 'missing'), fetchImpl: down })).toEqual({ installed: null, latest: null, newer: false });
   });
 
-  test('an update runs claude install latest, re-reads the build, and restarts a running session so it loads the new one', async () => {
+  test('an update restarts only the fixture session, not the runner recorded in the configured agent home', async () => {
     const claude = fakeClaude();
-    const tmux = fakeTmux();
-    const result = await updateClaude({ claude, fetchImpl: npm('2.1.274'), session: { tmux } });
+    const result = await updateClaude({ claude, fetchImpl: npm('2.1.274'), session: session() });
     expect(result).toEqual({ installed: '2.1.274', latest: '2.1.274', newer: false, restarted: true });
     expect(existsSync(join(dir, 'killed'))).toBe(true);
     expect(readFileSync(join(dir, 'installed'), 'utf8').trim()).toBe('2.1.274');
@@ -69,7 +81,7 @@ describe('the Claude Code version on a box', () => {
 
   test('an update that changes nothing leaves the session alone', async () => {
     writeFileSync(join(dir, 'installed'), '2.1.274');
-    const result = await updateClaude({ claude: fakeClaude(), fetchImpl: npm('2.1.274'), session: { tmux: fakeTmux() } });
+    const result = await updateClaude({ claude: fakeClaude(), fetchImpl: npm('2.1.274'), session: session() });
     expect(result.restarted).toBe(false);
     expect(existsSync(join(dir, 'killed'))).toBe(false);
   });
@@ -83,7 +95,7 @@ describe('the version over the API', () => {
     const claude = fakeClaude();
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
-        session: { tmux: fakeTmux() },
+        session: session(),
         version: { claude, fetchImpl: npm('2.1.274') },
       });
       if (!ok) res.writeHead(404).end();
