@@ -2,7 +2,7 @@ import type { Station, Verb } from '@metro-labs/core/stations/types';
 import { PROFILE_FIELDS, type ProfileField } from '@metro-labs/core/stations/profile';
 import { tokenFiles } from './token-store.js';
 import { nameFiles } from './names.js';
-import { historyFiles } from './history-state.js';
+import { historyFiles } from './history-files.js';
 
 export const whatsappStation: Station = {
   name: 'whatsapp',

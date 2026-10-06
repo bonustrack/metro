@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const CLI = join(import.meta.dir, '..');
@@ -39,6 +41,36 @@ describe('the staged channel manifest', () => {
     expect(manifest.stations.outlook).toEqual({});
     expect(manifest.stations.gmail).toEqual({});
     expect(Object.keys(manifest.stations.threema ?? {})).toEqual(['tweetnacl']);
+  });
+
+  test('the staged registry loads without any station vendor SDK installed', () => {
+    const root = mkdtempSync(join(tmpdir(), 'metro-registry-'));
+    const modules = join(root, 'node_modules');
+    try {
+      mkdirSync(modules);
+      cpSync(join(CLI, 'runtime', 'node_modules', '@metro-labs'), join(modules, '@metro-labs'), { recursive: true });
+      const core = join(REPO, 'packages', 'core');
+      for (const name of Object.keys(vendor(core)))
+        symlinkSync(realpathSync(join(core, 'node_modules', name)), join(modules, name), 'dir');
+      const run = spawnSync(process.execPath, ['--no-install', '-e', `
+        let found = false;
+        try { import.meta.resolve('baileys'); found = true; } catch {}
+        if (found) throw new Error('The fixture must not contain Baileys');
+        const { STATIONS } = await import('./node_modules/@metro-labs/daemon/src/stations/registry.ts');
+        process.stdout.write(JSON.stringify(STATIONS.map((station) => station.name).sort()));
+      `], {
+        cwd: root,
+        env: { HOME: root, PATH: process.env.PATH, METRO_LOG_LEVEL: 'silent' },
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+      expect(run.error).toBeUndefined();
+      expect(run.stderr).toBe('');
+      expect(run.status).toBe(0);
+      expect(JSON.parse(run.stdout)).toEqual([...STATIONS].sort());
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test('the npm package itself carries no runtime dependency at all', () => {

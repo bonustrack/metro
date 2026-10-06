@@ -89,6 +89,7 @@ echo "3. the filtered image install, as the Dockerfile does it"
 IMG="$TMP/image"
 mkdir -p "$IMG"
 cp package.json bun.lock turbo.json "$IMG/"
+cp -R patches "$IMG/"
 for m in apps/*/package.json packages/*/package.json; do
   mkdir -p "$IMG/$(dirname "$m")"
   cp "$m" "$IMG/$m"
