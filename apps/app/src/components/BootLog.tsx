@@ -3,7 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { fetchBootView, type BootView } from '@metro-labs/client/api/launch';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';

@@ -54,10 +54,12 @@ try {
   assert.ok(finished.updatedAt >= parallel.updatedAt);
   assert.ok(running.tasks[0]?.startedAt);
   assert.ok(finished.events.some((event) => event.kind === 'task_completed'));
+  assert.equal(finished.tasks[0]?.description, 'check');
+  assert.equal(finished.tasks[0]?.lastObservedModel, 'vendor/model-a');
   assert.ok(!readFileSync(path, 'utf8').includes('PRIVATE-FIXTURE-CONTENT'));
   await agent.stop();
   assert.equal((await poll()).phase, 'stopped');
-  h.say('activity_proof', { polls: samples.length, session: finished.sessionId, runningWorkers: running.workers, mainWhileWorkerRuns: parallel.mainPhase, finishedWorkers: finished.workers, finalTaskState: finished.tasks[0]?.status, stopped: true, sanitized: true, cost: 0 });
+  h.say('activity_proof', { polls: samples.length, session: finished.sessionId, runningWorkers: running.workers, mainWhileWorkerRuns: parallel.mainPhase, finishedWorkers: finished.workers, finalTaskState: finished.tasks[0]?.status, description: finished.tasks[0]?.description, lastObservedModel: finished.tasks[0]?.lastObservedModel, stopped: true, sanitized: true, cost: 0 });
 } finally {
   await agent.stop();
   h.close();

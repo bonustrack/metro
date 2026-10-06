@@ -35,6 +35,23 @@ describe('main agent and worker activity', () => {
     expect(view({ mainPhase: 'error' }).main).toBe('Main agent: error');
   });
 
+  test('worker titles and last observed models stay explicit across live, stale and completed views', () => {
+    const reported = { ...task, description: 'Inspect worker metadata', lastObservedModel: 'openrouter:anthropic/worker-model' };
+    for (const at of [now, now + 40_000]) {
+      const row = view({ tasks: [reported] }, at).workers[0];
+      expect(row).toMatchObject({ title: 'Inspect worker metadata', lastObservedModel: 'openrouter:anthropic/worker-model' });
+      expect(row?.details).toContain('Worker ID: worker-1');
+      expect(row?.details).toContain('Task: Inspect worker metadata');
+      expect(row?.details).toContain('Last observed model: openrouter:anthropic/worker-model');
+    }
+    expect(view({ tasks: [{ ...reported, status: 'completed' }] }).workers[0]).toMatchObject({ title: reported.description, lastObservedModel: reported.lastObservedModel });
+    for (const unknown of [{ ...task }, { ...task, description: null, lastObservedModel: null }, { ...task, description: '\nprivate', lastObservedModel: '<synthetic>' }]) {
+      const row = view({ tasks: [unknown], model: 'main-model', lastServed: { model: 'gateway-model' } }).workers[0];
+      expect(row).toMatchObject({ title: 'Unknown task', lastObservedModel: 'Unknown' });
+      expect(row?.details).toContain('Last observed model: Unknown');
+    }
+  });
+
   test('unassigned worker tools never appear as main tools and older snapshots stay compatible', () => {
     const unassigned = { id: 'tool-3', name: 'Grep', taskId: null, worker: true, startedAt: now - 3_000 };
     const activeTools = [{ ...mainTool, worker: false }, { ...workerTool, worker: true }, unassigned];
@@ -89,6 +106,10 @@ describe('main agent and worker activity', () => {
       expect(row?.summary).toContain(`${state} in 45 s`);
       expect(row?.summary).toContain('last tool Read · 3 tool uses · ended 2 s ago');
       expect(row?.danger).toBe(state === 'failed');
+    }
+    for (const status of ['pending', 'running', 'completed', 'failed', 'stopped', 'paused', 'unknown']) {
+      for (const at of [now, now + 40_000]) expect(view({ tasks: [{ ...task, status }] }, at).workers[0]?.status).toBe(status);
+      expect(view({ tasks: [{ ...task, status }] }, now, { running: false }).workers[0]?.status).toBe(status);
     }
     expect(view({ tasks: [{ ...task, status: 'paused' }] }).workers[0]?.summary).toContain('paused (1 min)');
     expect(view({ tasks: [{ ...task, status: 'pending' }] }).workers[0]?.summary).toContain('waiting to start (1 min)');
@@ -167,12 +188,13 @@ describe('recent sanitized events and polling', () => {
     const privateFields = { description: 'private-description', prompt: 'private-prompt', summary: 'private-summary', toolArgs: { command: 'private-command' } };
     const safe = view({
       ...privateFields,
-      tasks: [{ ...task, ...privateFields }],
+      tasks: [{ ...task, ...privateFields, description: 'Inspect worker metadata\nprivate-following-line', lastObservedModel: 'worker-model' }],
       activeTools: [{ ...mainTool, ...privateFields }],
       events: [{ at: now, kind: 'tool_started', tool: 'Read', ...privateFields }],
     });
     expect(JSON.stringify(safe)).not.toContain('private-');
     expect(safe.events).toEqual(['just now · Tool started · Read']);
+    expect(safe.workers[0]).toMatchObject({ title: 'Inspect worker metadata', lastObservedModel: 'worker-model' });
   });
 
   test('recovered errors stay visible as neutral historical details, not a current warning', () => {

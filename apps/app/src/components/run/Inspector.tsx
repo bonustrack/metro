@@ -60,7 +60,7 @@ export function RunInspector({ entry, entries, onSelect, visible }: Props): Reac
       {entry.truncated && <Text size="2xs" role="secondary">This message was truncated by the bounded feed. Open its conversation for the full message.</Text>}
       {entry.session !== null && <Text size="sm" role="secondary">Tool inputs, full results, task prompts and hidden reasoning are not part of this snapshot. Check Conversations for available transcript content.</Text>}
       {entry.session === null && <Text size="2xs" role="secondary">A retained Metro event, not proof of delivery to a particular SDK turn or worker. Message text is not an instruction to this page.</Text>}
-      <Button dark={dark} color="secondary" variant="ghost" label={metadata ? 'Hide metadata' : 'Show metadata'} onPress={() => { setMetadata(!metadata); }} accessibilityState={{ expanded: metadata }} />
+      <Button dark={dark} color="secondary" label={metadata ? 'Hide metadata' : 'Show metadata'} onPress={() => { setMetadata(!metadata); }} accessibilityState={{ expanded: metadata }} />
       {metadata && <EntryMetadata entry={entry} />}
     </Col>}
   </Col>;

@@ -251,15 +251,21 @@ export class Activity {
   private content(message: Extract<SDKMessage, { type: 'assistant' | 'user' }>): void {
     const content = message.message.content;
     const parent = message.parent_tool_use_id ?? null;
-    if (parent === null && message.type === 'assistant') {
-      this.turn();
-      if (message.error !== undefined) this.providerCode = message.error === 'unknown' ? null : PROVIDER_ERRORS[message.error];
-    }
+    if (message.type === 'assistant') this.assistant(message, parent);
     if (Array.isArray(content)) for (const block of content) if (isRecord(block)) this.block(block, parent);
   }
 
+  private assistant(message: Extract<SDKMessage, { type: 'assistant' }>, parent: string | null): void {
+    if (parent !== null) { this.tasks.model(parent, message.message.model); return; }
+    this.turn();
+    if (message.error !== undefined) this.providerCode = message.error === 'unknown' ? null : PROVIDER_ERRORS[message.error];
+  }
+
   private block(block: Record<string, unknown>, parent: string | null): void {
-    if (block.type === 'tool_use' && typeof block.id === 'string') this.tool(block.id, block.name, parent);
+    if (block.type === 'tool_use' && typeof block.id === 'string') {
+      if (block.name === 'Agent' || block.name === 'Task') this.tasks.launch(block.id, block.input);
+      this.tool(block.id, block.name, parent);
+    }
     else if (block.type === 'tool_result' && typeof block.tool_use_id === 'string') this.finish(block.tool_use_id, block.is_error === true, parent, block.content);
   }
 

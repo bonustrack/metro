@@ -1,17 +1,19 @@
 import { useState, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import { Badge } from '@stage-labs/kit/react-native/badge';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from '../Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { statusColor } from '../../lib/theme.js';
+import { Icon } from '../Icon.js';
+import { WORKER_STATE } from './worker-state.js';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { freshness, sessionView, type Activity, type Freshness } from './session.js';
-import { short } from './model.js';
 
-const styles = StyleSheet.create({ worker: { flex: 1, minWidth: 220 } });
+const styles = StyleSheet.create({ worker: { flex: 1, minWidth: 220 }, title: { flex: 1, minWidth: 0 } });
 
 interface Props {
   status: ClaudeSessionStatus | undefined;
@@ -44,7 +46,7 @@ function CurrentHeader({ state, dark, onSession }: { state: Freshness; dark: boo
   const title = state === 'Fresh' ? 'Right now' : state === 'Stale' || state === 'Disconnected' ? 'Last observed state' : 'Session status';
   return <Row justify="between" align="center" wrap gap={8}>
     <Row gap={8} align="center"><Text weight="semibold">{title}</Text><Badge label={state} color={state === 'Stale' || state === 'Disconnected' ? 'warning' : undefined} /></Row>
-    <Button dark={dark} color="secondary" variant="ghost" label="Session details" onPress={onSession} />
+    <Button dark={dark} color="secondary" label="Session details" onPress={onSession} />
   </Row>;
 }
 
@@ -76,11 +78,15 @@ function MainSessionCard({ status, disconnected, view, state, observed, dark }: 
 }
 
 function WorkerCard({ row, dark, onDetails, onWorker }: { row: Worker; dark: boolean; onDetails: (id: string) => void; onWorker: Props['onWorker'] }): ReactNode {
+  const palette = useKitPalette();
+  const mark = WORKER_STATE[row.status];
+  const color = mark.color === null ? palette.text : statusColor(mark.color, dark ? 'dark' : 'light');
   return <Col style={styles.worker}><Card dark={dark}><Col gap={8}>
-    <Row gap={8} wrap align="center"><Text size="sm" weight="semibold">{short(row.id)}</Text>{row.danger && <Badge label="Failed" color="danger" />}</Row>
-    <Text size="sm">{row.summary}</Text>
-    <Row gap={8} wrap><Button dark={dark} color="secondary" variant="ghost" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
-      <Button dark={dark} color="secondary" variant="ghost" label="Activity" accessibilityLabel={`Filter activity for worker ${row.id}`} onPress={() => { onWorker(row.id); }} /></Row>
+    <Text size="sm" weight="semibold" numberOfLines={1}>{row.title}</Text>
+    <Text size="2xs" role="secondary" numberOfLines={1}>Last observed model: {row.lastObservedModel}</Text>
+    <Row gap={8} align="start"><Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={mark.icon} size={18} color={color} /></Box><Text size="sm" style={styles.title}>{row.summary}</Text></Row>
+    <Row gap={8} wrap><Button dark={dark} color="secondary" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
+      <Button dark={dark} color="secondary" label="Activity" accessibilityLabel={`Filter activity for worker ${row.id}`} onPress={() => { onWorker(row.id); }} /></Row>
   </Col></Card></Col>;
 }
 
@@ -92,7 +98,7 @@ function CurrentWorkers({ workers, observed, dark, narrow, onWorker }: Pick<Prop
   return <>
     {workers.length > 0 && <Col gap={10}>
       <Row justify="between" align="center" wrap gap={8}><Text size="sm" weight="semibold">{observed ? 'Workers' : 'Last reported workers'}</Text>
-        <Button dark={dark} color="secondary" variant="ghost" label={expanded ? 'Show fewer workers' : `Show all workers (${String(workers.length)})`} onPress={() => { setExpanded(!expanded); }} accessibilityState={{ expanded }} /></Row>
+        <Button dark={dark} color="secondary" label={expanded ? 'Show fewer workers' : `Show all workers (${String(workers.length)})`} onPress={() => { setExpanded(!expanded); }} accessibilityState={{ expanded }} /></Row>
       <Row gap={12} wrap align="start">{shown.map((row) => <WorkerCard key={row.id} row={row} dark={dark} onDetails={setWorkerId} onWorker={onWorker} />)}</Row>
       <Text size="2xs" role="secondary">Members of this SDK session, not a nested tree. Up to 30 recent tasks, including completed and background work.</Text>
     </Col>}

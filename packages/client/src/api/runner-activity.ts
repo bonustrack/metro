@@ -4,7 +4,8 @@ import { activityIsStale } from './runner.js';
 
 type Mode = 'live' | 'stale' | 'past';
 interface Clock { mode: Mode; at: number; now: number }
-interface WorkerRow { id: string; summary: string; details: string; danger: boolean }
+interface ActivityRow { id: string; summary: string; details: string; danger: boolean }
+interface WorkerRow extends ActivityRow { title: string; lastObservedModel: string; status: RunnerTaskState }
 
 const PHASE: Record<RunnerPhase, string> = {
   starting: 'starting', idle: 'idle', working: 'working', approval: 'waiting for approval',
@@ -106,9 +107,13 @@ function taskTools(task: RunnerTask, tools: RunnerTool[], clock: Clock): string 
   return task.lastTool === null ? 'no tool reported' : `last tool ${task.lastTool}`;
 }
 
+function taskIdentity(task: RunnerTask): string[] {
+  return [`Worker ID: ${task.id}`, `Task: ${task.description ?? 'Unknown task'}`, `Last observed model: ${task.lastObservedModel ?? 'Unknown'}`];
+}
+
 function taskDetails(task: RunnerTask, tools: RunnerTool[], clock: Clock): string {
   return [
-    `Worker ID: ${task.id}`,
+    ...taskIdentity(task),
     `Agent: ${task.agent ?? 'Not reported'}`,
     `Kind: ${task.kind ?? 'Not reported'}`,
     `Status: ${taskStatus(task, clock)}`,
@@ -131,6 +136,9 @@ function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
     const uses = terminal(task) ? ` · ${task.toolUses} tool uses` : '';
     return {
       id: task.id,
+      status: task.status,
+      title: task.description ?? 'Unknown task',
+      lastObservedModel: task.lastObservedModel ?? 'Unknown',
       summary: `${task.agent ?? task.kind ?? 'Worker'} · ${taskStatus(task, clock)} · ${taskTools(task, tools, clock)}${uses} · ${progress}`,
       details: taskDetails(task, tools, clock),
       danger: task.status === 'failed',
@@ -178,7 +186,7 @@ function inputDelay(start: number, end: number | null): string {
   return ms < 1_000 ? `${ms} ms` : duration(ms);
 }
 
-function inputRows(activity: RunnerActivity): WorkerRow[] {
+function inputRows(activity: RunnerActivity): ActivityRow[] {
   return (activity.inputs ?? []).map((input) => ({
     id: input.id,
     summary: `${INPUT_KIND[input.kind]} · ${INPUT_STATE[input.state]} · accepted ${date(input.acceptedAt)}`,
@@ -201,7 +209,7 @@ function queueStatus(activity: RunnerActivity, clock: Clock): string | null {
 
 export function activityView(status: ClaudeSessionStatus, activity: RunnerActivity, now: number): {
   mode: Mode; note: string; main: string; tools: string; workers: WorkerRow[]; events: string[]; failures: { text: string; danger: boolean }[];
-  queue: string | null; call: string | null; inputs: WorkerRow[];
+  queue: string | null; call: string | null; inputs: ActivityRow[];
 } {
   const clock = clockOf(status, activity, now);
   return {

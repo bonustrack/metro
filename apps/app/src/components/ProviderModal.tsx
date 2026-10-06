@@ -6,7 +6,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { CodexConnect } from './CodexConnect.js';
 import { GeminiConnect } from './GeminiConnect.js';
 import { OpenRouterConnect } from './OpenRouterConnect.js';

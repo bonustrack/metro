@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { baseFromSegment, daemonBase } from '@metro-labs/client/auth/daemon';

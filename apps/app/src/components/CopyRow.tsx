@@ -24,7 +24,6 @@ export function CopyRow({ title, note, value, secret = false }: { title: string;
           <Button
             size="md"
             color="secondary"
-            variant="ghost"
             dark={dark}
             label={shown ? 'Hide' : 'Show'}
             onPress={() => {

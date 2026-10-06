@@ -1,16 +1,19 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { RunnerEventKind, RunnerTask, RunnerTaskState } from '@metro-labs/core/runner-activity';
+import { isRecord } from '@metro-labs/core/is-record';
+import { runnerTaskDescription, runnerTaskModel, type RunnerEventKind, type RunnerTask, type RunnerTaskState } from '@metro-labs/core/runner-activity';
 
 export const activityName = (name: unknown): string | null => typeof name === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(name) ? name : null;
 const live = (task: RunnerTask): boolean => ['running', 'pending', 'paused'].includes(task.status);
 const terminal = (status: RunnerTaskState): boolean => ['completed', 'failed', 'stopped'].includes(status);
 type System = Extract<SDKMessage, { type: 'system' }>;
 type Emit = (kind: RunnerEventKind, tool?: string | null, taskId?: string | null) => void;
+type Metadata = Pick<RunnerTask, 'description' | 'lastObservedModel'>;
 
 export class ActivityTasks {
   private readonly tasks = new Map<string, RunnerTask>();
   private readonly parents = new Map<string, string>();
   private readonly hidden = new Map<string, string>();
+  private readonly pending = new Map<string, Metadata>();
   constructor(private readonly emit: Emit) {}
 
   snapshot(): RunnerTask[] {
@@ -32,6 +35,41 @@ export class ActivityTasks {
       case 'background_tasks_changed': this.replace(message); break;
       default: break;
     }
+  }
+
+  launch(id: string, input: unknown): void {
+    if (!isRecord(input)) return;
+    const description = runnerTaskDescription(input.description);
+    if (description !== null) this.metadata(id, { description });
+  }
+
+  model(parent: string, value: unknown): void {
+    const lastObservedModel = runnerTaskModel(value);
+    if (lastObservedModel !== null) this.metadata(parent, { lastObservedModel });
+  }
+
+  private metadata(parent: string, fields: Metadata): void {
+    if (!activityName(parent) || this.isHidden(parent)) return;
+    const id = this.taskFor(parent);
+    const task = id === null ? undefined : this.tasks.get(id);
+    if (task !== undefined) { Object.assign(task, fields); return; }
+    const known = this.pending.get(parent);
+    this.pending.delete(parent);
+    const oldest = this.pending.keys().next();
+    if (this.pending.size >= 200 && !oldest.done) this.pending.delete(oldest.value);
+    this.pending.set(parent, { ...known, ...fields });
+  }
+
+  private link(parent: string, id: string): void {
+    this.parents.set(parent, id);
+    const task = this.tasks.get(id);
+    if (task !== undefined) Object.assign(task, this.pending.get(parent));
+    this.pending.delete(parent);
+  }
+
+  private describe(task: RunnerTask, value: unknown): void {
+    const description = runnerTaskDescription(value);
+    if (description !== null) task.description = description;
   }
 
   stop(): void {
@@ -61,6 +99,7 @@ export class ActivityTasks {
       const oldest = this.hidden.keys().next();
       if (this.hidden.size >= 400 && !oldest.done) this.hidden.delete(oldest.value);
       this.hidden.set(key, id);
+      this.pending.delete(key);
     }
   }
 
@@ -71,7 +110,7 @@ export class ActivityTasks {
     for (const [key, taskId] of this.hidden) {
       if (taskId !== id) continue;
       this.hidden.delete(key);
-      this.parents.set(key, id);
+      this.link(key, id);
     }
     return task;
   }
@@ -80,18 +119,20 @@ export class ActivityTasks {
     if (message.ambient || message.skip_transcript) { this.hide(message.task_id, message.tool_use_id); return; }
     const task = this.get(message.task_id);
     if (!task) return;
-    task.kind = activityName(message.task_type);
-    task.agent = activityName(message.subagent_type);
+    task.kind = activityName(message.task_type) ?? task.kind;
+    task.agent = activityName(message.subagent_type) ?? task.agent;
     task.background = message.is_backgrounded === true;
     task.startedAt = Date.now();
     task.endedAt = null;
-    if (message.tool_use_id) this.parents.set(message.tool_use_id, task.id);
+    if (message.tool_use_id) this.link(message.tool_use_id, task.id);
+    this.describe(task, message.description);
     this.status(task, 'running');
   }
 
   private progress(message: Extract<System, { subtype: 'task_progress' }>): void {
     const task = this.tasks.get(message.task_id);
     if (!task || terminal(task.status)) return;
+    if (message.tool_use_id) this.link(message.tool_use_id, task.id);
     task.lastTool = activityName(message.last_tool_name);
     task.toolUses = message.usage.tool_uses;
     task.durationMs = message.usage.duration_ms;
@@ -101,15 +142,17 @@ export class ActivityTasks {
   private patch(message: Extract<System, { subtype: 'task_updated' }>): void {
     const task = this.tasks.get(message.task_id);
     if (!task) return;
+    this.describe(task, message.patch.description);
     if (message.patch.is_backgrounded !== undefined) task.background = message.patch.is_backgrounded;
     if (message.patch.status) this.status(task, message.patch.status === 'killed' ? 'stopped' : message.patch.status);
     task.updatedAt = Date.now();
   }
 
   private end(message: Extract<System, { subtype: 'task_notification' }>): void {
-    if (message.ambient || message.skip_transcript) { this.hide(message.task_id); return; }
+    if (message.ambient || message.skip_transcript) { this.hide(message.task_id, message.tool_use_id); return; }
     const task = this.get(message.task_id);
     if (!task) return;
+    if (message.tool_use_id) this.link(message.tool_use_id, task.id);
     if (message.usage) {
       task.durationMs = message.usage.duration_ms;
       task.toolUses = message.usage.tool_uses;
@@ -123,7 +166,9 @@ export class ActivityTasks {
     for (const row of message.tasks) {
       if (row.ambient) { this.hide(row.task_id); continue; }
       const task = this.show(row.task_id);
-      if (!task || terminal(task.status)) continue;
+      if (!task) continue;
+      this.describe(task, row.description);
+      if (terminal(task.status)) continue;
       task.kind = activityName(row.task_type);
       task.background = true;
       this.status(task, 'running');

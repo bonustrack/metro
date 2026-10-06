@@ -137,7 +137,7 @@ function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): Re
     <Row align="center" gap={12} wrap>
       <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
       <Button size="md" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
-      {form.avatar === null ? null : <Button size="md" color="secondary" variant="ghost" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
+      {form.avatar === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
       {form.picker.error === null ? null : <Text size="2xs" role="danger">{form.picker.error}</Text>}
     </Row>
   );

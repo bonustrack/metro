@@ -20,8 +20,8 @@ function CodeLinks({ busy, onResend, onReset }: { busy: boolean; onResend: () =>
   const dark = useKitScheme() === 'dark';
   return (
     <Row justify="center" gap={16} wrap>
-      <Button size="md" color="secondary" variant="ghost" dark={dark} label="Send a new code" disabled={busy} onPress={onResend} />
-      <Button size="md" color="secondary" variant="ghost" dark={dark} label="Use another email" disabled={busy} onPress={onReset} />
+      <Button size="md" color="secondary" dark={dark} label="Send a new code" disabled={busy} onPress={onResend} />
+      <Button size="md" color="secondary" dark={dark} label="Use another email" disabled={busy} onPress={onReset} />
     </Row>
   );
 }

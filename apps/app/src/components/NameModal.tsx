@@ -5,7 +5,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../lib/style.js';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { queryError } from '../lib/queries.js';
 
 interface NameModalProps {

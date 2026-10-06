@@ -11,7 +11,7 @@ import {
   type NewConnector,
 } from '@metro-labs/client/api/connectors';
 import { useMachineQuery } from '../lib/queries.js';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { goExternal } from '../lib/open.js';
 
 type FieldKey = keyof NewConnector;

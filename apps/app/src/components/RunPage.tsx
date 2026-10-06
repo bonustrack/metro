@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { AgentSummary } from '@metro-labs/client/api/client';
@@ -97,7 +97,7 @@ function RunData({ agent, agentError, agentPending }: { agent: AgentSummary | un
   return <Col gap={24} testID="run-page">
     <Col gap={10}>
       <Row gap={8} align="center" wrap><PageTitle>Run</PageTitle><Col style={styles.grow} />
-        <Button dark={dark} color="secondary" variant="ghost" label="What is available?" onPress={() => { setCoverage(true); }} /></Row>
+        <Button dark={dark} color="secondary" label="What is available?" onPress={() => { setCoverage(true); }} /></Row>
       <Row gap={8} align="center" wrap><Text size="sm" weight="semibold">{agent?.name ?? 'Agent'}</Text>
         <Text size="sm" role="secondary">Selected model: {selectedModel(data.settings)}</Text></Row>
       {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}

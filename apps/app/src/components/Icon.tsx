@@ -12,6 +12,10 @@ import { IconChevronGrabberVertical } from '@central-icons-react-native/round-ou
 import { IconChevronRight } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronRight';
 import { IconChip } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChip';
 import { IconCircleBanSign } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCircleBanSign';
+import { IconClock } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconClock';
+import { IconPause } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPause';
+import { IconPlay } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlay';
+import { IconQuestionmarkCircle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconQuestionmarkCircle';
 import { IconDotGrid1x3Horizontal } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconDotGrid1x3Horizontal';
 import { IconExclamationCircle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconExclamationCircle';
 import { IconFileText } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconFileText';
@@ -47,6 +51,10 @@ const ICONS = {
   chevronRight: IconChevronRight,
   chip: IconChip,
   cog: IconSettingsGear2,
+  clock: IconClock,
+  pause: IconPause,
+  play: IconPlay,
+  question: IconQuestionmarkCircle,
   desktop: IconImac,
   documentText: IconFileText,
   dotsHorizontal: IconDotGrid1x3Horizontal,

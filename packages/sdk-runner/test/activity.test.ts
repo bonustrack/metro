@@ -40,7 +40,7 @@ describe('SDK activity uses existing Terminal and a bounded private status snaps
     expect(activity.snapshot().phase).toBe('approval');
     activity.approval('a', null);
     activity.observe(msg({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'PRIVATE-RESULT' }] } }));
-    activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'worker-1', description: 'PRIVATE-PROMPT' }));
+    activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'worker-1', description: 'Check worker activity', prompt: 'PRIVATE-PROMPT' }));
     activity.pending(0);
     activity.observe(msg({ type: 'result', subtype: 'success', is_error: false }));
     expect(activity.snapshot()).toMatchObject({ phase: 'working', workers: 1, tools: [], pending: 0 });
@@ -87,7 +87,7 @@ describe('SDK activity uses existing Terminal and a bounded private status snaps
 test('real task events expose worker lifecycle without prompts or summaries', () => {
   const { activity, path } = monitoring();
   activity.connected();
-  activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'w1', tool_use_id: 'call-1', subagent_type: 'worker', task_type: 'local_agent', is_backgrounded: true, description: 'PRIVATE', prompt: 'PRIVATE' }));
+  activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'w1', tool_use_id: 'call-1', subagent_type: 'worker', task_type: 'local_agent', is_backgrounded: true, description: 'Check worker activity', prompt: 'PRIVATE' }));
   activity.observe(msg({ type: 'system', subtype: 'task_progress', task_id: 'w1', usage: { total_tokens: 100, tool_uses: 3, duration_ms: 1500 }, last_tool_name: 'Grep', summary: 'PRIVATE' }));
   expect(activity.snapshot()).toMatchObject({ workers: 1, phase: 'working', mainPhase: 'idle' });
   expect(activity.snapshot().tasks[0]).toMatchObject({ id: 'w1', agent: 'worker', kind: 'local_agent', status: 'running', background: true, lastTool: 'Grep', toolUses: 3, durationMs: 1500 });
@@ -108,7 +108,7 @@ test('background list replacement does not invent completion or revive finished 
   const { activity } = monitoring();
   activity.connected();
   activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'bg1', is_backgrounded: true }));
-  const replace = msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'bg2', task_type: 'local_bash', description: 'PRIVATE' }, { task_id: 'amb', ambient: true }] });
+  const replace = msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'bg2', task_type: 'local_bash', description: 'Check worker activity' }, { task_id: 'amb', ambient: true }] });
   activity.observe(replace);
   expect(activity.snapshot().tasks.map(({ id, status }) => [id, status])).toEqual([['bg2', 'running'], ['bg1', 'unknown']]);
   expect(activity.snapshot().tasks[1]?.endedAt).toBeNull();
@@ -126,7 +126,7 @@ test('an ambient task becoming active becomes visible along with its next tool',
   activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'watcher', tool_use_id: 'watch-call', ambient: true }));
   activity.observe(msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'watcher', ambient: true }] }));
   expect(activity.snapshot().workers).toBe(0);
-  activity.observe(msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'watcher', task_type: 'local_agent', ambient: false, description: 'PRIVATE' }] }));
+  activity.observe(msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'watcher', task_type: 'local_agent', ambient: false, description: 'Check worker activity' }] }));
   activity.observe(msg({ type: 'assistant', parent_tool_use_id: 'watch-call', message: { content: [{ type: 'tool_use', id: 'watch-read', name: 'Read', input: 'PRIVATE' }] } }));
   expect(activity.snapshot()).toMatchObject({ workers: 1, mainPhase: 'idle', activeTools: [{ id: 'watch-read', taskId: 'watcher' }] });
   expect(activity.snapshot().tasks[0]).toMatchObject({ id: 'watcher', status: 'running' });

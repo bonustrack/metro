@@ -18,6 +18,9 @@ test('activity reads are bounded, optional and do not return arbitrary snapshot 
   writeFileSync(path, JSON.stringify({ runner: 'sdk', pid: 123, updatedAt: 1000, phase: 'starting', key: 'not-for-api' }));
   expect(readAgentActivity(home)).toMatchObject({ runner: 'sdk', phase: 'starting', pid: 123 });
   expect(readAgentActivity(home)).not.toHaveProperty('key');
+  writeFileSync(path, JSON.stringify({ runner: 'sdk', pid: 123, updatedAt: 1000, phase: 'idle', tasks: [{ id: 'w', status: 'running', description: 'Inspect worker\nPRIVATE prompt', lastObservedModel: 'worker-model', summary: 'PRIVATE result' }] }));
+  expect(readAgentActivity(home)?.tasks[0]).toMatchObject({ description: 'Inspect worker', lastObservedModel: 'worker-model' });
+  expect(JSON.stringify(readAgentActivity(home))).not.toContain('PRIVATE');
   const valid = JSON.stringify({ runner: 'sdk', pid: 123, updatedAt: 1000, phase: 'idle' });
   writeFileSync(path, valid.padEnd(65_536));
   expect(readAgentActivity(home)).not.toBeNull();

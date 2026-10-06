@@ -5,7 +5,7 @@ import { offeredStations, type AttachResult } from '@metro-labs/client/api/attac
 import { type AttachSession as Session } from '@metro-labs/client/api/attach-session';
 import { AttachedAccount } from './AttachedAccount.js';
 import { AttachSession } from './AttachSession.js';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { StationForm } from './StationForm.js';
 import { StationPicker } from './StationPicker.js';
 

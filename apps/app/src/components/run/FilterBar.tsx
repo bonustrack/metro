@@ -56,7 +56,7 @@ export function RunFiltersBar({ entries, filters, onChange, more, onMore, minute
     </Col>}
     {count > 0 && <Row gap={12} align="center" wrap>
       <Text size="2xs" role="secondary">{minute === null ? '' : `${stamp(minute)} · `}{count} active {count === 1 ? 'filter' : 'filters'}</Text>
-      <Button dark={dark} color="secondary" variant="ghost" label="Clear filters" onPress={onReset} />
+      <Button dark={dark} color="secondary" label="Clear filters" onPress={onReset} />
     </Row>}
   </Col>;
 }

@@ -30,6 +30,24 @@ describe('runner activity is optional, validated and bounded', () => {
     expect(parseRunnerActivity({ ...valid, lastError: 'Read failed. See its result in Conversations.' })?.lastError).toBe('Read failed. See its result in Conversations.');
   });
 
+  test('task descriptions and observed models have a narrow, idempotent allowlist', () => {
+    const task = { id: 'w', status: 'running', description: ' Review\tworker metadata\nPRIVATE second line', lastObservedModel: 'openrouter:anthropic/worker-model', prompt: 'PRIVATE', summary: 'PRIVATE', model: 'PRIVATE' };
+    const parsed = parseRunnerActivity({ ...valid, tasks: [task] });
+    expect(parsed?.tasks[0]).toMatchObject({ description: 'Review worker metadata', lastObservedModel: 'openrouter:anthropic/worker-model' });
+    expect(parseRunnerActivity(parsed)).toEqual(parsed);
+    expect(JSON.stringify(parsed)).not.toContain('PRIVATE');
+    for (const description of ['', '\nPRIVATE', null, {}, 17])
+      expect(parseRunnerActivity({ ...valid, tasks: [{ ...task, description }] })?.tasks[0]?.description).toBeNull();
+    for (const lastObservedModel of ['', '<synthetic>', 'bad model', 'bad\nmodel', 'm'.repeat(129), {}, 17])
+      expect(parseRunnerActivity({ ...valid, tasks: [{ ...task, lastObservedModel }] })?.tasks[0]?.lastObservedModel).toBeNull();
+    for (const separator of ['\r', '\n', String.fromCodePoint(0x2028), String.fromCodePoint(0x2029)])
+      expect(parseRunnerActivity({ ...valid, tasks: [{ ...task, description: `Title${separator}PRIVATE` }] })?.tasks[0]?.description).toBe('Title');
+    const bounded = parseRunnerActivity({ ...valid, tasks: [{ ...task, description: 'x'.repeat(200) }] })?.tasks[0];
+    expect(bounded?.description).toHaveLength(160);
+    expect(parseRunnerActivity({ ...valid, tasks: [{ id: 'old', status: 'running' }] })?.tasks[0]).not.toHaveProperty('description');
+    expect(parseRunnerActivity({ ...valid, tasks: [{ id: 'old', status: 'running' }] })?.tasks[0]).not.toHaveProperty('lastObservedModel');
+  });
+
   test('process identity is optional and accepts only a bounded numeric start time', () => {
     expect(parseRunnerActivity({ ...valid, procStart: '123456' })?.procStart).toBe('123456');
     for (const procStart of ['', '1;kill', '1'.repeat(33), 12, null])

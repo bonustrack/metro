@@ -4,7 +4,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { checkPassphrase } from '@metro-labs/client/export/passphrase';
 import { countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '@metro-labs/client/export/pack';
 import { useServersQuery } from '../lib/queries.js';

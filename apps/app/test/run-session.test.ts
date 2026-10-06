@@ -3,6 +3,7 @@ import { toClaudeSession } from '@metro-labs/client/api/claude-box';
 import { freshness, sdkEntries, sessionView } from '../src/components/run/session.js';
 import { clock, sameTimeRange, stamp } from '../src/components/run/model.js';
 import { eventBuckets } from '../src/components/run/filters.js';
+import { WORKER_STATE } from '../src/components/run/worker-state.js';
 
 const now = 100_000;
 const status = (extra: Record<string, unknown> = {}) => toClaudeSession({
@@ -16,6 +17,20 @@ const status = (extra: Record<string, unknown> = {}) => toClaudeSession({
 });
 
 describe('Run session semantics', () => {
+  test('all reported worker states have distinct icons and semantic colors where needed', () => {
+    expect(WORKER_STATE).toEqual({
+      pending: { icon: 'clock', color: null }, running: { icon: 'play', color: 'info' },
+      completed: { icon: 'check', color: 'success' }, failed: { icon: 'exclamationCircle', color: 'danger' },
+      stopped: { icon: 'ban', color: null }, paused: { icon: 'pause', color: null }, unknown: { icon: 'question', color: null },
+    });
+    expect(new Set(Object.values(WORKER_STATE).map((mark) => mark.icon)).size).toBe(7);
+    for (const state of Object.keys(WORKER_STATE)) {
+      const base = status();
+      const session = toClaudeSession({ ...base, activity: { ...base.activity, tasks: [{ id: 'w', status: state }] } });
+      for (const disconnected of [false, true]) expect(sessionView(session, now, disconnected)?.workers[0]?.status).toBe(state);
+    }
+  });
+
   test('main remains idle when a worker is running', () => {
     const session = status();
     expect(freshness(session, now, false)).toBe('Fresh');

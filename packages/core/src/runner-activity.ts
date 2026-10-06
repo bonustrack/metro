@@ -41,6 +41,8 @@ export interface RunnerTask {
   id: string;
   kind: string | null;
   agent: string | null;
+  description?: string | null;
+  lastObservedModel?: string | null;
   status: RunnerTaskState;
   background: boolean;
   startedAt: number;
@@ -116,12 +118,23 @@ const eventKind = (value: unknown): value is RunnerEventKind => EVENTS.some((e) 
 const name = (value: unknown): string | null => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value) ? value : null;
 const sessionId = (value: unknown): string | null => typeof value === 'string' && /^[0-9a-f-]{36}$/.test(value) ? value : null;
 
+export function runnerTaskDescription(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const line = value.split(/\r|\n|\p{Zl}|\p{Zp}/u, 1)[0] ?? '';
+  const description = line.replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 160).trim();
+  return description.length > 0 ? description : null;
+}
+
+export const runnerTaskModel = (value: unknown): string | null => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:/@+[\]-]{0,127}$/.test(value) ? value : null;
+
 function task(raw: unknown): RunnerTask | null {
   if (!isRecord(raw) || !name(raw.id) || !taskState(raw.status)) return null;
   return {
     id: String(raw.id), kind: name(raw.kind), agent: name(raw.agent), status: raw.status, background: raw.background === true,
     startedAt: count(raw.startedAt), updatedAt: count(raw.updatedAt), endedAt: count(raw.endedAt) || null,
     lastTool: name(raw.lastTool), toolUses: count(raw.toolUses), durationMs: count(raw.durationMs),
+    ...(raw.description === undefined ? {} : { description: runnerTaskDescription(raw.description) }),
+    ...(raw.lastObservedModel === undefined ? {} : { lastObservedModel: runnerTaskModel(raw.lastObservedModel) }),
   };
 }
 

@@ -4,7 +4,7 @@ import { Badge } from '@stage-labs/kit/react-native/badge';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Card } from '@stage-labs/kit/react-native/card';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from '../Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { RunActivity } from './Activity.js';
@@ -70,7 +70,7 @@ export function RunTimeline({ entries, now, notice, initialWorker = 'All' }: Pro
       <Row justify="between" align="center" wrap gap={8}>
         <Row align="center" gap={8}><Text weight="semibold">Activity</Text><Badge label={String(data.filtered.length)} /></Row>
         <Row align="center" gap={8}><Text size="2xs" role="secondary">Newest first · UTC</Text>
-          <Button dark={dark} color="secondary" variant="ghost" label={charts ? 'Hide charts' : 'Charts'} onPress={() => { setCharts(!charts); }} accessibilityState={{ expanded: charts }} /></Row>
+          <Button dark={dark} color="secondary" label={charts ? 'Hide charts' : 'Charts'} onPress={() => { setCharts(!charts); }} accessibilityState={{ expanded: charts }} /></Row>
       </Row>
       {notice}
       <RunFiltersBar entries={entries} filters={data.filters} onChange={data.change} more={data.more} onMore={data.toggleMore} minute={data.bucket?.start ?? null} onReset={data.reset} narrow={narrow} />

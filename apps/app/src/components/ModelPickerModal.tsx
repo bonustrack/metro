@@ -4,7 +4,7 @@ import { Icon } from './Icon.js';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from '@stage-labs/kit/react-native/modal';
+import { Modal } from './Modal.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { priceLabel, PROVIDERS, saveConnection, chooseConnection, type ConnectionRow, type ModelOption, type ModelSettings } from '@metro-labs/client/api/model';
 import { pickRows, typedRow, type PickRow } from '@metro-labs/client/api/providers';

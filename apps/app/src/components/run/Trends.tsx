@@ -52,7 +52,7 @@ export function RunTrends({ entries, selected, onSelect }: { entries: RunEntry[]
   return <Col gap={12} testID="run-charts">
     <Row gap={8} align="center" justify="between" wrap>
       <Tabs variant="underline" value={mode} options={[{ value: 'events', label: 'Events' }, { value: 'workers', label: 'Workers' }, { value: 'cost', label: 'Cost' }]} onChange={setMode} />
-      {mode === 'events' && <Button dark={dark} color="secondary" variant="ghost" label={table ? 'Hide table' : 'Show table'} onPress={() => { setTable(!table); }} />}
+      {mode === 'events' && <Button dark={dark} color="secondary" label={table ? 'Hide table' : 'Show table'} onPress={() => { setTable(!table); }} />}
     </Row>
     {mode === 'events' ? <>
       <EventPlot buckets={buckets} selected={selected} onSelect={onSelect} />
