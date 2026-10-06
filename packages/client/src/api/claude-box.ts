@@ -27,6 +27,13 @@ export function toClaudeSession(body: unknown): ClaudeSessionStatus {
   };
 }
 
+export type RuntimeSnapshot = Pick<ClaudeSessionStatus, 'running' | 'runner' | 'activity' | 'lastStartedAt'>;
+
+export function toRuntimeSnapshot(body: unknown): RuntimeSnapshot {
+  const { running, runner, activity, lastStartedAt } = toClaudeSession(body);
+  return { running, runner: running ? runner : null, activity, lastStartedAt };
+}
+
 export async function fetchClaudeSession(): Promise<ClaudeSessionStatus> {
   return toClaudeSession(await claudeCall('GET', '/session'));
 }

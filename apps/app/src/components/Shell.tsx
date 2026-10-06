@@ -3,6 +3,8 @@ import { useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { currentSelection } from '@metro-labs/client/route';
+import { NavRow } from './NavRow.js';
 import { TopBar } from './TopBar.js';
 import { Drawer } from './Drawer.js';
 import { DRAWER_WIDTH } from './DrawerPanel.js';
@@ -27,6 +29,9 @@ function SidebarBody({ sidebar, onLock, close }: { sidebar: (close: () => void) 
         <OrganizationSwitcher onNavigate={close} />
       </Col>
       <Col flex={1} minHeight={0}>
+        <Col padding={{ top: 12 }}>
+          <NavRow label="All agents" icon="server" selected={currentSelection().kind === 'all-agents'} target={{ kind: 'all-agents' }} onSelect={close} />
+        </Col>
         {sidebar(close)}
       </Col>
       <Col padding={{ x: 18, top: 12, bottom: 16 }} border={{ top: line }}>

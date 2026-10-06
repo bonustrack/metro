@@ -1,4 +1,6 @@
-import { storeAccount } from '../../packages/client/src/auth/account.ts';
+import { accountScopeIdentity, storeAccount } from '../../packages/client/src/auth/account.ts';
+import { dashboardSource, DASHBOARD_SINCE } from '../../packages/client/src/api/dashboard-source.ts';
+import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/client/src/api/dashboard.ts';
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import { connectorTransfer } from '../../packages/client/src/api/connector-copy.ts';
 import { isRecord } from '../../packages/client/src/read.ts';
@@ -103,6 +105,22 @@ if (!olderThan(daemonMode?.version ?? null, RUN_EVENTS_SINCE)) {
 await ok('fetchMachine', () => machine.fetchMachine());
 await ok('terminalStatus', () => term.terminalStatus());
 await ok('mintTerminalTicket', () => term.mintTerminalTicket('metro'));
+
+const dashboard = dashboardSource(accountScopeIdentity(), () => true);
+const dashboardAgent = { id: agent, host, name: null, slug: null, avatar: null };
+const dashboardRow: DashboardRow = {
+  key: dashboardKey(org, dashboardAgent), agent: dashboardAgent,
+  organization: { id: org, name: null, role: 'admin', slug: null, agents: [dashboardAgent] },
+  session: emptyReading(), model: emptyReading(),
+};
+for (const read of ['session', 'model'] as const) await ok(`dashboard ${read} snapshot or explicit upgrade notice`, async () => {
+  try {
+    await dashboard[read](dashboardRow, token, new AbortController().signal);
+    if (olderThan(daemonMode?.version ?? null, DASHBOARD_SINCE)) throw new Error('An old daemon was not gated.');
+  } catch (error) {
+    if (!(error instanceof client.NotFoundError) || !olderThan(daemonMode?.version ?? null, DASHBOARD_SINCE)) throw error;
+  }
+});
 
 await ok('fetchClaudeSession', () => box.fetchClaudeSession());
 await ok('controlClaudeSession autostart', () => box.controlClaudeSession({ autostart: false }));

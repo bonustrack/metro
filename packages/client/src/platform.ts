@@ -20,6 +20,7 @@ interface Platform {
   apiBase: string;
   signInReturn: (() => string) | null;
   random: (count: number) => Uint8Array;
+  fetchNoRedirect: (url: string, init: RequestInit) => Promise<Response>;
 }
 
 export const HOSTED_API = 'https://api.metro.box';
@@ -80,6 +81,7 @@ const current: Platform = {
   apiBase: HOSTED_API,
   signInReturn: null,
   random: (count) => crypto.getRandomValues(new Uint8Array(count)),
+  fetchNoRedirect: (url, init) => fetch(url, init),
 };
 
 export function configurePlatform(changes: Partial<Platform>): void {
@@ -91,6 +93,10 @@ export const location = (): Location => current.location;
 export const apiBase = (): string => current.apiBase;
 
 export const randomBytes = (count: number): Uint8Array => current.random(count);
+
+export function fetchNoRedirect(url: string, init: RequestInit = {}): Promise<Response> {
+  return current.fetchNoRedirect(url, { ...init, redirect: 'error' });
+}
 
 export function signInReturnUrl(): string {
   if (current.signInReturn !== null) return current.signInReturn();

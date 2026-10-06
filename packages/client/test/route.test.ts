@@ -64,8 +64,9 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/login?redirect=%2Fhost.example.com')).toEqual({ kind: 'none' });
   });
 
-  test('the root is the server list, and a server id is a first segment like a host', () => {
-    for (const root of ['#/', '#', '']) expect(routeSelection(root)).toEqual({ kind: 'servers' });
+  test('the root is global, and a server id is a first segment like a host', () => {
+    for (const root of ['#/', '#', '', '/']) expect(routeSelection(root)).toEqual({ kind: 'all-agents' });
+    expect(routeHash({ kind: 'all-agents' })).toBe('#/');
     expect(routeHash({ kind: 'servers' })).toBe('#/');
     expect(routeSelection('#/aB3-_xYz9Qw')).toEqual({ kind: 'home', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
@@ -148,7 +149,20 @@ describe('switching server keeps the page', () => {
   });
 });
 
-describe('the organization rides in front of every route but settings and docs', () => {
+describe('the organization rides in front of every scoped route', () => {
+  test('the all-agents home stays global with an account and after a scoped page', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    for (const organization of ['stage-labs', TEST_ORGANIZATION, 'other-org']) {
+      expect(routeSelection(`#/${organization}`)).toEqual({ kind: 'servers' });
+      expect(routeSelection(`#/${organization}/`)).toEqual({ kind: 'servers' });
+      expect(routeHash({ kind: 'all-agents' })).toBe('#/');
+      expect(routeSelection('#/')).toEqual({ kind: 'all-agents' });
+      expect(routedOrganization()).toBeNull();
+      expect(routeHash({ kind: 'all-agents' })).toBe('#/');
+      expect(routeHash({ kind: 'servers' })).toBe('#/stage-labs');
+    }
+  });
+
   test('an organization id is split off the hash and remembered; a host or an agent id is not', () => {
     expect(splitOrganization('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members')).toEqual({ organization: 'org_01ABCDEFGHIJKLMNOPQRSTUVWX', rest: '#/members' });
     expect(splitOrganization('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX')).toEqual({ organization: 'org_01ABCDEFGHIJKLMNOPQRSTUVWX', rest: '#/' });

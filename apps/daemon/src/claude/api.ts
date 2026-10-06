@@ -26,6 +26,7 @@ import { setupAnswer, type SetupApiDeps } from './setup-api.js';
 import {
   autostartEnabled,
   ensureSession,
+  sessionSnapshot,
   sessionStatus,
   setAutostart,
   startSession,
@@ -270,6 +271,11 @@ export function handleClaudeRequest(
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
+      if (path === `${PREFIX}/session/snapshot`) {
+        if (req.method !== 'GET') throw new ApiError('method not allowed', 405);
+        sendJson(req, res, 200, sessionSnapshot(deps.session));
+        return;
+      }
       if (req.method !== 'GET' && ADMIN_ONLY.test(path)) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps, session));

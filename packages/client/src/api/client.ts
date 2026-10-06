@@ -1,4 +1,5 @@
 import { daemonBase } from '../auth/daemon.js';
+import { fetchNoRedirect } from '../platform.js';
 import { toolGroupsOf, type GroupedTool } from './policy.js';
 import { accessToken, refreshAccount } from './auth.js';
 import { groupAccounts, type AccountGroup } from './accounts.js';
@@ -50,12 +51,15 @@ export interface CallInit {
   headers?: Record<string, string>;
   body?: string;
   checkAccount?: () => void;
+  signal?: AbortSignal;
+  redirect?: RequestRedirect;
 }
 
 async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
   init.checkAccount?.();
   try {
-    return await fetch(url, { method: init.method, headers: { authorization: `Bearer ${token}`, ...init.headers }, body: init.body });
+    const send = init.redirect === 'error' ? fetchNoRedirect : fetch;
+    return await send(url, { method: init.method, headers: { authorization: `Bearer ${token}`, ...init.headers }, body: init.body, signal: init.signal, redirect: init.redirect });
   } catch {
     throw new Error('Failed to reach Metro.');
   }
@@ -85,6 +89,15 @@ async function answered(init: CallInit): Promise<Response> {
 export async function call(init: CallInit): Promise<unknown> {
   const res = await answered(init);
   const body: unknown = await res.json().catch(() => null);
+  const failed = failure(res, body);
+  if (failed !== null) throw failed;
+  return body;
+}
+
+export async function callBearer(init: CallInit, token: string): Promise<unknown> {
+  const res = await sendBearer(`${init.base ?? agentsUrl()}${init.path ?? ''}`, { ...init, redirect: 'error' }, token);
+  const body: unknown = await res.json().catch(() => null);
+  init.checkAccount?.();
   const failed = failure(res, body);
   if (failed !== null) throw failed;
   return body;

@@ -1,5 +1,5 @@
 import { filled, isRecord } from '../read.js';
-import { readItem, writeItem } from '../platform.js';
+import { randomBytes, readItem, writeItem } from '../platform.js';
 
 const STORAGE_KEY = 'metro.account';
 const EXPIRY_MARGIN_MS = 60_000;
@@ -22,8 +22,57 @@ export interface Account {
 }
 
 let active: Account | null = null;
+let scopeIdentity = 0;
+let sessionScope: string | null = null;
+let signingOut: string | null = null;
+let stored: string | null | undefined;
+let listening: Window | null = null;
+const scopeListeners = new Set<() => void>();
 
-export const activeAccount = (): Account | null => active;
+export const activeAccount = (): Account | null => { syncAccount(); return active; };
+export const accountScopeIdentity = (): number => { syncAccount(); return scopeIdentity; };
+const browser = (): boolean => typeof window !== 'undefined' && typeof window.document === 'object';
+
+function storageChanged(event: StorageEvent): void {
+  if (event.key === STORAGE_KEY || event.key === null) syncAccount();
+}
+
+function syncAccount(): void {
+  if (!browser()) return;
+  if (listening !== window) {
+    listening?.removeEventListener('storage', storageChanged);
+    listening = window;
+    listening.addEventListener('storage', storageChanged);
+  }
+  const raw = readItem(STORAGE_KEY);
+  if (raw !== stored) readAccount(raw);
+}
+
+export async function withAccountLock<T>(run: () => Promise<T>): Promise<T> {
+  if (!browser()) return run();
+  if (typeof navigator === 'undefined' || navigator.locks === undefined) throw new Error('This browser cannot safely refresh your session. Use a browser with Web Locks.');
+  return await navigator.locks.request(STORAGE_KEY, () => { syncAccount(); return run(); });
+}
+
+export function beginAccountLogout(): number {
+  syncAccount();
+  if (browser()) {
+    signingOut = sessionScope;
+    active = null;
+    changedScope();
+  }
+  return scopeIdentity;
+}
+
+export function subscribeAccountScope(listener: () => void): () => void {
+  scopeListeners.add(listener);
+  return () => { scopeListeners.delete(listener); };
+}
+
+function changedScope(): void {
+  scopeIdentity += 1;
+  for (const listener of scopeListeners) listener();
+}
 
 const HANDOFF_RE = /^#\/auth\/([A-Za-z0-9_-]{16,128})$/;
 
@@ -42,7 +91,12 @@ function tokenClaims(token: string): Record<string, unknown> | null {
 
 export function tokenExpiry(token: string): number | null {
   const exp = tokenClaims(token)?.exp;
-  return typeof exp === 'number' ? exp * 1000 : null;
+  return typeof exp === 'number' && Number.isFinite(exp * 1000) ? exp * 1000 : null;
+}
+
+export function tokenMatchesAccount(account: Account): boolean {
+  const claims = tokenClaims(account.accessToken);
+  return claims?.sub === account.user.id && filled(claims.org_id) === account.organization;
 }
 
 export const tokenExpiring = (token: string, now = Date.now()): boolean => {
@@ -68,23 +122,53 @@ export function accountFrom(body: unknown): Account {
   };
 }
 
-export function loadAccount(): Account | null {
-  const raw = readItem(STORAGE_KEY);
-  if (raw === null) return (active = null);
+function storedScope(body: unknown, account: Account | null): string | null {
+  if (account === null) return null;
+  if (isRecord(body) && typeof body.sessionScope === 'string') return body.sessionScope;
+  return JSON.stringify([account.user.id, account.organization, tokenClaims(account.accessToken)?.sid]);
+}
+
+const storedIdentity = (): string => JSON.stringify([sessionScope, active?.user.id, active?.organization]);
+
+function readAccount(raw: string | null): void {
+  const previous = storedIdentity();
+  stored = raw;
   try {
-    active = accountFrom(JSON.parse(raw));
+    const body: unknown = raw === null ? null : JSON.parse(raw);
+    active = body === null ? null : accountFrom(body);
+    sessionScope = storedScope(body, active);
+    if (sessionScope === signingOut) active = null;
   } catch {
     active = null;
+    sessionScope = null;
   }
+  if (previous !== storedIdentity()) changedScope();
+}
+
+export function loadAccount(): Account | null {
+  readAccount(readItem(STORAGE_KEY));
+  syncAccount();
   return active;
 }
 
-export function storeAccount(account: Account): void {
+export function storeAccount(account: Account, scope?: number): void {
+  syncAccount();
+  if (scope !== undefined && (scope !== scopeIdentity || active?.user.id !== account.user.id || active.organization !== account.organization)) throw new Error('Your account changed, try again.');
   active = account;
-  writeItem(STORAGE_KEY, JSON.stringify(account));
+  if (scope === undefined) {
+    signingOut = null;
+    sessionScope = Array.from(randomBytes(16), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  writeItem(STORAGE_KEY, JSON.stringify({ ...account, sessionScope }));
+  stored = readItem(STORAGE_KEY);
+  if (scope === undefined) changedScope();
 }
 
 export function clearAccount(): void {
   active = null;
+  sessionScope = null;
+  signingOut = null;
   writeItem(STORAGE_KEY, null);
+  stored = readItem(STORAGE_KEY);
+  changedScope();
 }
