@@ -14,6 +14,7 @@ import {
   connectionOf,
   parseModelConfig,
   readModelConfig,
+  readModelSnapshot,
   removeConnection,
   setFallbacks,
   setRoute,
@@ -28,6 +29,7 @@ import { refreshUsage } from './usage-refresh.js';
 import { handleOpenRouterSignIn } from './openrouter-signin.js';
 
 const PATH = '/api/model';
+const SNAPSHOT = '/api/model/snapshot';
 const CONNECTIONS = '/api/model/connections';
 const FALLBACKS = '/api/model/fallbacks';
 const CODEX = '/api/model/codex/';
@@ -201,12 +203,13 @@ const TABLES: [string, Record<string, Route>][] = [
   [BEDROCK, BEDROCK_ROUTES],
   [GEMINI, GEMINI_ROUTES],
 ];
-const EXACT = new Set([PATH, FALLBACKS, BUNDLE, RESTORE, CONNECTIONS]);
+const EXACT = new Set([PATH, SNAPSHOT, FALLBACKS, BUNDLE, RESTORE, CONNECTIONS]);
 const PREFIXES = [`${CONNECTIONS}/`, CODEX, ...TABLES.map(([prefix]) => prefix)];
 
 const mine = (path: string): boolean => EXACT.has(path) || PREFIXES.some((prefix) => path.startsWith(prefix));
 
 function routeFor(path: string, method: string | undefined): Route | number {
+  if (path === SNAPSHOT) return method === 'GET' ? { method: 'GET', run: (_req, _deps, store) => Promise.resolve().then(() => settingsBody(store.read())).catch(asApiError) } : 405;
   if (path === PATH || path === FALLBACKS) return settingsRoute(path, method);
   if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
   if (path === CONNECTIONS || path.startsWith(`${CONNECTIONS}/`)) return connectionsRoute(path, method);
@@ -232,7 +235,7 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
     return true;
   }
   const store: Store = {
-    read: deps.read ?? readModelConfig,
+    read: deps.read ?? (path === SNAPSHOT ? readModelSnapshot : readModelConfig),
     write: (cfg) => {
       checkRunnerRoute(store.read(), cfg, deps);
       (deps.write ?? writeModelConfig)(cfg);

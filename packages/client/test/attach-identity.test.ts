@@ -11,12 +11,26 @@ import { installTestAccount, testToken } from './account-fixture.js';
 const BASE = 'https://original-box.invalid/api/agents';
 const PENDING = { attachId: 'attach', station: 'gmail', status: 'pending', step: 'browser' };
 const realFetch = globalThis.fetch;
+const realWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+const realNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 const seen: { url: string; bearer: string | null }[] = [];
 let original: Account;
 let identity: AccountIdentity;
 let respond: (url: string) => Promise<Response>;
 
 beforeEach(() => {
+  let queued: Promise<void> = Promise.resolve();
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    document: {}, addEventListener: () => undefined, removeEventListener: () => undefined,
+  } });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: {
+    request: <T>(name: string, run: () => Promise<T>): Promise<T> => {
+      expect(name).toBe('metro.account');
+      const pending = queued.then(run);
+      queued = pending.then(() => undefined, () => undefined);
+      return pending;
+    },
+  } } });
   configurePlatform({ kv: memoryKeyValue() });
   original = installTestAccount();
   const captured = accountIdentity();
@@ -31,6 +45,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (realWindow === undefined) Reflect.deleteProperty(globalThis, 'window');
+  else Object.defineProperty(globalThis, 'window', realWindow);
+  if (realNavigator === undefined) Reflect.deleteProperty(globalThis, 'navigator');
+  else Object.defineProperty(globalThis, 'navigator', realNavigator);
   globalThis.fetch = realFetch;
   clearAccount();
   configurePlatform({ kv: memoryKeyValue() });
@@ -154,23 +172,27 @@ describe('refresh races during an attachment', () => {
         const next = changed('user');
         if (storageOnly) writeItem('metro.account', JSON.stringify(next));
         else storeAccount(next);
+        const stored = readItem('metro.account');
         response.resolve(Response.json(status === 200 ? { ...original, refreshToken: 'rotated' } : { error: 'refused' }, { status }));
-        expect(await refreshing).toBeNull();
-        expect(readItem('metro.account')).toBe(JSON.stringify(next));
-        expect(activeAccount()).toBe(storageOnly ? original : next);
+        await expect(refreshing).rejects.toThrow('account changed');
+        expect(readItem('metro.account')).toBe(stored);
+        expect(activeAccount()).toMatchObject(next);
       });
     }
   }
 
   test('a storage-only organization switch stays protected when the refresh token did not rotate', async () => {
     const response = Promise.withResolvers<Response>();
-    respond = () => response.promise;
+    const requested = Promise.withResolvers<void>();
+    respond = () => { requested.resolve(); return response.promise; };
     const refreshing = refreshAccount();
+    await requested.promise;
     const next = { ...changed('organization'), refreshToken: original.refreshToken };
     writeItem('metro.account', JSON.stringify(next));
     response.resolve(Response.json({ ...original, refreshToken: 'rotated' }));
-    expect(await refreshing).toBeNull();
+    await expect(refreshing).rejects.toThrow('account changed');
     expect(readItem('metro.account')).toBe(JSON.stringify(next));
+    expect(activeAccount()).toMatchObject(next);
   });
 
   test('switching while an expiring token refreshes cannot start on the original box', async () => {

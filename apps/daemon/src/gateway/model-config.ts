@@ -158,11 +158,20 @@ export function parseModelConfig(raw: unknown): ModelConfig {
 const needsIds = (raw: unknown): boolean =>
   isRecord(raw) && Array.isArray(raw.connections) && raw.connections.some((c: unknown) => isRecord(c) && text(c.id) === '');
 
+const readStoredModel = (dir: string): unknown =>
+  readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' });
+
 export function readModelConfig(dir = agentsDir()): ModelConfig {
-  const raw = readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' });
+  const raw = readStoredModel(dir);
   const cfg = parseModelConfig(raw);
   if (needsIds(raw)) writeModelConfig(cfg, dir);
   return cfg;
+}
+
+export function readModelSnapshot(dir = agentsDir()): ModelConfig {
+  const raw = readStoredModel(dir);
+  if (needsIds(raw)) throw new ModelConfigError('model snapshot is unavailable until every connection has a saved id');
+  return parseModelConfig(raw);
 }
 
 export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {

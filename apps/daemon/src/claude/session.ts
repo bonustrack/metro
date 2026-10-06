@@ -61,6 +61,13 @@ export interface SessionStatus {
   lastError: string | null;
 }
 
+export interface SessionSnapshot {
+  running: boolean;
+  runner: HarnessRunner | null;
+  activity: RunnerActivity | null;
+  lastStartedAt: string | null;
+}
+
 interface Memory {
   lastStartedAt: number | null;
   lastError: string | null;
@@ -267,17 +274,27 @@ export function stopSession(deps: SessionDeps = {}): SessionStatus {
 export const sessionLive = (deps: SessionDeps = {}): boolean =>
   sessionRunning(deps.tmux ?? 'tmux') || sdkAlive(readAgentActivity(sessionHome(deps)));
 
-export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
+export function sessionSnapshot(deps: SessionDeps = {}): SessionSnapshot {
   const activity = readAgentActivity(sessionHome(deps));
   const sdk = sdkAlive(activity);
+  const tmux = sessionRunning(deps.tmux ?? 'tmux');
+  const runner = sdk ? 'sdk' : tmux ? readState(deps.agents ?? agentsDir()).runner : null;
+  return {
+    running: tmux || sdk,
+    runner: isHarnessRunner(runner) ? runner : null,
+    activity,
+    lastStartedAt: memory.lastStartedAt === null ? null : new Date(memory.lastStartedAt).toISOString(),
+  };
+}
+
+export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
+  const snapshot = sessionSnapshot(deps);
   return {
     name: SESSION_NAME,
-    running: sessionRunning(deps.tmux ?? 'tmux') || sdk,
-    runner: sdk ? 'sdk' : sessionRunner(deps),
-    activity,
+    ...snapshot,
+    runner: snapshot.runner ?? sessionRunner(deps),
     autostart: autostartEnabled(deps.agents ?? agentsDir()),
     blocked: sessionBlocked(deps),
-    lastStartedAt: memory.lastStartedAt === null ? null : new Date(memory.lastStartedAt).toISOString(),
     lastError: memory.lastError,
   };
 }

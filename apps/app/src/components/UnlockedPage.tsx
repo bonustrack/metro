@@ -5,9 +5,11 @@ import { LaunchServer } from './LaunchServer.js';
 import { Members } from './Members.js';
 import { Organization } from './Organization.js';
 import { Servers } from './Servers.js';
+import { AllAgents } from './AllAgents.js';
 import { ServerGate } from './gates.js';
 
 export function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+  if (selection.kind === 'all-agents') return <AllAgents onLock={onLock} />;
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;

@@ -65,7 +65,7 @@ describe('the single and bulk connector copy client', () => {
     expect(receive?.body).toEqual({ confirmed: true, ticket: 'ticket-fixture', envelope: { key: 'source-public-key-fixture', iv: 'iv-fixture', tag: 'tag-fixture', data: 'encrypted-fixture' } });
     expect(calls.filter((row) => row.url.includes('/transfer/')).map((row) => row.init.redirect)).toEqual(['manual', 'manual', 'manual']);
     const switches = calls.filter((row) => row.url.endsWith('/switch'));
-    expect(switches.map((row) => row.init.redirect)).toEqual(['manual', 'manual']);
+    expect(switches.map((row) => row.init.redirect)).toEqual(['error', 'error']);
     for (const row of switches) expect(row.init.signal).toBeInstanceOf(AbortSignal);
     expect(switches.map((row) => row.body)).toEqual([
       { organization: TARGET, refreshToken: 'rt_test' }, { organization: SOURCE, refreshToken: 'rt_destination_rotated' },

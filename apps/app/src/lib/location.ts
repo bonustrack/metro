@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import { fetch as expoFetch } from 'expo/fetch';
 import { configurePlatform, HOSTED_API } from '@metro-labs/client/platform';
 import { hasSignInCode, signInReturn, type ReturnedSignIn } from '@metro-labs/client/api/sign-in-return';
 
@@ -60,6 +61,7 @@ export function prepareLocation(): void {
   const configured = typeof env === 'string' ? env.trim() : '';
   configurePlatform({
     apiBase: configured === '' ? HOSTED_API : configured,
+    ...(WEB ? {} : { fetchNoRedirect: expoFetch }),
     signInReturn: () => (WEB ? `${window.location.origin}${window.location.pathname}` : WEB_HOME),
     location: {
       hash: currentHash,
