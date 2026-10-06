@@ -122,7 +122,7 @@ export class ActivityTasks {
     task.kind = activityName(message.task_type) ?? task.kind;
     task.agent = activityName(message.subagent_type) ?? task.agent;
     task.background = message.is_backgrounded === true;
-    task.startedAt = Date.now();
+    if (task.startedAt === 0) task.startedAt = Date.now();
     task.endedAt = null;
     if (message.tool_use_id) this.link(message.tool_use_id, task.id);
     this.describe(task, message.description);

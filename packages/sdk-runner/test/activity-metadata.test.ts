@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -90,6 +90,32 @@ test('known metadata survives completion, resume and sparse snapshots without in
   fresh.observe({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'w' }] });
   expect(fresh.activity.snapshot().tasks[0]?.description).toBeUndefined();
   expect(fresh.activity.snapshot().tasks[0]?.lastObservedModel).toBeUndefined();
+});
+
+test('the first genuine start survives progress, completion and same-ID resume', () => {
+  const { activity, observe } = fixture();
+  const clock = spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+  try {
+    observe(start('w', 'first'));
+    const startedAt = activity.snapshot().tasks[0]?.startedAt;
+    expect(startedAt).toBe(1_800_000_000_000);
+    clock.mockReturnValue(1_800_000_001_000);
+    observe({ type: 'system', subtype: 'task_progress', task_id: 'w', usage: { tool_uses: 1, duration_ms: 500 } });
+    observe({ type: 'system', subtype: 'task_notification', task_id: 'w', status: 'completed' });
+    expect(activity.snapshot().tasks[0]).toMatchObject({ startedAt, status: 'completed', endedAt: 1_800_000_001_000 });
+    clock.mockReturnValue(1_800_000_002_000);
+    observe(start('w', 'resumed'));
+    observe({ type: 'system', subtype: 'task_updated', task_id: 'w', patch: { status: 'paused' } });
+    expect(activity.snapshot().tasks[0]).toMatchObject({ startedAt, status: 'paused', endedAt: null, updatedAt: 1_800_000_002_000 });
+    observe({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'w' }, { task_id: 'sparse' }] });
+    expect(activity.snapshot().tasks.find((row) => row.id === 'w')?.startedAt).toBe(startedAt);
+    expect(activity.snapshot().tasks.find((row) => row.id === 'sparse')?.startedAt).toBe(0);
+    clock.mockReturnValue(1_800_000_003_000);
+    observe(start('sparse', 'late-start'));
+    expect(activity.snapshot().tasks.find((row) => row.id === 'sparse')?.startedAt).toBe(1_800_000_003_000);
+    activity.stop();
+    expect(activity.snapshot().tasks.find((row) => row.id === 'w')).toMatchObject({ startedAt, status: 'stopped' });
+  } finally { clock.mockRestore(); }
 });
 
 test('late progress or notification correlation links only observed metadata', () => {

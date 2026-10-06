@@ -177,6 +177,53 @@ describe('main agent and worker activity', () => {
   });
 });
 
+describe('worker creation order', () => {
+  const tasks = [
+    { ...task, id: 'old', startedAt: now - 3_000, updatedAt: now },
+    { ...task, id: 'new', startedAt: now - 1_000, status: 'completed' },
+    { ...task, id: 'middle', startedAt: now - 2_000, status: 'paused' },
+  ];
+  const ids = (rows: Record<string, unknown>[]): string[] => view({ tasks: rows }).workers.map((row) => row.id);
+
+  test('newest genuine starts come first regardless of activity or status, without mutating input', () => {
+    const status = toClaudeSession({ running: true, runner: 'sdk', activity: { ...snapshot, tasks } });
+    if (status.activity === null) throw new Error('Activity fixture did not parse');
+    const before = structuredClone(status.activity);
+    expect(activityView(status, status.activity, now).workers.map((row) => row.id)).toEqual(['new', 'middle', 'old']);
+    expect(status.activity).toEqual(before);
+    expect(ids([...tasks].reverse())).toEqual(['new', 'middle', 'old']);
+  });
+
+  test('repeated polls, completion and resumption keep order while a new task prepends', () => {
+    const states = ['pending', 'running', 'completed', 'failed', 'stopped', 'paused', 'unknown'];
+    for (let i = 0; i < 21; i++) {
+      const updated = tasks.map((row, j) => ({ ...row, status: states[(i + j) % states.length], updatedAt: now + i * 1_000 + j,
+        endedAt: now + i * 1_000, toolUses: i, durationMs: i * 100, lastTool: i % 2 ? 'Read' : 'Bash' }));
+      const polled = i % 2 ? updated.reverse() : [...updated.slice(1), updated[0]!];
+      expect(ids(polled)).toEqual(['new', 'middle', 'old']);
+      expect(ids([...polled, { ...task, id: 'newest', startedAt: now }])).toEqual(['newest', 'new', 'middle', 'old']);
+    }
+  });
+
+  test('equal starts and sparse unknown dates use stable ID ties, never last activity', () => {
+    const rows = [
+      { ...task, id: 'z', startedAt: now }, { ...task, id: 'a', startedAt: now },
+      { ...task, id: 'unknown-z', startedAt: 0, updatedAt: now + 1_000 },
+      { id: 'unknown-a', status: 'running', updatedAt: now + 2_000 },
+      { ...task, id: 'oldest', startedAt: 1 },
+    ];
+    for (let i = 0; i < rows.length; i++) {
+      expect(ids([...rows.slice(i), ...rows.slice(0, i)])).toEqual(['a', 'z', 'oldest', 'unknown-a', 'unknown-z']);
+    }
+  });
+
+  test('stale, stopped and CLI history use the same creation order', () => {
+    for (const session of [{}, { running: false }, { runner: 'cli' }]) {
+      expect(view({ tasks }, now + 90_000, session).workers.map((row) => row.id)).toEqual(['new', 'middle', 'old']);
+    }
+  });
+});
+
 describe('recent sanitized events and polling', () => {
   test('keeps newest-first event order and known names without mutating the snapshot', () => {
     const events = [
