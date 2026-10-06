@@ -71,6 +71,17 @@ describe('the agent on the wire', () => {
   });
 });
 
+describe('daemon feature negotiation', () => {
+  test('managed Gmail is offered only on an explicit string capability', async () => {
+    for (const features of [undefined, null, 'gmail-managed', [true, null, 7]]) {
+      serve({ features });
+      expect((await fetchStations()).features).toEqual([]);
+    }
+    serve({ features: ['gmail-managed', 7, 'future-feature'] });
+    expect((await fetchStations()).features).toEqual(['gmail-managed', 'future-feature']);
+  });
+});
+
 describe('a parked daemon', () => {
   test('answers 503 with stopped, which every page reads as one StoppedError', async () => {
     serve({ error: 'metro is stopped on this machine.', stopped: true }, 503);

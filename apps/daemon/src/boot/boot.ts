@@ -7,7 +7,8 @@ import { acquireLock, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { funnelDriver, Tunnel, tunnelWanted } from '../net/tunnel.js';
-import { webhookPort } from '../files/attach-serve.js';
+import { publicBaseUrl, webhookPort } from '../files/attach-serve.js';
+import { setManagedHost } from '@metro-labs/gmail/managed-binding';
 import {
   localConnectHint,
   publicConnectHint,
@@ -80,7 +81,8 @@ supervisor.onTrainEvent((env, train) => {
 });
 
 let webhookServer: Server | null = null;
-const tunnel = tunnelWanted() ? new Tunnel(funnelDriver(webhookPort()), announcePublic) : null;
+const syncGmailHost = (): void => { setManagedHost(publicBaseUrl()); };
+const tunnel = tunnelWanted() ? new Tunnel(funnelDriver(webhookPort()), announcePublic, undefined, syncGmailHost) : null;
 
 function announcePublic(url: string): void {
   process.stderr.write(`\n${publicConnectHint(url, localOwner())}`);
@@ -140,6 +142,7 @@ installBearerSessions(agentsDir(), localOwner);
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   forgetOrphans(knownAccounts());
+  syncGmailHost();
   supervisor.start();
   sweepLeftoverCalls();
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });

@@ -28,7 +28,7 @@ export function bearerSessionsFor(owner: () => string | null, keys: SigningKeys)
     const held = owner();
     if (held === null || session.organization === null || session.organization !== held)
       throw new ApiError('this machine belongs to another organization', 403);
-    return { subject: held, role: session.role === 'admin' ? 'admin' : 'member', ...(isOperatorUser(session.userId) ? { operator: true as const } : {}) };
+    return { subject: held, userId: session.userId, sessionId: session.sessionId, role: session.role === 'admin' ? 'admin' : 'member', ...(isOperatorUser(session.userId) ? { operator: true as const } : {}) };
   };
 }
 

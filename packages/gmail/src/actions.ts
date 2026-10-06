@@ -1,14 +1,19 @@
 import { makeStation, respond } from '@metro-labs/core/stations/station-runtime';
-import { accounts } from './accounts.js';
+import { accountOf, accounts } from './accounts.js';
 import { MAILBOX_URL } from './config.js';
 import { reply, send } from './outbound.js';
 import { read } from './query.js';
 
 function listAccounts(id: string): void {
-  const list = [...accounts.values()].map((a) => ({ id: a.id, handle: a.email, url: `${MAILBOX_URL}mail/u/${a.email}/`, email: a.email }));
+  const list = [...accounts.values()].map((a) => ({ id: a.id, handle: a.email, url: `${MAILBOX_URL}mail/u/${a.email}/`, email: a.email, managed: a.cfg.managed === true, ...(a.cfg.sendEnabled === undefined ? {} : { sendEnabled: a.cfg.sendEnabled }) }));
   respond(id, { result: { accounts: list } });
 }
 
+async function disconnect(id: string, args: Record<string, unknown>): Promise<void> {
+  await accountOf(args).disconnect(args.authorizationId);
+  respond(id, { result: { revoked: true } });
+}
+
 export const handleCall = makeStation({
-  handlers: { accounts: listAccounts, send, reply, read },
+  handlers: { accounts: listAccounts, send, reply, read, disconnect },
 });

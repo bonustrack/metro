@@ -5,7 +5,7 @@ import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth
 import { exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
 import { atLanding, atLogin, atWaitlist, goToLanding, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
-import { signInReturn } from '@metro-labs/client/api/sign-in-return';
+import { clearInitialSignInReturn, initialSignInReturn } from '../lib/location.js';
 import { location } from '@metro-labs/client/platform';
 import { type Selection } from '@metro-labs/client/selection';
 import { BootLoading } from './BootLoading.js';
@@ -105,7 +105,10 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
 }
 
 export function Root({ selection }: { selection: Selection }): ReactNode {
-  const [returned] = useState(() => signInReturn(location().search()));
+  const [returned] = useState(initialSignInReturn);
+  useEffect(() => {
+    if (returned === null) clearInitialSignInReturn();
+  }, [returned]);
   const insets = useSafeAreaInsets();
   const legal = selection.kind === 'terms-of-use' || selection.kind === 'privacy-policy';
   return (

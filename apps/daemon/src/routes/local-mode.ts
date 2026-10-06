@@ -1,6 +1,9 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { AttachSessions } from '../stations/attach-session.js';
+import { startInteractiveAttach } from '../stations/attach-interactive.js';
+import { assertAttachOwner, finishGmailUpgrade, startGmailAttach } from './gmail-attach.js';
+import { detachWithGmailRevocation } from './gmail-detach.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
@@ -36,7 +39,6 @@ import { blockedReason } from '../connectors/gates.js';
 import {
   setLocalOwner,
   localAttachAccount,
-  localDetachAccount,
   localSetAllowlist,
   localSetPolicy,
   localSetAccountEnabled,
@@ -64,11 +66,14 @@ export interface LocalModeDeps {
 function attachSessions(deps: LocalModeDeps): AttachSessions {
   return new AttachSessions({
     authorize: (owner) => {
-      readLocalAgentFile(owner.agentId);
+      assertAttachOwner(owner);
       return Promise.resolve();
     },
-    complete: async (owner, station, config) => {
-      const ref = await localAttachAccount(owner.agentId, station, config);
+    start: (station, input, hooks, owner) => station === 'gmail' ? startGmailAttach(station, input, hooks, owner) : startInteractiveAttach(station, input, hooks),
+    complete: async (owner, station, config, active) => {
+      assertAttachOwner(owner);
+      if (!active()) throw new ApiError('This sign-in was cancelled or expired.', 409);
+      const ref = (station === 'gmail' ? finishGmailUpgrade(owner, config) : null) ?? await localAttachAccount(owner.agentId, station, config);
       const activated = await deps.syncStations(station).then(
         () => true,
         (err: unknown) => {
@@ -92,10 +97,11 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     capabilities: deps.capabilities,
     ...(deps.toolGroups === undefined ? {} : { toolGroups: deps.toolGroups }),
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
+    features: ['gmail-managed'],
     connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
     attachAccount: localAttachAccount,
-    detachAccount: localDetachAccount,
+    detachAccount: detachWithGmailRevocation,
     syncStations: deps.syncStations,
     setAllowlist: localSetAllowlist,
     setPolicy: localSetPolicy,
@@ -151,7 +157,7 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
       const file = readLocalAgentFile(agentId);
       const bundle: AgentBundle = {
         version: 1,
-        agent: { id: file.id, name: file.name ?? '', stations: file.stations },
+        agent: { id: file.id, name: file.name ?? '', stations: file.stations.filter((a) => a.station !== 'gmail' || a.config.managed !== true) },
         connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, config: { ...c.config } })),
       };
       return Promise.resolve(bundle);

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type AccountIdentity } from '@metro-labs/client/auth/account';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { colors } from '@stage-labs/kit/tokens';
@@ -12,7 +13,6 @@ const QR_INK = colors['link-light'];
 const QR_PAPER = colors['bg-light'];
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
-  cancelAttachSession,
   pollAttachSession,
   submitAttachStep,
   type AttachSession as Session,
@@ -21,11 +21,14 @@ import {
 import { STATION_FORMS, stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
 import { DeviceSignIn } from './DeviceSignIn.js';
 import { BrowserSignIn } from './BrowserSignIn.js';
+import { logError } from '../lib/log.js';
 
 const POLL_MS = 2_000;
 
 interface AttachSessionProps {
   agentId: string;
+  base: string;
+  identity: AccountIdentity | null;
   session: Session;
   onUpdate: (session: Session) => void;
   onDone: (result: AttachResult) => void;
@@ -89,11 +92,15 @@ function CodeEntry({
 
 function BrowserStep({
   agentId,
+  base,
+  identity,
   session,
   busy,
   onSubmit,
 }: {
   agentId: string;
+  base: string;
+  identity: AccountIdentity | null;
   session: Session;
   busy: boolean;
   onSubmit: (input: StepInput) => void;
@@ -111,6 +118,8 @@ function BrowserStep({
   ) : (
     <BrowserSignIn
       agentId={agentId}
+      base={base}
+      identity={identity}
       attachId={session.attachId}
       authorizeUrl={session.authorizeUrl}
       provider={provider}
@@ -128,18 +137,22 @@ function BrowserStep({
 
 function StepBody({
   agentId,
+  base,
+  identity,
   session,
   busy,
   onSubmit,
 }: {
   agentId: string;
+  base: string;
+  identity: AccountIdentity | null;
   session: Session;
   busy: boolean;
   onSubmit: (input: StepInput) => void;
 }): ReactNode {
   const { step, qr, pairingCode } = session;
   if (step === 'browser' || step === 'device')
-    return <BrowserStep agentId={agentId} session={session} busy={busy} onSubmit={onSubmit} />;
+    return <BrowserStep agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={onSubmit} />;
   if (step === 'scan')
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
@@ -171,7 +184,7 @@ function StepBody({
 }
 
 export function AttachSession(props: AttachSessionProps): ReactNode {
-  const { agentId, session, onUpdate, onDone, onClose } = props;
+  const { agentId, base, identity, session, onUpdate, onDone, onClose } = props;
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,17 +199,19 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
 
   useEffect(() => {
     if (session.status !== 'pending') return undefined;
+    let active = true;
     const timer = setInterval(() => {
-      void pollAttachSession(agentId, session.attachId)
+      pollAttachSession(agentId, session.attachId, base, identity)
         .then((next) => {
-          if (live.current) onUpdate(next);
+          if (active && live.current) onUpdate(next);
         })
-        .catch(() => undefined);
+        .catch(logError('poll channel sign-in'));
     }, POLL_MS);
     return () => {
+      active = false;
       clearInterval(timer);
     };
-  }, [session.attachId, session.status, agentId]);
+  }, [session.attachId, session.status, agentId, base, identity]);
 
   useEffect(() => {
     if (session.status !== 'done') return;
@@ -212,23 +227,16 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
   const submit = (input: StepInput): void => {
     setBusy(true);
     setError(null);
-    submitAttachStep(agentId, session.attachId, input)
+    submitAttachStep(agentId, session.attachId, input, base, identity)
       .then((next) => {
         if (live.current) onUpdate(next);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'That did not work.');
+        if (live.current) setError(err instanceof Error ? err.message : 'That did not work.');
       })
       .finally(() => {
         if (live.current) setBusy(false);
       });
-  };
-
-  const stop = (): void => {
-    void cancelAttachSession(agentId, session.attachId).catch(
-      () => undefined,
-    );
-    onClose();
   };
 
   return (
@@ -241,7 +249,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
             {session.prompt}
           </Text>
         </Col>
-        <StepBody agentId={agentId} session={session} busy={busy} onSubmit={submit} />
+        <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
         {session.status === 'failed' ? (
           <Text size="2xs" role="danger">
             {session.error ?? 'That sign-in failed.'}
@@ -261,7 +269,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
             size="md"
             color="secondary"
             dark={dark}
-            onPress={stop}
+            onPress={onClose}
             label={session.status === 'pending' ? 'Cancel' : 'Close'}
           />
         </Row>

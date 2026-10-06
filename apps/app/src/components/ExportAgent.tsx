@@ -15,7 +15,7 @@ import { saveText } from '../lib/files.js';
 
 const HOW = 'Sealed in the browser with a passphrase you choose. Only that passphrase opens the file.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'new-password' } as const;
-const NOTE = 'The agent id and key stay behind, so an import adds to the agent there rather than cloning this one.';
+const NOTE = 'The agent id and key stay behind, so an import adds to the agent there rather than cloning this one. Gmail credentials managed by Metro are not exported. Reconnect those mailboxes after import.';
 
 interface ExportAgentProps {
   open: boolean;

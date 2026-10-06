@@ -58,7 +58,7 @@ function StationRow({ station, row, stale, project, onDetach }: StationRowProps)
               <ChatIcon size={CHAT_ICON} color={palette.link} />
             </RoundButton>
           )}
-          {onDetach !== undefined && id !== null ? <DetachAccount station={station} accountId={id} onDetach={onDetach} /> : null}
+          {onDetach !== undefined && id !== null ? <DetachAccount station={station} accountId={id} managed={row.managed === true} onDetach={onDetach} /> : null}
         </>
       }
     />

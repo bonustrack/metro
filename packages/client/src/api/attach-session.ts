@@ -1,3 +1,4 @@
+import { accountIdentity, checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { filled, isRecord } from '../read.js';
 import { call } from './client.js';
 
@@ -85,9 +86,11 @@ const sessionPath = (agentId: string, attachId: string): string =>
 export async function pollAttachSession(
   agentId: string,
   attachId: string,
+  base?: string,
+  identity: AccountIdentity | null = accountIdentity(),
 ): Promise<AttachSession> {
   return toSession(
-    await call({ method: 'GET', path: sessionPath(agentId, attachId) }),
+    await call({ method: 'GET', base, path: sessionPath(agentId, attachId), checkAccount: () => { checkAccountIdentity(identity); } }),
   );
 }
 
@@ -95,9 +98,13 @@ export async function submitAttachStep(
   agentId: string,
   attachId: string,
   input: StepBody,
+  base?: string,
+  identity: AccountIdentity | null = accountIdentity(),
 ): Promise<AttachSession> {
   return toSession(
     await call({
+      base,
+      checkAccount: () => { checkAccountIdentity(identity); },
       method: 'POST',
       path: `${sessionPath(agentId, attachId)}/step`,
       headers: { 'content-type': 'application/json' },
@@ -109,8 +116,12 @@ export async function submitAttachStep(
 export async function cancelAttachSession(
   agentId: string,
   attachId: string,
+  base?: string,
+  identity: AccountIdentity | null = accountIdentity(),
 ): Promise<void> {
   await call({
+    base,
+    checkAccount: () => { checkAccountIdentity(identity); },
     method: 'DELETE',
     path: sessionPath(agentId, attachId),
   });

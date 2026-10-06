@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from 'react';
+import { checkAccountIdentity, type AccountIdentity } from '@metro-labs/client/auth/account';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { agentsUrl } from '@metro-labs/client/api/client';
 import { stateOf } from '@metro-labs/client/api/attach-session';
 import { rememberSignIn } from '@metro-labs/client/api/sign-in-return';
 import { location } from '@metro-labs/client/platform';
@@ -30,6 +30,8 @@ function OnTheWeb({ provider, onUseCode, busy }: { provider: string; onUseCode: 
 
 interface BrowserSignInProps {
   agentId: string;
+  base: string;
+  identity: AccountIdentity | null;
   attachId: string;
   authorizeUrl: string;
   provider: string;
@@ -38,21 +40,29 @@ interface BrowserSignInProps {
 }
 
 export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
-  const { agentId, attachId, authorizeUrl, provider, busy, onUseCode } = props;
+  const { agentId, base, identity, attachId, authorizeUrl, provider, busy, onUseCode } = props;
   const dark = useKitScheme() === 'dark';
   const [opened, setOpened] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const open = (): void => {
-    rememberSignIn({
-      state: stateOf(authorizeUrl),
-      agentsBase: agentsUrl(),
-      agentId,
-      attachId,
-      backHash: location().hash(),
-      startedAt: Date.now(),
-    });
-    setBlocked(!openExternal(authorizeUrl));
-    setOpened(true);
+    try {
+      checkAccountIdentity(identity);
+      rememberSignIn({
+        state: stateOf(authorizeUrl),
+        agentsBase: base,
+        agentId,
+        attachId,
+        backHash: location().hash(),
+        startedAt: Date.now(),
+        identity,
+      });
+      setBlocked(!openExternal(authorizeUrl));
+      setOpened(true);
+    } catch (err) {
+      setBlocked(false);
+      setError(err instanceof Error ? err.message : 'Start the sign-in again.');
+    }
   };
   if (Platform.OS !== 'web') return <OnTheWeb provider={provider} onUseCode={onUseCode} busy={busy} />;
   return (
@@ -61,6 +71,7 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
       {blocked ? (
         <TextLink size="2xs" url={authorizeUrl}>Open the {provider} sign-in page</TextLink>
       ) : null}
+      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       {opened ? (
         <Text size="2xs" role="secondary">
           Waiting for you to sign in.

@@ -20,7 +20,10 @@ export async function saveFile(acct: Account, messageId: string, file: MailFile,
   if (file.size !== undefined) assertAttachmentSize(file.size);
   const data = file.data ?? (file.attachmentId === null ? null : await attachmentData(acct, messageId, file.attachmentId));
   if (data === null) throw new TrainError('gmail_file_missing', `Gmail gave no content for ${file.name}`, { retryable: false });
-  return saveBufferToCache(new Uint8Array(Buffer.from(data, 'base64url')), messageId, index, { mime: file.mime, name: file.name });
+  acct.check();
+  const saved = await saveBufferToCache(new Uint8Array(Buffer.from(data, 'base64url')), messageId, index, { mime: file.mime, name: file.name });
+  acct.check();
+  return saved;
 }
 
 export async function assertSendable(files: OutgoingFile[]): Promise<void> {

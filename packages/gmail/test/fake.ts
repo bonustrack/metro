@@ -21,14 +21,14 @@ export interface Seen {
   type: string;
 }
 
-export type Route = (req: Seen) => Response | undefined;
+export type Route = (req: Seen) => Response | undefined | Promise<Response | undefined>;
 
 export const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 export function fakeFetch(routes: Route[]): { fetch: (input: string, init?: RequestInit) => Promise<Response>; seen: Seen[] } {
   const seen: Seen[] = [];
-  const fetchImpl = (input: string, init: RequestInit = {}): Promise<Response> => {
+  const fetchImpl = async (input: string, init: RequestInit = {}): Promise<Response> => {
     const headers = new Headers(init.headers);
     const req: Seen = {
       method: init.method ?? 'GET',
@@ -39,7 +39,7 @@ export function fakeFetch(routes: Route[]): { fetch: (input: string, init?: Requ
     };
     seen.push(req);
     for (const route of routes) {
-      const res = route(req);
+      const res = await route(req);
       if (res !== undefined) return Promise.resolve(res);
     }
     return Promise.resolve(json({ error: { status: 'NOT_FOUND', message: `no fake for ${req.method} ${req.url}` } }, 404));

@@ -4,7 +4,6 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { loadAccount } from '@metro-labs/client/auth/account';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { finishReturn, type ReturnOutcome, type ReturnedSignIn } from '@metro-labs/client/api/sign-in-return';
-import { location } from '@metro-labs/client/platform';
 import { TextLink } from './TextLink.js';
 import { noteTitle } from '../lib/title.js';
 
@@ -15,7 +14,6 @@ let running: Promise<ReturnOutcome> | null = null;
 function finishOnce(ret: ReturnedSignIn): Promise<ReturnOutcome> {
   if (running === null) {
     loadAccount();
-    location().clearSearch('');
     running = finishReturn(ret);
   }
   return running;

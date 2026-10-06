@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { stateOf, toSession } from '../src/api/attach-session.ts';
-import { outcomeOf, parsePending, planReturn, signInReturn, type PendingSignIn } from '../src/api/sign-in-return.ts';
+import { hasSignInCode, outcomeOf, parsePending, planReturn, signInReturn, type PendingSignIn } from '../src/api/sign-in-return.ts';
 
 const ENTRY: PendingSignIn = {
   state: 'st-1',
@@ -9,6 +9,7 @@ const ENTRY: PendingSignIn = {
   attachId: 'as_0123456789012345678901',
   backHash: '#/stage-labs/andy/channels',
   startedAt: 1_000,
+  identity: { user: 'user_1', organization: 'org_1', session: 'session_1' },
 };
 
 describe('reading what Microsoft or Google sent back', () => {
@@ -30,9 +31,26 @@ describe('reading what Microsoft or Google sent back', () => {
     });
   });
 
+  test('recognizes a root callback normalized into the Expo hash route', () => {
+    expect(signInReturn('', '#/?code=abc&state=st-1')).toEqual({ kind: 'code', code: 'abc', state: 'st-1' });
+    expect(signInReturn('', '#/?error=access_denied&state=st-1')).toEqual({ kind: 'error', error: 'access_denied', description: '', state: 'st-1' });
+    expect(signInReturn('', '#/settings?code=abc&state=st-1')).toBeNull();
+  });
+
   test('an ordinary page load is not a return', () => {
     expect(signInReturn('')).toBeNull();
     expect(signInReturn('?code=abc')).toBeNull();
+  });
+
+  test('malformed code addresses need cleanup without becoming accepted callbacks', () => {
+    for (const query of ['?code=abc', '?code=abc&state=', '?code=&state=known']) {
+      expect(signInReturn(query)).toBeNull();
+      expect(signInReturn('', `#/${query}`)).toBeNull();
+      expect(hasSignInCode(query)).toBe(true);
+      expect(hasSignInCode('', `#/${query}`)).toBe(true);
+    }
+    expect(hasSignInCode('?state=known')).toBe(false);
+    expect(hasSignInCode('', '#/settings?code=abc')).toBe(false);
   });
 });
 
@@ -61,6 +79,11 @@ describe('matching the return with the sign-in that started it', () => {
       kind: 'refused',
       message: 'The sign-in was refused: AADSTS50011: bad redirect',
     });
+  });
+
+  test('legacy or incomplete identity entries are not migrated to the current account', () => {
+    for (const identity of [undefined, null, {}, { ...ENTRY.identity, session: '' }, { ...ENTRY.identity, user: 7 }])
+      expect(parsePending(JSON.stringify([{ ...ENTRY, identity }]))).toEqual([]);
   });
 
   test('the stored list survives junk', () => {

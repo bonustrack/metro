@@ -1,7 +1,8 @@
+import { checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { call } from './client.js';
 import { isRecord } from '../read.js';
 import { toSession, type AttachSession } from './attach-session.js';
-import { readItem, writeItem } from '../platform.js';
+import { location, readItem, writeItem } from '../platform.js';
 
 export interface PendingSignIn {
   state: string;
@@ -10,6 +11,7 @@ export interface PendingSignIn {
   attachId: string;
   backHash: string;
   startedAt: number;
+  identity: AccountIdentity;
 }
 
 export type ReturnedSignIn =
@@ -28,8 +30,18 @@ const EXPIRED = 'This sign-in link has expired, start again from the Channels pa
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+function identityOf(raw: unknown): AccountIdentity | null {
+  if (!isRecord(raw)) return null;
+  const user = text(raw.user);
+  const organization = text(raw.organization);
+  const session = text(raw.session);
+  return user === '' || organization === '' || session === '' ? null : { user, organization, session };
+}
+
 function entryOf(raw: unknown): PendingSignIn | null {
   if (!isRecord(raw)) return null;
+  const identity = identityOf(raw.identity);
+  if (identity === null) return null;
   const entry = {
     state: text(raw.state),
     agentsBase: text(raw.agentsBase),
@@ -37,6 +49,7 @@ function entryOf(raw: unknown): PendingSignIn | null {
     attachId: text(raw.attachId),
     backHash: text(raw.backHash),
     startedAt: typeof raw.startedAt === 'number' ? raw.startedAt : 0,
+    identity,
   };
   return entry.state === '' || entry.agentsBase === '' || entry.attachId === '' ? null : entry;
 }
@@ -67,7 +80,19 @@ function forgetSignIn(state: string): void {
   writePending(readPending().filter((e) => e.state !== state));
 }
 
-export function signInReturn(search: string): ReturnedSignIn | null {
+export function forgetAttachSignIn(agentsBase: string, agentId: string, attachId: string): void {
+  writePending(readPending().filter((entry) => entry.agentsBase !== agentsBase || entry.agentId !== agentId || entry.attachId !== attachId));
+}
+
+export function signInReturn(search: string, hash = ''): ReturnedSignIn | null {
+  return queryReturn(search) ?? (hash.startsWith('#/?') ? queryReturn(hash.slice(2)) : null);
+}
+
+export function hasSignInCode(search: string, hash = ''): boolean {
+  return new URLSearchParams(search).has('code') || (hash.startsWith('#/?') && new URLSearchParams(hash.slice(2)).has('code'));
+}
+
+function queryReturn(search: string): ReturnedSignIn | null {
   const q = new URLSearchParams(search);
   const state = q.get('state') ?? '';
   const code = q.get('code') ?? '';
@@ -114,12 +139,13 @@ async function settled(entry: PendingSignIn, first: AttachSession): Promise<Retu
     const outcome = outcomeOf(session, entry.backHash);
     if (outcome !== null) return outcome;
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    session = toSession(await call({ method: 'GET', base: entry.agentsBase, path: sessionPath(entry) }));
+    session = toSession(await call({ method: 'GET', base: entry.agentsBase, path: sessionPath(entry), checkAccount: () => { checkAccountIdentity(entry.identity); } }));
   }
   return { ok: false, message: 'Metro did not finish the sign-in in time. Check the Channels page.', backHash: entry.backHash };
 }
 
 export async function finishReturn(ret: ReturnedSignIn, now = Date.now()): Promise<ReturnOutcome> {
+  location().clearSearch('');
   const plan = planReturn(ret, readPending(), now);
   if (plan.kind === 'expired') return { ok: false, message: EXPIRED, backHash: null };
   if (plan.kind === 'refused') return { ok: false, message: plan.message, backHash: null };
@@ -129,6 +155,7 @@ export async function finishReturn(ret: ReturnedSignIn, now = Date.now()): Promi
       await call({
         method: 'POST',
         base: plan.entry.agentsBase,
+        checkAccount: () => { checkAccountIdentity(plan.entry.identity); },
         path: `${sessionPath(plan.entry)}/step`,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(plan.body),

@@ -1,6 +1,6 @@
 export const PRIVACY = `# Privacy policy
 
-Updated 30 September 2026. Metro is operated by Stage Labs.
+Updated 6 October 2026. Metro is operated by Stage Labs.
 
 ## What this policy covers
 
@@ -18,7 +18,9 @@ Hosting, identity and infrastructure services process information needed to serv
 
 You choose which messaging accounts and connectors to attach. Depending on the service, Metro processes account identifiers, authorization tokens, connection settings, sender details, message metadata, message text and attachments. Credentials for channels and connectors are kept by the Metro daemon on the agent's machine, not in the hosted account-management database.
 
-The Gmail channel requests permission to read email and send email through the Gmail API, using the gmail.readonly and gmail.send scopes. It checks the connected mailbox, watches for new Inbox messages and supports reading messages or threads and sending messages when instructed. It does not request gmail.modify and does not mark Gmail messages as read. Other channels and connectors have their own permissions. Review the provider's consent screen before connecting an account.
+New Gmail connections on supporting Metro versions request gmail.readonly. Sending requires a separate Google consent upgrade adding gmail.send, and Metro write permission. Older connections may already have both scopes. Gmail checks the connected mailbox, watches new Inbox messages and supports reading messages or threads. It does not request gmail.modify and does not mark messages as read. Read-only access still permits reading message contents and attachments throughout the mailbox. Review the provider's consent screen before connecting.
+
+Managed Gmail sign-in uses Metro's Google application. The hosted API exchanges and refreshes Google tokens, sees them in process memory and returns them to the originating daemon over HTTPS. It does not store those tokens in the account-management database. The shared Google client secret stays at the hosted API; mailbox tokens and a signed refresh credential remain on the box. Pending authorization state includes the user, organization, server, requested mailbox and permissions, expires after ten minutes and is lost on API restart. Advanced bring-your-own-app connections instead keep their own Google client credentials on the box and contact Google directly. Managed Gmail credentials are excluded from Metro exports; reconnect them on the destination box.
 
 ## Message processing and storage
 
@@ -44,7 +46,7 @@ Google API use is subject to the [Google API Services User Data Policy](https://
 
 You can choose the senders permitted to reach a channel, turn off incoming messages, turn off live delivery to the agent, and set supported channel and connector tools to Allow, Ask first or Block. Turning off incoming messages or live delivery does not disconnect the account or stop every tool from accessing it.
 
-Remove a connected channel or connector to stop using it through Metro. For Gmail, removal deletes the account configuration and attempts to remove the local token and sync-state file. That cleanup is not a revocation of Google's authorization and is not guaranteed to succeed if the machine encounters an error. Revoke authorization separately in the account provider's settings. Disconnecting does not erase cached attachments, agent transcripts or memory, or messages already held by the messaging provider, recipients, AI services or other connectors.
+Remove a connected channel or connector to stop using it through Metro. Deleting managed Gmail first requests Google revocation; if that request fails, Metro keeps the channel for retry. Google revocation invalidates all permissions and tokens for that Google account across clients in the Google application project, so it can disconnect the same account on other Metro boxes too. After confirmed revocation, Metro deletes the local account configuration and attempts to remove its token and sync-state file. Local cleanup can fail if the machine encounters an error. Bring-your-own-app and older Gmail deletion remove local credentials without revoking Google authorization; revoke that access separately in Google Account settings. Cancelling an unfinished sign-in does not remove access already granted at Google. Disconnecting does not erase cached attachments, agent transcripts or memory, or messages already held by the messaging provider, recipients, AI services or other connectors.
 
 You and your organization control the files, transcripts, memory, backups and running services on your machines. Review or remove stored data there when it is no longer needed. For organization-managed accounts and machines, work with your organization administrator.
 

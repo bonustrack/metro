@@ -18,6 +18,7 @@ export type StartAttach = (
   station: InteractiveStation,
   input: Record<string, unknown>,
   hooks: DriverHooks,
+  owner: AttachOwner,
 ) => Promise<StartedAttach>;
 
 export const ATTACH_ID_RE = /^as_[A-Za-z0-9_-]{22}$/;
@@ -30,6 +31,10 @@ const MAX_TOTAL = 40;
 
 export interface AttachOwner {
   agentId: string;
+  organization?: string;
+  userId?: string;
+  sessionId?: string;
+  authorization?: string;
 }
 
 export interface AttachView {
@@ -54,6 +59,7 @@ type CompleteAttach = (
   owner: AttachOwner,
   station: StationName,
   config: Record<string, unknown>,
+  active: () => boolean,
 ) => Promise<{ accountId: string; activated: boolean }>;
 
 type AuthorizeAttach = (owner: AttachOwner) => Promise<void>;
@@ -68,6 +74,8 @@ interface Session {
   owner: AttachOwner;
   driver: AttachDriver | null;
   view: AttachView;
+  finishing?: boolean;
+  committing?: boolean;
 }
 
 const missing = (): ApiError => new ApiError('no such attach session', 404);
@@ -114,7 +122,8 @@ export class AttachSessions {
 
   private own(owner: AttachOwner, attachId: string): Session {
     const session = this.sessions.get(attachId);
-    if (session?.owner.agentId !== owner.agentId) throw missing();
+    if (session === undefined || session.owner.agentId !== owner.agentId || session.owner.organization !== owner.organization || session.owner.userId !== owner.userId || session.owner.sessionId !== owner.sessionId) throw missing();
+    if (session.view.expiresAt <= Date.now()) throw new ApiError('this sign-in expired; start again', 410);
     return session;
   }
 
@@ -153,12 +162,21 @@ export class AttachSessions {
     outcome: AttachOutcome,
   ): Promise<void> {
     const session = this.sessions.get(attachId);
-    if (session?.view.status !== 'pending') return;
+    const active = (): boolean => session !== undefined && this.sessions.get(attachId) === session && session.view.status === 'pending' && session.view.expiresAt > Date.now();
+    if (!active() || session === undefined || session.finishing === true) return;
+    session.finishing = true;
     try {
+      await this.deps.authorize(session.owner);
+      if (!active()) return;
       const landed = await this.deps.complete(
         session.owner,
         station,
         outcome.config,
+        () => {
+          if (!active()) return false;
+          session.committing = true;
+          return true;
+        },
       );
       this.settle(session, {
         status: 'done',
@@ -229,7 +247,12 @@ export class AttachSessions {
         station,
         input,
         this.hooksFor(attachId, station),
+        owner,
       );
+      if (this.sessions.get(attachId) !== session || session.view.expiresAt <= Date.now()) {
+        await started.driver.cancel();
+        throw new ApiError('this sign-in expired or stopped; start again', 410);
+      }
       session.driver = started.driver;
       if (started.expiresAt !== undefined) session.view.expiresAt = started.expiresAt;
       this.hooksFor(attachId, station).prompt(started.prompt);
@@ -257,12 +280,15 @@ export class AttachSessions {
     const driver = session.driver;
     if (session.view.status !== 'pending' || !driver)
       throw new ApiError('this sign-in is already finished', 409);
-    await driver.submit(input);
+    await this.deps.authorize(owner);
+    this.own(owner, attachId);
+    await driver.submit(input, owner.authorization);
     return { ...session.view };
   }
 
   async cancel(owner: AttachOwner, attachId: string): Promise<void> {
     const session = this.own(owner, attachId);
+    if (session.committing === true) throw new ApiError('this sign-in has already been saved', 409);
     this.sessions.delete(attachId);
     await session.driver?.cancel().catch(() => undefined);
     log.info({ attachId }, 'attach-session: cancelled');
@@ -270,7 +296,7 @@ export class AttachSessions {
 
   async sweep(now = Date.now()): Promise<void> {
     for (const [attachId, session] of [...this.sessions]) {
-      if (session.view.expiresAt > now) continue;
+      if (session.view.expiresAt > now || (session.committing === true && session.view.status === 'pending')) continue;
       this.sessions.delete(attachId);
       const driver = session.driver;
       session.driver = null;

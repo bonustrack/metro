@@ -53,7 +53,7 @@ beforeEach(() => {
   process.env.METRO_GMAIL_TOKEN_URL = TOKEN;
   process.env.METRO_GMAIL_API_URL = API;
   delete process.env.METRO_GMAIL_REDIRECT;
-  tokenAnswer = json({ access_token: 'at', refresh_token: 'rt', expires_in: 3599 });
+  tokenAnswer = json({ access_token: 'at', refresh_token: 'rt', expires_in: 3599, scope: 'https://www.googleapis.com/auth/gmail.readonly' });
   profile = json({ emailAddress: 'Admin@Snapshot.org', historyId: '100' });
   exchanges = [];
   stored = [];
@@ -79,7 +79,7 @@ describe('connecting Gmail through the Google sign-in page', () => {
       client_id: CLIENT.clientId,
       redirect_uri: 'https://metro.box/',
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+      scope: 'https://www.googleapis.com/auth/gmail.readonly',
       access_type: 'offline',
       prompt: 'select_account consent',
       code_challenge_method: 'S256',

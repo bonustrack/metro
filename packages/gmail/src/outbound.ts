@@ -74,6 +74,7 @@ async function outgoing(args: Args): Promise<Outgoing> {
   const parsed = threadOfLine('gmail', line);
   if (parsed === null) throw new TrainError('gmail_bad_line', `not a valid gmail line: ${line}`, { retryable: false });
   const acct = accountOf(args);
+  if (acct.cfg.sendEnabled === false) throw new TrainError('gmail_read_only', 'This Gmail connection is read-only. Allow sending with Google in channel settings, then choose a Metro write policy.', { retryable: false });
   const files = filesOf(args.attachments);
   const text = typeof args.text === 'string' ? args.text : '';
   if (text.trim() === '' && files.length === 0) throw new TrainError('gmail_text_required', 'give some text or a file to send', { retryable: false });

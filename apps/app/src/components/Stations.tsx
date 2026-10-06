@@ -54,6 +54,7 @@ export function Stations({ project }: { project: string }): ReactNode {
       <ConnectStation
         agentId={agent.id}
         attachable={data.attachable}
+        features={data.features}
         open={connecting}
         onClose={() => {
           setConnecting(false);

@@ -21,11 +21,14 @@ export async function gmail(acct: Account, path: string, init: RequestInit = {})
   if (res.status === 401) res = await call(acct, path, init, true);
   if (res.ok) return res;
   const detail = await googleMessage(res);
+  acct.check();
   throw res.status === 404 && path.startsWith(`${USER}/history`) ? new HistoryGone(detail) : refusalOf(GMAIL, res.status, detail);
 }
 
 export async function gmailJson<T>(acct: Account, path: string, init: RequestInit = {}): Promise<T> {
-  return (await (await gmail(acct, path, init)).json()) as T;
+  const body = (await (await gmail(acct, path, init)).json()) as T;
+  acct.check();
+  return body;
 }
 
 export const queryOf = (params: [string, string][]): string => new URLSearchParams(params).toString();

@@ -122,6 +122,38 @@ export function accountFrom(body: unknown): Account {
   };
 }
 
+function savedAccount(): Account | null {
+  const raw = readItem(STORAGE_KEY);
+  if (raw === null) return null;
+  try {
+    return accountFrom(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export interface AccountIdentity {
+  user: string;
+  organization: string;
+  session: string;
+}
+
+function identityOf(account: Account | null): AccountIdentity | null {
+  if (account === null || account.organization === null) return null;
+  const session = filled(tokenClaims(account.accessToken)?.sid);
+  return session === null ? null : { user: account.user.id, organization: account.organization, session };
+}
+
+export const accountIdentity = (): AccountIdentity | null => identityOf(activeAccount());
+
+const sameIdentity = (expected: AccountIdentity, current: AccountIdentity | null): boolean =>
+  current !== null && current.user === expected.user && current.organization === expected.organization && current.session === expected.session;
+
+export function checkAccountIdentity(expected: AccountIdentity | null): asserts expected is AccountIdentity {
+  if (expected === null || !sameIdentity(expected, accountIdentity()) || !sameIdentity(expected, identityOf(savedAccount())))
+    throw new Error('The Metro account changed. Start the sign-in again.');
+}
+
 function storedScope(body: unknown, account: Account | null): string | null {
   if (account === null) return null;
   if (isRecord(body) && typeof body.sessionScope === 'string') return body.sessionScope;

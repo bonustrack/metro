@@ -5,7 +5,7 @@ import { approversForAccount } from './map.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { RecentSender } from './senders.js';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, bodyField, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, bodyField, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
 import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
 import { handlePolicy, type SetPolicy } from './policy-route.js';
@@ -138,7 +138,7 @@ async function storeAccount(
 
 function asInput(body: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of ['apiId', 'apiHash', 'phone', 'mailbox', 'clientId', 'clientSecret'])
+  for (const key of ['apiId', 'apiHash', 'phone', 'mailbox', 'clientId', 'clientSecret', 'mode', 'sendEnabled', 'accountId'])
     out[key] = bodyField(body, key);
   return out;
 }
@@ -148,12 +148,13 @@ async function handleStart(
   res: ServerResponse,
   deps: AccountApiDeps,
   agentId: string,
+  owner: AttachOwner,
 ): Promise<void> {
   const body = await readJsonBody(req);
   const station = bodyField(body, 'station');
   if (isInteractiveStation(station)) {
     const view = await deps.attachSessions.start(
-      { agentId },
+      owner,
       station,
       asInput(body),
     );
@@ -320,10 +321,12 @@ async function dispatchAttach(
   deps: AccountApiDeps,
   agentId: string,
   route: Extract<AccountRoute, { kind: 'start' | 'session' | 'step' }>,
+  session?: ApiSession,
 ): Promise<void> {
-  if (route.kind === 'start') return handleStart(req, res, deps, agentId);
-  if (route.kind === 'session') return handleSession(req, res, deps, { agentId }, route.attachId);
-  return handleStep(req, res, deps, { agentId }, route.attachId);
+  const owner: AttachOwner = { agentId, organization: session?.subject, userId: session?.userId, sessionId: session?.sessionId, authorization: req.headers.authorization };
+  if (route.kind === 'start') return handleStart(req, res, deps, agentId, owner);
+  if (route.kind === 'session') return handleSession(req, res, deps, owner, route.attachId);
+  return handleStep(req, res, deps, owner, route.attachId);
 }
 
 async function dispatchRoute(
@@ -332,8 +335,9 @@ async function dispatchRoute(
   deps: AccountApiDeps,
   agentId: string,
   route: AccountRoute,
+  session?: ApiSession,
 ): Promise<void> {
-  if (route.kind === 'start' || route.kind === 'session' || route.kind === 'step') return dispatchAttach(req, res, deps, agentId, route);
+  if (route.kind === 'start' || route.kind === 'session' || route.kind === 'step') return dispatchAttach(req, res, deps, agentId, route, session);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, agentId, route);
   if (route.kind === 'policy') return handlePolicy(req, res, deps, agentId, route);
@@ -348,9 +352,10 @@ export async function handleAccountRoute(
   deps: AccountApiDeps,
   agentId: string,
   route: AccountRoute,
+  session?: ApiSession,
 ): Promise<void> {
   try {
-    await dispatchRoute(req, res, deps, agentId, route);
+    await dispatchRoute(req, res, deps, agentId, route, session);
   } catch (err) {
     apiFailure(req, res, err);
   }

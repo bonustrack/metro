@@ -31,7 +31,7 @@ export interface StepInput {
 }
 
 export interface AttachDriver {
-  submit: (input: StepInput) => Promise<void>;
+  submit: (input: StepInput, authorization?: string) => Promise<void>;
   cancel: () => Promise<void>;
 }
 

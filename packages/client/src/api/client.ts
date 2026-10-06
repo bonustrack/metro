@@ -31,6 +31,7 @@ export interface StationsView {
   agent: AgentSummary | undefined;
   groups: AccountGroup[];
   attachable: string[];
+  features: string[];
   unavailable: string[];
   capabilities: Record<string, string[]>;
   tools: Record<string, GroupedTool[]>;
@@ -89,6 +90,7 @@ async function answered(init: CallInit): Promise<Response> {
 export async function call(init: CallInit): Promise<unknown> {
   const res = await answered(init);
   const body: unknown = await res.json().catch(() => null);
+  init.checkAccount?.();
   const failed = failure(res, body);
   if (failed !== null) throw failed;
   return body;
@@ -151,6 +153,7 @@ export async function fetchStations(): Promise<StationsView> {
     agent: toAgent(body.agents),
     groups: groupAccounts(body.accounts),
     attachable: toStationList(body.attachable),
+    features: toStationList(body.features),
     unavailable: toStationList(body.unavailable),
     capabilities: toCapabilities(body.capabilities),
     tools: toolGroupsOf(body.tools),

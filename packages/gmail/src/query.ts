@@ -69,6 +69,7 @@ async function searched(acct: Account, q: ReadQuery, beforeAt: string): Promise<
 async function list(id: string, acct: Account, q: ReadQuery): Promise<void> {
   const beforeAt = await receivedAt(acct, q.before);
   const found = q.threadId !== null && q.query === '' ? await inThread(acct, q, q.threadId, beforeAt) : await searched(acct, q, beforeAt);
+  acct.check();
   respond(id, {
     result: {
       account: acct.id,
@@ -85,6 +86,7 @@ async function one(id: string, acct: Account, messageId: string): Promise<void> 
     const saved = await saveFile(acct, m.id, file, index);
     attachments.push({ name: file.name, mime: file.mime, kind: file.kind, size: saved.bytes, local_path: saved.path });
   }
+  acct.check();
   respond(id, { result: { account: acct.id, message: { ...mailFull('gmail', acct.id, itemOf(m)), attachments } } });
 }
 

@@ -3,13 +3,18 @@ import { threadOfLine } from '@metro-labs/core/stations/mail';
 import { TokenKeeper, type FetchLike } from '@metro-labs/core/stations/oauth';
 import { TrainError } from '@metro-labs/core/train-error';
 import { refreshTokens } from './auth.js';
+import { renewManaged, revokeManaged } from './managed.js';
+import { checkManagedBinding, type ManagedBinding } from './managed-binding.js';
 import { loadState, saveState, type AccountState } from './state.js';
 
-export interface AccountConfig {
+export interface AccountConfig extends ManagedBinding {
   id: string;
   accountEmail: string;
-  clientId: string;
-  clientSecret: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshGrant?: string;
+  authorizationId?: string;
+  sendEnabled?: boolean;
   refreshToken: string;
   accessToken?: string;
   expiresAt?: number;
@@ -18,9 +23,15 @@ export interface AccountConfig {
 
 const filled = (v: unknown): boolean => typeof v === 'string' && v !== '';
 
+function checkClient(a: AccountConfig, die: Die): void {
+  if (a.managed === true) {
+    if (!filled(a.refreshGrant) || !filled(a.managedHost) || !filled(a.managedOrganization) || !filled(a.authorizationId) || typeof a.sendEnabled !== 'boolean') die(`account '${a.id}' has an incomplete managed sign-in`);
+  } else if (!filled(a.clientId) || !filled(a.clientSecret)) die(`account '${a.id}' has no OAuth client`);
+}
+
 function checkAccount(a: AccountConfig, die: Die): void {
   if (!filled(a.accountEmail) || !a.accountEmail.includes('@')) die(`account '${a.id}' has no mailbox address`);
-  if (!filled(a.clientId) || !filled(a.clientSecret)) die(`account '${a.id}' has no OAuth client`);
+  checkClient(a, die);
   if (!filled(a.refreshToken)) die(`account '${a.id}' has no refresh token`);
 }
 
@@ -39,15 +50,24 @@ export class Account {
   readonly email: string;
   readonly state: AccountState;
   private readonly keeper: TokenKeeper;
+  private readonly pendingTokens = new Set<Promise<string>>();
+  private closing = false;
+  private revoked = false;
 
   constructor(
     readonly cfg: AccountConfig,
     private readonly fetchImpl: FetchLike = (input, init) => fetch(input, init),
   ) {
     this.email = cfg.accountEmail.toLowerCase();
-    this.state = loadState(cfg.id, { refreshToken: cfg.refreshToken, accessToken: cfg.accessToken ?? '', expiresAt: cfg.expiresAt ?? 0 });
-    const client = { clientId: cfg.clientId, clientSecret: cfg.clientSecret };
-    this.keeper = new TokenKeeper(this.state, (refreshToken) => refreshTokens(client, refreshToken, this.fetchImpl).catch(signedOut), () => {
+    this.state = loadState(cfg.id, cfg);
+    const client = { clientId: cfg.clientId ?? '', clientSecret: cfg.clientSecret ?? '' };
+    this.keeper = new TokenKeeper(this.state, async (refreshToken) => {
+      checkManagedBinding(cfg);
+      const tokens = await (cfg.managed === true
+        ? renewManaged(refreshToken, this.state.refreshGrant ?? '', cfg.managedHost ?? '', this.fetchImpl)
+        : refreshTokens(client, refreshToken, this.fetchImpl, Date.now(), cfg.sendEnabled)).catch(signedOut);
+      return tokens;
+    }, () => {
       this.save();
     });
   }
@@ -60,12 +80,44 @@ export class Account {
     saveState(this.cfg.id, this.state);
   }
 
-  token(force = false): Promise<string> {
-    return this.keeper.token(force);
+  check(): void {
+    if (this.closing) throw new TrainError('gmail_disconnecting', 'This Gmail connection is disconnecting.', { retryable: false });
+    checkManagedBinding(this.cfg);
   }
 
-  fetch(input: string, init?: RequestInit): Promise<Response> {
-    return this.fetchImpl(input, init);
+  async token(force = false): Promise<string> {
+    this.check();
+    const pending = this.keeper.token(force);
+    this.pendingTokens.add(pending);
+    try {
+      const token = await pending;
+      this.check();
+      return token;
+    } finally {
+      this.pendingTokens.delete(pending);
+    }
+  }
+
+  async disconnect(authorizationId: unknown): Promise<void> {
+    if (this.cfg.managed !== true || !authorizationId || authorizationId !== this.cfg.authorizationId) throw new TrainError('gmail_connection_changed', 'This Gmail connection changed. Try deleting again.', { retryable: false });
+    if (this.revoked) return;
+    if (this.closing) throw new TrainError('gmail_disconnecting', 'This Gmail connection is disconnecting.', { retryable: false });
+    this.closing = true;
+    try {
+      await Promise.allSettled([...this.pendingTokens]);
+      await revokeManaged(this.state.refreshToken, this.state.refreshGrant ?? '', this.cfg.managedHost ?? '', this.fetchImpl);
+      this.revoked = true;
+    } catch (err) {
+      this.closing = false;
+      throw err;
+    }
+  }
+
+  async fetch(input: string, init?: RequestInit): Promise<Response> {
+    this.check();
+    const result = await this.fetchImpl(input, init);
+    this.check();
+    return result;
   }
 }
 
