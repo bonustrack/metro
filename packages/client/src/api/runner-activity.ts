@@ -134,7 +134,7 @@ function taskDetails(task: RunnerTask, tools: RunnerTool[], clock: Clock): strin
 }
 
 function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
-  const tasks = [...activity.tasks].sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const tasks = [...activity.tasks].sort((a, b) => (b.firstStartedAt ?? b.startedAt) - (a.firstStartedAt ?? a.startedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return tasks.map((task) => {
     const tools = activity.activeTools.filter((tool) => tool.taskId === task.id);
     const progress = terminal(task) && task.endedAt !== null ? `ended ${ago(task.endedAt, clock.now)}` : `last progress ${ago(task.updatedAt, clock.now)}`;

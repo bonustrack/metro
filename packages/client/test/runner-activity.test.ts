@@ -205,6 +205,15 @@ describe('worker creation order', () => {
     }
   });
 
+  test('resumption keeps creation order without counting idle time as running time', () => {
+    const resumed = { ...task, id: 'old', firstStartedAt: now - 5 * 60 * 60_000, startedAt: now - 1_000 };
+    const rows = view({ tasks: [{ ...task, id: 'new', startedAt: now - 60_000 }, resumed] }).workers;
+    expect(rows.map((row) => row.id)).toEqual(['new', 'old']);
+    expect(rows[1]?.stateLabel).toBe('running (1 s)');
+    expect(rows[1]?.details).toContain('Elapsed: 1 s');
+    expect(rows[1]?.details).not.toContain('5 h');
+  });
+
   test('equal starts and sparse unknown dates use stable ID ties, never last activity', () => {
     const rows = [
       { ...task, id: 'z', startedAt: now }, { ...task, id: 'a', startedAt: now },

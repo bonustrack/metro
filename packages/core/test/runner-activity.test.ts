@@ -48,6 +48,18 @@ describe('runner activity is optional, validated and bounded', () => {
     expect(parseRunnerActivity({ ...valid, tasks: [{ id: 'old', status: 'running' }] })?.tasks[0]).not.toHaveProperty('lastObservedModel');
   });
 
+  test('first task starts are optional, valid timestamps, separate from the current run', () => {
+    const task = { id: 'w', status: 'running', startedAt: 200 };
+    const parsed = parseRunnerActivity({ ...valid, tasks: [{ ...task, firstStartedAt: 100 }] });
+    expect(parsed?.tasks[0]).toMatchObject({ startedAt: 200, firstStartedAt: 100 });
+    expect(parseRunnerActivity(parsed)).toEqual(parsed);
+    for (const firstStartedAt of [undefined, null, 0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '100']) {
+      const row = parseRunnerActivity({ ...valid, tasks: [{ ...task, firstStartedAt }] })?.tasks[0];
+      expect(row).not.toHaveProperty('firstStartedAt');
+      expect(row?.startedAt).toBe(200);
+    }
+  });
+
   test('process identity is optional and accepts only a bounded numeric start time', () => {
     expect(parseRunnerActivity({ ...valid, procStart: '123456' })?.procStart).toBe('123456');
     for (const procStart of ['', '1;kill', '1'.repeat(33), 12, null])

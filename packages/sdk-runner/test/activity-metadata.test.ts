@@ -99,6 +99,7 @@ test('the first genuine start survives progress, completion and same-ID resume',
     observe(start('w', 'first'));
     const startedAt = activity.snapshot().tasks[0]?.startedAt;
     expect(startedAt).toBe(1_800_000_000_000);
+    expect(activity.snapshot().tasks[0]?.firstStartedAt).toBe(startedAt);
     clock.mockReturnValue(1_800_000_001_000);
     observe({ type: 'system', subtype: 'task_progress', task_id: 'w', usage: { tool_uses: 1, duration_ms: 500 } });
     observe({ type: 'system', subtype: 'task_notification', task_id: 'w', status: 'completed' });
@@ -106,15 +107,16 @@ test('the first genuine start survives progress, completion and same-ID resume',
     clock.mockReturnValue(1_800_000_002_000);
     observe(start('w', 'resumed'));
     observe({ type: 'system', subtype: 'task_updated', task_id: 'w', patch: { status: 'paused' } });
-    expect(activity.snapshot().tasks[0]).toMatchObject({ startedAt, status: 'paused', endedAt: null, updatedAt: 1_800_000_002_000 });
+    expect(activity.snapshot().tasks[0]).toMatchObject({ firstStartedAt: startedAt, startedAt: 1_800_000_002_000, status: 'paused', endedAt: null, updatedAt: 1_800_000_002_000 });
     observe({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'w' }, { task_id: 'sparse' }] });
-    expect(activity.snapshot().tasks.find((row) => row.id === 'w')?.startedAt).toBe(startedAt);
+    expect(activity.snapshot().tasks.find((row) => row.id === 'w')?.firstStartedAt).toBe(startedAt);
     expect(activity.snapshot().tasks.find((row) => row.id === 'sparse')?.startedAt).toBe(0);
+    expect(activity.snapshot().tasks.find((row) => row.id === 'sparse')?.firstStartedAt).toBeUndefined();
     clock.mockReturnValue(1_800_000_003_000);
     observe(start('sparse', 'late-start'));
     expect(activity.snapshot().tasks.find((row) => row.id === 'sparse')?.startedAt).toBe(1_800_000_003_000);
     activity.stop();
-    expect(activity.snapshot().tasks.find((row) => row.id === 'w')).toMatchObject({ startedAt, status: 'stopped' });
+    expect(activity.snapshot().tasks.find((row) => row.id === 'w')).toMatchObject({ firstStartedAt: startedAt, startedAt: 1_800_000_002_000, status: 'stopped' });
   } finally { clock.mockRestore(); }
 });
 

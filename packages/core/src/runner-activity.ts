@@ -46,6 +46,7 @@ export interface RunnerTask {
   status: RunnerTaskState;
   background: boolean;
   startedAt: number;
+  firstStartedAt?: number;
   updatedAt: number;
   endedAt: number | null;
   lastTool: string | null;
@@ -133,6 +134,7 @@ function task(raw: unknown): RunnerTask | null {
     id: String(raw.id), kind: name(raw.kind), agent: name(raw.agent), status: raw.status, background: raw.background === true,
     startedAt: count(raw.startedAt), updatedAt: count(raw.updatedAt), endedAt: count(raw.endedAt) || null,
     lastTool: name(raw.lastTool), toolUses: count(raw.toolUses), durationMs: count(raw.durationMs),
+    ...(count(raw.firstStartedAt) > 0 ? { firstStartedAt: count(raw.firstStartedAt) } : {}),
     ...(raw.description === undefined ? {} : { description: runnerTaskDescription(raw.description) }),
     ...(raw.lastObservedModel === undefined ? {} : { lastObservedModel: runnerTaskModel(raw.lastObservedModel) }),
   };
