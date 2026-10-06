@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 export interface TicketStore<T> {
   mint: (value: T, now?: number) => { ticket: string; expiresAt: number };
+  peek: (ticket: string, now?: number) => T | undefined;
   take: (ticket: string, now?: number) => T | undefined;
   size: (now?: number) => number;
 }
@@ -23,6 +24,12 @@ export function ticketStore<T>(ttlMs: number, max: number): TicketStore<T> {
       const expiresAt = now + ttlMs;
       open.set(ticket, { value, expiresAt });
       return { ticket, expiresAt };
+    },
+    peek(ticket, now = Date.now()) {
+      const entry = open.get(ticket);
+      if (entry !== undefined && entry.expiresAt > now) return entry.value;
+      open.delete(ticket);
+      return undefined;
     },
     take(ticket, now = Date.now()) {
       const entry = open.get(ticket);

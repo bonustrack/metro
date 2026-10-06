@@ -25,6 +25,7 @@ export interface AgentApiDeps extends AccountApiDeps {
   capabilities: () => Record<string, string[]>;
   toolGroups?: () => Record<string, { name: string; group: string }[]>;
   attachable?: string[];
+  features?: string[];
   connectorIds: (agentIds: string[]) => Promise<Map<string, string[]>>;
 }
 
@@ -69,6 +70,7 @@ async function handleList(
   const base = {
     agents: list.map((a) => agentPayload(a, connectors)),
     capabilities: deps.capabilities(),
+    features: deps.features ?? [],
     attachable: deps.attachable ?? ATTACHABLE,
     ...(deps.toolGroups === undefined ? {} : { tools: deps.toolGroups() }),
   };
@@ -100,7 +102,7 @@ async function dispatch(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return;
   }
-  if (tgt.kind === 'accounts') await handleAccountRoute(req, res, deps, tgt.id, tgt.route);
+  if (tgt.kind === 'accounts') await handleAccountRoute(req, res, deps, tgt.id, tgt.route, session);
   else await handleList(req, res, deps);
 }
 

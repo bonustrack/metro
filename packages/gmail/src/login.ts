@@ -12,6 +12,7 @@ export interface GmailLoginDeps {
   clientId?: unknown;
   clientSecret?: unknown;
   mailbox?: unknown;
+  sendEnabled?: boolean;
   fetch?: FetchLike;
   now?: () => number;
 }
@@ -22,13 +23,14 @@ export class GmailBrowserLogin extends BrowserSignIn<GmailLoginResult> {
     const mailbox = parseMailbox(deps.mailbox);
     const fetchImpl: FetchLike = deps.fetch ?? ((input, init) => fetch(input, init));
     const now = deps.now ?? Date.now;
+    const sendEnabled = deps.sendEnabled === true;
     super({
-      authorize: (challenge, state) => authorizeUrl(client, challenge, state, mailbox),
+      authorize: (challenge, state) => authorizeUrl(client, challenge, state, mailbox, sendEnabled),
       redeem: async (code, verifier) => {
-        const tokens = await redeemCode(client, code, verifier, fetchImpl, now());
+        const tokens = await redeemCode(client, code, verifier, fetchImpl, now(), sendEnabled);
         const email = await verifyMailbox(tokens.accessToken, fetchImpl, mailbox);
         return {
-          config: { accountEmail: email, ...client, ...tokens, createdAt: new Date(now()).toISOString() },
+          config: { accountEmail: email, ...client, ...tokens, sendEnabled, createdAt: new Date(now()).toISOString() },
           identity: { email },
         };
       },

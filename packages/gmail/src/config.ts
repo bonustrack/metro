@@ -1,6 +1,8 @@
 import { envUrl, envValue } from '@metro-labs/core/stations/oauth';
 
-export const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'].join(' ');
+export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+export const scopesFor = (sendEnabled = false): string => [READ_SCOPE, ...(sendEnabled ? [SEND_SCOPE] : [])].join(' ');
 
 export const MAILBOX_URL = 'https://mail.google.com/';
 

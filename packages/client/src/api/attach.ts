@@ -1,3 +1,4 @@
+import { accountIdentity, checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 import { filled, isRecord } from '../read.js';
 import { call } from './client.js';
@@ -246,8 +247,12 @@ export async function startAttach(
   agentId: string,
   station: string,
   fields: Record<string, string>,
+  base?: string,
+  identity: AccountIdentity | null = accountIdentity(),
 ): Promise<AttachStarted> {
   const body = await call({
+    base,
+    checkAccount: () => { checkAccountIdentity(identity); },
     method: 'POST',
     path: `/${agentId}/accounts/start`,
     headers: { 'content-type': 'application/json' },

@@ -34,6 +34,7 @@ function refused(err: unknown, provider: string): StationAttachError {
 }
 
 function browserAttach(login: BrowserLogin, hooks: DriverHooks, how: BrowserAttach): StartedAttach {
+  let cancelled = false;
   const finish = async (input: StepInput): Promise<void> => {
     const state = text(input.state);
     if (state !== login.state) throw new StationAttachError(OTHER_ATTEMPT, 400);
@@ -45,7 +46,8 @@ function browserAttach(login: BrowserLogin, hooks: DriverHooks, how: BrowserAtta
     const code = text(input.code);
     if (code === '') throw new StationAttachError(`${how.provider} did not send a sign-in code back`, 400);
     try {
-      hooks.done(await login.finish(code, state));
+      const outcome = await login.finish(code, state);
+      if (!cancelled) hooks.done(outcome);
     } catch (err) {
       hooks.fail(said(err, `Metro could not finish the ${how.provider} sign-in.`));
     }
@@ -55,7 +57,10 @@ function browserAttach(login: BrowserLogin, hooks: DriverHooks, how: BrowserAtta
     prompt: { step: 'browser', prompt: how.prompt, authorizeUrl: login.authorizeUrl },
     expiresAt: Date.now() + BROWSER_TTL_MS,
     driver: {
-      cancel: () => how.cancel?.() ?? Promise.resolve(),
+      cancel: () => {
+        cancelled = true;
+        return how.cancel?.() ?? Promise.resolve();
+      },
       submit: (input) => (input.mode === 'device' && device !== undefined ? device() : finish(input)),
     },
   };
@@ -94,7 +99,7 @@ export async function startGmail(input: Record<string, unknown>, hooks: DriverHo
   const { GmailBrowserLogin, failureOf } = await import('@metro-labs/gmail/login');
   let login;
   try {
-    login = new GmailBrowserLogin({ clientId: input.clientId, clientSecret: input.clientSecret, mailbox: input.mailbox });
+    login = new GmailBrowserLogin({ clientId: input.clientId, clientSecret: input.clientSecret, mailbox: input.mailbox, sendEnabled: input.sendEnabled === true });
   } catch (err) {
     throw refused(err, 'Google');
   }

@@ -187,12 +187,18 @@ export class Tunnel {
     private driver: TunnelDriver,
     private onUrl: (url: string) => void = () => undefined,
     private resolves: Resolves = resolvesPublicly,
+    private onChange: () => void = () => undefined,
   ) {}
+
+  private setUrl(url: string | null): void {
+    liveUrl = url;
+    this.onChange();
+  }
 
   private noticeUrl(text: string): void {
     const url = this.driver.urlIn(text);
     if (url === null || url === liveUrl) return;
-    liveUrl = url;
+    this.setUrl(url);
     this.restartDelay = RESTART_DELAY_MS;
     log.info({ url }, `${this.driver.name} up; waiting for its name to resolve`);
     this.announceWhenResolvable(url).catch((err: unknown) => {
@@ -240,7 +246,7 @@ export class Tunnel {
     }, SILENT_MS).unref();
     child.on('exit', (code) => {
       this.child = null;
-      liveUrl = null;
+      this.setUrl(null);
       if (this.closed) return;
       this.afterExit(code).catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, `${this.driver.name}: exit handling failed`);
@@ -289,7 +295,7 @@ export class Tunnel {
       if (misses < ADOPTED_MISSES) return;
       this.unwatch();
       log.warn({ url }, `${this.driver.name}: the Funnel this daemon adopted no longer answers; publishing our own`);
-      liveUrl = null;
+      this.setUrl(null);
       this.restartDelay = RESTART_DELAY_MS;
       this.start();
     };
@@ -312,5 +318,6 @@ export class Tunnel {
     this.unwatch();
     this.child?.kill('SIGINT');
     this.child = null;
+    this.setUrl(null);
   }
 }

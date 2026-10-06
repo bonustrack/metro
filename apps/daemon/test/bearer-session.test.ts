@@ -75,9 +75,9 @@ describe('a box owned by an organization', () => {
     setLocalOwner(ORG, dir);
     const sessions = bearerSessionsFor(() => localOwner(dir), new SigningKeys(issuer.url, jwksStore(dir)));
     const as = (claims: Record<string, unknown>): Promise<unknown> => sessions({ headers: bearer(claims) } as unknown as IncomingMessage);
-    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, role: 'admin', operator: true });
-    expect(await as({ org_id: ORG, role: 'member', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, role: 'member', operator: true });
-    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01SOMEADMIN0000000000000' })).toEqual({ subject: ORG, role: 'admin' });
+    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, userId: 'user_01M2TN3K6NRVX675M617GR4WVE', sessionId: 'session_01XYZ', role: 'admin', operator: true });
+    expect(await as({ org_id: ORG, role: 'member', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, userId: 'user_01M2TN3K6NRVX675M617GR4WVE', sessionId: 'session_01XYZ', role: 'member', operator: true });
+    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01SOMEADMIN0000000000000' })).toEqual({ subject: ORG, userId: 'user_01SOMEADMIN0000000000000', sessionId: 'session_01XYZ', role: 'admin' });
   });
 
   test('stop needs the admin role: a member is 403, an admin goes through', async () => {

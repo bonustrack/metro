@@ -1,6 +1,6 @@
 import { builtInDaemon } from '../auth/daemon.js';
 import { signInReturnUrl, timeoutSignal } from '../platform.js';
-import { accountFrom, activeAccount, clearAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
+import { accountFrom, activeAccount, clearAccount, isCurrentAccount, storeAccount, tokenExpiring, type Account } from '../auth/account.js';
 import { isRecord } from '../read.js';
 import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
@@ -73,12 +73,13 @@ export function refreshAccount(): Promise<Account | null> {
   if (current === null) return Promise.resolve(null);
   refreshing ??= post('/refresh', { refreshToken: current.refreshToken })
     .then((body) => {
+      if (!isCurrentAccount(current)) return null;
       const next = accountFrom(body);
       storeAccount(next);
       return next;
     })
     .catch((err: unknown) => {
-      if (err instanceof Error && err.message !== 'Failed to reach Metro.') clearAccount();
+      if (isCurrentAccount(current) && err instanceof Error && err.message !== 'Failed to reach Metro.') clearAccount();
       return null;
     })
     .finally(() => {

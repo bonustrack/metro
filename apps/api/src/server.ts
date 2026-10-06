@@ -40,6 +40,10 @@ import { handleSizeApiRequest, resizing, type SizeApiDeps } from './size.js';
 import { handleDeletionApiRequest, type DeletionApiDeps } from './deletion.js';
 import { growing, handleStorageApiRequest, type StorageApiDeps } from './storage.js';
 import { handleServersApiRequest, type ServersApiDeps } from './servers.js';
+import { handleGmailApiRequest } from './gmail/api.js';
+import { GmailBroker, gmailStateStore } from './gmail/broker.js';
+import { readGmailConfig } from './gmail/config.js';
+import { gmailUserAllowed } from './gmail/authorization.js';
 import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
 import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
 import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
@@ -53,6 +57,17 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
+const gmailApi = {
+  keys,
+  broker: new GmailBroker({
+    config: () => readWorkosConfig() === null ? null : readGmailConfig(),
+    states: gmailStateStore(),
+    fetch: (url, init) => fetch(url, init),
+    list: listServersForOwner,
+    allowed: (userId, organization) => gmailUserAllowed(dbUsers, readWorkosConfig(), userId, organization),
+    now: () => Date.now(),
+  }),
+};
 const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
 const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
@@ -143,6 +158,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleServerLinkRequest(req, res, linkApi),
   (req, res) => handleAwsConnectionsRequest(req, res, awsApi),
   (req, res) => handleLatestApiRequest(req, res, latestApi),
+  (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];

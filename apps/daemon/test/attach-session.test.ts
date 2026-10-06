@@ -158,6 +158,23 @@ describe('attach session lifecycle', () => {
     await store.stop();
   });
 
+  test('a driver that starts after the manager stopped is cancelled and never published', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const store = new AttachSessions({ authorize, complete, start: async (...args) => {
+      entered.resolve();
+      await release.promise;
+      return starter(...args);
+    } });
+    const starting = store.start(ADA, 'telegram', {}).then(() => 'unexpected success', (err: unknown) => String(err));
+    await entered.promise;
+    await store.stop();
+    release.resolve();
+    expect(await starting).toContain('expired or stopped');
+    expect(cancelled).toEqual(['telegram']);
+    expect(stored).toEqual([]);
+  });
+
   test('a start the station refuses leaves no session behind', async () => {
     const store = sessions();
     await expect(

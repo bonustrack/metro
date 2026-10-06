@@ -68,15 +68,46 @@ export function accountFrom(body: unknown): Account {
   };
 }
 
-export function loadAccount(): Account | null {
+function savedAccount(): Account | null {
   const raw = readItem(STORAGE_KEY);
-  if (raw === null) return (active = null);
+  if (raw === null) return null;
   try {
-    active = accountFrom(JSON.parse(raw));
+    return accountFrom(JSON.parse(raw));
   } catch {
-    active = null;
+    return null;
   }
+}
+
+export function loadAccount(): Account | null {
+  active = savedAccount();
   return active;
+}
+
+export function isCurrentAccount(account: Account): boolean {
+  const saved = savedAccount();
+  return active === account && saved?.refreshToken === account.refreshToken && saved.accessToken === account.accessToken;
+}
+
+export interface AccountIdentity {
+  user: string;
+  organization: string;
+  session: string;
+}
+
+function identityOf(account: Account | null): AccountIdentity | null {
+  if (account === null || account.organization === null) return null;
+  const session = filled(tokenClaims(account.accessToken)?.sid);
+  return session === null ? null : { user: account.user.id, organization: account.organization, session };
+}
+
+export const accountIdentity = (): AccountIdentity | null => identityOf(active);
+
+const sameIdentity = (expected: AccountIdentity, current: AccountIdentity | null): boolean =>
+  current !== null && current.user === expected.user && current.organization === expected.organization && current.session === expected.session;
+
+export function checkAccountIdentity(expected: AccountIdentity | null): asserts expected is AccountIdentity {
+  if (expected === null || !sameIdentity(expected, accountIdentity()) || !sameIdentity(expected, identityOf(savedAccount())))
+    throw new Error('The Metro account changed. Start the sign-in again.');
 }
 
 export function storeAccount(account: Account): void {

@@ -8,6 +8,8 @@ export type Role = 'admin' | 'member';
 
 export interface ApiSession {
   subject: string;
+  userId?: string;
+  sessionId?: string;
   role: Role;
   operator?: true;
 }

@@ -46,6 +46,7 @@ async function deliver(acct: Account, messageId: string): Promise<boolean> {
   }
   const files = mailFilesOf(m);
   const env = mailEnvelope('gmail', acct.id, acct.email, item, files.map(metaOf), verdict.verified);
+  acct.check();
   emitInbound(acct.id, env);
   const at = { station: 'gmail', account: acct.id, line: String(env.line), forId: String(env.id) };
   for (const [index, file] of files.entries())

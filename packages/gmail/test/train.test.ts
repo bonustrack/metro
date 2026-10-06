@@ -345,6 +345,6 @@ describe('reading', () => {
   test('accounts report the mailbox and where to open it', async () => {
     boot([]);
     await call('accounts', {});
-    expect(result().accounts).toEqual([{ id: 'g1', handle: SELF, url: `https://mail.google.com/mail/u/${SELF}/`, email: SELF }]);
+    expect(result().accounts).toEqual([{ id: 'g1', handle: SELF, url: `https://mail.google.com/mail/u/${SELF}/`, email: SELF, managed: false }]);
   });
 });

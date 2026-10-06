@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/station.ts",
     "./train": "./src/index.ts",
-    "./login": "./src/login.ts"
+    "./login": "./src/login.ts",
+    "./managed": "./src/managed.ts",
+    "./managed-binding": "./src/managed-binding.ts"
   },
   "scripts": {
     "build": "tsc",

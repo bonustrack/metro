@@ -117,6 +117,7 @@ describe('a funnel, against a fake tailscale', () => {
     fakeTailscale(`printf '%s\\n' '${FOREGROUND.replace(/'/g, '')}'\nexec sleep 30`);
     const onUrl = { resolve: (_u: string): void => undefined };
     const asked: string[] = [];
+    const changes: (string | null)[] = [];
     const tunnel = new Tunnel(
       funnelDriver(8420, 'tailscale'),
       (u) => {
@@ -126,13 +127,16 @@ describe('a funnel, against a fake tailscale', () => {
         asked.push(host);
         return Promise.resolve(true);
       },
+      () => { changes.push(currentTunnelUrl()); },
     );
     const url = await untilUrl(tunnel, onUrl);
     expect(url).toBe('https://suzy.tail1234.ts.net');
     expect(asked).toEqual(['suzy.tail1234.ts.net']);
     expect(currentTunnelUrl()).toBe(url);
     expect(publicBaseUrl()).toBe(url);
+    expect(changes).toEqual([url]);
     tunnel.stop();
+    expect(changes.at(-1)).toBeNull();
     await new Promise((r) => setTimeout(r, 200));
     expect(currentTunnelUrl()).toBeNull();
     expect(publicBaseUrl()).toBeNull();

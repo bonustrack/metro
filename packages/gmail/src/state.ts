@@ -4,16 +4,22 @@ import { seenOf } from '@metro-labs/core/stations/mail';
 import { tokenStateOf, type Tokens } from '@metro-labs/core/stations/oauth';
 
 export interface AccountState extends Tokens {
+  refreshGrant?: string;
+  authorizationId?: string;
   historyId: string | null;
   seen: string[];
 }
 
 export const stateFiles = accountFiles('GMAIL_STATE_DIR', 'gmail-state-');
 
-export function loadState(accountId: string, seed: Partial<Tokens>): AccountState {
+export function loadState(accountId: string, seed: Partial<AccountState>): AccountState {
   const saved = readJson<Record<string, unknown>>(stateFiles.path(accountId), {});
+  const same = saved.authorizationId === seed.authorizationId;
+  const held = same ? saved : {};
   return {
-    ...tokenStateOf(saved, seed),
+    ...tokenStateOf(held, seed),
+    refreshGrant: typeof held.refreshGrant === 'string' ? held.refreshGrant : seed.refreshGrant,
+    authorizationId: seed.authorizationId,
     historyId: typeof saved.historyId === 'string' && saved.historyId !== '' ? saved.historyId : null,
     seen: seenOf(saved.seen),
   };

@@ -22,6 +22,7 @@ import { type DetachHandler } from './AccountList.js';
 import { Allowlist } from './Allowlist.js';
 import { StationName } from './StationName.js';
 import { Permissions } from './Permissions.js';
+import { GmailSettings } from './GmailSettings.js';
 import { FactRow, SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
 import { openExternal } from '../lib/open.js';
 import { go } from '../lib/nav.js';
@@ -43,6 +44,7 @@ interface StationDetailProps {
   agent: AgentSummary | undefined;
   verbs: string[];
   tools: GroupedTool[];
+  features: string[];
   onDetach?: DetachHandler;
   onAllowlistSaved?: () => Promise<unknown>;
   onToggle?: Toggle;
@@ -149,7 +151,7 @@ function Receive({ station, id, enabled, onToggle }: { station: string; id: stri
   );
 }
 
-function Remove({ station, id, project, onDetach }: { station: string; id: string; project: string; onDetach: DetachHandler }): ReactNode {
+function Remove({ station, id, project, managed, onDetach }: { station: string; id: string; project: string; managed: boolean; onDetach: DetachHandler }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const confirming = useConfirm(
     () => onDetach(station, id),
@@ -161,7 +163,7 @@ function Remove({ station, id, project, onDetach }: { station: string; id: strin
   return (
     <SettingsSection title="Delete channel" note="Removes it from the agent, with the keys Metro keeps for it.">
       <Button size="md" color="danger" dark={dark} label="Delete" onPress={confirming.show} />
-      <ConfirmDialog confirming={confirming} title="Delete channel" lines={detachLines(station)} action="Delete channel" word={id} />
+      <ConfirmDialog confirming={confirming} title="Delete channel" lines={detachLines(station, managed)} action="Delete channel" word={id} />
     </SettingsSection>
   );
 }
@@ -172,7 +174,7 @@ function Manage({ station, project, row, onToggle, onDetach }: { station: string
   return (
     <SettingsGroup title="Manage">
       {onToggle === undefined ? null : <Receive station={station} id={id} enabled={row.enabled} onToggle={onToggle} />}
-      {onDetach === undefined ? null : <Remove station={station} id={id} project={project} onDetach={onDetach} />}
+      {onDetach === undefined ? null : <Remove station={station} id={id} project={project} managed={row.managed === true} onDetach={onDetach} />}
     </SettingsGroup>
   );
 }
@@ -192,7 +194,7 @@ function Abilities({ station, row, agent, verbs, tools, onSaved }: { station: st
   return <Permissions title={title} policy={row.policy} tools={tools} store={(next) => setPolicy(agent.id, station, id, next)} onSaved={onSaved} />;
 }
 
-export function StationDetail({ station, project, row, agent, verbs, tools, onDetach, onAllowlistSaved, onToggle }: StationDetailProps): ReactNode {
+export function StationDetail({ station, project, row, agent, verbs, tools, features, onDetach, onAllowlistSaved, onToggle }: StationDetailProps): ReactNode {
   const id = row.id;
   const name = useAgentName();
   return (
@@ -208,6 +210,9 @@ export function StationDetail({ station, project, row, agent, verbs, tools, onDe
           approvers={row.approvers}
           onSaved={onAllowlistSaved}
         />
+      )}
+      {station !== 'gmail' || agent === undefined || onAllowlistSaved === undefined ? null : (
+        <GmailSettings key={`${agent.id}/${id ?? ''}`} agentId={agent.id} row={row} features={features} onSaved={onAllowlistSaved} />
       )}
       <Abilities station={station} row={row} agent={agent} verbs={verbs} tools={tools} onSaved={onAllowlistSaved} />
       <Setup station={station} row={row} agentId={agent?.id} />

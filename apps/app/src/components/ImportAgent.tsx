@@ -272,6 +272,7 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
     <Modal title="Import agent" open={open} onClose={close}>
       <Col gap={14}>
         <Text size="2xs" role="secondary">{HOW}</Text>
+        <Text size="2xs" role="secondary">Gmail credentials managed by Metro are not included in exports. Reconnect those mailboxes after import.</Text>
         {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} onError={state.failed} /> : null}
         {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
         {ready && state.payload !== null ? (

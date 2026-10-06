@@ -1,5 +1,12 @@
 import { postForm, SignInError, tokensOf, type FetchLike, type OAuthBody, type Tokens } from '@metro-labs/core/stations/oauth';
-import { apiBase, authorizeBase, redirectUri, SCOPES, tokenUrl } from './config.js';
+import { apiBase, authorizeBase, redirectUri, scopesFor, tokenUrl } from './config.js';
+
+export function checkScopes(scope: unknown, sendEnabled: boolean): void {
+  const granted = typeof scope === 'string' ? scope.split(/\s+/).filter(Boolean) : [];
+  const wanted = scopesFor(sendEnabled).split(' ');
+  if (wanted.some((s) => !granted.includes(s)) || granted.some((s) => !wanted.includes(s)))
+    throw new SignInError('Google did not grant exactly the requested Gmail access. Review this app in your Google Account, then connect again.');
+}
 
 export interface GmailClient {
   clientId: string;
@@ -30,13 +37,14 @@ export function failureOf(body: OAuthBody): string {
   return detail === '' ? `Google refused the sign-in (${error === '' ? 'no reason given' : error}).` : `Google refused the sign-in: ${detail}`;
 }
 
-export function authorizeUrl(client: GmailClient, challenge: string, state: string, loginHint: string | null): string {
+export function authorizeUrl(client: GmailClient, challenge: string, state: string, loginHint: string | null, sendEnabled = false): string {
   const query = new URLSearchParams({
     ...(loginHint === null ? {} : { login_hint: loginHint }),
     client_id: client.clientId,
     redirect_uri: redirectUri(),
     response_type: 'code',
-    scope: SCOPES,
+    scope: scopesFor(sendEnabled),
+    ...(sendEnabled ? { include_granted_scopes: 'true' } : {}),
     state,
     code_challenge: challenge,
     code_challenge_method: 'S256',
@@ -49,7 +57,7 @@ export function authorizeUrl(client: GmailClient, challenge: string, state: stri
 const post = (fields: Record<string, string>, fetchImpl: FetchLike): Promise<{ status: number; body: OAuthBody }> =>
   postForm(tokenUrl(), fields, fetchImpl, 'Google');
 
-export async function redeemCode(client: GmailClient, code: string, verifier: string, fetchImpl: FetchLike, now = Date.now()): Promise<Tokens> {
+export async function redeemCode(client: GmailClient, code: string, verifier: string, fetchImpl: FetchLike, now = Date.now(), sendEnabled = false): Promise<Tokens> {
   const { status, body } = await post(
     {
       grant_type: 'authorization_code',
@@ -62,15 +70,17 @@ export async function redeemCode(client: GmailClient, code: string, verifier: st
     fetchImpl,
   );
   if (status !== 200) throw new SignInError(failureOf(body));
+  checkScopes(body.scope, sendEnabled);
   return tokensOf(body, now, 'Google');
 }
 
-export async function refreshTokens(client: GmailClient, refreshToken: string, fetchImpl: FetchLike, now = Date.now()): Promise<Tokens> {
+export async function refreshTokens(client: GmailClient, refreshToken: string, fetchImpl: FetchLike, now = Date.now(), sendEnabled?: boolean): Promise<Tokens> {
   const { status, body } = await post(
     { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: client.clientId, client_secret: client.clientSecret },
     fetchImpl,
   );
   if (status !== 200) throw new SignInError(`Google refused to renew this mailbox's sign-in, so connect Gmail again. ${failureOf(body)}`);
+  if (sendEnabled !== undefined) checkScopes(body.scope, sendEnabled);
   return tokensOf(body, now, 'Google', refreshToken);
 }
 

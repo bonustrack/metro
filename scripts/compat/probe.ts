@@ -1,4 +1,5 @@
 import { storeAccount } from '../../packages/client/src/auth/account.ts';
+import { configurePlatform, memoryKeyValue } from '../../packages/client/src/platform.ts';
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import { connectorTransfer } from '../../packages/client/src/api/connector-copy.ts';
 import { isRecord } from '../../packages/client/src/read.ts';
@@ -33,6 +34,7 @@ const org = need('COMPAT_ORG');
 const account = need('COMPAT_ACCOUNT');
 const agent = need('COMPAT_AGENT');
 
+configurePlatform({ kv: memoryKeyValue(), tabKv: memoryKeyValue() });
 storeAccount({
   accessToken: token,
   refreshToken: 'compat',
@@ -92,9 +94,10 @@ async function refused(name: string, want: RegExp, fn: () => Promise<unknown>): 
 
 const daemonMode = await ok('fetchMode', () => mode.fetchMode());
 await ok('fetchSession', () => client.fetchSession());
-await ok('fetchStations', async () => {
+const stations = await ok('fetchStations', async () => {
   const view = await client.fetchStations();
   if (view.agent?.id !== agent) throw new Error(`the agent list names ${view.agent?.id ?? 'no agent'}, not ${agent}`);
+  return view;
 });
 if (!olderThan(daemonMode?.version ?? null, RUN_EVENTS_SINCE)) {
   const events = await ok('getRunEvents', () => getRunEvents(agent, { limit: 10 }));
@@ -181,6 +184,14 @@ await ok('fetchRecentSenders', () => attach.fetchRecentSenders(agent, 'threema',
 await refused('lookupSender on threema', /resolve|look/i, () => attach.lookupSender(agent, 'threema', account, '+33600000000'));
 await refused('accountName on threema', /name/i, () => attach.accountName(agent, 'threema', account));
 await refused('startAttach webhook', /webhook|public/i, () => attach.startAttach(agent, 'webhook', {}));
+if (stations?.features.includes('gmail-managed') === true) {
+  await refused('startAttach Gmail upgrade unknown account', /account|not found|no such/i, () =>
+    attach.startAttach(agent, 'gmail', { mode: 'upgrade', accountId: 'missing-compat-account', sendEnabled: 'true' }),
+  );
+  await refused('startAttach Gmail BYO without credentials', /client|credential/i, () =>
+    attach.startAttach(agent, 'gmail', { mode: 'byo', sendEnabled: 'false' }),
+  );
+}
 await refused('pollAttachSession unknown', /not found|no such|unknown|expired/i, () =>
   session.pollAttachSession(agent, 'as_AAAAAAAAAAAAAAAAAAAAAA'),
 );
