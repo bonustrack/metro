@@ -14,6 +14,7 @@ const BY_HOST: Record<string, string> = {
 };
 
 const BY_DOMAIN: Record<string, string> = {
+  'xmtp.org': 'xmtp',
   'whatsapp.com': 'whatsapp',
   'whatsapp.net': 'whatsapp',
   'telegram.org': 'telegram',
