@@ -188,6 +188,7 @@ export class SharedCalls {
   private status(route: CallRoute, action: Action, status: SpeechStatus): void {
     if (this.terminal(action.status) || (status === 'started' && action.status === 'started')) return;
     action.status = status;
+    log.info({ actionId: action.actionId, status, at: Date.now() }, 'sdk-call: speech action');
     this.bridge?.notify({ type: 'speech', route, sourceId: action.sourceId, actionId: action.actionId, status });
   }
 }

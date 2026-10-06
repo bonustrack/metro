@@ -63,6 +63,6 @@ export class InputTiming {
 
   private note(input: RunnerInput): void {
     this.changed({ ...input });
-    log.info({ input: input.id, kind: input.kind, state: input.state, queueAgeMs: (input.consumedAt ?? Date.now()) - input.acceptedAt }, 'sdk-runner: input lifecycle');
+    log.info({ input: input.id, kind: input.kind, state: input.state, acceptedAt: input.acceptedAt, dispatchedAt: input.dispatchedAt, consumedAt: input.consumedAt, firstOutputAt: input.firstOutputAt, completedAt: input.completedAt, queueAgeMs: (input.consumedAt ?? Date.now()) - input.acceptedAt }, 'sdk-runner: input lifecycle');
   }
 }

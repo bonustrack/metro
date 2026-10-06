@@ -12,17 +12,24 @@ const SPEECH_MS = 60_000;
 type Speech = Pick<Utterance, 'attach' | 'say' | 'end' | 'abort'>;
 type MakeSpeech = (failed: (reason: string) => void) => Speech;
 
-interface Playing {
+interface Queued {
   action: SharedSpeechAction;
+  queuedAt: number;
+}
+
+interface Playing extends Queued {
   utterance: Speech | null;
   timer: ReturnType<typeof setTimeout>;
   synthesized: boolean;
   started: boolean;
+  synthesisStartedAt: number;
+  firstAudioAt: number | null;
+  markedFrameResolvedAt: number | null;
 }
 
 export class SpeechQueue {
   private readonly player: Player;
-  private readonly waiting: SharedSpeechAction[] = [];
+  private readonly waiting: Queued[] = [];
   private current: Playing | null = null;
   private live = false;
   private closed = false;
@@ -45,6 +52,7 @@ export class SpeechQueue {
       const current = this.current;
       if (current === null || current.started) return;
       current.started = true;
+      current.markedFrameResolvedAt = Date.now();
       current.action.status('started');
     });
     this.player.whenIdle(() => {
@@ -66,7 +74,7 @@ export class SpeechQueue {
   enqueue(action: SharedSpeechAction): boolean {
     if (this.closed || action.text.trim() === '' || action.text.length > MAX_TEXT) return false;
     if (this.waiting.length + (this.current === null ? 0 : 1) >= MAX_QUEUED || !action.isValid()) return false;
-    this.waiting.push(action);
+    this.waiting.push({ action, queuedAt: Date.now() });
     queueMicrotask(() => {
       this.next();
     });
@@ -83,7 +91,10 @@ export class SpeechQueue {
   cancel(): void {
     const waiting = this.waiting.splice(0);
     this.settle('interrupted');
-    for (const action of waiting) action.status('interrupted');
+    for (const queued of waiting) {
+      this.report(queued, 'interrupted');
+      queued.action.status('interrupted');
+    }
   }
 
   close(): void {
@@ -96,15 +107,18 @@ export class SpeechQueue {
 
   private next(): void {
     if (!this.live || this.closed || this.current !== null) return;
-    const action = this.waiting.shift();
-    if (action === undefined) return;
+    const queued = this.waiting.shift();
+    if (queued === undefined) return;
+    const { action } = queued;
     if (!action.isValid()) {
+      this.report(queued, 'failed');
       action.status('failed');
       this.next();
       return;
     }
     const playing: Playing = {
-      action, utterance: null, synthesized: false, started: false,
+      ...queued, utterance: null, synthesized: false, started: false,
+      synthesisStartedAt: Date.now(), firstAudioAt: null, markedFrameResolvedAt: null,
       timer: setTimeout(() => {
         if (this.current === playing) this.fail('speech timed out');
       }, this.timeoutMs),
@@ -121,7 +135,9 @@ export class SpeechQueue {
       playing.utterance = utterance;
       utterance.attach({
         audio: (pcm, chars) => {
-          if (this.valid(playing)) this.player.push(pcm, chars);
+          if (this.current === playing && pcm.length > 0) playing.firstAudioAt ??= Date.now();
+          if (!this.valid(playing)) return;
+          this.player.push(pcm, chars);
         },
         done: () => {
           if (!this.valid(playing)) return;
@@ -157,6 +173,16 @@ export class SpeechQueue {
     this.onFailed();
   }
 
+  private report(queued: Queued, status: SpeechStatus, playing?: Playing): void {
+    log.info({
+      actionId: queued.action.actionId, status, queuedAt: queued.queuedAt,
+      synthesisStartedAt: playing?.synthesisStartedAt ?? null,
+      firstAudioAt: playing?.firstAudioAt ?? null,
+      markedFrameResolvedAt: playing?.markedFrameResolvedAt ?? null,
+      settledAt: Date.now(),
+    }, 'voice: speech timing');
+  }
+
   private settle(status: SpeechStatus): void {
     const current = this.current;
     this.current = null;
@@ -164,6 +190,7 @@ export class SpeechQueue {
     if (current !== null) {
       clearTimeout(current.timer);
       current.utterance?.abort();
+      this.report(current, status, current);
       current.action.status(status);
     }
     queueMicrotask(() => {

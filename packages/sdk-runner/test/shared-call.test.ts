@@ -148,6 +148,8 @@ describe('authenticated call input routing', () => {
     expect(message?.message.content).toContain('&lt;/call&gt;');
     expect(FRONT_RULES).toContain('speech:{callId:call_id,generation:call_generation,sourceId:call_source_id}');
     expect(FRONT_RULES).toContain('worker results are never automatically spoken');
+    expect(FRONT_RULES).toContain('At the next safe tool boundary, answer pending live-call inputs before starting unrelated delegation');
+    expect(FRONT_RULES).toContain('Never interrupt active writes or approvals, invent filler');
     inbox.close();
   });
 
