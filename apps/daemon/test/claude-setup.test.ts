@@ -43,6 +43,7 @@ describe('the Claude Code setup a metro box gets', () => {
     expect(readFileSync(join(dir, 'claude', 'agents', 'worker.md'), 'utf8')).toContain('name: worker');
     expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
     expect(readFileSync(skill('metro'), 'utf8')).toContain('name: metro\n');
+    expect(readFileSync(skill('stage'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'STAGE.md'), 'utf8'));
     expect(readFileSync(skill('stage'), 'utf8')).toContain('name: stage\n');
     expect(readFileSync(skill('memory'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'MEMORY.md'), 'utf8'));
     expect(readFileSync(skill('memory'), 'utf8')).toContain('name: memory\n');

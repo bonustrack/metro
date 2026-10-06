@@ -45,6 +45,9 @@ The separate `metadata.status` and `metadata.priority` fields are optional. Stat
 - Delete one of your own messages: `delete {"line": "…", "message_id": "…"}`. XMTP has no edit and no typing.
 - History: `read {"line": "…", "limit": 20}`.
 - Poll: `ask {"line": "…", "question": "Ship today?", "options": ["Yes", "No"]}`.
+- Poll votes are numeric reactions with zero-based indexes: `0` is the first option, `1` is the second, and so on, in the poll's stored option order. For the poll above, `0` means Yes and `1` means No. Never use a one-based guess. Match the inbound reaction's `target_id` to the poll's `messageId` returned by `ask`, not its `pollId` or the reaction's own `message_id`.
+- With several questions, the first question still uses bare option indexes (`0`, `1`, …); later questions use `q:o`, with both indexes zero-based. `1:0` means the first option of the second question. Explicit `0:0` also means the first option of the first question.
+- Keep the poll's questions, options and `messageId`: `read` shows `[poll]` and `[reaction]`, not their choices or vote values. If the original mapping is unavailable, do not guess.
 - File: `create_upload {"name": "report.pdf"}`, run the `curl` line it returns in a shell, then `send {"line": "…", "attachments": [{"upload": "<upload_id>"}]}`. Files that are not images are refused over about 190 KiB.
 
 **Frames.** A frame is a small interactive view: a report, a choice, a form. Stage shows the frame itself in the chat (its `start` screen when it has screens), at image size, at most 400 x 400, clipped with a fade when taller. A tap opens it full screen. Its buttons do nothing in the chat: they work in the full view.
