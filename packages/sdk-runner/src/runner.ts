@@ -2,6 +2,7 @@ import { query, type CanUseTool, type Options, type Query, type SDKMessage, type
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { Activity } from './activity.js';
+import { ActivityTasks } from './activity-tasks.js';
 import { RunnerCalls } from './calls.js';
 import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
@@ -14,6 +15,7 @@ import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
 export const COMPACT_AT = 120_000;
+export const COMPACT_IDLE_MS = 60_000;
 
 const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL']);
 
@@ -85,6 +87,8 @@ export class Runner {
   readonly inbox: Inbox;
   readonly calls: RunnerCalls;
   private readonly watch: SessionWatch;
+  private readonly tasks = new ActivityTasks(() => undefined);
+  private compactTimer: ReturnType<typeof setTimeout> | null = null;
   private session: Query | null = null;
   private sessionId: string | null = null;
   private compactAsked: Uuid | null = null;
@@ -101,7 +105,7 @@ export class Runner {
     this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
       ready: () => this.watch.admitting,
       dispatch: (message) => { this.watch.dispatched(message.uuid); },
-      input: (input) => { parts.activity?.input(input); },
+      input: (input) => { this.cancelCompact(); parts.activity?.input(input); },
       queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
     });
     this.calls = new RunnerCalls(this.inbox, parts.activity);
@@ -133,15 +137,19 @@ export class Runner {
     if (this.session === null) throw new Error('the runner was not started');
     try {
       for await (const message of this.session) {
+        this.cancelCompact();
+        if (message.type === 'system') this.tasks.observe(message);
         const m: Record<string, unknown> = { ...message };
         this.trackInput(m);
         this.watch.observe(m);
         this.note(m);
         this.parts.activity?.observe(message);
         this.inbox.notify();
+        this.maybeCompact();
         observe?.(message);
       }
     } finally {
+      this.cancelCompact();
       this.ended = true;
     }
   }
@@ -163,10 +171,12 @@ export class Runner {
   }
 
   close(cancelActive = true): void {
+    this.cancelCompact();
     this.calls.close();
     try {
       if (cancelActive && !this.ended) this.inbox.finished();
     } finally {
+      this.ended = true;
       this.inbox.close();
       this.session?.close();
     }
@@ -218,7 +228,6 @@ export class Runner {
     if (m.type === 'result') this.turnDone(m);
     if (m.type !== 'system') return;
     if (m.subtype === 'init') this.started(m);
-    else if (m.subtype === 'session_state_changed' && m.state === 'idle') this.maybeCompact();
     else if (m.subtype === 'compact_boundary') {
       this.compacted = true;
       this.compactFloor = null;
@@ -239,14 +248,31 @@ export class Runner {
       this.compactFloor = context;
       this.compacted = false;
     }
-    this.maybeCompact();
+  }
+
+  private compactReady(resuming = false): boolean {
+    const busy = this.ended || this.compactAsked !== null || !this.watch.safe || !this.watch.admitting || (!resuming && (this.calls.live || this.inbox.pending > 0 || this.tasks.running > 0));
+    return compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy });
   }
 
   private maybeCompact(resuming = false): void {
-    const busy = this.compactAsked !== null || !this.watch.safe || !this.watch.admitting || (!resuming && (this.calls.live || this.inbox.pending > 0));
-    if (!compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy })) return;
+    if (!this.compactReady(resuming)) return;
+    if (resuming) { this.askCompact(true); return; }
+    this.compactTimer = setTimeout(() => {
+      this.compactTimer = null;
+      if (this.compactReady()) this.askCompact(false);
+    }, COMPACT_IDLE_MS);
+    this.compactTimer.unref();
+  }
+
+  private askCompact(resuming: boolean): void {
     this.compactAsked = this.inbox.compact();
     log.info({ context: this.watch.context, resuming }, 'sdk-runner: compacting at a safe idle boundary');
+  }
+
+  private cancelCompact(): void {
+    if (this.compactTimer !== null) clearTimeout(this.compactTimer);
+    this.compactTimer = null;
   }
 
   private started(m: Record<string, unknown>): void {
