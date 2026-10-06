@@ -18,7 +18,7 @@ export interface DashboardSource {
 const POLL_MS = 30_000;
 const CONCURRENCY = 3;
 const CYCLE_MS = 20_000;
-const responsive = (row: DashboardRow): number => Number([row.session, row.model].some((value) => value.data !== null && value.error === null));
+const responsive = (row: DashboardRow): number => Number([row.mode, row.session, row.model].some((value) => value.data !== null && value.error === null));
 const denied = (error: unknown): boolean => error instanceof AuthError || error instanceof ForbiddenError;
 const message = (error: unknown): string => error instanceof Error ? error.message : 'Metro did not answer.';
 export const initialDashboard = (): DashboardState => ({ organizations: null, rows: [], loading: true, refreshing: false, error: null });
@@ -97,12 +97,16 @@ export class DashboardPoll {
   }
 
   private async enrich(row: DashboardRow, token: Promise<string>, signal: AbortSignal): Promise<void> {
+    let refused = false;
     await Promise.all([
-      reading(row.mode, () => this.source.mode(row, signal)).catch((error: unknown) => failedReading(row.mode, error)).then((mode) => {
+      reading(row.mode, () => this.source.mode(row, signal)).then((mode) => {
         if (!signal.aborted) this.row(row.key, { mode });
+      }).catch((error: unknown) => {
+        refused = true;
+        if (!signal.aborted) this.row(row.key, { mode: failedReading(row.mode, error), session: failedReading(row.session, error), model: failedReading(row.model, error) });
       }),
       this.snapshots(row, token, signal).then((snapshots) => {
-        if (!signal.aborted) this.row(row.key, snapshots);
+        if (!signal.aborted && !refused) this.row(row.key, snapshots);
       }),
     ]);
   }

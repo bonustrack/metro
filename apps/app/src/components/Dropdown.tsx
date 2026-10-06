@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type 
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Dialog } from '@stage-labs/kit/react-native/dialog';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSheet } from '@stage-labs/kit/react-native/menu';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { Button, type ButtonProps } from '@stage-labs/kit/react-native/button';
 import { iconOf, type IconName } from './Icon.js';
 import { useIsNarrow } from '../lib/media.js';
 import { useHover } from './ui/hover.js';
@@ -21,6 +21,8 @@ interface TriggerButton {
   label: string;
   color?: 'primary' | 'secondary';
   size?: 'sm' | 'md';
+  style?: ButtonProps['style'];
+  textStyle?: ButtonProps['textStyle'];
 }
 
 const MENU_GAP = 8;
@@ -145,7 +147,7 @@ export function Dropdown({ items, label, align = 'end', matchWidth = false, butt
             {children}
           </Pressable>
         ) : (
-          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} dark={dark} label={button.label} onPress={open} />
+          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} dark={dark} label={button.label} style={button.style} textStyle={button.textStyle} onPress={open} />
         )}
       </View>
       <AnchoredPanel at={at} onClose={close}>

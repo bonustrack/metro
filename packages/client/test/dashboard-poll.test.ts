@@ -172,7 +172,7 @@ describe('dashboard polling controller', () => {
     expect([...timers.values()].map((timer) => timer.ms)).toEqual([30_000]);
   });
 
-  test('thirty offline rows rotate and a discovered healthy row keeps refreshing within fifty seconds', async () => {
+  test.each([false, true])('thirty offline rows rotate and a discovered healthy row refreshes within fifty seconds, mode only: %s', async (modeOnly) => {
     const offline = Array.from({ length: 30 }, (_, index) => `offline-${index}`);
     const attempts: string[] = []; const parents: AbortSignal[] = []; const children: AbortSignal[] = [];
     let healthyReads = 0;
@@ -183,11 +183,15 @@ describe('dashboard polling controller', () => {
     };
     const run = harness({
       organizations: (signal) => { parents.push(signal); return Promise.resolve([organization('org-a', [...offline, 'healthy'])]); },
-      session: (row, _token, signal) => {
-        if (row.agent.id === 'healthy') healthyReads += 1; else attempts.push(row.agent.id);
-        return read(row.agent.id, signal, SESSION);
+      mode: (row, signal) => {
+        if (row.agent.id === 'healthy') healthyReads += 1;
+        return read(row.agent.id, signal, { mode: 'local', owner: row.organization.id, version: modeOnly ? '0.1.0-beta.270' : '0.1.0-beta.271', stopped: false });
       },
-      model: (row, _token, signal) => read(row.agent.id, signal, MODEL),
+      session: (row, _token, signal) => {
+        if (row.agent.id !== 'healthy') attempts.push(row.agent.id);
+        return modeOnly && row.agent.id === 'healthy' ? Promise.reject(new NotFoundError('update first')) : read(row.agent.id, signal, SESSION);
+      },
+      model: (row, _token, signal) => modeOnly && row.agent.id === 'healthy' ? Promise.reject(new NotFoundError('update first')) : read(row.agent.id, signal, MODEL),
     });
     run.poll.start();
     let previous: number | null = null;
@@ -196,14 +200,17 @@ describe('dashboard polling controller', () => {
       await flush();
       const healthy = run.latest().rows.find((row) => row.agent.id === 'healthy');
       if (healthy === undefined) throw new Error('missing healthy row');
-      if (previous !== null) { expect(now - previous).toBeLessThanOrEqual(50_000); expect(healthy.session.at).toBe(now); }
-      previous = healthy.session.at;
+      if (previous !== null) { expect(now - previous).toBeLessThanOrEqual(50_000); expect(healthy.mode.at).toBe(now); }
+      previous = healthy.mode.at;
       const observed = now;
       now += 20_000; fireTimer(20_000); await flush();
       expect(children.every((signal) => signal.aborted)).toBe(true);
       expect(parents.every((signal) => !signal.aborted)).toBe(true);
       expect(run.latest().refreshing).toBe(false);
-      if (previous !== null) expect(healthy.session).toMatchObject({ data: SESSION, at: observed, error: null });
+      if (previous !== null) {
+        expect(healthy.mode).toMatchObject({ at: observed, error: null });
+        expect(healthy.session.data).toBe(modeOnly ? null : SESSION);
+      }
     }
     expect(attempts.slice(0, 30)).toEqual(offline);
     expect(healthyReads).toBe(3);

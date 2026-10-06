@@ -61,6 +61,30 @@ test('mode owner refusal clears the old version and an inventory failure dates e
   expect(run.row()?.mode).toMatchObject({ data: null, at: null, error: 'owner changed' });
 });
 
+test.each([false, true])('owner refusal clears private readings before a pending token settles and never restores them, token failure: %s', async (tokenFailure) => {
+  const run = harness(); await run.cycle();
+  const token = Promise.withResolvers<string>();
+  run.source.token = () => token.promise;
+  run.source.mode = () => Promise.reject(new ForbiddenError('owner changed'));
+  await run.cycle();
+  const cleared = { data: null, at: null, error: 'owner changed' };
+  expect(run.row()).toMatchObject({ mode: cleared, session: cleared, model: cleared });
+  if (tokenFailure) token.reject(new Error('token unavailable')); else token.resolve('fixture-token');
+  await flush();
+  expect(run.row()).toMatchObject({ mode: cleared, session: cleared, model: cleared });
+});
+
+test('late mode owner refusal clears already completed private readings', async () => {
+  const run = harness(); await run.cycle();
+  const mode = Promise.withResolvers<typeof MODE>();
+  run.source.mode = () => mode.promise;
+  await run.cycle();
+  expect(run.row()?.session.data).toBe(SESSION);
+  mode.reject(new ForbiddenError('owner changed')); await flush();
+  const cleared = { data: null, at: null, error: 'owner changed' };
+  expect(run.row()).toMatchObject({ mode: cleared, session: cleared, model: cleared });
+});
+
 test('membership removal and account changes do not publish a retained or late version', async () => {
   const run = harness(); await run.cycle();
   run.source.organizations = () => Promise.resolve([]);

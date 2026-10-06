@@ -48,7 +48,7 @@ function useMetroUpdate() {
       if (daemonBase() !== base) return;
       setStatus(result.updated ? `Installed ${result.version}.${result.restarting ? ' Metro is running this version.' : ' Restart Metro to run this version.'}` : null);
       if (!result.updated) setError('Metro did not install an update. Its release check may be cached for up to 10 minutes. Try again shortly.');
-      await Promise.all([client.invalidateQueries({ queryKey: ['mode', base] }), client.invalidateQueries({ queryKey: ['update', base] })]);
+      await client.invalidateQueries({ predicate: (query) => query.queryKey[1] === base });
     }).catch((err: unknown) => {
       if (daemonBase() !== base) return;
       setStatus(null); setError(queryError(err, 'Could not update Metro.'));

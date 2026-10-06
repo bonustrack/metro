@@ -10,12 +10,15 @@ import { useAllAgents } from '../lib/all-agents.js';
 import { useMetroRelease } from '../lib/metro-release.js';
 import { useIsNarrow } from '../lib/media.js';
 import { useDocumentTitle } from '../lib/title.js';
+import { SHRINK } from '../lib/style.js';
 import { AllAgentRow } from './AllAgentRow.js';
 import { Dropdown } from './Dropdown.js';
 import { ListHeader } from './ListHeader.js';
 import { PlainSidebar } from './PlainSidebar.js';
 import { RouteLink } from './RouteLink.js';
 import { Frame } from './Shell.js';
+
+const FILTER_BUTTON = { maxWidth: 240 } as const;
 
 function Columns(): ReactNode {
   return <Row gap={24} align="start" padding={{ bottom: 4 }}>
@@ -66,7 +69,7 @@ function useOrganizationFilter({ organizations, rows }: DashboardState) {
       return { label: duplicate === true ? `${name} (${org.slug ?? org.id})` : name, selected: selected?.id === org.id, onSelect: () => { setFilter({ scope, id: org.id }); } };
     })];
   const label = selected === undefined ? 'All organizations' : selected.name ?? selected.slug ?? selected.id;
-  const filterControl = <Dropdown label="Filter by organization" align="end" button={{ label, color: 'secondary', size: 'sm' }} items={options} />;
+  const filterControl = <Dropdown label="Filter by organization" align="end" button={{ label, color: 'secondary', size: 'sm', style: FILTER_BUTTON, textStyle: SHRINK }} items={options} />;
   return { visibleOrgs, visibleRows, filterControl };
 }
 

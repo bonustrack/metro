@@ -7,7 +7,7 @@ export interface MetroRelease {
   checkedAt: number;
 }
 
-export interface ReleaseAvailability {
+interface ReleaseAvailability {
   kind: 'checking' | 'unavailable' | 'stale' | 'current' | 'newer';
   label: string;
 }
