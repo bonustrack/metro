@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setAgentMap } from '../src/agents/map.ts';
@@ -7,6 +7,8 @@ import { dispatchMessageTool } from '../src/mcp/call-tools.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { callToolHandler, scopeDenied } from '../src/mcp/tool-dispatch.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
+import { attachmentOwner } from '../src/files/attach-owner.ts';
+import { grantAllows, readAttachmentGrant } from '../src/files/attach-grant.ts';
 
 interface Call {
   train: string;
@@ -14,12 +16,21 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-const AGENT = 'agentA0001';
-const OTHER = 'agentB0001';
+const AGENT = 'agentA00001';
+const OTHER = 'agentB00001';
 const OUTLOOK_LINE = 'metro://outlook/o1/AAQkAD=';
 
 let calls: Call[] = [];
 let answer: unknown = { messages: [] };
+const prevDir = process.env.METRO_XMTP_ATTACH_DIR;
+let dir = '';
+
+afterEach(() => {
+  if (dir) rmSync(dir, { recursive: true, force: true });
+  dir = '';
+  if (prevDir === undefined) delete process.env.METRO_XMTP_ATTACH_DIR;
+  else process.env.METRO_XMTP_ATTACH_DIR = prevDir;
+});
 
 beforeEach(() => {
   calls = [];
@@ -36,7 +47,7 @@ const text = (r: { content: { text: string }[] }): string => r.content.map((c) =
 const asAda = (name: string, args: Record<string, unknown>): ReturnType<typeof callToolHandler> =>
   runWithIdentity({ kind: 'agent', agentId: AGENT }, () => callToolHandler({ params: { name, arguments: args } }));
 
-describe('read on a station that knows only history', () => {
+describe('read on XMTP', () => {
   test('forwards every argument, and names the filters the station does not apply', async () => {
     answer = [{ id: 'm1' }];
     const res = await dispatchMessageTool('read', {
@@ -55,7 +66,32 @@ describe('read on a station that knows only history', () => {
         args: { line: 'metro://xmtp/x1/0xabc', limit: 5, query: 'invoice', from: 'bea', until: '2026-09-20', unreadOnly: true, messageId: 'm9' },
       },
     ]);
-    expect(JSON.parse(text(res))).toEqual({ result: [{ id: 'm1' }], ignored: ['query', 'from', 'until', 'unread_only', 'message_id'] });
+    expect(JSON.parse(text(res))).toEqual({ result: [{ id: 'm1' }], ignored: ['query', 'from', 'until', 'unread_only'] });
+  });
+
+  test('an exact-message read hands back an owner-scoped attachment grant', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'metro-read-xmtp-'));
+    process.env.METRO_XMTP_ATTACH_DIR = dir;
+    const name = 'msg_abcdef0123456789_0.zip';
+    const path = join(dir, name);
+    writeFileSync(path, 'fixture');
+    answer = { account: 'x1', message: { id: 'm9', attachments: [{ name: 'fixture.zip', local_path: path }] } };
+    const res = await asAda('read', { line: 'metro://xmtp/x1/0xabc', message_id: 'm9' });
+    const body = JSON.parse(text(res)) as { ignored?: string[]; message: { attachments: { url: string }[] } };
+    expect(body.ignored).toBeUndefined();
+    expect(body.message.attachments[0]?.url).toContain(`/attach/${name}?token=at_`);
+    expect(attachmentOwner(name)).toBe(AGENT);
+    const grant = readAttachmentGrant(name);
+    expect(grant?.agentId).toBe(AGENT);
+    expect(grantAllows(name, AGENT, grant!.token)).toBe(true);
+    expect(grantAllows(name, OTHER, grant!.token)).toBe(false);
+  });
+
+  test('another account cannot reach exact-message materialization', async () => {
+    setAgentMap({ 'xmtp/x1': OTHER }, { [OTHER]: 'bob' });
+    const res = await asAda('read', { line: 'metro://xmtp/x1/0xabc', message_id: 'm9' });
+    expect(text(res)).toContain('outside your authorized scope');
+    expect(calls).toEqual([]);
   });
 
   test('an answer is unchanged when no new filter was asked for', async () => {
@@ -103,7 +139,7 @@ describe('read on Outlook', () => {
   });
 
   test('a full message hands its files back with a url, like inbound media', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-read-attach-'));
+    dir = mkdtempSync(join(tmpdir(), 'metro-read-attach-'));
     process.env.METRO_XMTP_ATTACH_DIR = dir;
     const path = join(dir, 'msg_0123456789abcdef_0.txt');
     writeFileSync(path, 'hi');

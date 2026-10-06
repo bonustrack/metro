@@ -1,5 +1,5 @@
 import { IdentifierKind, type DecodedMessage } from '@xmtp/node-sdk';
-import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
+import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { resolveMsgId } from './wire.js';
 import { TrainError } from '@metro-labs/core/train-error';
@@ -17,6 +17,7 @@ import { updateChannelMeta } from './actions-meta.js';
 import { deletedByRequests, isDeleteRequest, superAdminCheck } from './delete-requests.js';
 import { isCallSignal } from './codecs.js';
 import { syncConversation } from './network.js';
+import { readAttachments } from './read-attachments.js';
 
 type Args = Record<string, unknown>;
 type Handler = (id: string, args: Args) => Promise<void>;
@@ -56,27 +57,37 @@ function textOf(m: DecodedMessage): string {
 
 const DELETED = { text: '[deletedMessage]', contentType: 'deletedMessage' };
 
+function messageOf(acct: Account, m: DecodedMessage, deleted: Set<string>): Record<string, unknown> {
+  return {
+    id: m.id,
+    ts: new Date(Number(m.sentAtNs / 1_000_000n)).toISOString(),
+    from: `metro://xmtp/${acct.cfg.id}/user/${m.senderInboxId}`,
+    ...(m.senderInboxId === acct.inboxId ? { self: true } : {}),
+    ...(deleted.has(m.id) ? DELETED : { text: textOf(m), contentType: m.contentType?.typeId ?? 'unknown' }),
+  };
+}
+
 async function read(id: string, args: Args): Promise<void> {
-  const { line, limit, before } = args as { line: string; limit?: number; before?: string };
+  const { line, limit, before, messageId } = args as { line: string; limit?: number; before?: string; messageId?: string };
   const { acct, conv } = await convOf(line);
   if (!conv)
     throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
-  const lim = Math.min(Math.max(1, limit ?? 20), 200);
   await syncConversation(acct.client, conv);
   const all = await conv.messages();
+  if (messageId) {
+    const target = resolveMsgId(messageId);
+    const message = acct.client.conversations.getMessageById(target);
+    if (message?.conversationId !== conv.id || isDeleteRequest(message) || isCallSignal(message))
+      throw new TrainError('NOT_FOUND', `message ${messageId} is not in this conversation`);
+    const deleted = deletedByRequests([...all, message], superAdminCheck(conv));
+    const attachments = deleted.has(message.id) ? [] : await readAttachments(message);
+    respond(id, { result: { line, account: acct.cfg.id, message: { ...messageOf(acct, message, deleted), attachments } } });
+    return;
+  }
+  const lim = Math.min(Math.max(1, limit ?? 20), 200);
   const deleted = deletedByRequests(all, superAdminCheck(conv));
   const slice = upTo(all.filter((m) => !isDeleteRequest(m) && !isCallSignal(m)), before).slice(-lim);
-  const parsed = parseLine(line);
-  if (!parsed)
-    throw new TrainError('NOT_FOUND', `could not parse line ${line}`);
-  const acctId = parsed.accountId;
-  const messages = slice.map((m) => ({
-    id: m.id,
-    ts: new Date(Number(m.sentAtNs / 1_000_000n)).toISOString(),
-    from: `metro://xmtp/${acctId}/user/${m.senderInboxId}`,
-    ...(m.senderInboxId === acct.inboxId ? { self: true } : {}),
-    ...(deleted.has(m.id) ? DELETED : { text: textOf(m), contentType: m.contentType?.typeId ?? 'unknown' }),
-  }));
+  const messages = slice.map((m) => messageOf(acct, m, deleted));
   respond(id, { result: { line, count: messages.length, messages } });
 }
 
