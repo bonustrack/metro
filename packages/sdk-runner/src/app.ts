@@ -42,8 +42,11 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     lost: (reason) => { hooks.lost(reason); },
   });
   let stopped = false;
-  const stop = async (cancelActive = true): Promise<void> => {
-    if (stopped) return;
+  const stop = async (cancelActive = false): Promise<void> => {
+    if (stopped) {
+      if (cancelActive) runner.close(true);
+      return;
+    }
     stopped = true;
     runner.close(cancelActive);
     await link.close().catch(() => { log.debug('sdk-runner: closing the metro link failed'); });

@@ -25,7 +25,7 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-export function sdkAlive(activity: RunnerActivity | null): boolean {
+export function sdkAlive(activity: RunnerActivity | null): activity is RunnerActivity {
   if (activity === null) return false;
   const found = identity(activity.pid);
   if (found?.zombie === true) return false;
@@ -40,11 +40,13 @@ function assertIdentity(activity: RunnerActivity): void {
     throw new ApiError('The Agent SDK is still running outside tmux, but its process identity cannot be verified safely. Stop that metro agent process from its terminal.', 503);
 }
 
-export function stopSdkRunner(home: string): void {
+export function stopSdkRunner(home: string, cancelActive = false): boolean {
   const activity = readAgentActivity(home);
-  if (activity === null || !sdkAlive(activity)) return;
+  if (!sdkAlive(activity)) return false;
   assertIdentity(activity);
-  const run = spawnSync(...asAgent('kill', ['-TERM', String(activity.pid)]), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const signal = cancelActive && activity.cancelSignal === 'SIGUSR2' ? '-USR2' : '-TERM';
+  const run = spawnSync(...asAgent('kill', [signal, String(activity.pid)]), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if ((run.error !== undefined || run.status !== 0) && sdkAlive(activity))
     throw new ApiError(`The Agent SDK could not be stopped: ${run.error?.message ?? run.stderr.trim()}`, 503);
+  return true;
 }

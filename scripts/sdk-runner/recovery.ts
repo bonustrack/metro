@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Activity } from '../../packages/sdk-runner/src/activity.ts';
 import { runnerConfig } from '../../packages/sdk-runner/src/config.ts';
-import { INTERRUPTED_NOTICE } from '../../packages/sdk-runner/src/recovery.ts';
 import { Runner, runnerOptions } from '../../packages/sdk-runner/src/runner.ts';
 import { SessionStore } from '../../packages/sdk-runner/src/session-store.ts';
 import { metroTools } from '../../packages/sdk-runner/src/tool-proxy.ts';
@@ -27,6 +26,7 @@ const cfg = runnerConfig({ ...env, METRO_RUNNER_MCP_URL: `${upstream.base}/mcp`,
 const calls: string[] = [];
 const results: string[][] = [];
 const lifecycle: Record<string, unknown>[] = [];
+const failedWorkers: { id: string; owner: string | null; pending: boolean }[] = [];
 let runner: Runner;
 let activity: Activity;
 let done: Promise<void> = Promise.resolve();
@@ -41,11 +41,12 @@ async function until(label: string, check: () => boolean): Promise<void> {
 }
 
 function boot(): void {
+  activity?.stop();
   activity = new Activity(join(root, 'activity.json'));
   activity.start();
   const tools = metroTools({
     instructions: undefined,
-    listTools: () => Promise.resolve({ tools: [{ name: 'send', description: 'Record a fixture-only side effect.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }] }),
+    listTools: () => Promise.resolve({ tools: [{ name: 'fixture_write', description: 'Record a fixture-only side effect.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }] }),
     callTool: (params) => {
       calls.push(String(params.arguments?.text));
       return Promise.resolve({ content: [{ type: 'text', text: 'fixture recorded' }] });
@@ -54,13 +55,20 @@ function boot(): void {
   runner = new Runner({ store, activity, readOnly: () => false, compactAt: 10_000_000 });
   runner.start({
     ...runnerOptions(cfg, tools, () => Promise.resolve({ behavior: 'deny', message: 'Only fixture tools are allowed.' }), store.resumable(), env),
-    settingSources: [], tools: [], allowedTools: ['mcp__metro__send'],
+    settingSources: [], permissionMode: 'default', tools: ['Agent'], allowedTools: ['Agent', 'mcp__metro__fixture_write'],
+    agents: { worker: { description: 'Isolated recovery proof', prompt: 'Use only the fixture request.', tools: [] } },
   });
   failure = undefined;
   done = runner.run((message) => {
     const m: Record<string, unknown> = { ...message };
     if (m.type === 'result') results.push(Array.isArray(m.user_message_uuids) ? m.user_message_uuids as string[] : []);
     if (m.type === 'command_lifecycle') lifecycle.push({ state: m.state, command_uuid: m.command_uuid });
+    if (m.type === 'system' && m.subtype === 'task_notification' && m.status === 'failed') {
+      const saved = JSON.parse(readFileSync(statePath, 'utf8')) as { tasks: { id: string; owner: string | null; notice: unknown }[] };
+      const task = saved.tasks.find((row) => row.id === m.task_id);
+      assert.ok(task, 'failure is saved before observers see it');
+      failedWorkers.push({ id: task.id, owner: task.owner, pending: task.notice !== null });
+    }
   }).catch((err: unknown) => { failure = err; });
 }
 
@@ -107,20 +115,18 @@ async function completedCrash(): Promise<void> {
   assert.equal(calls.filter((text) => text === 'RECOVERY_QUEUED').length, 1);
   assert.equal(calls.filter((text) => text === 'RECOVERY_WARM').length, 1);
   assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_HOLD_MAIN').length, 1);
-  assert.equal(activity.snapshot().lastError, INTERRUPTED_NOTICE);
-  assert.equal(activity.snapshot().pending, 0);
+  await until('recovery notice consumed', () => activity.snapshot().pending === 0);
   const saved = store.recover();
   assert.equal(saved.unanswered.length, 0);
-  assert.equal(saved.interrupted.length, 1);
-  assert.equal(saved.interrupted[0]?.uuid, active);
-  assert.ok(saved.interrupted[0]?.text.includes('RECOVERY_HOLD_MAIN'));
+  await until('main acknowledges interrupted input', () => store.recover().interrupted.length === 0);
+  assert.equal(saved.unanswered.length, 0);
   assert.ok(!JSON.stringify(activity.snapshot()).includes('RECOVERY_HOLD_MAIN'));
   const before = lifecycle.filter((event) => event.command_uuid === warm && event.state === 'completed').length;
   runner.inbox.push('note', 'RECOVERY_WARM', undefined, warm);
   await until('SDK duplicate uuid acknowledgment', () => lifecycle.filter((event) => event.command_uuid === warm && event.state === 'completed').length > before);
   assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_WARM').length, 1);
   assert.equal(results.filter((uuids) => uuids.includes(warm)).length, 1);
-  process.stdout.write(`${JSON.stringify({ check: 'consumed crash', sameSession: true, queuedReplies: 1, completedReplies: 1, interrupted: 1, uuidDedupAcknowledged: true, notice: activity.snapshot().lastError })}\n`);
+  process.stdout.write(`${JSON.stringify({ check: 'consumed crash', sameSession: true, queuedReplies: 1, completedReplies: 1, recoveryAcknowledged: true, uuidDedupAcknowledged: true, notice: activity.snapshot().lastError })}\n`);
 }
 
 async function sideEffectCrash(): Promise<void> {
@@ -135,8 +141,8 @@ async function sideEffectCrash(): Promise<void> {
   await finished(queued);
   assert.equal(calls.filter((text) => text === 'RECOVERY_SIDE_EFFECT').length, 1);
   assert.equal(calls.filter((text) => text === 'RECOVERY_AFTER_SIDE').length, 1);
-  assert.equal(store.recover().interrupted.at(-1)?.uuid, active);
-  process.stdout.write(`${JSON.stringify({ check: 'side effect crash', sideEffects: 1, queuedReplies: 1, interrupted: 2, missedStartedReconciled: true })}\n`);
+  await until('main acknowledges the side-effect interruption', () => store.recover().interrupted.length === 0);
+  process.stdout.write(`${JSON.stringify({ check: 'side effect crash', sideEffects: 1, queuedReplies: 1, acknowledged: true, missedStartedReconciled: true })}\n`);
 }
 
 async function intentionalStop(): Promise<void> {
@@ -144,12 +150,12 @@ async function intentionalStop(): Promise<void> {
   await until('held before explicit Stop', () => upstream.held.has('RECOVERY_HOLD_STOP'));
   const queued = chat('RECOVERY_AFTER_STOP');
   await Bun.sleep(100);
-  runner.close();
+  runner.close(true);
   await done;
   assert.ok(!store.unanswered().some((input) => input.uuid === active));
   boot();
   await finished(queued);
-  assert.equal(store.recover().interrupted.length, 2);
+  assert.equal(store.recover().interrupted.length, 0);
   assert.equal(calls.filter((text) => text === 'RECOVERY_AFTER_STOP').length, 1);
   assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_HOLD_STOP').length, 1);
   process.stdout.write(`${JSON.stringify({ check: 'intentional Stop', cancelledNotReplayed: true, queuedReplies: 1, noNewInterruption: true })}\n`);
@@ -160,11 +166,52 @@ async function interruptedOnly(): Promise<void> {
   await until('held with no queued input', () => upstream.held.has('RECOVERY_HOLD_ONLY'));
   await crash();
   boot();
-  await until('interrupted notice without a new turn', () => activity.snapshot().lastError === INTERRUPTED_NOTICE);
-  assert.equal(store.recover().interrupted.at(-1)?.uuid, active);
+  await until('main acknowledges interruption without new chat', () => store.recover().interrupted.length === 0);
   assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_HOLD_ONLY').length, 1);
   assert.equal(activity.snapshot().pending, 0);
-  process.stdout.write(`${JSON.stringify({ check: 'interrupted without queue', noticeShown: true, noAutomaticReplay: true })}\n`);
+  process.stdout.write(`${JSON.stringify({ check: 'interrupted without queue', noticeAcknowledged: true, noAutomaticReplay: true, input: active })}\n`);
+}
+
+async function workerRestart(): Promise<void> {
+  const input = chat('RECOVERY_WORKER');
+  await finished(input);
+  await until('background child held after main completion', () => upstream.held.has('RECOVERY_HOLD_CHILD'));
+  const id = runner.id;
+  const before = JSON.parse(readFileSync(statePath, 'utf8')) as { tasks: { id: string; state: string; owner: string; notice: unknown }[] };
+  const worker = before.tasks.find((task) => task.state === 'running');
+  assert.ok(worker, 'worker persists after the main input result');
+  assert.equal(worker.owner, 'main');
+  assert.equal(store.unanswered().length, 0);
+  await crash();
+  boot();
+  await until('main acknowledges unfinished worker after restart', () => {
+    const saved = JSON.parse(readFileSync(statePath, 'utf8')) as typeof before;
+    const task = saved.tasks.find((task) => task.id === worker.id);
+    return task !== undefined && task.notice === null;
+  });
+  assert.equal(runner.id, id);
+  assert.equal(calls.filter((text) => text === 'RECOVERY_WORKER').length, 0);
+  process.stdout.write(`${JSON.stringify({ check: 'worker after main result and restart', sameSession: true, owner: 'main', worker: worker.id, recoveryAcknowledged: true, replayedSends: 0 })}\n`);
+}
+
+async function workerFailure(): Promise<void> {
+  const input = chat('RECOVERY_FAILED_WORKER');
+  await finished(input);
+  await until('worker refusal held after main completion', () => upstream.held.has('RECOVERY_HOLD_REFUSAL'));
+  const id = runner.id;
+  upstream.refuse('RECOVERY_HOLD_REFUSAL');
+  await until('actual SDK terminal worker failure', () => failedWorkers.length > 0);
+  const worker = failedWorkers[0]!;
+  assert.equal(worker.owner, 'main');
+  assert.equal(worker.pending, true);
+  await until('main acknowledges terminal worker failure', () => {
+    const saved = JSON.parse(readFileSync(statePath, 'utf8')) as { tasks: { id: string; state: string; notice: unknown }[] };
+    return saved.tasks.some((task) => task.id === worker.id && task.state === 'failed' && task.notice === null);
+  });
+  assert.equal(runner.id, id);
+  assert.equal(calls.filter((text) => text === 'RECOVERY_FAILED_WORKER').length, 0);
+  assert.equal(upstream.launched.filter((text) => text === 'RECOVERY_FAILED_WORKER').length, 1);
+  process.stdout.write(`${JSON.stringify({ check: 'terminal worker failure after main result', sameSession: true, owner: 'main', failurePersistedBeforeNotification: true, recoveryAcknowledged: true, replayedSends: 0 })}\n`);
 }
 
 boot();
@@ -173,6 +220,8 @@ try {
   await sideEffectCrash();
   await intentionalStop();
   await interruptedOnly();
+  await workerRestart();
+  await workerFailure();
   process.stdout.write(`${JSON.stringify({ pass: true, fixture: root, lifecycle })}\n`);
 } finally {
   runner!.close();

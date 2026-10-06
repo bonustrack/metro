@@ -265,9 +265,9 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   return sessionStatus(deps);
 }
 
-export function stopSession(deps: SessionDeps = {}): SessionStatus {
-  spawnSync(...asAgent(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME]), { stdio: 'ignore' });
-  stopSdkRunner(sessionHome(deps));
+export function stopSession(deps: SessionDeps = {}, cancelActive = false): SessionStatus {
+  if (!stopSdkRunner(sessionHome(deps), cancelActive))
+    spawnSync(...asAgent(deps.tmux ?? 'tmux', ['kill-session', '-t', SESSION_NAME]), { stdio: 'ignore' });
   return sessionStatus(deps);
 }
 

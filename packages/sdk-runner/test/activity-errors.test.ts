@@ -59,6 +59,19 @@ test('structured assistant provider details are turn-scoped and worker errors ca
   expect(activity.snapshot().lastError).toBeNull();
 });
 
+test('worker provider errors and restart interruptions remain distinct from generic failure and cancellation', () => {
+  const { activity, path } = fixture();
+  activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'worker', tool_use_id: 'launch' }));
+  activity.observe(msg({ type: 'assistant', parent_tool_use_id: 'launch', error: 'rate_limit', message: { content: [{ type: 'text', text: 'PRIVATE error' }] } }));
+  activity.observe(msg({ type: 'system', subtype: 'task_notification', task_id: 'worker', status: 'failed' }));
+  expect(activity.snapshot().lastFailure).toMatchObject({ taskId: 'worker', code: 'rate_limit' });
+  activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'worker', tool_use_id: 'launch' }));
+  activity.observe(msg({ type: 'system', subtype: 'task_notification', task_id: 'worker', status: 'stopped', reason: 'worker_restart' }));
+  expect(activity.snapshot().lastFailure).toMatchObject({ taskId: 'worker', code: 'interrupted' });
+  expect(activity.snapshot().tasks[0]?.status).toBe('unknown');
+  expect(readFileSync(path, 'utf8')).not.toContain('PRIVATE');
+});
+
 test('Read token limit is classified without copying tool I/O, and successful work never shows a current error', () => {
   const { activity, path } = fixture();
   activity.observe(msg({ type: 'system', subtype: 'task_started', task_id: 'worker', tool_use_id: 'delegate' }));

@@ -1,12 +1,13 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
-import { spawn } from 'node:child_process';
+import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, ensureSession, type SessionDeps } from '../src/claude/session.js';
+import { autostartEnabled, ensureSession, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { harnessRunner, type HarnessRunner } from '../src/claude/runner.js';
 import { setSystemPrompt, systemPrompt } from '../src/claude/setup.js';
 import { auth } from './identity-helper.ts';
@@ -20,6 +21,7 @@ let session: SessionDeps;
 let request: IncomingMessage;
 let prepares: HarnessRunner[];
 let prepare: (runner: HarnessRunner) => Promise<void>;
+const tmuxFixtures = new Set<string>();
 const agents = (): string => join(dir, 'agents');
 const home = (): string => join(dir, 'home');
 const settings = (): Record<string, unknown> => JSON.parse(readFileSync(join(agents(), 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
@@ -38,6 +40,7 @@ beforeEach(async () => {
   setSystemPrompt('Keep this prompt.', agents());
   writeFileSync(join(agents(), 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'test-key' })])));
   const tmux = join(dir, 'tmux');
+  tmuxFixtures.add(tmux);
   writeFileSync(tmux, `#!/bin/sh\necho "$*" >> '${join(dir, 'calls')}'\ncase "$1" in\n-V) exit 0;;\nhas-session) test -f '${join(dir, 'running')}';;\nnew-session) touch '${join(dir, 'running')}';;\nkill-session) rm -f '${join(dir, 'running')}';;\n*) exit 1;;\nesac\n`);
   chmodSync(tmux, 0o755);
   prepares = [];
@@ -201,27 +204,119 @@ test('fresh SDK activity with a live process refuses switching and duplicate sta
   expect((await post({ runner: 'sdk' })).status).toBe(200);
 });
 
-test('Stop cancels a directly started process by its exact identity, never a reused PID', async () => {
-  const child = spawn('sleep', ['60'], { stdio: 'ignore' });
-  const exited = new Promise<void>((resolve) => { child.once('exit', () => { resolve(); }); });
+function fakeRunner(modern = true): { signals: string[][]; fail: boolean } {
+  const pid = 123_456_789;
+  const processState = { signals: [] as string[][], fail: false };
+  const read = fs.readFileSync;
+  const spawnSync = childProcess.spawnSync;
+  spyOn(fs, 'readFileSync').mockImplementation((path, options) => path === `/proc/${String(pid)}/stat`
+    ? `${String(pid)} (sdk) ${['S', ...Array<string>(18).fill('0'), '42'].join(' ')}`
+    : read(path, options));
+  spyOn(process, 'kill').mockImplementation((target, signal) => {
+    expect(target).toBe(pid);
+    expect(signal).toBe(0);
+    return true;
+  });
+  spyOn(childProcess, 'spawnSync').mockImplementation((file, args, options) => {
+    if (file !== 'kill') {
+      expect(tmuxFixtures.has(file)).toBe(true);
+      return spawnSync(file, args, options);
+    }
+    expect(Array.isArray(args)).toBe(true);
+    const signalArgs = Array.isArray(args) ? args.map(String) : [];
+    expect(signalArgs[1]).toBe(String(pid));
+    processState.signals.push(signalArgs);
+    return { pid, status: processState.fail ? 1 : 0, signal: null, stdout: '', stderr: 'fixture refused', output: ['', '', ''] };
+  });
+  writeFileSync(join(home(), '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, updatedAt: Date.now(), phase: 'working', procStart: '42', ...(modern ? { cancelSignal: 'SIGUSR2' } : {}) }));
+  return processState;
+}
+
+test('Harness Stop cancels only the verified SDK and never races it with tmux shutdown', async () => {
+  const fake = fakeRunner();
   try {
-    const stat = readFileSync(`/proc/${String(child.pid)}/stat`, 'utf8');
-    const procStart = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? '';
-    const path = join(home(), '.metro', 'agent-status.json');
-    const activity = { runner: 'sdk', pid: child.pid, updatedAt: Date.now() - 60_000, phase: 'working', procStart };
-    writeFileSync(path, JSON.stringify({ ...activity, procStart: `${procStart}0` }));
-    expect((await post({ action: 'stop' }, 'session')).status).toBe(200);
-    expect(child.exitCode).toBeNull();
-    expect(child.signalCode).toBeNull();
-    writeFileSync(path, JSON.stringify(activity));
-    expect((await post({ runner: 'sdk' })).status).toBe(409);
-    expect((await post({ action: 'stop' }, 'session')).status).toBe(200);
-    await exited;
-    expect(child.signalCode).toBe('SIGTERM');
-    expect((await post({ runner: 'sdk' })).status).toBe(200);
+    writeFileSync(join(dir, 'running'), '');
+    const stopped = await post({ action: 'stop' }, 'session');
+    expect(stopped.status).toBe(200);
+    expect(await stopped.json()).toMatchObject({ running: true, autostart: false });
+    expect(fake.signals).toEqual([['-USR2', '123456789']]);
+    expect(commands()).not.toContain('kill-session');
+    expect(ensureSession(session)).toBe('off');
   } finally {
-    child.kill();
-    await exited;
+    mock.restore();
+  }
+});
+
+test('Harness Stop uses the legacy cancellation signal without the explicit capability', async () => {
+  const fake = fakeRunner(false);
+  try {
+    expect((await post({ action: 'stop' }, 'session')).status).toBe(200);
+    expect(fake.signals).toEqual([['-TERM', '123456789']]);
+    expect(commands()).not.toContain('kill-session');
+  } finally {
+    mock.restore();
+  }
+});
+
+test('a supervisor stop preserves SDK work and lets the verified process close itself', () => {
+  const fake = fakeRunner();
+  try {
+    expect(stopSession(session).running).toBe(true);
+    expect(fake.signals).toEqual([['-TERM', '123456789']]);
+    expect(commands()).not.toContain('kill-session');
+    expect(autostartEnabled(agents())).toBe(true);
+  } finally {
+    mock.restore();
+  }
+});
+
+test('a version restart preserves the SDK, then starts its successor after it exits', () => {
+  writeFileSync(join(agents(), 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
+  startSession({ ...session, version: 'old', now: () => 1 });
+  const fake = fakeRunner();
+  try {
+    expect(ensureSession({ ...session, version: 'new', now: () => 60_002 })).toBe('restarted');
+    expect(fake.signals).toEqual([['-TERM', '123456789']]);
+    expect(commands()).not.toContain('kill-session');
+    expect(commands().match(/new-session/g)).toHaveLength(1);
+    rmSync(join(dir, 'running'));
+    rmSync(join(home(), '.metro', 'agent-status.json'));
+    expect(ensureSession({ ...session, version: 'new', now: () => 60_003 })).toBe('started');
+    expect(commands().match(/new-session/g)).toHaveLength(2);
+  } finally {
+    mock.restore();
+  }
+});
+
+test('Stop never signals a reused SDK PID or an unverifiable live process', async () => {
+  const fake = fakeRunner();
+  const path = join(home(), '.metro', 'agent-status.json');
+  const activity = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  try {
+    writeFileSync(path, JSON.stringify({ ...activity, procStart: '43' }));
+    expect((await post({ action: 'stop' }, 'session')).status).toBe(200);
+    expect(fake.signals).toEqual([]);
+    writeFileSync(path, JSON.stringify({ ...activity, procStart: undefined }));
+    const refused = await post({ action: 'stop' }, 'session');
+    expect(refused.status).toBe(503);
+    expect(await refused.text()).toContain('cannot be verified safely');
+    expect(fake.signals).toEqual([]);
+  } finally {
+    mock.restore();
+  }
+});
+
+test('a failed SDK cancellation is reported without a destructive tmux fallback', async () => {
+  const fake = fakeRunner();
+  fake.fail = true;
+  try {
+    writeFileSync(join(dir, 'running'), '');
+    const refused = await post({ action: 'stop' }, 'session');
+    expect(refused.status).toBe(503);
+    expect(await refused.text()).toContain('could not be stopped');
+    expect(commands()).not.toContain('kill-session');
+  } finally {
+    mock.restore();
   }
 });
 

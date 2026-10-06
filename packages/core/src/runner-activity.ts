@@ -91,6 +91,7 @@ export interface RunnerInput {
 export interface RunnerActivity {
   pid: number;
   procStart?: string;
+  cancelSignal?: 'SIGUSR2';
   runner: 'sdk';
   phase: RunnerPhase;
   mainPhase: RunnerPhase;
@@ -215,6 +216,7 @@ export function parseRunnerActivity(raw: unknown): RunnerActivity | null {
   if (!isRecord(raw) || raw.runner !== 'sdk' || !phase(raw.phase) || count(raw.pid) === 0 || count(raw.updatedAt) === 0) return null;
   return {
     runner: 'sdk', pid: count(raw.pid), ...processIdentity(raw.procStart), phase: raw.phase, mainPhase: phase(raw.mainPhase) ? raw.mainPhase : raw.phase,
+    ...(raw.cancelSignal === 'SIGUSR2' ? { cancelSignal: raw.cancelSignal } : {}),
     mainStartedAt: count(raw.mainStartedAt) || null, sessionId: sessionId(raw.sessionId), updatedAt: count(raw.updatedAt),
     pending: count(raw.pending), workers: count(raw.workers), approvals: count(raw.approvals),
     tools: list(raw.tools, name, 20), activeTools: list(raw.activeTools, tool, 20),

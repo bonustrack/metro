@@ -20,6 +20,11 @@ export class ActivityTasks {
     return [...this.tasks.values()].sort((a, b) => Number(live(b)) - Number(live(a)) || b.updatedAt - a.updatedAt).slice(0, 30).map((task) => ({ ...task }));
   }
 
+  restore(tasks: RunnerTask[], parents: [string, string][]): void {
+    for (const task of tasks) this.tasks.set(task.id, task);
+    for (const [parent, id] of parents) this.parents.set(parent, id);
+  }
+
   get running(): number { return [...this.tasks.values()].filter(live).length; }
   taskFor(parent: string | null | undefined): string | null { return parent ? this.parents.get(parent) ?? null : null; }
   known(id: string | null | undefined): string | null { return id && this.tasks.has(id) ? id : null; }
@@ -158,7 +163,8 @@ export class ActivityTasks {
       task.durationMs = message.usage.duration_ms;
       task.toolUses = message.usage.tool_uses;
     }
-    this.status(task, message.status);
+    this.status(task, message.reason === 'worker_restart' ? 'unknown' : message.status);
+    if (message.reason === 'worker_restart') this.emit('task_failed', null, task.id);
   }
 
   private replace(message: Extract<System, { subtype: 'background_tasks_changed' }>): void {

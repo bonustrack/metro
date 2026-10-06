@@ -11,6 +11,7 @@ import { FRONT_RULES } from './rules.js';
 import { INTERRUPTED_NOTICE } from './recovery.js';
 import type { SessionStore } from './session-store.js';
 import { SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
+import { TaskRecovery } from './task-recovery.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
@@ -86,6 +87,7 @@ function visibleOutput(m: Record<string, unknown>): boolean {
 export class Runner {
   readonly inbox: Inbox;
   readonly calls: RunnerCalls;
+  private readonly recovery: TaskRecovery;
   private readonly watch: SessionWatch;
   private readonly tasks = new ActivityTasks(() => undefined);
   private compactTimer: ReturnType<typeof setTimeout> | null = null;
@@ -109,8 +111,14 @@ export class Runner {
       queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
     });
     this.calls = new RunnerCalls(this.inbox, parts.activity);
-    const { unanswered: again, interrupted, context } = parts.store.recover();
+    const { unanswered: again, interrupted, context, tasks } = parts.store.recover();
+    this.recovery = new TaskRecovery(parts.store, this.inbox, tasks, interrupted, (err) => {
+      log.error({ err: errMsg(err) }, 'sdk-runner: task recovery could not be saved');
+      this.parts.activity?.fail(INTERRUPTED_NOTICE);
+      this.close(false);
+    }, Date.now, () => { parts.activity?.recovered(); });
     this.watch.restoreContext(context ?? 0);
+    parts.activity?.recover(tasks);
     this.interrupted = interrupted.length;
     this.inbox.again(again);
     if (again.length > 0) log.info({ count: again.length }, 'sdk-runner: chat messages the last session never read go in again');
@@ -125,6 +133,7 @@ export class Runner {
     this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
     this.model = options.model ?? null;
     this.queueModel(this.model);
+    this.recovery.start();
     return this.session;
   }
 
@@ -137,9 +146,11 @@ export class Runner {
     if (this.session === null) throw new Error('the runner was not started');
     try {
       for await (const message of this.session) {
+        if (this.ended) break;
         this.cancelCompact();
         if (message.type === 'system') this.tasks.observe(message);
         const m: Record<string, unknown> = { ...message };
+        this.recovery.observe(m);
         this.trackInput(m);
         this.watch.observe(m);
         this.note(m);
@@ -150,6 +161,7 @@ export class Runner {
       }
     } finally {
       this.cancelCompact();
+      this.recovery.close(false);
       this.ended = true;
     }
   }
@@ -170,11 +182,12 @@ export class Runner {
     }
   }
 
-  close(cancelActive = true): void {
+  close(cancelActive = false): void {
     this.cancelCompact();
     this.calls.close();
     try {
-      if (cancelActive && !this.ended) this.inbox.finished();
+      this.recovery.close(cancelActive);
+      if (cancelActive) this.inbox.finished();
     } finally {
       this.ended = true;
       this.inbox.close();

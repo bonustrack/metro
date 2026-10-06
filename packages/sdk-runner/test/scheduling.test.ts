@@ -109,6 +109,35 @@ describe('bounded SDK input admission', () => {
     expect(watch.admitting).toBe(true);
   });
 
+  test('an exact duplicate completion frees admission without unrelated or worker completions doing so', () => {
+    const watch = new SessionWatch(() => false);
+    const uuid = randomUUID();
+    const completed = { type: 'command_lifecycle', state: 'completed', command_uuid: uuid };
+    watch.dispatched(uuid);
+    watch.observe({ ...completed, command_uuid: randomUUID() });
+    watch.observe({ ...completed, parent_tool_use_id: 'worker' });
+    expect(watch.admitting).toBe(false);
+    watch.observe(completed);
+    expect(watch.admitting).toBe(true);
+    expect(watch.safe).toBe(false);
+  });
+
+  test('completed-only duplicate UUID receipt does not strand the next chat', async () => {
+    const uuid = randomUUID();
+    const f = fixture(async function* () {
+      expect((await f.next()).uuid).toBe(uuid);
+      f.runner.inbox.push('chat', 'next chat');
+      yield message({ type: 'command_lifecycle', state: 'completed', command_uuid: uuid });
+      const next = await f.next();
+      expect(next.message.content).toBe('next chat');
+      yield message(started(next.uuid ?? 'missing'));
+      yield message(result(next.uuid === undefined ? [] : [next.uuid]));
+      expect(f.store.unanswered()).toEqual([]);
+    });
+    f.runner.inbox.push('note', 'already completed', undefined, uuid);
+    await f.runner.run();
+  });
+
   test('model activity permits one normal SDK input without requiring a host credit', () => {
     const watch = new SessionWatch(() => false);
     watch.observe(state('running'));

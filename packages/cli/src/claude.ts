@@ -7,6 +7,7 @@ import { localAgent, type LocalAgent } from './local.js';
 import { PROVIDER_FLAGS } from './provider-flags.js';
 import { localPort, localUrl } from './runtime.js';
 import { keepInSession, resumeSessionId, takeBackConversation } from './background.js';
+import { nativeRecoveryArgs } from './native-recovery.js';
 
 const CHANNEL_FLAGS = ['--dangerously-load-development-channels', 'server:metro'];
 const FRESH_PROMPT_FLAGS = ['--system-prompt-snapshot', 'off'];
@@ -205,7 +206,7 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const prompt = systemPrompt();
   if (prompt !== null) process.stderr.write('metro claude: the system prompt from the Harness page is appended to this session\n');
   try {
-    return await runClaude(claudeArgs(extra, mcp?.path, mode, prompt), keepInSession(channelEnv(inferenceEnv(decision, port))));
+    return await runClaude(claudeArgs(nativeRecoveryArgs(extra), mcp?.path, mode, prompt), keepInSession(channelEnv(inferenceEnv(decision, port))));
   } finally {
     mcp?.cleanup();
   }

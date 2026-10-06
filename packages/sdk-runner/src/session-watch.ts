@@ -80,7 +80,8 @@ export class SessionWatch {
 
   private acknowledge(m: Record<string, unknown>): void {
     if (this.awaitingInput === null) return;
-    if (startedCommand(m) === this.awaitingInput || uuidsOf(m)?.includes(this.awaitingInput)) this.awaitingInput = null;
+    const completed = m.type === 'command_lifecycle' && m.state === 'completed' && m.command_uuid === this.awaitingInput;
+    if (completed || startedCommand(m) === this.awaitingInput || uuidsOf(m)?.includes(this.awaitingInput)) this.awaitingInput = null;
   }
 
   private lifecycle(m: Record<string, unknown>): void {

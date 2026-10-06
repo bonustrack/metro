@@ -7,6 +7,7 @@ import { runnerFailureSummary, type RunnerActivity, type RunnerEvent, type Runne
 import { writeAtomic } from '@metro-labs/core/secure-fs';
 import { ActivityTasks, activityName } from './activity-tasks.js';
 import type { ApprovalAsk } from './approvals.js';
+import type { SavedTask } from './task-state.js';
 
 const HEARTBEAT_MS = 5_000;
 const MAX_TRACKED = 200;
@@ -66,6 +67,7 @@ export class Activity {
   private busy = false;
   private failed = false;
   private providerCode: RunnerFailureCode | null = null;
+  private readonly workerErrors = new Map<string, RunnerFailureCode>();
   private interrupted: RunnerFailure | null = null;
   private compacting = false;
   private ready = false;
@@ -77,7 +79,9 @@ export class Activity {
     pending: 0, workers: 0, approvals: 0, tools: [], activeTools: [], tasks: [], events: [], lastError: null, activeFailure: null, lastFailure: null,
   };
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly path: string, cancelSignal?: RunnerActivity['cancelSignal']) {
+    if (cancelSignal !== undefined) this.state.cancelSignal = cancelSignal;
+  }
 
   start(): void {
     this.flush(true);
@@ -94,6 +98,25 @@ export class Activity {
       ...(s.inputs === undefined ? {} : { inputs: s.inputs.map((input) => ({ ...input })) }),
       activeFailure: s.activeFailure ? { ...s.activeFailure } : null, lastFailure: s.lastFailure ? { ...s.lastFailure } : null,
     };
+  }
+
+  recover(tasks: SavedTask[]): void {
+    this.tasks.restore(tasks.map((task) => ({
+      id: task.id, kind: null, agent: null, status: task.state === 'interrupted' ? 'unknown' : task.state,
+      background: true, startedAt: 0, updatedAt: task.updatedAt, endedAt: null, lastTool: null, toolUses: 0, durationMs: 0,
+    })), tasks.flatMap((task) => task.toolUseId === null ? [] : [[task.toolUseId, task.id]]));
+    for (const task of tasks) {
+      if (task.notice === null) continue;
+      const code = task.notice.reason === 'worker_restart' ? 'interrupted' : task.notice.reason;
+      this.failure('task_failed', code, false, null, task.id);
+    }
+    this.update();
+  }
+
+  recovered(): void {
+    this.interrupted = null;
+    if (this.state.activeFailure?.code === 'interrupted') this.clearFailure();
+    this.update();
   }
 
   pending(count: number, oldest?: number | null): void {
@@ -169,6 +192,7 @@ export class Activity {
   }
 
   private system(message: System): void {
+    if (message.subtype === 'task_notification' && message.reason === 'worker_restart') this.workerErrors.set(message.task_id, 'interrupted');
     switch (message.subtype) {
       case 'init': this.init(message.session_id); break;
       case 'status': this.status(message); break;
@@ -226,8 +250,9 @@ export class Activity {
   }
 
   private taskEvent(kind: RunnerEventKind, tool: string | null, taskId: string | null): void {
-    if (kind === 'task_failed') this.failure(kind, 'task_error', false, tool, taskId);
+    if (kind === 'task_failed') this.failure(kind, this.workerErrors.get(taskId ?? '') ?? 'task_error', false, tool, taskId);
     else this.event(kind, tool, taskId);
+    if (taskId !== null && ['task_completed', 'task_failed', 'task_stopped'].includes(kind)) this.workerErrors.delete(taskId);
   }
 
   private result(message: Extract<SDKMessage, { type: 'result' }>): void {
@@ -256,7 +281,12 @@ export class Activity {
   }
 
   private assistant(message: Extract<SDKMessage, { type: 'assistant' }>, parent: string | null): void {
-    if (parent !== null) { this.tasks.model(parent, message.message.model); return; }
+    if (parent !== null) {
+      this.tasks.model(parent, message.message.model);
+      const id = this.tasks.taskFor(parent);
+      if (id !== null && message.error !== undefined) this.workerErrors.set(id, PROVIDER_ERRORS[message.error]);
+      return;
+    }
     this.turn();
     if (message.error !== undefined) this.providerCode = message.error === 'unknown' ? null : PROVIDER_ERRORS[message.error];
   }

@@ -148,7 +148,7 @@ function sessionCommand(body: Record<string, unknown>, session: SessionDeps): un
   }
   if (body.action === 'stop') {
     setAutostart(false, session.agents);
-    return stopSession(session);
+    return stopSession(session, true);
   }
   if (body.action !== undefined) throw new ApiError('action must be start or stop', 400);
   if (typeof body.autostart === 'boolean') setAutostart(body.autostart, session.agents);

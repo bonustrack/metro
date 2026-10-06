@@ -112,7 +112,7 @@ describe('unfinished SDK input recovery', () => {
     const runner = runnerFor(store, async function* () { yield started(active); });
     runner.inbox.push('chat', 'cancel this', undefined, active);
     runner.inbox.push('chat', 'not started', undefined, queued);
-    await runner.run(() => { runner.close(); });
+    await runner.run(() => { runner.close(true); });
     expect(store.recover()).toMatchObject({ unanswered: [expect.objectContaining({ uuid: queued })], interrupted: [] });
   });
 

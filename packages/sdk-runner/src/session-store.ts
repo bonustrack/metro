@@ -4,6 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { writeAtomic } from '@metro-labs/core/secure-fs';
 import type { Unanswered, Uuid } from './inbox.js';
 import { recoverInputs } from './recovery.js';
+import { recoveredTasks, savedTasks, type SavedTask } from './task-state.js';
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -14,6 +15,7 @@ interface Stored {
   unanswered: Unanswered[];
   interrupted: Unanswered[];
   context?: number;
+  tasks: SavedTask[];
 }
 
 function inputId(raw: unknown): Uuid | undefined {
@@ -47,7 +49,7 @@ function stored(raw: unknown): Stored {
   const id = raw.sessionId ?? null;
   if (id !== null && (typeof id !== 'string' || !SESSION_ID.test(id))) throw new Error(UNREADABLE);
   const context = contextOf(raw.context);
-  return { sessionId: id, unanswered: entries(raw.unanswered), interrupted: entries(raw.interrupted), ...(context === undefined ? {} : { context }) };
+  return { sessionId: id, unanswered: entries(raw.unanswered), interrupted: entries(raw.interrupted), tasks: savedTasks(raw.tasks), ...(context === undefined ? {} : { context }) };
 }
 
 function entries(raw: unknown): Unanswered[] {
@@ -79,8 +81,8 @@ export class SessionStore {
     const stored = this.read();
     const transcript = stored.sessionId === null ? null : join(this.claudeDir, 'projects', projectFolder(this.cwd), `${stored.sessionId}.jsonl`);
     const recovered = recoverInputs(stored.unanswered, transcript);
-    const next = { ...stored, unanswered: recovered.unanswered, interrupted: [...stored.interrupted, ...recovered.interrupted] };
-    if (stored.unanswered.length > 0) this.write(next);
+    const next = { ...stored, tasks: recoveredTasks(stored.tasks), unanswered: recovered.unanswered, interrupted: [...stored.interrupted, ...recovered.interrupted] };
+    if (stored.unanswered.length > 0 || stored.tasks.some((task) => task.state === 'running')) this.write(next);
     return next;
   }
 
@@ -99,11 +101,18 @@ export class SessionStore {
     if (stored.context !== context) this.write({ ...stored, context });
   }
 
+  interrupted(): Unanswered[] { return this.read().interrupted; }
+
+  saveTasks(tasks: SavedTask[], handled: ReadonlySet<string> = new Set()): void {
+    const stored = this.read();
+    this.write({ ...stored, tasks: savedTasks(tasks), interrupted: stored.interrupted.filter((entry) => !handled.has(`input:${entry.uuid ?? entry.at}`)) });
+  }
+
   private read(): Stored {
     try {
       return stored(JSON.parse(readFileSync(this.path, 'utf8')));
     } catch (err) {
-      if (isRecord(err) && err.code === 'ENOENT') return { sessionId: null, unanswered: [], interrupted: [] };
+      if (isRecord(err) && err.code === 'ENOENT') return { sessionId: null, unanswered: [], interrupted: [], tasks: [] };
       throw new Error(UNREADABLE);
     }
   }
