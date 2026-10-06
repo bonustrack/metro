@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { hearSharedCall } from '../../apps/daemon/src/voice/shared.js';
+import { hearSharedCall, sharedCalls } from '../../apps/daemon/src/voice/shared.js';
+import { isRecord } from '../../packages/core/src/is-record.js';
 import * as h from './shared-call-harness.js';
+import { inputOf, submit, toolEvents, type Ingress } from './shared-call-latency-metrics.js';
 
 async function pendingSpeech(fake: h.FakeCall): Promise<AbortSignal> {
   h.policy('ask');
@@ -14,17 +16,18 @@ async function pendingSpeech(fake: h.FakeCall): Promise<AbortSignal> {
   return binding.signal;
 }
 
-async function queuedCall(fake: h.FakeCall): Promise<string> {
+async function stagedCall(fake: h.FakeCall): Promise<Ingress> {
   h.chat('FIXTURE_HOLD_REATTACH hold the main turn during GET loss.');
   await h.until('main turn held before GET drop', () => h.upstream.held.has('FIXTURE_HOLD_REATTACH'));
-  const prior = new Set(h.activity.snapshot().inputs?.map((input) => input.id));
-  hearSharedCall(fake.route, 'FIXTURE_VOICE stale words while GET is detached.', 'fixture-before-detach');
-  await h.until('call input queued before GET drop', () => h.activity.snapshot().inputs?.some((input) => input.kind === 'call' && !prior.has(input.id)) ?? false);
-  const input = h.activity.snapshot().inputs?.find((entry) => entry.kind === 'call' && !prior.has(entry.id));
-  assert.ok(input);
+  const ingress = await submit('fixture-before-detach', 'call', () => {
+    hearSharedCall(fake.route, 'FIXTURE_VOICE stale words while GET is detached.', 'fixture-before-detach');
+    return 'fixture-before-detach';
+  });
+  const input = inputOf(ingress.id);
   assert.equal(input.state, 'accepted');
-  assert.equal(input.dispatchedAt, null);
-  return input.id;
+  assert.notEqual(input.dispatchedAt, null);
+  assert.equal(input.consumedAt, null);
+  return ingress;
 }
 
 export async function reattach(): Promise<void> {
@@ -33,22 +36,27 @@ export async function reattach(): Promise<void> {
   const session = runner.id;
   const fake = await h.call('fixture-same-query-reattach');
   const approval = await pendingSpeech(fake);
-  const queued = await queuedCall(fake);
+  const ingress = await stagedCall(fake);
+  const staged = { ...inputOf(ingress.id) };
   const resumeGet = h.detachGet();
   try {
     await h.until('real runner GET reconnect held', () => h.gets.size === 0 && h.heldGets.size > 0);
     assert.equal(runner.calls.live, true);
+    const endAt = Date.now();
     fake.end();
+    assert.equal(sharedCalls.valid({ route: fake.route, sourceId: ingress.sourceId }), false);
     await h.until('detached end revokes daemon approval', () => h.pending().length === 0);
     assert.equal(runner.calls.live, true);
     assert.equal(approval.aborted, false);
     resumeGet();
     await h.until('same runner reconciles ended call', () => h.gets.size > 0 && !runner.calls.live && h.activity.snapshot().approvals === 0);
     assert.equal(approval.aborted, true);
-    assert.equal(h.activity.snapshot().inputs?.find((input) => input.id === queued)?.state, 'cancelled');
+    assert.notEqual(inputOf(ingress.id).state, 'cancelled');
+    assert.equal(inputOf(ingress.id).consumedAt, null);
     const boundaries = h.events.filter((event) => event.subtype === 'compact_boundary').length;
     h.upstream.inputTokens = 130_000;
     h.upstream.holdCompaction = true;
+    const releasedAt = Date.now();
     h.upstream.release('FIXTURE_HOLD_REATTACH');
     await h.until('idle compaction after same Query recovery', () => h.upstream.held.has('compaction') && h.activity.snapshot().mainPhase === 'compacting');
     h.upstream.inputTokens = 50;
@@ -64,9 +72,21 @@ export async function reattach(): Promise<void> {
     assert.equal(h.agent.runner, runner);
     assert.equal(runner.id, session);
     assert.equal(runner.calls.live, false);
-    assert.ok(!h.upstream.seen.some((request) => request.text.includes('stale words while GET is detached.')));
+    const final = inputOf(ingress.id);
+    const stale = toolEvents('Voice fixture answer.').filter((row) => isRecord(row.input.speech) && row.input.speech.sourceId === ingress.sourceId);
+    assert.ok(final.consumedAt !== null && final.consumedAt >= releasedAt);
+    assert.equal(final.state, 'completed');
+    assert.equal(stale.length, 1);
+    assert.equal(stale[0].input.line, h.LINE);
+    assert.deepEqual(stale[0].input.speech, h.target(fake.route, ingress.sourceId));
+    assert.match(JSON.stringify(stale[0].result), /"is_error":true/);
+    assert.match(JSON.stringify(stale[0].result), /ended or changed/);
     assert.deepEqual(fake.synthesized, []);
-    h.report('same Query GET recovery', { pendingCallCancelled: true, approvalSignalAborted: true, pendingApprovalRevoked: true, runnerLiveCleared: true, idleCompactionCompleted: true, nextChatAnswered: true, sameRunnerAndQuery: true, sameSession: true, replacementCallOpened: false });
+    assert.deepEqual(fake.synthesis, []);
+    assert.deepEqual(fake.audio, []);
+    assert.equal(h.sent('Voice fixture answer.'), 0);
+    h.report('same Query GET recovery', { ingress, staged, endAt, releasedAt, final, stale, authorityRevoked: true, lateSynthesis: 0, lateAudio: 0, chatCopies: 0,
+      approvalSignalAborted: true, pendingApprovalRevoked: true, runnerLiveCleared: true, idleCompactionCompleted: true, nextChatAnswered: true, sameRunnerAndQuery: true, sameSession: true, replacementCallOpened: false });
   } finally {
     resumeGet();
   }

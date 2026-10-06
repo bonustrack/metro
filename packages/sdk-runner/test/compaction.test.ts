@@ -45,7 +45,7 @@ describe('idle compaction headroom', () => {
   });
 
   test('a saved high-context resume compacts before pending chat without changing its uuid or consumed state', async () => {
-    const { runner, reads, store } = fixture(async function* () { yield result(); }, 150_000);
+    const { runner, reads, store } = fixture(async function* () { yield result(compact?.uuid === undefined ? [] : [compact.uuid]); }, 150_000);
     const id = runner.chat({ content: 'queued', meta: {} });
     runner.start({ resume: randomUUID() });
     const read = reads();

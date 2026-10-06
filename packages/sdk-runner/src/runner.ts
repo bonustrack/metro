@@ -19,7 +19,9 @@ const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE
 
 export function runnerEnv(env: NodeJS.ProcessEnv): Record<string, string | undefined> {
   const unpinned = Object.fromEntries(Object.entries(env).filter(([name]) => !MODEL_PINS.has(name)));
-  return { [STARTUP_WAIT]: '0', ...unpinned, DISABLE_AUTOUPDATER: '1' };
+  const terminals = new Set((env.CLAUDE_CODE_TERMINAL_MCP_TOOLS ?? '').split(',').map((name) => name.trim()).filter(Boolean));
+  terminals.add('mcp__metro__send');
+  return { [STARTUP_WAIT]: '0', ...unpinned, DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_TERMINAL_MCP_TOOLS: [...terminals].join(',') };
 }
 
 export type ModelSettings = Parameters<Query['applyFlagSettings']>[0];
@@ -97,8 +99,8 @@ export class Runner {
   constructor(private readonly parts: RunnerParts) {
     this.watch = new SessionWatch(parts.readOnly);
     this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
-      ready: () => this.watch.safe,
-      dispatch: () => { this.watch.dispatched(); },
+      ready: () => this.watch.admitting,
+      dispatch: (message) => { this.watch.dispatched(message.uuid); },
       input: (input) => { parts.activity?.input(input); },
       queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
     });
@@ -241,7 +243,7 @@ export class Runner {
   }
 
   private maybeCompact(resuming = false): void {
-    const busy = this.compactAsked !== null || !this.watch.safe || (!resuming && (this.calls.live || this.inbox.pending > 0));
+    const busy = this.compactAsked !== null || !this.watch.safe || !this.watch.admitting || (!resuming && (this.calls.live || this.inbox.pending > 0));
     if (!compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy })) return;
     this.compactAsked = this.inbox.compact();
     log.info({ context: this.watch.context, resuming }, 'sdk-runner: compacting at a safe idle boundary');

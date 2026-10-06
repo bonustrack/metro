@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-06: Shared conversation input delays
+
+The runner gives the SDK at most one not-yet-consumed input, using normal input priority. The SDK decides when to consume it after current tools finish; the host does not reconstruct those turn boundaries or wait for unrelated workers to end. Only exact main-conversation consumption frees the slot, and the existing bounded lanes remain fair. Queueing input does not interrupt a write or answer an approval. Compaction remains idle-only and waits for any dispatched input to be consumed. This keeps one persistent conversation without restarting it or replaying actions.
+
+Hangup removes call entries still in the host queue. Input already handed to the SDK cannot be retracted, so its actual consumption and completion remain tracked. Its call route, speech source and call-bound approvals are still revoked immediately. A completed SDK turn is not proof of delivered audio.
+
+The pinned SDK retries an empty final response when it does not recognize external output. The runner registers only Metro's `send` in its terminal-MCP-tool list, preserving existing entries. This setting is a pinned-runtime feature, not a public SDK contract. A processed send can therefore end silently without a redundant text response. This recognizes an action receipt, not audio delivery: queued, failed and interrupted speech keep their existing meanings and failure feedback. Recognition follows the current user turn, not just the last tool result. A fresh turn with only a read result or tool error, or no tool result, still gets the SDK's empty-response recovery.
+
 ## 2026-10-05: Shared SDK chat and calls
 
 Less approved one persistent SDK conversation for typed chat, call words and worker results. When the SDK runner is selected, a call does not start a second Brain or copy recent chat. The daemon sends ephemeral, scoped call notices over the existing authenticated local MCP session. Call payloads never enter the bus or SSE replay history. Each GET reattachment sends only the current call route or no call, so a missed hangup clears stale call state without replaying speech or restarting the conversation. The CLI runner keeps its separate call Brain.

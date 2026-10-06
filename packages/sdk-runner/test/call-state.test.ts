@@ -33,6 +33,46 @@ describe('current call reconciliation after GET reattach', () => {
     inbox.close();
   });
 
+  test('hangup cancels only host-queued words and keeps the SDK-staged input observable', async () => {
+    const inputs: RunnerInput[] = [];
+    const watch = new SessionWatch(() => false);
+    const inbox = new Inbox(undefined, { ready: () => watch.admitting, dispatch: (input) => watch.dispatched(input.uuid), input: (input) => inputs.push(input) });
+    const calls = new RunnerCalls(inbox);
+    watch.observe({ type: 'system', subtype: 'session_state_changed', state: 'running' });
+    watch.observe({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'write', name: 'mcp__metro__send' }] } });
+    start(calls);
+    const read = inbox[Symbol.asyncIterator]();
+    const staged = (await read.next()).value;
+    const stagedId = staged?.uuid ?? 'missing';
+    expect(staged?.priority).toBeUndefined();
+    expect(watch.writing).toBe(true);
+    const binding = calls.approval('mcp__metro__send', target);
+    calls.notice({ type: 'heard', route, sourceId: 'host-queued', text: 'words still in the host' });
+    const chat = inbox.push('chat', 'durable after hangup');
+    calls.notice({ type: 'ended', route });
+    expect(binding?.signal.aborted).toBe(true);
+    expect(calls.approval('mcp__metro__send', target)).toBeNull();
+    expect(inputs.filter((input) => input.state === 'cancelled')).toHaveLength(1);
+    expect(inputs.filter((input) => input.id === stagedId).at(-1)).toMatchObject({ state: 'accepted', consumedAt: null, completedAt: null });
+    expect(watch.admitting).toBe(false);
+    watch.observe({ type: 'command_lifecycle', state: 'started', command_uuid: stagedId, parent_tool_use_id: 'worker' });
+    expect(watch.admitting).toBe(false);
+    watch.observe({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'write' }] } });
+    expect(watch.admitting).toBe(false);
+    watch.observe({ type: 'command_lifecycle', state: 'started', command_uuid: stagedId });
+    inbox.started([stagedId]);
+    expect(inputs.filter((input) => input.id === stagedId).at(-1)).toMatchObject({ state: 'consumed', consumedAt: expect.any(Number) });
+    const ended = (await read.next()).value;
+    expect(ended?.message.content).toContain('ended');
+    watch.observe({ type: 'command_lifecycle', state: 'started', command_uuid: ended?.uuid });
+    expect((await read.next()).value?.uuid).toBe(chat);
+    expect(inbox.unanswered()).toEqual([expect.objectContaining({ uuid: chat, state: 'queued' })]);
+    inbox.finished([stagedId]);
+    expect(inputs.filter((input) => input.id === stagedId).at(-1)).toMatchObject({ state: 'completed', completedAt: expect.any(Number) });
+    expect(inbox.pending).toBe(0);
+    inbox.close();
+  });
+
   test('the same current route keeps sources and approvals without replaying a greeting', () => {
     const inbox = new Inbox();
     const calls = new RunnerCalls(inbox);

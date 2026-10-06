@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { hearSharedCall, openSharedCall } from '../../apps/daemon/src/voice/shared.js';
+import { hearSharedCall, openSharedCall, sharedCalls } from '../../apps/daemon/src/voice/shared.js';
 import { answerPrompt } from '../../apps/daemon/src/approvals/pending.js';
+import { isRecord } from '../../packages/core/src/is-record.js';
+import { inputOf, submit, toolEvents } from './shared-call-latency-metrics.js';
 import * as h from './shared-call-harness.js';
 import { STORY } from './shared-call-upstream.js';
 import { resumedCompaction } from './shared-call-compaction.js';
@@ -60,20 +62,42 @@ async function untrustedSources(fake: h.FakeCall): Promise<void> {
 }
 
 async function hangupBeforeReasoning(fake: h.FakeCall): Promise<void> {
-  const session = h.agent.runner.id;
+  const runner = h.agent.runner;
+  const session = runner.id;
+  const synthesized = fake.synthesis.length;
+  const frames = fake.audio.length;
   h.chat('FIXTURE_HOLD_MAIN hold this chat response.');
   await h.until('held main reasoning', () => h.upstream.held.has('FIXTURE_HOLD_MAIN'));
-  hearSharedCall(fake.route, 'FIXTURE_VOICE this queued call input must never run.', 'cancel-before');
-  await h.until('queued voice', () => h.activity.snapshot().pending > 0);
+  const ingress = await submit('cancel-before', 'call', () => {
+    hearSharedCall(fake.route, 'FIXTURE_VOICE this queued call input must never run.', 'cancel-before');
+    return 'cancel-before';
+  });
+  const staged = { ...inputOf(ingress.id) };
+  assert.notEqual(staged.dispatchedAt, null);
+  assert.equal(staged.consumedAt, null);
+  const endAt = Date.now();
   fake.end();
+  assert.equal(sharedCalls.valid({ route: fake.route, sourceId: ingress.sourceId }), false);
+  assert.notEqual(inputOf(ingress.id).state, 'cancelled');
   h.chat('FIXTURE_CHAT_AFTER_QUEUED_HANGUP');
+  const releasedAt = Date.now();
   h.upstream.release('FIXTURE_HOLD_MAIN');
   await h.until('chat after queued hangup', () => h.sent('FIXTURE_CHAT_AFTER_QUEUED_HANGUP') === 1);
   await h.idle();
-  assert.equal(h.agent.runner.id, session);
-  assert.ok(!h.upstream.seen.some((request) => request.text.includes('this queued call input must never run')));
+  const final = inputOf(ingress.id);
+  const stale = toolEvents('Voice fixture answer.').filter((row) => isRecord(row.input.speech) && row.input.speech.sourceId === ingress.sourceId);
+  assert.equal(h.agent.runner, runner);
+  assert.equal(runner.id, session);
+  assert.ok(final.consumedAt !== null && final.consumedAt >= releasedAt);
+  assert.equal(final.state, 'completed');
+  assert.equal(stale.length, 1);
+  assert.match(JSON.stringify(stale[0].result), /"is_error":true/);
+  assert.match(JSON.stringify(stale[0].result), /ended or changed/);
+  assert.equal(fake.synthesis.length, synthesized);
+  assert.equal(fake.audio.length, frames);
+  assert.equal(h.sent('Voice fixture answer.'), 0);
   rejected(await h.rawSend({ line: h.LINE, text: 'Late speech.', speech: h.target(fake.route, 'cancel-before') }), /ended or changed/);
-  h.report('hangup before call reasoning', { queuedVoiceCancelled: true, nextChatAnswered: true, sameSession: true, endedTargetRejected: true });
+  h.report('hangup before call reasoning', { ingress, staged, endAt, releasedAt, final, stale, authorityRevoked: true, lateSynthesis: 0, lateAudio: 0, chatCopies: 0, nextChatAnswered: true, sameSession: true, endedTargetRejected: true });
 }
 
 async function hangupDuringReasoning(): Promise<void> {

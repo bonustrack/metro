@@ -55,11 +55,16 @@ export class InputQueue {
     return undefined;
   }
 
-  cancel(uuids: ReadonlySet<string>): void {
+  cancel(uuids: ReadonlySet<string>): string[] {
+    const removed: string[] = [];
     for (let index = this.items.length - 1; index >= 0; index -= 1) {
       const uuid = this.items[index]?.message.uuid;
-      if (uuid !== undefined && uuids.has(uuid)) this.remove(index);
+      if (uuid !== undefined && uuids.has(uuid)) {
+        this.remove(index);
+        removed.push(uuid);
+      }
     }
+    return removed;
   }
 
   private remove(index: number): Queued | undefined {

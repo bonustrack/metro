@@ -22,7 +22,6 @@ function toolResultIds(message: unknown): string[] {
   return message.content.filter(isRecord).filter((b) => b.type === 'tool_result' && typeof b.tool_use_id === 'string').map((b) => String(b.tool_use_id));
 }
 
-
 export class SessionWatch {
   private readonly writes = new Set<string>();
   private readonly idle: (() => void)[] = [];
@@ -30,6 +29,8 @@ export class SessionWatch {
   private compactingNow = false;
   private busy = false;
   private sessionStateSeen = false;
+  private requiresAction = false;
+  private awaitingInput: string | null = null;
   private lastContext = 0;
   private streamUsage: Record<string, unknown> = {};
 
@@ -49,11 +50,20 @@ export class SessionWatch {
 
   get safe(): boolean { return !this.busy && !this.writing && !this.compacting; }
 
-  dispatched(): void { this.busy = true; }
+  get admitting(): boolean {
+    return this.awaitingInput === null && !this.requiresAction && !this.compacting;
+  }
+
+  dispatched(uuid?: string): void {
+    this.busy = true;
+    this.awaitingInput = uuid ?? null;
+  }
+
   restoreContext(context: number): void { this.lastContext = context; }
 
   observe(m: Record<string, unknown>): void {
     if (m.parent_tool_use_id !== null && m.parent_tool_use_id !== undefined) return;
+    this.acknowledge(m);
     this.lifecycle(m);
     if (m.type === 'assistant' && isRecord(m.message)) this.assistant(m.message);
     else if (m.type === 'stream_event' && isRecord(m.event)) this.stream(m.event);
@@ -68,6 +78,11 @@ export class SessionWatch {
     return this.compactingNow ? new Promise((resolve) => { this.compacted.push(resolve); }) : Promise.resolve();
   }
 
+  private acknowledge(m: Record<string, unknown>): void {
+    if (this.awaitingInput === null) return;
+    if (startedCommand(m) === this.awaitingInput || uuidsOf(m)?.includes(this.awaitingInput)) this.awaitingInput = null;
+  }
+
   private lifecycle(m: Record<string, unknown>): void {
     if (m.type === 'system') this.system(m);
     else if (m.type === 'result' && !this.sessionStateSeen) {
@@ -78,15 +93,24 @@ export class SessionWatch {
   }
 
   private system(m: Record<string, unknown>): void {
-    if (m.subtype === 'session_state_changed') {
-      this.sessionStateSeen = true;
-      if (m.state === 'running' || m.state === 'requires_action') this.busy = true;
-      else if (m.state === 'idle') { this.busy = false; this.settle(); }
-    } else if (m.subtype === 'status') this.setCompacting(m.status === 'compacting');
+    if (m.subtype === 'session_state_changed') this.sessionState(m.state);
+    else if (m.subtype === 'status') this.setCompacting(m.status === 'compacting');
     else if (m.subtype === 'compact_boundary') {
       this.setCompacting(false);
       this.lastContext = 0;
       this.streamUsage = {};
+    }
+  }
+
+  private sessionState(state: unknown): void {
+    this.sessionStateSeen = true;
+    if (state === 'running' || state === 'requires_action') {
+      this.busy = true;
+      this.requiresAction = state === 'requires_action';
+    } else if (state === 'idle') {
+      this.busy = false;
+      this.requiresAction = false;
+      this.settle();
     }
   }
 

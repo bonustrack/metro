@@ -58,10 +58,15 @@ export const policy = (send: Access): void => {
 };
 policy('allow');
 watchPolicySnapshot();
-export const train: { action: string; args: Record<string, unknown>; at: number }[] = [];
-setTrainCallBackend((_name, action, args) => {
-  train.push({ action, args: args as Record<string, unknown>, at: Date.now() });
-  return Promise.resolve({ result: { messageId: `fixture-out-${train.length}` } });
+export const delays = { write: 0, speech: 0 };
+export const train: { action: string; args: Record<string, unknown>; at: number; completedAt: number | null }[] = [];
+setTrainCallBackend(async (_name, action, args) => {
+  const call = { action, args: args as Record<string, unknown>, at: Date.now(), completedAt: null as number | null };
+  train.push(call);
+  const id = train.length;
+  if (delays.write > 0) await Bun.sleep(delays.write);
+  call.completedAt = Date.now();
+  return { result: { messageId: `fixture-out-${id}` } };
 });
 export const upstream = new SharedUpstream();
 await upstream.start();
@@ -107,12 +112,15 @@ const cfg = runnerConfig({
 }, home);
 const env = { ...process.env, ANTHROPIC_BASE_URL: upstream.base, ANTHROPIC_API_KEY: 'fixture-not-a-live-key', ENABLE_TOOL_SEARCH: 'false' };
 export const events: Record<string, unknown>[] = [];
+export const timedEvents: { at: number; message: Record<string, unknown> }[] = [];
 export const snapshots: ReturnType<Activity['snapshot']>[] = [];
 let failure: unknown;
 export let activity = new Activity(join(home, '.metro', 'agent-status.json'));
 export let agent: RunningAgent;
 const observe: NonNullable<AppHooks['observe']> = (message) => {
-  events.push({ ...message });
+  const observed = { ...message };
+  events.push(observed);
+  timedEvents.push({ at: Date.now(), message: observed });
   snapshots.push(activity.snapshot());
 };
 
@@ -162,6 +170,8 @@ export interface FakeCall {
   queue: SpeechQueue;
   synthesized: string[];
   frames: number[];
+  synthesis: { at: number; text: string }[];
+  audio: { at: number; text: string }[];
   end(): void;
 }
 export const opened: FakeCall[] = [];
@@ -170,18 +180,28 @@ export async function call(callId: string = randomUUID(), waitIdle = true): Prom
   const sourceId = randomUUID();
   const synthesized: string[] = [];
   const frames: number[] = [];
+  const synthesis: FakeCall['synthesis'] = [];
+  const audio: FakeCall['audio'] = [];
+  let playingText = '';
   const queue = new SpeechQueue({ provider: 'elevenlabs', apiKey: 'fixture', voiceId: 'fixture', model: 'fixture', language: 'en', enabled: true }, (_opus, timestamp, marker) => {
-    if (marker) frames.push(timestamp);
+    if (marker) { frames.push(timestamp); audio.push({ at: Date.now(), text: playingText }); }
   }, () => {
     let output: Parameters<Utterance['attach']>[0] | undefined;
     let text = '';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const emit = (): void => { synthesized.push(text); output?.audio(new Int16Array(960).fill(1000), text.length); output?.done(); };
     return {
       attach: (value) => { output = value; }, say: (value) => { text += value; },
-      end: () => { synthesized.push(text); output?.audio(new Int16Array(960).fill(1000), text.length); output?.done(); },
-      abort: () => undefined,
+      end: () => {
+        playingText = text;
+        synthesis.push({ at: Date.now(), text });
+        if (delays.speech > 0) timer = setTimeout(emit, delays.speech);
+        else emit();
+      },
+      abort: () => { if (timer !== undefined) clearTimeout(timer); },
     };
   });
-  const fake: FakeCall = { route, sourceId, synthesized, frames, queue, end: () => { endSharedCall(route); } };
+  const fake: FakeCall = { route, sourceId, synthesized, frames, synthesis, audio, queue, end: () => { endSharedCall(route); } };
   assert.equal(openSharedCall(route, sourceId, { enqueue: (action) => queue.enqueue(action), terminate: () => queue.close() }), true, 'Real MCP bridge accepted the exact authorized call');
   opened.push(fake);
   queue.connect();

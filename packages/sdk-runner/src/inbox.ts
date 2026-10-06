@@ -17,7 +17,7 @@ export interface Unanswered {
 
 interface InboxHooks {
   ready?(): boolean;
-  dispatch?(): void;
+  dispatch?(message: SDKUserMessage): void;
   queue?(count: number, oldest: number | null): void;
   input?: InputWatch;
 }
@@ -94,8 +94,8 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
 
   cancel(uuids: readonly string[]): void {
     const ephemeral = uuids.filter((uuid) => this.kindOf(uuid) !== 'chat');
-    this.queue.cancel(new Set(ephemeral));
-    this.timing.finish(ephemeral, true);
+    const removed = this.queue.cancel(new Set(ephemeral));
+    this.timing.finish(removed, true);
     this.notify();
   }
 
@@ -121,7 +121,7 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
     while (!this.closed) {
       const next = (this.hooks.ready?.() ?? true) ? this.queue.take() : undefined;
       if (next !== undefined) {
-        this.hooks.dispatch?.();
+        this.hooks.dispatch?.(next);
         if (next.uuid !== undefined) this.timing.dispatch(next.uuid);
         this.notify();
         yield next;

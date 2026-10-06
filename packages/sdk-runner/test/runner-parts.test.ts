@@ -10,7 +10,7 @@ import type { PermissionAsk } from '../src/link.ts';
 import { SessionStore, projectFolder } from '../src/session-store.ts';
 import { SessionWatch } from '../src/session-watch.ts';
 import { runnerConfig } from '../src/config.ts';
-import { allowedOnly, compactDue, Runner, runnerOptions, type OpenSession } from '../src/runner.ts';
+import { allowedOnly, compactDue, Runner, runnerEnv, runnerOptions, type OpenSession } from '../src/runner.ts';
 import type { MetroTools } from '../src/tool-proxy.ts';
 
 const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
@@ -200,6 +200,14 @@ describe('the runner starts the Claude Code that comes with the pinned SDK', () 
   test('metro agent names the store copy of that binary', () => {
     const cfg = runnerConfig({ ...base, METRO_RUNNER_CLAUDE: '/home/agent/.metro/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude' }, '/tmp');
     expect(runnerOptions(cfg, tools, allow, 'resume-id', {}).pathToClaudeCodeExecutable).toBe(cfg.claude ?? '');
+  });
+
+  test('registers send as terminal without replacing existing terminal tool names', () => {
+    expect(runnerEnv({}).CLAUDE_CODE_TERMINAL_MCP_TOOLS).toBe('mcp__metro__send');
+    const env = { CLAUDE_CODE_TERMINAL_MCP_TOOLS: ' mcp__other__deliver, ,mcp__metro__send,mcp__other__deliver ', PATH: '/usr/bin' };
+    expect(runnerEnv(env)).toMatchObject({ CLAUDE_CODE_TERMINAL_MCP_TOOLS: 'mcp__other__deliver,mcp__metro__send', PATH: '/usr/bin' });
+    expect(env.CLAUDE_CODE_TERMINAL_MCP_TOOLS).toBe(' mcp__other__deliver, ,mcp__metro__send,mcp__other__deliver ');
+    expect(runnerEnv({ CLAUDE_CODE_TERMINAL_MCP_TOOLS: ' , ' }).CLAUDE_CODE_TERMINAL_MCP_TOOLS).toBe('mcp__metro__send');
   });
 });
 

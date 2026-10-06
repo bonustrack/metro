@@ -21,7 +21,8 @@ const env = {
   SHARED_CALL_FIXTURE_ROOT: root,
 };
 process.stdout.write(`${JSON.stringify({ fixture: root, localOnly: true, inheritedCredentials: false })}\n`);
-const child = Bun.spawn([process.execPath, fileURLToPath(new URL('./shared-call-fixture.ts', import.meta.url))], {
+const entry = process.argv.includes('--latency') ? './shared-call-latency.ts' : process.argv.includes('--staging') ? './shared-call-staging.ts' : './shared-call-fixture.ts';
+const child = Bun.spawn([process.execPath, fileURLToPath(new URL(entry, import.meta.url)), ...process.argv.slice(2)], {
   cwd: dirs.home, env, stdin: 'ignore', stdout: 'inherit', stderr: 'inherit',
 });
 const timer = setTimeout(() => { child.kill('SIGTERM'); }, 240_000);

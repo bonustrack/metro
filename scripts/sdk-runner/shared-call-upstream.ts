@@ -85,8 +85,10 @@ export class SharedUpstream {
   readonly seen: ModelRequest[] = [];
   readonly held = new Map<string, () => void>();
   readonly failures: string[] = [];
+  private readonly answered = new Set<string>();
   inputTokens = 50;
   holdCompaction = false;
+  script?: (request: ModelRequest) => Promise<Block[]>;
   base = '';
   private readonly server = createServer((req, res) => {
     const chunks: Buffer[] = [];
@@ -114,6 +116,20 @@ export class SharedUpstream {
     this.server.close();
   }
 
+  private takeInputs(text: string): string[] {
+    const inputs: string[] = [];
+    for (const match of text.matchAll(/<(channel|call)\s[^>]*>[\s\S]*?<\/\1>/g)) {
+      const header = attributes(match[0], match[1]);
+      const source = header.sourceId ?? header.message_id;
+      if (!header.line?.startsWith('metro://') || source === undefined) continue;
+      const key = JSON.stringify([match[1], header.line, header.generation, source]);
+      if (this.answered.has(key)) continue;
+      this.answered.add(key);
+      inputs.push(match[0]);
+    }
+    return inputs;
+  }
+
   private handle(path: string | undefined, raw: string, res: ServerResponse): void {
     if (path?.endsWith('/count_tokens')) { res.writeHead(200).end(JSON.stringify({ input_tokens: this.inputTokens })); return; }
     if (path?.endsWith('/models')) { res.writeHead(200).end(JSON.stringify({ data: [], has_more: false })); return; }
@@ -129,10 +145,27 @@ export class SharedUpstream {
     const first = texts(messages[0]);
     const worker = first.includes('FIXTURE_WORKER') || first.includes('FIXTURE_APPROVAL_WORKER');
     const model = typeof body.model === 'string' ? body.model : 'fixture-model';
-    this.seen.push({ at: Date.now(), text, worker, body });
+    const request = { at: Date.now(), text, worker, body };
+    this.seen.push(request);
+    if (this.script !== undefined) {
+      this.script(request).then((blocks) => {
+        if (body.stream === true) stream(res, model, blocks, this.inputTokens);
+        else if (!res.destroyed) res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
+          id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model,
+          content: blocks.map((block) => block.type === 'tool_use' ? { ...block, id: `toolu_${randomUUID()}` } : block),
+          stop_reason: blocks.some((block) => block.type === 'tool_use') ? 'tool_use' : 'end_turn',
+          stop_sequence: null, usage: { input_tokens: this.inputTokens, output_tokens: 7 },
+        }));
+      }).catch((err: unknown) => {
+        this.failures.push(String(err));
+        if (!res.destroyed) res.writeHead(500).end(String(err));
+      });
+      return;
+    }
     const hasResult = JSON.stringify(fresh).includes('"tool_result"');
     const compact = /Your task is to create a detailed summary|Please provide a detailed summary/i.test(text) && !worker;
-    let blocks = compact ? [{ type: 'text' as const, text: 'Fixture compacted summary. The owner used the local shared call fixture.' }] : hasResult ? quiet() : replyFor(text);
+    const inbound = compact || worker ? [] : this.takeInputs(text);
+    let blocks = compact ? [{ type: 'text' as const, text: 'Fixture compacted summary. The owner used the local shared call fixture.' }] : inbound.length > 0 ? inbound.flatMap(replyFor) : quiet();
     if (worker) {
       blocks = first.includes('FIXTURE_APPROVAL_WORKER') && !hasResult
         ? send(JSON.parse(first.slice(first.indexOf('FIXTURE_APPROVAL_WORKER ') + 'FIXTURE_APPROVAL_WORKER '.length).split('\n')[0]) as Record<string, unknown>)
@@ -146,7 +179,7 @@ export class SharedUpstream {
       }));
     };
     const hold = compact && this.holdCompaction ? 'compaction' : worker && first.includes('FIXTURE_WORKER') && !hasResult ? 'worker'
-      : !hasResult ? /FIXTURE_HOLD_[A-Z_]+/.exec(text)?.[0] : undefined;
+      : /FIXTURE_HOLD_[A-Z_]+/.exec(inbound.join('\n'))?.[0];
     if (hold !== undefined) this.held.set(hold, respond);
     else respond();
   }

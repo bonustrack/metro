@@ -277,16 +277,22 @@ test('a chat arriving between MCP connect and query start is queued once, alongs
   const dir = fixture();
   const store = new SessionStore(join(dir, 's.json'), join(dir, 'claude'), dir);
   store.saveUnanswered([{ text: 'saved', at: Date.now() }]);
+  let consumed: string | undefined;
   const open: OpenSession = () => ({
     applyFlagSettings: () => Promise.resolve(), close: () => undefined,
-    [Symbol.asyncIterator]: async function* () { yield msg({ type: 'system', subtype: 'session_state_changed', state: 'idle' }); },
+    [Symbol.asyncIterator]: async function* () {
+      yield msg({ type: 'command_lifecycle', state: 'started', command_uuid: consumed });
+      yield msg({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    },
   }) as ReturnType<OpenSession>;
   const runner = new Runner({ store, open, readOnly: () => false });
   runner.chat({ content: 'new event', meta: { line: 'metro://fixture/a/b' } });
   runner.start({});
   expect(store.unanswered()).toHaveLength(2);
   const messages = runner.inbox[Symbol.asyncIterator]();
-  expect((await messages.next()).value?.message.content).toBe('saved');
+  const saved = (await messages.next()).value;
+  consumed = saved?.uuid;
+  expect(saved?.message.content).toBe('saved');
   await runner.run();
   expect((await messages.next()).value?.message.content).toContain('new event');
   expect(() => runner.start({})).toThrow('already started');
