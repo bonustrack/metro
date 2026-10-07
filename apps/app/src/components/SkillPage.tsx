@@ -28,7 +28,7 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
           {[skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ')}
         </Text>
       </Col>
-      {skill.editable ? null : <Text size="2xs" role="danger">That skill is too large to edit here.</Text>}
+      {skill.managed ? <Text size="2xs" role="secondary">Managed by GitHub. Edit its repository, not this copy.{skill.shadowed ? ' A local skill with this name takes priority.' : ''}</Text> : skill.editable ? null : <Text size="2xs" role="danger">That skill is too large to edit here.</Text>}
     </Col>
   );
 }

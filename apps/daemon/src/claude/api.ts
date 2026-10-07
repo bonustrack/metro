@@ -3,6 +3,8 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
+import { githubSkillsAnswer } from './github-api.js';
+import { githubSkills, type GitHubSkills } from './github-skills.js';
 import { listClaudeSettings, SETTINGS_MAX, writeClaudeSettings } from './settings.js';
 import {
   createClaudeSkill,
@@ -60,6 +62,7 @@ export interface ClaudeApiDeps extends SetupApiDeps {
   login?: LoginDeps;
   claudeLogins?: ClaudeLoginDeps;
   version?: VersionDeps;
+  skillSource?: GitHubSkills;
 }
 
 function projectOf(query: URLSearchParams): string {
@@ -132,7 +135,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   return createClaudeSkill(body.name, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
-const ADMIN_ONLY = /^\/api\/claude\/(login|session|version|setup)(\/|$)/;
+const ADMIN_ONLY = /^\/api\/claude\/(login|session|version|setup|skill-source)(\/|$)/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
@@ -220,15 +223,37 @@ const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps, ses
   [VERSION]: versionAnswer,
 };
 
+function skillsAnswer(req: IncomingMessage, path: string, search: string, dir: string, source: GitHubSkills): unknown {
+  const segments = parts(path);
+  if (req.method === 'GET' && segments.length === 1) {
+    const listing = source.listing();
+    return { skills: [...listClaudeSkills(dir), ...listing.rows], skillSource: listing.skillSource };
+  }
+  const item = decodeURIComponent(segments[1] ?? '');
+  if (segments.length === 2 && item.startsWith('github:')) {
+    if (req.method !== 'GET') throw new ApiError('GitHub skills are read-only here. Edit the repository or remove its source.', 409);
+    return source.read(item);
+  }
+  return fileAnswer(req, path, search, dir);
+}
+
+const sourceOf = (deps: ClaudeApiDeps): GitHubSkills => deps.skillSource ?? githubSkills();
+
+function fileAnswer(req: IncomingMessage, path: string, search: string, dir: string): unknown {
+  if (req.method === 'PUT') return writeAnswer(req, path, search, dir);
+  if (req.method === 'POST') return created(req, path, dir);
+  return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
+}
+
 function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps, session: ApiSession): unknown {
   const dir = (deps.dir ?? claudeDir)();
   const [head = '', item = ''] = parts(path);
   if (head === LOGIN) return loginAnswer(req, item, deps);
+  if (head === 'skill-source' && parts(path).length === 1) return githubSkillsAnswer(req, deps.skillSource);
+  if (head === 'skills') return skillsAnswer(req, path, search, dir, sourceOf(deps));
   const single = item === '' ? SINGLETONS[head] : undefined;
   if (single !== undefined) return single(req, deps, session);
-  if (req.method === 'PUT') return writeAnswer(req, path, search, dir);
-  if (req.method === 'POST') return created(req, path, dir);
-  return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
+  return fileAnswer(req, path, search, dir);
 }
 
 const TEXT = 'text/plain; charset=utf-8';
@@ -276,7 +301,7 @@ export function handleClaudeRequest(
         sendJson(req, res, 200, sessionSnapshot(deps.session));
         return;
       }
-      if (req.method !== 'GET' && ADMIN_ONLY.test(path)) requireAdmin(session);
+      if (req.method !== 'GET' && ADMIN_ONLY.test(path.replace(/\/{2,}/g, '/'))) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps, session));
     })

@@ -156,6 +156,46 @@ picks up a change with `/reload-plugins --force`. No connector credential reache
 Code's config, the browser or metro.box. For Microsoft 365, see
 [docs/MICROSOFT-365.md](docs/MICROSOFT-365.md).
 
+## GitHub skills
+
+With the **Agent SDK** runner selected, a box administrator can connect one private
+GitHub repository on **Skills**. Enter `owner/repository`, a branch, tag or full commit
+SHA, and the folder containing the skills. Use a fine-grained token restricted to that
+repository with **Contents: read-only** and an expiry. The organization may need to
+approve it. Metro cannot enforce how broadly a token was issued; restrict it at GitHub.
+The daemon keeps it in its private `github-skills.json`, never in the agent's files,
+API responses or `.metro` exports. Removing the source forgets it, but does not revoke it
+at GitHub.
+
+Each skill has `skill-name/SKILL.md`, with YAML `name` matching the folder and a
+`description`. Optional metadata is limited to `argument-hint`, `disable-model-invocation`
+and `user-invocable`. Supporting files are allowed. Symlinks, submodules, hidden files,
+active metadata such as hooks or tool grants, and shell substitutions are refused.
+Limits are 64 skills, 256 files, 256 KiB per file, 8 MiB total and 128 KiB of manifest
+metadata. Git executable files keep owner execute permission; sync never runs them.
+
+Metro reads GitHub's tree and blob APIs at an immutable commit. It does not clone,
+extract an archive or run repository scripts. It checks about once a minute, with
+backoff on failure; while an update waits to load, automatic checks wait too. Downloads
+are staged separately. The running SDK switches generations and reloads skills only
+between safe turns, after calls, tools and workers finish. Chat, shared voice and SDK
+scheduled work use the same gate. Fetch or validation failures keep the last loaded
+revision; reload failures restore it, or pause input if recovery cannot be confirmed.
+The page distinguishes staged and last-loaded commits.
+
+Local skills remain editable and take priority over matching repository names. If a
+local alias cannot be read safely, remote skills are hidden until it is fixed; removal
+still works. Managed rows are read-only in Metro. Removing the source unloads only managed skills at a safe
+turn; old managed generations are cleaned after a short retention window at an idle
+point. It cannot erase instructions already read into a conversation. The files belong
+to the agent's OS user, so they are not an OS sandbox or tamper-proof storage.
+Repository writers control agent instructions, and an agent can run supporting scripts
+later under its normal permissions. Connect only a trusted repository.
+
+The Claude Code runner and separate CLI jobs do not load this source. An older or
+stopped Agent SDK runner must be started on a version supporting the feature. Sync
+never changes plugin enablement or connector configuration.
+
 ## Export and import
 
 The agent's Settings page can **Export** the agent to a `.metro` file on your disk, sealed

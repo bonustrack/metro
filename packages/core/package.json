@@ -13,6 +13,7 @@
     "./automation-types": "./src/automation-types.ts",
     "./call": "./src/call.ts",
     "./secure-fs": "./src/secure-fs.ts",
+    "./skill-source": "./src/skill-source.ts",
     "./version": "./src/version.ts",
     "./train-error": "./src/train-error.ts",
     "./trains/protocol": "./src/protocol.ts",

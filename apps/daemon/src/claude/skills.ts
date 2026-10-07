@@ -18,6 +18,8 @@ export interface ClaudeSkill {
   path: string;
   editable: boolean;
   updatedAt: string | null;
+  managed?: boolean;
+  shadowed?: boolean;
 }
 
 const frontmatterField = (text: string, field: string): string => {

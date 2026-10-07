@@ -156,7 +156,7 @@ async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written
   let written = 0;
   let skipped = 0;
   for (const skill of skills) {
-    const here = listing.skills.find((s) => s.name === skill.name);
+    const here = listing.skills.find((s) => s.name === skill.name && s.managed !== true);
     if (here !== undefined && mode === 'append') {
       skipped += 1;
       continue;

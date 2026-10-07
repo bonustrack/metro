@@ -2,6 +2,8 @@ import { dirname, join } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AutomationStore } from '@metro-labs/core/automation-store';
 import { errMsg, log } from '@metro-labs/core/log';
+import { skillSourceRoot } from '@metro-labs/core/skill-source';
+import { SkillsRefresh } from './skills.js';
 import { failureSummary, type Activity } from './activity.js';
 import { approvalsThrough } from './approvals.js';
 import type { RunnerConfig } from './config.js';
@@ -30,7 +32,8 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
   const store = new SessionStore(cfg.statePath, cfg.claudeDir, cfg.cwd);
   let tools: MetroTools | null = null;
   const automationStore = new AutomationStore(join(dirname(cfg.statePath), 'automation'));
-  const runner = new Runner({ store, automationStore, readOnly: (tool) => tools?.readOnly(tool) ?? false, ...hooks });
+  const skills = new SkillsRefresh(skillSourceRoot(cfg.claudeDir), cfg.claudeDir);
+  const runner = new Runner({ store, automationStore, skills, readOnly: (tool) => tools?.readOnly(tool) ?? false, ...hooks });
   const link = await MetroLink.open(cfg.mcpUrl, cfg.key, {
     channel: (event) => { runner.chat(event); },
     call: (notice) => { runner.calls.notice(notice); },

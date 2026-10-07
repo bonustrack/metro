@@ -10,6 +10,7 @@ import * as session from '../../packages/client/src/api/attach-session.ts';
 import * as bundle from '../../packages/client/src/api/bundle.ts';
 import * as box from '../../packages/client/src/api/claude-box.ts';
 import * as claude from '../../packages/client/src/api/claude.ts';
+import { changeSkillSource } from '../../packages/client/src/api/skill-source.ts';
 import * as client from '../../packages/client/src/api/client.ts';
 import * as conn from '../../packages/client/src/api/connectors.ts';
 import * as machine from '../../packages/client/src/api/machine.ts';
@@ -150,7 +151,12 @@ const first = settings?.[0];
 if (first !== undefined)
   await ok('saveClaudeSettings', () => claude.saveClaudeSettings(first.id, first.text === '' ? '{}' : first.text, first.modifiedAt));
 
-await ok('fetchClaudeSkills', () => claude.fetchClaudeSkills());
+const skillListing = await ok('fetchClaudeSkills', () => claude.fetchClaudeSkills());
+if (skillListing?.skillSource?.supported) {
+  await refused('connectGitHubSkills without credentials', /fine-grained GitHub token/, () => changeSkillSource('PUT', { repository: 'example/skills', ref: 'main', folder: 'skills', token: '' }));
+  await ok('syncGitHubSkills', () => changeSkillSource('POST'));
+  await ok('removeGitHubSkills', () => changeSkillSource('DELETE'));
+}
 const skill = await ok('createClaudeSkill', () => claude.createClaudeSkill('compat-skill'));
 if (skill !== undefined) {
   await ok('fetchClaudeSkill', () => claude.fetchClaudeSkill(skill.id));

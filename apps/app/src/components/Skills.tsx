@@ -5,6 +5,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
+import { GitHubSkills } from './GitHubSkills.js';
 import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
 import { DeleteMenu } from './DeleteMenu.js';
@@ -25,9 +26,9 @@ function SkillRow({ skill, project }: { skill: ClaudeSkill; project: string }): 
   return (
     <ListRow
       title={skill.title}
-      detail={skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}
+      detail={skill.managed ? (skill.shadowed ? 'GitHub · local skill takes priority' : 'GitHub · read-only') : skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}
       href={routeHash({ kind: 'skill', project, id: skill.id })}
-      trailing={
+      trailing={skill.managed ? null :
         <DeleteMenu
           label={`Actions for ${skill.name}`}
           items={[{ label: 'Edit', onSelect: () => { go({ kind: 'skill', project, id: skill.id }); } }]}
@@ -90,6 +91,7 @@ export function Skills({ project }: { project: string }): ReactNode {
         }
       />
       <Listing error={error} data={data} project={project} />
+      {data === undefined ? null : <GitHubSkills view={data.skillSource} />}
       <NameModal
         title="New skill"
         action="Create"

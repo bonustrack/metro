@@ -1,5 +1,8 @@
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
+import { skillSourceRoot } from '@metro-labs/core/skill-source';
+import { type SkillsRefresh } from './skills.js';
+import { SkillWork } from './skill-work.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { AutomationStore } from '@metro-labs/core/automation-store';
 import type { Activity } from './activity.js';
@@ -41,6 +44,7 @@ export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: 
     env: runnerEnv(env),
     ...(cfg.claude === null ? {} : { pathToClaudeCodeExecutable: cfg.claude }),
     settingSources: ['user', 'project', 'local'],
+    additionalDirectories: [skillSourceRoot(cfg.claudeDir)],
     systemPrompt: { type: 'preset', preset: 'claude_code', append: cfg.prompt === null ? FRONT_RULES : `${cfg.prompt}\n\n${FRONT_RULES}` },
     mcpServers: { [METRO_SERVER]: tools.config },
     permissionMode: cfg.permissionMode,
@@ -73,6 +77,7 @@ export interface RunnerParts {
   open?: OpenSession;
   activity?: Activity;
   automationStore?: AutomationStore;
+  skills?: SkillsRefresh;
 }
 
 function streamOutput(event: Record<string, unknown>): boolean {
@@ -94,6 +99,7 @@ export class Runner {
   private readonly recovery: TaskRecovery;
   private readonly watch: SessionWatch;
   private readonly tasks = new ActivityTasks(() => undefined);
+  private readonly skillWork = new SkillWork();
   private compactTimer: ReturnType<typeof setTimeout> | null = null;
   private session: Query | null = null;
   private sessionId: string | null = null;
@@ -109,7 +115,7 @@ export class Runner {
   constructor(private readonly parts: RunnerParts) {
     this.watch = new SessionWatch(parts.readOnly);
     this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
-      ready: () => this.watch.admitting,
+      ready: () => { parts.skills?.check(); return this.watch.admitting && parts.skills?.busy !== true; },
       dispatch: (message) => { this.automation?.dispatched(message.uuid); this.watch.dispatched(message.uuid); },
       input: (input) => { this.cancelCompact(); parts.activity?.input(input); },
       queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
@@ -146,6 +152,11 @@ export class Runner {
     this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
     this.model = options.model ?? null;
     this.queueModel(this.model);
+    this.parts.skills?.start({
+      safe: () => !this.ended && this.watch.safe && this.watch.admitting && this.compactAsked === null && !this.calls.live && this.skillWork.safe,
+      reload: () => this.session?.reloadSkills() ?? Promise.reject(new Error('The SDK session is closed.')),
+      wake: () => { this.inbox.notify(); },
+    });
     this.recovery.start();
     this.automation?.start();
     return this.session;
@@ -167,7 +178,7 @@ export class Runner {
         this.recovery.observe(m);
         this.automation?.observe(m);
         this.trackInput(m);
-        this.watch.observe(m);
+        this.observeWork(m);
         this.note(m);
         this.parts.activity?.observe(message);
         this.inbox.notify();
@@ -176,6 +187,7 @@ export class Runner {
       }
     } finally {
       this.cancelCompact();
+      this.parts.skills?.close();
       this.automation?.close(false);
       this.recovery.close(false);
       this.ended = true;
@@ -200,6 +212,7 @@ export class Runner {
 
   close(cancelActive = false): void {
     this.cancelCompact();
+    this.parts.skills?.close();
     this.calls.close();
     try {
       this.recovery.close(cancelActive);
@@ -281,8 +294,18 @@ export class Runner {
     }
   }
 
+  private observeWork(message: Record<string, unknown>): void {
+    this.watch.observe(message);
+    this.skillWork.observe(message);
+    this.parts.skills?.check();
+  }
+
+  private get maintenanceBusy(): boolean {
+    return this.ended || this.parts.skills?.busy === true || this.compactAsked !== null || !this.watch.safe || !this.watch.admitting;
+  }
+
   private compactReady(resuming = false): boolean {
-    const busy = this.ended || this.compactAsked !== null || !this.watch.safe || !this.watch.admitting || (!resuming && (this.calls.live || this.inbox.pending > 0 || this.tasks.running > 0));
+    const busy = this.maintenanceBusy || (!resuming && (this.calls.live || this.inbox.pending > 0 || this.tasks.running > 0));
     return compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy });
   }
 

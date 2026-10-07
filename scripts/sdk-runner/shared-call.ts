@@ -23,7 +23,7 @@ const env = {
   SHARED_CALL_FIXTURE_ROOT: root,
 };
 process.stdout.write(`${JSON.stringify({ fixture: root, localOnly: true, inheritedCredentials: false })}\n`);
-const entry = process.argv.includes('--tasks') ? './task-lifecycle.ts' : process.argv.includes('--latency') ? './shared-call-latency.ts' : process.argv.includes('--staging') ? './shared-call-staging.ts' : './shared-call-fixture.ts';
+const entry = process.argv.includes('--skills') ? './skills-fixture.ts' : process.argv.includes('--tasks') ? './task-lifecycle.ts' : process.argv.includes('--latency') ? './shared-call-latency.ts' : process.argv.includes('--staging') ? './shared-call-staging.ts' : './shared-call-fixture.ts';
 const child = Bun.spawn([process.execPath, fileURLToPath(new URL(entry, import.meta.url)), ...process.argv.slice(2)], {
   cwd: dirs.home, env, stdin: 'ignore', stdout: 'inherit', stderr: 'inherit',
 });

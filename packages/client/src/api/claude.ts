@@ -1,6 +1,7 @@
 import { filled, isRecord, str } from '../read.js';
 import { daemonBase } from '../auth/daemon.js';
 import { call, callRaw } from './client.js';
+import { githubSkillSource, type GitHubSkillSource } from './skill-source.js';
 
 export interface ClaudeProject {
   id: string;
@@ -325,10 +326,13 @@ export interface ClaudeSkill {
   path: string;
   editable: boolean;
   updatedAt: string | null;
+  managed?: boolean;
+  shadowed?: boolean;
 }
 
 export interface SkillListing {
   skills: ClaudeSkill[];
+  skillSource?: GitHubSkillSource;
 }
 
 
@@ -341,8 +345,9 @@ function toSkill(raw: unknown): ClaudeSkill | null {
     title: title === '' ? raw.name : title,
     description: str(raw.description),
     path: str(raw.path),
-    editable: raw.editable !== false,
+    editable: raw.editable !== false && raw.managed !== true,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
+    ...(raw.managed === true ? { managed: true, shadowed: raw.shadowed === true } : {}),
   };
 }
 
@@ -357,7 +362,7 @@ const skillPath = (id: string): string => `/skills/${encodeURIComponent(id)}`;
 export async function fetchClaudeSkills(): Promise<SkillListing> {
   const body = await claudeCall('GET', '/skills');
   if (!isRecord(body)) return { skills: [] };
-  return { skills: Array.isArray(body.skills) ? body.skills.flatMap((raw) => toSkill(raw) ?? []) : [] };
+  return { skills: Array.isArray(body.skills) ? body.skills.flatMap((raw) => toSkill(raw) ?? []) : [], skillSource: githubSkillSource(body.skillSource) };
 }
 
 export async function fetchClaudeSkill(id: string): Promise<ClaudeSkill & { text: string }> {

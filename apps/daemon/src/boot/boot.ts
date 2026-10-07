@@ -32,6 +32,7 @@ import { followRelease } from '../metro-user/root-follow.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
 import { liveEvents, memoryRoutine, tryClaudeSetup } from '../claude/setup.js';
 import { tryMemoryJob } from '../claude/memory-routine.js';
+import { githubSkills } from '../claude/github-skills.js';
 import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
@@ -195,6 +196,7 @@ async function startClaude(): Promise<void> {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
     });
   tryClaudeSetup();
+  try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());
   watchSession();
 }
