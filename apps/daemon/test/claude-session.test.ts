@@ -21,6 +21,7 @@ let calls = '';
 let running = '';
 let pane = '';
 let priorConfigDir: string | undefined;
+let priorClaudeDir: string | undefined;
 
 function fakeTmux(): void {
   writeFileSync(
@@ -69,13 +70,17 @@ beforeEach(() => {
   mkdirSync(join(dir, 'agents'));
   mkdirSync(join(dir, 'config'));
   priorConfigDir = process.env.CLAUDE_CONFIG_DIR;
+  priorClaudeDir = process.env.METRO_CLAUDE_DIR;
   process.env.CLAUDE_CONFIG_DIR = join(dir, 'config');
+  process.env.METRO_CLAUDE_DIR = join(dir, 'config');
   fakeTmux();
 });
 
 afterEach(() => {
   if (priorConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
   else process.env.CLAUDE_CONFIG_DIR = priorConfigDir;
+  if (priorClaudeDir === undefined) delete process.env.METRO_CLAUDE_DIR;
+  else process.env.METRO_CLAUDE_DIR = priorClaudeDir;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -149,6 +154,7 @@ describe('starting the session', () => {
     writeFileSync(join(project, `${id}.jsonl`), `${JSON.stringify({ type: 'user', cwd: realpathSync(home), message: { role: 'user', content: 'hi' } })}\n`);
     writeFileSync(join(project, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl'), '{}\n');
     expect(continueArgs(home, join(dir, 'config'), join(dir, 'agents'))).toEqual(['--resume', id]);
+    expect(continueArgs(home, undefined, join(dir, 'agents'))).toEqual(['--resume', id]);
     stopSession(deps());
     startSession(deps({ metro: ['metro', 'claude'] }));
     expect(recorded().filter((c) => c.startsWith('new-session')).pop()?.endsWith(` metro claude --resume ${id}`)).toBe(true);
