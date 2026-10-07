@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mailLine } from '@metro-labs/core/stations/mail';
@@ -52,6 +53,29 @@ beforeEach(() => {
 
 afterEach(() => {
   cap.restore();
+});
+
+test('capture waits for events and clears completed, timed out and restored waiters', async () => {
+  const cleared = spyOn(globalThis, 'clearTimeout');
+  try {
+    const received = cap.waitForEvents(1);
+    process.stdout.write('{"op":"log"}\n{"op":"response"}\n');
+    expect(cleared).not.toHaveBeenCalled();
+    process.stdout.write('{"op":"event"}\n');
+    await received;
+    await cap.waitForEvents(1);
+    expect(cleared).toHaveBeenCalledTimes(1);
+    await expect(cap.waitForEvents(2, 5)).rejects.toThrow('Timed out waiting for 2 events; received 1');
+    process.stdout.write('{"op":"event"}\n');
+    expect(cleared).toHaveBeenCalledTimes(2);
+    const restored = cap.waitForEvents(3);
+    cap.restore();
+    await expect(restored).rejects.toThrow('Event capture is restored');
+    expect(cleared).toHaveBeenCalledTimes(3);
+    await expect(cap.waitForEvents(3)).rejects.toThrow('Event capture is restored');
+  } finally {
+    cleared.mockRestore();
+  }
 });
 
 describe('inbound mail', () => {
@@ -111,17 +135,28 @@ describe('inbound mail', () => {
       (req) => (req.url === `${USER}/messages/m-f/attachments/att-1` ? json({ data: Buffer.from('PDF').toString('base64url'), size: 3 }) : undefined),
     ]);
     acct.state.historyId = '100';
-    expect(await syncOnce(acct)).toBe(1);
-    await new Promise((r) => setTimeout(r, 20));
-    const [msg, ...files] = cap.written.events;
-    expect(msg?.is_private).toBe(false);
-    expect((msg?.payload as { attachments: unknown[] }).attachments).toEqual([
-      { kind: 'file', name: 'invoice.pdf', mime: 'application/pdf', size: 3 },
-      { kind: 'file', name: 'note.txt', mime: 'text/plain', size: 2 },
-    ]);
-    const saved = files.map((e) => e.payload as Record<string, unknown>);
-    expect(saved.map((p) => p.contentType)).toEqual(['attachmentSaved', 'attachmentSaved']);
-    expect(saved.map((p) => readFileSync(String(p.attachmentPath), 'utf8')).sort()).toEqual(['PDF', 'hi']);
+    const writeFile = fs.writeFile;
+    const writes = spyOn(fs, 'writeFile').mockImplementation(async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      return writeFile(...args);
+    });
+    try {
+      expect(await syncOnce(acct)).toBe(1);
+      await cap.waitForEvents(3);
+      expect(writes).toHaveBeenCalledTimes(2);
+      const [msg, ...files] = cap.written.events;
+      expect(msg?.is_private).toBe(false);
+      expect((msg?.payload as { attachments: unknown[] }).attachments).toEqual([
+        { kind: 'file', name: 'invoice.pdf', mime: 'application/pdf', size: 3 },
+        { kind: 'file', name: 'note.txt', mime: 'text/plain', size: 2 },
+      ]);
+      const saved = files.map((e) => e.payload as Record<string, unknown>);
+      expect(saved.map((p) => p.contentType)).toEqual(['attachmentSaved', 'attachmentSaved']);
+      expect(saved.map((p) => readFileSync(String(p.attachmentPath), 'utf8')).sort()).toEqual(['PDF', 'hi']);
+    } finally {
+      writes.mockRestore();
+    }
+    expect(fs.writeFile).toBe(writeFile);
   });
 
   test('automated mail is skipped, and a forged or missing Google verdict is unverified', async () => {

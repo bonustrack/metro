@@ -55,9 +55,11 @@ export interface Written {
   events: Record<string, unknown>[];
 }
 
-export function capture(): { written: Written; restore: () => void } {
+export function capture(): { written: Written; waitForEvents: (count: number, timeout?: number) => Promise<void>; restore: () => void } {
   const written: Written = { responses: [], events: [] };
+  const waiting = new Set<(error?: Error) => void>();
   const orig = process.stdout.write.bind(process.stdout);
+  let restored = false;
   process.stdout.write = ((chunk: string | Uint8Array): boolean => {
     for (const line of String(chunk).split('\n')) {
       if (!line.trim()) continue;
@@ -65,11 +67,27 @@ export function capture(): { written: Written; restore: () => void } {
       if (parsed.op === 'response') written.responses.push(parsed);
       else if (parsed.op !== 'log') written.events.push(parsed);
     }
+    for (const notify of waiting) notify();
     return true;
   }) as typeof process.stdout.write;
   return {
     written,
+    waitForEvents: (count, timeout = 2000) => new Promise<void>((resolve, reject) => {
+      if (restored) return reject(new Error('Event capture is restored'));
+      if (written.events.length >= count) return resolve();
+      const finish = (error?: Error): void => {
+        if (error === undefined && written.events.length < count) return;
+        clearTimeout(timer);
+        waiting.delete(finish);
+        if (error === undefined) resolve();
+        else reject(error);
+      };
+      const timer = setTimeout(() => finish(new Error(`Timed out waiting for ${count} events; received ${written.events.length}`)), timeout);
+      waiting.add(finish);
+    }),
     restore: () => {
+      restored = true;
+      for (const notify of waiting) notify(new Error('Event capture is restored'));
       process.stdout.write = orig;
     },
   };

@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Account, accounts } from '../src/accounts.ts';
@@ -57,6 +58,29 @@ afterEach(() => {
   cap.restore();
 });
 
+test('capture waits for events and clears completed, timed out and restored waiters', async () => {
+  const cleared = spyOn(globalThis, 'clearTimeout');
+  try {
+    const received = cap.waitForEvents(1);
+    process.stdout.write('{"op":"log"}\n{"op":"response"}\n');
+    expect(cleared).not.toHaveBeenCalled();
+    process.stdout.write('{"op":"event"}\n');
+    await received;
+    await cap.waitForEvents(1);
+    expect(cleared).toHaveBeenCalledTimes(1);
+    await expect(cap.waitForEvents(2, 5)).rejects.toThrow('Timed out waiting for 2 events; received 1');
+    process.stdout.write('{"op":"event"}\n');
+    expect(cleared).toHaveBeenCalledTimes(2);
+    const restored = cap.waitForEvents(3);
+    cap.restore();
+    await expect(restored).rejects.toThrow('Event capture is restored');
+    expect(cleared).toHaveBeenCalledTimes(3);
+    await expect(cap.waitForEvents(3)).rejects.toThrow('Event capture is restored');
+  } finally {
+    cleared.mockRestore();
+  }
+});
+
 describe('html to text', () => {
   test('keeps the words and the paragraphs, drops tags, styles and scripts', () => {
     const html = '<html><head><style>p{color:red}</style></head><body><p>Hi&nbsp;there,</p><script>alert(1)</script><ul><li>one</li><li>two</li></ul>A&lt;B &#233;t&#xE9;</body></html>';
@@ -108,15 +132,26 @@ describe('inbound mail', () => {
     ]);
     acct.state.deltaLink = `${GRAPH}/delta-d1`;
     acct.state.syncedAt = new Date().toISOString();
-    expect(await syncOnce(acct)).toBe(1);
-    await new Promise((r) => setTimeout(r, 20));
-    const [msg, saved] = cap.written.events;
-    expect(msg?.is_private).toBe(false);
-    expect((msg?.payload as { attachments: unknown[] }).attachments).toEqual([{ kind: 'file', name: 'invoice.pdf', mime: 'application/pdf', size: 3 }]);
-    const payload = saved?.payload as Record<string, unknown>;
-    expect(payload.contentType).toBe('attachmentSaved');
-    expect(payload.attachmentFor).toBe(msg?.id);
-    expect(readFileSync(String(payload.attachmentPath), 'utf8')).toBe('PDF');
+    const writeFile = fs.writeFile;
+    const writes = spyOn(fs, 'writeFile').mockImplementation(async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      return writeFile(...args);
+    });
+    try {
+      expect(await syncOnce(acct)).toBe(1);
+      await cap.waitForEvents(2);
+      expect(writes).toHaveBeenCalledTimes(1);
+      const [msg, saved] = cap.written.events;
+      expect(msg?.is_private).toBe(false);
+      expect((msg?.payload as { attachments: unknown[] }).attachments).toEqual([{ kind: 'file', name: 'invoice.pdf', mime: 'application/pdf', size: 3 }]);
+      const payload = saved?.payload as Record<string, unknown>;
+      expect(payload.contentType).toBe('attachmentSaved');
+      expect(payload.attachmentFor).toBe(msg?.id);
+      expect(readFileSync(String(payload.attachmentPath), 'utf8')).toBe('PDF');
+    } finally {
+      writes.mockRestore();
+    }
+    expect(fs.writeFile).toBe(writeFile);
   });
 });
 
