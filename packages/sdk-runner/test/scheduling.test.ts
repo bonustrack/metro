@@ -127,6 +127,9 @@ describe('bounded SDK input admission', () => {
     const f = fixture(async function* () {
       expect((await f.next()).uuid).toBe(uuid);
       f.runner.inbox.push('chat', 'next chat');
+      yield message({ type: 'command_lifecycle', state: 'completed', command_uuid: randomUUID() });
+      yield message({ type: 'command_lifecycle', state: 'completed', command_uuid: uuid, parent_tool_use_id: 'worker' });
+      expect(f.store.unanswered()).toContainEqual(expect.objectContaining({ uuid }));
       yield message({ type: 'command_lifecycle', state: 'completed', command_uuid: uuid });
       const next = await f.next();
       expect(next.message.content).toBe('next chat');
@@ -134,7 +137,7 @@ describe('bounded SDK input admission', () => {
       yield message(result(next.uuid === undefined ? [] : [next.uuid]));
       expect(f.store.unanswered()).toEqual([]);
     });
-    f.runner.inbox.push('note', 'already completed', undefined, uuid);
+    f.runner.inbox.push('chat', 'already completed', undefined, uuid);
     await f.runner.run();
   });
 

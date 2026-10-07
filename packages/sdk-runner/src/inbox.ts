@@ -30,6 +30,7 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   private readonly queue = new InputQueue();
   private readonly kinds = new Map<string, InputKind>();
   private readonly ledger = new Map<string, Unanswered>();
+  private readonly dispatched = new Set<string>();
   private readonly timing: InputTiming;
   private wake: (() => void) | null = null;
   private closed = false;
@@ -40,6 +41,10 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   }
 
   get pending(): number { return this.queue.size; }
+
+  accepts(kind: InputKind, text: string): boolean { return !this.closed && this.queue.accepts(kind, text); }
+
+  activeUuids(): Set<string> { return new Set([...this.dispatched, ...this.startedUuids()]); }
 
   compact(): Uuid {
     const uuid = this.push('note', '/compact');
@@ -87,7 +92,10 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
 
   finished(uuids = this.startedUuids()): void {
     let changed = false;
-    for (const uuid of uuids) changed = this.ledger.delete(uuid) || changed;
+    for (const uuid of uuids) {
+      this.dispatched.delete(uuid);
+      changed = this.ledger.delete(uuid) || changed;
+    }
     if (changed) this.changed(this.unanswered());
     this.timing.finish(uuids);
   }
@@ -121,6 +129,7 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
     while (!this.closed) {
       const next = (this.hooks.ready?.() ?? true) ? this.queue.take() : undefined;
       if (next !== undefined) {
+        if (next.uuid !== undefined && this.ledger.has(next.uuid)) this.dispatched.add(next.uuid);
         this.hooks.dispatch?.(next);
         if (next.uuid !== undefined) this.timing.dispatch(next.uuid);
         this.notify();

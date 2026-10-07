@@ -10,6 +10,9 @@ export const uuidsOf = (m: Record<string, unknown>): string[] | null => {
 export const startedCommand = (m: Record<string, unknown>): string | null =>
   m.type === 'command_lifecycle' && m.state === 'started' && typeof m.command_uuid === 'string' ? m.command_uuid : null;
 
+export const completedCommand = (m: Record<string, unknown>): string | null =>
+  m.type === 'command_lifecycle' && m.state === 'completed' && typeof m.command_uuid === 'string' ? m.command_uuid : null;
+
 const num = (value: unknown): number => (typeof value === 'number' ? value : 0);
 
 function contextOf(usage: unknown): number {
@@ -80,7 +83,7 @@ export class SessionWatch {
 
   private acknowledge(m: Record<string, unknown>): void {
     if (this.awaitingInput === null) return;
-    const completed = m.type === 'command_lifecycle' && m.state === 'completed' && m.command_uuid === this.awaitingInput;
+    const completed = completedCommand(m) === this.awaitingInput;
     if (completed || startedCommand(m) === this.awaitingInput || uuidsOf(m)?.includes(this.awaitingInput)) this.awaitingInput = null;
   }
 

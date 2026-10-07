@@ -55,12 +55,13 @@ export class TaskLedger {
     this.taskEvent(id, m, event, now);
   }
 
-  cancel(handled: ReadonlySet<string> = new Set()): void {
+  cancel(): SavedTask[] {
     for (const task of this.rows.values()) {
       if (task.state === 'running') task.state = 'stopped';
+      task.handledAttempt = task.attempt;
       task.notice = null;
     }
-    this.save(this.snapshot(), new Set([...this.rows.keys(), ...handled]));
+    return this.snapshot();
   }
 
   changed(handled?: ReadonlySet<string>): void { this.save(this.snapshot(), handled); }
@@ -70,13 +71,17 @@ export class TaskLedger {
     else if (m.subtype === 'task_notification') this.end(id, m, event, now);
     else if (m.subtype === 'task_updated' && isRecord(m.patch) && this.rows.has(id)) {
       this.end(id, { status: m.patch.status === 'killed' ? 'stopped' : m.patch.status, summary: m.patch.error }, event, now);
-    } else if (m.subtype === 'task_progress') this.progress(id, now);
+    } else if (m.subtype === 'task_progress') this.progress(id, m.tool_use_id, now);
   }
 
-  private progress(id: string, now: number): void {
+  private progress(id: string, rawTool: unknown, now: number): void {
     const task = this.rows.get(id);
-    if (task?.state !== 'running' || now - task.updatedAt < 10_000) return;
+    if (task?.state !== 'running') return;
+    const tool = activityName(rawTool) ?? task.toolUseId;
+    if (tool === task.toolUseId && now - task.updatedAt < 10_000) return;
+    task.toolUseId = tool;
     task.updatedAt = now;
+    this.resolveOwners();
     this.save(this.snapshot());
   }
 
@@ -88,7 +93,7 @@ export class TaskLedger {
     task.owner = 'main';
     task.state = 'failed';
     const reason = m.api_error_status === 429 ? 'rate_limit' : this.errors.get('main') ?? 'provider_error';
-    task.notice ??= pendingNotice(reason, task.attempt, now);
+    if (task.handledAttempt !== task.attempt) task.notice ??= pendingNotice(reason, task.attempt, now);
     this.save(this.snapshot());
   }
 
@@ -138,7 +143,7 @@ export class TaskLedger {
     task.state = m.reason === 'worker_restart' ? 'interrupted' : m.status;
     if (event !== null) task.events = [...task.events, event].slice(-16);
     task.updatedAt = now;
-    this.failedTask(task, m, now);
+    if (task.handledAttempt !== task.attempt) this.failedTask(task, m, now);
     this.errors.delete(task.toolUseId ?? '');
     this.resolveOwners();
     this.save(this.snapshot());
@@ -208,7 +213,11 @@ export class TaskLedger {
 
   private resumed(id: string, event: string | null, now: number): void {
     const task = this.rows.get(id);
-    if (task?.state === 'running' || (event !== null && task?.events.includes(event))) return;
+    if (event !== null && task?.events.includes(event)) return;
+    if (task?.state === 'running') {
+      if (event !== null) { task.events = [...task.events, event].slice(-16); this.save(this.snapshot()); }
+      return;
+    }
     this.start(id, undefined, event, now);
   }
 

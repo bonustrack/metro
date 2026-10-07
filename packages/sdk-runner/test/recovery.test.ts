@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -113,6 +113,36 @@ describe('unfinished SDK input recovery', () => {
     runner.inbox.push('chat', 'cancel this', undefined, active);
     runner.inbox.push('chat', 'not started', undefined, queued);
     await runner.run(() => { runner.close(true); });
+    expect(store.recover()).toMatchObject({ unanswered: [expect.objectContaining({ uuid: queued })], interrupted: [] });
+  });
+
+  test('Stop checkpoints task and active input cancellation without a second input-state write', async () => {
+    const { store } = fixture();
+    const active = randomUUID();
+    const runner = runnerFor(store, async function* () {
+      yield started(active);
+      yield message({ type: 'system', subtype: 'task_started', task_id: 'worker', uuid: randomUUID() });
+    });
+    runner.inbox.push('chat', 'cancel this', undefined, active);
+    await runner.run();
+    const secondWrite = spyOn(store, 'saveUnanswered').mockImplementation(() => { throw new Error('second input write must not be needed'); });
+    try {
+      expect(() => runner.close(true)).not.toThrow();
+      expect(store.recover()).toMatchObject({ unanswered: [], interrupted: [], tasks: [expect.objectContaining({ state: 'stopped', notice: null })] });
+      expect(secondWrite).not.toHaveBeenCalled();
+    } finally { secondWrite.mockRestore(); }
+  });
+
+  test('Stop cancels dispatched chat before a buffered started receipt, while leaving never-dispatched chat queued', async () => {
+    const { store, transcript } = fixture();
+    const active = randomUUID();
+    const queued = randomUUID();
+    const runner = runnerFor(store, async function* () { yield result(); });
+    runner.inbox.push('chat', 'already handed to SDK', undefined, active);
+    runner.inbox.push('chat', 'not handed to SDK', undefined, queued);
+    expect((await runner.inbox[Symbol.asyncIterator]().next()).value?.uuid).toBe(active);
+    writeFileSync(transcript, `${JSON.stringify({ type: 'user', uuid: active })}\n`);
+    runner.close(true);
     expect(store.recover()).toMatchObject({ unanswered: [expect.objectContaining({ uuid: queued })], interrupted: [] });
   });
 

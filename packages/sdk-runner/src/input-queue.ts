@@ -26,11 +26,13 @@ export class InputQueue {
   get size(): number { return this.items.length; }
   get oldest(): number | null { return this.items.reduce<number | null>((at, item) => at === null ? item.at : Math.min(at, item.at), null); }
 
-  check(kind: InputKind, text: string): void {
+  accepts(kind: InputKind, text: string): boolean {
     const bytes = Buffer.byteLength(text);
-    if (bytes > INPUT_MAX || this.bytes + bytes > BYTES_MAX || this.items.filter((item) => item.kind === kind).length >= CAPS[kind]) {
-      throw new Error('The SDK input queue is full. Wait for queued work to finish before retrying.');
-    }
+    return bytes <= INPUT_MAX && this.bytes + bytes <= BYTES_MAX && this.items.filter((item) => item.kind === kind).length < CAPS[kind];
+  }
+
+  check(kind: InputKind, text: string): void {
+    if (!this.accepts(kind, text)) throw new Error('The SDK input queue is full. Wait for queued work to finish before retrying.');
   }
 
   push(kind: InputKind, message: SDKUserMessage, text: string, at: number): void {

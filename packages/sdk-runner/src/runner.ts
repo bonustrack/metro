@@ -10,7 +10,7 @@ import { Inbox, type Unanswered, type Uuid } from './inbox.js';
 import { FRONT_RULES } from './rules.js';
 import { INTERRUPTED_NOTICE } from './recovery.js';
 import type { SessionStore } from './session-store.js';
-import { SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
+import { completedCommand, SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
 import { TaskRecovery } from './task-recovery.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 
@@ -187,7 +187,6 @@ export class Runner {
     this.calls.close();
     try {
       this.recovery.close(cancelActive);
-      if (cancelActive) this.inbox.finished();
     } finally {
       this.ended = true;
       this.inbox.close();
@@ -229,6 +228,8 @@ export class Runner {
       this.inbox.boundary();
       return;
     }
+    const completed = completedCommand(m);
+    if (completed !== null) { this.inbox.finished([completed]); return; }
     const started = startedCommand(m);
     this.inbox.started([...(uuidsOf(m) ?? []), ...(started === null ? [] : [started])]);
     if (visibleOutput(m)) this.inbox.output();

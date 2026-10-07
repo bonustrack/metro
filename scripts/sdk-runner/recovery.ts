@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Activity } from '../../packages/sdk-runner/src/activity.ts';
@@ -27,6 +27,7 @@ const calls: string[] = [];
 const results: string[][] = [];
 const lifecycle: Record<string, unknown>[] = [];
 const failedWorkers: { id: string; owner: string | null; pending: boolean }[] = [];
+let eventCount = 0;
 let runner: Runner;
 let activity: Activity;
 let done: Promise<void> = Promise.resolve();
@@ -38,6 +39,12 @@ async function until(label: string, check: () => boolean): Promise<void> {
     if (Date.now() > deadline) throw new Error(`Timed out: ${label}`);
     await Bun.sleep(20);
   }
+}
+
+function recordEvent(m: Record<string, unknown>): void {
+  if (!['assistant', 'result', 'command_lifecycle', 'system'].includes(String(m.type)) && m.user_message_uuids === undefined) return;
+  assert.ok(eventCount++ < 2_000, 'fixture event trace is bounded');
+  appendFileSync(join(root, 'events.jsonl'), `${JSON.stringify({ type: m.type, subtype: m.subtype, parent: m.parent_tool_use_id, inputs: m.user_message_uuids, input: m.user_message_uuid, command: m.command_uuid, state: m.state, ack: m.type === 'assistant' && JSON.stringify(m.message).includes('[metro-task-handled:') })}\n`);
 }
 
 function boot(): void {
@@ -61,6 +68,7 @@ function boot(): void {
   failure = undefined;
   done = runner.run((message) => {
     const m: Record<string, unknown> = { ...message };
+    recordEvent(m);
     if (m.type === 'result') results.push(Array.isArray(m.user_message_uuids) ? m.user_message_uuids as string[] : []);
     if (m.type === 'command_lifecycle') lifecycle.push({ state: m.state, command_uuid: m.command_uuid });
     if (m.type === 'system' && m.subtype === 'task_notification' && m.status === 'failed') {
@@ -148,17 +156,21 @@ async function sideEffectCrash(): Promise<void> {
 async function intentionalStop(): Promise<void> {
   const active = chat('RECOVERY_HOLD_STOP');
   await until('held before explicit Stop', () => upstream.held.has('RECOVERY_HOLD_STOP'));
+  const dispatched = chat('RECOVERY_STOP_DISPATCHED');
+  await until('SDK queued input before Stop', () => lifecycle.some((event) => event.command_uuid === dispatched && event.state === 'queued'));
   const queued = chat('RECOVERY_AFTER_STOP');
-  await Bun.sleep(100);
+  assert.ok(!lifecycle.some((event) => event.command_uuid === queued));
   runner.close(true);
   await done;
-  assert.ok(!store.unanswered().some((input) => input.uuid === active));
+  assert.deepEqual(store.unanswered().map((input) => input.uuid), [queued]);
+  assert.ok(!store.unanswered().some((input) => input.uuid === active || input.uuid === dispatched));
   boot();
   await finished(queued);
   assert.equal(store.recover().interrupted.length, 0);
   assert.equal(calls.filter((text) => text === 'RECOVERY_AFTER_STOP').length, 1);
   assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_HOLD_STOP').length, 1);
-  process.stdout.write(`${JSON.stringify({ check: 'intentional Stop', cancelledNotReplayed: true, queuedReplies: 1, noNewInterruption: true })}\n`);
+  assert.equal(upstream.seen.filter((text) => text === 'RECOVERY_STOP_DISPATCHED').length, 0);
+  process.stdout.write(`${JSON.stringify({ check: 'intentional Stop', cancelledNotReplayed: true, dispatchedCancelled: true, queuedReplies: 1, noNewInterruption: true })}\n`);
 }
 
 async function interruptedOnly(): Promise<void> {

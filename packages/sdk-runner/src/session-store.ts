@@ -108,6 +108,12 @@ export class SessionStore {
     this.write({ ...stored, tasks: savedTasks(tasks), interrupted: stored.interrupted.filter((entry) => !handled.has(`input:${entry.uuid ?? entry.at}`)) });
   }
 
+  cancelTasks(tasks: SavedTask[], active: ReadonlySet<string>): void {
+    const stored = this.read();
+    const unanswered = stored.unanswered.filter((input) => input.state !== 'started' && (input.uuid === undefined || !active.has(input.uuid)));
+    this.write({ ...stored, tasks: savedTasks(tasks), unanswered, interrupted: [] });
+  }
+
   private read(): Stored {
     try {
       return stored(JSON.parse(readFileSync(this.path, 'utf8')));
