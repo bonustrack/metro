@@ -1,7 +1,9 @@
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
+import type { AutomationStore } from '@metro-labs/core/automation-store';
 import type { Activity } from './activity.js';
+import { Automation } from './automation.js';
 import { ActivityTasks } from './activity-tasks.js';
 import { RunnerCalls } from './calls.js';
 import { channelText, type ChannelEvent } from './channel-text.js';
@@ -70,6 +72,7 @@ export interface RunnerParts {
   compactAt?: number;
   open?: OpenSession;
   activity?: Activity;
+  automationStore?: AutomationStore;
 }
 
 function streamOutput(event: Record<string, unknown>): boolean {
@@ -87,6 +90,7 @@ function visibleOutput(m: Record<string, unknown>): boolean {
 export class Runner {
   readonly inbox: Inbox;
   readonly calls: RunnerCalls;
+  readonly automation: Automation | null;
   private readonly recovery: TaskRecovery;
   private readonly watch: SessionWatch;
   private readonly tasks = new ActivityTasks(() => undefined);
@@ -106,7 +110,7 @@ export class Runner {
     this.watch = new SessionWatch(parts.readOnly);
     this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
       ready: () => this.watch.admitting,
-      dispatch: (message) => { this.watch.dispatched(message.uuid); },
+      dispatch: (message) => { this.automation?.dispatched(message.uuid); this.watch.dispatched(message.uuid); },
       input: (input) => { this.cancelCompact(); parts.activity?.input(input); },
       queue: (count, oldest) => { parts.activity?.pending(count, oldest); },
     });
@@ -117,6 +121,15 @@ export class Runner {
       this.parts.activity?.fail(INTERRUPTED_NOTICE);
       this.close(false);
     }, Date.now, () => { parts.activity?.recovered(); });
+    this.automation = parts.automationStore === undefined ? null : new Automation(parts.automationStore, this.inbox, (uuid, at) => {
+      if (this.recovery.ledger.snapshot().some((task) => task.id === `input:${uuid}`)) return;
+      this.recovery.ledger.interrupted([{ uuid, at, text: '' }], Date.now());
+      this.recovery.start();
+    }, (err) => {
+      log.error({ err: errMsg(err) }, 'sdk-runner: local automation could not be saved');
+      this.parts.activity?.fail('Local scheduled work could not be saved. Check metro task status before resuming.');
+      this.close(false);
+    });
     this.watch.restoreContext(context ?? 0);
     parts.activity?.recover(tasks);
     this.interrupted = interrupted.length;
@@ -134,6 +147,7 @@ export class Runner {
     this.model = options.model ?? null;
     this.queueModel(this.model);
     this.recovery.start();
+    this.automation?.start();
     return this.session;
   }
 
@@ -151,6 +165,7 @@ export class Runner {
         if (message.type === 'system') this.tasks.observe(message);
         const m: Record<string, unknown> = { ...message };
         this.recovery.observe(m);
+        this.automation?.observe(m);
         this.trackInput(m);
         this.watch.observe(m);
         this.note(m);
@@ -161,6 +176,7 @@ export class Runner {
       }
     } finally {
       this.cancelCompact();
+      this.automation?.close(false);
       this.recovery.close(false);
       this.ended = true;
     }
@@ -187,6 +203,7 @@ export class Runner {
     this.calls.close();
     try {
       this.recovery.close(cancelActive);
+      this.automation?.close(cancelActive);
     } finally {
       this.ended = true;
       this.inbox.close();

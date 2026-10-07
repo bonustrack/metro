@@ -53,13 +53,21 @@ export class Inbox implements AsyncIterable<SDKUserMessage> {
   }
 
   push(kind: InputKind, text: string, _priority?: Priority, uuid: Uuid = randomUUID(), at = Date.now()): Uuid {
+    return this.enqueue(kind, text, uuid, at, { origin: { kind: 'channel', server: 'metro' } });
+  }
+
+  automation(text: string, uuid: Uuid, at: number): Uuid {
+    return this.enqueue('note', text, uuid, at, { origin: { kind: 'task-notification', subkind: 'scheduled-trigger' }, client_composed: true });
+  }
+
+  private enqueue(kind: InputKind, text: string, uuid: Uuid, at: number, provenance: Pick<SDKUserMessage, 'origin' | 'client_composed'>): Uuid {
     if (this.closed) throw new Error('The SDK input queue is closed.');
     this.queue.check(kind, text);
     if (kind === 'chat') this.remember(uuid, text, at);
     this.mark(uuid, kind);
     this.queue.push(kind, {
       type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null,
-      uuid, origin: { kind: 'channel', server: 'metro' },
+      uuid, ...provenance,
     }, text, at);
     this.timing.accept(uuid, kind, at);
     this.notify();

@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-07: Local scheduled input for the Agent SDK
+
+A cron job cannot type into a headless SDK session. `metro task submit` now saves a bounded, private same-UID SQLite request beside the session state; `status` is read-only and `finish` records a token-bound worker receipt. The Node CLI runs the shipped Bun command without installing a runtime, starting a session, reading a credential or connecting another MCP client. Local storage is provenance, not new owner approval. The existing runner admits the stored prompt as a scheduled task, with no forged channel or person.
+
+The runner persists a dispatch fence before yielding to the SDK. Pending offline slots coalesce to the newest; a same-slot retry is idempotent and a changed prompt is refused. Parent completion does not finish a background sweep. Failed or interrupted work holds later slots until verified resolution; uncertain action prompts are never replayed, and recovery awareness uses the existing bounded task ledger. Explicit Stop does not start the session again. The queue keeps unresolved work and at least seven days of settled receipts, with a hard 512-request bound.
+
+`bun run sdk-runner-automation` uses the real pinned SDK and background workers against an isolated free scripted upstream. It verifies ordinary chat and scheduled work in one resumed conversation, duplicate and offline ticks, explicit worker receipts, blocked work and a crash after an effect but before its receipt, with no repeated fixture effect. This proof is not live activation. Scheduling is an explicit local setup, not a new default job; the separate twice-daily memory routine is unchanged.
+
 ## 2026-10-06: Durable worker recovery
 
 A parent result is not the end of its background workers. The SDK runner keeps a private, bounded task ledger beside its input ledger, with task ids, owners, attempts and pending recovery notices. It continues reading the persistent Query after parent completion. Actual tool parents and correlated SendMessage receipts identify owners; a late receipt must not silently revive a completed attempt. Restarted workers are interrupted, not intentionally cancelled. TERM, INT and HUP preserve work; the Harness Stop uses USR2 only when the running SDK advertises that capability. Older runners keep their existing TERM behavior until replaced.

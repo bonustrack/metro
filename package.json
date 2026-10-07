@@ -23,6 +23,7 @@
     "sdk-runner-activity": "bun scripts/sdk-runner/activity.ts",
     "sdk-runner-usage": "bun scripts/sdk-runner/usage.ts",
     "sdk-runner-recovery": "bun scripts/sdk-runner/recovery.ts",
+    "sdk-runner-automation": "bun scripts/sdk-runner/automation.ts",
     "sdk-runner-shared-call": "bun scripts/sdk-runner/shared-call.ts",
     "metro-user-check": "bash scripts/metro-user/run.sh",
     "secret-modes": "bash scripts/secret-modes.sh",

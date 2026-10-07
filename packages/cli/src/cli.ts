@@ -3,6 +3,7 @@ import { whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { agentSession } from './agent.js';
+import { automationCommand } from './automation.js';
 import { launchClaude } from './claude.js';
 import { memoryPaths, memoryRoutine } from './memory.js';
 import { update } from './update.js';
@@ -41,6 +42,13 @@ const USAGE = `metro: run your agent on this machine
   metro agent --prepare [cli|sdk]
                   check the runner before selecting it; install the SDK runtime if needed,
                   without starting a session or connecting to chat
+  metro task submit <routine> <prompt-file> [--slot <UTC ISO timestamp>] [--dry-run]
+  metro task status [routine]
+  metro task finish <uuid> <token> completed|blocked
+                  queue work without starting a session, or read safe local task metadata;
+                  default slot is the current UTC hour; use --slot for other cadences;
+                  accepted is saved, not executed; finish awaits runner verification;
+                  --dry-run writes nothing; local authorization is not fresh owner approval
   metro memory [skill file]
                   run the memory routine once: when Claude Code transcripts changed since
                   the last run, Claude Code reads the memory skill (or the file given) and
@@ -88,6 +96,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   tail: () => tailEvents(process.argv.slice(3)),
   claude: () => launchClaude(process.argv.slice(3)),
   agent: () => agentSession(process.argv.slice(3)),
+  task: () => automationCommand(process.argv.slice(3)),
   memory: () => memoryRoutine(memoryPaths(process.env, process.argv[3])),
   voice: () => voiceSession(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),

@@ -9,6 +9,8 @@
     "./events": "./src/events.ts",
     "./is-record": "./src/is-record.ts",
     "./runner-activity": "./src/runner-activity.ts",
+    "./automation-store": "./src/automation-store.ts",
+    "./automation-types": "./src/automation-types.ts",
     "./call": "./src/call.ts",
     "./secure-fs": "./src/secure-fs.ts",
     "./version": "./src/version.ts",

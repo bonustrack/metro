@@ -122,6 +122,69 @@ the job. A cron line with `memory` only further in its command (run through a sh
 `claude -p`) and a timer with `memory` in its name or command are kept instead, and the default
 job is not added, so memory is never kept twice. The Harness page names that job.
 
+### Local scheduled work in the Agent SDK session
+
+`metro task submit <routine> <prompt-file>` durably submits a stored task for the current
+UTC hour. Use `--slot <UTC ISO timestamp>` for another schedule's exact firing time. A
+routine ID is a lowercase letter followed by at most 63 lowercase letters, digits or
+hyphens. The same routine and slot with the same prompt return the same receipt; a different
+prompt at that key is refused. Exit zero means accepted on disk, not delivered or completed.
+`--dry-run` checks the submission without creating a queue, receipt, session or timer.
+
+Run the command from the agent's existing user cron or timer, with the normal CLI and Bun
+on its PATH. For example, after storing an owner-approved prompt at `/home/agent/bin/check.md`:
+
+```cron
+0 * * * * /home/agent/bin/check-routine /home/agent/bin/check.md >> /home/agent/logs/check-routine.log 2>&1
+```
+
+The launcher runs `metro task submit check-routine "$1"`. On a managed Linux box whose
+PATH does not contain `metro`, use `node /var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js task submit check-routine "$1"` instead, as the existing memory launcher uses the installed CLI's absolute path.
+This is an example, not an installed default. The Scheduled page discovers the existing
+cron line, prompt and log as before. This changes neither the separate memory routine nor
+any existing job's cadence.
+Cron submits while the SDK is offline but does not start it, bypass a Harness Stop, take its
+MCP slot, change its model or permissions, or wake a machine that is powered off. Missed
+whole-machine ticks are not backfilled; the first later firing is the next check. Queued
+slots of one routine coalesce to the newest before admission, rather than replaying every
+missed hour. The Claude Code runner does not consume this separate queue: switching to it
+parks accepted tasks until the Agent SDK runner is selected and started again.
+
+The existing SDK runner polls every five seconds and uses its ordinary bounded input
+admission. Inputs have the pinned SDK's `task-notification` / `scheduled-trigger` origin,
+never a fabricated person or channel. Local account ownership authenticates the producer;
+it does not attest human authorship or approve the prompt. The worker must verify the
+original owner request and later pauses, retain the original task owner, avoid duplicate
+work and uncertain side effects, and obey the existing tool policy.
+
+`metro task status [routine]` reads receipts without exposing prompts or creating files.
+The queue lives beside `agent-session.json`, under `automation` (also when
+`METRO_RUNNER_STATE` selects an isolated state path). It uses a private, bounded native
+SQLite store, not a journal of channel messages. Prompts are at most 64 KiB in UTF-8 and
+128 KiB plus two quote bytes when JSON encoded, leaving room for the host envelope within
+normal input admission. At most 512 requests are retained, and submissions older than
+seven days or more than five minutes ahead are refused. Settled records stay at least seven days; unresolved work is never evicted to make
+room. A full, corrupt or insecure store fails visibly rather than silently dropping work.
+
+A durable dispatch fence is saved before yielding an input to the SDK. Only work never
+dispatched can be replayed automatically after restart. A crash after that fence, even just
+before actual delivery, is uncertain and requires verification. The existing bounded task
+recovery notices handle that obligation; the action prompt is not replayed. This does not
+promise exactly-once external effects.
+
+A successful main turn is only `awaiting-completion`: its background worker can still be
+running. After the sweep finishes checking tasks and recording any dispatched workers'
+claims, its worker records `metro task finish <delivery-uuid> <completion-token> completed`.
+The SDK envelope supplies both values and an absolute command using the shipped entry,
+so the worker can finish even when `metro` is not on its PATH. This finishes the sweep,
+not every issue worker it resumed. A genuine sweep blocker uses `blocked` instead and holds later runs of the same
+routine. After verifying the original worker, side effects and changed condition, a worker
+can explicitly resolve the same token with `completed`; it must not use that receipt as
+permission to replay an action. Completion is monotonic. Other routines and unrelated
+workers do not inherit that block. Explicit Harness Stop cancels active runs and keeps the
+session stopped; it does not clear an existing failed or interrupted hold. Queued files
+never restart it.
+
 ## Privacy and data retention
 
 On by default, switchable on the Harness page. The daemon merges into `~/.claude/settings.json`:
