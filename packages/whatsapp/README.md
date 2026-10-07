@@ -70,9 +70,11 @@ by a misleading empty list.
 
 At most 5,000 observed direct-chat records, including deletion markers, are retained in
 `whatsapp-channels-<account>.json` under `WHATSAPP_TOKEN_DIR` or `~/.metro`, mode 0600.
-Only chat IDs and names are stored, with names capped at 256 characters. Chat deletion
-or clearing removes the entry; retained deletion markers stop an older history sync
-from restoring it until a new live chat upsert. This conservatively omits cleared chats.
+Only chat IDs, names and deletion cutoffs are stored, with names capped at 256 characters.
+Chat deletion or clearing removes the entry. Retained deletion markers reject history
+syncs and title-only updates. A live chat update or upsert restores it only with message
+activity newer than the deletion cutoff and not in the future. Same-second activity
+without that proof stays omitted; legacy deletion markers use their load time as cutoff.
 Detaching an account and startup orphan cleanup remove its channel metadata file.
 No historical message or media is replayed or downloaded by discovery, and no new socket,
 contact lookup, send or history request is started. Existing history deletion and send
@@ -81,6 +83,8 @@ expiry handling are unchanged.
 `query` is a case-insensitive substring of a name or ID (200 characters at most).
 `limit` defaults to 50 and accepts integers from 1 to 100. `next_cursor` continues the same bounded
 metadata snapshot, tied to the account and query and expiring after five minutes.
+An existing snapshot can be paged during reconnection without waiting for the socket;
+a fresh listing still waits for it. Disconnected or replaced clients cannot reuse it.
 Exhausting a snapshot never makes a partial directory complete. Receive Off still only
 stops inbound delivery, not read tools.
 

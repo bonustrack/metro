@@ -13,12 +13,14 @@ const NAME_LIMIT = 256;
 interface ChatMetadata {
   id?: string | null;
   name?: string | null;
+  conversationTimestamp?: number | { toNumber(): number } | null;
 }
 
 interface StoredChat {
   id: string;
   name?: string;
   deleted?: true;
+  deletedAt?: number;
 }
 
 function directId(value: unknown): string | undefined {
@@ -30,11 +32,29 @@ export function channelName(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim().slice(0, NAME_LIMIT) || undefined : undefined;
 }
 
+function deletionTime(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : Date.now();
+}
+
+function newerActivity(chat: ChatMetadata, deletedAt: number): boolean {
+  const value = chat.conversationTimestamp;
+  const seconds = typeof value === 'number' ? value : value?.toNumber();
+  if (seconds === undefined || !Number.isSafeInteger(seconds)) return false;
+  const at = seconds * 1000;
+  return at > deletedAt && at <= Date.now();
+}
+
+function blocked(chat: ChatMetadata, prior: StoredChat | undefined, fresh: boolean): boolean {
+  return prior?.deleted === true && (!fresh || !newerActivity(chat, deletionTime(prior.deletedAt)));
+}
+
 function storedChat(row: unknown): StoredChat | undefined {
   if (!isRecord(row)) return undefined;
   const id = directId(row.id);
   if (!id) return undefined;
-  return row.deleted === true ? { id, deleted: true } : { id, name: channelName(row.name) };
+  return row.deleted === true
+    ? { id, deleted: true, deletedAt: deletionTime(row.deletedAt) }
+    : { id, name: channelName(row.name) };
 }
 
 export class KnownChats {
@@ -82,7 +102,7 @@ export class KnownChats {
     const id = directId(chat.id);
     if (!id) return false;
     const prior = this.chats.get(id);
-    if (prior?.deleted && !fresh) return false;
+    if (blocked(chat, prior, fresh)) return false;
     const name = channelName(chat.name) ?? prior?.name;
     if (prior && !prior.deleted && prior.name === name) return false;
     this.put({ id, name });
@@ -101,8 +121,9 @@ export class KnownChats {
     let changed = false;
     for (const value of ids) {
       const id = directId(value);
-      if (!id || this.chats.get(id)?.deleted) continue;
-      this.put({ id, deleted: true });
+      if (!id) continue;
+      const deletedAt = Math.max(Date.now(), this.chats.get(id)?.deletedAt ?? 0);
+      this.put({ id, deleted: true, deletedAt });
       changed = true;
     }
     if (changed) this.save();

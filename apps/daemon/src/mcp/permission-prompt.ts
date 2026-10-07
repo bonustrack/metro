@@ -1,5 +1,8 @@
+import { str } from '@metro-labs/core/str';
 import { readPreview, shownValue } from '../approvals/preview.js';
 import { connectorToolOf } from '../connectors/gates.js';
+import { stationByName } from '../stations/registry.js';
+import { stationOfAccount } from './read-tool.js';
 
 export interface PermissionParams {
   request_id: string;
@@ -37,6 +40,14 @@ function channelOf(input: Record<string, unknown>): string | undefined {
   return typeof input.station === 'string' && input.station !== '' ? input.station : undefined;
 }
 
+function discoveryChannel(input: Record<string, unknown>): string {
+  const account = str(input.account);
+  if (!account) return 'unknown account';
+  const name = stationOfAccount(account);
+  const station = name === undefined ? undefined : stationByName(name);
+  return `${station?.name ?? 'unknown station'} · ${shorten(account)}`;
+}
+
 function argText(value: unknown): string | undefined {
   const plain = valueText(value);
   if (plain !== undefined || value === null || typeof value !== 'object') return plain;
@@ -50,7 +61,7 @@ function fieldText(key: string, value: unknown): string | undefined {
 
 function metroLines(tool: string, input: Record<string, unknown>): string[] {
   const lines = [`Approval needed: ${tool}`];
-  const channel = channelOf(input);
+  const channel = tool === 'list_channels' ? discoveryChannel(input) : channelOf(input);
   if (channel !== undefined) lines.push(`Channel: ${channel}`);
   if (tool === 'send' && input.speech !== undefined) lines.push('Delivery: voice call only, no chat post');
   const keys = [...LEAD, ...Object.keys(input).filter((k) => !LEAD.includes(k))];

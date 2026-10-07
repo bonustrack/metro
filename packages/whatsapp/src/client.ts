@@ -183,7 +183,6 @@ async function connect(st: State): Promise<void> {
   st.expiry.bind(sock, () => !st.closed && st.sock === sock);
   bindDelivery(st, sock);
 }
-
 async function lidFor(st: State, sock: WASocket, jid: string): Promise<string | null> {
   try {
     return await sock.signalRepository.lidMapping.getLIDForPN(jid);
@@ -194,13 +193,11 @@ async function lidFor(st: State, sock: WASocket, jid: string): Promise<string | 
     return null;
   }
 }
-
 async function ready(st: State): Promise<WASocket> {
   await st.openPromise;
   if (st.closed || !st.sock) throw new TrainError('whatsapp_call', 'socket not connected');
   return st.sock;
 }
-
 async function send(
   st: State,
   jid: string,
@@ -336,7 +333,10 @@ export function createClient(
     listMembers(jid, limit) {
       return listMembers(jid, async (node): Promise<unknown> => await (await ready(st)).query(node), st.names, limit);
     },
-    async listChannels(args) { return st.channels.list(await ready(st), args); },
+    listChannels(args) {
+      if (st.closed) return Promise.reject(new TrainError('whatsapp_call', 'socket not connected'));
+      return st.channels.list(() => ready(st), args);
+    },
     sendText(jid, text, quotedId) {
       return send(
         st,

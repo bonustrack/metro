@@ -12,7 +12,7 @@ import { whatsappStation } from '../src/station.js';
 const DIRECT = '447700900001@s.whatsapp.net';
 const GROUP = '120363000000000001@g.us';
 const group = (id = GROUP, subject = 'Quiet group'): GroupMetadata => ({ id, subject, owner: undefined, participants: [] });
-const remote = (...groups: GroupMetadata[]) => ({ groupFetchAllParticipating: () => Promise.resolve(Object.fromEntries(groups.map((value) => [value.id, value]))) });
+const remote = (...groups: GroupMetadata[]) => () => Promise.resolve({ groupFetchAllParticipating: () => Promise.resolve(Object.fromEntries(groups.map((value) => [value.id, value]))) });
 let dir: string;
 let previous: string | undefined;
 
@@ -68,17 +68,17 @@ describe('WhatsApp channel metadata', () => {
     expect((await channels.list(remote(), {})).channels).toEqual([]);
     const restored = new WhatsAppChannels('fixture');
     expect((await restored.list(remote(), {})).channels).toEqual([]);
-    ev.emit('chats.upsert', [{ id: DIRECT, name: 'New chat' }]);
+    ev.emit('chats.upsert', [{ id: '999@lid', name: 'New chat' }]);
     expect((await channels.list(remote(), {})).channels[0]?.name).toBe('New chat');
     current = false;
-    ev.emit('chats.delete', [DIRECT]);
+    ev.emit('chats.delete', ['999@lid']);
     ev.emit('chats.upsert', [{ id: '888@lid' }]);
-    expect((await channels.list(remote(), {})).channels.map((entry) => entry.id)).toEqual([DIRECT]);
+    expect((await channels.list(remote(), {})).channels.map((entry) => entry.id)).toEqual(['999@lid']);
   });
 
   test('query and opaque paging preserve partial coverage and do not refetch groups', async () => {
     let calls = 0;
-    const source = { groupFetchAllParticipating: () => { calls++; return Promise.resolve({ b: group('2@g.us', 'TEAM second'), a: group('1@g.us', 'Team first') }); } };
+    const source = () => Promise.resolve({ groupFetchAllParticipating: () => { calls++; return Promise.resolve({ b: group('2@g.us', 'TEAM second'), a: group('1@g.us', 'Team first') }); } });
     const channels = new WhatsAppChannels('fixture');
     const first = await channels.list(source, { limit: 1, query: 'team' });
     expect(first.channels.map((entry) => entry.id)).toEqual(['1@g.us']);
@@ -114,6 +114,6 @@ describe('WhatsApp channel metadata', () => {
 
   test('remote listing failures surface without a false empty or complete directory', async () => {
     const channels = new WhatsAppChannels('fixture');
-    await expect(channels.list({ groupFetchAllParticipating: () => Promise.reject(new Error('fixture remote unavailable')) }, {})).rejects.toThrow('fixture remote unavailable');
+    await expect(channels.list(() => Promise.resolve({ groupFetchAllParticipating: () => Promise.reject(new Error('fixture remote unavailable')) }), {})).rejects.toThrow('fixture remote unavailable');
   });
 });

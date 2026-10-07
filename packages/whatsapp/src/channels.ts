@@ -18,7 +18,7 @@ export class WhatsAppChannels {
       if (current()) this.chats.note(chats, true);
     });
     sock.ev.on('chats.update', (chats) => {
-      if (current()) this.chats.note(chats);
+      if (current()) this.chats.note(chats, true);
     });
     sock.ev.on('messaging-history.set', ({ chats }) => {
       if (current()) this.chats.note(chats);
@@ -31,9 +31,9 @@ export class WhatsAppChannels {
     });
   }
 
-  list(sock: Pick<WASocket, 'groupFetchAllParticipating'>, args: Record<string, unknown>): Promise<ChannelList> {
+  list(ready: () => Promise<Pick<WASocket, 'groupFetchAllParticipating'>>, args: Record<string, unknown>): Promise<ChannelList> {
     return this.directory.list(this.accountId, args, async () => {
-      const groups = await sock.groupFetchAllParticipating();
+      const groups = await (await ready()).groupFetchAllParticipating();
       const channels: ChannelEntry[] = [];
       for (const group of Object.values(groups)) {
         if (!/^\d+(?:-\d+)?@g\.us$/.test(group.id) || group.id.length > 128) continue;
