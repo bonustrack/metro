@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { StationName } from '@metro-labs/core/station-names';
@@ -16,6 +17,7 @@ export interface RuntimeManifest {
 
 export interface RuntimeStore {
   dir: string;
+  sources: string;
   manifest: RuntimeManifest;
 }
 
@@ -24,6 +26,15 @@ const ranges = (raw: unknown): Record<string, string> =>
     ? Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string'))
     : {};
 
+function patchesOf(raw: unknown): Record<string, string> {
+  if (!isRecord(raw)) throw new Error('Invalid runtime patch map');
+  return Object.fromEntries(Object.entries(raw).map(([name, path]) => {
+    if (typeof path !== 'string' || !/^patches\/[a-f0-9]{64}\.patch$/.test(path))
+      throw new Error(`Invalid runtime patch path for ${name}`);
+    return [name, path];
+  }));
+}
+
 export function readManifest(path: string): RuntimeManifest {
   const raw: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!isRecord(raw)) throw new Error(`${path} is not a runtime manifest`);
@@ -31,7 +42,7 @@ export function readManifest(path: string): RuntimeManifest {
   return {
     core: ranges(raw.core),
     stations: Object.fromEntries(Object.entries(stations).map(([name, deps]) => [name, ranges(deps)])),
-    ...(raw.patchedDependencies === undefined ? {} : { patchedDependencies: ranges(raw.patchedDependencies) }),
+    ...(raw.patchedDependencies === undefined ? {} : { patchedDependencies: patchesOf(raw.patchedDependencies) }),
   };
 }
 
@@ -39,7 +50,7 @@ export function runtimeStore(): RuntimeStore | null {
   const dir = process.env.METRO_RUNTIME_STORE?.trim() ?? '';
   const manifest = process.env.METRO_RUNTIME_MANIFEST?.trim() ?? '';
   if (dir === '' || manifest === '') return null;
-  return { dir, manifest: readManifest(manifest) };
+  return { dir, sources: dirname(manifest), manifest: readManifest(manifest) };
 }
 
 export function dependenciesFor(manifest: RuntimeManifest, stations: Iterable<string>): Record<string, string> {
@@ -72,9 +83,33 @@ function current(dir: string): string | null {
   }
 }
 
+function copyPatches(store: RuntimeStore): void {
+  const paths = Object.values(patchesOf(store.manifest.patchedDependencies ?? {}));
+  if (paths.length === 0) return;
+  const destination = join(store.dir, 'patches');
+  mkdirSync(destination, { recursive: true });
+  if (!lstatSync(join(store.sources, 'patches')).isDirectory() || !lstatSync(destination).isDirectory())
+    throw new Error('Invalid runtime patch directory');
+  for (const path of new Set(paths)) {
+    const source = join(store.sources, path);
+    const target = join(store.dir, path);
+    if (!lstatSync(source).isFile() || lstatSync(target, { throwIfNoEntry: false })?.isFile() === false)
+      throw new Error(`Invalid runtime patch file: ${path}`);
+    const hash = createHash('sha256').update(readFileSync(source)).digest('hex');
+    if (path !== `patches/${hash}.patch`) throw new Error(`Invalid runtime patch contents: ${path}`);
+    copyFileSync(source, target);
+  }
+}
+
 export function installRuntime(store: RuntimeStore, stations: Iterable<string>): boolean {
   const wanted = packageText(dependenciesFor(store.manifest, stations), store.manifest.patchedDependencies ?? {});
   const marker = join(store.dir, 'node_modules', '.metro-installed');
+  try {
+    copyPatches(store);
+  } catch (err) {
+    rmSync(marker, { force: true });
+    throw err;
+  }
   if (existsSync(marker) && current(store.dir) === wanted) return false;
   rmSync(marker, { force: true });
   mkdirSync(store.dir, { recursive: true });
@@ -91,8 +126,10 @@ export function installRuntime(store: RuntimeStore, stations: Iterable<string>):
   return true;
 }
 
-export function ensureStationDeps(station: StationName): void {
+export function ensureStationDeps(station?: StationName): void {
   const store = runtimeStore();
   if (store === null) return;
-  installRuntime(store, [...knownAccounts().map((a) => a.station), station]);
+  const stations = knownAccounts().map((a) => a.station);
+  if (station !== undefined) stations.push(station);
+  installRuntime(store, stations);
 }

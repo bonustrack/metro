@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-07: Repair station runtime patches before trains start
+
+An isolated beta.263-parent to beta.277 update reproduced a missing WhatsApp deletion patch: the long-lived parent copied new daemon sources but neither copied patch assets nor kept `patchedDependencies` in the runtime package. Its unchanged vendor ranges skipped installation, and a child-only restart repeated the mistake. A displayed new version therefore did not prove that the required SDK patch was loaded.
+
+The daemon now reconciles runtime dependencies for its known accounts after materialization and before starting trains, copying the referenced patches from the staged manifest's directory before installation. It does this on every boot because an older parent can undo the package registration again. It uses the existing installer and success marker, preserves other selected SDKs, and refuses startup before trains on a repair failure. Checkout runs without a runtime store and manifest remain unchanged. This repairs deferred station SDKs, not libraries already imported by the daemon.
+
+WhatsApp's behavioral deletion probe remains fail-closed. A newly constructed client can retain later activity after the patch loads, but invalidated history and messages from the unprotected interval are not restored. Channel discovery remains separate and does not list contacts. No live account access or service restart was used to reproduce or verify this change.
+
 ## 2026-10-07: Local scheduled input for the Agent SDK
 
 A cron job cannot type into a headless SDK session. `metro task submit` now saves a bounded, private same-UID SQLite request beside the session state; `status` is read-only and `finish` records a token-bound worker receipt. The Node CLI runs the shipped Bun command without installing a runtime, starting a session, reading a credential or connecting another MCP client. Local storage is provenance, not new owner approval. The existing runner admits the stored prompt as a scheduled task, with no forged channel or person.

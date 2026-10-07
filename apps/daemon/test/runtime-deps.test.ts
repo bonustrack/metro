@@ -43,7 +43,7 @@ describe('the per-channel runtime', () => {
   });
 
   test('installing writes the package file and runs bun once; an unchanged set runs nothing', () => {
-    const store = { dir: join(dir, 'store'), manifest: MANIFEST };
+    const store = { dir: join(dir, 'store'), sources: dir, manifest: MANIFEST };
     expect(installRuntime(store, ['xmtp'])).toBe(true);
     const pkg = JSON.parse(readFileSync(join(store.dir, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
     expect(Object.keys(pkg.dependencies)).toEqual(['@xmtp/node-sdk', 'pino', 'viem', 'zod']);

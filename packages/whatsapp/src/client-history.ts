@@ -3,7 +3,7 @@ import { TrainError } from '@metro-labs/core/train-error';
 import { supportsHistoryDeletion } from './app-state.js';
 import { createHistory, type History } from './history.js';
 
-const UNAVAILABLE = 'WhatsApp local history is unavailable because this runtime lacks the deletion patch. Restart the Metro service parent to install the patched runtime; a page Restart is not enough. Prior history was invalidated to avoid stale deleted messages.';
+const UNAVAILABLE = 'WhatsApp local history is unavailable because this runtime lacks the deletion patch. Ask the owner to update and restart Metro to load the patched runtime. Prior history was invalidated to avoid stale deleted messages.';
 const ignore = (): void => undefined;
 
 export function createClientHistory(accountId: string, supported = supportsHistoryDeletion()): History {

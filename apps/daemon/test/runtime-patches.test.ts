@@ -83,7 +83,7 @@ test('cold install and later attachment keep byte-identical packages and existin
   expect(readFileSync(join(attached, path), 'utf8')).toBe('first patch');
   const sdk = join(attached, 'node_modules', 'existing-sdk');
   writeFileSync(sdk, 'keep');
-  const store = { dir: attached, manifest: readManifest(manifestFile) };
+  const store = { dir: attached, sources, manifest: readManifest(manifestFile) };
   expect(installRuntime(store, ['xmtp', 'whatsapp'])).toBe(true);
   expect(JSON.parse(packageText(attached))).toEqual({
     name: 'metro-runtime', private: true,
@@ -115,7 +115,7 @@ test('patch content changes reinstall at the same Metro and vendor versions, the
   expect(readFileSync(join(dir, manifest.patchedDependencies?.[PATCH_KEY] ?? ''), 'utf8')).toBe('second patch');
   expect(JSON.parse(packageText(dir)).dependencies.baileys).toBe('7.0.0-rc14');
   expect(calls(dir)).toBe(2);
-  expect(installRuntime({ dir, manifest }, ['xmtp', 'whatsapp'])).toBe(false);
+  expect(installRuntime({ dir, sources, manifest }, ['xmtp', 'whatsapp'])).toBe(false);
   prepare(dir);
   expect(calls(dir)).toBe(2);
 });
@@ -128,7 +128,7 @@ test('an unused patch update does not reinstall SDKs', () => {
   const manifest = stage('second patch');
   prepare(dir);
   expect(calls(dir)).toBe(1);
-  expect(installRuntime({ dir, manifest }, ['xmtp', 'whatsapp'])).toBe(true);
+  expect(installRuntime({ dir, sources, manifest }, ['xmtp', 'whatsapp'])).toBe(true);
   expect(readFileSync(join(dir, manifest.patchedDependencies?.[PATCH_KEY] ?? ''), 'utf8')).toBe('second patch');
 });
 
@@ -138,7 +138,7 @@ test('a failed patched attachment clears an earlier success marker and retries',
   const dir = join(root, 'store');
   prepare(dir);
   writeFileSync(join(dir, 'fail'), '');
-  const store = { dir, manifest };
+  const store = { dir, sources, manifest };
   expect(() => installRuntime(store, ['xmtp', 'whatsapp'])).toThrow('exit 3');
   expect(existsSync(join(dir, 'node_modules', '.metro-installed'))).toBe(false);
   rmSync(join(dir, 'fail'));
@@ -169,7 +169,7 @@ test('legacy manifests without patches keep the same package contract in both wr
   const dir = join(root, 'store');
   prepare(dir);
   expect(readManifest(join(sources, 'stations.json'))).toEqual(MANIFEST);
-  expect(installRuntime({ dir, manifest }, ['xmtp', 'whatsapp'])).toBe(false);
+  expect(installRuntime({ dir, sources, manifest }, ['xmtp', 'whatsapp'])).toBe(false);
   expect(JSON.parse(packageText(dir))).not.toHaveProperty('patchedDependencies');
   expect(calls(dir)).toBe(1);
 });

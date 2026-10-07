@@ -39,7 +39,7 @@ describe('client history deletion capability gate', () => {
       seed.ingest([before]);
       seed.close();
       const blocked = createClientHistory('fixture', false);
-      expect(() => blocked.read(CHAT)).toThrow('Restart the Metro service parent');
+      expect(() => blocked.read(CHAT)).toThrow('Ask the owner to update and restart Metro');
       expect(readFileSync(historyFiles.path('fixture'), 'utf8')).not.toContain('old deleted content');
       clock.mockReturnValue(now + 3600_000);
       const during = { key: { id: 'during', remoteJid: CHAT }, messageTimestamp: now / 1000 + 1800, message: { conversation: 'deleted during unpatched run' } };

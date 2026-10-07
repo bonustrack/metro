@@ -141,6 +141,7 @@ installBearerSessions(agentsDir(), localOwner);
   });
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
+  ensureStationDeps();
   forgetOrphans(knownAccounts());
   syncGmailHost();
   supervisor.start();

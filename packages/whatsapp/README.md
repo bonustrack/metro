@@ -49,12 +49,13 @@ return an unsupported capability. This adds no group-write operations.
 Both tools use the existing account scope and owner read policy. Receive Off still
 only stops live inbound delivery; it does not disable the account's tools.
 
-History requires the patched WhatsApp dependency shipped with the CLI. A long-lived
-`metro serve` parent from an older CLI can keep its old dependency installer after
-Update. Restart the parent service after updating; restarting only the daemon child
-is not enough. When deletion support is absent, history reads report unavailable,
-retention is disabled, and existing history is invalidated so missed phone-side clears
-cannot expose stale content later. Live messaging, sends and group-member lookup
+History requires the patched WhatsApp dependency shipped with the CLI. The daemon
+prepares the runtime before starting trains. If a missing-patch error appears, ask
+the owner to update and restart Metro. While deletion support is absent, history
+reads report unavailable, retention is disabled, and existing history is invalidated
+so missed phone-side clears cannot expose stale content later. After the patched
+runtime loads, only messages newer than the recovery cutoff can be retained;
+invalidated history is not restored. Live messaging, sends and group-member lookup
 remain available.
 
 ## Channel discovery
