@@ -14,6 +14,8 @@ class AuthResponseError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
+export class AuthUnavailableError extends Error {}
+
 function errorText(body: unknown, status: number): string {
   return isRecord(body) && typeof body.error === 'string' ? body.error : `Metro returned ${String(status)}.`;
 }
@@ -28,9 +30,12 @@ async function post(path: string, body: unknown, bearer?: string, controls?: Pic
       ...controls,
     });
   } catch {
-    throw new Error('Failed to reach Metro.');
+    throw new AuthUnavailableError('Failed to reach Metro.');
   }
-  const answer: unknown = await res.json().catch(() => null);
+  const answer: unknown = await res.json().catch((err: unknown) => {
+    if (res.ok && !(err instanceof SyntaxError)) throw new AuthUnavailableError('Failed to reach Metro.');
+    return null;
+  });
   if (!res.ok) throw new AuthResponseError(errorText(answer, res.status), res.status);
   return answer;
 }
@@ -116,7 +121,9 @@ async function refreshCurrent(scope: number): Promise<Account | null> {
     return next;
   } catch (err) {
     if (accountScopeIdentity() !== scope) throw accountChanged();
-    if (err instanceof Error && err.message !== 'Failed to reach Metro.') clearAccount();
+    if (err instanceof AuthUnavailableError) throw err;
+    if (err instanceof AuthResponseError && err.status !== 401) throw new AuthUnavailableError(err.message);
+    clearAccount();
     return null;
   }
 }

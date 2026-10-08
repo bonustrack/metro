@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth/account';
-import { exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
+import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
 import { atLanding, atLogin, atWaitlist, goToLanding, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
 import { clearInitialSignInReturn, initialSignInReturn } from '../lib/location.js';
@@ -34,7 +34,9 @@ async function boot(): Promise<Phase> {
   } else loadAccount();
   if (handoff === null && pendingInvitation() !== null) return 'login';
   const stored = activeAccount();
-  if (stored !== null && stored.organization !== null && stored.organizationName === null) await refreshAccount();
+  if (stored !== null && stored.organization !== null && stored.organizationName === null) {
+    await refreshAccount().catch((err: unknown) => { if (!(err instanceof AuthUnavailableError)) throw err; });
+  }
   const account = activeAccount();
   if (account === null) return 'login';
   return account.organization === null ? 'organization' : 'unlocked';
