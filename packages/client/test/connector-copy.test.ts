@@ -72,7 +72,7 @@ describe('the single and bulk connector copy client', () => {
     ]);
     expect(activeAccount()).toEqual({ ...original, refreshToken: 'rt_source_restored' });
     await refreshAccount();
-    expect(calls.at(-1)?.body).toEqual({ refreshToken: 'rt_source_restored' });
+    expect(calls.at(-1)?.body).toEqual({ organization: SOURCE, refreshToken: 'rt_source_restored' });
     expect(activeAccount()?.organization).toBe(SOURCE);
     expect(activeAccount()?.refreshToken).toBe('rt_source_rotated');
   });

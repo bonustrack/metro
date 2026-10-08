@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { log, errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { apiFailure, bodyField, cors, readJsonBody, sendJson, stringOf } from '@metro-labs/http/api-http';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
@@ -249,18 +249,26 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   return tokensPayload(tokens, cfg, deps);
 }
 
+const lasting = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+function refreshRefusal(err: WorkosError): ApiError {
+  const ended = err.status === 401 || (err.upstream !== null && err.code !== null && lasting(err.upstream));
+  return ended ? new ApiError('the session has ended, sign in again', 401) : new ApiError(err.message, err.status);
+}
+
 async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const body = await readJsonBody(req);
-  const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
+  const refreshToken = stringOf(bodyField(body, 'refreshToken'));
+  const organization = stringOf(bodyField(body, 'organization'));
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   try {
-    const fresh = await refreshTokens(cfg, refreshToken);
+    const fresh = await refreshTokens(cfg, refreshToken, organization === '' ? undefined : organization);
     if (!(await stillIn(deps.users, fresh))) throw new ApiError('this account is not on Metro any more', 401);
     return await tokensPayload(fresh, cfg, deps);
   } catch (err) {
-    if (err instanceof WorkosError) throw new ApiError(err.status === 401 ? 'the session has ended, sign in again' : err.message, err.status);
+    if (err instanceof WorkosError) throw refreshRefusal(err);
     throw err;
   }
 }

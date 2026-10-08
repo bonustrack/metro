@@ -123,6 +123,12 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
           }
           if (parsed.grant_type === 'refresh_token') {
             if (String(parsed.refresh_token) === 'rt_dead') return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
+            if (String(parsed.refresh_token) === 'rt_busy') return send(429, { code: 'rate_limit_exceeded', message: 'Too many requests.' });
+            if (String(parsed.refresh_token) === 'rt_edge') {
+              res.writeHead(403, { 'content-type': 'text/html' }).end('<html><body>Forbidden</body></html>');
+              return;
+            }
+            if (typeof parsed.organization_id === 'string' && !organizations.includes(parsed.organization_id)) return send(422, { code: 'organization_not_authorized', message: 'The session may not use this organization.' });
             return send(200, tokens(typeof parsed.organization_id === 'string' ? parsed.organization_id : organizations[0] ?? null, holders.get(String(parsed.refresh_token))));
           }
           return send(400, { code: 'invalid_grant', message: 'unknown grant' });
@@ -161,6 +167,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
         if (url.pathname.endsWith('/accept') && url.pathname.startsWith('/user_management/invitations/')) {
           const found = invitations.find((i) => i.id === url.pathname.split('/').at(-2));
           if (found !== undefined) found.state = 'accepted';
+          if (found?.organization_id !== undefined && !organizations.includes(found.organization_id)) organizations.push(found.organization_id);
           return send(found === undefined ? 404 : 200, { ...found });
         }
         if (url.pathname.endsWith('/revoke') && url.pathname.startsWith('/user_management/invitations/')) {

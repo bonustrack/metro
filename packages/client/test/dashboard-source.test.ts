@@ -149,7 +149,7 @@ describe('passive dashboard network source', () => {
     let lists = 0;
     answer = async (request) => {
       if (new URL(request.url).pathname === '/api/auth/refresh') {
-        expect(await request.json()).toEqual({ refreshToken: 'rt_test' });
+        expect(await request.json()).toEqual({ organization: 'org-a', refreshToken: 'rt_test' });
         return Response.json({ ...original, accessToken: fresh, refreshToken: 'rt-refreshed' });
       }
       lists += 1;

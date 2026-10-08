@@ -269,6 +269,30 @@ describe('signing in to metro.box through WorkOS', () => {
     }
   });
 
+  test('refresh keeps the selected organization; a refused organization or a revoked token is 401, a busy WorkOS or a proxy page 503', async () => {
+    const [login, chosen] = ['org_01LOGIN0000000', 'org_01CHOSEN000000'];
+    const before = workos.organizations.splice(0, workos.organizations.length, login, chosen);
+    try {
+      const tokens = await signIn();
+      expect(tokens.organization).toBe(login);
+      const switched = (await (await json('POST', '/api/auth/switch', { organization: chosen, refreshToken: tokens.refreshToken }, tokens.accessToken)).json()) as TokenBody;
+      const fresh = await json('POST', '/api/auth/refresh', { organization: chosen, refreshToken: switched.refreshToken });
+      expect(fresh.status).toBe(200);
+      const kept = (await fresh.json()) as TokenBody;
+      expect(kept.organization).toBe(chosen);
+      expect(workos.calls.filter((c) => c.path === '/user_management/authenticate').at(-1)?.body).toMatchObject({ grant_type: 'refresh_token', organization_id: chosen, refresh_token: switched.refreshToken });
+      workos.organizations.pop();
+      const removed = await json('POST', '/api/auth/refresh', { organization: chosen, refreshToken: kept.refreshToken });
+      expect(removed.status).toBe(401);
+      expect(await removed.json()).toEqual({ error: 'the session has ended, sign in again' });
+      expect((await json('POST', '/api/auth/refresh', { organization: login, refreshToken: 'rt_dead' })).status).toBe(401);
+      expect((await json('POST', '/api/auth/refresh', { organization: login, refreshToken: 'rt_busy' })).status).toBe(503);
+      expect((await json('POST', '/api/auth/refresh', { organization: login, refreshToken: 'rt_edge' })).status).toBe(503);
+    } finally {
+      workos.organizations.splice(0, workos.organizations.length, ...before);
+    }
+  });
+
   test('refresh rotates the pair, a revoked refresh token is 401, and logout revokes the session', async () => {
     const tokens = await signIn();
     const fresh = await json('POST', '/api/auth/refresh', { refreshToken: tokens.refreshToken });

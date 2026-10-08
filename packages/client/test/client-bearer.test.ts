@@ -40,7 +40,7 @@ describe('every request carries the account token', () => {
     ]);
     expect(await call({ method: 'GET', base: `${builtInDaemon()}/api/servers` })).toEqual({ servers: [] });
     expect(seen[0]?.url).toBe(`${builtInDaemon()}/api/auth/refresh`);
-    expect(seen[0]?.body).toBe(JSON.stringify({ refreshToken: 'rt_1' }));
+    expect(seen[0]?.body).toBe(JSON.stringify({ refreshToken: 'rt_1', organization: 'org_1' }));
     expect(seen[1]?.authorization).toBe(`Bearer ${later}`);
   });
 

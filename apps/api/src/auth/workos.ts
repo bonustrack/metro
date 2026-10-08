@@ -24,6 +24,7 @@ export class WorkosError extends Error {
     message: string,
     readonly code: string | null,
     readonly status: number,
+    readonly upstream: number | null = null,
   ) {
     super(message);
   }
@@ -82,7 +83,7 @@ function pendingSelection(body: Record<string, unknown>): { pending: string; org
 function refusedAuthentication(body: Record<string, unknown>, status: number): WorkosError {
   const code = str(body.code) ?? str(body.error);
   const message = str(body.message) ?? str(body.error_description);
-  return new WorkosError(message ?? `WorkOS answered ${String(status)}`, code, status === 400 || status === 401 ? 401 : 503);
+  return new WorkosError(message ?? `WorkOS answered ${String(status)}`, code, status === 400 || status === 401 ? 401 : 503, status);
 }
 
 async function authenticate(cfg: WorkosConfig, grant: Record<string, string>, selecting = false): Promise<Tokens> {

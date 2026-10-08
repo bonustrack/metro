@@ -115,7 +115,7 @@ function serialize<T>(scope: number, run: () => Promise<T>): Promise<T> {
 async function refreshCurrent(scope: number): Promise<Account | null> {
   const current = currentAccount(scope);
   try {
-    const next = accountFrom(await rotate('/refresh', { refreshToken: current.refreshToken }));
+    const next = accountFrom(await rotate('/refresh', { refreshToken: current.refreshToken, ...(current.organization === null ? {} : { organization: current.organization }) }));
     if (!sameSource(next, current)) throw unexpected();
     storeAccount(next, scope);
     return next;

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { accessToken, refreshAccount } from '../src/api/auth.js';
+import { accessToken, refreshAccount, switchOrganization } from '../src/api/auth.js';
 import { AuthError, call, callRaw } from '../src/api/client.js';
-import { activeAccount, clearAccount } from '../src/auth/account.js';
+import { accountScopeIdentity, activeAccount, clearAccount, storeAccount } from '../src/auth/account.js';
 import { installTestAccount, testToken } from './account-fixture.js';
 
 const realFetch = globalThis.fetch;
 let requests: string[] = [];
-let respond: (path: string) => Promise<Response>;
+let respond: (path: string, request: Request) => Promise<Response>;
 
 beforeEach(() => {
   requests = [];
@@ -15,7 +15,7 @@ beforeEach(() => {
     const request = new Request(input, init);
     const path = new URL(request.url).pathname;
     requests.push(path);
-    return respond(path);
+    return respond(path, request);
   }) as typeof fetch;
 });
 
@@ -44,6 +44,45 @@ function recovered(): void {
     ? { ...account, accessToken: testToken(), refreshToken: 'rt_recovered' }
     : { subject: 'user_1' }));
 }
+
+describe('refresh keeps the selected organization', () => {
+  test('refresh after an organization switch requests that organization rather than the original login scope', async () => {
+    const original = installTestAccount();
+    const selected = 'org_selected';
+    const refreshed: unknown[] = [];
+    respond = async (path, request) => {
+      const body = await request.json() as { organization?: string; refreshToken: string };
+      if (path === '/api/auth/refresh') refreshed.push(body.organization);
+      const organization = body.organization ?? original.organization;
+      return Response.json({ ...original, organization, accessToken: testToken({ org_id: organization }), refreshToken: `rt_${String(requests.length)}` });
+    };
+    await switchOrganization(selected);
+    const scope = accountScopeIdentity();
+    expect((await refreshAccount())?.organization).toBe(selected);
+    expect((await refreshAccount())?.organization).toBe(selected);
+    expect(refreshed).toEqual([selected, selected]);
+    expect(accountScopeIdentity()).toBe(scope);
+    expect(activeAccount()?.refreshToken).toBe('rt_3');
+  });
+
+  test('an account without an organization still refreshes without requesting one', async () => {
+    const original = { ...installTestAccount(), organization: null, accessToken: testToken({ org_id: null }) };
+    storeAccount(original);
+    respond = async (_path, request) => {
+      expect(await request.json()).toEqual({ refreshToken: original.refreshToken });
+      return Response.json({ ...original, refreshToken: 'rt_next' });
+    };
+    expect((await refreshAccount())?.organization).toBeNull();
+    expect(activeAccount()?.refreshToken).toBe('rt_next');
+  });
+
+  test('a response for another organization is still rejected', async () => {
+    const original = installTestAccount();
+    respond = () => Promise.resolve(Response.json({ ...original, organization: 'org_wrong', accessToken: testToken({ org_id: 'org_wrong' }) }));
+    expect(await refreshAccount()).toBeNull();
+    expect(activeAccount()).toBeNull();
+  });
+});
 
 describe('temporary refresh failures do not end the Metro session', () => {
   test.each([429, 500, 502, 503, 504, 'offline', 'timeout', 'body-offline', 'body-timeout'] as const)('an expiring token keeps its session on %s and recovers on the next request', async (kind) => {
