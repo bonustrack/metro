@@ -324,6 +324,28 @@ describe('the caption is delivered exactly once', () => {
     expect(channelNotifs(notifs)).toEqual([]);
   });
 
+  test('a download that lands after the timeout still names its message and sender', async () => {
+    const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
+
+    jest.useFakeTimers();
+    try {
+      await relay.handleEvent(discordMsg('this fetch is slow'));
+      jest.advanceTimersByTime(ATTACH_TIMEOUT_MS + 1_000);
+    } finally {
+      jest.useRealTimers();
+    }
+    await Bun.sleep(10);
+    await relay.handleEvent(discordSaved());
+
+    const channel = channelNotifs(notifs);
+    expect(channel.length).toBe(2);
+    const late = channel[1] as Notif;
+    expect(contentOf(late)).toStartWith('[file attachment received');
+    expect(contentOf(late)).not.toContain('this fetch is slow');
+    expect(metaOf(late).from).toBe('metro://discord-bot/d0/user/238307675501232128');
+    expect(metaOf(late).message_id).toBe('1534630426356879492');
+  });
+
   test('a download that never lands still surfaces the caption at the timeout', async () => {
     const { relay, notifs } = makeRelay(['discord-bot', 'telegram-bot', 'telegram', 'xmtp']);
 

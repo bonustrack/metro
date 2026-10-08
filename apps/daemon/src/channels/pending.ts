@@ -62,6 +62,12 @@ export const senderMeta = (c: MediaCtx): Record<string, string> => ({
   ...displayNameMeta(c.fromDisplayName),
 });
 
+export function missingAttachmentNames(buf: PendingMsg): string[] {
+  return buf.attachments
+    .filter((_, i) => !buf.saved.has(i))
+    .map((a) => a.name ?? a.kind ?? 'attachment');
+}
+
 export function takeMediaCtx(buf: PendingMsg): MediaCtx {
   const ctx: MediaCtx = {
     line: buf.line,

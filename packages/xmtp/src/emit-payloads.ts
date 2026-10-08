@@ -3,7 +3,7 @@ import type { Reply } from '@xmtp/content-type-reply';
 import { errMsg } from '@metro-labs/core/log';
 import { transcribeAndEmit } from './transcribe.js';
 import {
-  INBOUND_RETRY_DELAYS_MS,
+  INBOUND_FETCH_SCHEDULE,
   saveInlineAttachment,
   saveRemoteAttachment,
   type RemoteEntry,
@@ -208,7 +208,7 @@ function remoteStaticPayload(
   ctx: EnvelopeCtx,
 ): Record<string, unknown> {
   const kind = IMG_RE.test(c.url) ? 'image' : 'file';
-  reportAttachment(saveRemoteAttachment(c, ctx.msgId, 0, INBOUND_RETRY_DELAYS_MS), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: 0 });
+  reportAttachment(saveRemoteAttachment(c, ctx.msgId, 0, INBOUND_FETCH_SCHEDULE), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: 0 });
   return {
     ...base,
     text: `[${kind}: ${c.filename ?? c.url}]`,
@@ -224,7 +224,7 @@ function multiRemoteEnvelope(
 ): Record<string, unknown> {
   const m = c as { attachments?: RemoteEntry[] };
   (Array.isArray(m.attachments) ? m.attachments : []).forEach((r, i) => {
-    reportAttachment(saveRemoteAttachment(r, ctx.msgId, i, INBOUND_RETRY_DELAYS_MS), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: i });
+    reportAttachment(saveRemoteAttachment(r, ctx.msgId, i, INBOUND_FETCH_SCHEDULE), { station: 'xmtp', account: ctx.accountId, line: ctx.line, forId: ctx.baseId, index: i });
   });
   return multiRemotePayload(base, typeId, c);
 }

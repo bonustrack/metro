@@ -25,7 +25,7 @@ import {
   RemoteAttachmentCodec,
 } from '@xmtp/content-type-remote-attachment';
 import {
-  INBOUND_RETRY_DELAYS_MS,
+  INBOUND_FETCH_SCHEDULE,
   REMOTE_FETCH_ATTEMPTS,
   saveRemoteAttachment,
   type RemoteEntry,
@@ -167,14 +167,33 @@ describe('saveRemoteAttachment waits for a slow upload and tries a second gatewa
   test('an inbound save keeps retrying until the upload is ready', async () => {
     globalThis.fetch = serveAfter(5);
 
-    const saved = await saveRemoteAttachment(entry, 'msg_slow_upload', 0, [1, 1, 1, 1, 1]);
+    const saved = await saveRemoteAttachment(entry, 'msg_slow_upload', 0, { delaysMs: [1, 1, 1, 1, 1], requestTimeoutMs: 1_000 });
 
     expect(calls).toBe(6);
     expect(saved.bytes).toBe(FILE.length);
   });
 
+  test('a request that never answers is cut and named', async () => {
+    globalThis.fetch = ((): Promise<Response> => new Promise(() => undefined)) as unknown as typeof fetch;
+
+    const err = await saveRemoteAttachment(
+      { ...entry, url: swarmyUrl }, 'msg_hang', 0, { delaysMs: [], requestTimeoutMs: 20 },
+    ).then(() => null, (e: unknown) => e as Error);
+
+    expect(err?.message).toContain(`no answer from ${swarmyUrl} within 0.02s`);
+    expect(err?.message).toContain(`no answer from ${publicUrl} within 0.02s`);
+  });
+
+  test('a url already on the public gateway gets no second source', async () => {
+    globalThis.fetch = serveAfter(Number.MAX_SAFE_INTEGER);
+
+    await saveRemoteAttachment({ ...entry, url: publicUrl.slice(0, -1) }, 'msg_public', 0).catch(() => undefined);
+
+    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS);
+  });
+
   test('the inbound schedule outlasts the slowest upload seen', () => {
-    const waited = INBOUND_RETRY_DELAYS_MS.reduce((sum, ms) => sum + ms, 0);
+    const waited = INBOUND_FETCH_SCHEDULE.delaysMs.reduce((sum, ms) => sum + ms, 0);
     expect(waited).toBeGreaterThanOrEqual(5 * 60_000);
   });
 });

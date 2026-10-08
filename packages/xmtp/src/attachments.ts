@@ -12,13 +12,20 @@ import { errMsg } from '@metro-labs/core/log';
 
 export type { SavedAttachment };
 
-const READ_RETRY_DELAYS_MS: readonly number[] = [400, 800];
-export const REMOTE_FETCH_ATTEMPTS = READ_RETRY_DELAYS_MS.length + 1;
-export const INBOUND_RETRY_DELAYS_MS: readonly number[] = [
-  2_000, 4_000, 8_000, 15_000, 30_000, 30_000,
-  60_000, 60_000, 60_000, 60_000, 60_000, 60_000,
-];
-const REMOTE_FETCH_TIMEOUT_MS = 120_000;
+interface FetchSchedule {
+  delaysMs: readonly number[];
+  requestTimeoutMs: number;
+}
+
+const READ_SCHEDULE: FetchSchedule = { delaysMs: [400, 800], requestTimeoutMs: 9_000 };
+export const INBOUND_FETCH_SCHEDULE: FetchSchedule = {
+  delaysMs: [
+    2_000, 4_000, 8_000, 15_000, 30_000, 30_000,
+    60_000, 60_000, 60_000, 60_000, 60_000, 60_000,
+  ],
+  requestTimeoutMs: 120_000,
+};
+export const REMOTE_FETCH_ATTEMPTS = READ_SCHEDULE.delaysMs.length + 1;
 const SWARM_FALLBACK_GATEWAY = 'https://download.gateway.ethswarm.org/bzz/';
 const SWARM_BZZ_URL = /^https:\/\/[^/]+\/bzz\/([0-9a-f]{64}(?:[0-9a-f]{64})?)\/?$/i;
 
@@ -83,15 +90,16 @@ interface DecodedAttachment {
 
 function remoteUrls(url: string): string[] {
   const ref = SWARM_BZZ_URL.exec(url)?.[1];
-  const fallback = ref === undefined ? url : `${SWARM_FALLBACK_GATEWAY}${ref}/`;
-  return fallback === url ? [url] : [url, fallback];
+  if (ref === undefined) return [url];
+  const fallback = `${SWARM_FALLBACK_GATEWAY}${ref.toLowerCase()}/`;
+  return url.toLowerCase().replace(/\/?$/, '/') === fallback ? [url] : [url, fallback];
 }
 
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(work: Promise<T>, ms: number, url: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(`no answer within ${ms / 1000}s`));
+      reject(new Error(`no answer from ${url} within ${ms / 1000}s`));
     }, ms);
   });
   return Promise.race([work, expired]).finally(() => {
@@ -99,28 +107,29 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function loadFrom(r: RemoteEntry, url: string): Promise<DecodedAttachment> {
+function loadFrom(r: RemoteEntry, url: string, timeoutMs: number): Promise<DecodedAttachment> {
   return withTimeout(
     RemoteAttachmentCodec.load<DecodedAttachment>(
       { ...toRemoteDescriptor(r), url },
       loadRegistry,
     ),
-    REMOTE_FETCH_TIMEOUT_MS,
+    timeoutMs,
+    url,
   );
 }
 
 async function loadRemote(
   r: RemoteEntry,
-  retryDelaysMs: readonly number[],
+  schedule: FetchSchedule,
 ): Promise<DecodedAttachment> {
   const urls = remoteUrls(r.url);
   let last = '';
-  for (const delay of [0, ...retryDelaysMs]) {
+  for (const delay of [0, ...schedule.delaysMs]) {
     if (delay > 0) await sleep(delay);
     const errors: string[] = [];
     for (const url of urls) {
       try {
-        return await loadFrom(r, url);
+        return await loadFrom(r, url, schedule.requestTimeoutMs);
       } catch (err) {
         errors.push(errMsg(err));
       }
@@ -128,7 +137,7 @@ async function loadRemote(
     last = errors.join('; ');
   }
   throw new Error(
-    `xmtp remote attachment fetch failed after ${retryDelaysMs.length + 1} attempts: ${last}`,
+    `xmtp remote attachment fetch failed after ${schedule.delaysMs.length + 1} attempts: ${last}`,
   );
 }
 
@@ -136,10 +145,10 @@ export async function saveRemoteAttachment(
   r: RemoteEntry,
   messageId: string,
   index = 0,
-  retryDelaysMs: readonly number[] = READ_RETRY_DELAYS_MS,
+  schedule: FetchSchedule = READ_SCHEDULE,
 ): Promise<SavedAttachment> {
   if (r.contentLength) assertAttachmentSize(r.contentLength);
-  const decoded = await loadRemote(r, retryDelaysMs);
+  const decoded = await loadRemote(r, schedule);
   return saveBufferToCache(decoded.data, messageId, index, {
     mime: decoded.mimeType,
     name: decoded.filename ?? r.filename,

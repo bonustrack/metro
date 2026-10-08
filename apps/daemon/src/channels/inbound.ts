@@ -11,6 +11,7 @@ import { replyMeta } from './addressed.js';
 import {
   capSet,
   displayNameMeta,
+  missingAttachmentNames,
   senderMeta,
   tsMeta,
   takeMediaCtx,
@@ -56,6 +57,7 @@ interface InboundDeps {
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
+const LATE_ATTACH_WINDOW_MS = 15 * 60_000;
 const DEDUPE_TTL_MS = 30_000;
 const DEDUPE_MAX = 2_000;
 const ALLOWED_LINES_MAX = 2_000;
@@ -149,27 +151,24 @@ export class InboundRelay {
   private async flushPendingFallback(id: string): Promise<void> {
     const e = this.pendingAttachments.get(id);
     if (!e) return;
-    this.pendingAttachments.delete(id);
-    const missing = e.attachments.filter((_, i) => !e.saved.has(i));
-    if (!missing.length) return;
-    const names = missing
-      .map((a) => a.name ?? a.kind ?? 'attachment')
-      .join(', ');
+    const missing = missingAttachmentNames(e);
+    if (!missing.length) {
+      this.pendingAttachments.delete(id);
+      return;
+    }
+    e.timer = setTimeout(() => { this.pendingAttachments.delete(id); }, LATE_ATTACH_WINDOW_MS);
+    const ctx = takeMediaCtx(e);
     await this.notify('notifications/claude/channel', {
       content:
-        (e.text ? `${e.text}\n` : '') +
-        `[attachment(s) still downloading: ${names}; they follow in a separate note]`,
+        (ctx.text ? `${ctx.text}\n` : '') +
+        `[attachment(s) still downloading: ${missing.join(', ')}; they follow in a separate note]`,
       meta: {
-        line: e.line,
-        from: e.from,
-        station: e.station,
-        ...tsMeta(e.ts),
-        message_id: e.messageId,
-        line_name: e.lineName,
-        from_name: e.fromName,
-        ...displayNameMeta(e.fromDisplayName),
-        ...e.reply,
-        ...e.callMeta?.(),
+        line: ctx.line,
+        from: ctx.from,
+        station: ctx.station,
+        ...senderMeta(ctx),
+        ...ctx.reply,
+        ...ctx.callMeta?.(),
       },
     });
   }
