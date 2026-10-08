@@ -18,7 +18,7 @@ function queryOf(params: Record<string, string | string[] | undefined>): string 
 
 function sameRoute(hash: string, routed: string): boolean {
   try {
-    return decodeURIComponent(hash) === decodeURIComponent(routed);
+    return decodeURIComponent(hash === '' ? '#/' : hash) === decodeURIComponent(routed);
   } catch {
     return false;
   }

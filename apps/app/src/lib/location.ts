@@ -7,7 +7,7 @@ import { hasSignInCode, signInReturn, type ReturnedSignIn } from '@metro-labs/cl
 const WEB = Platform.OS === 'web';
 const WEB_HOME = 'https://metro.box/';
 
-let nativeHash = '#/';
+let routedHash = '#/';
 let returnedSignIn: ReturnedSignIn | null = null;
 let cleanInitialReturn = false;
 
@@ -23,21 +23,21 @@ export const pathOfHash = (hash: string): string => {
 };
 
 export function noteRouteHash(hash: string): void {
-  nativeHash = hash;
+  routedHash = hash;
 }
 
 function currentHash(): string {
-  return WEB ? window.location.hash : nativeHash;
+  return routedHash;
 }
 
 function replace(hash: string): void {
+  routedHash = hash;
   if (WEB) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
-  else nativeHash = hash;
   router.replace(pathOfHash(hash));
 }
 
 function push(hash: string): void {
-  if (!WEB) nativeHash = hash;
+  routedHash = hash;
   router.push(pathOfHash(hash));
 }
 
@@ -56,6 +56,7 @@ export function prepareLocation(): void {
     returnedSignIn = signInReturn(window.location.search, window.location.hash);
     cleanInitialReturn = returnedSignIn !== null || hasSignInCode(window.location.search, window.location.hash);
     if (cleanInitialReturn) window.history.replaceState(null, '', `${window.location.pathname}#/`);
+    routedHash = window.location.hash;
   }
   const env: unknown = process.env.EXPO_PUBLIC_METRO_API_URL;
   const configured = typeof env === 'string' ? env.trim() : '';
