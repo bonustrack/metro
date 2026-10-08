@@ -4,7 +4,7 @@
  *
  * Before this, a station whose download threw wrote a line to its own stderr
  * and nothing else: the message sat in `pendingAttachments` until
- * ATTACH_TIMEOUT_MS and then surfaced as "could not be fetched in time", which
+ * ATTACH_TIMEOUT_MS and then surfaced as "still downloading" (once "could not be fetched in time"), which
  * is the right note for a download still in flight and the wrong one for a file
  * that was refused outright. WhatsApp declares `fileLength` on every media
  * node, so an over-size document is known to be un-fetchable at once — waiting

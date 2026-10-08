@@ -158,7 +158,7 @@ export class InboundRelay {
     await this.notify('notifications/claude/channel', {
       content:
         (e.text ? `${e.text}\n` : '') +
-        `[attachment(s) could not be fetched in time: ${names}]`,
+        `[attachment(s) still downloading: ${names}; they follow in a separate note]`,
       meta: {
         line: e.line,
         from: e.from,

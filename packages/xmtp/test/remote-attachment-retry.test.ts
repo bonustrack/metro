@@ -3,10 +3,13 @@
  *
  * Observed 2026-08-05: Swarmy answered 500 while the sender was still
  * uploading, `RemoteAttachmentCodec.load` threw once, and metro gave up
- * permanently — the same url succeeded moments later when fetched by hand. The
- * fetch is now retried a bounded number of times with a short backoff; the
- * relay's 15s fallback (which tells the agent the file could not be fetched)
- * is untouched and remains the final state.
+ * permanently — the same url succeeded moments later when fetched by hand.
+ *
+ * Observed 2026-10-08: Swarmy answered 500 for 30 to 65 seconds after a 2 MB
+ * upload, longer than the three quick attempts, and kept answering 500 for
+ * most older uploads that the public Swarm gateway still serves. An exact read
+ * keeps the three quick attempts; an inbound save retries for minutes. Both
+ * try the public Swarm gateway after the url's own gateway.
  *
  * These tests build a real encrypted payload with the codec's own
  * `encodeEncrypted`, so the success path here is a genuine decrypt-and-save,
@@ -22,6 +25,7 @@ import {
   RemoteAttachmentCodec,
 } from '@xmtp/content-type-remote-attachment';
 import {
+  INBOUND_RETRY_DELAYS_MS,
   REMOTE_FETCH_ATTEMPTS,
   saveRemoteAttachment,
   type RemoteEntry,
@@ -113,7 +117,7 @@ describe('saveRemoteAttachment retries a transient upstream failure', () => {
     expect(err?.message).toContain('500');
   });
 
-  test('the retries finish well inside the 15s attachment fallback', async () => {
+  test('an exact read gives up within seconds', async () => {
     globalThis.fetch = serveAfter(Number.MAX_SAFE_INTEGER);
     const started = Date.now();
 
@@ -122,5 +126,55 @@ describe('saveRemoteAttachment retries a transient upstream failure', () => {
     );
 
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe('saveRemoteAttachment waits for a slow upload and tries a second gateway', () => {
+  const ref = 'ab'.repeat(32);
+  const swarmyUrl = `https://api.swarmy.cloud/bzz/${ref}/`;
+  const publicUrl = `https://download.gateway.ethswarm.org/bzz/${ref}/`;
+
+  test('a Swarmy 500 falls back to the public Swarm gateway', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = ((input: string): Promise<Response> => {
+      seen.push(input);
+      return Promise.resolve(
+        input === publicUrl
+          ? new Response(payload, { status: 200 })
+          : new Response('upstream busy', { status: 500 }),
+      );
+    }) as unknown as typeof fetch;
+
+    const saved = await saveRemoteAttachment({ ...entry, url: swarmyUrl }, 'msg_fallback', 0);
+
+    expect(seen).toEqual([swarmyUrl, publicUrl]);
+    expect(saved.bytes).toBe(FILE.length);
+  });
+
+  test('when both gateways fail the error names both', async () => {
+    globalThis.fetch = serveAfter(Number.MAX_SAFE_INTEGER);
+
+    const err = await saveRemoteAttachment({ ...entry, url: swarmyUrl }, 'msg_both_down', 0).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS * 2);
+    expect(err?.message).toContain(swarmyUrl);
+    expect(err?.message).toContain(publicUrl);
+  });
+
+  test('an inbound save keeps retrying until the upload is ready', async () => {
+    globalThis.fetch = serveAfter(5);
+
+    const saved = await saveRemoteAttachment(entry, 'msg_slow_upload', 0, [1, 1, 1, 1, 1]);
+
+    expect(calls).toBe(6);
+    expect(saved.bytes).toBe(FILE.length);
+  });
+
+  test('the inbound schedule outlasts the slowest upload seen', () => {
+    const waited = INBOUND_RETRY_DELAYS_MS.reduce((sum, ms) => sum + ms, 0);
+    expect(waited).toBeGreaterThanOrEqual(5 * 60_000);
   });
 });

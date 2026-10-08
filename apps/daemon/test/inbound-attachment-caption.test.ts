@@ -304,7 +304,7 @@ describe('the caption is delivered exactly once', () => {
     expect(channel.length).toBe(2);
     expect(contentOf(channel[0] as Notif)).toStartWith('one lands, one hangs');
     expect(contentOf(channel[1] as Notif)).toBe(
-      '[attachment(s) could not be fetched in time: never.html]',
+      '[attachment(s) still downloading: never.html; they follow in a separate note]',
     );
   });
 
@@ -340,7 +340,7 @@ describe('the caption is delivered exactly once', () => {
     expect(channel.length).toBe(1);
     expect(contentOf(channel[0] as Notif)).toStartWith('this fetch will hang\n');
     expect(contentOf(channel[0] as Notif)).toContain(
-      'could not be fetched in time',
+      'still downloading',
     );
     expect(metaOf(channel[0] as Notif).message_id).toBe(
       '1534630426356879492',

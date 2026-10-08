@@ -123,7 +123,7 @@ describe('attachment call binding', () => {
       } else {
         expect(f.meta()).not.toHaveProperty('url');
         expect(f.meta()).not.toHaveProperty('local_path');
-        expect(f.content()).toContain(mode === 'failed' ? 'Reason: download refused' : '[attachment(s) could not be fetched in time: report.pdf]');
+        expect(f.content()).toContain(mode === 'failed' ? 'Reason: download refused' : '[attachment(s) still downloading: report.pdf; they follow in a separate note]');
       }
       jest.advanceTimersByTime(ATTACH_TIMEOUT_MS + 1);
       expect(f.notifs).toHaveLength(1);
@@ -193,7 +193,7 @@ describe('attachment call binding', () => {
     for (let index = 0; index < 3; index++) expect(f.meta(index)).toMatchObject(META);
     expect(f.content()).toStartWith('Please read this\n');
     expect(f.content(1)).not.toContain('Please read this');
-    expect(f.content(2)).toBe('[attachment(s) could not be fetched in time: missing.pdf]');
+    expect(f.content(2)).toBe('[attachment(s) still downloading: missing.pdf; they follow in a separate note]');
   });
 
   test('a call revoked between attachments loses metadata on later deliveries', async () => {
