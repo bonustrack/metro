@@ -1,11 +1,12 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
 import { GitHubSkills } from './GitHubSkills.js';
+import { GitHubMark } from './GitHubMark.js';
 import { ListHeader } from './ListHeader.js';
 import { NameModal } from './NameModal.js';
 import { DeleteMenu } from './DeleteMenu.js';
@@ -23,9 +24,11 @@ const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like wr
 
 function SkillRow({ skill, project }: { skill: ClaudeSkill; project: string }): ReactNode {
   const client = useQueryClient();
+  const palette = useKitPalette();
   return (
     <ListRow
       title={skill.title}
+      icon={skill.managed ? <GitHubMark size={24} color={palette.text} /> : undefined}
       detail={skill.managed ? (skill.shadowed ? 'GitHub · local skill takes priority' : 'GitHub · read-only') : skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}
       href={routeHash({ kind: 'skill', project, id: skill.id })}
       trailing={skill.managed ? null :

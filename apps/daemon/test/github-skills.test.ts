@@ -34,8 +34,34 @@ describe('bounded private GitHub skills source', () => {
     expect(github.calls.every(({ url, init }) => url.startsWith('https://api.github.com/repos/example/skills') && init.redirect === 'manual')).toBe(true);
     expect(source.rows()).toEqual([]);
     acknowledge(source.root);
-    expect(source.rows()[0]).toMatchObject({ id: 'github:team-example', editable: false, managed: true });
+    const githubOrigin = { repository: SOURCE.repository, commit: COMMIT, folder: SOURCE.folder };
+    expect(source.rows()[0]).toMatchObject({ id: 'github:team-example', editable: false, managed: true, github: githubOrigin });
+    expect(source.read('github:team-example').github).toEqual(githubOrigin);
     expect(source.read('github:team-example').text).toContain('Do the task.');
+  });
+
+  test('row and detail provenance follow only the acknowledged generation through staging, replacement and removal', async () => {
+    const { source, github } = make();
+    await source.configure(SOURCE);
+    acknowledge(source.root);
+    const origin = { repository: SOURCE.repository, commit: COMMIT, folder: SOURCE.folder };
+    const generation = manifest(source.root).id;
+    github.commit = 'b'.repeat(40);
+    github.files.set('team-example/SKILL.md', skill('team-example', 'staged instructions'));
+    await source.sync(true);
+    expect(manifest(source.root).source?.commit).toBe(github.commit);
+    expect(source.listing().rows[0]?.github).toEqual(origin);
+    expect(source.read('github:team-example').github).toEqual(origin);
+    expect(source.read('github:team-example').text).not.toContain('staged instructions');
+    github.status = 401;
+    await source.configure({ ...SOURCE, repository: 'replacement/repo', ref: 'new/ref', folder: 'other/folder' });
+    expect(source.rows()[0]?.github).toEqual(origin);
+    writeFileSync(join(source.root, 'status.json'), JSON.stringify({ generation, shadowed: ['team-example'] }));
+    expect(source.rows()[0]).toMatchObject({ shadowed: true, github: origin });
+    await source.remove();
+    expect(source.read('github:team-example').github).toEqual(origin);
+    acknowledge(source.root);
+    expect(source.rows()).toEqual([]);
   });
 
   test('keeps local skills and last good state on access loss, network failure and invalid updates', async () => {

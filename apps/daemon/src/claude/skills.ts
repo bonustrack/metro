@@ -20,6 +20,7 @@ export interface ClaudeSkill {
   updatedAt: string | null;
   managed?: boolean;
   shadowed?: boolean;
+  github?: { repository: string; commit: string; folder: string };
 }
 
 const frontmatterField = (text: string, field: string): string => {

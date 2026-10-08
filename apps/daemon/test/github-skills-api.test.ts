@@ -57,7 +57,9 @@ test('corrupt optional source state does not prevent local skill CRUD or erase t
   const text = await listing.text();
   expect(text).toContain('Local skills are still available');
   expect(text).not.toContain(SOURCE.token);
-  expect((await request('GET', 'skills/user:local', 'member')).status).toBe(200);
+  const local = await request('GET', 'skills/user:local', 'member');
+  expect(local.status).toBe(200);
+  expect(await local.json()).not.toHaveProperty('github');
   expect((await request('PUT', 'skills/user:local', 'member', { text: 'changed' })).status).toBe(200);
   expect((await request('DELETE', 'skills/user:local', 'member')).status).toBe(200);
   expect((await request('PUT', 'skill-source', 'admin', SOURCE)).status).toBe(500);

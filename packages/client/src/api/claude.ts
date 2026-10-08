@@ -2,6 +2,7 @@ import { filled, isRecord, str } from '../read.js';
 import { daemonBase } from '../auth/daemon.js';
 import { call, callRaw } from './client.js';
 import { githubSkillSource, type GitHubSkillSource } from './skill-source.js';
+import { githubSkillOrigin, type GitHubSkillOrigin } from './github-skill.js';
 
 export interface ClaudeProject {
   id: string;
@@ -328,6 +329,7 @@ export interface ClaudeSkill {
   updatedAt: string | null;
   managed?: boolean;
   shadowed?: boolean;
+  github?: GitHubSkillOrigin;
 }
 
 export interface SkillListing {
@@ -339,6 +341,7 @@ export interface SkillListing {
 function toSkill(raw: unknown): ClaudeSkill | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return null;
   const title = str(raw.title);
+  const github = raw.managed === true ? githubSkillOrigin(raw.github) : null;
   return {
     id: raw.id,
     name: raw.name,
@@ -348,6 +351,7 @@ function toSkill(raw: unknown): ClaudeSkill | null {
     editable: raw.editable !== false && raw.managed !== true,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
     ...(raw.managed === true ? { managed: true, shadowed: raw.shadowed === true } : {}),
+    ...(github === null ? {} : { github }),
   };
 }
 

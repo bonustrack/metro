@@ -1,9 +1,12 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
+import { GitHubMark } from './GitHubMark.js';
+import { TextLink } from './TextLink.js';
+import { githubSkillUrl } from '@metro-labs/client/api/github-skill';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../lib/style.js';
 import { Loading } from './Loading.js';
@@ -20,6 +23,8 @@ const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false,
 const SAVED = 'Saved. The next Claude Code session on this machine reads it.';
 
 function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
+  const palette = useKitPalette();
+  const url = githubSkillUrl(skill);
   return (
     <Col gap={16}>
       <Col gap={8}>
@@ -28,7 +33,11 @@ function Head({ skill }: { skill: ClaudeSkill }): ReactNode {
           {[skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ')}
         </Text>
       </Col>
-      {skill.managed ? <Text size="2xs" role="secondary">Managed by GitHub. Edit its repository, not this copy.{skill.shadowed ? ' A local skill with this name takes priority.' : ''}</Text> : skill.editable ? null : <Text size="2xs" role="danger">That skill is too large to edit here.</Text>}
+      {skill.managed ? <Col gap={8}>
+        <Row gap={8} align="center"><GitHubMark size={20} color={palette.text} /><Text size="2xs" role="secondary">GitHub · read-only</Text></Row>
+        <Text size="2xs" role="secondary">Edit the repository, not this copy.{skill.shadowed ? ' A local skill with this name takes priority.' : ''}</Text>
+        {url === null ? null : <TextLink url={url}>View on GitHub</TextLink>}
+      </Col> : skill.editable ? null : <Text size="2xs" role="danger">That skill is too large to edit here.</Text>}
     </Col>
   );
 }
@@ -136,14 +145,14 @@ export function SkillPage({ project, id }: SkillPageProps): ReactNode {
             style={[GROW, EDITOR]}
             inputProps={NO_ASSIST}
           />
-          <Actions
+          {data.managed ? null : <Actions
             busy={edit.busy}
             changed={edit.changed}
             note={edit.note}
             failure={edit.failure}
             onSave={edit.save}
             onRevert={edit.revert}
-          />
+          />}
         </Col>
       )}
     </Col>

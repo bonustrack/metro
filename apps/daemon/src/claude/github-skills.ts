@@ -124,11 +124,13 @@ export class GitHubSkills {
 
   rows(activation = this.activation(), loaded = this.loaded(activation)): ClaudeSkill[] {
     if (loaded === null) return [];
+    const origin = loaded.source;
     const shadowed = activation.shadowed;
     return loaded.skills.map((skill) => ({
       id: `github:${skill.name}`, name: skill.name, title: skill.name, description: skill.description,
       path: join(skillRelease(this.root, loaded.id), 'skills', skill.name, 'SKILL.md'), editable: false,
       updatedAt: loaded.createdAt, managed: true, shadowed: shadowed.includes(skill.name),
+      ...(origin === null ? {} : { github: { repository: origin.repository, commit: origin.commit, folder: origin.folder } }),
     }));
   }
 
