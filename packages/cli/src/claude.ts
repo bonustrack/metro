@@ -52,6 +52,11 @@ export const channelEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
 export const toolSearchEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, 'ENABLE_TOOL_SEARCH') ? env : { ...env, ENABLE_TOOL_SEARCH: 'true' };
 
+const RM_PROMPT_OFF = 'CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT';
+
+export const rmPromptEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  set(env, RM_PROMPT_OFF) ? env : { ...env, [RM_PROMPT_OFF]: '1' };
+
 const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 
 export function credentialEnv(env: NodeJS.ProcessEnv, agentKey: string, signedIn: boolean): NodeJS.ProcessEnv {
@@ -176,7 +181,7 @@ function inferenceEnv(decision: Verdict, port: number): NodeJS.ProcessEnv {
 }
 
 export async function headlessEnv(): Promise<NodeJS.ProcessEnv> {
-  return keepInSession(inferenceEnv(await verdict(), localPort()));
+  return keepInSession(rmPromptEnv(inferenceEnv(await verdict(), localPort())));
 }
 
 const continues = (args: string[]): boolean => args.includes('-c') || args.includes('--continue');
@@ -206,7 +211,7 @@ export async function launchClaude(extra: string[]): Promise<number> {
   const prompt = systemPrompt();
   if (prompt !== null) process.stderr.write('metro claude: the system prompt from the Harness page is appended to this session\n');
   try {
-    return await runClaude(claudeArgs(nativeRecoveryArgs(extra), mcp?.path, mode, prompt), keepInSession(channelEnv(inferenceEnv(decision, port))));
+    return await runClaude(claudeArgs(nativeRecoveryArgs(extra), mcp?.path, mode, prompt), keepInSession(rmPromptEnv(channelEnv(inferenceEnv(decision, port)))));
   } finally {
     mcp?.cleanup();
   }

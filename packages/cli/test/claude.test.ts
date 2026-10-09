@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, servingDaemon, toolSearchEnv } from '../src/claude.ts';
+import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude.ts';
 
 describe('metro claude hands everything to claude untouched', () => {
   test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
@@ -132,5 +132,13 @@ describe('MCP tool search', () => {
     expect(toolSearchEnv({ HOME: '/h' })).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
     const chosen = { ENABLE_TOOL_SEARCH: 'false' };
     expect(toolSearchEnv(chosen)).toBe(chosen);
+  });
+});
+
+describe("Claude Code's prompt for a shell -c script that runs rm", () => {
+  test('is switched off, since bypass mode does not skip it and only the launch environment can, unless the user chose a value', () => {
+    expect(rmPromptEnv({ HOME: '/h' })).toEqual({ HOME: '/h', CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '1' });
+    const chosen = { CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '0' };
+    expect(rmPromptEnv(chosen)).toBe(chosen);
   });
 });
