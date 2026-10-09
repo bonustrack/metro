@@ -41,6 +41,7 @@ import { localSessionApis } from '../routes/local-mode.js';
 import type { SessionApis } from '../routes/session-apis.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { startPromptExpiry } from '../approvals/pending.js';
+import { setOwnerLineFile } from '../approvals/owner-line.js';
 import { watchPolicySnapshot } from '../mcp/policy-snapshot.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { stationToolGroups } from '../mcp/tool-catalog.js';
@@ -61,6 +62,7 @@ import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } f
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
+setOwnerLineFile(join(STATE_DIR, 'approval-line.json'));
 
 log.info({ self: userSelf() }, 'user identity');
 

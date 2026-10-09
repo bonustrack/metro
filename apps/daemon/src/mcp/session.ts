@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
 import { answerPrompt, forgetPromptsOf, promptLine } from '../approvals/pending.js';
+import { noteOwnerLine } from '../approvals/owner-line.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
@@ -25,6 +26,10 @@ const senderAllowed = (from: string, line: string, verified?: boolean): boolean 
   senderPermitted(allowlistForLine(line), from, verified);
 
 const approves = (station: string): boolean => stationByName(station)?.approvals !== false;
+
+const noteDirect = (line: string, from: string): void => {
+  if (mayApprove(line, from)) noteOwnerLine(line, from);
+};
 
 async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string, from: string): Promise<boolean> {
   if (promptLine(requestId) !== line || !mayApprove(line, from)) return false;
@@ -115,6 +120,7 @@ export class McpSession {
       getStations,
       senderAllowed,
       approves,
+      noteDirect,
       answerPermission,
       callMeta: (event) => voice ? () => ({}) : sharedCalls.bindChat(event, this.scope),
     });

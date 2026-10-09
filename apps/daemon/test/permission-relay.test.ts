@@ -2,6 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
@@ -9,6 +12,7 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
+import { forgetOwnerLine, ownerLine, setOwnerLineFile } from '../src/approvals/owner-line.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
 import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
@@ -24,6 +28,10 @@ const OTHER_LINE = `metro://telegram-bot/${TG}/-100888`;
 const OWNER_SENDER = `metro://telegram-bot/${TG}/user/111`;
 const STRANGER = `metro://telegram-bot/${TG}/user/999`;
 const MEMBER = `metro://telegram-bot/${TG}/user/222`;
+const OWNER_DM = `metro://telegram-bot/${TG}/111`;
+const MEMBER_DM = `metro://telegram-bot/${TG}/222`;
+const OWNER_DIR = mkdtempSync(join(tmpdir(), 'metro-owner-line-'));
+const OWNER_FILE = join(OWNER_DIR, 'approval-line.json');
 
 interface TrainCall {
   action: string;
@@ -45,7 +53,7 @@ const headers = (): Record<string, string> => ({
   'mcp-protocol-version': '2025-06-18',
 });
 
-const chat = (line: string, from: string, text: string, verified?: boolean): void => {
+const chat = (line: string, from: string, text: string, verified?: boolean, isPrivate?: boolean): void => {
   publishEvent({
     id: `ev-${randomUUID()}`,
     ts: new Date().toISOString(),
@@ -57,7 +65,12 @@ const chat = (line: string, from: string, text: string, verified?: boolean): voi
     messageId: `mm-${randomUUID()}`,
     event: { type: 'msg' },
     ...(verified === undefined ? {} : { senderVerified: verified }),
+    ...(isPrivate === undefined ? {} : { isPrivate }),
   } as unknown as MetroEvent);
+};
+
+const direct = (line: string, from: string, text: string): void => {
+  chat(line, from, text, undefined, true);
 };
 
 const preview = (input: Record<string, unknown>): string => JSON.stringify(input, null, 1).replace(/\n\s*/g, ' ');
@@ -112,6 +125,7 @@ async function pageCall(method: string, path: string, body?: unknown): Promise<{
 
 beforeAll(async () => {
   forgetAllPrompts();
+  setOwnerLineFile(OWNER_FILE);
   setKeyMap([{ key: TOKEN, agentId: AGENT }]);
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
   setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
@@ -140,6 +154,8 @@ afterAll(async () => {
   setAllowlistMap({});
   setApproversMap({});
   forgetAllPrompts();
+  forgetOwnerLine();
+  rmSync(OWNER_DIR, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -279,6 +295,40 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     expect(String(calls.find((c) => c.action === 'send')?.args.text)).toContain('Text: "word00000');
     await callTool('send', { line: LINE, text: LONG, reply_to: 'm-1' });
     expect(pendingPrompts()).toEqual([]);
+  });
+
+  test("goes to the owner's direct chat once the owner wrote there, remembers it, and is answered only there", async () => {
+    direct(OWNER_DM, OWNER_SENDER, 'hi in private');
+    direct(MEMBER_DM, MEMBER, 'hi from a member');
+    chat(LINE, OWNER_SENDER, 'back in the group');
+    await waitFor(() => (stream?.raw() ?? '').includes('back in the group'));
+    await ask('ghijk', { line: LINE, text: 'to the owner' });
+    await waitFor(() => calls.some((c) => c.action === 'send'));
+    expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([OWNER_DM]);
+    expect(JSON.parse(readFileSync(OWNER_FILE, 'utf8'))).toEqual({ line: OWNER_DM, from: OWNER_SENDER });
+    setOwnerLineFile(OWNER_FILE);
+    expect(ownerLine()).toEqual({ line: OWNER_DM, from: OWNER_SENDER });
+
+    chat(LINE, OWNER_SENDER, 'yes ghijk');
+    await waitFor(() => (stream?.raw() ?? '').includes('yes ghijk'));
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['ghijk']);
+    direct(OWNER_DM, OWNER_SENDER, 'yes ghijk');
+    await waitFor(() => answered('ghijk', 'allow'));
+    expect(answered('ghijk', 'allow')).toBe(true);
+  });
+
+  test('goes back to the last chat once the person of that direct chat may no longer approve', async () => {
+    setApproversMap({ [`telegram-bot/${TG}`]: ['222'] });
+    try {
+      chat(LINE, MEMBER, 'member in the group');
+      await waitFor(() => (stream?.raw() ?? '').includes('member in the group'));
+      await ask('hijkm', { line: LINE, text: 'not to the old owner' });
+      await waitFor(() => calls.some((c) => c.action === 'send'));
+      expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([LINE]);
+      expect((await pageCall('POST', '/hijkm', { decision: 'deny' })).status).toBe(200);
+    } finally {
+      setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+    }
   });
 });
 

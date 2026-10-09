@@ -2,7 +2,9 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
 import { cancelPrompt, holdPrompt, type Behavior } from '../approvals/pending.js';
-import { approversForLine, lineReceives } from '../agents/map.js';
+import { ownerLine, type OwnerLine } from '../approvals/owner-line.js';
+import { approversForLine, lineReceives, mayApprove } from '../agents/map.js';
+import { sharedCalls } from '../voice/shared.js';
 import { metroCall } from './ctx.js';
 import { promptBody } from './permission-prompt.js';
 import { permissionCall } from './call-permission.js';
@@ -34,12 +36,20 @@ export interface PermissionRelayDeps {
   log: (...a: unknown[]) => void;
 }
 
+const callChat = (deps: PermissionRelayDeps): string | undefined => {
+  const route = sharedCalls.snapshot();
+  return route !== null && deps.inScope(route.line) ? route.line : undefined;
+};
+
+const ownerChat = (deps: PermissionRelayDeps, owner: OwnerLine | undefined): string | undefined =>
+  owner !== undefined && mayApprove(owner.line, owner.from) && deps.inScope(owner.line) && lineReceives(owner.line) ? owner.line : undefined;
+
 function relayLine(deps: PermissionRelayDeps, requestId: string, callLine?: string): string | undefined {
   if (!deps.live()) {
     deps.log('permission_request: live events are off, so no chat answer can arrive; held for the page only', requestId);
     return undefined;
   }
-  const line = callLine ?? deps.relay.knownLine;
+  const line = callLine ?? callChat(deps) ?? ownerChat(deps, ownerLine()) ?? deps.relay.knownLine;
   if (!line) {
     deps.log('permission_request: no known line, held for the page only', requestId);
     return undefined;

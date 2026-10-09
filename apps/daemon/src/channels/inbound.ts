@@ -8,6 +8,7 @@ import {
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
 import { replyMeta } from './addressed.js';
+import { reactContent, reactionEmoji } from './react-note.js';
 import {
   capSet,
   displayNameMeta,
@@ -32,26 +33,13 @@ const accountStrippedLine = (line: string): string => {
 const dedupeKey = (station: string, line: string, kind: string, messageId: string): string =>
   `${station} ${accountStrippedLine(line)} ${kind} ${messageId}`;
 
-const shortId = (id: string): string => (id.length > 10 ? `${id.slice(0, 6)}…` : id);
-
-function reactionEmoji(raw: unknown): string {
-  if (typeof raw === 'string') return raw;
-  const obj = raw as { name?: string; reaction?: string } | undefined;
-  return obj?.name ?? obj?.reaction ?? '';
-}
-
-function reactContent(emoji: string, target: string, removed: boolean): string {
-  const verb = removed ? 'removed from' : 'reacted to';
-  const label = removed ? emoji || 'reaction' : emoji || 'reacted';
-  return `${label} ${verb} message ${shortId(target)}`.trim();
-}
-
 interface InboundDeps {
   mcp: Server;
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   approves?: (station: string) => boolean;
+  noteDirect?: (line: string, from: string) => void;
   callMeta?: (event: Record<string, unknown>) => () => Record<string, string>;
   answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string, from: string) => Promise<boolean>;
 }
@@ -287,8 +275,11 @@ export class InboundRelay {
     return this.deps.approves?.(station) !== false;
   }
 
-  private noteLine(base: EventBase): void {
-    if (base.evType !== 'system' && this.approves(base.station)) this.lastLine = base.line;
+  private noteLine(base: EventBase, direct: boolean): void {
+    if (base.evType !== 'system' && this.approves(base.station)) {
+      this.lastLine = base.line;
+      if (direct) this.deps.noteDirect?.(base.line, base.from);
+    }
     if (!base.line) return;
     this.allowedLines.add(base.line);
     capSet(this.allowedLines, ALLOWED_LINES_MAX);
@@ -372,7 +363,7 @@ export class InboundRelay {
 
     const base = this.routable(ev, replay);
     if (!base) return;
-    this.noteLine(base);
+    this.noteLine(base, ev.isPrivate === true);
 
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;
