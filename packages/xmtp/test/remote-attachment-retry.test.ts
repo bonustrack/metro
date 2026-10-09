@@ -1,15 +1,11 @@
 /**
  * A transient failure fetching a remote attachment must not lose the file.
  *
- * Observed 2026-08-05: Swarmy answered 500 while the sender was still
- * uploading, `RemoteAttachmentCodec.load` threw once, and metro gave up
- * permanently — the same url succeeded moments later when fetched by hand.
- *
- * Observed 2026-10-08: Swarmy answered 500 for 30 to 65 seconds after a 2 MB
- * upload, longer than the three quick attempts, and kept answering 500 for
- * most older uploads that the public Swarm gateway still serves. An exact read
- * keeps the three quick attempts; an inbound save retries for minutes. Both
- * try the public Swarm gateway after the url's own gateway.
+ * Observed 2026-08-05 and 2026-10-08 on Stage's old attachment storage: it
+ * answered 500 for up to a minute after an upload and for most older files,
+ * and metro gave up after three quick attempts. An exact read keeps three
+ * attempts; an inbound save retries for minutes. Old Swarm links
+ * (`/bzz/<ref>`) are read only from the public Swarm gateway.
  *
  * These tests build a real encrypted payload with the codec's own
  * `encodeEncrypted`, so the success path here is a genuine decrypt-and-save,
@@ -31,7 +27,7 @@ import {
   type RemoteEntry,
 } from '../src/attachments.ts';
 
-const URL_UNDER_TEST = 'https://swarmy.stage.box/bzz/abc123';
+const URL_UNDER_TEST = 'https://files.example.test/abc123';
 const FILE = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
 
 const realFetch = globalThis.fetch;
@@ -129,38 +125,46 @@ describe('saveRemoteAttachment retries a transient upstream failure', () => {
   });
 });
 
-describe('saveRemoteAttachment waits for a slow upload and tries a second gateway', () => {
+describe('saveRemoteAttachment reads old Swarm links from the public gateway', () => {
   const ref = 'ab'.repeat(32);
-  const swarmyUrl = `https://api.swarmy.cloud/bzz/${ref}/`;
+  const oldUrl = `https://old-storage.example/bzz/${ref}/`;
   const publicUrl = `https://download.gateway.ethswarm.org/bzz/${ref}/`;
 
-  test('a Swarmy 500 falls back to the public Swarm gateway', async () => {
-    const seen: string[] = [];
-    globalThis.fetch = ((input: string): Promise<Response> => {
+  const recording = (seen: string[]): typeof fetch =>
+    ((input: string): Promise<Response> => {
       seen.push(input);
-      return Promise.resolve(
-        input === publicUrl
-          ? new Response(payload, { status: 200 })
-          : new Response('upstream busy', { status: 500 }),
-      );
+      return Promise.resolve(new Response(payload, { status: 200 }));
     }) as unknown as typeof fetch;
 
-    const saved = await saveRemoteAttachment({ ...entry, url: swarmyUrl }, 'msg_fallback', 0);
+  test('an old /bzz/ link is fetched only from the public Swarm gateway', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = recording(seen);
 
-    expect(seen).toEqual([swarmyUrl, publicUrl]);
+    const saved = await saveRemoteAttachment({ ...entry, url: oldUrl }, 'msg_public_only', 0);
+
+    expect(seen).toEqual([publicUrl]);
     expect(saved.bytes).toBe(FILE.length);
   });
 
-  test('when both gateways fail the error names both', async () => {
+  test('a proxy link is fetched as it is', async () => {
+    const proxyUrl = 'https://proxy.stage.box/attachments/Zm9vYmFyYmF6cXV4cXV1eGNvcmdlZ3Jh';
+    const seen: string[] = [];
+    globalThis.fetch = recording(seen);
+
+    await saveRemoteAttachment({ ...entry, url: proxyUrl }, 'msg_proxy', 0);
+
+    expect(seen).toEqual([proxyUrl]);
+  });
+
+  test('when the public gateway fails the error names it', async () => {
     globalThis.fetch = serveAfter(Number.MAX_SAFE_INTEGER);
 
-    const err = await saveRemoteAttachment({ ...entry, url: swarmyUrl }, 'msg_both_down', 0).then(
+    const err = await saveRemoteAttachment({ ...entry, url: oldUrl }, 'msg_public_down', 0).then(
       () => null,
       (e: unknown) => e as Error,
     );
 
-    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS * 2);
-    expect(err?.message).toContain(swarmyUrl);
+    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS);
     expect(err?.message).toContain(publicUrl);
   });
 
@@ -177,19 +181,10 @@ describe('saveRemoteAttachment waits for a slow upload and tries a second gatewa
     globalThis.fetch = ((): Promise<Response> => new Promise(() => undefined)) as unknown as typeof fetch;
 
     const err = await saveRemoteAttachment(
-      { ...entry, url: swarmyUrl }, 'msg_hang', 0, { delaysMs: [], requestTimeoutMs: 20 },
+      { ...entry, url: oldUrl }, 'msg_hang', 0, { delaysMs: [], requestTimeoutMs: 20 },
     ).then(() => null, (e: unknown) => e as Error);
 
-    expect(err?.message).toContain(`no answer from ${swarmyUrl} within 0.02s`);
     expect(err?.message).toContain(`no answer from ${publicUrl} within 0.02s`);
-  });
-
-  test('a url already on the public gateway gets no second source', async () => {
-    globalThis.fetch = serveAfter(Number.MAX_SAFE_INTEGER);
-
-    await saveRemoteAttachment({ ...entry, url: publicUrl.slice(0, -1) }, 'msg_public', 0).catch(() => undefined);
-
-    expect(calls).toBe(REMOTE_FETCH_ATTEMPTS);
   });
 
   test('the inbound schedule outlasts the slowest upload seen', () => {

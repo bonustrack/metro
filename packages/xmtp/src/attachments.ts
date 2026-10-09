@@ -17,7 +17,7 @@ interface FetchSchedule {
   requestTimeoutMs: number;
 }
 
-const READ_SCHEDULE: FetchSchedule = { delaysMs: [400, 800], requestTimeoutMs: 9_000 };
+const READ_SCHEDULE: FetchSchedule = { delaysMs: [400, 800], requestTimeoutMs: 18_000 };
 export const INBOUND_FETCH_SCHEDULE: FetchSchedule = {
   delaysMs: [
     2_000, 4_000, 8_000, 15_000, 30_000, 30_000,
@@ -26,7 +26,7 @@ export const INBOUND_FETCH_SCHEDULE: FetchSchedule = {
   requestTimeoutMs: 120_000,
 };
 export const REMOTE_FETCH_ATTEMPTS = READ_SCHEDULE.delaysMs.length + 1;
-const SWARM_FALLBACK_GATEWAY = 'https://download.gateway.ethswarm.org/bzz/';
+const SWARM_GATEWAY = 'https://download.gateway.ethswarm.org/bzz/';
 const SWARM_BZZ_URL = /^https:\/\/[^/]+\/bzz\/([0-9a-f]{64}(?:[0-9a-f]{64})?)\/?$/i;
 
 const sleep = (ms: number): Promise<void> =>
@@ -88,11 +88,9 @@ interface DecodedAttachment {
   data: Uint8Array;
 }
 
-function remoteUrls(url: string): string[] {
+function remoteUrl(url: string): string {
   const ref = SWARM_BZZ_URL.exec(url)?.[1];
-  if (ref === undefined) return [url];
-  const fallback = `${SWARM_FALLBACK_GATEWAY}${ref.toLowerCase()}/`;
-  return url.toLowerCase().replace(/\/?$/, '/') === fallback ? [url] : [url, fallback];
+  return ref === undefined ? url : `${SWARM_GATEWAY}${ref.toLowerCase()}/`;
 }
 
 function withTimeout<T>(work: Promise<T>, ms: number, url: string): Promise<T> {
@@ -122,19 +120,15 @@ async function loadRemote(
   r: RemoteEntry,
   schedule: FetchSchedule,
 ): Promise<DecodedAttachment> {
-  const urls = remoteUrls(r.url);
+  const url = remoteUrl(r.url);
   let last = '';
   for (const delay of [0, ...schedule.delaysMs]) {
     if (delay > 0) await sleep(delay);
-    const errors: string[] = [];
-    for (const url of urls) {
-      try {
-        return await loadFrom(r, url, schedule.requestTimeoutMs);
-      } catch (err) {
-        errors.push(errMsg(err));
-      }
+    try {
+      return await loadFrom(r, url, schedule.requestTimeoutMs);
+    } catch (err) {
+      last = errMsg(err);
     }
-    last = errors.join('; ');
   }
   throw new Error(
     `xmtp remote attachment fetch failed after ${schedule.delaysMs.length + 1} attempts: ${last}`,
