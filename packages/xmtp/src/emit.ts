@@ -21,7 +21,7 @@ export function envelope(
     line,
     from: `metro://xmtp/${accountId}/user/${msg.senderInboxId}`,
     message_id: msg.id,
-    is_private: typeof (conv as unknown as { peerInboxId?: unknown }).peerInboxId === 'function',
+    is_private: 'peerInboxId' in conv,
   };
   rememberUid(base.id, msg.id);
   if (typeof c === 'string')
