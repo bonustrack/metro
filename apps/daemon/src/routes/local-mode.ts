@@ -202,6 +202,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     connectorTransfers: new ConnectorTransfers({ read: readLocalConnectors, copy: copyConnectorRows }),
+    enrollApi: { owner: () => localOwner() },
     relayApi,
     claudeApi: { liveEvents: deps.liveEvents },
     updateApi: { restart: deps.restart },
