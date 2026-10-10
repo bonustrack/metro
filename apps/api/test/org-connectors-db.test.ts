@@ -5,7 +5,7 @@ import { connectorKeyStore } from '../src/db/connector-keys.ts';
 import { agents, boxKeys, connectorAgents, connectorEvents, connectorKeys, connectors } from '../src/db/schema.ts';
 import { Keyring } from '../src/connectors/keyring.ts';
 import { localWrapper } from '../src/connectors/key-wrappers.ts';
-import { addAgent, testDb, type TestDb } from './pglite-db.ts';
+import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 
 const OWNER = 'org_01TESTOWNER000000';
 const STRANGER = 'org_01TESTSTRANGER00';
@@ -26,14 +26,14 @@ const assignment = (connectorId: string, agent: string): typeof connectorAgents.
 
 beforeAll(async () => {
   held = await testDb();
-});
+}, PGLITE_START_MS);
 
 beforeEach(async () => {
   await held.reset();
   await addAgent(held.db, 'agent000001', OWNER);
   await addAgent(held.db, 'agent000002', OWNER);
   await addAgent(held.db, 'agent000003', STRANGER);
-});
+}, PGLITE_STEP_MS);
 
 afterAll(async () => {
   await held.close();

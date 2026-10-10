@@ -11,7 +11,7 @@ import { EnrollTickets } from '../src/boxes/tickets.ts';
 import { boxKeyStore, leaveOrganization } from '../src/db/boxes.ts';
 import { agents, boxKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
 import { auth, bearer, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
-import { addAgent, testDb, type TestDb } from './pglite-db.ts';
+import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { newBoxKey } from '../../daemon/src/connectors/box-key.ts';
 import { boxCall } from '../../daemon/src/connectors/metro-api.ts';
 
@@ -85,7 +85,7 @@ beforeAll(async () => {
   });
   host = `127.0.0.1:${String((server.address() as AddressInfo).port)}`;
   base = `http://${host}`;
-});
+}, PGLITE_START_MS);
 
 beforeEach(async () => {
   enabled = true;
@@ -96,7 +96,7 @@ beforeEach(async () => {
   await addAgent(held.db, OURS, TEST_OWNER);
   await addAgent(held.db, SECOND, TEST_OWNER);
   await addAgent(held.db, THEIRS, TEST_STRANGER);
-});
+}, PGLITE_STEP_MS);
 
 afterAll(async () => {
   server.close();
@@ -129,7 +129,7 @@ describe('enrollment tickets', () => {
     for (let i = 0; i < 20; i += 1) expect((await mint(`many${String(i).padStart(7, '0')}`, owner)).status).toBe(200);
     expect((await mint('many0000020', owner)).status).toBe(429);
     expect((await mint(THEIRS, await auth(TEST_STRANGER))).status).toBe(200);
-  });
+  }, PGLITE_STEP_MS);
 
   test('everything answers 503 while organization connectors are off', async () => {
     enabled = false;
