@@ -15,7 +15,7 @@ if [ "$(id -un)" != agent ]; then
 fi
 
 if bash "$(dirname "$0")/secret-modes.sh"; then pass "secret-modes: Metro's home and view files have the right modes"; else fail "secret-modes found an open mode (see above)"; fi
-for entry in .metro/agents/agent.json .metro/agents/model.json .metro/agents/connectors.json .metro/agents/voice.json \
+for entry in .metro/agents/agent.json .metro/agents/model.json .metro/agents/connectors.json .metro/agents/voice.json .metro/agents/box-key.json \
   .cache/metro/serve/telegram .bun .npm .npmrc .codex .claude.json .aws .ssh; do
   path="$METRO_HOME/$entry"
   if [ -d "$path" ] && ls "$path" >/dev/null 2>&1; then fail "metro folder listable by the agent: $path"

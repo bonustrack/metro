@@ -2,6 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { boxKeyId, rawPublicKey, signBoxRequest } from '@metro-labs/http/box-signature';
 import { BoxAuth } from '../src/boxes/auth.ts';
@@ -10,6 +13,8 @@ import { boxKeyStore } from '../src/db/boxes.ts';
 import { agents, boxKeys, connectorEvents } from '../src/db/schema.ts';
 import { auth, bearer, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, testDb, type TestDb } from './pglite-db.ts';
+import { ensureBoxKey } from '../../daemon/src/connectors/box-key.ts';
+import { boxCall } from '../../daemon/src/connectors/metro-api.ts';
 
 const OURS = 'agent000001';
 const SECOND = 'agent000002';
@@ -235,6 +240,22 @@ describe('signed box requests', () => {
   test('a mint for another organization agent is refused even with a valid admin token', async () => {
     const res = await mint(OURS, await bearer({ org_id: TEST_STRANGER, role: 'admin' }));
     expect(res.status).toBe(404);
+  });
+});
+
+describe('the daemon box client against this api', () => {
+  test('ensureBoxKey and boxCall enroll and then open a session', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'metro-box-key-'));
+    try {
+      const key = ensureBoxKey(dir);
+      const api = { base, fetch: (url: string, init: RequestInit) => fetch(url, init), now: () => now };
+      const enrolled = await boxCall(api, key, '/api/boxes/enroll', { ticket: await ticketFor(), organization: TEST_OWNER, signingKey: key.signingKey, sealingKey: key.sealingKey });
+      expect(enrolled).toEqual({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
+      expect(await boxCall(api, key, '/api/boxes/session')).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
+      await expect(boxCall(api, ensureBoxKey(mkdtempSync(join(dir, 'other-'))), '/api/boxes/session')).rejects.toThrow('not enrolled');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
