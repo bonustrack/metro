@@ -93,4 +93,21 @@ describe('box request signatures', () => {
     expect(withinSkew(NOW, NOW + BOX_CLOCK_SKEW_MS + 1)).toBe(false);
     expect(withinSkew(NOW, NOW - BOX_CLOCK_SKEW_MS - 1)).toBe(false);
   });
+
+  test('a small-order or non-canonical signing key is refused, so the forged signature it allows never counts', () => {
+    const weak = [
+      '0100000000000000000000000000000000000000000000000000000000000000',
+      'ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
+      '0000000000000000000000000000000000000000000000000000000000000000',
+      '0000000000000000000000000000000000000000000000000000000000000080',
+      '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05',
+      'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a',
+      'eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
+    ].map((hex) => Buffer.from(hex, 'hex').toString('base64url'));
+    for (const key of weak) expect(signingKeyOf(key)).toBeNull();
+    const identity = weak[0] ?? '';
+    const forged = { keyId: boxKeyId(identity), time: NOW, nonce: 'A'.repeat(22), signature: Buffer.concat([Buffer.from(identity, 'base64url'), Buffer.alloc(32)]).toString('base64url') };
+    expect(boxSignatureValid(request(), forged, identity)).toBe(false);
+    for (let i = 0; i < 50; i += 1) expect(signingKeyOf(rawPublicKey(generateKeyPairSync('ed25519').publicKey))).not.toBeNull();
+  });
 });

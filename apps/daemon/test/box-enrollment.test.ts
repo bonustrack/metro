@@ -1,16 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { randomInt } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { log } from '@metro-labs/core/log';
 import { readBodyBytes, setBearerSessions } from '@metro-labs/http/api-http';
 import { boxKeyId, boxSignatureValid, readBoxProof } from '@metro-labs/http/box-signature';
 import { SigningKeys } from '@metro-labs/http/workos-token';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
-import { ensureBoxKey, readBoxKey } from '../src/connectors/box-key.ts';
+import { newBoxKey, readBoxKey, saveBoxKey } from '../src/connectors/box-key.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
 
 const OWNER = 'org_01BOXOWNER00000';
@@ -108,25 +109,36 @@ afterAll(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
+const ENROLLED = { server: SERVER, organization: OWNER, at: '2026-10-09T00:00:00.000Z' };
+
 describe('the box key', () => {
-  test('is made once, kept 0600 in Metro folder and read back the same', () => {
+  test('is made in memory, saved 0600 in Metro folder with its enrollment, and read back the same', () => {
     expect(readBoxKey(dir)).toBeNull();
-    const made = ensureBoxKey(dir);
-    expect(statSync(join(dir, 'box-key.json')).mode & 0o777).toBe(0o600);
-    expect(ensureBoxKey(dir).keyId).toBe(made.keyId);
-    expect(readBoxKey(dir)?.sealingKey).toBe(made.sealingKey);
+    const made = newBoxKey();
     expect(made.keyId).toBe(boxKeyId(made.signingKey));
-    expect(made.enrollment).toBeNull();
+    expect(existsSync(join(dir, 'box-key.json'))).toBe(false);
+    saveBoxKey(made, ENROLLED, dir);
+    expect(statSync(join(dir, 'box-key.json')).mode & 0o777).toBe(0o600);
+    const back = readBoxKey(dir);
+    expect(back?.keyId).toBe(made.keyId);
+    expect(back?.sealingKey).toBe(made.sealingKey);
+    expect(back?.enrollment).toEqual(ENROLLED);
+    expect(newBoxKey().keyId).not.toBe(made.keyId);
   });
 
-  test('a damaged file is replaced, so the box has to enroll again', () => {
+  test('a damaged file reads as no key, and its content never reaches the log', () => {
+    const warnings = spyOn(log, 'warn');
+    writeFileSync(join(dir, 'box-key.json'), '{"version":1,"signing":MC4CAQAwBQYDK2VwBCIEIDamaged');
+    expect(readBoxKey(dir)).toBeNull();
     writeFileSync(join(dir, 'box-key.json'), JSON.stringify({ version: 1, signing: 'bm90IGEga2V5', sealing: 'bm90IGEga2V5' }));
     expect(readBoxKey(dir)).toBeNull();
-    expect(ensureBoxKey(dir).keyId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(warnings).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(warnings.mock.calls)).not.toContain('MC4CAQ');
+    warnings.mockRestore();
   });
 
   test('never reaches the agent view', () => {
-    ensureBoxKey(dir);
+    saveBoxKey(newBoxKey(), ENROLLED, dir);
     const files = viewFiles(dir);
     expect(files.has('box-key.json')).toBe(false);
     expect([...files.values()].join('\n')).not.toContain(readFileSync(join(dir, 'box-key.json'), 'utf8').slice(0, 60));
@@ -145,6 +157,15 @@ describe('POST /api/enrollment', () => {
     expect(readBoxKey(dir)?.enrollment?.server).toBe(SERVER);
   });
 
+  test('enrolling again gives the box a new key', async () => {
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    const first = readBoxKey(dir)?.keyId;
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    const second = readBoxKey(dir)?.keyId;
+    expect(second).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(second).not.toBe(first);
+  });
+
   test('a member, a missing ticket or a box with no organization cannot enroll', async () => {
     expect((await enroll({ ticket: TICKET }, 'member')).status).toBe(403);
     expect((await enroll({})).status).toBe(400);
@@ -159,15 +180,23 @@ describe('POST /api/enrollment', () => {
     const res = await enroll({ ticket: TICKET });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain('stale');
-    expect(storedEnrollment()).toBeUndefined();
+    expect(existsSync(join(dir, 'box-key.json'))).toBe(false);
   });
 
   test('an answer naming another organization, agent or key saves nothing', async () => {
     reply = (path) => path === '/api/boxes/enroll' ? { status: 200, body: { server: SERVER, organization: 'org_01SOMEONEELSE00', keyId: 'x' } } : null;
     expect((await enroll({ ticket: TICKET })).status).toBe(503);
-    reply = (path) => path === '/api/boxes/session' ? { status: 200, body: { server: 'agent000002', organization: OWNER, keyId: readBoxKey(dir)?.keyId } } : null;
+    reply = (path) => path === '/api/boxes/session' ? { status: 200, body: { server: 'agent000002', organization: OWNER, keyId: enrolledKey === null ? '' : boxKeyId(enrolledKey) } } : null;
     expect((await enroll({ ticket: TICKET })).status).toBe(503);
-    expect(storedEnrollment()).toBeUndefined();
+    expect(existsSync(join(dir, 'box-key.json'))).toBe(false);
+  });
+
+  test('an answer too large for Metro is a 503 and saves nothing', async () => {
+    reply = (path) => path === '/api/boxes/enroll' ? { status: 200, body: { server: SERVER, organization: OWNER, padding: 'x'.repeat(100_000) } } : null;
+    const res = await enroll({ ticket: TICKET });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toContain('too large');
+    expect(existsSync(join(dir, 'box-key.json'))).toBe(false);
   });
 
   test('api.metro.box down is a 503, never a 401', async () => {
