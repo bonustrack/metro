@@ -52,7 +52,8 @@ import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
 import { boxKeyStore } from './db/boxes.js';
 import { BoxAuth } from './boxes/auth.js';
-import { enrollTickets, handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
+import { handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
+import { EnrollTickets } from './boxes/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
 import { randomBytes } from 'node:crypto';
 
@@ -137,9 +138,9 @@ const connectorsSetup = readConnectorsSetup();
 const enrollmentApi: EnrollmentDeps = {
   enabled: () => connectorsSetup.enabled,
   keys,
-  tickets: enrollTickets(),
+  tickets: new EnrollTickets(),
   store: boxKeyStore(getDb),
-  auth: new BoxAuth(() => Date.now()),
+  auth: new BoxAuth('api.metro.box', () => Date.now()),
   now: () => Date.now(),
 };
 

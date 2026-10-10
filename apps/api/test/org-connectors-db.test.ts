@@ -117,6 +117,6 @@ describe('connector secrets in the database', () => {
   test('a database without the wrapping key opens nothing', async () => {
     await keyringFor().seal(OWNER, 'conn0000001', { value: TOKEN });
     const other = new Keyring({ wrapper: localWrapper(randomBytes(32)), store: connectorKeyStore(() => held.db), now: () => Date.now() });
-    await expect(other.seal(OWNER, 'conn0000002', { value: TOKEN })).rejects.toThrow('was made with local:');
+    await expect(other.seal(OWNER, 'conn0000002', { value: TOKEN })).rejects.toThrow('another wrapping key');
   });
 });

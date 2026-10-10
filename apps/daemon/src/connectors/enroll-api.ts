@@ -5,7 +5,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readJsonBody, sessionRoute, type ApiSession } from '@metro-labs/http/api-http';
 import { agentsDir } from '../agents/files.js';
-import { ensureBoxKey, saveEnrollment, type BoxKey } from './box-key.js';
+import { newBoxKey, saveBoxKey, type BoxKey } from './box-key.js';
 import { boxCall, METRO_API, type MetroApi } from './metro-api.js';
 
 const PATH = '/api/enrollment';
@@ -38,12 +38,11 @@ async function enroll(req: IncomingMessage, session: ApiSession, deps: EnrollApi
   const owner = deps.owner();
   if (owner === null || owner !== session.subject) throw new ApiError('this machine has no organization yet', 409);
   const api = deps.api ?? METRO_API;
-  const dir = deps.dir?.() ?? agentsDir();
-  const key = ensureBoxKey(dir);
+  const key = newBoxKey();
   const enrolled = enrolledOf(await boxCall(api, key, '/api/boxes/enroll', { ticket, organization: owner, signingKey: key.signingKey, sealingKey: key.sealingKey }), key, owner);
   const confirmed = enrolledOf(await boxCall(api, key, '/api/boxes/session'), key, owner);
   if (confirmed.server !== enrolled.server) throw differently();
-  saveEnrollment(key, { server: enrolled.server, organization: owner, at: new Date(api.now()).toISOString() }, dir);
+  saveBoxKey(key, { server: enrolled.server, organization: owner, at: new Date(api.now()).toISOString() }, deps.dir?.() ?? agentsDir());
   log.info({ server: enrolled.server, organization: owner, keyId: key.keyId }, 'enrollment: this box is enrolled with its organization on api.metro.box');
   return enrolled;
 }

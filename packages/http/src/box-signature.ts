@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, diffieHellman, generateKeyPairSync, randomBytes, sign, verify, type KeyObject } from 'node:crypto';
+import { strongEd25519 } from './ed25519.js';
 
 export const BOX_SCHEME = 'MetroBox';
 export const BOX_CLOCK_SKEW_MS = 5 * 60_000;
@@ -40,7 +41,10 @@ function publicKeyOf(raw: string, curve: Curve): KeyObject | null {
   }
 }
 
-export const signingKeyOf = (raw: string): KeyObject | null => publicKeyOf(raw, 'Ed25519');
+export function signingKeyOf(raw: string): KeyObject | null {
+  const key = publicKeyOf(raw, 'Ed25519');
+  return key !== null && strongEd25519(Buffer.from(raw, 'base64url')) ? key : null;
+}
 
 function contributes(key: KeyObject): boolean {
   try {

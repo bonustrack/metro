@@ -4,6 +4,7 @@ import { signBoxRequest } from '@metro-labs/http/box-signature';
 import type { BoxKey } from './box-key.js';
 
 const TIMEOUT_MS = 15_000;
+const ANSWER_MAX = 64 * 1024;
 
 export type BoxFetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -18,6 +19,30 @@ export const METRO_API: MetroApi = {
   fetch: (url, init) => fetch(url, init),
   now: () => Date.now(),
 };
+
+const tooLarge = (): ApiError => new ApiError('api.metro.box sent an answer too large for Metro.', 503);
+const unreachable = (): ApiError => new ApiError('Metro could not reach api.metro.box. Try again.', 503);
+
+async function answerOf(response: Response): Promise<unknown> {
+  if (Number(response.headers.get('content-length') ?? '0') > ANSWER_MAX) throw tooLarge();
+  const reader = response.body?.getReader();
+  if (reader === undefined) return null;
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (let part = await reader.read(); !part.done; part = await reader.read()) {
+    size += part.value.length;
+    if (size > ANSWER_MAX) {
+      await reader.cancel();
+      throw tooLarge();
+    }
+    parts.push(part.value);
+  }
+  try {
+    return JSON.parse(Buffer.concat(parts).toString('utf8')) as unknown;
+  } catch {
+    return null;
+  }
+}
 
 function refusal(status: number, value: unknown): ApiError {
   const said = isRecord(value) && typeof value.error === 'string' && value.error.length <= 300 ? value.error : `api.metro.box answered ${String(status)}`;
@@ -39,9 +64,11 @@ export async function boxCall(api: MetroApi, key: BoxKey, path: string, body?: R
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
-    throw new ApiError('Metro could not reach api.metro.box. Try again.', 503);
+    throw unreachable();
   }
-  const value: unknown = await response.json().catch(() => null);
+  const value = await answerOf(response).catch((err: unknown) => {
+    throw err instanceof ApiError ? err : unreachable();
+  });
   if (!response.ok) throw refusal(response.status, value);
   if (!isRecord(value)) throw new ApiError('api.metro.box sent an answer Metro cannot read.', 503);
   return value;

@@ -2,33 +2,25 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { ticketStore, type TicketStore } from '@metro-labs/core/tickets';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/box-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { BoxKeyStore } from '../db/boxes.js';
-import { boxRequestOf, notEnrolled, refuseBrowser, type BoxAuth } from './auth.js';
+import { notEnrolled, refuseBrowser, type BoxAuth } from './auth.js';
+import type { EnrollTickets } from './tickets.js';
 
 const MINT_RE = /^\/api\/servers\/([^/]+)\/enrollment$/;
 const ENROLL = '/api/boxes/enroll';
 const SESSION = '/api/boxes/session';
 const BODY_MAX = 4096;
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
-const TICKET_MS = 10 * 60_000;
-const TICKETS_MAX = 1000;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
-
-export interface EnrollTicket {
-  owner: string;
-  agent: string;
-  userId: string;
-}
 
 export interface EnrollmentDeps {
   enabled: () => boolean;
   keys: SigningKeys;
-  tickets: TicketStore<EnrollTicket>;
+  tickets: EnrollTickets;
   store: BoxKeyStore;
   auth: BoxAuth;
   now: () => number;
@@ -41,8 +33,6 @@ interface EnrollInput {
   sealingKey: string;
 }
 
-export const enrollTickets = (): TicketStore<EnrollTicket> => ticketStore<EnrollTicket>(TICKET_MS, TICKETS_MAX);
-
 const staleTicket = (): ApiError => new ApiError('This enrollment ticket is stale or belongs to another organization. Start again from the agent page.', 400);
 
 async function mint(req: IncomingMessage, deps: EnrollmentDeps, rawId: string): Promise<unknown> {
@@ -52,9 +42,9 @@ async function mint(req: IncomingMessage, deps: EnrollmentDeps, rawId: string): 
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
   const agent = parseId(rawId);
   if (agent === null || !(await deps.store.listed(owner, agent))) throw new ApiError('no such server', 404);
-  const now = deps.now();
-  if (deps.tickets.size(now) >= TICKETS_MAX) throw new ApiError('Enrollment is busy. Try again in ten minutes.', 503);
-  return deps.tickets.mint({ owner, agent, userId: session.userId }, now);
+  const minted = deps.tickets.mint({ owner, agent, userId: session.userId }, deps.now());
+  log.info({ owner, agent, by: session.userId }, 'boxes: an admin asked to enroll a box');
+  return minted;
 }
 
 function bodyOf(bytes: Buffer): Record<string, unknown> {
@@ -88,10 +78,11 @@ async function enroll(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkno
   const bytes = await readBodyBytes(req, BODY_MAX);
   const input = enrollInput(bytes);
   const proof = deps.auth.proofOf(req);
-  deps.auth.verify(boxRequestOf(req, bytes), proof, input.signingKey);
   const now = deps.now();
   const ticket = deps.tickets.peek(input.ticket, now);
-  if (ticket?.owner !== input.organization || deps.tickets.take(input.ticket, now) === undefined) throw staleTicket();
+  if (ticket?.owner !== input.organization) throw staleTicket();
+  deps.auth.accept(req, bytes, proof, input.signingKey, ticket.owner);
+  if (deps.tickets.take(input.ticket, now) === undefined) throw staleTicket();
   await deps.store.enroll({
     agent: ticket.agent,
     owner: ticket.owner,
@@ -111,8 +102,7 @@ async function session(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkn
   const proof = deps.auth.proofOf(req);
   const row = await deps.store.find(proof.keyId);
   if (row === null) throw notEnrolled();
-  deps.auth.verify(boxRequestOf(req, bytes), proof, row.signingKey);
-  deps.auth.remember(proof);
+  deps.auth.accept(req, bytes, proof, row.signingKey, row.owner);
   return { server: row.agent, organization: row.owner, keyId: row.keyId, enrolledAt: row.enrolledAt };
 }
 

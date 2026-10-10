@@ -1,19 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { createServer, type Server } from 'node:http';
+import { createServer, IncomingMessage, type Server } from 'node:http';
+import { Socket } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { generateKeyPairSync, type KeyObject } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { boxKeyId, rawPublicKey, signBoxRequest } from '@metro-labs/http/box-signature';
 import { BoxAuth } from '../src/boxes/auth.ts';
-import { enrollTickets, handleEnrollmentRequest, type EnrollmentDeps } from '../src/boxes/enrollment.ts';
-import { boxKeyStore } from '../src/db/boxes.ts';
-import { agents, boxKeys, connectorEvents } from '../src/db/schema.ts';
+import { handleEnrollmentRequest, type EnrollmentDeps } from '../src/boxes/enrollment.ts';
+import { EnrollTickets } from '../src/boxes/tickets.ts';
+import { boxKeyStore, leaveOrganization } from '../src/db/boxes.ts';
+import { agents, boxKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
 import { auth, bearer, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, testDb, type TestDb } from './pglite-db.ts';
-import { ensureBoxKey } from '../../daemon/src/connectors/box-key.ts';
+import { newBoxKey } from '../../daemon/src/connectors/box-key.ts';
 import { boxCall } from '../../daemon/src/connectors/metro-api.ts';
 
 const OURS = 'agent000001';
@@ -73,9 +72,9 @@ beforeAll(async () => {
   deps = {
     enabled: () => enabled,
     keys: await testKeys(),
-    tickets: enrollTickets(),
+    tickets: new EnrollTickets(),
     store: boxKeyStore(() => held.db),
-    auth: new BoxAuth(() => now),
+    auth: new BoxAuth('', () => now),
     now: () => now,
   };
   server = createServer((req, res) => {
@@ -91,8 +90,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   enabled = true;
   now = Date.now();
-  deps.tickets = enrollTickets();
-  deps.auth = new BoxAuth(() => now);
+  deps.tickets = new EnrollTickets();
+  deps.auth = new BoxAuth(host, () => now);
   await held.reset();
   await addAgent(held.db, OURS, TEST_OWNER);
   await addAgent(held.db, SECOND, TEST_OWNER);
@@ -114,6 +113,22 @@ describe('enrollment tickets', () => {
     const res = await mint(OURS);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ticket: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) as unknown, expiresAt: now + 10 * MINUTE });
+  });
+
+  test('an agent has one open ticket: a new one replaces the old', async () => {
+    const box = newBox();
+    const first = await ticketFor();
+    const second = await ticketFor();
+    expect((await enroll(box, enrollBody(box, first))).status).toBe(400);
+    expect((await enroll(box, enrollBody(box, second))).status).toBe(200);
+  });
+
+  test('one organization cannot use up the tickets of the others', async () => {
+    const owner = await auth(TEST_OWNER);
+    for (let i = 0; i < 21; i += 1) await addAgent(held.db, `many${String(i).padStart(7, '0')}`, TEST_OWNER);
+    for (let i = 0; i < 20; i += 1) expect((await mint(`many${String(i).padStart(7, '0')}`, owner)).status).toBe(200);
+    expect((await mint('many0000020', owner)).status).toBe(429);
+    expect((await mint(THEIRS, await auth(TEST_STRANGER))).status).toBe(200);
   });
 
   test('everything answers 503 while organization connectors are off', async () => {
@@ -170,11 +185,12 @@ describe('a box enrolling', () => {
     expect((await enroll(box, enrollBody(box, ticket))).status).toBe(200);
   });
 
-  test('a browser can never call the box routes', async () => {
+  test('a browser can never call the box routes, a server-side fetch can', async () => {
     const box = newBox();
-    const res = await enroll(box, enrollBody(box, await ticketFor()), { origin: 'https://metro.box' });
-    expect(res.status).toBe(403);
-    expect((await fetch(`${base}/api/boxes/session`, { headers: { ...signedHeaders(box, 'GET', '/api/boxes/session', ''), 'sec-fetch-mode': 'cors' } })).status).toBe(403);
+    expect((await enroll(box, enrollBody(box, await ticketFor()), { origin: 'https://metro.box' })).status).toBe(403);
+    expect((await enroll(box, enrollBody(box, await ticketFor()))).status).toBe(200);
+    expect((await fetch(`${base}/api/boxes/session`, { headers: { ...signedHeaders(box, 'GET', '/api/boxes/session', ''), 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    expect((await fetch(`${base}/api/boxes/session`, { headers: { ...signedHeaders(box, 'GET', '/api/boxes/session', ''), 'sec-fetch-mode': 'cors' } })).status).toBe(200);
   });
 
   test('an agent removed between the ticket and the enroll cannot be enrolled', async () => {
@@ -227,14 +243,48 @@ describe('signed box requests', () => {
     expect(events.map((e) => e.detail)).toContain(JSON.stringify({ keyId: second.keyId, replaced: first.keyId }));
   });
 
-  test('a box enrolled as another agent leaves its old agent, and the log says so', async () => {
+  test('a box key enrolled as one agent cannot be enrolled as another', async () => {
     const box = newBox();
     expect((await enroll(box, enrollBody(box, await ticketFor(OURS)))).status).toBe(200);
-    expect((await enroll(box, enrollBody(box, await ticketFor(SECOND)))).status).toBe(200);
-    expect((await held.db.select().from(boxKeys)).map((row) => row.agent)).toEqual([SECOND]);
-    expect(await (await session(box)).json()).toMatchObject({ server: SECOND });
+    const again = await enroll(box, enrollBody(box, await ticketFor(SECOND)));
+    expect(again.status).toBe(409);
+    expect((await held.db.select().from(boxKeys)).map((row) => row.agent)).toEqual([OURS]);
+    expect(await (await session(box)).json()).toMatchObject({ server: OURS });
+  });
+
+  test('a request signed for another host is refused, whatever Host it sends', async () => {
+    const box = newBox();
+    expect((await enroll(box, enrollBody(box, await ticketFor()))).status).toBe(200);
+    const elsewhere = signBoxRequest({ method: 'GET', host: 'staging-api.example.com', path: '/api/boxes/session', body: Buffer.alloc(0) }, box.signing, box.keyId, now);
+    expect((await fetch(`${base}/api/boxes/session`, { headers: { authorization: elsewhere } })).status).toBe(401);
+  });
+
+  test('a small-order signing key is refused, with the signature it can forge', async () => {
+    const weak = Buffer.from('0100000000000000000000000000000000000000000000000000000000000000', 'hex').toString('base64url');
+    const ticket = await ticketFor();
+    const text = JSON.stringify({ ticket, organization: TEST_OWNER, signingKey: weak, sealingKey: newBox().sealingKey });
+    const forged = `MetroBox ${boxKeyId(weak)}.${String(now)}.${'A'.repeat(22)}.${Buffer.concat([Buffer.from(weak, 'base64url'), Buffer.alloc(32)]).toString('base64url')}`;
+    const res = await fetch(`${base}/api/boxes/enroll`, { method: 'POST', headers: { authorization: forged, 'content-type': 'application/json' }, body: text });
+    expect(res.status).toBe(400);
+    expect(await errorOf(res)).toContain('signing key');
+    expect(await held.db.select().from(boxKeys)).toEqual([]);
+  });
+
+  test('an agent that moves leaves its box key and its assignments behind, and the old organization log says so', async () => {
+    const box = newBox();
+    expect((await enroll(box, enrollBody(box, await ticketFor()))).status).toBe(200);
+    await held.db.insert(connectors).values({ id: 'conn0000001', owner: TEST_OWNER, name: 'Linear', url: 'https://vendor.example/mcp', auth: 'none', policy: null, secret: null, createdBy: 'user_01ABC', createdAt: '2026-10-09T00:00:00.000Z', updatedAt: '2026-10-09T00:00:00.000Z' });
+    await held.db.insert(connectorAgents).values({ connector: 'conn0000001', agent: OURS, policy: null, createdBy: 'user_01ABC', createdAt: '2026-10-09T00:00:00.000Z' });
+    await held.db.transaction(async (tx) => {
+      await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, OURS));
+      await leaveOrganization(tx, OURS, TEST_OWNER, '2026-10-10T00:00:00.000Z');
+    });
+    expect(await held.db.select().from(boxKeys)).toEqual([]);
+    expect(await held.db.select().from(connectorAgents)).toEqual([]);
     const events = await held.db.select().from(connectorEvents);
-    expect(events.map((e) => [e.agent, e.action, e.actor])).toContainEqual([OURS, 'box.unenrolled', 'metro']);
+    expect(events.map((e) => [e.owner, e.agent, e.actor, e.action])).toContainEqual([TEST_OWNER, OURS, 'metro', 'box.unenrolled']);
+    await held.db.update(agents).set({ owner: TEST_OWNER }).where(eq(agents.id, OURS));
+    expect((await session(box)).status).toBe(401);
   });
 
   test('a mint for another organization agent is refused even with a valid admin token', async () => {
@@ -244,31 +294,44 @@ describe('signed box requests', () => {
 });
 
 describe('the daemon box client against this api', () => {
-  test('ensureBoxKey and boxCall enroll and then open a session', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-box-key-'));
-    try {
-      const key = ensureBoxKey(dir);
-      const api = { base, fetch: (url: string, init: RequestInit) => fetch(url, init), now: () => now };
-      const enrolled = await boxCall(api, key, '/api/boxes/enroll', { ticket: await ticketFor(), organization: TEST_OWNER, signingKey: key.signingKey, sealingKey: key.sealingKey });
-      expect(enrolled).toEqual({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
-      expect(await boxCall(api, key, '/api/boxes/session')).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
-      await expect(boxCall(api, ensureBoxKey(mkdtempSync(join(dir, 'other-'))), '/api/boxes/session')).rejects.toThrow('not enrolled');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  test('a key from newBoxKey enrolls through boxCall and then opens a session', async () => {
+    const key = newBoxKey();
+    const api = { base, fetch: (url: string, init: RequestInit) => fetch(url, init), now: () => now };
+    const enrolled = await boxCall(api, key, '/api/boxes/enroll', { ticket: await ticketFor(), organization: TEST_OWNER, signingKey: key.signingKey, sealingKey: key.sealingKey });
+    expect(enrolled).toEqual({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
+    expect(await boxCall(api, key, '/api/boxes/session')).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
+    await expect(boxCall(api, newBoxKey(), '/api/boxes/session')).rejects.toThrow('not enrolled');
   });
 });
 
 describe('the replay guard', () => {
-  test('one box cannot fill it for the others, and old nonces leave it', () => {
+  const signedRequest = (authorization: string): IncomingMessage => {
+    const req = new IncomingMessage(new Socket());
+    req.method = 'GET';
+    req.url = '/api/boxes/session';
+    req.headers = { authorization };
+    return req;
+  };
+
+  test('one box or one organization cannot fill it for the others, and old nonces leave it', () => {
     let at = 1_791_590_000_000;
-    const guard = new BoxAuth(() => at);
-    const proof = (keyId: string, n: number): { keyId: string; time: number; nonce: string; signature: string } => ({ keyId, time: at, nonce: String(n).padStart(22, '0'), signature: 'A'.repeat(86) });
-    for (let n = 0; n < 600; n += 1) guard.remember(proof('k'.repeat(43), n));
-    expect(() => { guard.remember(proof('k'.repeat(43), 600)); }).toThrow('too many requests');
-    expect(() => { guard.remember(proof('j'.repeat(43), 0)); }).not.toThrow();
-    expect(() => { guard.remember(proof('j'.repeat(43), 0)); }).toThrow('not enrolled');
+    const guard = new BoxAuth('api.metro.box', () => at, { total: 6, perOwner: 4, perKey: 2 });
+    const boxes = [newBox(), newBox(), newBox(), newBox()];
+    const send = (box: Box, owner: string): void => {
+      const req = signedRequest(signBoxRequest({ method: 'GET', host: 'api.metro.box', path: '/api/boxes/session', body: Buffer.alloc(0) }, box.signing, box.keyId, at));
+      guard.accept(req, Buffer.alloc(0), guard.proofOf(req), box.signingKey, owner);
+    };
+    const [a, b, c, d] = boxes as [Box, Box, Box, Box];
+    send(a, TEST_OWNER);
+    send(a, TEST_OWNER);
+    expect(() => { send(a, TEST_OWNER); }).toThrow('too many requests');
+    send(b, TEST_OWNER);
+    send(b, TEST_OWNER);
+    expect(() => { send(c, TEST_OWNER); }).toThrow('organization sent too many');
+    send(c, TEST_STRANGER);
+    send(d, TEST_STRANGER);
+    expect(() => { send(d, 'org_01THIRDORG00000'); }).toThrow('busy');
     at += 6 * MINUTE;
-    expect(() => { guard.remember(proof('k'.repeat(43), 601)); }).not.toThrow();
+    expect(() => { send(a, TEST_OWNER); }).not.toThrow();
   });
 });

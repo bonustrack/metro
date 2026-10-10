@@ -1,3 +1,4 @@
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAad, openWith, sealWith } from './envelope.js';
 import type { KeyWrapper } from './key-wrappers.js';
@@ -83,8 +84,10 @@ export class Keyring {
   }
 
   private unwrap(owner: string, row: ConnectorKeyRow): Promise<Buffer> {
-    if (row.wrapping !== this.deps.wrapper.id)
-      return Promise.reject(new KeyringError(`the connector key of this organization was made with ${row.wrapping}, and Metro now uses ${this.deps.wrapper.id}`, 500));
+    if (row.wrapping !== this.deps.wrapper.id) {
+      log.warn({ owner, stored: row.wrapping, configured: this.deps.wrapper.id }, 'connectors: an organization key was wrapped by another key than the one configured');
+      return Promise.reject(new KeyringError('The connector key of this organization was made with another wrapping key, so Metro cannot open it.', 500));
+    }
     return this.deps.wrapper.unwrap(owner, row.wrapped);
   }
 }
