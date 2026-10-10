@@ -71,6 +71,30 @@ describe('frame content', () => {
   });
 });
 
+describe('frame source', () => {
+  const url = 'https://proxy.stage.box/nodes/btc-price';
+
+  test('the node url goes with the frame, trimmed', () => {
+    expect(buildFrameContent({ widget, source: { url: `  ${url}  ` } }).frame).toEqual({
+      title: 'Weekly report', description: 'Sales up 12%', widget, source: { url },
+    });
+    expect(buildFrameContent(JSON.stringify({ widget, source: { url } })).frame.source).toEqual({ url });
+  });
+
+  test.each([
+    ['a plain string', url],
+    ['an object with no url', {}],
+    ['an http url', { url: 'http://proxy.stage.box/nodes/btc-price' }],
+    ['not a url', { url: 'https://' }],
+  ])('refuses a source that is %s', (_, source) => {
+    expect(() => buildFrameContent({ widget, source })).toThrow(/frame source must be/);
+  });
+
+  test('refuses a source url over 2048 characters', () => {
+    expect(() => buildFrameContent({ widget, source: { url: `${url}?q=${'x'.repeat(2048)}` } })).toThrow(/limit is 2048/);
+  });
+});
+
 describe('frames with screens', () => {
   const open = (screen: string) => ({ type: 'frame.open', payload: { screen } });
   const home = { type: 'ListView', children: [{ type: 'ListViewItem', onClickAction: open('s1'), children: [{ type: 'Text', value: 'Story one' }] }] };
@@ -178,6 +202,12 @@ describe('send with a frame', () => {
   test('sends the text first, then the frame, and answers with the frame id', async () => {
     expect((await call({ text: 'Here it is', frame: { widget } })).result).toEqual({ messageId: 'frame-msg-id' });
     expect(sent).toEqual(['Here it is', new FrameCodec().encode({ title: 'Weekly report', description: 'Sales up 12%', widget })]);
+  });
+
+  test('sends the node source with the frame', async () => {
+    const source = { url: 'https://proxy.stage.box/nodes/btc-price' };
+    expect((await call({ frame: { widget, title: 'Report', source } })).result).toEqual({ messageId: 'frame-msg-id' });
+    expect(sent).toEqual([new FrameCodec().encode({ title: 'Report', description: 'Sales up 12%', widget, source })]);
   });
 
   test('a bad frame sends nothing, not even the text', async () => {

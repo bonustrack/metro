@@ -196,6 +196,7 @@ export interface FrameContent {
   widget?: Record<string, unknown>;
   screens?: Record<string, unknown>;
   start?: string;
+  source?: { url: string };
 }
 export const frameFallback = (c: FrameContent): string => {
   const head = c.title ? `Frame: ${c.title}` : 'Frame';

@@ -7,6 +7,7 @@ const MAX_SCREEN_ID = 120;
 const FRAME_OPEN = 'frame.open';
 const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 1000;
+const MAX_SOURCE_URL = 2048;
 const SUMMARY_SCAN = 80;
 const TEXT_TYPES = new Set(['Text', 'Caption', 'Markdown']);
 
@@ -150,6 +151,16 @@ function frameBody(args: Node): FrameBody {
   return parseScreens(args.screens, args.start);
 }
 
+function sourcePart(raw: unknown): Pick<FrameContent, 'source'> {
+  if (raw === undefined) return {};
+  const url = isNode(raw) && typeof raw.url === 'string' ? raw.url.trim() : '';
+  if (url.length > MAX_SOURCE_URL)
+    throw bad(`frame source url is ${url.length} characters; the limit is ${MAX_SOURCE_URL}`);
+  if (!URL.canParse(url) || new URL(url).protocol !== 'https:')
+    throw bad('frame source must be {"url": "https://…"}, the node that serves this widget');
+  return { source: { url } };
+}
+
 export function buildFrameContent(raw: unknown): { frame: FrameContent; title: string } {
   const args = parseJson(raw, 'frame');
   if (!isNode(args))
@@ -162,6 +173,7 @@ export function buildFrameContent(raw: unknown): { frame: FrameContent; title: s
     ...(title ? { title } : {}),
     ...(description && description !== title ? { description } : {}),
     ...body.content,
+    ...sourcePart(args.source),
   };
   return { frame, title: title ?? 'Frame' };
 }
