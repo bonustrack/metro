@@ -32,6 +32,10 @@ export const frameSchema = {
       type: 'object',
       description:
         'Optional: {"url": "https://…"}, a node URL that serves this widget live (2048 characters at most). ' +
+        "Stage then sends the frame's actions to that node, not to you, and the node's reply replaces the " +
+        'frame on that device, with no message to you. Only an action with "handler": "client" (e.g. ' +
+        '{"type": "ask", "handler": "client"}) still comes back to you as a Frame action; without a source, ' +
+        "every action does. Refresh is in the frame's three-dot menu, so a node needs no Refresh button. " +
         'Add to dashboard on the frame then adds a live widget loaded from that URL instead of a copy.',
       properties: { url: { type: 'string' } },
       required: ['url'],

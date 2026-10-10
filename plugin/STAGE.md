@@ -82,6 +82,17 @@ The separate `metadata.status` and `metadata.priority` fields are optional. Stat
     ]}}
   }}}
   ```
+- Live frames: add `"source": {"url": "https://…"}` to the frame to name the node that serves its widget, an https URL that answers with ChatKit widget JSON (Stage's node protocol: https://github.com/bonustrack/stage/blob/main/NODES.md). Stage then sends the frame's actions to that node, not to you. The node's reply replaces the frame in place, on that person's device only, and no message comes to you. Only an action with ChatKit's `"handler": "client"` still comes to you as a frame action, like every action of a frame without `source`. `frame.open` and `frame.back` stay in Stage. Here `24h` goes to the node, and `Ask` comes to you as `Frame action: ask (tapped "Ask")`:
+  ```json
+  {"line": "…", "frame": {"source": {"url": "https://eth.example.com/"}, "widget": {"type": "Card", "children": [
+    {"type": "Title", "value": "ETH 2,410 USD"},
+    {"type": "Row", "children": [
+      {"type": "Button", "label": "24h", "onClickAction": {"type": "range", "payload": {"days": 1}}},
+      {"type": "Button", "label": "Ask", "color": "secondary", "onClickAction": {"type": "ask", "handler": "client"}}
+    ]}
+  ]}}}
+  ```
+  Stage calls the node only on a tap or on Refresh in the frame's three-dot menu, and only once the person has accepted the chat. Until then, and again after the app restarts, it shows the widget as you sent it. Do not add a Refresh button to a node: every live frame and Dashboard widget has Refresh in its menu. Add to dashboard on the frame adds a live widget loaded from that URL, and its `"handler": "client"` actions still come to this chat.
 
 **Wallet cards.** The payment and signature cards Stage's own Request payment and Request signature send. Sending one moves nothing and signs nothing: the person taps Pay or Sign and confirms in Stage. Send one only when you were asked to.
 - Send: `send {"line": "…", "wallet": {"type": "<type>", "content": {…}}}`. With `text` or a `frame` as well, the card goes last, and the `message_id` you get back is the card's.
