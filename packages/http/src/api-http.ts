@@ -60,7 +60,7 @@ export function apiSession(req: IncomingMessage): Promise<ApiSession | null> {
   return bearerSessions === null ? Promise.resolve(null) : bearerSessions(req);
 }
 
-export async function readJsonBody(req: IncomingMessage, max = BODY_MAX): Promise<unknown> {
+export async function readBodyBytes(req: IncomingMessage, max = BODY_MAX): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let total = 0;
   let over = false;
@@ -72,7 +72,11 @@ export async function readJsonBody(req: IncomingMessage, max = BODY_MAX): Promis
     else if (total > 2 * max) break;
   }
   if (over) throw new ApiError('request body too large', 413);
-  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  return Buffer.concat(chunks);
+}
+
+export async function readJsonBody(req: IncomingMessage, max = BODY_MAX): Promise<unknown> {
+  const raw = (await readBodyBytes(req, max)).toString('utf8').trim();
   if (raw === '') return {};
   try {
     return JSON.parse(raw);
