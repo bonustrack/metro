@@ -22,6 +22,7 @@
     "postgres": "^3.4.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@stage-labs/config": "0.1.0-beta.3",
     "eslint": "^10.3.0",
     "knip": "^6.15.0",

@@ -49,6 +49,11 @@ import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
 import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
+import { getDb } from './db/client.js';
+import { boxKeyStore } from './db/boxes.js';
+import { BoxAuth } from './boxes/auth.js';
+import { enrollTickets, handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
+import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
 import { randomBytes } from 'node:crypto';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
@@ -127,6 +132,17 @@ const awsApi: AwsConnectionsDeps = {
   keys,
 };
 
+const connectorsSetup = readConnectorsSetup();
+
+const enrollmentApi: EnrollmentDeps = {
+  enabled: () => connectorsSetup.enabled,
+  keys,
+  tickets: enrollTickets(),
+  store: boxKeyStore(getDb),
+  auth: new BoxAuth(() => Date.now()),
+  now: () => Date.now(),
+};
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -159,6 +175,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleAwsConnectionsRequest(req, res, awsApi),
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
+  (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];
@@ -179,6 +196,7 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
+  announceConnectorsSetup(connectorsSetup);
   log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: sign-in');
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
 });
