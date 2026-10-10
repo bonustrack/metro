@@ -1,9 +1,3 @@
-CREATE TABLE IF NOT EXISTS "connector_keys" (
-	"owner" text PRIMARY KEY NOT NULL,
-	"wrapped" text NOT NULL,
-	"wrapping" text NOT NULL,
-	"created_at" text NOT NULL
-);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "connectors" (
 	"id" text PRIMARY KEY NOT NULL,
 	"owner" text NOT NULL,

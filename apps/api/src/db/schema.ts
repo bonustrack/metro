@@ -59,13 +59,6 @@ export const awsExternalIds = pgTable('aws_external_ids', {
   createdAt: text('created_at').notNull(),
 });
 
-export const connectorKeys = pgTable('connector_keys', {
-  owner: text('owner').primaryKey(),
-  wrapped: text('wrapped').notNull(),
-  wrapping: text('wrapping').notNull(),
-  createdAt: text('created_at').notNull(),
-});
-
 export const connectors = pgTable(
   'connectors',
   {
