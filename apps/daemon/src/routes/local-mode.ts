@@ -15,6 +15,7 @@ import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/bundle.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import type { ConnectorApiDeps } from '../connectors/api.js';
+import { connectorMigrationPreview } from '../connectors/migration-preview.js';
 import { ConnectorTransfers } from '../connectors/transfer-api.js';
 import { copyConnectorRows } from '../connectors/transfer-store.js';
 import { authenticate } from '../mcp/request-identity.js';
@@ -122,6 +123,7 @@ function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>
 }
 
 const connectorApi: ConnectorApiDeps = {
+  migrationPreview: () => connectorMigrationPreview(localOwner()),
   listConnectors: async () => {
     const rows = await localListConnectors();
     publishLocalConnectors(readLocalConnectors());

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { healthOf } from './health.js';
 import type { RemoteTool } from './tools.js';
+import type { ConnectorMigrationPreview } from './migration-preview.js';
 import { normalizePolicy, type ToolPolicy } from '../policy/policy.js';
 import {
   apiFailure,
@@ -9,6 +10,7 @@ import {
   bodyField,
   cors,
   readJsonBody,
+  requireAdmin,
   sendJson,
   stringOf,
 } from '@metro-labs/http/api-http';
@@ -31,6 +33,7 @@ import type {
 const PREFIX = '/api/connectors';
 
 export interface ConnectorApiDeps extends OAuthRouteDeps {
+  migrationPreview?: () => ConnectorMigrationPreview;
   listConnectors: () => Promise<Connector[]>;
   createConnector: (input: ConnectorInput) => Promise<Connector>;
   verifyConnector: (id: string) => Promise<ConnectorCheck>;
@@ -43,6 +46,7 @@ export interface ConnectorApiDeps extends OAuthRouteDeps {
 
 type Routable =
   | { kind: 'collection' }
+  | { kind: 'migration-preview' }
   | { kind: 'callback' }
   | { kind: 'connector'; id: string }
   | { kind: 'verify'; id: string }
@@ -74,6 +78,7 @@ function target(path: string): Target {
   const head = segments[0];
   if (head === undefined) return { kind: 'collection' };
   if (head === 'callback' && segments.length === 1) return { kind: 'callback' };
+  if (head === 'migration-preview' && segments.length === 1) return { kind: 'migration-preview' };
   const id = parseId(head);
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
 }
@@ -217,7 +222,7 @@ async function handlePolicy(
   sendJson(req, res, 200, connectorPayload(row));
 }
 
-type ById = Exclude<Routable['kind'], 'collection' | 'callback'>;
+type ById = Exclude<Routable['kind'], 'collection' | 'callback' | 'migration-preview'>;
 
 const BY_ID: Record<ById, (req: IncomingMessage, res: ServerResponse, deps: ConnectorApiDeps, id: string) => Promise<void>> = {
   verify: handleVerify,
@@ -239,6 +244,11 @@ async function route(
 ): Promise<void> {
   try {
     if (tgt.kind === 'callback') return;
+    if (tgt.kind === 'migration-preview') {
+      if (deps.migrationPreview === undefined) sendJson(req, res, 503, { error: 'Migration preview is unavailable.' });
+      else sendJson(req, res, 200, deps.migrationPreview());
+      return;
+    }
     if (tgt.kind !== 'collection') await BY_ID[tgt.kind](req, res, deps, tgt.id);
     else if (req.method === 'GET') await handleList(req, res, deps);
     else await handleCreate(req, res, deps);
@@ -249,6 +259,7 @@ async function route(
 
 const ALLOWED: Record<Routable['kind'], string[]> = {
   collection: ['GET', 'POST'],
+  'migration-preview': ['GET'],
   callback: ['GET'],
   connector: ['GET', 'DELETE'],
   verify: ['POST'],
@@ -274,6 +285,7 @@ async function dispatch(
     sendJson(req, res, 401, { error: 'unauthorized' });
     return;
   }
+  if (tgt.kind === 'migration-preview') requireAdmin(session);
   await route(req, res, deps, tgt);
 }
 

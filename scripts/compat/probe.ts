@@ -4,6 +4,7 @@ import { dashboardSource, DASHBOARD_SINCE } from '../../packages/client/src/api/
 import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/client/src/api/dashboard.ts';
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import { connectorTransfer } from '../../packages/client/src/api/connector-copy.ts';
+import { fetchMigrationPreview, MIGRATION_UPDATE } from '../../packages/client/src/api/connector-migration.ts';
 import { isRecord } from '../../packages/client/src/read.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
 import * as session from '../../packages/client/src/api/attach-session.ts';
@@ -230,6 +231,16 @@ const everything = new Set<Section>(['channels', 'connectors', 'skills', 'memory
 const gathered = await ok('gatherPayload', () => transfer.gatherPayload({ id: agent, name: '' }, everything, new Date().toISOString()));
 if (gathered !== undefined)
   await ok('applyPayload', () => transfer.applyPayload(gathered.payload, everything, 'overwrite', { id: agent, name: '' }));
+
+await ok('migration preview off or explicit upgrade notice', async () => {
+  try {
+    const plan = await fetchMigrationPreview();
+    if (plan.preview.enabled || plan.rows.length !== 0) throw new Error('migration preview must be off by default');
+  } catch (err) {
+    if (message(err) === MIGRATION_UPDATE) return;
+    throw err;
+  }
+});
 
 await ok('connector copy or explicit upgrade notice', async () => {
   const base = baseFromSegment(host);
