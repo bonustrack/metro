@@ -22,9 +22,11 @@ import {
 } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { CopyAllConnectors } from './CopyConnectors.js';
+import { MoveConnectors } from './MoveConnectors.js';
 import { go } from '../lib/nav.js';
 
 
+const ACTIONS = { flexShrink: 1, maxWidth: '100%' } as const;
 const FALLBACK = 'Could not load your connectors.';
 const EMPTY = 'No connector yet. A connector gives your agent tools, like a calendar, Notion or GitHub.';
 
@@ -87,7 +89,8 @@ export function Connectors({
         title="Connectors"
         count={data?.connectors.length}
         action={
-          <Row gap={8}>
+          <Row gap={8} wrap style={ACTIONS}>
+          <MoveConnectors />
           <CopyAllConnectors data={data} />
           <Button
             color="primary"
