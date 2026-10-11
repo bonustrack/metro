@@ -1,5 +1,5 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -64,15 +64,29 @@ function storedOf(path: string): Record<string, unknown> | null {
   return isRecord(parsed) ? parsed : unreadable();
 }
 
-export function readAgentKey(dir = agentsDir()): AgentKey | null {
-  const path = existsSync(pathOf(dir)) ? pathOf(dir) : join(dir, 'box-key.json');
-  if (!existsSync(path)) return null;
-  const stored = storedOf(path);
+function keyOf(stored: Record<string, unknown> | null): AgentKey | null {
   if (stored === null) return null;
   const signing = privateKeyOf(stored.signing, 'ed25519');
   const sealing = privateKeyOf(stored.sealing, 'x25519');
   if (stored.version !== 1 || signing === null || sealing === null) return unreadable();
   return agentKeyOf(signing, sealing, enrollmentOf(stored.enrollment));
+}
+
+export function readAgentKey(dir = agentsDir()): AgentKey | null {
+  const path = existsSync(pathOf(dir)) ? pathOf(dir) : join(dir, 'box-key.json');
+  return existsSync(path) ? keyOf(storedOf(path)) : null;
+}
+
+const pendingPath = (dir: string): string => join(dir, 'agent-key.pending.json');
+
+export function readPendingAgentKey(owner: string, dir: string): AgentKey | null {
+  if (!existsSync(pendingPath(dir))) return null;
+  const stored = storedOf(pendingPath(dir));
+  return stored?.owner === owner ? keyOf(stored) : null;
+}
+
+export function clearPendingAgentKey(dir: string): void {
+  rmSync(pendingPath(dir), { force: true });
 }
 
 export function newAgentKey(): AgentKey {
@@ -81,7 +95,12 @@ export function newAgentKey(): AgentKey {
 
 const exported = (key: KeyObject): string => key.export({ format: 'der', type: 'pkcs8' }).toString('base64');
 
+const privateKeys = (key: AgentKey): Record<string, unknown> => ({ version: 1, signing: exported(key.signing), sealing: exported(key.sealing) });
+
+export function savePendingAgentKey(key: AgentKey, owner: string, dir: string): void {
+  writeSecure(pendingPath(dir), `${JSON.stringify({ ...privateKeys(key), owner }, null, 2)}\n`);
+}
+
 export function saveAgentKey(key: AgentKey, enrollment: Enrollment, dir = agentsDir()): void {
-  const stored = { version: 1, signing: exported(key.signing), sealing: exported(key.sealing), enrollment };
-  writeSecure(pathOf(dir), `${JSON.stringify(stored, null, 2)}\n`);
+  writeSecure(pathOf(dir), `${JSON.stringify({ ...privateKeys(key), enrollment }, null, 2)}\n`);
 }

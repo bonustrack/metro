@@ -11,7 +11,7 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
-import { newAgentKey, readAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
+import { newAgentKey, readAgentKey, readPendingAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
 
 const OWNER = 'org_01AGENTOWNER00000';
@@ -32,6 +32,8 @@ let deviceOwner: string | null = OWNER;
 let seen: Seen[] = [];
 let enrolledKey: string | null = null;
 let reply: ((path: string) => { status: number; body: unknown } | null) | null = null;
+let beforeReply: ((path: string) => Promise<void>) | null = null;
+let loseEnrollmentAnswer = false;
 const servers: Server[] = [];
 
 async function listen(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<string> {
@@ -61,12 +63,16 @@ async function fakeApi(req: IncomingMessage, res: ServerResponse): Promise<void>
     send(res, 401, { error: 'This agent is not enrolled with Metro, or its request signature is not valid.' });
     return;
   }
+  await beforeReply?.(path);
   const custom = reply?.(path) ?? null;
   if (custom !== null) {
     send(res, custom.status, custom.body);
     return;
   }
-  if (path === '/api/agents/enroll') enrolledKey = signingKey;
+  if (path === '/api/agents/enroll') {
+    enrolledKey = signingKey;
+    if (loseEnrollmentAnswer) throw new Error('answer lost after commit');
+  }
   send(res, 200, { server: SERVER, organization: OWNER, keyId: agentKeyId(signingKey), enrolledAt: '2026-10-09T00:00:00.000Z' });
 }
 
@@ -100,6 +106,8 @@ beforeEach(() => {
   seen = [];
   enrolledKey = null;
   reply = null;
+  beforeReply = null;
+  loseEnrollmentAnswer = false;
 });
 
 afterAll(async () => {
@@ -216,12 +224,73 @@ describe('POST /api/enrollment', () => {
     expect(readAgentKey(dir)?.keyId).toBe(old.keyId);
   });
 
-  test('an answer naming another organization, agent or key saves nothing', async () => {
+  test('an answer naming another organization or key does not replace the active key', async () => {
     reply = (path) => path === '/api/agents/enroll' ? { status: 200, body: { server: SERVER, organization: 'org_01SOMEONEELSE00', keyId: 'x' } } : null;
     expect((await enroll({ ticket: TICKET })).status).toBe(503);
-    reply = (path) => path === '/api/agents/session' ? { status: 200, body: { server: 'agent000002', organization: OWNER, keyId: enrolledKey === null ? '' : agentKeyId(enrolledKey) } } : null;
-    expect((await enroll({ ticket: TICKET })).status).toBe(503);
     expect(existsSync(join(dir, 'agent-key.json'))).toBe(false);
+    expect(readPendingAgentKey(OWNER, dir)).not.toBeNull();
+  });
+
+  test('a lost confirmation keeps the committed key and a retry recovers without rotating it', async () => {
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    const previous = readAgentKey(dir)?.keyId;
+    reply = (path) => path.endsWith('/session') ? { status: 503, body: { error: 'temporary failure' } } : null;
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    const committed = readAgentKey(dir);
+    expect(committed?.keyId).not.toBe(previous);
+    expect(committed?.signingKey).toBe(enrolledKey);
+    expect(readPendingAgentKey(OWNER, dir)?.keyId).toBe(committed?.keyId);
+    expect(statSync(join(dir, 'agent-key.pending.json')).mode & 0o777).toBe(0o600);
+    expect(viewFiles(dir).has('agent-key.pending.json')).toBe(false);
+    reply = null;
+    seen = [];
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect(seen.map((entry) => entry.path)).toEqual(['/api/agents/session']);
+    expect(readAgentKey(dir)?.keyId).toBe(committed?.keyId);
+    expect(readPendingAgentKey(OWNER, dir)).toBeNull();
+  });
+
+  test('a lost enrollment response leaves a durable key that the next request recovers', async () => {
+    loseEnrollmentAnswer = true;
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    expect(readAgentKey(dir)).toBeNull();
+    const pending = readPendingAgentKey(OWNER, dir);
+    expect(pending?.signingKey).toBe(enrolledKey);
+    loseEnrollmentAnswer = false;
+    seen = [];
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect(seen.map((entry) => entry.path)).toEqual(['/api/agents/session']);
+    expect(readAgentKey(dir)?.keyId).toBe(pending?.keyId);
+  });
+
+  test('overlapping enrollments cannot commit or save their keys out of order', async () => {
+    const reached = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    beforeReply = async (path) => {
+      if (!path.endsWith('/session')) return;
+      reached.resolve();
+      await release.promise;
+    };
+    const first = enroll({ ticket: TICKET });
+    await reached.promise;
+    try {
+      expect((await enroll({ ticket: TICKET })).status).toBe(409);
+      expect(seen.filter((entry) => entry.path.endsWith('/enroll'))).toHaveLength(1);
+    } finally {
+      release.resolve();
+    }
+    expect((await first).status).toBe(200);
+    expect(readAgentKey(dir)?.signingKey).toBe(enrolledKey);
+    beforeReply = null;
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect(readAgentKey(dir)?.signingKey).toBe(enrolledKey);
+  });
+
+  test('an organization change during enrollment does not save a key as the new owner', async () => {
+    beforeReply = async () => { deviceOwner = 'org_01SOMEONEELSE00'; };
+    expect((await enroll({ ticket: TICKET })).status).toBe(409);
+    expect(readAgentKey(dir)).toBeNull();
+    expect(readPendingAgentKey('org_01SOMEONEELSE00', dir)).toBeNull();
   });
 
   test('an answer too large for Metro is a 503 and saves nothing', async () => {
