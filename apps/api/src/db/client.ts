@@ -1,9 +1,12 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import postgres from 'postgres';
 import { log } from '@metro-labs/core/log';
 import * as schema from './schema.js';
 
 export type Db = PostgresJsDatabase<typeof schema>;
+
+export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 let sql: ReturnType<typeof postgres> | null = null;
 let db: Db | null = null;

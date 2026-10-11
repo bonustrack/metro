@@ -1,4 +1,4 @@
-import { index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable(
   'agents',
@@ -58,3 +58,61 @@ export const awsExternalIds = pgTable('aws_external_ids', {
   externalId: text('external_id').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const connectors = pgTable(
+  'connectors',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    name: text('name').notNull(),
+    url: text('url').notNull(),
+    auth: text('auth').notNull(),
+    policy: text('policy'),
+    secret: text('secret'),
+    createdBy: text('created_by').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('connectors_owner_name_idx').on(t.owner, t.name), index('connectors_owner_idx').on(t.owner)],
+);
+
+export const connectorAgents = pgTable(
+  'connector_agents',
+  {
+    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    policy: text('policy'),
+    createdBy: text('created_by').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.connector, t.agent] }), index('connector_agents_agent_idx').on(t.agent)],
+);
+
+export const connectorEvents = pgTable(
+  'connector_events',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    connector: text('connector'),
+    agent: text('agent'),
+    actor: text('actor').notNull(),
+    action: text('action').notNull(),
+    detail: text('detail'),
+    at: text('at').notNull(),
+  },
+  (t) => [index('connector_events_owner_at_idx').on(t.owner, t.at)],
+);
+
+export const boxKeys = pgTable(
+  'box_keys',
+  {
+    agent: text('agent').primaryKey().references(() => agents.id, { onDelete: 'cascade' }),
+    owner: text('owner').notNull(),
+    keyId: text('key_id').notNull(),
+    signingKey: text('signing_key').notNull(),
+    sealingKey: text('sealing_key').notNull(),
+    enrolledBy: text('enrolled_by').notNull(),
+    enrolledAt: text('enrolled_at').notNull(),
+  },
+  (t) => [uniqueIndex('box_keys_key_id_idx').on(t.keyId)],
+);

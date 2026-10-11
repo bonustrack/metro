@@ -2,7 +2,7 @@
   "name": "@metro-labs/http",
   "version": "0.1.0",
   "private": true,
-  "description": "How a metro server authenticates and answers a request: CORS, the JSON helpers, ApiError, the signed-identity header, the identity registry and AWS request signing. Shared by the daemon and api.metro.box, never by a station.",
+  "description": "How a metro server authenticates and answers a request: CORS, the JSON helpers, ApiError, the signed-identity header, the identity registry, AWS request signing and the signature a box puts on its requests to api.metro.box. Shared by the daemon and api.metro.box, never by a station.",
   "type": "module",
   "exports": {
     "./cors": "./src/cors.ts",
@@ -11,7 +11,8 @@
     "./return-to": "./src/return-to.ts",
     "./mode-api": "./src/mode-api.ts",
     "./workos-token": "./src/workos-token.ts",
-    "./sigv4": "./src/sigv4.ts"
+    "./sigv4": "./src/sigv4.ts",
+    "./box-signature": "./src/box-signature.ts"
   },
   "scripts": {
     "build": "tsc",

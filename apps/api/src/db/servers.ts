@@ -6,6 +6,7 @@ import { isUniqueViolation } from './errors.js';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { agents, awsConnections, awsExternalIds } from './schema.js';
 import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aws.js';
+import { leaveOrganization } from './boxes.js';
 import type { AwsAccount } from '../aws/access.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
@@ -296,16 +297,20 @@ async function assertAdminOf(cfg: WorkosConfig | null, session: Session, to: str
 
 async function changeOwner(id: string, from: string, to: string): Promise<ServerEntry> {
   try {
-    const rows = await getDb()
-      .update(agents)
-      .set({
-        owner: to,
-        instanceId: sql`case when ${agents.awsConnection} is null then ${agents.instanceId} end`,
-        launchRegion: sql`case when ${agents.awsConnection} is null then ${agents.launchRegion} end`,
-        awsConnection: null,
-      })
-      .where(and(eq(agents.id, id), eq(agents.owner, from)))
-      .returning(columns);
+    const rows = await getDb().transaction(async (tx) => {
+      const moved = await tx
+        .update(agents)
+        .set({
+          owner: to,
+          instanceId: sql`case when ${agents.awsConnection} is null then ${agents.instanceId} end`,
+          launchRegion: sql`case when ${agents.awsConnection} is null then ${agents.launchRegion} end`,
+          awsConnection: null,
+        })
+        .where(and(eq(agents.id, id), eq(agents.owner, from)))
+        .returning(columns);
+      if (moved.length > 0) await leaveOrganization(tx, id, from, new Date().toISOString());
+      return moved;
+    });
     const row = rows[0];
     if (row === undefined) throw missing();
     return entryOf(row);
