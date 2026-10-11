@@ -2,12 +2,14 @@ import { createHash, randomBytes } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { whyUnreachable } from './connector-reach.js';
-import { refused } from './connector-url.js';
+import { ConnectorVerifyError, refused } from './connector-url.js';
 import type { OAuthTokens } from './connector-mcp.js';
 import type { OAuthServer } from './connector-discovery.js';
 
 const TOKEN_TIMEOUT_MS = 15_000;
 const CLIENT_NAME = 'Metro';
+
+export class OAuthInvalidGrant extends ConnectorVerifyError {}
 
 export interface OAuthClient {
   clientId: string;
@@ -84,18 +86,32 @@ export function authorizeUrl(input: AuthorizeInput): string {
   return url.toString();
 }
 
+function validateOptionalTokens(body: Record<string, unknown>): void {
+  const refresh = body.refresh_token;
+  if (Object.hasOwn(body, 'refresh_token') && (typeof refresh !== 'string' || !/^[\x21-\x7e]{1,16384}$/.test(refresh))) throw refused('That server returned an invalid refresh token.');
+  if (Object.hasOwn(body, 'token_type') && (typeof body.token_type !== 'string' || body.token_type.toLowerCase() !== 'bearer')) throw refused('That server returned an unsupported token type.');
+}
+
+function expiryFrom(body: Record<string, unknown>): number | undefined {
+  if (!Object.hasOwn(body, 'expires_in')) return undefined;
+  const expires = body.expires_in;
+  if (typeof expires !== 'number' || !Number.isFinite(expires) || expires <= 0) throw refused('That server returned an invalid token expiry.');
+  const at = Date.now() + expires * 1000;
+  if (!Number.isSafeInteger(at)) throw refused('That server returned an invalid token expiry.');
+  return at;
+}
+
 function tokensFrom(body: Record<string, unknown>): OAuthTokens {
   const access = body.access_token;
-  if (typeof access !== 'string' || access === '')
-    throw refused('That server did not return an access token.');
+  if (typeof access !== 'string' || !/^[\x21-\x7e]{1,16377}$/.test(access))
+    throw refused('That server did not return a sendable access token.');
+  validateOptionalTokens(body);
+  const expiresAt = expiryFrom(body);
   const refresh = body.refresh_token;
-  const expires = body.expires_in;
   return {
     accessToken: access,
     ...(typeof refresh === 'string' ? { refreshToken: refresh } : {}),
-    ...(typeof expires === 'number'
-      ? { expiresAt: Date.now() + expires * 1000 }
-      : {}),
+    ...(expiresAt === undefined ? {} : { expiresAt }),
   };
 }
 
@@ -128,6 +144,7 @@ async function postToken(
     throw refused(`Metro could not reach that server to finish signing in: ${whyUnreachable(err)}`);
   }
   const body: unknown = await res.json().catch(() => null);
+  if (form.grant_type === 'refresh_token' && res.status === 400 && isRecord(body) && body.error === 'invalid_grant') throw new OAuthInvalidGrant('That server requires a new sign-in.', 400);
   if (!res.ok || !isRecord(body))
     throw refused('That server refused to complete the sign-in.');
   return tokensFrom(body);

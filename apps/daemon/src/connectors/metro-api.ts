@@ -23,15 +23,15 @@ export const METRO_API: MetroApi = {
 const tooLarge = (): ApiError => new ApiError('api.metro.box sent an answer too large for Metro.', 503);
 const unreachable = (): ApiError => new ApiError('Metro could not reach api.metro.box. Try again.', 503);
 
-async function answerOf(response: Response): Promise<unknown> {
-  if (Number(response.headers.get('content-length') ?? '0') > ANSWER_MAX) throw tooLarge();
+async function answerOf(response: Response, max: number): Promise<unknown> {
+  if (Number(response.headers.get('content-length') ?? '0') > max) throw tooLarge();
   const reader = response.body?.getReader();
   if (reader === undefined) return null;
   const parts: Uint8Array[] = [];
   let size = 0;
   for (let part = await reader.read(); !part.done; part = await reader.read()) {
     size += part.value.length;
-    if (size > ANSWER_MAX) {
+    if (size > max) {
       await reader.cancel();
       throw tooLarge();
     }
@@ -56,11 +56,21 @@ function refusal(status: number, value: unknown): ApiError {
   return new MetroApiRefusal(said, status, code);
 }
 
-export async function agentCall(api: MetroApi, key: AgentKey, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+interface AgentCallOptions {
+  answerMax?: number;
+  timeoutMs?: number;
+}
+
+function signedCall(api: MetroApi, key: AgentKey, path: string, body: Record<string, unknown> | undefined): { url: URL; method: string; text: string; authorization: string } {
   const url = new URL(path, api.base);
   const method = body === undefined ? 'GET' : 'POST';
   const text = body === undefined ? '' : JSON.stringify(body);
   const authorization = signAgentRequest({ method, host: url.host, path: `${url.pathname}${url.search}`, body: Buffer.from(text, 'utf8') }, key.signing, key.keyId, api.now());
+  return { url, method, text, authorization };
+}
+
+export async function agentCall(api: MetroApi, key: AgentKey, path: string, body?: Record<string, unknown>, options: AgentCallOptions = {}): Promise<Record<string, unknown>> {
+  const { url, method, text, authorization } = signedCall(api, key, path, body);
   let response: Response;
   try {
     response = await api.fetch(url.toString(), {
@@ -68,12 +78,12 @@ export async function agentCall(api: MetroApi, key: AgentKey, path: string, body
       headers: { authorization, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: text }),
       redirect: 'error',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
     });
   } catch {
     throw unreachable();
   }
-  const value = await answerOf(response).catch((err: unknown) => {
+  const value = await answerOf(response, options.answerMax ?? ANSWER_MAX).catch((err: unknown) => {
     throw err instanceof ApiError ? err : unreachable();
   });
   if (!response.ok) throw refusal(response.status, value);

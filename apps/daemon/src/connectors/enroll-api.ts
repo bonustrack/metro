@@ -18,6 +18,7 @@ export interface EnrollApiDeps {
   owner: () => string | null;
   dir?: () => string;
   api?: MetroApi;
+  invalidate?: () => void;
 }
 
 export interface Enrolled {
@@ -88,6 +89,7 @@ async function enroll(req: IncomingMessage, session: ApiSession, deps: EnrollApi
   if (enrolling.has(dir)) throw new ApiError('This agent is already enrolling. Wait for it to finish before trying again.', 409);
   enrolling.add(dir);
   try {
+    deps.invalidate?.();
     return await exchange(ticket, owner, dir, deps);
   } finally {
     enrolling.delete(dir);

@@ -1,4 +1,4 @@
-import { index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable(
   'agents',
@@ -118,3 +118,16 @@ export const agentKeys = pgTable(
   },
   (t) => [uniqueIndex('agent_keys_key_id_idx').on(t.keyId)],
 );
+
+export const agentNonces = pgTable(
+  'agent_nonces',
+  {
+    keyId: text('key_id').notNull(),
+    nonce: text('nonce').notNull(),
+    owner: text('owner').notNull(),
+    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.keyId, t.nonce] }), index('agent_nonces_owner_idx').on(t.owner), index('agent_nonces_expiry_idx').on(t.expiresAt)],
+);
+
+export const agentNonceGuard = pgTable('agent_nonce_guard', { id: text('id').primaryKey() });

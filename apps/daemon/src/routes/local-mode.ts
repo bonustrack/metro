@@ -7,6 +7,7 @@ import { detachWithGmailRevocation } from './gmail-detach.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
+import { invalidateOrgConnectorSync } from '../connectors/org-sync-watch.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -202,12 +203,16 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     connectorTransfers: new ConnectorTransfers({ read: readLocalConnectors, copy: copyConnectorRows }),
-    enrollApi: { owner: () => localOwner() },
+    enrollApi: { owner: () => localOwner(), invalidate: invalidateOrgConnectorSync },
     relayApi,
     claudeApi: { liveEvents: deps.liveEvents },
     updateApi: { restart: deps.restart },
     controlApi: { restart: deps.restart, stop: deps.stop },
-    ownerApi: { setOwner: (owner) => setLocalOwner(owner) },
+    ownerApi: { setOwner: (owner) => {
+      const saved = setLocalOwner(owner);
+      invalidateOrgConnectorSync();
+      return saved;
+    } },
     machineApi: {},
     modelApi: { switchModel: deps.switchModel, owner: localOwner },
     gateway: { config: readModelConfig },

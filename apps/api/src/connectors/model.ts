@@ -91,8 +91,17 @@ function serverOf(raw: unknown): OAuthServer | null {
   };
 }
 
+function validStoredExpiry(raw: Record<string, unknown>): boolean {
+  return !Object.hasOwn(raw, 'expiresAt') || (typeof raw.expiresAt === 'number' && Number.isSafeInteger(raw.expiresAt) && raw.expiresAt >= 0);
+}
+
+function validStoredRefresh(raw: Record<string, unknown>): boolean {
+  return !Object.hasOwn(raw, 'refreshToken') || (typeof raw.refreshToken === 'string' && /^[\x21-\x7e]{1,16384}$/.test(raw.refreshToken));
+}
+
 function tokensOf(raw: unknown): OAuthTokens | null {
-  if (!isRecord(raw) || typeof raw.accessToken !== 'string' || raw.accessToken === '') return null;
+  if (!isRecord(raw) || typeof raw.accessToken !== 'string' || !/^[\x21-\x7e]{1,16377}$/.test(raw.accessToken)) return null;
+  if (!validStoredExpiry(raw) || !validStoredRefresh(raw)) return null;
   return {
     accessToken: raw.accessToken,
     ...(typeof raw.refreshToken === 'string' ? { refreshToken: raw.refreshToken } : {}),

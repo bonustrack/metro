@@ -86,6 +86,7 @@ function headersOf(init: RequestInit, body: string | undefined): Record<string, 
 function bodyOf(init: RequestInit): string | undefined {
   if (init.body === undefined || init.body === null) return undefined;
   if (typeof init.body !== 'string') throw new EgressRefused('an egress request body must be text');
+  if (Buffer.byteLength(init.body) > BODY_MAX) throw new EgressRefused('the request was larger than Metro sends');
   return init.body;
 }
 
