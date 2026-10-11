@@ -1,11 +1,12 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, type KeyObject } from 'node:crypto';
+import { closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { writeSecure } from '@metro-labs/core/secure-fs';
+import { ensureSecureDir } from '@metro-labs/core/secure-fs';
 import { agentKeyId, rawPublicKey } from '@metro-labs/http/agent-signature';
+import { ApiError } from '@metro-labs/http/api-error';
 import { isOrganizationId } from '@metro-labs/http/workos-token';
 import { agentsDir } from '../agents/files.js';
 
@@ -79,14 +80,55 @@ export function readAgentKey(dir = agentsDir()): AgentKey | null {
 
 const pendingPath = (dir: string): string => join(dir, 'agent-key.pending.json');
 
-export function readPendingAgentKey(owner: string, dir: string): AgentKey | null {
+function pendingFields(stored: Record<string, unknown> | null): { owner: string; ticketHash: string; expectedServer: string | null } {
+  if (typeof stored?.ticketHash !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(stored.ticketHash) || typeof stored.owner !== 'string' || !isOrganizationId(stored.owner)) {
+    throw new ApiError('Metro cannot read the pending enrollment key. Restore its file or permissions before enrolling again.', 503);
+  }
+  const expectedServer = stored.expectedServer === undefined ? null : parseId(stored.expectedServer);
+  if (stored.expectedServer !== undefined && expectedServer === null) throw new ApiError('Metro cannot read the pending enrollment identity. Restore its file before enrolling again.', 503);
+  return { owner: stored.owner, ticketHash: stored.ticketHash, expectedServer };
+}
+
+export function readPendingAgentKey(owner: string, dir: string): (AgentKey & { ticketHash: string; expectedServer: string | null }) | null {
   if (!existsSync(pendingPath(dir))) return null;
   const stored = storedOf(pendingPath(dir));
-  return stored?.owner === owner ? keyOf(stored) : null;
+  const fields = pendingFields(stored);
+  const key = keyOf(stored);
+  if (key === null) throw new ApiError('Metro cannot read the pending enrollment key. Restore its file or permissions before enrolling again.', 503);
+  return fields.owner === owner ? { ...key, ticketHash: fields.ticketHash, expectedServer: fields.expectedServer } : null;
+}
+
+function flush(path: string): void {
+  const file = openSync(path, 'r');
+  try {
+    fsyncSync(file);
+  } finally {
+    closeSync(file);
+  }
+}
+
+function writeKey(path: string, stored: Record<string, unknown>): void {
+  const dir = dirname(path);
+  ensureSecureDir(dir);
+  const temp = `${path}.${randomBytes(12).toString('hex')}.tmp`;
+  const file = openSync(temp, 'wx', 0o600);
+  try {
+    try {
+      writeFileSync(file, `${JSON.stringify(stored, null, 2)}\n`);
+      fsyncSync(file);
+    } finally {
+      closeSync(file);
+    }
+    renameSync(temp, path);
+    flush(dir);
+  } finally {
+    rmSync(temp, { force: true });
+  }
 }
 
 export function clearPendingAgentKey(dir: string): void {
   rmSync(pendingPath(dir), { force: true });
+  flush(dir);
 }
 
 export function newAgentKey(): AgentKey {
@@ -97,10 +139,10 @@ const exported = (key: KeyObject): string => key.export({ format: 'der', type: '
 
 const privateKeys = (key: AgentKey): Record<string, unknown> => ({ version: 1, signing: exported(key.signing), sealing: exported(key.sealing) });
 
-export function savePendingAgentKey(key: AgentKey, owner: string, dir: string): void {
-  writeSecure(pendingPath(dir), `${JSON.stringify({ ...privateKeys(key), owner }, null, 2)}\n`);
+export function savePendingAgentKey(key: AgentKey, owner: string, ticketHash: string, dir: string, expectedServer?: string): void {
+  writeKey(pendingPath(dir), { ...privateKeys(key), owner, ticketHash, ...(expectedServer === undefined ? {} : { expectedServer }) });
 }
 
 export function saveAgentKey(key: AgentKey, enrollment: Enrollment, dir = agentsDir()): void {
-  writeSecure(pathOf(dir), `${JSON.stringify({ ...privateKeys(key), enrollment }, null, 2)}\n`);
+  writeKey(pathOf(dir), { ...privateKeys(key), enrollment });
 }

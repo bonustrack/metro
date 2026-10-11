@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -31,6 +31,13 @@ let apiBase = '';
 let deviceOwner: string | null = OWNER;
 let seen: Seen[] = [];
 let enrolledKey: string | null = null;
+let enrolledServer = SERVER;
+let tickets = new Map([[TICKET, SERVER]]);
+const issueTicket = (server = SERVER): string => {
+  const ticket = randomBytes(32).toString('base64url');
+  tickets.set(ticket, server);
+  return ticket;
+};
 let reply: ((path: string) => { status: number; body: unknown } | null) | null = null;
 let beforeReply: ((path: string) => Promise<void>) | null = null;
 let loseEnrollmentAnswer = false;
@@ -60,7 +67,7 @@ async function fakeApi(req: IncomingMessage, res: ServerResponse): Promise<void>
   const signingKey = path === '/api/agents/enroll' ? String(body.signingKey) : enrolledKey;
   const request = { method: req.method ?? '', host: req.headers.host ?? '', path, body: bytes };
   if (proof === null || signingKey === null || !agentSignatureValid(request, proof, signingKey)) {
-    send(res, 401, { error: 'This agent is not enrolled with Metro, or its request signature is not valid.' });
+    send(res, 401, { error: 'This agent is not enrolled with Metro, or its request signature is not valid.', code: 'agent_key_missing' });
     return;
   }
   await beforeReply?.(path);
@@ -70,10 +77,18 @@ async function fakeApi(req: IncomingMessage, res: ServerResponse): Promise<void>
     return;
   }
   if (path === '/api/agents/enroll') {
+    const ticket = String(body.ticket);
+    const server = tickets.get(ticket);
+    if (server === undefined) {
+      send(res, 400, { error: 'This enrollment ticket is stale.' });
+      return;
+    }
+    tickets.delete(ticket);
     enrolledKey = signingKey;
+    enrolledServer = server;
     if (loseEnrollmentAnswer) throw new Error('answer lost after commit');
   }
-  send(res, 200, { server: SERVER, organization: OWNER, keyId: agentKeyId(signingKey), enrolledAt: '2026-10-09T00:00:00.000Z' });
+  send(res, 200, { server: enrolledServer, organization: OWNER, keyId: agentKeyId(signingKey), enrolledAt: '2026-10-09T00:00:00.000Z' });
 }
 
 const enroll = (body: unknown, role = 'admin'): Promise<Response> => fetch(`${agentBase}/api/enrollment`, {
@@ -105,6 +120,8 @@ beforeEach(() => {
   deviceOwner = OWNER;
   seen = [];
   enrolledKey = null;
+  enrolledServer = SERVER;
+  tickets = new Map([[TICKET, SERVER]]);
   reply = null;
   beforeReply = null;
   loseEnrollmentAnswer = false;
@@ -189,7 +206,7 @@ describe('POST /api/enrollment', () => {
   test('enrolling again gives the agent a new key', async () => {
     expect((await enroll({ ticket: TICKET })).status).toBe(200);
     const first = readAgentKey(dir)?.keyId;
-    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect((await enroll({ ticket: issueTicket() })).status).toBe(200);
     const second = readAgentKey(dir)?.keyId;
     expect(second).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(second).not.toBe(first);
@@ -234,17 +251,18 @@ describe('POST /api/enrollment', () => {
   test('a lost confirmation keeps the committed key and a retry recovers without rotating it', async () => {
     expect((await enroll({ ticket: TICKET })).status).toBe(200);
     const previous = readAgentKey(dir)?.keyId;
+    const nextTicket = issueTicket();
     reply = (path) => path.endsWith('/session') ? { status: 503, body: { error: 'temporary failure' } } : null;
-    expect((await enroll({ ticket: TICKET })).status).toBe(503);
-    const committed = readAgentKey(dir);
+    expect((await enroll({ ticket: nextTicket })).status).toBe(503);
+    const committed = readPendingAgentKey(OWNER, dir);
     expect(committed?.keyId).not.toBe(previous);
     expect(committed?.signingKey).toBe(enrolledKey);
-    expect(readPendingAgentKey(OWNER, dir)?.keyId).toBe(committed?.keyId);
+    expect(readAgentKey(dir)?.keyId).toBe(previous);
     expect(statSync(join(dir, 'agent-key.pending.json')).mode & 0o777).toBe(0o600);
     expect(viewFiles(dir).has('agent-key.pending.json')).toBe(false);
     reply = null;
     seen = [];
-    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect((await enroll({ ticket: nextTicket })).status).toBe(200);
     expect(seen.map((entry) => entry.path)).toEqual(['/api/agents/session']);
     expect(readAgentKey(dir)?.keyId).toBe(committed?.keyId);
     expect(readPendingAgentKey(OWNER, dir)).toBeNull();
@@ -282,8 +300,54 @@ describe('POST /api/enrollment', () => {
     expect((await first).status).toBe(200);
     expect(readAgentKey(dir)?.signingKey).toBe(enrolledKey);
     beforeReply = null;
-    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    expect((await enroll({ ticket: issueTicket() })).status).toBe(200);
     expect(readAgentKey(dir)?.signingKey).toBe(enrolledKey);
+  });
+
+  test('a fresh ticket after interruption is exchanged for its own agent with a new key', async () => {
+    loseEnrollmentAnswer = true;
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    const previous = readPendingAgentKey(OWNER, dir)?.keyId;
+    loseEnrollmentAnswer = false;
+    const next = issueTicket('agent000002');
+    seen = [];
+    const res = await enroll({ ticket: next });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ server: 'agent000002' });
+    expect(seen.map((entry) => entry.path)).toEqual(['/api/agents/session', '/api/agents/enroll', '/api/agents/session']);
+    expect(readAgentKey(dir)?.keyId).not.toBe(previous);
+    expect(tickets.has(next)).toBe(false);
+  });
+
+  test('transient recovery failure does not replay a consumed ticket or overwrite pending state', async () => {
+    loseEnrollmentAnswer = true;
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    const bytes = readFileSync(join(dir, 'agent-key.pending.json'), 'utf8');
+    loseEnrollmentAnswer = false;
+    reply = () => ({ status: 503, body: { error: 'temporary failure' } });
+    seen = [];
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    expect(seen.map((entry) => entry.path)).toEqual(['/api/agents/session']);
+    expect(readFileSync(join(dir, 'agent-key.pending.json'), 'utf8')).toBe(bytes);
+    reply = () => ({ status: 200, body: { server: SERVER, organization: 'org_01SOMEONEELSE00', keyId: 'wrong' } });
+    expect((await enroll({ ticket: issueTicket() })).status).toBe(503);
+    expect(seen.filter((entry) => entry.path.endsWith('/enroll'))).toEqual([]);
+  });
+
+  test('a mismatched confirmation preserves the old active file and keeps the recovery key', async () => {
+    expect((await enroll({ ticket: TICKET })).status).toBe(200);
+    const old = readAgentKey(dir)?.keyId;
+    reply = (path) => path.endsWith('/session') ? { status: 200, body: { server: 'agent000002', organization: OWNER, keyId: enrolledKey === null ? '' : agentKeyId(enrolledKey) } } : null;
+    expect((await enroll({ ticket: issueTicket() })).status).toBe(503);
+    expect(readAgentKey(dir)?.keyId).toBe(old);
+    expect(readPendingAgentKey(OWNER, dir)?.signingKey).toBe(enrolledKey);
+  });
+
+  test('an unreadable pending key is not overwritten or sent to the API', async () => {
+    writeFileSync(join(dir, 'agent-key.pending.json'), '{damaged-key');
+    expect((await enroll({ ticket: TICKET })).status).toBe(503);
+    expect(readFileSync(join(dir, 'agent-key.pending.json'), 'utf8')).toBe('{damaged-key');
+    expect(seen).toEqual([]);
   });
 
   test('an organization change during enrollment does not save a key as the new owner', async () => {

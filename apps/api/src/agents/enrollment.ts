@@ -17,6 +17,12 @@ const BODY_MAX = 4096;
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
 
+class AgentKeyMissing extends ApiError {
+  constructor() {
+    super(notEnrolled().message, 401);
+  }
+}
+
 export interface EnrollmentDeps {
   enabled: () => boolean;
   keys: SigningKeys;
@@ -101,7 +107,7 @@ async function session(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkn
   const bytes = await readBodyBytes(req, BODY_MAX);
   const proof = deps.auth.proofOf(req);
   const row = await deps.store.find(proof.keyId);
-  if (row === null) throw notEnrolled();
+  if (row === null) throw new AgentKeyMissing();
   deps.auth.accept(req, bytes, proof, row.signingKey, row.owner);
   return { server: row.agent, organization: row.owner, keyId: row.keyId, enrolledAt: row.enrolledAt };
 }
@@ -136,7 +142,8 @@ export function handleEnrollmentRequest(req: IncomingMessage, res: ServerRespons
   answer(req, deps, path, minted).then((body) => {
     sendJson(req, res, 200, body);
   }).catch((err: unknown) => {
-    apiFailure(req, res, err, 'agents');
+    if (err instanceof AgentKeyMissing) sendJson(req, res, err.status, { error: err.message, code: 'agent_key_missing' });
+    else apiFailure(req, res, err, 'agents');
   });
   return true;
 }

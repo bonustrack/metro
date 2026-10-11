@@ -44,9 +44,16 @@ async function answerOf(response: Response): Promise<unknown> {
   }
 }
 
+export class MetroApiRefusal extends ApiError {
+  constructor(message: string, readonly upstreamStatus: number, readonly code: string | null) {
+    super(message, upstreamStatus >= 500 ? 503 : 400);
+  }
+}
+
 function refusal(status: number, value: unknown): ApiError {
   const said = isRecord(value) && typeof value.error === 'string' && value.error.length <= 300 ? value.error : `api.metro.box answered ${String(status)}`;
-  return new ApiError(said, status >= 500 ? 503 : 400);
+  const code = isRecord(value) && typeof value.code === 'string' ? value.code : null;
+  return new MetroApiRefusal(said, status, code);
 }
 
 export async function agentCall(api: MetroApi, key: AgentKey, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
