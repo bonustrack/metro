@@ -138,6 +138,12 @@ export function cancelPrompt(requestId: string, owner: object): void {
   });
 }
 
+export function revokeToolPrompts(matches: (tool: string) => boolean): void {
+  grants = grants.filter((entry) => !matches(entry.tool));
+  for (const entry of held.values())
+    if (matches(entry.tool)) cancelPrompt(entry.requestId, entry.owner);
+}
+
 export function revokeCallPrompts(route: CallRoute): void {
   grants = grants.filter((entry) => entry.call === undefined || !sameCall(entry.call.route, route));
   for (const entry of held.values())

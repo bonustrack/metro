@@ -1,7 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { whyUnreachable } from '@metro-labs/http/connector-reach';
 import { noteHealth } from './health.js';
-import type { RelayTarget } from './store.js';
+import type { RelayTarget } from './relay-target.js';
+import type { RelaySession } from './relay-session.js';
+import { isOrgRelayId } from './relay-id.js';
+import { exchangeOrg } from './org-relay.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { answerBlocked, mergeBlocked, screenCalls, type BlockedReason } from './relay-policy.js';
@@ -11,9 +14,10 @@ export interface RelayApiDeps {
   identify: (req: IncomingMessage) => { subject: string; agentId: string } | null;
   signedOut: (connectorId: string) => void;
   blocked?: BlockedReason;
+  open?: (connectorId: string) => RelaySession | null;
 }
 
-const ID_PATH_RE = /^\/relay\/([A-Za-z0-9][A-Za-z0-9_-]{10})$/;
+const ID_PATH_RE = /^\/relay\/((?:org-)?[A-Za-z0-9][A-Za-z0-9_-]{10})$/;
 const METHODS = new Set(['POST', 'GET', 'DELETE']);
 const RELAY_BODY_MAX = 8 * 1024 * 1024;
 const FIRST_BYTE_MS = 120_000;
@@ -99,9 +103,10 @@ async function forward(
   target: { url: string; headers: Record<string, string> },
   body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
+  sensitive = false,
 ): Promise<Response> {
   const firstByte = setTimeout(() => {
-    log.warn({ url: target.url }, 'relay: upstream sent no response in time');
+    log.warn(sensitive ? {} : { url: target.url }, 'relay: upstream sent no response in time');
   }, FIRST_BYTE_MS);
   firstByte.unref?.();
   try {
@@ -284,6 +289,16 @@ async function deliver(
   await pipe(res, out.upstream, answers);
 }
 
+async function relayOrg(req: IncomingMessage, res: ServerResponse, id: string, deps: RelayApiDeps, read: Uint8Array<ArrayBuffer> | null, signal: AbortSignal): Promise<void> {
+  const session = deps.open?.(id);
+  if (session === undefined || session === null) throw new ApiError('Organization connector tools are not switched on yet.', 503);
+  try {
+    const out = await exchangeOrg(id, session, read, signal, (target, body, guard) => forward(req, target, body, guard, true));
+    if (out.kind === 'blocked') answerBlocked(res, out.screened);
+    else await deliver(res, id, deps, out, out.answers);
+  } finally { session.close(); }
+}
+
 async function relayOnce(
   req: IncomingMessage,
   res: ServerResponse,
@@ -292,6 +307,7 @@ async function relayOnce(
   signal: AbortSignal,
 ): Promise<void> {
   const read = req.method === 'POST' ? await readCapped(req) : null;
+  if (isOrgRelayId(connectorId)) return relayOrg(req, res, connectorId, deps, read, signal);
   const screened = read === null || deps.blocked === undefined ? null : screenCalls(read, connectorId, deps.blocked);
   if (screened?.forward === null) {
     answerBlocked(res, screened);
@@ -316,6 +332,11 @@ function dispatch(
     .catch((err: unknown) => {
       if (err instanceof ApiError) {
         answer(res, err.status, { error: err.message });
+        if (!res.writableEnded) res.end();
+      } else if (isOrgRelayId(connectorId)) {
+        log.warn({ connector: connectorId }, 'organization relay: request failed');
+        answer(res, 503, { error: 'The organization connector is unavailable. Try again.' });
+        if (!res.writableEnded) res.end();
       } else {
         log.warn({ err: errMsg(err), connector: connectorId }, 'relay: failed');
         noteHealth(connectorId, false, `metro could not reach the connector: ${whyUnreachable(err)}`);

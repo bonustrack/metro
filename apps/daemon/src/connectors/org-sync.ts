@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { AGENT_CLOCK_SKEW_MS } from '@metro-labs/http/agent-signature';
 import { CONNECTOR_DELIVERY_LEASE_MS, CONNECTOR_DELIVERY_MAX_BYTES, openConnectorDelivery, type DeliveryContext, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
@@ -44,9 +45,29 @@ export class OrgConnectorSync {
   private running: Promise<void> | null = null;
   private expiry: ReturnType<typeof setTimeout> | null = null;
   private readonly monotonic: () => number;
+  private readonly listeners = new Set<() => void>();
 
   constructor(private readonly deps: OrgSyncDeps) {
     this.monotonic = deps.monotonic ?? (() => performance.now());
+  }
+
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  epoch(): number {
+    return this.generation;
+  }
+
+  private notify(): void {
+    for (const listener of [...this.listeners]) {
+      try {
+        listener();
+      } catch {
+        log.warn('organization connectors: a memory change listener failed');
+      }
+    }
   }
 
   private identity(): Identity | null {
@@ -71,53 +92,70 @@ export class OrgConnectorSync {
     this.generation += 1;
     this.token = null;
     this.forget();
+    this.notify();
+  }
+
+  private validate(identity: Identity | null): void {
+    if (this.token === null) return;
+    if (identity === null || identity.token !== this.token || (this.snapshot !== null && (this.monotonic() >= this.deadline || this.deps.api.now() >= this.wallDeadline))) this.invalidate();
   }
 
   read(): DeliverySnapshot | null {
-    if (this.snapshot === null) return null;
-    const identity = this.identity();
-    if (identity === null || identity.token !== this.token || this.monotonic() >= this.deadline || this.deps.api.now() >= this.wallDeadline) {
+    if (this.token === null) return null;
+    try {
+      this.validate(this.identity());
+    } catch {
       this.invalidate();
-      return null;
+      log.warn('organization connectors: memory could not be checked and was cleared');
     }
-    return structuredClone(this.snapshot);
+    return this.snapshot === null ? null : structuredClone(this.snapshot);
   }
 
   async sync(refresh?: RefreshRequest): Promise<void> {
-    const identity = this.identity();
-    if (identity === null) {
+    let identity: Identity | null;
+    try {
+      identity = this.identity();
+      this.validate(identity);
+    } catch (err) {
       this.invalidate();
-      return Promise.resolve();
+      throw err;
     }
-    if (identity.token !== this.token) this.invalidate();
+    if (identity === null) return;
     if (this.running !== null) return refresh === undefined ? this.running : this.running.then(() => this.sync(refresh));
     this.token = identity.token;
-    this.running = this.fetch(identity, refresh).catch((err: unknown) => {
-      this.invalidate();
+    const generation = this.generation;
+    this.running = this.fetch(identity, refresh, generation).catch((err: unknown) => {
+      if (generation === this.generation) this.invalidate();
       throw err;
     }).finally(() => { this.running = null; });
     return this.running;
   }
 
-  private async fetch(identity: Identity, refresh: RefreshRequest | undefined): Promise<void> {
-    const generation = this.generation;
+  async syncFresh(refresh?: RefreshRequest): Promise<void> {
+    if (this.running !== null) {
+      await this.running.catch(() => {
+        log.debug('organization connectors: a previous sync failed before a fresh check');
+      });
+    }
+    return this.sync(refresh);
+  }
+
+  private async fetch(identity: Identity, refresh: RefreshRequest | undefined, generation: number): Promise<void> {
     const requestId = randomBytes(32).toString('base64url');
     const context = { ...identity.context, requestId };
     const started = this.deps.api.now();
     const clock = this.monotonic();
     const response = await agentCall(this.deps.api, identity.key, '/api/agents/connectors', { requestId, ...(refresh === undefined ? {} : { refresh }) }, { answerMax: CONNECTOR_DELIVERY_MAX_BYTES, timeoutMs: 60_000 });
-    if (generation !== this.generation) return;
-    if (this.identity()?.token !== identity.token) {
-      this.invalidate();
-      return;
-    }
+    this.validate(this.identity());
+    if (generation !== this.generation || this.token !== identity.token) throw invalid();
     const snapshot = openConnectorDelivery(identity.key.sealing, context, response.sealed);
     const remaining = lease(snapshot, started, this.monotonic() - clock, this.deps.api.now());
     this.forget();
     this.snapshot = snapshot;
     this.deadline = this.monotonic() + remaining;
     this.wallDeadline = this.deps.api.now() + remaining;
-    this.expiry = setTimeout(() => { this.forget(); }, remaining);
+    this.expiry = setTimeout(() => { this.invalidate(); }, remaining);
     this.expiry.unref();
+    this.notify();
   }
 }

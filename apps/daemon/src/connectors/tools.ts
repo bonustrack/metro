@@ -1,5 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { authHeaders, INITIALIZE, mcpPost, payloadOf, type ConnectorAuth } from '@metro-labs/http/connector-mcp';
 import { refused } from '@metro-labs/http/connector-url';
 
@@ -23,8 +24,8 @@ function resultOf(text: string, contentType: string): Record<string, unknown> | 
   return isRecord(parsed) && isRecord(parsed.result) ? parsed.result : null;
 }
 
-async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown): Promise<Record<string, unknown> | null> {
-  const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: Object.fromEntries(session) });
+async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike): Promise<Record<string, unknown> | null> {
+  const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: Object.fromEntries(session), fetch: fetchImpl });
   const id = res.headers.get('mcp-session-id');
   if (id !== null && id !== '') session.set('mcp-session-id', id);
   const text = await res.text().catch(() => '');
@@ -40,13 +41,14 @@ function toTool(raw: unknown): RemoteTool | null {
   return { name: raw.name, title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true };
 }
 
-async function endSession(url: URL, auth: ConnectorAuth, session: Map<string, string>): Promise<void> {
+async function endSession(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<void> {
   if (!session.has('mcp-session-id')) return;
   try {
-    const res = await fetch(url, { method: 'DELETE', redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { ...authHeaders(auth), ...Object.fromEntries(session) } });
+    const send = fetchImpl ?? fetch;
+    const res = await send(url.toString(), { method: 'DELETE', redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { ...authHeaders(auth), ...Object.fromEntries(session) } });
     await res.body?.cancel();
   } catch (err) {
-    log.debug({ host: url.hostname, err: errMsg(err) }, 'connector-tools: the remote declined to end the session');
+    log.debug(fetchImpl === undefined ? { host: url.hostname, err: errMsg(err) } : {}, 'connector-tools: the remote declined to end the session');
   }
 }
 
@@ -58,11 +60,11 @@ function nextCursor(result: Record<string, unknown>, current: string): string | 
   return typeof next !== 'string' || next === '' || next === current ? null : next;
 }
 
-async function walkTools(url: URL, auth: ConnectorAuth, session: Map<string, string>): Promise<RemoteTool[]> {
+async function walkTools(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<RemoteTool[]> {
   const tools: RemoteTool[] = [];
   let cursor: string | null = '';
   for (let page = 0; page < MAX_PAGES && cursor !== null; page += 1) {
-    const result = await rpc(url, auth, session, { jsonrpc: '2.0', id: 2 + page, method: 'tools/list', params: cursor === '' ? {} : { cursor } });
+    const result = await rpc(url, auth, session, { jsonrpc: '2.0', id: 2 + page, method: 'tools/list', params: cursor === '' ? {} : { cursor } }, fetchImpl);
     if (result === null) break;
     tools.push(...toolsOf(result));
     cursor = nextCursor(result, cursor);
@@ -70,13 +72,13 @@ async function walkTools(url: URL, auth: ConnectorAuth, session: Map<string, str
   return tools;
 }
 
-export async function listRemoteTools(url: URL, auth: ConnectorAuth): Promise<RemoteTool[]> {
+export async function listRemoteTools(url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteTool[]> {
   const session = new Map<string, string>();
-  const init = await rpc(url, auth, session, INITIALIZE);
+  const init = await rpc(url, auth, session, INITIALIZE, fetchImpl);
   if (init === null || typeof init.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
   session.set('mcp-protocol-version', init.protocolVersion);
-  await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' });
-  const tools = await walkTools(url, auth, session);
-  await endSession(url, auth, session);
+  await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, fetchImpl);
+  const tools = await walkTools(url, auth, session, fetchImpl);
+  await endSession(url, auth, session, fetchImpl);
   return tools;
 }

@@ -51,7 +51,7 @@ function targets(snap, name, input) {
 
 function decide(policy, name, group) {
   if (!isRecord(policy)) return 'allow';
-  const byTool = isRecord(policy.tools) ? policy.tools[name] : undefined;
+  const byTool = isRecord(policy.tools) && Object.hasOwn(policy.tools, name) ? policy.tools[name] : undefined;
   const access = byTool ?? policy[group] ?? 'allow';
   return access in RANK ? access : 'allow';
 }
@@ -62,7 +62,8 @@ function connectorCall(snap, toolName) {
   for (const [server, entry] of Object.entries(isRecord(snap.connectors) ? snap.connectors : {})) {
     if (!isRecord(entry)) continue;
     const name = text(entry.name);
-    const prefixes = [`mcp__plugin_metro_${server}__`, `mcp__${server}__`, `mcp__${normalized(`metro.box ${name}`)}__`];
+    const prefixes = [`mcp__plugin_metro_${server}__`, `mcp__${server}__`];
+    if (!/^org-[A-Za-z0-9][A-Za-z0-9_-]{10}$/.test(text(entry.id))) prefixes.push(`mcp__${normalized(`metro.box ${name}`)}__`);
     const prefix = prefixes.find((p) => toolName.startsWith(p) && toolName.length > p.length);
     if (prefix === undefined) continue;
     const called = toolName.slice(prefix.length);

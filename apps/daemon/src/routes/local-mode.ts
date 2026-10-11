@@ -6,8 +6,8 @@ import { assertAttachOwner, finishGmailUpgrade, startGmailAttach } from './gmail
 import { detachWithGmailRevocation } from './gmail-detach.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
-import { syncPluginServers } from '../connectors/plugin-sync.js';
-import { invalidateOrgConnectorSync } from '../connectors/org-sync-watch.js';
+import { publishLocalConnectors } from '../connectors/publication.js';
+import { invalidateOrgConnectorSync, orgConnectorRelaySession } from '../connectors/org-sync-watch.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
 import type { SessionApis } from './session-apis.js';
@@ -124,7 +124,7 @@ function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>
 const connectorApi: ConnectorApiDeps = {
   listConnectors: async () => {
     const rows = await localListConnectors();
-    syncPluginServers(readLocalConnectors());
+    publishLocalConnectors(readLocalConnectors());
     return rows;
   },
   createConnector: localCreateConnector,
@@ -141,6 +141,7 @@ const connectorApi: ConnectorApiDeps = {
 
 const relayApi: RelayApiDeps = {
   target: (connectorId, force) => localRelayTarget(connectorId, force),
+  open: orgConnectorRelaySession,
   identify: (req) => {
     const who = authenticate(req);
     return who?.kind === 'agent' ? { subject: 'agent-key', agentId: who.agentId } : null;

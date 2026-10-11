@@ -21,7 +21,7 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { syncPluginServers } from '../connectors/plugin-sync.js';
+import { publishLocalConnectors } from '../connectors/publication.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
 import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.js';
@@ -160,7 +160,7 @@ installBearerSessions(agentsDir(), localOwner);
   );
   metroMcp.startInbound();
   startPromptExpiry();
-  syncPluginServers(readLocalConnectors());
+  publishLocalConnectors(readLocalConnectors());
   startUploadReaper();
   startAttachReaper();
   watchOrgConnectorSync({ owner: localOwner, key: readAgentKey });
@@ -195,7 +195,7 @@ async function startClaude(): Promise<void> {
   ensureMetroPlugin()
     .then((outcome) => {
       log.info({ outcome }, 'plugin: metro plugin for Claude Code');
-      if (outcome !== 'skipped') syncPluginServers(readLocalConnectors());
+      if (outcome !== 'skipped') publishLocalConnectors(readLocalConnectors());
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');

@@ -1,5 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
+import { ApiError } from './api-error.js';
 import { whyUnreachable } from './connector-reach.js';
 import { ConnectorUnauthorized, refused } from './connector-url.js';
 
@@ -68,6 +69,7 @@ export async function mcpPost(
       body: JSON.stringify(body),
     });
   } catch (err) {
+    if (err instanceof ApiError) throw err;
     throw refused(`Metro could not reach ${url.hostname}: ${whyUnreachable(err)}`);
   }
 }

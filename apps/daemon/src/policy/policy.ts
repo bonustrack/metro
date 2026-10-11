@@ -32,7 +32,8 @@ export const targetKey = (target: PolicyTarget): string =>
   target.kind === 'channel' ? `channel:${target.station}/${target.account}` : `connector:${target.id}`;
 
 export function decide(policy: ToolPolicy | undefined, tool: PolicyTool): Access {
-  return policy?.tools?.[tool.name] ?? policy?.[tool.group] ?? 'allow';
+  const byTool = policy?.tools !== undefined && Object.hasOwn(policy.tools, tool.name) ? policy.tools[tool.name] : undefined;
+  return byTool ?? policy?.[tool.group] ?? 'allow';
 }
 
 export function strictest(list: readonly Access[]): Access {
