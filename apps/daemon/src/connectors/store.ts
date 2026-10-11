@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { syncPluginServers } from './plugin-sync.js';
-import { registerConnectors } from './gates.js';
+import { publishLocalConnectors } from './publication.js';
+import type { RelayTarget } from './relay-target.js';
+export type { RelayTarget } from './relay-target.js';
 import type { ToolPolicy } from '../policy/policy.js';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { listRemoteTools, type RemoteTool } from './tools.js';
@@ -114,8 +115,7 @@ export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
 function writeRows(dir: string, rows: LocalConnectorRow[]): void {
   writeSecure(filePath(dir), `${JSON.stringify({ version: 1, connectors: rows }, null, 2)}\n`);
   if (dir !== agentsDir()) return;
-  syncPluginServers(rows);
-  registerConnectors(rows);
+  publishLocalConnectors(rows);
 }
 
 const missing = (): ConnectorError => new ConnectorError('no such connector', 404);
@@ -293,7 +293,7 @@ export async function localSetConnectorPolicy(id: string, policy: ToolPolicy, di
 
 export async function loadConnectorPolicies(dir = agentsDir()): Promise<void> {
   const rows = readLocalConnectors(dir);
-  registerConnectors(rows);
+  publishLocalConnectors(rows);
   for (const row of rows) if (row.config.policy !== undefined) await refreshGroups(row.id, dir);
 }
 
@@ -326,11 +326,6 @@ function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Prom
   inflight.set(row.id, job);
   return job;
 }
-
-export type RelayTarget =
-  | { kind: 'ok'; url: string; headers: Record<string, string> }
-  | { kind: 'missing' }
-  | { kind: 'signin' };
 
 function staleUsable(auth: OAuthAuth, now = Date.now()): boolean {
   return auth.expiresAt === undefined || auth.expiresAt > now;

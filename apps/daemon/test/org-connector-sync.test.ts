@@ -164,7 +164,7 @@ test('an owner change while a request waits cannot install its old credentials',
   sync.invalidate();
   owner = OWNER;
   release.resolve();
-  await running;
+  await expect(running).rejects.toThrow('invalid or expired');
   expect(sync.read()).toBeNull();
 });
 

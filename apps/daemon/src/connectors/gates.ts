@@ -1,9 +1,11 @@
 import type { ToolGroup } from '@metro-labs/core/stations/types';
-import { policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
+import { decide, policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import { serverKeysOf } from './plugin-sync.js';
-import { NEEDS_APPROVAL, settlePrompts, takeGrant } from '../approvals/pending.js';
+import { NEEDS_APPROVAL, revokeToolPrompts, settlePrompts, takeGrant } from '../approvals/pending.js';
+import { isOrgRelayId } from './relay-id.js';
+import type { BlockedReason } from './relay-policy.js';
 
-interface GateRow {
+export interface GateRow {
   id: string;
   name: string;
   config: { policy?: ToolPolicy; toolGroups?: Record<string, ToolGroup> };
@@ -21,8 +23,20 @@ let gates: ConnectorGate[] = [];
 
 const normalized = (name: string): string => name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
+function approvalChanged(gate: ConnectorGate, tool: string, next: GateRow | undefined, keys: Map<string, string>): boolean {
+  if (next === undefined || gate.server !== keys.get(gate.id) || JSON.stringify([gate.name, gate.policy]) !== JSON.stringify([next.name, next.config.policy ?? {}])) return true;
+  const before = decide(gate.policy, { name: tool, group: toolGroupOf(gate, tool) });
+  const after = decide(next.config.policy, { name: tool, group: next.config.toolGroups?.[tool] === 'read' ? 'read' : 'write' });
+  return before !== after;
+}
+
 export function registerConnectors(rows: readonly GateRow[]): void {
   const keys = serverKeysOf([...rows]);
+  revokeToolPrompts((tool) => {
+    const found = connectorToolOf(tool);
+    if (found === undefined || !isOrgRelayId(found.gate.id)) return false;
+    return approvalChanged(found.gate, found.tool, rows.find((row) => row.id === found.gate.id), keys);
+  });
   gates = rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -55,8 +69,30 @@ export function blockedReason(connectorId: string, tool: string, args: Record<st
   return NEEDS_APPROVAL(gate.name, tool);
 }
 
+export function requestConnectorBlocker(): () => BlockedReason {
+  const permits = new Map<string, number>();
+  return () => {
+    const seen = new Map<string, number>();
+    return (id, tool, args) => {
+      const gate = gates.find((entry) => entry.id === id);
+      if (gate === undefined) return 'This organization connector is not available.';
+      const group = toolGroupOf(gate, tool);
+      const access = policyFor({ kind: 'connector', id }, { name: tool, group });
+      if (access !== 'ask') return blockedReason(id, tool, args);
+      const key = JSON.stringify([id, gate.server, gate.policy, group, tool, args]);
+      const occurrence = seen.get(key) ?? 0;
+      seen.set(key, occurrence + 1);
+      if (occurrence < (permits.get(key) ?? 0)) return null;
+      const reason = blockedReason(id, tool, args);
+      if (reason === null) permits.set(key, (permits.get(key) ?? 0) + 1);
+      return reason;
+    };
+  };
+}
+
 function prefixesOf(gate: ConnectorGate): string[] {
-  return [`mcp__plugin_metro_${gate.server}__`, `mcp__${gate.server}__`, `mcp__${normalized(`metro.box ${gate.name}`)}__`];
+  const prefixes = [`mcp__plugin_metro_${gate.server}__`, `mcp__${gate.server}__`];
+  return isOrgRelayId(gate.id) ? prefixes : [...prefixes, `mcp__${normalized(`metro.box ${gate.name}`)}__`];
 }
 
 export function connectorToolOf(toolName: string): { gate: ConnectorGate; tool: string } | undefined {

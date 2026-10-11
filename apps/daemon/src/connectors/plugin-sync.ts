@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
 import { loopbackBase } from '../files/attach-serve.js';
+import { isOrgRelayId } from './relay-id.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
 const FILE = '.mcp.json';
@@ -35,11 +36,20 @@ export function serverKey(name: string): string {
 export function serverKeysOf(rows: PluginRow[]): Map<string, string> {
   const taken = new Map<string, number>();
   const keys = new Map<string, string>();
-  for (const row of rows) {
+  for (const row of rows.filter((row) => !isOrgRelayId(row.id))) {
     const wanted = serverKey(row.name);
     const seen = taken.get(wanted) ?? 0;
     taken.set(wanted, seen + 1);
     keys.set(row.id, seen === 0 ? wanted : `${wanted}-${row.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4)}`);
+  }
+  const reserved = new Set(keys.values());
+  for (const row of rows.filter((row) => isOrgRelayId(row.id)).sort((a, b) => a.id.localeCompare(b.id))) {
+    const wanted = `org-${serverKey(row.name).slice(0, 35)}-${Buffer.from(row.id.slice(4)).toString('hex')}`;
+    let key = wanted;
+    let suffix = 1;
+    while (reserved.has(key)) key = `${wanted}-${String(suffix++)}`;
+    reserved.add(key);
+    keys.set(row.id, key);
   }
   return keys;
 }
