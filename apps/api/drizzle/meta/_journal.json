@@ -43,6 +43,13 @@
       "when": 1791694725614,
       "tag": "0005_connector_detail",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791698130886,
+      "tag": "0006_agent_keys",
+      "breakpoints": true
     }
   ]
 }

@@ -105,8 +105,8 @@ export const connectorEvents = pgTable(
   (t) => [index('connector_events_owner_at_idx').on(t.owner, t.at)],
 );
 
-export const boxKeys = pgTable(
-  'box_keys',
+export const agentKeys = pgTable(
+  'agent_keys',
   {
     agent: text('agent').primaryKey().references(() => agents.id, { onDelete: 'cascade' }),
     owner: text('owner').notNull(),
@@ -116,5 +116,5 @@ export const boxKeys = pgTable(
     enrolledBy: text('enrolled_by').notNull(),
     enrolledAt: text('enrolled_at').notNull(),
   },
-  (t) => [uniqueIndex('box_keys_key_id_idx').on(t.keyId)],
+  (t) => [uniqueIndex('agent_keys_key_id_idx').on(t.keyId)],
 );

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { clearAccount } from '../src/auth/account.js';
-import { configurePlatform, location, type Location } from '../src/platform.js';
+import { configurePlatform, location, memoryKeyValue, type Location } from '../src/platform.js';
 import {
   addOrgConnector,
   assignOrgConnector,
@@ -39,6 +39,7 @@ const ROW = { id: 'aB3-_xYz9Qw', name: 'Linear', url: 'https://mcp.linear.app/mc
 const NEW = { name: ' Linear ', url: 'https://mcp.linear.app/mcp', header: '', value: '', clientId: '', clientSecret: '' };
 
 beforeAll(() => {
+  configurePlatform({ kv: memoryKeyValue() });
   installTestAccount();
 });
 
@@ -88,7 +89,7 @@ describe('the organization connectors client', () => {
       events: [
         { id: '1', at: 't', action: 'connector.assigned', actor: { kind: 'user', id: 'u', name: 'Less' }, connector: { id: 'c', name: 'Linear' }, agent: { id: 'a', name: null }, detail: { name: 'Linear', readOnly: 'yes' } },
         { id: '2', at: 't', action: 'connector.deleted', actor: { kind: 'user', id: 'u', name: null, email: 'less@example.com' }, connector: { id: 'c', name: null }, agent: null, detail: { name: 'Old' } },
-        { id: '3', at: 't', action: 'box.unenrolled', actor: { kind: 'metro' }, connector: null, agent: { id: 'a', name: 'Andy' }, detail: {} },
+        { id: '3', at: 't', action: 'agent.unenrolled', actor: { kind: 'metro' }, connector: null, agent: { id: 'a', name: 'Andy' }, detail: {} },
       ],
       next: { before: 't', beforeId: '3' },
     });
@@ -96,9 +97,21 @@ describe('the organization connectors client', () => {
     expect(page.events.map((e) => orgEventText(e, names))).toEqual([
       'Less gave Linear to Tony, read-only',
       'less@example.com removed Old',
-      'Tony moved to another organization, so its box key and connectors were removed',
+      'Tony moved to another organization, so its agent key and connectors were removed',
     ]);
     expect(page.next).toEqual({ before: 't', beforeId: '3' });
+  });
+
+  test('old and new enrollment events use agent wording without rewriting stored history', () => {
+    const actions = ['agent.enrolled', 'box.enrolled', 'agent.unenrolled', 'box.unenrolled'];
+    const page = toOrgEvents({ events: actions.map((action) => ({ id: action, at: 't', action, actor: { kind: 'user', id: 'u', name: 'Less' }, connector: null, agent: { id: 'a', name: 'Tony' }, detail: {} })), next: null });
+    expect(page.events.map((event) => event.action)).toEqual(actions);
+    expect(page.events.map((event) => orgEventText(event, () => null))).toEqual([
+      'Less enrolled Tony',
+      'Less enrolled Tony',
+      'Tony moved to another organization, so its agent key and connectors were removed',
+      'Tony moved to another organization, so its agent key and connectors were removed',
+    ]);
   });
 
   test('the sign-in return is read once from the address and cleared', () => {

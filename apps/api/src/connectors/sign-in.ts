@@ -5,7 +5,7 @@ import { verifyRemoteMcp, type OAuthTokens, type VerifiedServer } from '@metro-l
 import { authorizeUrl, exchangeCode, newVerifier, registerClient, type OAuthClient } from '@metro-labs/http/connector-oauth';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { Session } from '@metro-labs/http/workos-token';
-import type { OwnerTickets } from '../boxes/tickets.js';
+import type { OwnerTickets } from '../agents/tickets.js';
 
 const ERROR_MAX = 200;
 

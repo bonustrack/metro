@@ -12,7 +12,7 @@
     "./mode-api": "./src/mode-api.ts",
     "./workos-token": "./src/workos-token.ts",
     "./sigv4": "./src/sigv4.ts",
-    "./box-signature": "./src/box-signature.ts",
+    "./agent-signature": "./src/agent-signature.ts",
     "./connector-url": "./src/connector-url.ts",
     "./connector-reach": "./src/connector-reach.ts",
     "./connector-mcp": "./src/connector-mcp.ts",

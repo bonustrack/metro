@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
-import { OwnerTickets } from '../src/boxes/tickets.ts';
+import { OwnerTickets } from '../src/agents/tickets.ts';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from '../src/connectors/api.ts';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.ts';
 import { orgConnectorStore } from '../src/db/connectors.ts';

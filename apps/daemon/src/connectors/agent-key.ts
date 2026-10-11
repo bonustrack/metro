@@ -5,11 +5,11 @@ import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { writeSecure } from '@metro-labs/core/secure-fs';
-import { boxKeyId, rawPublicKey } from '@metro-labs/http/box-signature';
+import { agentKeyId, rawPublicKey } from '@metro-labs/http/agent-signature';
 import { isOrganizationId } from '@metro-labs/http/workos-token';
 import { agentsDir } from '../agents/files.js';
 
-const FILE = 'box-key.json';
+const FILE = 'agent-key.json';
 
 export interface Enrollment {
   server: string;
@@ -17,7 +17,7 @@ export interface Enrollment {
   at: string;
 }
 
-export interface BoxKey {
+export interface AgentKey {
   keyId: string;
   signingKey: string;
   sealingKey: string;
@@ -44,13 +44,13 @@ function enrollmentOf(raw: unknown): Enrollment | null {
   return server !== null && isOrganizationId(raw.organization) ? { server, organization: raw.organization, at: raw.at } : null;
 }
 
-function boxKeyOf(signing: KeyObject, sealing: KeyObject, enrollment: Enrollment | null): BoxKey {
+function agentKeyOf(signing: KeyObject, sealing: KeyObject, enrollment: Enrollment | null): AgentKey {
   const signingKey = rawPublicKey(createPublicKey(signing));
-  return { keyId: boxKeyId(signingKey), signingKey, sealingKey: rawPublicKey(createPublicKey(sealing)), signing, sealing, enrollment };
+  return { keyId: agentKeyId(signingKey), signingKey, sealingKey: rawPublicKey(createPublicKey(sealing)), signing, sealing, enrollment };
 }
 
 const unreadable = (): null => {
-  log.warn('box-key.json: Metro cannot read this box key, so the box must be enrolled again');
+  log.warn('agent-key.json: Metro cannot read this agent key, so the agent must be enrolled again');
   return null;
 };
 
@@ -64,23 +64,24 @@ function storedOf(path: string): Record<string, unknown> | null {
   return isRecord(parsed) ? parsed : unreadable();
 }
 
-export function readBoxKey(dir = agentsDir()): BoxKey | null {
-  if (!existsSync(pathOf(dir))) return null;
-  const stored = storedOf(pathOf(dir));
+export function readAgentKey(dir = agentsDir()): AgentKey | null {
+  const path = existsSync(pathOf(dir)) ? pathOf(dir) : join(dir, 'box-key.json');
+  if (!existsSync(path)) return null;
+  const stored = storedOf(path);
   if (stored === null) return null;
   const signing = privateKeyOf(stored.signing, 'ed25519');
   const sealing = privateKeyOf(stored.sealing, 'x25519');
   if (stored.version !== 1 || signing === null || sealing === null) return unreadable();
-  return boxKeyOf(signing, sealing, enrollmentOf(stored.enrollment));
+  return agentKeyOf(signing, sealing, enrollmentOf(stored.enrollment));
 }
 
-export function newBoxKey(): BoxKey {
-  return boxKeyOf(generateKeyPairSync('ed25519').privateKey, generateKeyPairSync('x25519').privateKey, null);
+export function newAgentKey(): AgentKey {
+  return agentKeyOf(generateKeyPairSync('ed25519').privateKey, generateKeyPairSync('x25519').privateKey, null);
 }
 
 const exported = (key: KeyObject): string => key.export({ format: 'der', type: 'pkcs8' }).toString('base64');
 
-export function saveBoxKey(key: BoxKey, enrollment: Enrollment, dir = agentsDir()): void {
+export function saveAgentKey(key: AgentKey, enrollment: Enrollment, dir = agentsDir()): void {
   const stored = { version: 1, signing: exported(key.signing), sealing: exported(key.sealing), enrollment };
   writeSecure(pathOf(dir), `${JSON.stringify(stored, null, 2)}\n`);
 }

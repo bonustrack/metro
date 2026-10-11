@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { agents, boxKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
+import { agents, agentKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
 import { openSecret, sealSecret } from '../src/connectors/secrets.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 
@@ -39,12 +39,12 @@ afterAll(async () => {
 describe('the organization connector tables', () => {
   test('the migration creates every table with its columns', async () => {
     const result = await held.client.query<{ table_name: string; column_name: string }>(
-      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','connector_events','box_keys') order by table_name, ordinal_position",
+      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','connector_events','agent_keys') order by table_name, ordinal_position",
     );
     const columns: Record<string, string[]> = {};
     for (const row of result.rows) (columns[row.table_name] ??= []).push(row.column_name);
     expect(columns).toEqual({
-      box_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
+      agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
       connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at'],
       connector_events: ['id', 'owner', 'connector', 'agent', 'actor', 'action', 'detail', 'at'],
       connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
@@ -70,12 +70,12 @@ describe('the organization connector tables', () => {
     expect((await held.db.select().from(connectorEvents)).map((row) => row.action)).toEqual(['connector.created']);
   });
 
-  test('a box key belongs to one agent, goes with it, and a key id is used once', async () => {
+  test('an agent key belongs to one agent, goes with it, and a key id is used once', async () => {
     const row = { agent: 'agent000001', owner: OWNER, keyId: 'k'.repeat(43), signingKey: 's'.repeat(43), sealingKey: 'x'.repeat(43), enrolledBy: 'user_01TEST', enrolledAt: AT };
-    await held.db.insert(boxKeys).values(row);
-    await expect(settled(held.db.insert(boxKeys).values({ ...row, agent: 'agent000002' }))).rejects.toThrow();
+    await held.db.insert(agentKeys).values(row);
+    await expect(settled(held.db.insert(agentKeys).values({ ...row, agent: 'agent000002' }))).rejects.toThrow();
     await held.db.delete(agents).where(eq(agents.id, 'agent000001'));
-    expect(await held.db.select().from(boxKeys)).toEqual([]);
+    expect(await held.db.select().from(agentKeys)).toEqual([]);
   });
 });
 

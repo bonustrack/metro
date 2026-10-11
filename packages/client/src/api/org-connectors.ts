@@ -242,8 +242,8 @@ const ACTIONS: Record<string, (s: Said) => string> = {
   'connector.assigned': (s) => `${s.who} gave ${s.name} to ${s.agent}${s.detail.readOnly === 'yes' ? ', read-only' : ''}`,
   'connector.assignment_changed': (s) => `${s.who} made ${s.name} ${s.detail.readOnly === 'yes' ? 'read-only' : 'writable'} for ${s.agent}`,
   'connector.unassigned': (s) => `${s.who} took ${s.name} from ${s.agent}`,
-  'box.enrolled': (s) => `${s.who} enrolled the box of ${s.agent}`,
-  'box.unenrolled': (s) => `${s.agent} moved to another organization, so its box key and connectors were removed`,
+  'agent.enrolled': (s) => `${s.who} enrolled ${s.agent}`,
+  'agent.unenrolled': (s) => `${s.agent} moved to another organization, so its agent key and connectors were removed`,
 };
 
 export function orgEventText(event: OrgConnectorEvent, agentName: (id: string) => string | null): string {
@@ -253,6 +253,7 @@ export function orgEventText(event: OrgConnectorEvent, agentName: (id: string) =
     agent: event.agent === null ? 'an agent' : (agentName(event.agent.id) ?? event.agent.name ?? event.agent.id),
     detail: event.detail,
   };
-  const say = ACTIONS[event.action];
+  const action = event.action === 'box.enrolled' ? 'agent.enrolled' : event.action === 'box.unenrolled' ? 'agent.unenrolled' : event.action;
+  const say = ACTIONS[action];
   return say === undefined ? `${said.who}: ${event.action}` : say(said);
 }

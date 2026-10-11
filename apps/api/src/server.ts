@@ -50,10 +50,10 @@ import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
-import { boxKeyStore } from './db/boxes.js';
-import { BoxAuth } from './boxes/auth.js';
-import { handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
-import { EnrollTickets, OwnerTickets } from './boxes/tickets.js';
+import { agentKeyStore } from './db/agent-keys.js';
+import { AgentAuth } from './agents/auth.js';
+import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
+import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
 import { egressFetch } from './connectors/egress.js';
@@ -143,8 +143,8 @@ const enrollmentApi: EnrollmentDeps = {
   enabled: () => connectorsSetup.enabled,
   keys,
   tickets: new EnrollTickets(),
-  store: boxKeyStore(getDb),
-  auth: new BoxAuth('api.metro.box', () => Date.now()),
+  store: agentKeyStore(getDb),
+  auth: new AgentAuth('api.metro.box', () => Date.now()),
   now: () => Date.now(),
 };
 
