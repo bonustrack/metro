@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { connectorName } from '../src/connectors/config.ts';
+import { connectorName } from '@metro-labs/http/connector-input';
 import {
   connectorUrlText,
   parseConnectorUrl,
-} from '../src/connectors/url.ts';
+} from '@metro-labs/http/connector-url';
 
 const stored = (raw: string): string => connectorUrlText(parseConnectorUrl(raw));
 

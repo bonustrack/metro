@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { whyUnreachable } from '../src/connectors/reach.ts';
+import { whyUnreachable } from '@metro-labs/http/connector-reach';
 
 const withCode = (message: string, code: string): Error => Object.assign(new Error(message), { code });
 

@@ -4,6 +4,8 @@ import { AdminArea, isAdminSelection } from './AdminArea.js';
 import { LaunchServer } from './LaunchServer.js';
 import { Members } from './Members.js';
 import { Organization } from './Organization.js';
+import { OrgConnectors } from './OrgConnectors.js';
+import { OrgConnectorPage } from './OrgConnectorPage.js';
 import { Servers } from './Servers.js';
 import { AllAgents } from './AllAgents.js';
 import { ServerGate } from './gates.js';
@@ -14,6 +16,8 @@ export function UnlockedPage({ selection, onLock }: { selection: Selection; onLo
   if (selection.kind === 'launch') return <LaunchServer />;
   if (selection.kind === 'members') return <Members onLock={onLock} />;
   if (selection.kind === 'organization') return <Organization onLock={onLock} />;
+  if (selection.kind === 'org-connectors') return <OrgConnectors onLock={onLock} />;
+  if (selection.kind === 'org-connector') return <OrgConnectorPage id={selection.id} onLock={onLock} />;
   if (selection.kind === 'servers' || selection.kind === 'none') return <Servers onLock={onLock} />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }

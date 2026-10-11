@@ -8,9 +8,9 @@ import {
   takePending,
   type PendingAuth,
 } from './oauth.js';
-import { connectorClient } from './config.js';
-import { parseConnectorUrl } from './verify.js';
-import type { OAuthAuth } from './verify.js';
+import { connectorClient } from '@metro-labs/http/connector-input';
+import { parseConnectorUrl } from '@metro-labs/http/connector-url';
+import type { OAuthAuth } from '@metro-labs/http/connector-mcp';
 import type { Connector, PendingConnectorInput } from './store.js';
 
 export function hostOf(url: string): string {

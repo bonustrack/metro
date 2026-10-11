@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { whyUnreachable } from './reach.js';
+import { whyUnreachable } from '@metro-labs/http/connector-reach';
 import { noteHealth } from './health.js';
 import type { RelayTarget } from './store.js';
 import { ApiError } from '@metro-labs/http/api-error';

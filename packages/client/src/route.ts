@@ -20,6 +20,8 @@ const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
+const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
+const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const RUN_PATH = new RegExp(`^#?/(${HOST})/run$`);
@@ -53,10 +55,14 @@ const EXACT: [RegExp, Selection][] = [
   [LAUNCH_PATH, { kind: 'launch' }],
   [MEMBERS_PATH, { kind: 'members' }],
   [ORGANIZATION_PATH, { kind: 'organization' }],
+  [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
 ];
 
 function exactSelection(hash: string): Selection | null {
-  return EXACT.find(([re]) => re.test(hash))?.[1] ?? null;
+  const exact = EXACT.find(([re]) => re.test(hash))?.[1];
+  if (exact !== undefined) return { ...exact };
+  const orgConnector = ORG_CONNECTOR_PATH.exec(hash.split('?')[0] ?? '')?.[1];
+  return orgConnector === undefined ? null : { kind: 'org-connector', id: orgConnector };
 }
 
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
@@ -107,6 +113,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   launch: 'launch',
   members: 'members',
   organization: 'organization',
+  'org-connectors': 'organization/connectors',
 };
 
 function organizationPrefix(): string {
@@ -134,7 +141,7 @@ function withStoredAgent(hash: string): string {
 function plainSelection(bare: string): Selection {
   const hash = withStoredAgent(bare);
   const exact = exactSelection(hash);
-  if (exact !== null) return { ...exact };
+  if (exact !== null) return exact;
   for (const [pattern, make] of SCOPED) {
     const found = pattern.exec(hash);
     if (found && !RESERVED_SEGMENTS.has(found[1] ?? '')) return make(found[1] ?? '', found[2] ?? '', found[3] ?? '');
@@ -177,6 +184,7 @@ export function routeHash(selection: Selection): string {
   const prefix = organizationPrefix();
   const page = ORGANIZATION_PAGES[selection.kind];
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
+  if (selection.kind === 'org-connector') return `${prefix}organization/connectors/${selection.id}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);
   return `${prefix}${agentSegment(selection.project)}${suffix(selection)}`;

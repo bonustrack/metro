@@ -2,8 +2,9 @@ import { isDeepStrictEqual } from 'node:util';
 import { isRecord } from '@metro-labs/core/is-record';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
-import { connectorAuth, connectorName, readConfig } from './config.js';
-import { parseConnectorUrl } from './url.js';
+import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
+import { readConfig } from './config.js';
+import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import { normalizePolicy } from '../policy/policy.js';
 import { localImportConnectors, readLocalConnectors, type LocalConnectorRow } from './store.js';
 

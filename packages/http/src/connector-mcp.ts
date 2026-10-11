@@ -1,14 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
-import { whyUnreachable } from './reach.js';
-import { ConnectorUnauthorized, refused } from './url.js';
-
-export {
-  ConnectorUnauthorized,
-  ConnectorVerifyError,
-  connectorUrlText,
-  parseConnectorUrl,
-  refused,
-} from './url.js';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
+import { whyUnreachable } from './connector-reach.js';
+import { ConnectorUnauthorized, refused } from './connector-url.js';
 
 export interface OAuthTokens {
   accessToken: string;
@@ -63,10 +56,11 @@ export async function mcpPost(
   url: URL,
   auth: ConnectorAuth,
   body: unknown,
-  opts: { timeoutMs: number; headers?: Record<string, string> },
+  opts: { timeoutMs: number; headers?: Record<string, string>; fetch?: FetchLike },
 ): Promise<Response> {
+  const send = opts.fetch ?? fetch;
   try {
-    return await fetch(url, {
+    return await send(url.toString(), {
       method: 'POST',
       redirect: 'manual',
       signal: AbortSignal.timeout(opts.timeoutMs),
@@ -93,14 +87,18 @@ function serverNameOf(url: URL, text: string, contentType: string): string {
   return typeof info.name === 'string' ? info.name : url.hostname;
 }
 
-export async function verifyRemoteMcp(url: URL, auth: ConnectorAuth): Promise<VerifiedServer> {
-  const res = await mcpPost(url, auth, INITIALIZE, { timeoutMs: PROBE_TIMEOUT_MS });
-  const text = await res.text().catch(() => '');
-  if (res.status >= 300 && res.status < 400) throw refused('that url redirects — use the url it redirects to');
+function refuseStatus(res: Response, url: URL, auth: ConnectorAuth): void {
+  if (res.status >= 300 && res.status < 400) throw refused('that url redirects. Use the url it redirects to.');
   if (res.status === 401 || res.status === 403)
     throw new ConnectorUnauthorized(auth.kind === 'none' ? `${url.hostname} requires authorization.` : `${url.hostname} rejected that credential.`, 400);
   if (res.status === 404 || res.status === 405)
     throw refused(`${url.hostname} did not accept an MCP initialize over HTTP POST. If it is a legacy SSE server, Metro cannot verify it yet.`);
   if (!res.ok) throw refused(`${url.hostname} answered ${String(res.status)} instead of an MCP initialize.`);
+}
+
+export async function verifyRemoteMcp(url: URL, auth: ConnectorAuth, fetchImpl: FetchLike = fetch): Promise<VerifiedServer> {
+  const res = await mcpPost(url, auth, INITIALIZE, { timeoutMs: PROBE_TIMEOUT_MS, fetch: fetchImpl });
+  const text = await res.text().catch(() => '');
+  refuseStatus(res, url, auth);
   return { server: serverNameOf(url, text, res.headers.get('content-type') ?? '') };
 }

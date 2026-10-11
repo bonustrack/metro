@@ -1,0 +1,144 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { parseId } from '@metro-labs/core/ids';
+import { log } from '@metro-labs/core/log';
+import { ApiError } from '@metro-labs/http/api-error';
+import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
+import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
+import { assignConnector, deleteConnector, listConnectorEvents, listConnectors, unassignConnector, updateConnector } from './manage.js';
+import { callbackLocation } from './sign-in.js';
+
+const PREFIX = '/api/connectors';
+const BODY_MAX = 16 * 1024;
+
+export interface ConnectorsApiDeps extends ActionDeps {
+  enabled: () => boolean;
+  keys: SigningKeys;
+}
+
+type Target =
+  | { kind: 'collection' }
+  | { kind: 'events' }
+  | { kind: 'callback' }
+  | { kind: 'complete' }
+  | { kind: 'connector'; id: string }
+  | { kind: 'sign-in'; id: string }
+  | { kind: 'agent'; id: string; agent: string };
+
+const METHODS: Record<Target['kind'], string[]> = {
+  collection: ['GET', 'POST'],
+  events: ['GET'],
+  callback: ['GET'],
+  complete: ['POST'],
+  connector: ['GET', 'PUT', 'DELETE'],
+  'sign-in': ['POST'],
+  agent: ['PUT', 'DELETE'],
+};
+
+const NAMED: Record<string, Target> = { events: { kind: 'events' }, callback: { kind: 'callback' }, complete: { kind: 'complete' } };
+
+function byId(id: string, rest: string[]): Target | 'unknown' {
+  if (rest.length === 0) return { kind: 'connector', id };
+  if (rest.length === 1 && rest[0] === 'sign-in') return { kind: 'sign-in', id };
+  const agent = parseId(rest[1] ?? '');
+  return rest.length === 2 && rest[0] === 'agents' && agent !== null ? { kind: 'agent', id, agent } : 'unknown';
+}
+
+function targetOf(path: string): Target | 'unknown' | null {
+  if (path === PREFIX || path === `${PREFIX}/`) return { kind: 'collection' };
+  if (!path.startsWith(`${PREFIX}/`)) return null;
+  const [head = '', ...rest] = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+  const named = NAMED[head];
+  if (named !== undefined) return rest.length === 0 ? named : 'unknown';
+  const id = parseId(head);
+  return id === null ? 'unknown' : byId(id, rest);
+}
+
+const notEnabled = (): ApiError => new ApiError('Organization connectors are not switched on yet.', 503);
+
+function admin(caller: Caller): void {
+  if (caller.session.role !== 'admin') throw new ApiError('managing connectors needs the admin role in your organization', 403);
+}
+
+async function callerOf(req: IncomingMessage, deps: ConnectorsApiDeps): Promise<Caller> {
+  const session = await bearerSession(req, deps.keys);
+  const owner = session?.organization ?? null;
+  if (session === null || owner === null) throw new ApiError('unauthorized', 401);
+  return { session, owner };
+}
+
+interface Context {
+  deps: ConnectorsApiDeps;
+  caller: Caller;
+  body: unknown;
+  query: URLSearchParams;
+  id: string;
+  agent: string;
+}
+
+const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
+  'GET collection': async (c) => ({ connectors: await listConnectors(c.deps, c.caller.owner), admin: c.caller.session.role === 'admin' }),
+  'POST collection': (c) => createConnector(c.deps, c.caller, c.body),
+  'GET events': (c) => listConnectorEvents(c.deps, c.caller.owner, c.query),
+  'POST complete': (c) => completeSignIn(c.deps, c.caller, c.body),
+  'GET connector': (c) => viewOf(c.deps, c.caller.owner, c.id),
+  'PUT connector': (c) => updateConnector(c.deps, c.caller, c.id, c.body),
+  'DELETE connector': (c) => deleteConnector(c.deps, c.caller, c.id),
+  'POST sign-in': (c) => startSignIn(c.deps, c.caller, c.id, c.body),
+  'PUT agent': (c) => assignConnector(c.deps, c.caller, c.id, c.agent, c.body),
+  'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
+};
+
+const MEMBER_READS = new Set(['GET collection', 'GET connector']);
+
+async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exclude<Target, { kind: 'callback' }>): Promise<unknown> {
+  const caller = await callerOf(req, deps);
+  const method = req.method ?? 'GET';
+  const route = `${method} ${target.kind}`;
+  if (!MEMBER_READS.has(route)) admin(caller);
+  const handler = ROUTES[route];
+  if (handler === undefined) throw new ApiError('method not allowed', 405);
+  const body = method === 'GET' || method === 'DELETE' ? {} : await readJsonBody(req, BODY_MAX);
+  const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+  return handler({ deps, caller, body, query, id: 'id' in target ? target.id : '', agent: target.kind === 'agent' ? target.agent : '' });
+}
+
+function callback(req: IncomingMessage, res: ServerResponse, deps: ConnectorsApiDeps): void {
+  try {
+    if (!deps.enabled()) throw notEnabled();
+    const location = callbackLocation(deps, new URLSearchParams((req.url ?? '').split('?')[1] ?? ''));
+    res.writeHead(302, { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).end();
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'org-connectors: a sign-in came back that Metro could not use');
+    apiFailure(req, res, err, 'org-connectors');
+  }
+}
+
+export function handleConnectorsApiRequest(req: IncomingMessage, res: ServerResponse, deps: ConnectorsApiDeps): boolean {
+  const target = targetOf((req.url ?? '').split('?')[0] ?? '');
+  if (target === null) return false;
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, cors(req)).end();
+    return true;
+  }
+  if (target === 'unknown') {
+    sendJson(req, res, 404, { error: 'not found' });
+    return true;
+  }
+  if (!METHODS[target.kind].includes(req.method ?? '')) {
+    sendJson(req, res, 405, { error: 'method not allowed' });
+    return true;
+  }
+  if (target.kind === 'callback') {
+    callback(req, res, deps);
+    return true;
+  }
+  (deps.enabled() ? answer(req, deps, target) : Promise.reject(notEnabled()))
+    .then((body) => {
+      sendJson(req, res, target.kind === 'collection' && req.method === 'POST' ? 201 : 200, body);
+    })
+    .catch((err: unknown) => {
+      apiFailure(req, res, err, 'org-connectors');
+    });
+  return true;
+}

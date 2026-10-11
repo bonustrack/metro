@@ -53,8 +53,12 @@ import { getDb } from './db/client.js';
 import { boxKeyStore } from './db/boxes.js';
 import { BoxAuth } from './boxes/auth.js';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
-import { EnrollTickets } from './boxes/tickets.js';
+import { EnrollTickets, OwnerTickets } from './boxes/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
+import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
+import { egressFetch } from './connectors/egress.js';
+import type { Handoff, SignInState } from './connectors/sign-in.js';
+import { orgConnectorStore } from './db/connectors.js';
 import { randomBytes } from 'node:crypto';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
@@ -144,6 +148,19 @@ const enrollmentApi: EnrollmentDeps = {
   now: () => Date.now(),
 };
 
+const connectorsApi: ConnectorsApiDeps = {
+  enabled: () => connectorsSetup.enabled,
+  key: () => connectorsSetup.key,
+  keys,
+  store: orgConnectorStore(getDb),
+  fetch: egressFetch(),
+  httpsOnly: true,
+  callbackUrl: 'https://api.metro.box/api/connectors/callback',
+  states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'connector sign-ins' }),
+  handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'connector sign-ins', ttlMs: 5 * 60_000 }),
+  now: () => Date.now(),
+};
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -177,6 +194,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
+  (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];

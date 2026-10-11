@@ -47,7 +47,7 @@ describe('the organization connector tables', () => {
       box_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
       connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at'],
       connector_events: ['id', 'owner', 'connector', 'agent', 'actor', 'action', 'detail', 'at'],
-      connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at'],
+      connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
     });
   });
 

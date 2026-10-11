@@ -1,4 +1,4 @@
-import { ApiError } from '@metro-labs/http/api-error';
+import { ApiError } from './api-error.js';
 
 export class ConnectorVerifyError extends ApiError {}
 

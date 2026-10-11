@@ -2,7 +2,7 @@
   "name": "@metro-labs/http",
   "version": "0.1.0",
   "private": true,
-  "description": "How a metro server authenticates and answers a request: CORS, the JSON helpers, ApiError, the signed-identity header, the identity registry, AWS request signing and the signature a box puts on its requests to api.metro.box. Shared by the daemon and api.metro.box, never by a station.",
+  "description": "How a metro server authenticates and answers a request: CORS, the JSON helpers, ApiError, the signed-identity header, the identity registry, AWS request signing, the signature a box puts on its requests to api.metro.box, and the connector client both use (url checks, the MCP initialize, OAuth discovery, registration and tokens). Shared by the daemon and api.metro.box, never by a station.",
   "type": "module",
   "exports": {
     "./cors": "./src/cors.ts",
@@ -12,7 +12,13 @@
     "./mode-api": "./src/mode-api.ts",
     "./workos-token": "./src/workos-token.ts",
     "./sigv4": "./src/sigv4.ts",
-    "./box-signature": "./src/box-signature.ts"
+    "./box-signature": "./src/box-signature.ts",
+    "./connector-url": "./src/connector-url.ts",
+    "./connector-reach": "./src/connector-reach.ts",
+    "./connector-mcp": "./src/connector-mcp.ts",
+    "./connector-discovery": "./src/connector-discovery.ts",
+    "./connector-oauth": "./src/connector-oauth.ts",
+    "./connector-input": "./src/connector-input.ts"
   },
   "scripts": {
     "build": "tsc",

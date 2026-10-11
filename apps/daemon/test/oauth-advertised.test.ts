@@ -4,7 +4,7 @@ import {
   authServerMetadataUrls,
   discoverOAuth,
   resourceMetadataUrls,
-} from '../src/connectors/oauth-discovery.ts';
+} from '@metro-labs/http/connector-discovery';
 
 const GMAIL = new URL('https://gmailmcp.googleapis.com/mcp/v1');
 
