@@ -37,7 +37,10 @@ afterEach(() => {
 });
 
 test('off by default and for every non-true switch value, with no connector or identity reads', () => {
-  const reads = spyOn(fs, 'readFileSync').mockImplementation(() => { throw new Error('must not read'); });
+  const reads = spyOn(fs, 'readFileSync').mockImplementation((path) => {
+    expect(String(path)).toBe(join(dir, 'org-connector-sync.json'));
+    throw Object.assign(new Error('absent setting'), { code: 'ENOENT' });
+  });
   const exists = spyOn(fs, 'existsSync').mockImplementation(() => { throw new Error('must not inspect'); });
   try {
     for (const value of [undefined, '', 'false', '1', 'TRUE']) {
@@ -46,7 +49,7 @@ test('off by default and for every non-true switch value, with no connector or i
     }
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview().liveEnabled).toBe(true);
-    expect(reads).not.toHaveBeenCalled();
+    expect(reads).toHaveBeenCalledTimes(6);
     expect(exists).not.toHaveBeenCalled();
   } finally {
     reads.mockRestore(); exists.mockRestore();

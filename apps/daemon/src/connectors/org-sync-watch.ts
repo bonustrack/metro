@@ -1,22 +1,26 @@
-import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { METRO_API, type MetroApi } from './metro-api.js';
-import { OrgConnectorSync, type OrgSyncDeps } from './org-sync.js';
-import { OrgConnectorRuntime } from './org-runtime.js';
+import type { ConnectorSyncStatus } from '@metro-labs/core/connector-sync';
+import { OrgConnectorControl } from './org-sync-control.js';
 import { isOrgRelayId } from './relay-id.js';
 import type { RelaySession } from './relay-session.js';
 
-const POLL_MS = 60_000;
-let active: OrgConnectorSync | null = null;
-let runtime: OrgConnectorRuntime | null = null;
-let timer: ReturnType<typeof setInterval> | null = null;
+let active: OrgConnectorControl | null = null;
 
-const liveEnabled = (): boolean => process.env.METRO_CONNECTORS_LIVE_ENABLED === 'true';
+function control(): OrgConnectorControl {
+  if (active === null) throw new ApiError('Organization connector sync is unavailable. Restart Metro before trying again.', 503);
+  return active;
+}
 
 export function orgConnectorRelaySession(id: string): RelaySession | null {
-  if (!isOrgRelayId(id)) return null;
-  if (!liveEnabled() || runtime === null) throw new ApiError('Organization connectors are not available on this agent.', 503);
-  return runtime.open(id);
+  return isOrgRelayId(id) ? control().open(id) : null;
+}
+
+export function orgConnectorSyncStatus(): ConnectorSyncStatus {
+  return control().status();
+}
+
+export function setOrgConnectorSync(enabled: boolean, scope: string): ConnectorSyncStatus {
+  return control().set(enabled, scope);
 }
 
 export function invalidateOrgConnectorSync(): void {
@@ -24,27 +28,12 @@ export function invalidateOrgConnectorSync(): void {
 }
 
 export function stopOrgConnectorSync(): void {
-  if (timer !== null) clearInterval(timer);
-  timer = null;
-  runtime?.stop();
-  runtime = null;
-  active?.invalidate();
+  active?.stop();
   active = null;
 }
 
-export function watchOrgConnectorSync(deps: Pick<OrgSyncDeps, 'owner' | 'key'> & { api?: MetroApi }): void {
+export function watchOrgConnectorSync(deps: ConstructorParameters<typeof OrgConnectorControl>[0]): void {
   stopOrgConnectorSync();
-  const enabled = (): boolean => process.env.METRO_CONNECTORS_SYNC_ENABLED === 'true';
-  if (!enabled()) return;
-  const sync = new OrgConnectorSync({ ...deps, enabled, api: deps.api ?? METRO_API });
-  active = sync;
-  if (liveEnabled()) runtime = new OrgConnectorRuntime(sync, { enabled: liveEnabled });
-  const tick = (): void => {
-    sync.sync().catch((err: unknown) => {
-      log.warn({ status: err instanceof ApiError ? err.status : 503 }, 'organization connectors: memory sync failed; cached credentials were cleared');
-    });
-  };
-  tick();
-  timer = setInterval(tick, POLL_MS);
-  timer.unref();
+  active = new OrgConnectorControl(deps);
+  active.start();
 }

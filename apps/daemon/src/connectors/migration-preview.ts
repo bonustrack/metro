@@ -8,6 +8,7 @@ import { connectorAuth, connectorClient, connectorName } from '@metro-labs/http/
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import { agentsDir } from '../agents/files.js';
 import { normalizePolicy, type ToolPolicy } from '../policy/policy.js';
+import { connectorSyncScope, syncOptedIn, syncSetting } from './org-sync-setting.js';
 import { readAgentKey } from './agent-key.js';
 import { migrationOrigin } from './migration-url.js';
 
@@ -191,7 +192,7 @@ function previewRows(dir: string): MigrationConnector[] {
 }
 
 export function connectorMigrationPreview(owner: string | null, dir = agentsDir()): ConnectorMigrationPreview {
-  const enabled = process.env.METRO_CONNECTORS_SYNC_ENABLED === 'true';
+  const enabled = syncOptedIn(dir) && syncSetting(dir, connectorSyncScope(owner, readAgentKey(dir))).enabled;
   const liveEnabled = process.env.METRO_CONNECTORS_LIVE_ENABLED === 'true';
   if (!enabled) return { enabled, enrolled: false, agentId: null, owner, liveEnabled, connectors: [] };
   const enrollment = owner === null ? null : readAgentKey(dir)?.enrollment;

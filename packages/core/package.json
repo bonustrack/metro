@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./log": "./src/log.ts",
+    "./connector-sync": "./src/connector-sync.ts",
     "./events": "./src/events.ts",
     "./is-record": "./src/is-record.ts",
     "./runner-activity": "./src/runner-activity.ts",

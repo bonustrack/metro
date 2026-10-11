@@ -5,6 +5,7 @@ import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/cl
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import { connectorTransfer } from '../../packages/client/src/api/connector-copy.ts';
 import { fetchMigrationPreview, MIGRATION_UPDATE } from '../../packages/client/src/api/connector-migration.ts';
+import { createConnectorSync, CONNECTOR_SYNC_UPDATE } from '../../packages/client/src/api/connector-sync.ts';
 import { isRecord } from '../../packages/client/src/read.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
 import * as session from '../../packages/client/src/api/attach-session.ts';
@@ -243,6 +244,21 @@ await ok('migration preview off or explicit upgrade notice', async () => {
   } catch (err) {
     if (message(err) === MIGRATION_UPDATE) return;
     throw err;
+  }
+});
+
+await ok('connector sync off or explicit upgrade notice', async () => {
+  const sync = createConnectorSync({ id: 'compat00001', host });
+  try {
+    const status = await sync.read();
+    if (status.enabled || status.counts !== null || status.lastReceivedAt !== null) throw new Error('connector sync must be off without a receipt');
+    const saved = await sync.save(false);
+    if (saved.enabled || saved.source !== 'saved') throw new Error('connector sync disable was not saved');
+  } catch (err) {
+    if (message(err) === CONNECTOR_SYNC_UPDATE) return;
+    throw err;
+  } finally {
+    sync.dispose();
   }
 });
 

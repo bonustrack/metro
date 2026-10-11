@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { log } from '@metro-labs/core/log';
+import type { ConnectorSyncReceipt } from '@metro-labs/core/connector-sync';
 import { ApiError } from '@metro-labs/http/api-error';
 import { AGENT_CLOCK_SKEW_MS } from '@metro-labs/http/agent-signature';
 import { CONNECTOR_DELIVERY_LEASE_MS, CONNECTOR_DELIVERY_MAX_BYTES, openConnectorDelivery, type DeliveryContext, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
@@ -39,6 +40,9 @@ function lease(snapshot: DeliverySnapshot, started: number, elapsed: number, now
 export class OrgConnectorSync {
   private snapshot: DeliverySnapshot | null = null;
   private token: string | null = null;
+  private controller: AbortController | null = null;
+  private receiptToken: string | null = null;
+  private receipt: ConnectorSyncReceipt = { state: 'waiting', lastReceivedAt: null, leaseExpiresAt: null, counts: null };
   private deadline = 0;
   private wallDeadline = 0;
   private generation = 0;
@@ -77,7 +81,7 @@ export class OrgConnectorSync {
     const enrollment = key?.enrollment;
     if (owner === null || key === null || enrollment === null || enrollment === undefined || enrollment.organization !== owner) return null;
     const context = { owner, agent: enrollment.server, keyId: key.keyId };
-    return { key, context, token: JSON.stringify(context) };
+    return { key, context, token: JSON.stringify([context, key.sealingKey]) };
   }
 
   private forget(): void {
@@ -88,8 +92,14 @@ export class OrgConnectorSync {
     this.expiry = null;
   }
 
-  invalidate(): void {
+  invalidate(reason: 'waiting' | 'expired' | 'unavailable' = 'waiting'): void {
     this.generation += 1;
+    this.controller?.abort();
+    this.controller = null;
+    if (reason === 'waiting') {
+      this.receiptToken = null;
+      this.receipt = { state: reason, lastReceivedAt: null, leaseExpiresAt: null, counts: null };
+    } else this.receipt = { ...this.receipt, state: reason, counts: null };
     this.token = null;
     this.forget();
     this.notify();
@@ -97,7 +107,8 @@ export class OrgConnectorSync {
 
   private validate(identity: Identity | null): void {
     if (this.token === null) return;
-    if (identity === null || identity.token !== this.token || (this.snapshot !== null && (this.monotonic() >= this.deadline || this.deps.api.now() >= this.wallDeadline))) this.invalidate();
+    if (identity === null || identity.token !== this.token) this.invalidate();
+    else if (this.snapshot !== null && (this.monotonic() >= this.deadline || this.deps.api.now() >= this.wallDeadline)) this.invalidate('expired');
   }
 
   read(): DeliverySnapshot | null {
@@ -109,6 +120,16 @@ export class OrgConnectorSync {
       log.warn('organization connectors: memory could not be checked and was cleared');
     }
     return this.snapshot === null ? null : structuredClone(this.snapshot);
+  }
+
+  status(): ConnectorSyncReceipt {
+    this.read();
+    try {
+      if (this.receiptToken !== null && this.identity()?.token !== this.receiptToken) this.invalidate();
+    } catch {
+      this.invalidate();
+    }
+    return structuredClone(this.receipt);
   }
 
   async sync(refresh?: RefreshRequest): Promise<void> {
@@ -124,8 +145,9 @@ export class OrgConnectorSync {
     if (this.running !== null) return refresh === undefined ? this.running : this.running.then(() => this.sync(refresh));
     this.token = identity.token;
     const generation = this.generation;
-    this.running = this.fetch(identity, refresh, generation).catch((err: unknown) => {
-      if (generation === this.generation) this.invalidate();
+    this.controller = new AbortController();
+    this.running = this.fetch(identity, refresh, generation, this.controller.signal).catch((err: unknown) => {
+      if (generation === this.generation) this.invalidate('unavailable');
       throw err;
     }).finally(() => { this.running = null; });
     return this.running;
@@ -140,12 +162,12 @@ export class OrgConnectorSync {
     return this.sync(refresh);
   }
 
-  private async fetch(identity: Identity, refresh: RefreshRequest | undefined, generation: number): Promise<void> {
+  private async fetch(identity: Identity, refresh: RefreshRequest | undefined, generation: number, signal: AbortSignal): Promise<void> {
     const requestId = randomBytes(32).toString('base64url');
     const context = { ...identity.context, requestId };
     const started = this.deps.api.now();
     const clock = this.monotonic();
-    const response = await agentCall(this.deps.api, identity.key, '/api/agents/connectors', { requestId, ...(refresh === undefined ? {} : { refresh }) }, { answerMax: CONNECTOR_DELIVERY_MAX_BYTES, timeoutMs: 60_000 });
+    const response = await agentCall(this.deps.api, identity.key, '/api/agents/connectors', { requestId, ...(refresh === undefined ? {} : { refresh }) }, { answerMax: CONNECTOR_DELIVERY_MAX_BYTES, timeoutMs: 60_000, signal });
     this.validate(this.identity());
     if (generation !== this.generation || this.token !== identity.token) throw invalid();
     const snapshot = openConnectorDelivery(identity.key.sealing, context, response.sealed);
@@ -154,7 +176,11 @@ export class OrgConnectorSync {
     this.snapshot = snapshot;
     this.deadline = this.monotonic() + remaining;
     this.wallDeadline = this.deps.api.now() + remaining;
-    this.expiry = setTimeout(() => { this.invalidate(); }, remaining);
+    this.receiptToken = identity.token;
+    const total = snapshot.connectors.length;
+    const ready = snapshot.connectors.filter((row) => row.state === 'ready').length;
+    this.receipt = { state: 'received', lastReceivedAt: this.deps.api.now(), leaseExpiresAt: this.wallDeadline, counts: { total, ready, unavailable: total - ready } };
+    this.expiry = setTimeout(() => { this.invalidate('expired'); }, remaining);
     this.expiry.unref();
     this.notify();
   }

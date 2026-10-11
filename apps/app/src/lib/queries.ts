@@ -79,6 +79,7 @@ type BoxName =
   | 'connectors'
   | 'connector'
   | 'connector-tools'
+  | 'connector-sync'
   | 'account-name'
   | 'schedules'
   | 'schedule'

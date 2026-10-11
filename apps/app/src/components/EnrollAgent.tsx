@@ -37,7 +37,7 @@ function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollm
       <Text size="2xs">{`Enroll ${serverLabel(server)} with ${account?.organizationName ?? account?.organization ?? 'your organization'}?`}</Text>
       <Text size="2xs" role="secondary">{`Agent: ${server.id} · ${server.host}`}</Text>
       <Text size="2xs" role="secondary">{NOTE}</Text>
-      <Text size="2xs" role="secondary">If already enrolled, this replaces the agent’s organization identity. Closing while enrollment is running stops waiting, but cannot undo a request already received.</Text>
+      <Text size="2xs" role="secondary">If already enrolled, this replaces the agent’s organization identity and turns saved connector sync off, even if enrollment later fails. Check sync status and explicitly enable it again when ready. Closing while enrollment is running stops waiting, but cannot undo a request already received.</Text>
       {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
       <Row justify="between" gap={12} wrap>
         <Button color="secondary" dark={dark} label={busy ? 'Close' : 'Cancel'} onPress={onClose} />

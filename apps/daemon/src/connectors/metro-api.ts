@@ -59,6 +59,7 @@ function refusal(status: number, value: unknown): ApiError {
 interface AgentCallOptions {
   answerMax?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 function signedCall(api: MetroApi, key: AgentKey, path: string, body: Record<string, unknown> | undefined): { url: URL; method: string; text: string; authorization: string } {
@@ -78,7 +79,7 @@ export async function agentCall(api: MetroApi, key: AgentKey, path: string, body
       headers: { authorization, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: text }),
       redirect: 'error',
-      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
+      signal: AbortSignal.any([AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS), ...(options.signal === undefined ? [] : [options.signal])]),
     });
   } catch {
     throw unreachable();

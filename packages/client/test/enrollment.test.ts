@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { createEnrollment, type Enrollment } from '../src/api/enrollment.js';
+import { enrollmentRunning, enrollmentScopeIdentity, subscribeEnrollmentScope } from '../src/api/enrollment-scope.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
 
@@ -266,6 +267,23 @@ describe('explicit organization enrollment', () => {
       flows.push(enrollment);
       await enrollment.run();
       expect(calls).toEqual([`${origin}/api/mode`, CENTRAL, `${origin}/api/enrollment`]);
+    }
+  });
+
+  test('failed enrollment invalidates sync before and after the attempt and warns saved sync may be off', async () => {
+    localStatus = 503;
+    response = { error: 'private upstream error' };
+    const generation = enrollmentScopeIdentity();
+    const running: boolean[] = [];
+    const stop = subscribeEnrollmentScope(() => { running.push(enrollmentRunning()); });
+    try {
+      const message = await flow().run().catch((error: unknown) => error instanceof Error ? error.message : '');
+      expect(message).toContain('Saved connector sync may now be off');
+      expect(message).not.toContain('No delivery or tool settings were changed');
+      expect(running).toEqual([true, false]);
+      expect(enrollmentScopeIdentity()).toBe(generation + 2);
+    } finally {
+      stop();
     }
   });
 
