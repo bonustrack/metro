@@ -98,6 +98,10 @@ async function refused(name: string, want: RegExp, fn: () => Promise<unknown>): 
 
 const daemonMode = await ok('fetchMode', () => mode.fetchMode());
 await ok('fetchSession', () => client.fetchSession());
+await refused('enrollment rejects an invalid ticket before changing identity', /enrolling needs the ticket/, () => client.call({
+  method: 'POST', base: `${baseFromSegment(host)}/api/enrollment`, redirect: 'error',
+  headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket: 'invalid' }),
+}));
 const stations = await ok('fetchStations', async () => {
   const view = await client.fetchStations();
   if (view.agent?.id !== agent) throw new Error(`the agent list names ${view.agent?.id ?? 'no agent'}, not ${agent}`);

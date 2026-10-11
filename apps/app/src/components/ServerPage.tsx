@@ -6,6 +6,7 @@ import { FactRow, SettingsGroup } from './SettingsSection.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
+import { EnrollAgent } from './EnrollAgent.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { ServerSizeSection } from './ServerSize.js';
 import { ServerStorageSection } from './ServerStorage.js';
@@ -74,6 +75,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       <SettingsGroup title="Agent">
         <ClaudeSession project={project} />
       </SettingsGroup>
+      {server === undefined ? null : <EnrollAgent server={server} />}
       {machine.error !== null ? (
         <Text size="2xs" role="danger">
           {queryError(machine.error, FALLBACK)}

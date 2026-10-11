@@ -29,9 +29,17 @@ export function routedDaemon(hash?: string): string | null {
 }
 
 let current: { id: string; host: string } | null = null;
+const serverListeners = new Set<() => void>();
+
+export function subscribeCurrentServer(listener: () => void): () => void {
+  serverListeners.add(listener);
+  return () => { serverListeners.delete(listener); };
+}
 
 export function setCurrentServer(server: { id: string; host: string } | null): void {
+  const changed = current?.id !== server?.id || current?.host !== server?.host;
   current = server;
+  if (changed) for (const listener of serverListeners) listener();
 }
 
 export const currentServer = (): { id: string; host: string } | null => current;
