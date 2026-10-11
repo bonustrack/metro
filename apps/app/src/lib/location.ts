@@ -1,3 +1,4 @@
+import { readOrgConnectorReturn, type OrgConnectorReturn } from '@metro-labs/client/api/org-connectors';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -10,6 +11,13 @@ const WEB_HOME = 'https://metro.box/';
 let routedHash = '#/';
 let returnedSignIn: ReturnedSignIn | null = null;
 let cleanInitialReturn = false;
+let returnedOrgConnector: OrgConnectorReturn | null = null;
+
+export function takeInitialOrgConnectorReturn(): OrgConnectorReturn | null {
+  const back = returnedOrgConnector;
+  returnedOrgConnector = null;
+  return back;
+}
 
 export const initialSignInReturn = (): ReturnedSignIn | null => returnedSignIn;
 
@@ -53,6 +61,9 @@ function clearSearch(query: string): void {
 
 export function prepareLocation(): void {
   if (WEB) {
+    const connector = readOrgConnectorReturn(window.location.search, window.location.hash);
+    returnedOrgConnector = connector.result;
+    if (connector.result !== null) window.history.replaceState(null, '', `${window.location.pathname}${connector.search}${connector.hash}`);
     returnedSignIn = signInReturn(window.location.search, window.location.hash);
     cleanInitialReturn = returnedSignIn !== null || hasSignInCode(window.location.search, window.location.hash);
     if (cleanInitialReturn) window.history.replaceState(null, '', `${window.location.pathname}#/`);

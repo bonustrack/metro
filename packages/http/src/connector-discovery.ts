@@ -1,6 +1,7 @@
-import { parseConnectorUrl, refused } from './verify.js';
-import { stringOf } from '@metro-labs/http/api-http';
 import { isRecord } from '@metro-labs/core/is-record';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
+import { stringOf } from './api-http.js';
+import { parseConnectorUrl, refused } from './connector-url.js';
 
 const DISCOVERY_TIMEOUT_MS = 10_000;
 
@@ -18,10 +19,10 @@ interface ResourceMetadata {
   scopes: string[];
 }
 
-async function getJson(url: URL): Promise<Record<string, unknown> | null> {
+async function getJson(url: URL, fetchImpl: FetchLike): Promise<Record<string, unknown> | null> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchImpl(url.toString(), {
       redirect: 'manual',
       signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
       headers: { accept: 'application/json' },
@@ -55,9 +56,9 @@ export function resourceMetadataUrls(resource: URL): URL[] {
   return urls;
 }
 
-export async function advertisesOAuth(resource: URL): Promise<boolean> {
+export async function advertisesOAuth(resource: URL, fetchImpl: FetchLike = fetch): Promise<boolean> {
   for (const candidate of resourceMetadataUrls(resource)) {
-    const body = await getJson(candidate);
+    const body = await getJson(candidate, fetchImpl);
     const servers: unknown = body?.authorization_servers;
     const first: unknown = Array.isArray(servers) ? servers[0] : undefined;
     if (typeof first === 'string' && first !== '') return true;
@@ -76,9 +77,9 @@ function scopesOf(body: Record<string, unknown> | null): string[] {
   return out;
 }
 
-async function resourceMetadata(resource: URL): Promise<ResourceMetadata> {
+async function resourceMetadata(resource: URL, fetchImpl: FetchLike): Promise<ResourceMetadata> {
   for (const candidate of resourceMetadataUrls(resource)) {
-    const body = await getJson(candidate);
+    const body = await getJson(candidate, fetchImpl);
     const servers: unknown = body?.authorization_servers;
     const first: unknown = Array.isArray(servers) ? servers[0] : undefined;
     if (typeof first === 'string' && first !== '')
@@ -87,19 +88,35 @@ async function resourceMetadata(resource: URL): Promise<ResourceMetadata> {
   return { issuer: parseConnectorUrl(resource.origin), scopes: [] };
 }
 
+const webAddress = (text: string): boolean => {
+  try {
+    parseConnectorUrl(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+function endpointOf(raw: unknown, issuer: URL): string {
+  const text = stringOf(raw);
+  if (text !== '' && !webAddress(text)) throw refused(`${issuer.hostname} advertises a sign-in address Metro will not open.`);
+  return text;
+}
+
 function toServer(
   body: Record<string, unknown>,
   issuer: URL,
   scopes: string[],
 ): OAuthServer {
-  const authorizationEndpoint = stringOf(body.authorization_endpoint);
-  const tokenEndpoint = stringOf(body.token_endpoint);
+  const authorizationEndpoint = endpointOf(body.authorization_endpoint, issuer);
+  const tokenEndpoint = endpointOf(body.token_endpoint, issuer);
   if (authorizationEndpoint === '' || tokenEndpoint === '')
     throw refused(
       `${issuer.hostname} advertises OAuth but not where to sign in.`,
     );
   const methods = body.code_challenge_methods_supported;
-  const registration = stringOf(body.registration_endpoint);
+  const offered = stringOf(body.registration_endpoint);
+  const registration = webAddress(offered) ? offered : '';
   return {
     issuer: stringOf(body.issuer) === '' ? issuer.origin : stringOf(body.issuer),
     authorizationEndpoint,
@@ -121,10 +138,10 @@ export function authServerMetadataUrls(issuer: URL): URL[] {
   return [...aware, new URL(`${path}/.well-known/openid-configuration`, issuer.origin), ...urls];
 }
 
-export async function discoverOAuth(resource: URL): Promise<OAuthServer> {
-  const { issuer, scopes } = await resourceMetadata(resource);
+export async function discoverOAuth(resource: URL, fetchImpl: FetchLike = fetch): Promise<OAuthServer> {
+  const { issuer, scopes } = await resourceMetadata(resource, fetchImpl);
   for (const candidate of authServerMetadataUrls(issuer)) {
-    const body = await getJson(candidate);
+    const body = await getJson(candidate, fetchImpl);
     if (body !== null) return toServer(body, issuer, scopes);
   }
   throw refused(

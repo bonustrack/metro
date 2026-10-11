@@ -1,6 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import { authHeaders, INITIALIZE, mcpPost, payloadOf, refused, type ConnectorAuth } from './verify.js';
+import { authHeaders, INITIALIZE, mcpPost, payloadOf, type ConnectorAuth } from '@metro-labs/http/connector-mcp';
+import { refused } from '@metro-labs/http/connector-url';
 
 export interface RemoteTool {
   name: string;

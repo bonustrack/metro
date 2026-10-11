@@ -1,16 +1,16 @@
 import type { IncomingMessage } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
-import { BOX_CLOCK_SKEW_MS, boxSignatureValid, readBoxProof, withinSkew, type BoxProof } from '@metro-labs/http/box-signature';
+import { AGENT_CLOCK_SKEW_MS, agentSignatureValid, readAgentProof, withinSkew, type AgentProof } from '@metro-labs/http/agent-signature';
 
 const PRUNE_MS = 60_000;
 const BROWSER_HEADERS = ['origin', 'sec-fetch-site', 'sec-fetch-dest', 'sec-fetch-user'];
 
-export class BoxAuthError extends ApiError {}
+export class AgentAuthError extends ApiError {}
 
-export const notEnrolled = (): BoxAuthError => new BoxAuthError('This box is not enrolled with Metro, or its request signature is not valid.', 401);
+export const notEnrolled = (): AgentAuthError => new AgentAuthError('This agent is not enrolled with Metro, or its request signature is not valid.', 401);
 
 export function refuseBrowser(req: IncomingMessage): void {
-  if (BROWSER_HEADERS.some((name) => req.headers[name] !== undefined)) throw new BoxAuthError('Only a Metro box may call this, not a browser.', 403);
+  if (BROWSER_HEADERS.some((name) => req.headers[name] !== undefined)) throw new AgentAuthError('Only a Metro agent may call this, not a browser.', 403);
 }
 
 export interface NonceLimits {
@@ -27,7 +27,7 @@ interface Seen {
   until: number;
 }
 
-export class BoxAuth {
+export class AgentAuth {
   private readonly nonces = new Map<string, Seen>();
   private readonly held = new Map<string, number>();
   private pruned = 0;
@@ -38,27 +38,27 @@ export class BoxAuth {
     private readonly limits: NonceLimits = LIMITS,
   ) {}
 
-  proofOf(req: IncomingMessage): BoxProof {
-    const proof = readBoxProof(req.headers.authorization);
+  proofOf(req: IncomingMessage): AgentProof {
+    const proof = readAgentProof(req.headers.authorization);
     if (proof === null) throw notEnrolled();
-    if (!withinSkew(proof.time, this.now())) throw new BoxAuthError('The clock of this box is more than five minutes off. Fix its time, then try again.', 401);
+    if (!withinSkew(proof.time, this.now())) throw new AgentAuthError('The clock of this agent is more than five minutes off. Fix its time, then try again.', 401);
     return proof;
   }
 
-  accept(req: IncomingMessage, body: Buffer, proof: BoxProof, signingKey: string, owner: string): void {
+  accept(req: IncomingMessage, body: Buffer, proof: AgentProof, signingKey: string, owner: string): void {
     const request = { method: req.method ?? '', host: this.host, path: req.url ?? '', body };
-    if (!boxSignatureValid(request, proof, signingKey)) throw notEnrolled();
+    if (!agentSignatureValid(request, proof, signingKey)) throw notEnrolled();
     this.remember(proof, owner);
   }
 
-  private remember(proof: BoxProof, owner: string): void {
+  private remember(proof: AgentProof, owner: string): void {
     this.prune();
     const nonce = `${proof.keyId}.${proof.nonce}`;
     if (this.nonces.has(nonce)) throw notEnrolled();
-    if (this.count(`key ${proof.keyId}`) >= this.limits.perKey) throw new BoxAuthError('This box sent too many requests. Wait a few minutes, then try again.', 429);
-    if (this.count(`owner ${owner}`) >= this.limits.perOwner) throw new BoxAuthError('The boxes of this organization sent too many requests. Wait a few minutes, then try again.', 429);
-    if (this.nonces.size >= this.limits.total) throw new BoxAuthError('Metro is busy checking box requests. Try again in a few minutes.', 503);
-    this.nonces.set(nonce, { keyId: proof.keyId, owner, until: proof.time + BOX_CLOCK_SKEW_MS });
+    if (this.count(`key ${proof.keyId}`) >= this.limits.perKey) throw new AgentAuthError('This agent sent too many requests. Wait a few minutes, then try again.', 429);
+    if (this.count(`owner ${owner}`) >= this.limits.perOwner) throw new AgentAuthError('The agents of this organization sent too many requests. Wait a few minutes, then try again.', 429);
+    if (this.nonces.size >= this.limits.total) throw new AgentAuthError('Metro is busy checking agent requests. Try again in a few minutes.', 503);
+    this.nonces.set(nonce, { keyId: proof.keyId, owner, until: proof.time + AGENT_CLOCK_SKEW_MS });
     this.bump(`key ${proof.keyId}`, 1);
     this.bump(`owner ${owner}`, 1);
   }

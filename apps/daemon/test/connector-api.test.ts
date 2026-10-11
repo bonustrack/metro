@@ -2,10 +2,7 @@ import { auth, bearer, forged, type Who } from './identity-helper.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { ApiError } from '@metro-labs/http/api-error';
-import {
-  ConnectorVerifyError,
-  parseConnectorUrl,
-} from '../src/connectors/verify.ts';
+import { ConnectorVerifyError, parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { ConnectorApiDeps } from '../src/connectors/api.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import type { ToolPolicy } from '../src/policy/policy.ts';

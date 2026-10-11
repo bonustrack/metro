@@ -1,9 +1,6 @@
 import { publicBaseOrDefault } from '../files/attach-serve.js';
-import {
-  refused,
-  type OAuthAuth,
-  type OAuthTokens,
-} from './verify.js';
+import { refused } from '@metro-labs/http/connector-url';
+import type { OAuthAuth, OAuthTokens } from '@metro-labs/http/connector-mcp';
 import { validateReturnTo } from '@metro-labs/http/return-to';
 import {
   authorizeUrl,
@@ -12,8 +9,8 @@ import {
   refreshTokens,
   registerClient,
   type OAuthClient,
-} from './oauth-client.js';
-import { discoverOAuth, type OAuthServer } from './oauth-discovery.js';
+} from '@metro-labs/http/connector-oauth';
+import { discoverOAuth, type OAuthServer } from '@metro-labs/http/connector-discovery';
 import { ticketStore } from '@metro-labs/core/tickets';
 
 export interface PendingAuth {

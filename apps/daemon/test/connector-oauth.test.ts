@@ -1,8 +1,8 @@
 import { auth } from './identity-helper.ts';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { bootDaemon, type Daemon } from './http-harness.ts';
-import { authorizeUrl, challengeOf, newVerifier } from '../src/connectors/oauth-client.ts';
-import { resourceMetadataUrls } from '../src/connectors/oauth-discovery.ts';
+import { authorizeUrl, challengeOf, newVerifier } from '@metro-labs/http/connector-oauth';
+import { resourceMetadataUrls } from '@metro-labs/http/connector-discovery';
 import { oauthExpired, pendingCount, startPending, takePending } from '../src/connectors/oauth.ts';
 
 let daemon: Daemon;

@@ -4,25 +4,31 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
-import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/box-signature';
+import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/agent-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
-import type { BoxKeyStore } from '../db/boxes.js';
-import { notEnrolled, refuseBrowser, type BoxAuth } from './auth.js';
+import type { AgentKeyStore } from '../db/agent-keys.js';
+import { notEnrolled, refuseBrowser, type AgentAuth } from './auth.js';
 import type { EnrollTickets } from './tickets.js';
 
 const MINT_RE = /^\/api\/servers\/([^/]+)\/enrollment$/;
-const ENROLL = '/api/boxes/enroll';
-const SESSION = '/api/boxes/session';
+const ENROLL = '/api/agents/enroll';
+const SESSION = '/api/agents/session';
 const BODY_MAX = 4096;
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
+
+class AgentKeyMissing extends ApiError {
+  constructor() {
+    super(notEnrolled().message, 401);
+  }
+}
 
 export interface EnrollmentDeps {
   enabled: () => boolean;
   keys: SigningKeys;
   tickets: EnrollTickets;
-  store: BoxKeyStore;
-  auth: BoxAuth;
+  store: AgentKeyStore;
+  auth: AgentAuth;
   now: () => number;
 }
 
@@ -43,7 +49,7 @@ async function mint(req: IncomingMessage, deps: EnrollmentDeps, rawId: string): 
   const agent = parseId(rawId);
   if (agent === null || !(await deps.store.listed(owner, agent))) throw new ApiError('no such server', 404);
   const minted = deps.tickets.mint({ owner, agent, userId: session.userId }, deps.now());
-  log.info({ owner, agent, by: session.userId }, 'boxes: an admin asked to enroll a box');
+  log.info({ owner, agent, by: session.userId }, 'agents: an admin asked to enroll an agent');
   return minted;
 }
 
@@ -68,8 +74,8 @@ function enrollInput(bytes: Buffer): EnrollInput {
   return {
     ticket: textOf(body.ticket, (text) => TICKET_RE.test(text), staleTicket),
     organization: textOf(body.organization, isOrganizationId, () => new ApiError('Invalid enrollment request.', 400)),
-    signingKey: textOf(body.signingKey, (text) => signingKeyOf(text) !== null, () => new ApiError('Invalid box signing key.', 400)),
-    sealingKey: textOf(body.sealingKey, (text) => sealingKeyOf(text) !== null, () => new ApiError('Invalid box sealing key.', 400)),
+    signingKey: textOf(body.signingKey, (text) => signingKeyOf(text) !== null, () => new ApiError('Invalid agent signing key.', 400)),
+    sealingKey: textOf(body.sealingKey, (text) => sealingKeyOf(text) !== null, () => new ApiError('Invalid agent sealing key.', 400)),
   };
 }
 
@@ -92,7 +98,7 @@ async function enroll(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkno
     enrolledBy: ticket.userId,
     enrolledAt: new Date(now).toISOString(),
   });
-  log.info({ agent: ticket.agent, owner: ticket.owner, keyId: proof.keyId }, 'boxes: a box enrolled with its organization');
+  log.info({ agent: ticket.agent, owner: ticket.owner, keyId: proof.keyId }, 'agents: an agent enrolled with its organization');
   return { server: ticket.agent, organization: ticket.owner, keyId: proof.keyId };
 }
 
@@ -101,7 +107,7 @@ async function session(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkn
   const bytes = await readBodyBytes(req, BODY_MAX);
   const proof = deps.auth.proofOf(req);
   const row = await deps.store.find(proof.keyId);
-  if (row === null) throw notEnrolled();
+  if (row === null) throw new AgentKeyMissing();
   deps.auth.accept(req, bytes, proof, row.signingKey, row.owner);
   return { server: row.agent, organization: row.owner, keyId: row.keyId, enrolledAt: row.enrolledAt };
 }
@@ -136,7 +142,8 @@ export function handleEnrollmentRequest(req: IncomingMessage, res: ServerRespons
   answer(req, deps, path, minted).then((body) => {
     sendJson(req, res, 200, body);
   }).catch((err: unknown) => {
-    apiFailure(req, res, err, 'boxes');
+    if (err instanceof AgentKeyMissing) sendJson(req, res, err.status, { error: err.message, code: 'agent_key_missing' });
+    else apiFailure(req, res, err, 'agents');
   });
   return true;
 }

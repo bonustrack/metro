@@ -12,6 +12,8 @@ export type Selection =
   | { kind: 'launch' }
   | { kind: 'members' }
   | { kind: 'organization' }
+  | { kind: 'org-connectors' }
+  | { kind: 'org-connector'; id: string }
   | { kind: 'home'; project: string }
   | { kind: 'run'; project: string }
   | { kind: 'agent-settings'; project: string }

@@ -6,7 +6,7 @@ import { isUniqueViolation } from './errors.js';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { agents, awsConnections, awsExternalIds } from './schema.js';
 import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aws.js';
-import { leaveOrganization } from './boxes.js';
+import { leaveOrganization } from './agent-keys.js';
 import type { AwsAccount } from '../aws/access.js';
 import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';

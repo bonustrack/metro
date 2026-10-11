@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { listRemoteTools } from '../src/connectors/tools.ts';
-import { ConnectorVerifyError } from '../src/connectors/url.ts';
+import { ConnectorVerifyError } from '@metro-labs/http/connector-url';
 
 interface Seen {
   method: string;

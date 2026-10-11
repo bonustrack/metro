@@ -20,7 +20,7 @@ import {
   startOAuth,
   type OAuthRouteDeps,
 } from './oauth-routes.js';
-import { ConnectorUnauthorized } from './verify.js';
+import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type {
   Connector,
   ConnectorCheck,

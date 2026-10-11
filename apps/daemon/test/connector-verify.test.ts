@@ -1,12 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import {
-  ConnectorVerifyError,
-  parseConnectorUrl,
-  verifyRemoteMcp,
-  type ConnectorAuth,
-} from '../src/connectors/verify.ts';
+import { ConnectorVerifyError, parseConnectorUrl } from '@metro-labs/http/connector-url';
+import { verifyRemoteMcp, type ConnectorAuth } from '@metro-labs/http/connector-mcp';
 
 const NONE: ConnectorAuth = { kind: 'none' };
 const BEARER: ConnectorAuth = {
@@ -355,7 +351,7 @@ describe('a redirect is refused, never followed', () => {
         res.end();
       };
       const err = await refusal(probe());
-      expect(err.message).toBe('that url redirects — use the url it redirects to');
+      expect(err.message).toBe('that url redirects. Use the url it redirects to.');
       expect(err.status).toBe(400);
       expect(seen).toHaveLength(1);
     });

@@ -8,28 +8,23 @@ import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
   authHeaders,
-  connectorUrlText,
-  ConnectorVerifyError,
-  parseConnectorUrl,
   verifyRemoteMcp,
   type ConnectorAuth,
   type OAuthAuth,
   type VerifiedRecord,
-} from './verify.js';
+} from '@metro-labs/http/connector-mcp';
+import { connectorUrlText, ConnectorVerifyError, parseConnectorUrl } from '@metro-labs/http/connector-url';
 import { oauthExpired, refreshOAuth } from './oauth.js';
-import { advertisesOAuth } from './oauth-discovery.js';
+import { advertisesOAuth } from '@metro-labs/http/connector-discovery';
+import { ConnectorError, connectorAuth, connectorClient, connectorName } from '@metro-labs/http/connector-input';
 import {
-  ConnectorError,
-  connectorAuth,
-  connectorClient,
-  connectorName,
   readConfig,
   signInState,
   stamp,
   type ConnectorConfig,
   type ConnectorSignIn,
 } from './config.js';
-import type { OAuthClient } from './oauth-client.js';
+import type { OAuthClient } from '@metro-labs/http/connector-oauth';
 import { agentsDir } from '../agents/files.js';
 import { newId } from '@metro-labs/core/ids';
 import type { LoadedConnector } from '../stations/materialize.js';

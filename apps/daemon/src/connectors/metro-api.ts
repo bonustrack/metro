@@ -1,16 +1,16 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { signBoxRequest } from '@metro-labs/http/box-signature';
-import type { BoxKey } from './box-key.js';
+import { signAgentRequest } from '@metro-labs/http/agent-signature';
+import type { AgentKey } from './agent-key.js';
 
 const TIMEOUT_MS = 15_000;
 const ANSWER_MAX = 64 * 1024;
 
-export type BoxFetch = (url: string, init: RequestInit) => Promise<Response>;
+export type AgentFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface MetroApi {
   base: string;
-  fetch: BoxFetch;
+  fetch: AgentFetch;
   now: () => number;
 }
 
@@ -44,16 +44,23 @@ async function answerOf(response: Response): Promise<unknown> {
   }
 }
 
-function refusal(status: number, value: unknown): ApiError {
-  const said = isRecord(value) && typeof value.error === 'string' && value.error.length <= 300 ? value.error : `api.metro.box answered ${String(status)}`;
-  return new ApiError(said, status >= 500 ? 503 : 400);
+export class MetroApiRefusal extends ApiError {
+  constructor(message: string, readonly upstreamStatus: number, readonly code: string | null) {
+    super(message, upstreamStatus >= 500 ? 503 : 400);
+  }
 }
 
-export async function boxCall(api: MetroApi, key: BoxKey, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+function refusal(status: number, value: unknown): ApiError {
+  const said = isRecord(value) && typeof value.error === 'string' && value.error.length <= 300 ? value.error : `api.metro.box answered ${String(status)}`;
+  const code = isRecord(value) && typeof value.code === 'string' ? value.code : null;
+  return new MetroApiRefusal(said, status, code);
+}
+
+export async function agentCall(api: MetroApi, key: AgentKey, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
   const url = new URL(path, api.base);
   const method = body === undefined ? 'GET' : 'POST';
   const text = body === undefined ? '' : JSON.stringify(body);
-  const authorization = signBoxRequest({ method, host: url.host, path: `${url.pathname}${url.search}`, body: Buffer.from(text, 'utf8') }, key.signing, key.keyId, api.now());
+  const authorization = signAgentRequest({ method, host: url.host, path: `${url.pathname}${url.search}`, body: Buffer.from(text, 'utf8') }, key.signing, key.keyId, api.now());
   let response: Response;
   try {
     response = await api.fetch(url.toString(), {

@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { whyUnreachable } from './reach.js';
-import { refused, type OAuthTokens } from './verify.js';
-import type { OAuthServer } from './oauth-discovery.js';
 import { isRecord } from '@metro-labs/core/is-record';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
+import { whyUnreachable } from './connector-reach.js';
+import { refused } from './connector-url.js';
+import type { OAuthTokens } from './connector-mcp.js';
+import type { OAuthServer } from './connector-discovery.js';
 
 const TOKEN_TIMEOUT_MS = 15_000;
 const CLIENT_NAME = 'Metro';
@@ -23,6 +25,7 @@ export function challengeOf(verifier: string): string {
 export async function registerClient(
   server: OAuthServer,
   redirectUri: string,
+  fetchImpl: FetchLike = fetch,
 ): Promise<OAuthClient> {
   if (server.registrationEndpoint === null)
     throw refused(
@@ -32,7 +35,7 @@ export async function registerClient(
     );
   let res: Response;
   try {
-    res = await fetch(server.registrationEndpoint, {
+    res = await fetchImpl(server.registrationEndpoint, {
       method: 'POST',
       redirect: 'manual',
       signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
@@ -100,6 +103,7 @@ async function postToken(
   server: OAuthServer,
   client: OAuthClient,
   form: Record<string, string>,
+  fetchImpl: FetchLike,
 ): Promise<OAuthTokens> {
   const params = new URLSearchParams({
     ...form,
@@ -110,7 +114,7 @@ async function postToken(
   });
   let res: Response;
   try {
-    res = await fetch(server.tokenEndpoint, {
+    res = await fetchImpl(server.tokenEndpoint, {
       method: 'POST',
       redirect: 'manual',
       signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
@@ -133,6 +137,7 @@ export function exchangeCode(
   server: OAuthServer,
   client: OAuthClient,
   input: { code: string; redirectUri: string; verifier: string; resource: string },
+  fetchImpl: FetchLike = fetch,
 ): Promise<OAuthTokens> {
   return postToken(server, client, {
     grant_type: 'authorization_code',
@@ -140,7 +145,7 @@ export function exchangeCode(
     redirect_uri: input.redirectUri,
     code_verifier: input.verifier,
     resource: input.resource,
-  });
+  }, fetchImpl);
 }
 
 export function refreshTokens(
@@ -149,11 +154,12 @@ export function refreshTokens(
   refreshToken: string,
   resource: string,
   scope?: string,
+  fetchImpl: FetchLike = fetch,
 ): Promise<OAuthTokens> {
   return postToken(server, client, {
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
     resource,
     ...(scope === undefined ? {} : { scope }),
-  });
+  }, fetchImpl);
 }

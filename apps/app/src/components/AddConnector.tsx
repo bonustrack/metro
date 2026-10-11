@@ -7,7 +7,6 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import {
   connectorCallbackUrl,
   createConnector,
-  type Connector,
   type NewConnector,
 } from '@metro-labs/client/api/connectors';
 import { useMachineQuery } from '../lib/queries.js';
@@ -26,6 +25,11 @@ const EMPTY: NewConnector = {
 };
 
 const HINT = 'Metro reaches the server from its own machine, so a localhost url never works. Leave the header empty for an OAuth server.';
+
+export interface AddedConnector {
+  id: string;
+  authorizeUrl: string | null;
+}
 
 const APP_HINT = 'Only for a server that cannot register clients itself, such as Microsoft 365: register an app with this redirect url and paste its client id.';
 
@@ -90,16 +94,21 @@ function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): React
 }
 
 interface ConnectorFormProps {
-  onAdded: (result: Connector) => void;
+  hint: string;
+  callbackUrl: string | null;
+  create: (values: NewConnector) => Promise<AddedConnector>;
+  onAdded: (id: string) => void;
   onCancel: () => void;
 }
 
 function ConnectorForm({
+  hint,
+  callbackUrl,
+  create,
   onAdded,
   onCancel,
 }: ConnectorFormProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const machine = useMachineQuery().data;
   const [values, setValues] = useState<NewConnector>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,13 +124,13 @@ function ConnectorForm({
     if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    createConnector(trimmed(values))
+    create(trimmed(values))
       .then((result) => {
-        if (result.kind === 'oauth') {
+        if (result.authorizeUrl !== null) {
           goExternal(result.authorizeUrl);
           return;
         }
-        onAdded(result.connector);
+        onAdded(result.id);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Could not add the connector.');
@@ -133,15 +142,13 @@ function ConnectorForm({
 
   return (
     <Col gap={14}>
-      <Text size="2xs" role="secondary">{HINT}</Text>
+      <Text size="2xs" role="secondary">{hint}</Text>
       <Col gap={10}>
         <Fields specs={FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
       <Col gap={10}>
         <Text size="2xs" role="secondary">{APP_HINT}</Text>
-        {machine === undefined ? null : (
-          <Text size="2xs">{connectorCallbackUrl(machine)}</Text>
-        )}
+        {callbackUrl === null ? null : <Text size="2xs">{callbackUrl}</Text>}
         <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
       {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
@@ -166,24 +173,55 @@ function ConnectorForm({
   );
 }
 
+interface ConnectorModalProps {
+  title: string;
+  hint: string;
+  callbackUrl: string | null;
+  create: (values: NewConnector) => Promise<AddedConnector>;
+  open: boolean;
+  onClose: () => void;
+  onAdded: (id: string) => void;
+}
+
+export function ConnectorModal({ title, hint, callbackUrl, create, open, onClose, onAdded }: ConnectorModalProps): ReactNode {
+  return (
+    <Modal title={title} open={open} onClose={onClose}>
+      <ConnectorForm
+        hint={hint}
+        callbackUrl={callbackUrl}
+        create={create}
+        onCancel={onClose}
+        onAdded={(id) => {
+          onClose();
+          onAdded(id);
+        }}
+      />
+    </Modal>
+  );
+}
+
+const createOnBox = async (values: NewConnector): Promise<AddedConnector> => {
+  const result = await createConnector(values);
+  return { id: result.connector.id, authorizeUrl: result.kind === 'oauth' ? result.authorizeUrl : null };
+};
+
 interface AddConnectorProps {
   open: boolean;
   onClose: () => void;
   onAdded: (id: string) => void;
 }
 
-export function AddConnector(props: AddConnectorProps): ReactNode {
-  const { open, onClose, onAdded } = props;
-
+export function AddConnector({ open, onClose, onAdded }: AddConnectorProps): ReactNode {
+  const machine = useMachineQuery().data;
   return (
-    <Modal title="Add connector" open={open} onClose={onClose}>
-      <ConnectorForm
-        onCancel={onClose}
-        onAdded={(result) => {
-          onClose();
-          onAdded(result.id);
-        }}
-      />
-    </Modal>
+    <ConnectorModal
+      title="Add connector"
+      hint={HINT}
+      callbackUrl={machine === undefined ? null : connectorCallbackUrl(machine)}
+      create={createOnBox}
+      open={open}
+      onClose={onClose}
+      onAdded={onAdded}
+    />
   );
 }

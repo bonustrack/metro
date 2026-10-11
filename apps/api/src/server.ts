@@ -50,11 +50,15 @@ import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
 import { dbSlugs } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
-import { boxKeyStore } from './db/boxes.js';
-import { BoxAuth } from './boxes/auth.js';
-import { handleEnrollmentRequest, type EnrollmentDeps } from './boxes/enrollment.js';
-import { EnrollTickets } from './boxes/tickets.js';
+import { agentKeyStore } from './db/agent-keys.js';
+import { AgentAuth } from './agents/auth.js';
+import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
+import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
+import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
+import { egressFetch } from './connectors/egress.js';
+import type { Handoff, SignInState } from './connectors/sign-in.js';
+import { orgConnectorStore } from './db/connectors.js';
 import { randomBytes } from 'node:crypto';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
@@ -139,8 +143,21 @@ const enrollmentApi: EnrollmentDeps = {
   enabled: () => connectorsSetup.enabled,
   keys,
   tickets: new EnrollTickets(),
-  store: boxKeyStore(getDb),
-  auth: new BoxAuth('api.metro.box', () => Date.now()),
+  store: agentKeyStore(getDb),
+  auth: new AgentAuth('api.metro.box', () => Date.now()),
+  now: () => Date.now(),
+};
+
+const connectorsApi: ConnectorsApiDeps = {
+  enabled: () => connectorsSetup.enabled,
+  key: () => connectorsSetup.key,
+  keys,
+  store: orgConnectorStore(getDb),
+  fetch: egressFetch(),
+  httpsOnly: true,
+  callbackUrl: 'https://api.metro.box/api/connectors/callback',
+  states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'connector sign-ins' }),
+  handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'connector sign-ins', ttlMs: 5 * 60_000 }),
   now: () => Date.now(),
 };
 
@@ -177,6 +194,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
+  (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];

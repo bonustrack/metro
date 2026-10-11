@@ -24,7 +24,7 @@ mock.module('react-native', () => ({ Platform: { OS: platform } }));
 mock.module('expo-router', () => ({ router, usePathname: () => '/', useGlobalSearchParams: () => ({}) }));
 mock.module('expo/fetch', () => ({ fetch: globalThis.fetch }));
 
-const { prepareLocation, noteRouteHash } = await import('./src/lib/location.js');
+const { prepareLocation, noteRouteHash, takeInitialOrgConnectorReturn } = await import('./src/lib/location.js');
 const { useSelection } = await import('./src/lib/route-hash.js');
 const { location, configurePlatform, memoryKeyValue } = await import('@metro-labs/client/platform');
 const { atLanding, atLogin, atWaitlist, readOutcome, clearOutcome, goToLogin } = await import('@metro-labs/client/auth/login-route');
@@ -35,6 +35,12 @@ prepareLocation();
 assert.equal(location().hash(), platform === 'web' ? '#/login?invited=1' : '#/');
 
 if (platform === 'web') {
+  address.href = 'https://metro.test/#/organization/connectors/conn0000001?org_connector=fixture-handoff';
+  prepareLocation();
+  assert.equal(address.search, '');
+  assert.equal(address.hash, '#/organization/connectors/conn0000001');
+  assert.deepEqual(takeInitialOrgConnectorReturn(), { kind: 'handoff', handoff: 'fixture-handoff' });
+  assert.equal(takeInitialOrgConnectorReturn(), null);
   address.hash = '';
   address.search = '?invitation_token=synthetic_invitation';
   prepareLocation();

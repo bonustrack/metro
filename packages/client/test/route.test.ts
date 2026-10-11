@@ -130,6 +130,20 @@ describe('the first segment is the daemon', () => {
     expect(routeHash({ kind: 'launch' })).toBe('#/launch');
     expect(routeSelection('#/launch/').kind).not.toBe('launch');
   });
+
+  test('the organization Connectors page and one connector of it are organization pages', () => {
+    expect(routeSelection('#/organization/connectors')).toEqual({ kind: 'org-connectors' });
+    expect(routeHash({ kind: 'org-connectors' })).toBe('#/organization/connectors');
+    expect(routeSelection('#/organization/connectors/aB3-_xYz9Qw')).toEqual({ kind: 'org-connector', id: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/organization/connectors/aB3-_xYz9Qw?org_connector=handoff')).toEqual({ kind: 'org-connector', id: 'aB3-_xYz9Qw' });
+    expect(routeHash({ kind: 'org-connector', id: 'aB3-_xYz9Qw' })).toBe('#/organization/connectors/aB3-_xYz9Qw');
+    expect(routeSelection('#/organization/connectors/not-an-id').kind).toBe('none');
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeSelection('#/stage-labs/organization/connectors')).toEqual({ kind: 'org-connectors' });
+    expect(routeSelection('#/stage-labs/organization/connectors/aB3-_xYz9Qw')).toEqual({ kind: 'org-connector', id: 'aB3-_xYz9Qw' });
+    expect(routeHash({ kind: 'org-connector', id: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/organization/connectors/aB3-_xYz9Qw');
+    expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'connectors', project: 'aB3-_xYz9Qw' });
+  });
 });
 
 describe('switching server keeps the page', () => {
