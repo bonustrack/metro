@@ -34,6 +34,13 @@ describe('which addresses api.metro.box may reach for an organization connector'
     expect(await refusal('https://169.254.169.254/latest/meta-data')).toContain('private address');
   });
 
+  test('oversized request bodies fail before resolving or opening a connection', async () => {
+    let resolutions = 0;
+    const send = egressFetch(() => { resolutions += 1; return Promise.resolve([{ address: '93.184.216.34', family: 4 }]); });
+    await expect(send('https://vendor.example/token', { method: 'POST', body: 'x'.repeat(1024 * 1024 + 1) })).rejects.toThrow('larger than Metro sends');
+    expect(resolutions).toBe(0);
+  });
+
   test('a name is refused when any of its addresses is private, so a rebinding answer cannot slip through', async () => {
     expect(await refusal('https://inside.example/mcp', resolving([{ address: '10.0.0.5', family: 4 }]))).toContain('private address');
     expect(await refusal('https://mixed.example/mcp', resolving([{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]))).toContain('private address');

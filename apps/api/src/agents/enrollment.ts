@@ -7,7 +7,7 @@ import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-
 import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/agent-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { AgentKeyStore } from '../db/agent-keys.js';
-import { notEnrolled, refuseBrowser, type AgentAuth } from './auth.js';
+import { AgentKeyMissing, refuseBrowser, type AgentAuth } from './auth.js';
 import type { EnrollTickets } from './tickets.js';
 
 const MINT_RE = /^\/api\/servers\/([^/]+)\/enrollment$/;
@@ -16,12 +16,6 @@ const SESSION = '/api/agents/session';
 const BODY_MAX = 4096;
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
-
-class AgentKeyMissing extends ApiError {
-  constructor() {
-    super(notEnrolled().message, 401);
-  }
-}
 
 export interface EnrollmentDeps {
   enabled: () => boolean;

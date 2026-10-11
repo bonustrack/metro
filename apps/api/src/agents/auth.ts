@@ -9,6 +9,12 @@ export class AgentAuthError extends ApiError {}
 
 export const notEnrolled = (): AgentAuthError => new AgentAuthError('This agent is not enrolled with Metro, or its request signature is not valid.', 401);
 
+export class AgentKeyMissing extends ApiError {
+  constructor() {
+    super(notEnrolled().message, 401);
+  }
+}
+
 export function refuseBrowser(req: IncomingMessage): void {
   if (BROWSER_HEADERS.some((name) => req.headers[name] !== undefined)) throw new AgentAuthError('Only a Metro agent may call this, not a browser.', 403);
 }
@@ -19,7 +25,7 @@ export interface NonceLimits {
   perKey: number;
 }
 
-const LIMITS: NonceLimits = { total: 200_000, perOwner: 20_000, perKey: 600 };
+export const AGENT_NONCE_LIMITS: NonceLimits = { total: 200_000, perOwner: 20_000, perKey: 600 };
 
 interface Seen {
   keyId: string;
@@ -35,7 +41,7 @@ export class AgentAuth {
   constructor(
     private readonly host: string,
     private readonly now: () => number,
-    private readonly limits: NonceLimits = LIMITS,
+    private readonly limits: NonceLimits = AGENT_NONCE_LIMITS,
   ) {}
 
   proofOf(req: IncomingMessage): AgentProof {

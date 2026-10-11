@@ -56,7 +56,7 @@ export interface OrgConnectorStore {
   find: (owner: string, id: string) => Promise<ConnectorRow | null>;
   count: (owner: string) => Promise<number>;
   create: (row: ConnectorRow, event: ConnectorEvent) => Promise<void>;
-  edit: (owner: string, id: string, at: string, edit: (row: ConnectorRow) => ConnectorEdit) => Promise<ConnectorRow>;
+  edit: (owner: string, id: string, at: string, edit: (row: ConnectorRow) => ConnectorEdit | Promise<ConnectorEdit>) => Promise<ConnectorRow>;
   remove: (owner: string, id: string, at: string, event: (row: ConnectorRow) => ConnectorEvent) => Promise<ConnectorRow>;
   assign: (input: AssignInput) => Promise<AssignmentRow>;
   unassign: (input: Omit<AssignInput, 'policy'>) => Promise<void>;
@@ -74,9 +74,9 @@ async function lockConnector(tx: Database, owner: string, id: string): Promise<C
   return row;
 }
 
-async function editIn(tx: Database, owner: string, id: string, at: string, edit: (row: ConnectorRow) => ConnectorEdit): Promise<ConnectorRow> {
+export async function editConnectorIn(tx: Database, owner: string, id: string, at: string, edit: (row: ConnectorRow) => ConnectorEdit | Promise<ConnectorEdit>): Promise<ConnectorRow> {
   const row = await lockConnector(tx, owner, id);
-  const { change, event } = edit(row);
+  const { change, event } = await edit(row);
   if (Object.keys(change).length === 0 && event === null) return row;
   const saved = await tx.update(connectors).set({ ...change, updatedAt: at }).where(owned(owner, id)).returning();
   if (event !== null) await tx.insert(connectorEvents).values(eventRow(event, at));
@@ -172,7 +172,7 @@ export function orgConnectorStore(db: () => Database): OrgConnectorStore {
           await tx.insert(connectorEvents).values(eventRow(event, row.createdAt));
         }),
       ),
-    edit: (owner, id, at, edit) => unique(() => db().transaction((tx) => editIn(tx, owner, id, at, edit))),
+    edit: (owner, id, at, edit) => unique(() => db().transaction((tx) => editConnectorIn(tx, owner, id, at, edit))),
     remove: (owner, id, at, event) =>
       db().transaction(async (tx) => {
         const row = await lockConnector(tx, owner, id);

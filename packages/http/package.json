@@ -18,7 +18,8 @@
     "./connector-mcp": "./src/connector-mcp.ts",
     "./connector-discovery": "./src/connector-discovery.ts",
     "./connector-oauth": "./src/connector-oauth.ts",
-    "./connector-input": "./src/connector-input.ts"
+    "./connector-input": "./src/connector-input.ts",
+    "./connector-delivery": "./src/connector-delivery.ts"
   },
   "scripts": {
     "build": "tsc",

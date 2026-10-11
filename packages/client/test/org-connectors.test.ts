@@ -114,6 +114,17 @@ describe('the organization connectors client', () => {
     ]);
   });
 
+  test('central refresh activity uses agent names and retains a removed connector name', () => {
+    const actions = ['connector.refreshed', 'connector.refresh_failed', 'connector.signed_out', 'connector.delivered'];
+    const page = toOrgEvents({ events: actions.map((action) => ({ id: action, at: 't', action, actor: { kind: 'agent', id: 'a' }, connector: null, agent: { id: 'a', name: 'Tony' }, detail: { name: 'Old connector' } })), next: null });
+    expect(page.events.map((event) => orgEventText(event, () => null))).toEqual([
+      'Metro refreshed Old connector for Tony',
+      'Metro could not refresh Old connector for Tony',
+      'Old connector needs signing in again',
+      'Metro prepared Old connector for Tony',
+    ]);
+  });
+
   test('the sign-in return is read once from the address and cleared', () => {
     let search = '?org_connector=handoff-1&keep=1';
     const cleared: string[] = [];

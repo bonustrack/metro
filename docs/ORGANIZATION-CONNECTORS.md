@@ -24,4 +24,24 @@ Enrollment uses `/api/agents/enroll`, `/api/agents/session`, `Authorization: Met
 
 Secrets in Postgres are sealed with AES-256-GCM under one `METRO_CONNECTORS_KEY` Fly secret, with organization and connector identity as additional authenticated data. The browser never receives them. Do not replace an existing key: there is no key rotation or re-sealing flow yet.
 
-OAuth sign-in, the organization setup page, assignments and policies are implemented. Central refresh and runtime delivery are separate from setup. Enabling the setup switch alone must not migrate existing per-agent connector configuration. No tool call is relayed through api.metro.box.
+OAuth sign-in, the organization setup page, assignments and policies are implemented. Central refresh and memory sync are separately gated from setup. Enabling the setup switch alone does not migrate existing per-agent connector configuration. No tool call is relayed through api.metro.box.
+
+## Central refresh and signed delivery
+
+The staged `POST /api/agents/connectors` endpoint requires both `METRO_CONNECTORS_ENABLED=true` and `METRO_CONNECTORS_DELIVERY_ENABLED=true`. Neither is enabled by default. A browser or a user bearer token cannot fetch credentials. The enrolled agent signs each request with its private key. Durable database nonces prevent replay across API processes and restarts.
+
+OAuth refresh is serialized by a database row lock, not an in-process lock. The service rereads the encrypted current token under that lock and preserves a rotating refresh token. A forced refresh names an opaque prior credential revision so simultaneous retries do not refresh the newly issued token twice. An invalid grant requires sign-in again; a transient provider failure must not erase the saved refresh token.
+
+Only current, same-organization assignments can be delivered. Authorization, assignment and policy checks run again after slow refresh work. Connector-level and assignment policies are combined without allowing either to weaken the other. Delivery includes the target URL, access header, policy and opaque revision, never an OAuth refresh token or client secret. The full payload is sealed to the enrolled agent's X25519 key and bound to its organization, agent ID, key ID and random request ID.
+
+Snapshots have a lease of at most 90 seconds. This limits how long Metro can retain the delivery; it does not shorten a vendor's access token or API key lifetime. Tokens with an earlier expiry cannot be used beyond it. Credential lifetime is measured from the API's snapshot issue time, then reduced by monotonic request time, so an allowed clock difference cannot extend it. Responses are bounded, not silently truncated, and are not cacheable.
+
+Refresh and delivery events retain connector names but never URLs, headers, tokens or encrypted payloads. A delivery event records inclusion in an authorized sealed response, not proof that the agent received or decrypted it. Activity therefore says Metro prepared the connector for the agent.
+
+## Staged daemon memory sync
+
+The daemon also requires its separate `METRO_CONNECTORS_SYNC_ENABLED=true` flag. With it unset, boot makes no organization connector request. With it enabled and the agent enrolled in its current organization, the daemon retrieves an encrypted snapshot at start and every minute. Overlapping polls share a request. The snapshot lives in an isolated memory store only, never `connectors.json`, the plugin configuration, a policy file, the agent view, a bundle or an export.
+
+Memory is cleared on sync failure, lease expiry, owner change, enrollment-key change or shutdown. A response that was already in flight before an owner change cannot install credentials afterward, even if the organization changes back. Both monotonic elapsed time and wall time bound the lease, so a slow response or a backward clock adjustment cannot extend it.
+
+This is a preparation stage, not the relay cutover. Existing per-agent connector setup, OAuth, tool policies, plugin servers and relay behavior stay unchanged, including when memory sync is opted into. Organization snapshots are not exposed as live tools yet. The next runtime rollout must connect this store to the local relay, enforce current assignment and policy before each upstream call, handle tool discovery and plugin publication, and preserve existing local connectors until the migration is separately approved. Live tools, automatic plugin reload and the "Move to organization" migration are not enabled by this change.

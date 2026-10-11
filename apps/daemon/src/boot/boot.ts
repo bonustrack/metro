@@ -22,6 +22,8 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { syncPluginServers } from '../connectors/plugin-sync.js';
+import { readAgentKey } from '../connectors/agent-key.js';
+import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
 import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
@@ -161,6 +163,7 @@ installBearerSessions(agentsDir(), localOwner);
   syncPluginServers(readLocalConnectors());
   startUploadReaper();
   startAttachReaper();
+  watchOrgConnectorSync({ owner: localOwner, key: readAgentKey });
   startCloudWatchPublisher();
   watchFallbackUsage();
   announceLocalEndpoint();
@@ -212,6 +215,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
+  stopOrgConnectorSync();
   const leaving = leaveCallsForShutdown();
   unwatchSession();
   tunnel?.stop();
