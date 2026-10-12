@@ -6,6 +6,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { deleteOrgConnector, renameOrgConnector, replaceOrgConnectorKey, setOrgConnectorReadOnly, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { connectorLabel } from '@metro-labs/client/api/connectors';
 import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
 import { FactRow, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { FormField } from './FormField.js';
@@ -24,6 +25,7 @@ function authLabel(connector: OrgConnector): string {
 export function OrgConnectorFacts({ connector }: { connector: OrgConnector }): ReactNode {
   return (
     <SettingsGroup title="Connection">
+      <FactRow label="Instance ID" value={connector.id} />
       <FactRow label="Server (origin only)" value={connector.url} />
       <FactRow label="Sign-in" value={authLabel(connector)} />
       {connector.server === null ? null : <FactRow label="Service" value={connector.server} />}
@@ -105,7 +107,7 @@ export function OrgConnectorManage({ connector, onChanged }: { connector: OrgCon
   });
   return (
     <SettingsGroup title="Manage">
-      <SettingsSection title="Name" note={`Agents will see its tools under “${connector.name}”.`}>
+      <SettingsSection title="Name" note="A display name for this connector. Its instance ID stays the same when renamed.">
         <Button size="md" color="secondary" dark={dark} label="Rename" onPress={() => { setRenaming(true); }} />
       </SettingsSection>
       {connector.auth === 'oauth' ? null : (
@@ -116,7 +118,7 @@ export function OrgConnectorManage({ connector, onChanged }: { connector: OrgCon
       <SettingsSection title="Remove connector" note="Removes it and its secret, and takes it from every agent.">
         <Button size="md" color="danger" dark={dark} label="Remove" onPress={removing.show} />
       </SettingsSection>
-      <ConfirmDialog confirming={removing} title="Remove this connector?" lines={[`“${connector.name}” and its secret are removed, and every agent loses it.`]} action="Remove connector" />
+      <ConfirmDialog confirming={removing} title="Remove this connector?" lines={[`“${connectorLabel(connector)}” and its secret are removed, and every agent loses it.`]} action="Remove connector" />
       <NameModal key={connector.name} title="Rename connector" action="Rename" placeholder={connector.name} initial={connector.name} failure="Could not rename the connector." open={renaming} onClose={() => { setRenaming(false); }} onSubmit={async (name) => { const row = await renameOrgConnector(connector.id, name); onChanged(); return row; }} />
       {keying ? <KeyModal key={connector.id} connector={connector} open onClose={() => { setKeying(false); }} onSaved={onChanged} /> : null}
     </SettingsGroup>

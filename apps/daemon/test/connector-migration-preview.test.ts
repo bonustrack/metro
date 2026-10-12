@@ -140,6 +140,22 @@ test('malformed row identities have non-secret placeholders and duplicate rows a
   expect(files()).toEqual(before);
 });
 
+test('identical names and endpoints preview as separate sources without exposing endpoint secrets', () => {
+  const first = row({ config: config({ auth: { kind: 'header', name: 'Authorization', value: 'first-secret' }, policy: { write: 'deny' } }) });
+  const second = row({ id: 'conn0000002', config: config({ auth: { kind: 'header', name: 'Authorization', value: 'second-secret' }, policy: { write: 'ask' } }) });
+  write([first, second]);
+  const before = files();
+  const result = preview();
+  expect(result.connectors.map((entry) => ({ id: entry.id, issues: entry.issues, policy: entry.policy }))).toEqual([
+    { id: ID, issues: [], policy: { write: 'deny' } },
+    { id: 'conn0000002', issues: [], policy: { write: 'ask' } },
+  ]);
+  expect(migrationSource(ID, dir).config.auth).toEqual(first.config.auth);
+  expect(migrationSource('conn0000002', dir).config.auth).toEqual(second.config.auth);
+  for (const secret of ['first-secret', 'second-secret', 'query-secret', 'private-path']) expect(JSON.stringify(result)).not.toContain(secret);
+  expect(files()).toEqual(before);
+});
+
 test('all representable policies retain exact read, write and tool overrides', () => {
   const cases = [
     { policy: undefined, supported: true, output: {} },

@@ -399,9 +399,9 @@ describe('the row labels are derived, never asserted', () => {
     );
   });
 
-  test('a url that will not parse is shown as it came', () => {
-    expect(connectorHost('not a url')).toBe('not a url');
-    expect(connectorHost('')).toBe('');
+  test('an invalid address never exposes a path or query as a label', () => {
+    expect(connectorHost('private-path?token=fixture-secret')).toBe('Address withheld');
+    expect(connectorHost('')).toBe('Address withheld');
   });
 });
 

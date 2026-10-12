@@ -52,10 +52,14 @@ describe('the organization connector tables', () => {
     });
   });
 
-  test('a connector name is unique inside its organization only', async () => {
-    await held.db.insert(connectors).values(connector('conn0000001', OWNER, 'Linear'));
-    await held.db.insert(connectors).values(connector('conn0000002', STRANGER, 'Linear'));
-    await expect(settled(held.db.insert(connectors).values(connector('conn0000003', OWNER, 'Linear')))).rejects.toThrow();
+  test('names and endpoints may repeat within an organization, but connector IDs stay unique', async () => {
+    await held.db.insert(connectors).values([
+      connector('conn0000001', OWNER, 'Linear'),
+      connector('conn0000002', STRANGER, 'Linear'),
+      connector('conn0000003', OWNER, 'Linear'),
+    ]);
+    expect(await held.db.$count(connectors)).toBe(3);
+    await expect(settled(held.db.insert(connectors).values(connector('conn0000001', OWNER, 'Another name')))).rejects.toThrow();
   });
 
   test('an assignment goes with its connector or its agent, the audit log stays', async () => {

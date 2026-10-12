@@ -201,13 +201,11 @@ function previewRows(dir: string): MigrationConnector[] {
   const rows = readRows(dir).map(previewRow);
   const seen = new Map<string, MigrationConnector>();
   for (const row of rows) {
-    for (const key of [`id:${row.id}`, `name:${row.name}`]) {
-      const prior = seen.get(key);
-      if (prior !== undefined) {
-        for (const duplicate of [prior, row]) if (!duplicate.issues.includes('invalid_config')) duplicate.issues.push('invalid_config');
-      }
-      seen.set(key, row);
+    const prior = seen.get(row.id);
+    if (prior !== undefined) {
+      for (const duplicate of [prior, row]) if (!duplicate.issues.includes('invalid_config')) duplicate.issues.push('invalid_config');
     }
+    seen.set(row.id, row);
   }
   return rows;
 }

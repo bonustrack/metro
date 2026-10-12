@@ -75,7 +75,7 @@ export const connectors = pgTable(
     detail: text('detail'),
     authGeneration: text('auth_generation'),
   },
-  (t) => [uniqueIndex('connectors_owner_name_idx').on(t.owner, t.name), index('connectors_owner_idx').on(t.owner)],
+  (t) => [index('connectors_owner_idx').on(t.owner)],
 );
 
 export const connectorAgents = pgTable(

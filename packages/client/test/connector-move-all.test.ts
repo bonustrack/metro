@@ -13,14 +13,14 @@ beforeEach(() => {
   fixture = migrationFixture();
   fixture.preview = { ...previewBody(), moveAllSupported: true, connectors: [
     { ...sourceRow(), issues: [] },
-    { ...sourceRow(), id: SECOND, name: 'Calendar second account', issues: [] },
+    { ...sourceRow(), id: SECOND, issues: [] },
     { ...sourceRow(), id: BLOCKED, name: 'Private connector', issues: ['unsupported_url'] },
   ] };
 });
 afterEach(() => { fixture.close(); });
 
 describe('one-confirmation Move all orchestration', () => {
-  test('reads first, then sequentially moves eligible sources with status-only bodies and no sign-in', async () => {
+  test('moves same-name, same-origin sources independently by ID, retaining durable progress on retry', async () => {
     const session = fixture.open();
     await session.refresh();
     expect(bodies()).toEqual([]);

@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { closeSync, fsyncSync, openSync } from 'node:fs';
 import { publishLocalConnectors } from './publication.js';
+import { persistentServerKeys } from './server-keys.js';
 import { assertLocalMigrationEdit, localMigrationEnabled, localMigrationIdle, migrationSource, withLocalMigrationOperation } from './migration-guard.js';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { RelayTarget } from './relay-target.js';
@@ -116,6 +117,8 @@ export function readLocalConnectors(dir = agentsDir()): LocalConnectorRow[] {
 }
 
 function writeRows(dir: string, rows: LocalConnectorRow[]): void {
+  persistentServerKeys(readLocalConnectors(dir), dir);
+  persistentServerKeys(rows, dir);
   writeSecure(filePath(dir), `${JSON.stringify({ version: 1, connectors: rows }, null, 2)}\n`);
   if (dir !== agentsDir()) return;
   publishLocalConnectors(rows);
@@ -130,7 +133,7 @@ function rowOrThrow(id: string, dir: string): LocalConnectorRow {
 }
 
 function replace(dir: string, row: LocalConnectorRow, refresh = false): Connector {
-  if (!refresh) assertLocalMigrationEdit(row.id, row.name, dir);
+  if (!refresh) assertLocalMigrationEdit(row.id, dir);
   writeRows(dir, readLocalConnectors(dir).map((r) => (r.id === row.id ? row : r)));
   return connectorFromRow(row);
 }
@@ -150,17 +153,17 @@ export function localImportConnectors(
   const fresh =
     mode === 'overwrite'
       ? rows
-      : rows.filter((row) => !current.some((r) => r.id === row.id || r.name === row.name));
+      : rows.filter((row) => !current.some((r) => r.id === row.id));
   const imported: LocalConnectorRow[] = fresh.map((row) => ({
     id: row.id,
     name: row.name,
     url: row.url,
     config: readConfig(row.config),
   }));
-  for (const row of imported) assertLocalMigrationEdit(row.id, row.name, dir);
+  for (const row of imported) assertLocalMigrationEdit(row.id, dir);
   const ids = new Set(imported.map((r) => r.id));
-  const names = new Set(imported.map((r) => r.name));
-  writeRows(dir, [...current.filter((r) => !ids.has(r.id) && !names.has(r.name)), ...imported]);
+  if (ids.size !== imported.length) throw new ConnectorError('The import contains duplicate connector IDs.', 400);
+  writeRows(dir, [...current.filter((r) => !ids.has(r.id)), ...imported]);
   return imported.length;
 }
 
@@ -172,14 +175,7 @@ export async function localGetConnector(id: string, dir = agentsDir()): Promise<
   return Promise.resolve(connectorFromRow(rowOrThrow(id, dir)));
 }
 
-function assertNameFree(name: string, exceptId: string | null, dir: string): void {
-  if (readLocalConnectors(dir).some((r) => r.id !== exceptId && r.name === name))
-    throw new ConnectorError(`a connector named '${name}' already exists on this daemon`, 409);
-}
-
 function insert(dir: string, name: string, url: URL, config: ConnectorConfig): Connector {
-  assertLocalMigrationEdit('', name, dir);
-  assertNameFree(name, null, dir);
   const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), config };
   writeRows(dir, [...readLocalConnectors(dir), row]);
   return connectorFromRow(row);
@@ -193,7 +189,7 @@ export async function localCreateConnector(input: ConnectorInput, dir = agentsDi
   return withLocalMigrationOperation('', dir, async (operation) => {
     const verified = stamp(await verifyRemoteMcp(url, auth, operation.fetch));
     return insert(dir, name, url, { auth, createdAt: new Date().toISOString(), verified, oauth: await oauthCapable(url, auth, operation.fetch), client });
-  }, true, name);
+  }, true);
 }
 
 export async function localCreatePendingConnector(input: PendingConnectorInput, dir = agentsDir()): Promise<Connector> {
@@ -309,13 +305,12 @@ export async function loadConnectorPolicies(dir = agentsDir()): Promise<void> {
 export async function localRenameConnector(id: string, raw: string, dir = agentsDir()): Promise<Connector> {
   const name = connectorName(raw);
   const row = rowOrThrow(id, dir);
-  assertNameFree(name, id, dir);
   return Promise.resolve(replace(dir, { ...row, name }));
 }
 
 export async function localDeleteConnector(id: string, dir = agentsDir()): Promise<DeletedConnector> {
   const row = rowOrThrow(id, dir);
-  assertLocalMigrationEdit(id, row.name, dir);
+  assertLocalMigrationEdit(id, dir);
   writeRows(dir, readLocalConnectors(dir).filter((r) => r.id !== id));
   return Promise.resolve({ id: row.id, name: row.name });
 }

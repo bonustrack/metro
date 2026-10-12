@@ -59,7 +59,10 @@ function decide(policy, name, group) {
 const normalized = (name) => name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
 function connectorCall(snap, toolName) {
-  for (const [server, entry] of Object.entries(isRecord(snap.connectors) ? snap.connectors : {})) {
+  const entries = Object.entries(isRecord(snap.connectors) ? snap.connectors : {});
+  const legacy = entries.filter(([, entry]) => isRecord(entry) && !/^org-[A-Za-z0-9][A-Za-z0-9_-]{10}$/.test(text(entry.id)) && toolName.startsWith(`mcp__${normalized(`metro.box ${text(entry.name)}`)}__`));
+  if (legacy.length > 1) return { name: 'ambiguous connector name; use its instance server key', tool: toolName, group: 'write', policy: { write: 'deny' } };
+  for (const [server, entry] of entries) {
     if (!isRecord(entry)) continue;
     const name = text(entry.name);
     const prefixes = [`mcp__plugin_metro_${server}__`, `mcp__${server}__`];

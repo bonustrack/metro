@@ -51,7 +51,7 @@ export async function startOAuth(
       returnTo,
     }, operation.fetch);
     const row = await deps.createPendingConnector({
-      name: bodyField(body, 'name'),
+      name,
       url: bodyField(body, 'url'),
       clientId,
       clientSecret,
@@ -69,7 +69,7 @@ export async function startOAuth(
       'connector-api: stored unconnected, sending the user to sign in',
     );
     sendJson(req, res, 201, { ...payload(row), authorizeUrl: authorize });
-  }, true, name);
+  }, true);
 }
 
 export async function handleConnect(

@@ -9,18 +9,18 @@ import { activeAccount } from '@metro-labs/client/auth/account';
 import { baseFromSegment, daemonBase } from '@metro-labs/client/auth/daemon';
 import { queryError, resetDestinationConnectors, useOrganizationsQuery } from '../lib/queries.js';
 import { copyConnectors, type CopyTarget, type CopyResult } from '@metro-labs/client/api/connector-copy';
-import type { Connector, ConnectorsView } from '@metro-labs/client/api/connectors';
+import { connectorLabel, type Connector, type ConnectorsView } from '@metro-labs/client/api/connectors';
 import type { OrganizationRow } from '@metro-labs/client/api/auth';
 import { ConfirmModal } from './ConfirmModal.js';
 import { Loading } from './Loading.js';
 
 function CopyReport({ results, connectors }: { results: CopyResult[]; connectors: Connector[] }): ReactNode {
-  const names = new Map(connectors.map((row) => [row.id, row.name]));
+  const names = new Map(connectors.map((row) => [row.id, connectorLabel(row, connectors)]));
   const copied = results.filter((row) => row.status === 'copied').length;
   return <Col gap={8}>
     <Text size="2xs">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
     {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="2xs" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
-      {`${names.get(row.sourceId ?? '') ?? 'Connector'}: ${row.status === 'skipped' ? 'skipped, that name already exists on the destination' : row.status === 'invalid' ? 'not copied, invalid settings' : 'copied'}`}
+      {`${names.get(row.sourceId ?? '') ?? `Connector (${row.sourceId ?? 'unknown'})`}: ${row.status === 'skipped' ? 'skipped by the destination agent' : row.status === 'invalid' ? 'not copied, invalid settings' : `copied${row.id === undefined ? '' : ` as ${row.id}`}`}`}
     </Text>)}
     <Text size="2xs" role="secondary">Reload plugins on the destination to make new connector tools available. Some services rotate login tokens, so either agent may need to reconnect for independent logins.</Text>
   </Col>;
@@ -86,7 +86,7 @@ function CopyConfirmation({ title, state, onClose }: { title: string; state: Ret
   if (state.target === null) return null;
   const target = state.target;
   return <ConfirmModal open={state.results === null} title={`${title} to ${target.name}?`}
-    lines={[`Saved logins and client secrets will be copied to ${target.name} in ${target.organizationName}. Members of that organization will be able to use them.`, 'Some services rotate login tokens. A copied login can sign the source or destination out. Reconnect each agent separately to keep independent logins.', 'Source settings are not changed by this copy. Existing destination connectors with the same name are skipped, never overwritten.']}
+    lines={[`Saved logins and client secrets will be copied to ${target.name} in ${target.organizationName}. Members of that organization will be able to use them.`, 'Some services rotate login tokens. A copied login can sign the source or destination out. Reconnect each agent separately to keep independent logins.', 'Source settings are not changed by this copy. Each copy creates a separate instance, even with the same name and address. Existing destination connectors are never overwritten.']}
     confirmWord="copy" confirmLabel="Copy with saved logins" busy={state.busy} error={state.error} onClose={onClose} onConfirm={state.run} />;
 }
 
@@ -95,7 +95,7 @@ export function CopyConnectors({ connectors, all = false, onClose }: { connector
   const state = useCopy(connectors, all);
   const targets = copyTargets(organizations.data ?? [], new URL(daemonBase()).origin);
   const close = (): void => { if (!state.busy) onClose(); };
-  const title = all ? 'Copy all connectors' : `Copy ${connectors[0]?.name ?? 'connector'}`;
+  const title = all ? 'Copy all connectors' : `Copy ${connectors[0] === undefined ? 'connector' : connectorLabel(connectors[0])}`;
   if (activeAccount()?.role !== 'admin') return null;
   return <>
     <CopyChooser title={title} open={state.target === null || state.results !== null} pending={organizations.isPending} error={organizations.error}

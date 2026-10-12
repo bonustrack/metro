@@ -1,5 +1,6 @@
 import { registerConnectors, type GateRow } from './gates.js';
-import { serverKeysOf, syncPluginServers } from './plugin-sync.js';
+import { syncPluginServers } from './plugin-sync.js';
+import { persistentServerKeys } from './server-keys.js';
 import { isOrgRelayId } from './relay-id.js';
 import { migrationRecords } from './migration-state.js';
 
@@ -17,14 +18,7 @@ function metadata(rows: readonly GateRow[]): GateRow[] {
   }));
 }
 
-export function publishConnectors(): void {
-  let records: ReturnType<typeof migrationRecords>;
-  try { records = migrationRecords().filter((record) => record.phase !== 'rolled_back'); }
-  catch (error) {
-    registerConnectors([], local.map((row) => row.id));
-    syncPluginServers([]);
-    throw error;
-  }
+function publishedRows(records: ReturnType<typeof migrationRecords>): GateRow[] {
   const retired = new Set(records.filter((record) => !['preparing', 'prepared'].includes(record.phase)).map((record) => record.sourceId));
   const aliases = new Map(organization.filter((row) => records.some((record) => record.phase === 'active' && record.sourceId === row.id && record.name === row.name)).map((row) => [row.id, row]));
   const rows = local.flatMap((row) => {
@@ -32,8 +26,25 @@ export function publishConnectors(): void {
     return alias !== undefined ? [alias] : retired.has(row.id) ? [] : [row];
   });
   rows.push(...organization.filter((row) => isOrgRelayId(row.id) && !records.some((record) => row.id === `org-${record.destinationId ?? ''}`)));
-  const keys = serverKeysOf([...local, ...rows.filter((row) => isOrgRelayId(row.id))]);
-  registerConnectors(rows, [...retired, ...aliases.keys()], keys);
+  return rows;
+}
+
+export function publishConnectors(): void {
+  let rows: GateRow[];
+  let keys: Map<string, string>;
+  try {
+    const records = migrationRecords().filter((record) => record.phase !== 'rolled_back');
+    rows = publishedRows(records);
+    const active = new Set(records.filter((record) => record.phase === 'active').map((record) => record.sourceId));
+    const reserved = [...rows, ...local.filter((row) => active.has(row.id))];
+    keys = persistentServerKeys([...local, ...organization.filter((row) => isOrgRelayId(row.id))], undefined, reserved);
+  }
+  catch (error) {
+    registerConnectors([]);
+    syncPluginServers([]);
+    throw error;
+  }
+  registerConnectors(rows, keys);
   syncPluginServers(rows, { keys });
 }
 

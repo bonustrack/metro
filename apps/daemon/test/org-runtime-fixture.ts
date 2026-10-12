@@ -81,7 +81,7 @@ export async function runtimeFixture(mapping?: () => MigrationRuntimeMapping): P
   });
   const runtime = new OrgConnectorRuntime(sync, { enabled: () => state.live, mapping, publish: (rows) => {
     publications.push(structuredClone([...rows]));
-    registerConnectors(rows, rows.map((row) => row.id));
+    registerConnectors(rows);
   }, fetch: async (_url, init) => {
     expect(init?.redirect).toBe('manual');
     expect(init?.signal).toBeInstanceOf(AbortSignal);

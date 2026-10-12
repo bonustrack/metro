@@ -4,7 +4,7 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { connectorHost } from '@metro-labs/client/api/connectors';
+import { connectorHost, connectorLabel } from '@metro-labs/client/api/connectors';
 import { addOrgConnector, orgConnectorCallbackUrl, type NewOrgConnector, type OrgConnector, type OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
 import { routeHash } from '@metro-labs/client/route';
 import { Frame } from './Shell.js';
@@ -31,12 +31,14 @@ const HINT = 'Metro checks the server from api.metro.box, so it must be a public
 
 const agentsLabel = (count: number): string => (count === 1 ? '1 agent' : `${String(count)} agents`);
 
-function ConnectorRow({ connector }: { connector: OrgConnector }): ReactNode {
+function ConnectorRow({ connector, label }: { connector: OrgConnector; label: string }): ReactNode {
   const status = orgConnectorStatus(connector);
+  const detail = `${connectorHost(connector.url)} · ${status.text}`;
   return (
     <ListRow
       title={connector.name}
-      detail={`${connectorHost(connector.url)} · ${status.text}`}
+      label={label}
+      detail={label === connector.name ? detail : `${connector.id} · ${detail}`}
       href={routeHash({ kind: 'org-connector', id: connector.id })}
       icon={<ConnectorFavicon name={connector.name} url={connector.url} size={LIST_ICON_SIZE} />}
       muted={status.bad}
@@ -51,7 +53,7 @@ function ConnectorList({ list }: { list: OrgList }): ReactNode {
   return (
     <SettingsGroup>
       {list.connectors.map((connector) => (
-        <ConnectorRow key={connector.id} connector={connector} />
+        <ConnectorRow key={connector.id} connector={connector} label={connectorLabel(connector, list.connectors)} />
       ))}
     </SettingsGroup>
   );

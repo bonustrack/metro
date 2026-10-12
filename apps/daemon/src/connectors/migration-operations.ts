@@ -17,13 +17,20 @@ interface RequestOperation {
   refresh: boolean;
 }
 
+interface PassiveListener {
+  idle: () => boolean;
+  stop: () => void;
+}
+
 export interface MigrationOperation {
+  passiveListener: (listener: PassiveListener) => void;
   dispatch: (send: () => Promise<Response>, options?: { protectedSource?: boolean; effectful?: boolean; refresh?: boolean }) => Promise<Response>;
   close: () => void;
   persistedRefresh: () => void;
 }
 
 const leases = new Map<string, Set<string>>();
+const listeners = new Map<string, PassiveListener>();
 const requests = new Map<string, RequestOperation>();
 const held = new Map<string, RequestOperation>();
 const keyOf = (source: string, dir: string): string => JSON.stringify([resolve(dir), source]);
@@ -101,6 +108,17 @@ export function migrationUncertaintyReceipt(source: string, dir = agentsDir()): 
 
 export function assertMigrationOutcomeKnown(source: string, dir = agentsDir()): void {
   if (migrationUncertaintyReceipt(source, dir) !== null) throw uncertain();
+}
+
+export function drainMigrationListeners(source: string, dir: string): void {
+  const active = [...(leases.get(keyOf(source, dir)) ?? [])];
+  if (active.length === 0 || active.some((lease) => listeners.get(lease)?.idle() !== true)) return;
+  if (readPending(source, dir).some((id) => requests.has(id))) return;
+  for (const lease of active) {
+    const listener = listeners.get(lease);
+    listeners.delete(lease);
+    listener?.stop();
+  }
 }
 
 export function migrationOperationsIdle(source: string, dir: string, protectedSource: boolean): boolean {
@@ -181,6 +199,7 @@ export function beginMigrationOperation(source: string, dir: string, protectedSo
   leases.set(key, active);
   let closed = false;
   return {
+    passiveListener: (listener) => { if (!closed) listeners.set(lease, listener); },
     dispatch: (send, options = {}) => {
       if (closed) return Promise.reject(uncertain());
       return dispatch(source, dir, lease, options.protectedSource ?? protectedSource, options.effectful ?? true, options.refresh ?? false, send);
@@ -191,6 +210,7 @@ export function beginMigrationOperation(source: string, dir: string, protectedSo
     close: () => {
       if (closed) return;
       closed = true;
+      listeners.delete(lease);
       for (const request of held.values()) if (request.lease === lease) {
         finish(request, false);
         held.delete(request.id);

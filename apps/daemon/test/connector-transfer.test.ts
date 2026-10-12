@@ -126,15 +126,18 @@ describe('complete connector copy between separately owned daemons', () => {
     expect(readLocalConnectors(destinationDir)).toHaveLength(2);
   });
 
-  test('copies a single selected connector and skips name collisions on retry without overwriting', async () => {
+  test('each explicitly confirmed copy creates a new instance without overwriting the previous one', async () => {
     const first = await exportCopy(['conn0000001']);
     expect((await request(destinationBase, 'receive', { confirmed: true, ...first })).status).toBe(200);
-    const original = readFileSync(join(destinationDir, 'connectors.json'), 'utf8');
+    const original = readLocalConnectors(destinationDir)[0];
     const retry = await exportCopy(['conn0000001']);
     const answer = await (await request(destinationBase, 'receive', { confirmed: true, ...retry })).json() as { results: { status: string }[] };
-    expect(answer.results.map((row) => row.status)).toEqual(['skipped']);
-    expect(readFileSync(join(destinationDir, 'connectors.json'), 'utf8')).toBe(original);
-    expect(readLocalConnectors(destinationDir)).toHaveLength(1);
+    expect(answer.results.map((row) => row.status)).toEqual(['copied']);
+    const copies = readLocalConnectors(destinationDir);
+    expect(copies[0]).toEqual(original);
+    expect(copies).toHaveLength(2);
+    expect(copies[1]?.id).not.toBe(copies[0]?.id);
+    expect(copies[1]?.config).toEqual(copies[0]?.config);
   });
 
   test('requires admin on the actual source and destination, and rejects tokens from the other organization', async () => {
@@ -170,7 +173,7 @@ describe('complete connector copy between separately owned daemons', () => {
     expect(readLocalConnectors(destinationDir)).toEqual([]);
   });
 
-  test('reports valid, conflicting and invalid rows independently without weakening permissions or exposing invalid data', async () => {
+  test('reports duplicate and invalid rows independently without weakening permissions or exposing invalid data', async () => {
     const rows = readLocalConnectors(sourceDir);
     const existing = rows[0];
     if (existing === undefined) throw new Error('missing fixture');
@@ -180,10 +183,10 @@ describe('complete connector copy between separately owned daemons', () => {
     const warnings = spyOn(log, 'warn');
     try {
       const results = copyConnectorRows({ version: 1, connectors: [existing, rows[1], badPolicy, badAuth] }, destinationDir);
-      expect(results.map((row) => row.status)).toEqual(['skipped', 'copied', 'invalid', 'invalid']);
+      expect(results.map((row) => row.status)).toEqual(['copied', 'copied', 'invalid', 'invalid']);
       expect(JSON.stringify(results)).not.toContain('do-not-leak');
       expect(JSON.stringify(warnings.mock.calls)).not.toContain('do-not-leak');
-      expect(readLocalConnectors(destinationDir).map((row) => row.name)).toEqual(['header', 'oauth']);
+      expect(readLocalConnectors(destinationDir).map((row) => row.name)).toEqual(['header', 'header', 'oauth']);
     } finally {
       warnings.mockRestore();
     }

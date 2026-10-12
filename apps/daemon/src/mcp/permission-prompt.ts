@@ -1,6 +1,6 @@
 import { str } from '@metro-labs/core/str';
 import { readPreview, shownValue } from '../approvals/preview.js';
-import { connectorToolOf } from '../connectors/gates.js';
+import { connectorGates, connectorToolOf } from '../connectors/gates.js';
 import { stationByName } from '../stations/registry.js';
 import { stationOfAccount } from './read-tool.js';
 
@@ -92,7 +92,11 @@ function bodyLines(params: PermissionParams): string[] {
   const raw = params.input_preview.trim() === '' ? [] : [shorten(params.input_preview, RAW_MAX)];
   if (metro !== undefined) return input === undefined ? [`Approval needed: ${metro}`, ...raw] : metroLines(metro, input);
   const connector = connectorToolOf(params.tool_name);
-  if (connector !== undefined) return connectorLines(connector.gate.name, connector.tool, input);
+  if (connector !== undefined) {
+    const { gate, tool } = connector;
+    const duplicate = connectorGates().some((entry) => entry.id !== gate.id && entry.name === gate.name);
+    return connectorLines(duplicate ? `${gate.name} (${gate.id})` : gate.name, tool, input);
+  }
   return [`Claude wants to run ${params.tool_name}: ${shorten(params.description)}`, '', ...raw];
 }
 

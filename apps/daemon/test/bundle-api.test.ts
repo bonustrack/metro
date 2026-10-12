@@ -173,16 +173,18 @@ describe('an agent bundle on a local daemon', () => {
     expect(await restore.text()).toContain('cannot be imported');
   });
 
-  test('a connector with the same name but another id: append leaves the one here, overwrite replaces it', async () => {
+  test('same-name and same-endpoint bundle instances append separately and overwrite only the matching id', async () => {
     const before = readLocalConnectors(dir).find((c) => c.name === 'linear');
     if (before === undefined) throw new Error('expected the linear connector to be here');
-    const twin = { id: 'conn0000002', name: 'linear', url: 'https://mcp.linear.app/other', transport: 'http', config: {} };
+    const twin = { id: 'conn0000002', name: 'linear', url: before.url, transport: 'http', config: { auth: { kind: 'header', name: 'Authorization', value: 'twin-fixture' } } };
     const body = { version: 1, agent: { id: tony.id, name: 'Tony', stations: [] }, connectors: [twin] };
     expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);
-    expect(readLocalConnectors(dir).filter((c) => c.name === 'linear').map((c) => c.id)).toEqual([before.id]);
-    expect((await call('POST', '/api/agents/restore', { ...body, mode: 'overwrite' })).status).toBe(201);
+    expect(readLocalConnectors(dir).filter((c) => c.name === 'linear').map((c) => c.id)).toEqual([before.id, twin.id]);
+    const changed = { ...twin, config: { ...twin.config, policy: { write: 'deny' } } };
+    expect((await call('POST', '/api/agents/restore', { ...body, connectors: [changed], mode: 'overwrite' })).status).toBe(201);
     const after = readLocalConnectors(dir).filter((c) => c.name === 'linear');
-    expect(after.map((c) => c.id)).toEqual(['conn0000002']);
-    expect(after[0]?.url).toBe('https://mcp.linear.app/other');
+    expect(after.map((c) => c.id)).toEqual([before.id, twin.id]);
+    expect(after.find((row) => row.id === before.id)).toEqual(before);
+    expect(after.find((row) => row.id === twin.id)?.config).toMatchObject(changed.config);
   });
 });

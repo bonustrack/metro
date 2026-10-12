@@ -38,7 +38,7 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('preparation locks edits, names and atomic import replacements while local use continues', async () => {
+test('preparation locks only source IDs and atomic import replacements while local use continues', async () => {
   for (const phase of ['preparing', 'prepared'] as const) {
     migration(dir, phase);
     const before = readFileSync(join(dir, 'connectors.json'), 'utf8');
@@ -46,8 +46,6 @@ test('preparation locks edits, names and atomic import replacements while local 
     await expect(localDeleteConnector(SOURCE, dir)).rejects.toThrow('locked');
     await expect(localSetConnectorPolicy(SOURCE, {}, dir)).rejects.toThrow('locked');
     await expect(localReconnectConnector(SOURCE, oauth(), dir)).rejects.toThrow('locked');
-    await expect(localCreateConnector(input(), dir)).rejects.toThrow('locked');
-    expect(() => localImportConnectors([{ ...source(), id: 'local000002' }, { ...source(), id: 'local000003', name: 'Other' }], dir)).toThrow('locked');
     expect(() => localImportConnectors([{ ...source(), name: 'Other' }], dir)).toThrow('locked');
     expect(readFileSync(join(dir, 'connectors.json'), 'utf8')).toBe(before);
     expect((await localRelayTarget(SOURCE, false, dir)).kind).toBe('ok');
@@ -156,15 +154,19 @@ test('discovery cannot dispatch its next request after cutover', async () => {
   expect(localMigrationIdle(SOURCE, dir)).toBe(true);
 });
 
-test('a creation begun before preparation cannot replace the protected name after verification', async () => {
-  const before = readFileSync(join(dir, 'connectors.json'), 'utf8');
+test('same-name creation and import stay independent from a migrating source', async () => {
+  const before = readLocalConnectors(dir)[0];
   handle = async (_req, res) => {
     migration(dir, 'preparing');
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ result: { protocolVersion: '2025-11-25' } }));
     await Promise.resolve();
   };
-  await expect(localCreateConnector(input(), dir)).rejects.toThrow('locked');
-  expect(readFileSync(join(dir, 'connectors.json'), 'utf8')).toBe(before);
+  const created = await localCreateConnector(input(), dir);
+  expect(created.id).not.toBe(SOURCE);
+  expect(readLocalConnectors(dir)[0]).toEqual(before);
+  localImportConnectors([{ ...source(), id: 'local000002' }], dir);
+  expect(migrationExportableRows(readLocalConnectors(dir), dir).map((row) => row.id)).toEqual([created.id, 'local000002']);
+  await expect(localRenameConnector(created.id, SOURCE_NAME, dir)).resolves.toMatchObject({ id: created.id });
 });
 
 test('OAuth preparation and an older callback cannot sign in a protected source', async () => {

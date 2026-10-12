@@ -131,7 +131,7 @@ async function unique<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (err) {
-    if (isUniqueViolation(err)) throw new MigrationConflict('A connector with that name or migration already exists. Nothing was merged.');
+    if (isUniqueViolation(err)) throw new MigrationConflict('This connector identity or migration already exists. Nothing was merged.');
     throw err;
   }
 }

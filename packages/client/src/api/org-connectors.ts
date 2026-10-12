@@ -3,6 +3,7 @@ import { builtInDaemon } from '../auth/daemon.js';
 import { location, signInReturnUrl } from '../platform.js';
 import { call, type CallInit } from './client.js';
 import { accountIdentity, accountScopeIdentity, checkAccountIdentity } from '../auth/account.js';
+import { connectorLabel } from './connectors.js';
 
 export type OrgConnectorAuth = 'none' | 'header' | 'oauth';
 
@@ -255,10 +256,15 @@ const ACTIONS: Record<string, (s: Said) => string> = {
   'agent.unenrolled': (s) => `${s.agent} moved to another organization, so its agent key and connectors were removed`,
 };
 
+function eventConnectorName(event: OrgConnectorEvent): string {
+  const name = event.connector?.name ?? event.detail.name ?? 'a connector';
+  return event.connector === null ? name : connectorLabel({ id: event.connector.id, name });
+}
+
 export function orgEventText(event: OrgConnectorEvent, agentName: (id: string) => string | null): string {
   const said: Said = {
     who: event.actor,
-    name: event.connector?.name ?? event.detail.name ?? 'a connector',
+    name: eventConnectorName(event),
     agent: event.agent === null ? 'an agent' : (agentName(event.agent.id) ?? event.agent.name ?? event.agent.id),
     detail: event.detail,
   };

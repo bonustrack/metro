@@ -69,8 +69,8 @@ export function migrationFixture(oauth = false) {
     if (controls.freshFail || payload === null) return Promise.reject(new Error('no decrypted receipt'));
     return Promise.resolve({ issuedAt: Date.now(), expiresAt: Date.now() + 60_000, connectors: [{ id: DESTINATION, name: payload.name, url: payload.url, auth: payload.auth.kind, headers: {}, policy: payload.policy, state: 'ready', revision: 'r'.repeat(43) }] });
   };
-  const control = () => new ConnectorMigrations({
-    dir, api, key: () => key, status: () => status, fresh, changed: () => {}, localIdle: () => controls.localIdle, orgIdle: () => controls.orgIdle,
+  const control = (localIdle = () => controls.localIdle) => new ConnectorMigrations({
+    dir, api, key: () => key, status: () => status, fresh, changed: () => {}, localIdle, orgIdle: () => controls.orgIdle,
     restore: (id, signOut) => { controls.restored += 1; localRollbackMigrationSource(id, signOut, dir); },
   });
   return { dir, key, source, status, controls, requests, readSource, control, remote: () => remote, payload: () => payload, ready: () => { if (remote !== null) remote.readiness = 'ready'; } };

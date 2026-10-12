@@ -6,7 +6,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { SHRINK } from '../lib/style.js';
 import { PageTitle } from './PageTitle.js';
-import { connectorHost, renameConnector, verifyConnector, type Connector } from '@metro-labs/client/api/connectors';
+import { connectorHost, connectorLabel, renameConnector, verifyConnector, type Connector } from '@metro-labs/client/api/connectors';
 import { queryError, refreshConnectors, useConnectorQuery } from '../lib/queries.js';
 import { useAgentName } from '../lib/agent-hooks.js';
 import { whenLabel } from '@metro-labs/client/api/when';
@@ -66,7 +66,8 @@ function Facts({ connector }: { connector: Connector }): ReactNode {
   const health = connector.health;
   return (
     <>
-      <FactRow label="Address" value={connector.url} />
+      <FactRow label="Instance ID" value={connector.id} />
+      <FactRow label="Server (host only)" value={connectorHost(connector.url)} />
       <FactRow label="Sign-in" value={AUTH_LABEL[connector.auth] ?? 'None'} />
       <FactRow label="Last call" value={lastCallOf(connector)} danger={health !== null && !health.ok} />
       {verified === null || verified.server === '' ? null : <FactRow label="Service" value={verified.server} />}
@@ -112,7 +113,7 @@ function Manage({ connector, onDelete, onChanged, onError }: { connector: Connec
   const confirming = useConfirm(() => onDelete(connector.id), 'Could not remove the connector.');
   return (
     <SettingsGroup title="Manage">
-      <SettingsSection title="Name" note={`The agent sees its tools under “${connector.name}”.`}>
+      <SettingsSection title="Name" note="A display name for this connector. Its instance ID stays the same when renamed.">
         <Button size="md" color="secondary" dark={dark} label="Rename" onPress={() => { setRenaming(true); }} />
       </SettingsSection>
       {connector.signIn === 'connected' ? (
@@ -126,7 +127,7 @@ function Manage({ connector, onDelete, onChanged, onError }: { connector: Connec
       <ConfirmDialog
         confirming={confirming}
         title="Remove this connector?"
-        lines={[`“${connector.name}” and its sign-in are removed. The agent drops its tools after /reload-plugins --force.`]}
+        lines={[`“${connectorLabel(connector)}” and its sign-in are removed. The agent drops its tools after /reload-plugins --force.`]}
         action="Remove connector"
       />
       <NameModal

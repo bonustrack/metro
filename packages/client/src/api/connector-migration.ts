@@ -2,7 +2,7 @@ import { captureMigrationIdentity, type MigrationIdentity } from './connector-mi
 import { isRecord } from '../read.js';
 import { timeoutSignal } from '../platform.js';
 import { call, ForbiddenError, NotFoundError } from './client.js';
-import { readOrgConnectors, type OrgConnector } from './org-connectors.js';
+import { readOrgConnectors } from './org-connectors.js';
 import { ACCESS_CHOICES, type Access, type ToolPolicy } from './policy.js';
 
 export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry' | 'unused_oauth_client' | 'oauth_private_resource' | 'oauth_unsupported';
@@ -29,16 +29,9 @@ export interface MigrationPreview {
   connectors: MigrationSource[];
 }
 
-export interface MigrationConflict {
-  id: string;
-  name: string;
-  kind: 'name' | 'service';
-  assigned: boolean;
-}
-
 export interface MigrationPlan {
   preview: MigrationPreview;
-  rows: { source: MigrationSource; conflicts: MigrationConflict[] }[];
+  rows: { source: MigrationSource }[];
   organizationChecked: boolean;
 }
 
@@ -98,15 +91,6 @@ function originOf(value: string): string | null {
   }
 }
 
-function conflictsFor(source: MigrationSource, connectors: OrgConnector[], agentId: string | null): MigrationConflict[] {
-  return connectors.flatMap((row) => {
-    const sameName = row.name.trim().toLowerCase() === source.name.trim().toLowerCase();
-    const sameService = source.origin !== null && source.origin === originOf(row.url);
-    if (!sameName && !sameService) return [];
-    return [{ id: row.id, name: row.name, kind: sameName ? 'name' : 'service', assigned: agentId !== null && row.agents.some((agent) => agent.id === agentId) }];
-  });
-}
-
 export async function readMigrationPreview(identity: MigrationIdentity, signal: AbortSignal): Promise<MigrationPlan> {
   identity.check();
   let preview: MigrationPreview;
@@ -123,7 +107,7 @@ export async function readMigrationPreview(identity: MigrationIdentity, signal: 
   const organization = await readOrgConnectors(identity.check, signal);
   identity.check();
   if (!organization.admin) throw new ForbiddenError('Only an organization admin can preview a migration.');
-  return { preview, rows: preview.connectors.map((source) => ({ source, conflicts: conflictsFor(source, organization.connectors, preview.agentId) })), organizationChecked: true };
+  return { preview, rows: preview.connectors.map((source) => ({ source })), organizationChecked: true };
 }
 
 export async function fetchMigrationPreview(): Promise<MigrationPlan> {

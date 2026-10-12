@@ -46,7 +46,7 @@ describe('organization migration preparation', () => {
     expect(result.organizationChecked).toBe(true);
     expect(result.rows[0]?.source.policy).toEqual(source().policy);
     expect(result.rows[0]?.source.issues).toEqual(['oauth_sign_in', 'custom_policy']);
-    expect(result.rows[0]?.conflicts).toEqual([]);
+    expect(result.rows).toEqual([{ source: source() }]);
     expect(requests.map((row) => [row.url, row.init.method, row.init.body])).toEqual([[LOCAL, 'GET', undefined], [CENTRAL, 'GET', undefined]]);
     expect(requests[0]?.init.redirect).toBe('error');
     expect(requests[0]?.init.signal).toBeInstanceOf(AbortSignal);
@@ -65,19 +65,18 @@ describe('organization migration preparation', () => {
     expect(requests).toHaveLength(1);
   });
 
-  test('name and service conflicts remain separate, with existing source assignments shown', async () => {
+  test('same-name and same-service instances stay separate without matching organization connectors', async () => {
+    const sources = [source(), { ...source(), id: 'conn0000002' }];
+    local = { ...preview(), connectors: sources };
     organization = { admin: true, connectors: [
       { id: 'same-name', name: ' calendar ', url: 'https://other.example/mcp', agents: [{ id: AGENT }] },
-      { id: 'same-service', name: 'Other calendar account', url: 'https://calendar.example/private-key-in-path?key=fixture-secret', agents: [] },
-      { id: 'unrelated', name: 'Tasks', url: 'https://tasks.example', agents: [{ id: AGENT }] },
+      { id: 'same-service', name: 'Calendar', url: 'https://calendar.example/private-key-in-path?key=fixture-secret', agents: [{ id: AGENT }] },
     ] };
     const result = await fetchMigrationPreview();
-    expect(result.rows[0]?.conflicts).toEqual([
-      { id: 'same-name', name: ' calendar ', kind: 'name', assigned: true },
-      { id: 'same-service', name: 'Other calendar account', kind: 'service', assigned: false },
-    ]);
-    expect(JSON.stringify(result)).not.toContain('fixture-secret');
-    expect(JSON.stringify(result)).not.toContain('private-key-in-path');
+    expect(result.organizationChecked).toBe(true);
+    expect(result.rows).toEqual(sources.map((value) => ({ source: value })));
+    for (const value of ['same-name', 'same-service', 'fixture-secret', 'private-key-in-path', 'conflicts']) expect(JSON.stringify(result)).not.toContain(value);
+    expect(requests.map((row) => row.url)).toEqual([LOCAL, CENTRAL]);
   });
 
   test('unexpected source fields never enter the projected preview', async () => {
@@ -124,7 +123,7 @@ describe('organization migration preparation', () => {
     expect(requests.every((row) => row.url === LOCAL)).toBe(true);
   });
 
-  test('an organization metadata failure never becomes a no-conflicts result', async () => {
+  test('an organization metadata failure never becomes a scope-verified result', async () => {
     organizationStatus = 503;
     organization = { error: 'Organization connectors are not switched on yet.' };
     await expect(fetchMigrationPreview()).rejects.toThrow('not switched on');

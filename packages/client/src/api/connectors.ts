@@ -117,11 +117,17 @@ export function connectorsInOrder(rows: Connector[]): Connector[] {
   return [...rows].sort((a, b) => trailing(a) - trailing(b));
 }
 
+export function connectorLabel(connector: Pick<Connector, 'id' | 'name'>, peers?: readonly Pick<Connector, 'id' | 'name'>[]): string {
+  const name = connector.name.trim().toLowerCase();
+  if (peers !== undefined && !peers.some((row) => row.id !== connector.id && row.name.trim().toLowerCase() === name)) return connector.name;
+  return `${connector.name} (${connector.id})`;
+}
+
 export function connectorHost(url: string): string {
   try {
     return new URL(url).host;
   } catch {
-    return url;
+    return 'Address withheld';
   }
 }
 

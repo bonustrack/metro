@@ -18,6 +18,8 @@ export interface CopyResult {
   status: 'copied' | 'skipped' | 'invalid';
 }
 
+const unconfirmed = (): Error => new Error('Connector copy was not confirmed. Check the destination before retrying; another copy creates new instances without overwriting existing connectors.');
+
 export async function connectorTransfer(base: string, path: 'prepare' | 'export' | 'receive', token: string, body: unknown): Promise<unknown> {
   let res: Response;
   try {
@@ -28,17 +30,16 @@ export async function connectorTransfer(base: string, path: 'prepare' | 'export'
       redirect: 'manual',
       signal: timeoutSignal(60_000),
     });
-  } catch {
-    throw new Error('Could not reach an agent. No existing connectors will be overwritten if you retry.');
-  }
+  } catch { throw unconfirmed(); }
   if (!res.ok) {
     if (res.status === 404) throw new Error('Both agents need a Metro version that supports connector copy.');
     if (res.status === 401 || res.status === 403) throw new Error('You must be signed in as an admin of both organizations.');
     if (res.status === 409) throw new Error('A selected connector no longer exists. Refresh the list and choose again.');
     if (res.status === 410) throw new Error('The copy expired. Start again.');
-    throw new Error(`Connector copy failed (${String(res.status)}). Retry safely; existing connectors are skipped.`);
+    throw new Error(`Connector copy failed (${String(res.status)}). Check the destination before retrying; another copy creates new instances without overwriting existing connectors.`);
   }
-  return res.json() as Promise<unknown>;
+  try { return await res.json() as unknown; }
+  catch { throw unconfirmed(); }
 }
 
 function destinationBase(host: string): string {
@@ -49,10 +50,10 @@ function destinationBase(host: string): string {
 }
 
 function copyResults(body: unknown): CopyResult[] {
-  if (!isRecord(body) || !Array.isArray(body.results)) throw new Error('The destination returned an unexpected response.');
+  if (!isRecord(body) || !Array.isArray(body.results)) throw unconfirmed();
   return body.results.map((row: unknown) => {
     if (!isRecord(row) || (row.sourceId !== null && typeof row.sourceId !== 'string') || !['copied', 'skipped', 'invalid'].includes(String(row.status)))
-      throw new Error('The destination returned an unexpected response.');
+      throw unconfirmed();
     return { sourceId: row.sourceId, ...(typeof row.id === 'string' ? { id: row.id } : {}), status: row.status as CopyResult['status'] };
   });
 }

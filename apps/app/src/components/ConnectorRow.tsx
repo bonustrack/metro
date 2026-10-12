@@ -12,6 +12,7 @@ import { routeHash } from '@metro-labs/client/route';
 interface ConnectorRowProps {
   project: string;
   row: Connector;
+  label: string;
   onChanged: () => void;
   onDelete: (id: string) => Promise<void>;
   onError: (message: string) => void;
@@ -28,12 +29,14 @@ function HealthWarning({ note }: { note: string }): ReactNode {
   );
 }
 
-export function ConnectorRow({ project, row, onChanged, onDelete, onError }: ConnectorRowProps): ReactNode {
+export function ConnectorRow({ project, row, label, onChanged, onDelete, onError }: ConnectorRowProps): ReactNode {
   const note = healthNote(row);
+  const host = connectorHost(row.url);
   return (
     <ListRow
       title={row.name}
-      detail={connectorHost(row.url)}
+      label={label}
+      detail={label === row.name ? host : `${row.id} · ${host}`}
       href={routeHash({ kind: 'connector', project, id: row.id })}
       icon={<ConnectorFavicon name={row.name} url={row.url} size={LIST_ICON_SIZE} />}
       muted={row.signIn === 'disconnected'}
