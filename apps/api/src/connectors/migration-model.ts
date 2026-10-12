@@ -30,6 +30,7 @@ export function migrationSnapshot(key: Buffer, row: MigrationRow): MigrationPayl
 
 function staticSecret(secret: ConnectorSecret): unknown {
   if (secret.kind !== 'oauth') return secret;
+  if (secret.imported !== undefined) return { kind: secret.kind, targetUrl: secret.targetUrl, client: secret.client, server: { issuer: secret.server.issuer, tokenEndpoint: secret.server.tokenEndpoint }, tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod };
   return { kind: secret.kind, targetUrl: secret.targetUrl, client: secret.client, server: secret.server, ...(secret.oauthResource === undefined ? {} : { oauthResource: secret.oauthResource }) };
 }
 
@@ -52,10 +53,18 @@ export function ownsAssignment(state: MigrationState): boolean {
   return state.assignments.some((row) => row.agent === state.mapping.agent && row.migrationOperation === state.mapping.operationId && row.policy === null && row.createdBy === `agent:${state.mapping.agent}`);
 }
 
+function importedReadiness(secret: Extract<ConnectorSecret, { kind: 'oauth' }>): MigrationView['readiness'] | null {
+  const state = secret.imported?.state;
+  if (state === 'refreshing' || state === 'uncertain') return 'refresh_uncertain';
+  return state === 'signin' ? 'signin' : null;
+}
+
 function authenticationReadiness(key: Buffer, row: ConnectorRow, now: number): MigrationView['readiness'] {
   const secret = openConnectorSecret(key, row);
   if (secret === null) return 'unavailable';
   if (secret.kind !== 'oauth') return 'ready';
+  const imported = importedReadiness(secret);
+  if (imported !== null) return imported;
   if (secret.tokens?.resource === undefined || (secret.tokens.expiresAt !== undefined && secret.tokens.expiresAt <= now)) return 'signin';
   return 'ready';
 }
@@ -82,6 +91,7 @@ function sourceView(payload: MigrationPayload | null): Pick<MigrationView, 'name
 
 export function migrationResponse(key: Buffer, state: MigrationState, now: number, receiving = false): MigrationResponse {
   const row = state.mapping;
-  const migration = { operationId: row.operationId, sourceId: row.sourceId, destinationId: row.destinationId, phase: row.phase, readiness: migrationReadiness(key, state, now), ...sourceView(migrationSnapshot(key, row)) };
+  const snapshot = migrationSnapshot(key, row);
+  const migration = { grantImported: snapshot?.auth.kind === 'oauth' && snapshot.auth.grant !== undefined, operationId: row.operationId, sourceId: row.sourceId, destinationId: row.destinationId, phase: row.phase, readiness: migrationReadiness(key, state, now), ...sourceView(snapshot) };
   return migrationResponseOf({ migration, ...(receiving ? { receiving: { publicKey: row.receivingKey, context: migrationContext(row) } } : {}) });
 }

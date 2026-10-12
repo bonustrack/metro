@@ -98,7 +98,7 @@ test('real local API exposes the disabled preview only to its owner admin', asyn
   expect(await wrong.json()).toEqual({ error: 'this machine belongs to another organization' });
   const admin = await call(bearer());
   expect(admin.status).toBe(200);
-  expect(await admin.json()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(await admin.json()).toEqual({ migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(admin.headers.get('cache-control')).toBe('no-store');
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
@@ -115,7 +115,7 @@ test('enabled preview remains admin-only, reads current enrollment, and returns 
   const response = await call(bearer());
   expect(response.status).toBe(200);
   const text = await response.text();
-  expect(JSON.parse(text)).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: true, issues: [] }] });
+  expect(JSON.parse(text)).toEqual({ migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: true, issues: [] }] });
   for (const value of ['header-secret', 'query-secret', 'private-path', 'Authorization', 'signing', 'sealing', 'keyId']) expect(text).not.toContain(value);
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
@@ -149,7 +149,7 @@ test('malformed source errors are generic and read-only and invalid rows remain 
   }
   writeFileSync(join(dir, 'connectors.json'), JSON.stringify({ version: 1, connectors: [{ id: 'conn0000001', name: 'Broken', url: 'http://127.0.0.1/private-path?secret', config: { auth: { kind: 'oauth', accessToken: 'oauth-secret' } } }] }));
   const before = files();
-  expect(await (await call(bearer())).json()).toMatchObject({ connectors: [{ id: 'conn0000001', auth: 'oauth', origin: null, issues: ['unsupported_url', 'oauth_sign_in'] }] });
+  expect(await (await call(bearer())).json()).toMatchObject({ connectors: [{ id: 'conn0000001', auth: 'oauth', origin: null, issues: ['unsupported_url', 'oauth_unsupported'] }] });
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
 });

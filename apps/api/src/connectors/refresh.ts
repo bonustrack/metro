@@ -3,6 +3,7 @@ import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oau
 import type { AgentKeyRow } from '../db/agent-keys.js';
 import type { AssignedConnector, ConnectorDeliveryStore } from '../db/connector-delivery.js';
 import type { ConnectorEdit, ConnectorRow } from '../db/connectors.js';
+import { refreshImported } from './imported-refresh.js';
 import { credentialRevision, deliveryPolicy } from './delivery-model.js';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from './model.js';
 
@@ -45,7 +46,7 @@ async function refreshLocked(deps: RefreshDeps, identity: AgentKeyRow, assigned:
   const revision = credentialRevision(deps.key, row);
   if (forced !== undefined && forced.revision !== revision) return unchanged();
   const secret = openConnectorSecret(deps.key, row);
-  if (secret?.kind !== 'oauth') return unchanged();
+  if (secret?.kind !== 'oauth' || secret.imported !== undefined) return unchanged();
   return refreshSecret(deps, identity, row, secret, forced, failed);
 }
 
@@ -84,6 +85,13 @@ export async function refreshAssigned(deps: RefreshDeps, identity: AgentKeyRow, 
     if (deadline.aborted) break;
     if (connector.auth !== 'oauth') continue;
     const conditional = forced?.connectorId === connector.id ? forced : undefined;
+    await refreshImported(bounded, async (edit) => {
+      await deps.store.refresh(identity, connector.id, new Date(deps.now()).toISOString(), async (current) => {
+        const { policy, valid } = deliveryPolicy(current);
+        if (!valid || (policy.read === 'deny' && policy.write === 'deny' && Object.values(policy.tools ?? {}).every((rule) => rule === 'deny'))) return unchanged();
+        return edit(current.connector);
+      });
+    }, conditional?.revision);
     await deps.store.refresh(identity, connector.id, new Date(deps.now()).toISOString(), (current) => refreshLocked(bounded, identity, current, conditional, failed));
   }
   return failed;

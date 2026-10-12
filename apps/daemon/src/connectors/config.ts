@@ -44,6 +44,8 @@ function readOAuth(raw: Record<string, unknown>): ConnectorAuth {
     clientId,
     tokenEndpoint,
     issuer: stringOf(raw.issuer),
+    ...(typeof raw.resource === 'string' ? { resource: raw.resource } : {}),
+    ...(typeof raw.tokenEndpointAuthMethod === 'string' ? { tokenEndpointAuthMethod: raw.tokenEndpointAuthMethod } : {}),
     ...(refreshToken === '' ? {} : { refreshToken }),
     ...(clientSecret === '' ? {} : { clientSecret }),
     ...(scope === '' ? {} : { scope }),

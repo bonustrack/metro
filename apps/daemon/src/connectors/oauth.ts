@@ -102,6 +102,7 @@ function authOf(pendingAuth: PendingAuth, tokens: OAuthTokens): OAuthAuth {
     kind: 'oauth',
     issuer: pendingAuth.server.issuer,
     tokenEndpoint: pendingAuth.server.tokenEndpoint,
+    resource: pendingAuth.resource,
     clientId: pendingAuth.client.clientId,
     ...(pendingAuth.client.clientSecret === undefined
       ? {}
@@ -156,7 +157,7 @@ export async function refreshOAuth(
     server,
     client,
     auth.refreshToken,
-    resource,
+    auth.resource ?? resource,
     auth.scope,
     send,
   );

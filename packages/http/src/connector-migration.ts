@@ -4,6 +4,7 @@ import { sealingKeyOf } from './agent-signature.js';
 import { deliveryBytes, deliveryRecord } from './connector-delivery-validation.js';
 import { connectorAuth, connectorClient, connectorName } from './connector-input.js';
 import type { OAuthClient } from './connector-oauth.js';
+import { portableGrant, type PortableGrant } from './connector-grant.js';
 import { connectorPolicyOf, type ConnectorPolicy } from './connector-policy.js';
 import { boundOAuthResource, parsePublicConnectorUrl } from './connector-public-url.js';
 import { openTransfer, sealTransfer, type SealedTransfer } from './transfer-crypto.js';
@@ -24,7 +25,7 @@ export interface MigrationContext {
 export interface MigrationPayload {
   name: string;
   url: string;
-  auth: { kind: 'none' } | { kind: 'header'; name: string; value: string } | { kind: 'oauth' };
+  auth: { kind: 'none' } | { kind: 'header'; name: string; value: string } | { kind: 'oauth'; grant?: PortableGrant };
   client: OAuthClient | null;
   oauthResource?: string;
   policy: ConnectorPolicy;
@@ -36,7 +37,8 @@ export interface MigrationView {
   sourceId: string;
   destinationId: string;
   phase: 'preparing' | 'prepared' | 'active' | 'rolled_back';
-  readiness: 'pending' | 'ready' | 'signin' | 'changed' | 'unavailable';
+  readiness: 'pending' | 'ready' | 'signin' | 'changed' | 'unavailable' | 'refresh_uncertain';
+  grantImported?: boolean;
   name: string | null;
   auth: 'none' | 'header' | 'oauth' | null;
   policy: ConnectorPolicy | null;
@@ -48,7 +50,7 @@ export interface MigrationResponse {
   receiving?: { publicKey: string; context: MigrationContext };
 }
 
-export type MigrationRequest = { action: 'begin' | 'status' | 'activate' | 'rollback'; operationId: string; sourceId: string } | { action: 'prepare'; operationId: string; sourceId: string; sealed: unknown };
+export type MigrationRequest = { action: 'begin' | 'status' | 'activate' | 'rollback'; operationId: string; sourceId: string } | { action: 'prepare' | 'handover'; operationId: string; sourceId: string; sealed: unknown };
 
 const invalid = (): Error => new Error('Invalid connector migration.');
 const idOf = (value: unknown): string => {
@@ -61,7 +63,7 @@ export function migrationRequestOf(raw: unknown): MigrationRequest {
   const value = deliveryRecord(raw, ['action', 'operationId', 'sourceId', 'sealed']);
   const operationId = idOf(value.operationId);
   const sourceId = idOf(value.sourceId);
-  if (value.action === 'prepare' && Object.hasOwn(value, 'sealed')) return { action: 'prepare', operationId, sourceId, sealed: value.sealed };
+  if ((value.action === 'prepare' || value.action === 'handover') && Object.hasOwn(value, 'sealed')) return { action: value.action, operationId, sourceId, sealed: value.sealed };
   if (Object.hasOwn(value, 'sealed')) throw invalid();
   if (value.action !== 'begin' && value.action !== 'status' && value.action !== 'activate' && value.action !== 'rollback') throw invalid();
   return { action: value.action, operationId, sourceId };
@@ -79,15 +81,19 @@ function contextBytes(context: MigrationContext): Buffer {
   return Buffer.from(JSON.stringify(['metro-connector-migration/v1', value.owner, value.agent, value.keyId, value.operationId, value.sourceId, value.destinationId]));
 }
 
-function authOf(raw: unknown): MigrationPayload['auth'] {
-  const value = deliveryRecord(raw, ['kind', 'name', 'value']);
-  if (value.kind === 'header') {
-    const auth = connectorAuth(value.name, value.value);
-    if (auth.kind !== 'header' || auth.name !== value.name || auth.value !== value.value || ['__proto__', 'constructor', 'prototype'].includes(auth.name)) throw invalid();
-    return auth;
-  }
+function headerOf(value: Record<string, unknown>): MigrationPayload['auth'] {
+  const auth = connectorAuth(value.name, value.value);
+  if (auth.kind !== 'header' || auth.name !== value.name || auth.value !== value.value || ['__proto__', 'constructor', 'prototype'].includes(auth.name)) throw invalid();
+  return auth;
+}
+
+function authOf(raw: unknown, target: string): MigrationPayload['auth'] {
+  const value = deliveryRecord(raw, ['kind', 'name', 'value', 'grant']);
+  if (value.kind !== 'oauth' && Object.hasOwn(value, 'grant')) throw invalid();
+  if (value.kind === 'header') return headerOf(value);
   if ((value.kind !== 'none' && value.kind !== 'oauth') || Object.hasOwn(value, 'name') || Object.hasOwn(value, 'value')) throw invalid();
-  return { kind: value.kind };
+  if (value.kind === 'none' || value.grant === undefined) return { kind: value.kind };
+  return { kind: 'oauth', grant: portableGrant(value.grant, target) };
 }
 
 function clientOf(raw: unknown): OAuthClient | null {
@@ -109,7 +115,7 @@ export function migrationPayloadOf(raw: unknown): MigrationPayload {
   if (typeof value.name !== 'string' || connectorName(value.name) !== value.name || typeof value.url !== 'string' || typeof value.sourceStamp !== 'string') throw invalid();
   parsePublicConnectorUrl(value.url);
   deliveryBytes(value.sourceStamp, 32);
-  const auth = authOf(value.auth);
+  const auth = authOf(value.auth, value.url);
   const client = migrationClient(auth, value);
   const payload = { name: value.name, url: value.url, auth, client, ...(Object.hasOwn(value, 'oauthResource') ? { oauthResource: boundOAuthResource(value.url, value.oauthResource) } : {}), policy: connectorPolicyOf(value.policy), sourceStamp: value.sourceStamp };
   if (Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_MAX) throw invalid();
@@ -122,7 +128,7 @@ function phaseOf(value: unknown): MigrationView['phase'] {
 }
 
 function readinessOf(value: unknown): MigrationView['readiness'] {
-  if (value !== 'pending' && value !== 'ready' && value !== 'signin' && value !== 'changed' && value !== 'unavailable') throw invalid();
+  if (value !== 'pending' && value !== 'ready' && value !== 'signin' && value !== 'changed' && value !== 'unavailable' && value !== 'refresh_uncertain') throw invalid();
   return value;
 }
 
@@ -145,8 +151,9 @@ function nullableStamp(value: unknown): string | null {
 }
 
 function viewOf(raw: unknown): MigrationView {
-  const view = deliveryRecord(raw, ['operationId', 'sourceId', 'destinationId', 'phase', 'readiness', 'name', 'auth', 'policy', 'sourceStamp']);
-  return { operationId: idOf(view.operationId), sourceId: idOf(view.sourceId), destinationId: idOf(view.destinationId), phase: phaseOf(view.phase), readiness: readinessOf(view.readiness), name: nullableName(view.name), auth: authKindOf(view.auth), policy: view.policy === null ? null : connectorPolicyOf(view.policy), sourceStamp: nullableStamp(view.sourceStamp) };
+  const view = deliveryRecord(raw, ['operationId', 'sourceId', 'destinationId', 'phase', 'readiness', 'name', 'auth', 'policy', 'sourceStamp', 'grantImported']);
+  if (view.grantImported !== undefined && typeof view.grantImported !== 'boolean') throw invalid();
+  return { ...(view.grantImported === undefined ? {} : { grantImported: view.grantImported }), operationId: idOf(view.operationId), sourceId: idOf(view.sourceId), destinationId: idOf(view.destinationId), phase: phaseOf(view.phase), readiness: readinessOf(view.readiness), name: nullableName(view.name), auth: authKindOf(view.auth), policy: view.policy === null ? null : connectorPolicyOf(view.policy), sourceStamp: nullableStamp(view.sourceStamp) };
 }
 
 export function migrationResponseOf(raw: unknown): MigrationResponse {

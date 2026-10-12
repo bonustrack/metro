@@ -23,7 +23,7 @@ interface Props {
   signIn: (sourceId: string, selection: MigrationSelection) => void;
 }
 
-const blockedSource = (row: Props['row'], failed: boolean): boolean => failed || row === undefined || !row.source.policySupported || row.source.issues.some((issue) => issue !== 'oauth_sign_in');
+const blockedSource = (row: Props['row'], failed: boolean): boolean => failed || row === undefined || !row.source.policySupported || row.source.issues.some((issue) => !['oauth_sign_in', 'oauth_unsupported'].includes(issue));
 
 function Confirmation({ action, name, blocked, onClose, onConfirm }: { action: MigrationConfirmationAction; name: string; blocked: boolean; onClose: () => void; onConfirm: () => void }): ReactNode {
   const prompt = MIGRATION_CONFIRMATIONS[action];
@@ -42,8 +42,9 @@ const selectionOf = (migration: MigrationView | undefined): MigrationSelection =
 function confirmationBlocked(disabled: boolean, confirm: ConfirmedSelection | null, current: MigrationSelection, available: ReturnType<typeof migrationControls>, sourceBlocked: boolean): boolean {
   if (disabled || confirm === null) return true;
   if (confirm.selection.operationId !== current.operationId) return true;
+  if (confirm.action === 'rollback' && !available.rollback) return true;
   if (confirm.action === 'cutover') return !available.cutover || sourceBlocked;
-  return confirm.action === 'resolve' && (!available.resolve || confirm.selection.uncertainty !== current.uncertainty);
+  return ['resolve', 'recover'].includes(confirm.action) && (!available.resolve || confirm.selection.uncertainty !== current.uncertainty);
 }
 
 function PrepareDestination({ sourceId, row, act, selection, disabled, oauthResourceSupported }: Pick<Props, 'sourceId' | 'row' | 'act' | 'disabled' | 'oauthResourceSupported'> & { selection: MigrationSelection }): ReactNode {
@@ -60,11 +61,18 @@ function PrepareDestination({ sourceId, row, act, selection, disabled, oauthReso
   </>;
 }
 
+function recoveryAction(migration: MigrationView | undefined): { action: MigrationConfirmationAction; label: string } {
+  return migration?.reason === 'local_refresh_uncertain' ? { action: 'recover', label: 'Recover local sign-in' } : { action: 'resolve', label: 'Confirm requests settled' };
+}
+
+const confirmedAction = (action: MigrationConfirmationAction): MigrationAction => action === 'recover' ? 'resolve' : action;
+
 export function MigrationActions({ sourceId, name, row, migration, disabled, previewFailed, oauthResourceSupported, uncertain, act, signIn }: Props): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [confirm, setConfirm] = useState<ConfirmedSelection | null>(null);
   const sourceBlocked = blockedSource(row, previewFailed);
   const available = migrationControls(migration, uncertain);
+  const recovery = recoveryAction(migration);
   const selection = selectionOf(migration);
   const switchBlocked = disabled || sourceBlocked;
   const confirmBlocked = confirmationBlocked(disabled, confirm, selection, available, sourceBlocked);
@@ -75,9 +83,9 @@ export function MigrationActions({ sourceId, name, row, migration, disabled, pre
       {available.reconcile ? <Button color="secondary" dark={dark} label="Reconcile" disabled={disabled} onPress={() => { act(sourceId, 'reconcile', selection); }} /> : null}
       {available.cutover ? <Button color="primary" dark={dark} label="Switch to organization" disabled={switchBlocked} onPress={() => { setConfirm({ action: 'cutover', selection }); }} /> : null}
       {available.rollback ? <Button color="secondary" dark={dark} label="Roll back" disabled={disabled} onPress={() => { setConfirm({ action: 'rollback', selection }); }} /> : null}
-      {available.resolve ? <Button color="secondary" dark={dark} label="Confirm requests settled" disabled={disabled} onPress={() => { setConfirm({ action: 'resolve', selection }); }} /> : null}
+      {available.resolve ? <Button color="secondary" dark={dark} label={recovery.label} disabled={disabled} onPress={() => { setConfirm({ action: recovery.action, selection }); }} /> : null}
     </Row>
     {confirm === null ? null : <Confirmation action={confirm.action} name={name} blocked={confirmBlocked}
-      onClose={() => { setConfirm(null); }} onConfirm={() => { setConfirm(null); act(sourceId, confirm.action, confirm.selection); }} />}
+      onClose={() => { setConfirm(null); }} onConfirm={() => { setConfirm(null); act(sourceId, confirmedAction(confirm.action), confirm.selection); }} />}
   </>;
 }

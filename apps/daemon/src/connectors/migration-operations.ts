@@ -14,11 +14,13 @@ interface RequestOperation {
   lease: string;
   durable: boolean;
   abandoned: boolean;
+  refresh: boolean;
 }
 
 export interface MigrationOperation {
-  dispatch: (send: () => Promise<Response>, options?: { protectedSource?: boolean; effectful?: boolean }) => Promise<Response>;
+  dispatch: (send: () => Promise<Response>, options?: { protectedSource?: boolean; effectful?: boolean; refresh?: boolean }) => Promise<Response>;
   close: () => void;
+  persistedRefresh: () => void;
 }
 
 const leases = new Map<string, Set<string>>();
@@ -57,7 +59,7 @@ function pendingOf(text: string): string[] {
   const value: unknown = JSON.parse(text);
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.pending) || value.pending.length > 10_000) throw unavailable();
   const ids: unknown[] = value.pending;
-  if (!ids.every((id): id is string => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id))) throw unavailable();
+  if (!ids.every((id): id is string => typeof id === 'string' && /^r?[a-f0-9]{32}$/.test(id))) throw unavailable();
   if (new Set(ids).size !== ids.length) throw unavailable();
   return ids;
 }
@@ -114,7 +116,8 @@ export function resolveMigrationUncertainty(source: string, expectedReceipt: str
   return true;
 }
 
-function finish(request: RequestOperation, completed: boolean): void {
+function finish(request: RequestOperation, completed: boolean, persisted = false): void {
+  if (request.refresh && completed && !persisted) return;
   if (request.abandoned) return;
   requests.delete(request.id);
   if (completed) held.delete(request.id);
@@ -153,10 +156,10 @@ function observed(response: Response, request: RequestOperation): Response {
   return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 
-async function dispatch(source: string, dir: string, lease: string, protectedSource: boolean, effectful: boolean, send: () => Promise<Response>): Promise<Response> {
+async function dispatch(source: string, dir: string, lease: string, protectedSource: boolean, effectful: boolean, refresh: boolean, send: () => Promise<Response>): Promise<Response> {
   if (protectedSource) assertMigrationOutcomeKnown(source, dir);
   if (!effectful) return send();
-  const request: RequestOperation = { id: randomBytes(16).toString('hex'), source, dir, lease, durable: false, abandoned: false };
+  const request: RequestOperation = { id: `${refresh ? 'r' : ''}${randomBytes(16).toString('hex')}`, source, dir, lease, durable: false, abandoned: false, refresh };
   if (protectedSource) {
     const pending = readPending(source, dir);
     if (pending.length >= 10_000) throw unavailable();
@@ -180,7 +183,10 @@ export function beginMigrationOperation(source: string, dir: string, protectedSo
   return {
     dispatch: (send, options = {}) => {
       if (closed) return Promise.reject(uncertain());
-      return dispatch(source, dir, lease, options.protectedSource ?? protectedSource, options.effectful ?? true, send);
+      return dispatch(source, dir, lease, options.protectedSource ?? protectedSource, options.effectful ?? true, options.refresh ?? false, send);
+    },
+    persistedRefresh: () => {
+      for (const request of held.values()) if (request.lease === lease && request.refresh) finish(request, true, true);
     },
     close: () => {
       if (closed) return;
@@ -193,4 +199,8 @@ export function beginMigrationOperation(source: string, dir: string, protectedSo
       if (active.size === 0) leases.delete(key);
     },
   };
+}
+
+export function migrationRefreshUncertain(source: string, dir = agentsDir()): boolean {
+  return readPending(source, dir).some((id) => id.startsWith('r') && !requests.has(id));
 }

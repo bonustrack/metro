@@ -27,6 +27,7 @@ export interface ConnectorMigration {
   id: string;
   refresh: () => Promise<MigrationSnapshot>;
   act: (sourceId: string, action: MigrationAction, selection?: MigrationSelection, oauthResource?: string) => Promise<MigrationSnapshot>;
+  moveAll: (progress: () => void) => Promise<MigrationSnapshot>;
   signIn: (sourceId: string, selection?: MigrationSelection) => Promise<string>;
   snapshot: () => MigrationSnapshot;
   check: () => void;
@@ -42,7 +43,7 @@ function actionable(snapshot: MigrationSnapshot, requireSync = false): { plan: M
 
 function prepareAllowed(source: MigrationSource, migration: MigrationView | undefined): void {
   if (migration !== undefined && (migration.phase !== 'rolled_back' || ![null, 'sign_in', 'rolled_back'].includes(migration.reason))) throw new Error('This connector already has migration progress or a blocker. Reconcile it instead.');
-  if (!source.policySupported || source.issues.some((issue) => issue !== 'oauth_sign_in')) throw new Error('Resolve the source blockers shown in the preview before preparing.');
+  if (!source.policySupported || source.issues.some((issue) => !['oauth_sign_in', 'oauth_unsupported'].includes(issue))) throw new Error('Resolve the source blockers shown in the preview before preparing.');
 }
 
 function forwardAllowed(snapshot: MigrationSnapshot, sourceId: string, action: 'prepare' | 'cutover'): void {
@@ -58,7 +59,19 @@ function forwardAllowed(snapshot: MigrationSnapshot, sourceId: string, action: '
   if (migration?.phase !== 'prepared' || migration.reason !== null) throw new Error('Reconcile until the agent confirms the destination is ready before switching.');
 }
 
+function moveAllowed(snapshot: MigrationSnapshot, sourceId: string): void {
+  const { plan } = actionable(snapshot, true);
+  if (plan.preview.moveAllSupported !== true) throw new Error('Update this agent before using Move all.');
+  const source = plan.rows.find((row) => row.source.id === sourceId)?.source;
+  if (snapshot.previewError !== null || source === undefined || !source.policySupported || source.issues.length !== 0) throw new Error('Resolve this connector’s preview blocker before moving it.');
+}
+
+function settlementAvailable(migration: MigrationView | undefined): boolean {
+  return migration !== undefined && ['requests_uncertain', 'local_refresh_uncertain'].includes(migration.reason ?? '') && migration.uncertainty !== null;
+}
+
 function actionAllowed(snapshot: MigrationSnapshot, sourceId: string, action: MigrationAction): void {
+  if (action === 'move') { moveAllowed(snapshot, sourceId); return; }
   if (action === 'prepare' || action === 'cutover') {
     forwardAllowed(snapshot, sourceId, action);
     return;
@@ -66,7 +79,7 @@ function actionAllowed(snapshot: MigrationSnapshot, sourceId: string, action: Mi
   const { status } = actionable(snapshot);
   const migration = status.migrations.find((row) => row.sourceId === sourceId);
   if (migration === undefined && !snapshot.uncertain.includes(sourceId)) throw new Error('Refresh to find this migration first.');
-  if (action === 'resolve' && (migration?.reason !== 'requests_uncertain' || migration.uncertainty === null)) throw new Error('Refresh to find the outstanding request fence before confirming it is settled.');
+  if (action === 'resolve' && !settlementAvailable(migration)) throw new Error('Refresh to find the outstanding request fence before confirming it is settled.');
 }
 
 function checkSelection(snapshot: MigrationSnapshot, sourceId: string, selection: MigrationSelection | undefined, checkReceipt = false): void {
@@ -123,14 +136,14 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
   let state: MigrationSnapshot = { plan: null, status: null, previewError: null, statusError: null, uncertain: [] };
   let busy = false;
   const snapshot = (): MigrationSnapshot => { identity.check(); return state; };
-  const run = async <T>(job: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+  const run = async <T>(job: (signal: AbortSignal) => Promise<T>, timeoutMs = 30_000): Promise<T> => {
     identity.check();
     if (busy) throw new Error('A migration request is already running. Wait for its result.');
     busy = true;
     const controller = new AbortController();
     const abort = (): void => { controller.abort(); };
     identity.signal.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(abort, 30_000);
+    const timer = setTimeout(abort, timeoutMs);
     try {
       const result = await job(controller.signal);
       identity.check();
@@ -180,7 +193,7 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
       }
       throw actionFailure(error, action);
     }
-  });
+  }, action === 'move' ? 180_000 : 30_000);
   const signIn = (sourceId: string, selection?: MigrationSelection): Promise<string> => run(async (signal) => {
     checkSelection(state, sourceId, selection);
     const { status } = actionable(state, true);
@@ -198,5 +211,18 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
       throw new Error('The central sign-in could not be confirmed. Refresh and Reconcile before trying again.');
     }
   });
-  return { id: String(++nextDialog), refresh, act, signIn, snapshot, check: identity.check, dispose: identity.dispose };
+  const moveAll = async (progress: () => void): Promise<MigrationSnapshot> => {
+    const { plan } = actionable(state, true);
+    if (plan.preview.moveAllSupported !== true) throw new Error('Update this agent before using Move all.');
+    const ids = plan.rows.filter(({ source }) => source.policySupported && source.issues.length === 0).map(({ source }) => source.id);
+    for (const sourceId of ids) {
+      identity.check();
+      if (state.status?.migrations.some((row) => row.sourceId === sourceId && row.phase === 'active' && row.reason === null)) continue;
+      try { await act(sourceId, 'move'); } catch { identity.check(); await refresh(); }
+      identity.check();
+      progress();
+    }
+    return snapshot();
+  };
+  return { id: String(++nextDialog), refresh, act, moveAll, signIn, snapshot, check: identity.check, dispose: identity.dispose };
 }

@@ -10,7 +10,7 @@ import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import { agentsDir } from '../agents/files.js';
 import { captureMigrationOperations } from './migration-operations.js';
 
-export type MigrationPhase = 'preparing' | 'prepared' | 'cutover' | 'active' | 'rollback' | 'rolled_back';
+export type MigrationPhase = 'recovering' | 'freezing' | 'preparing' | 'prepared' | 'cutover' | 'active' | 'rollback' | 'rolled_back';
 export type MigrationAuth = 'none' | 'header' | 'oauth';
 
 export interface MigrationRecord {
@@ -24,14 +24,18 @@ export interface MigrationRecord {
   phase: MigrationPhase;
   auth: MigrationAuth;
   oauthResource?: string;
+  move?: boolean;
+  grantImported?: boolean;
+  captured?: boolean;
+  recoveryReceipt?: string;
   sourceStamp: string;
   policy: ConnectorPolicy;
   reason: string | null;
 }
 
-const phases: readonly MigrationPhase[] = ['preparing', 'prepared', 'cutover', 'active', 'rollback', 'rolled_back'];
+const phases: readonly MigrationPhase[] = ['recovering', 'freezing', 'preparing', 'prepared', 'cutover', 'active', 'rollback', 'rolled_back'];
 const auths: readonly MigrationAuth[] = ['none', 'header', 'oauth'];
-const fields = ['id', 'owner', 'agentId', 'keyId', 'sourceId', 'name', 'destinationId', 'phase', 'auth', 'oauthResource', 'sourceStamp', 'policy', 'reason'];
+const fields = ['id', 'owner', 'agentId', 'keyId', 'sourceId', 'name', 'destinationId', 'phase', 'auth', 'oauthResource', 'sourceStamp', 'policy', 'reason', 'move', 'grantImported', 'captured', 'recoveryReceipt'];
 const unavailable = (): ApiError => new ApiError('Protected connector migration records cannot be read. Restore their file or permissions before using connectors.', 503);
 const DIGEST = /^[A-Za-z0-9_-]{43}$/;
 const pathOf = (dir: string): string => join(dir, 'connector-migrations.json');
@@ -48,12 +52,25 @@ function field(value: unknown, pattern: RegExp): string {
   return value;
 }
 
+function movementOf(value: Record<string, unknown>): Pick<MigrationRecord, 'move' | 'grantImported' | 'captured' | 'recoveryReceipt'> {
+  const result: Pick<MigrationRecord, 'move' | 'grantImported' | 'captured' | 'recoveryReceipt'> = {};
+  for (const key of ['move', 'grantImported', 'captured'] as const) {
+    const flag = value[key];
+    if (flag === undefined) continue;
+    if (typeof flag !== 'boolean') throw unavailable();
+    result[key] = flag;
+  }
+  if (value.recoveryReceipt !== undefined) result.recoveryReceipt = field(value.recoveryReceipt, /^[a-f0-9]{64}$/);
+  return result;
+}
+
 function recordOf(value: unknown): MigrationRecord {
   if (!isRecord(value) || Object.keys(value).some((key) => !fields.includes(key))) throw unavailable();
   const phase = phases.find((item) => item === value.phase);
   const auth = auths.find((item) => item === value.auth);
   if (phase === undefined || auth === undefined || (value.oauthResource !== undefined && auth !== 'oauth')) throw unavailable();
   return {
+    ...movementOf(value),
     ...(value.oauthResource === undefined ? {} : { oauthResource: publicOAuthResource(value.oauthResource) }),
     id: requiredId(value.id), sourceId: requiredId(value.sourceId), agentId: requiredId(value.agentId),
     owner: field(value.owner, /^org_[A-Za-z0-9]{1,128}$/), keyId: field(value.keyId, DIGEST), sourceStamp: field(value.sourceStamp, DIGEST),

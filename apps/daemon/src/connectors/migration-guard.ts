@@ -6,7 +6,7 @@ import { migrationRecord, migrationRecords } from './migration-state.js';
 import { assertMigrationOutcomeKnown, beginMigrationOperation, migrationOperationsIdle, migrationRequestEffectful, type MigrationOperation } from './migration-operations.js';
 
 const locked = (phase: string): boolean => phase !== 'rolled_back';
-const retired = (phase: string): boolean => phase === 'cutover' || phase === 'active' || phase === 'rollback';
+const retired = (record: NonNullable<ReturnType<typeof migrationRecord>>): boolean => record.move === true || record.phase === 'cutover' || record.phase === 'active' || record.phase === 'rollback';
 const refused = (): ApiError => new ApiError('This local connector is locked while it moves to the organization.', 409);
 
 export function migrationSource(id: string, dir = agentsDir()): ReturnType<typeof migrationRecords>[number] | null {
@@ -16,13 +16,13 @@ export function migrationSource(id: string, dir = agentsDir()): ReturnType<typeo
 
 export function localMigrationEnabled(id: string, dir = agentsDir()): boolean {
   const record = migrationSource(id, dir);
-  return record === null || !retired(record.phase);
+  return record === null || !retired(record);
 }
 
 export function assertLocalMigrationUse(id: string, dir = agentsDir()): void {
   const record = migrationSource(id, dir);
   if (record === null) return;
-  if (retired(record.phase)) throw refused();
+  if (retired(record)) throw refused();
   assertMigrationOutcomeKnown(id, dir);
 }
 
@@ -35,8 +35,8 @@ export function migrationExportableRows<T extends { id: string; name: string }>(
   return rows.filter((row) => !records.some((record) => record.sourceId === row.id || record.name === row.name));
 }
 
-export function localMigrationIdle(id: string, dir = agentsDir()): boolean {
-  return migrationOperationsIdle(id, dir, migrationSource(id, dir) !== null);
+export function localMigrationIdle(id: string, dir = agentsDir(), allowUncertain = false): boolean {
+  return migrationOperationsIdle(id, dir, !allowUncertain && migrationSource(id, dir) !== null);
 }
 
 export interface LocalMigrationOperation extends MigrationOperation {
@@ -61,6 +61,7 @@ export function beginLocalMigrationOperation(id: string, dir = agentsDir(), edit
   return {
     check,
     dispatch,
+    persistedRefresh: tracked.persistedRefresh,
     fetch: (input, init) => dispatch(() => fetch(input, init), { effectful: migrationRequestEffectful(init?.method, init?.body) }),
     close: () => { closed = true; tracked.close(); },
   };

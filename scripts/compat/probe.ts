@@ -248,6 +248,7 @@ await ok('migration preview off or explicit upgrade notice', async () => {
         const view = await migration.refresh();
         if (view.statusError !== null) throw new Error(view.statusError);
         if (view.status === null || view.status.enabled || view.status.migrations.length !== 0) throw new Error('migration status must be off without migration progress');
+        await refused('Move all refuses while sync is off or agent lacks capability', /sync|Update this agent/i, () => migration.moveAll(() => {}));
         await refused('migration POST refuses an invalid scope', /scope/i, () => client.call({
           method: 'POST', base: `${baseFromSegment(host)}/api/connectors/migrations`, redirect: 'error',
           headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'invalid', sourceId: 'zzzzzzzzzzz', action: 'prepare', operationId: null }),

@@ -327,8 +327,10 @@ function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Prom
   const running = inflight.get(key);
   if (running !== undefined) return running;
   const job = withLocalMigrationOperation(row.id, dir, async (operation) => {
-    const fresh = await refreshOAuth(auth, parseConnectorUrl(row.url).toString(), operation.fetch);
+    const fresh = await refreshOAuth(auth, parseConnectorUrl(row.url).toString(), (input, init) => operation.dispatch(() => fetch(input, init), { refresh: true }));
     updateRow(dir, row.id, { auth: fresh }, true);
+    flushMigrationSource(dir);
+    operation.persistedRefresh();
     return fresh;
   }).finally(() => { inflight.delete(key); });
   inflight.set(key, job);
@@ -369,11 +371,7 @@ async function oauthTarget(row: LocalConnectorRow, auth: OAuthAuth, force: boole
   }
 }
 
-export async function localRelayTarget(
-  connectorId: string,
-  force: boolean,
-  dir = agentsDir(),
-): Promise<RelayTarget> {
+export async function localRelayTarget(connectorId: string, force: boolean, dir = agentsDir()): Promise<RelayTarget> {
   return withLocalMigrationOperation(connectorId, dir, async (operation) => {
     const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
     if (row === undefined) return { kind: 'missing' };
@@ -385,11 +383,15 @@ export async function localRelayTarget(
   });
 }
 
-export function localRollbackMigrationSource(id: string, signOutOAuth: boolean, dir = agentsDir()): void {
-  if (migrationSource(id, dir)?.phase !== 'rollback' || !localMigrationIdle(id, dir)) throw new ConnectorError('The connector migration is not ready to roll back.', 409);
+export function localRollbackMigrationSource(id: string, signOutOAuth: boolean, dir = agentsDir(), discardUncertain = false): void {
+  if (!['rollback', 'recovering'].includes(migrationSource(id, dir)?.phase ?? '') || !localMigrationIdle(id, dir, discardUncertain && signOutOAuth)) throw new ConnectorError('The connector migration is not ready to roll back.', 409);
   const row = rowOrThrow(id, dir);
   if (signOutOAuth) replace(dir, signedOut(row), true);
-  if (signOutOAuth) for (const path of [filePath(dir), dir]) {
+  if (signOutOAuth) flushMigrationSource(dir);
+}
+
+export function flushMigrationSource(dir = agentsDir()): void {
+  for (const path of [filePath(dir), dir]) {
     const fd = openSync(path, 'r');
     try { fsyncSync(fd); } finally { closeSync(fd); }
   }

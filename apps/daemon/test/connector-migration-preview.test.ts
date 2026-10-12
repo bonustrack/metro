@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
-import { connectorMigrationPreview } from '../src/connectors/migration-preview.ts';
+import { connectorMigrationPreview, migrationSource } from '../src/connectors/migration-preview.ts';
 import { onPoliciesChanged } from '../src/policy/policy.ts';
 
 const OWNER = 'org_01MIGRATIONOWNER00';
@@ -45,7 +45,7 @@ test('off by default and for every non-true switch value, with no connector or i
   try {
     for (const value of [undefined, '', 'false', '1', 'TRUE']) {
       if (value === undefined) delete process.env.METRO_CONNECTORS_SYNC_ENABLED; else process.env.METRO_CONNECTORS_SYNC_ENABLED = value;
-      expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+      expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
     }
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview().liveEnabled).toBe(true);
@@ -62,7 +62,7 @@ test('enrollment uses the current API agent id only for the matching organizatio
   expect(preview()).toMatchObject({ enabled: true, enrolled: false, agentId: null });
   saveAgentKey(newAgentKey(), { server: AGENT, organization: OWNER, at: '2026-10-11T00:00:00Z' }, dir);
   const before = files();
-  expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(connectorMigrationPreview('org_01OTHEROWNER00000', dir)).toMatchObject({ enrolled: false, agentId: null });
   expect(connectorMigrationPreview(null, dir)).toMatchObject({ enrolled: false, agentId: null, owner: null });
   expect(files()).toEqual(before);
@@ -94,7 +94,7 @@ test('only sanitized metadata and full policy leave the box; preview never trans
   const result = preview();
   expect(result.connectors[0]).toEqual({ id: ID, name: 'Example', auth: 'none', origin: 'https://mcp.example.com', policy, policySupported: true, issues: [] });
   expect(result.connectors[1]).toMatchObject({ auth: 'header', issues: [] });
-  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
+  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: [] });
   expect(result.connectors[3]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
   const text = JSON.stringify(result);
   for (const secret of ['private-path', 'query-secret', 'access-secret', 'refresh-secret', 'client-id-secret', 'client-secret', 'preset-id-secret', 'preset-secret', 'token-endpoint-secret', 'issuer-secret', 'scope-secret', 'header-secret', 'X-Secret-Header']) expect(text).not.toContain(secret);
@@ -237,7 +237,7 @@ test('preview makes no network, DNS, file mutations or policy publication even w
 });
 
 
-test('discarded historical OAuth token metadata cannot block a fresh organization login', () => {
+test('invalid historical grants block transfer without blocking explicit legacy preparation', () => {
   const variants = [
     { kind: 'oauth' },
     { kind: 'oauth', accessToken: 'old-secret' },
@@ -248,7 +248,9 @@ test('discarded historical OAuth token metadata cannot block a fresh organizatio
   for (const auth of variants) {
     write([row({ config: config({ auth }) })]);
     const before = files();
-    expect(preview().connectors[0]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
+    expect(preview().connectors[0]).toMatchObject({ auth: 'oauth', issues: ['oauth_unsupported'] });
+    expect(() => migrationSource(ID, dir)).not.toThrow();
+    expect(() => migrationSource(ID, dir, true)).toThrow('unsupported client authentication');
     expect(JSON.stringify(preview())).not.toContain('secret');
     expect(files()).toEqual(before);
   }
@@ -259,5 +261,17 @@ test('arbitrary public HTTPS OAuth paths and queries remain private, eligible mi
     write([row({ url, config: config({ oauth: true }) })]);
     expect(preview().connectors[0]).toMatchObject({ origin: 'https://mcp.example.com', auth: 'oauth', issues: ['oauth_sign_in'] });
     expect(JSON.stringify(preview())).not.toContain(url);
+  }
+});
+
+
+test('raw grant metadata is validated before readConfig can normalize unsupported binding fields', () => {
+  const grant = { kind: 'oauth', accessToken: 'access-secret', refreshToken: 'refresh-secret', clientId: 'client', issuer: 'https://issuer.example', tokenEndpoint: 'https://issuer.example/token' };
+  for (const patch of [{ resource: 42 }, { scope: ['read'] }, { tokenEndpointAuthMethod: 7 }, { tokenEndpointAuthMethod: 'client_secret_basic' }]) {
+    write([row({ config: config({ oauth: true, auth: { ...grant, ...patch } }) })]);
+    const before = files();
+    expect(preview().connectors[0]?.issues).toEqual(['oauth_unsupported']);
+    expect(() => migrationSource(ID, dir, true)).toThrow('unsupported client authentication');
+    expect(files()).toEqual(before);
   }
 });
