@@ -19,7 +19,7 @@ const connector = (id: string, owner: string, name: string, secret: string | nul
 
 const settled = (query: PromiseLike<unknown>): Promise<unknown> => Promise.resolve(query);
 
-const assignment = (connectorId: string, agent: string): typeof connectorAgents.$inferInsert => ({ connector: connectorId, agent, policy: '{"write":"deny"}', createdBy: 'user_01TEST', createdAt: AT });
+const assignment = (connectorId: string, agent: string): typeof connectorAgents.$inferInsert => ({ connector: connectorId, agent, policy: '{"write":"deny"}', migrationOperation: null, createdBy: 'user_01TEST', createdAt: AT });
 
 beforeAll(async () => {
   held = await testDb();
@@ -39,13 +39,14 @@ afterAll(async () => {
 describe('the organization connector tables', () => {
   test('the migration creates every table with its columns', async () => {
     const result = await held.client.query<{ table_name: string; column_name: string }>(
-      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','connector_events','agent_keys') order by table_name, ordinal_position",
+      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','connector_events','agent_keys','connector_migrations') order by table_name, ordinal_position",
     );
     const columns: Record<string, string[]> = {};
     for (const row of result.rows) (columns[row.table_name] ??= []).push(row.column_name);
     expect(columns).toEqual({
       agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
-      connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at'],
+      connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at', 'migration_operation'],
+      connector_migrations: ['id', 'owner', 'agent', 'source_id', 'operation_id', 'destination_id', 'key_id', 'signing_key', 'sealing_key', 'enrolled_at', 'phase', 'receiving_key', 'receiving_secret', 'snapshot', 'config_stamp', 'retired_operations', 'created_at', 'updated_at'],
       connector_events: ['id', 'owner', 'connector', 'agent', 'actor', 'action', 'detail', 'at'],
       connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
     });

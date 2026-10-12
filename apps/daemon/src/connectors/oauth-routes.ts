@@ -8,10 +8,14 @@ import {
   takePending,
   type PendingAuth,
 } from './oauth.js';
-import { connectorClient } from '@metro-labs/http/connector-input';
+import { connectorClient, connectorName } from '@metro-labs/http/connector-input';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { OAuthAuth } from '@metro-labs/http/connector-mcp';
 import type { Connector, PendingConnectorInput } from './store.js';
+import { agentsDir } from '../agents/files.js';
+import { withLocalMigrationOperation } from './migration-guard.js';
+import { migrationRecord } from './migration-state.js';
+import { ApiError } from '@metro-labs/http/api-error';
 
 export function hostOf(url: string): string {
   try {
@@ -22,6 +26,7 @@ export function hostOf(url: string): string {
 }
 
 export interface OAuthRouteDeps {
+  migrationDir?: string;
   createPendingConnector: (input: PendingConnectorInput) => Promise<Connector>;
   reconnectConnector: (id: string, auth: OAuthAuth) => Promise<Connector>;
   getConnector: (id: string) => Promise<Connector>;
@@ -34,32 +39,37 @@ export async function startOAuth(
   body: unknown,
   payload: (row: Connector) => Record<string, unknown>,
 ): Promise<void> {
-  const url = parseConnectorUrl(bodyField(body, 'url'));
-  const returnTo = stringOf(bodyField(body, 'returnTo'));
-  const clientId = bodyField(body, 'clientId');
-  const clientSecret = bodyField(body, 'clientSecret');
-  const prepared = await prepareOAuth({
-    url,
-    client: connectorClient(clientId, clientSecret),
-    returnTo,
-  });
-  const row = await deps.createPendingConnector({
-    name: bodyField(body, 'name'),
-    url: bodyField(body, 'url'),
-    clientId,
-    clientSecret,
-  });
-  const authorize = beginOAuth(prepared, {
-    name: row.name,
-    url,
-    returnTo,
-    connectorId: row.id,
-  });
-  log.info(
-    { id: row.id, host: url.hostname },
-    'connector-api: stored unconnected, sending the user to sign in',
-  );
-  sendJson(req, res, 201, { ...payload(row), authorizeUrl: authorize });
+  const name = connectorName(bodyField(body, 'name'));
+  await withLocalMigrationOperation('', deps.migrationDir ?? agentsDir(), async (operation) => {
+    const url = parseConnectorUrl(bodyField(body, 'url'));
+    const returnTo = stringOf(bodyField(body, 'returnTo'));
+    const clientId = bodyField(body, 'clientId');
+    const clientSecret = bodyField(body, 'clientSecret');
+    const prepared = await prepareOAuth({
+      url,
+      client: connectorClient(clientId, clientSecret),
+      returnTo,
+    }, operation.fetch);
+    const row = await deps.createPendingConnector({
+      name: bodyField(body, 'name'),
+      url: bodyField(body, 'url'),
+      clientId,
+      clientSecret,
+    });
+    operation.check();
+    const authorize = beginOAuth(prepared, {
+      name: row.name,
+      url,
+      returnTo,
+      connectorId: row.id,
+      migrationId: migrationRecord(row.id, deps.migrationDir)?.id ?? null,
+    });
+    log.info(
+      { id: row.id, host: url.hostname },
+      'connector-api: stored unconnected, sending the user to sign in',
+    );
+    sendJson(req, res, 201, { ...payload(row), authorizeUrl: authorize });
+  }, true, name);
 }
 
 export async function handleConnect(
@@ -68,22 +78,26 @@ export async function handleConnect(
   deps: OAuthRouteDeps,
   id: string,
 ): Promise<void> {
-  const row = await deps.getConnector(id);
-  const url = parseConnectorUrl(row.url);
-  const body = await readJsonBody(req);
-  const returnTo = stringOf(bodyField(body, 'returnTo'));
-  const prepared = await prepareOAuth({ url, client: row.client, returnTo });
-  const authorize = beginOAuth(prepared, {
-    name: row.name,
-    url,
-    returnTo,
-    connectorId: row.id,
-  });
-  log.info(
-    { id: row.id, host: url.hostname },
-    'connector-api: sending the user back to sign in',
-  );
-  sendJson(req, res, 202, { status: 'oauth', authorizeUrl: authorize });
+  await withLocalMigrationOperation(id, deps.migrationDir ?? agentsDir(), async (operation) => {
+    const row = await deps.getConnector(id);
+    const url = parseConnectorUrl(row.url);
+    const body = await readJsonBody(req);
+    const returnTo = stringOf(bodyField(body, 'returnTo'));
+    const prepared = await prepareOAuth({ url, client: row.client, returnTo }, operation.fetch);
+    operation.check();
+    const authorize = beginOAuth(prepared, {
+      name: row.name,
+      url,
+      returnTo,
+      connectorId: row.id,
+      migrationId: migrationRecord(row.id, deps.migrationDir)?.id ?? null,
+    });
+    log.info(
+      { id: row.id, host: url.hostname },
+      'connector-api: sending the user back to sign in',
+    );
+    sendJson(req, res, 202, { status: 'oauth', authorizeUrl: authorize });
+  }, true);
 }
 
 function landing(entry: PendingAuth, id?: string): string {
@@ -111,6 +125,10 @@ async function saveOAuth(
   return deps.reconnectConnector(entry.connectorId, auth);
 }
 
+function checkGeneration(entry: PendingAuth, dir: string | undefined): void {
+  if ((entry.migrationId ?? null) !== (migrationRecord(entry.connectorId, dir)?.id ?? null)) throw new ApiError('This sign-in predates the connector migration. Start a fresh sign-in.', 409);
+}
+
 async function settleCallback(
   res: ServerResponse,
   deps: OAuthRouteDeps,
@@ -118,8 +136,13 @@ async function settleCallback(
   code: string,
 ): Promise<void> {
   try {
-    const auth = await completeOAuth(entry, code);
-    const saved = await saveOAuth(deps, entry, auth);
+    const saved = await withLocalMigrationOperation(entry.connectorId, deps.migrationDir ?? agentsDir(), async (operation) => {
+      checkGeneration(entry, deps.migrationDir);
+      const auth = await completeOAuth(entry, code, operation.fetch);
+      operation.check();
+      checkGeneration(entry, deps.migrationDir);
+      return saveOAuth(deps, entry, auth);
+    }, true);
     log.info(
       { id: saved.id, name: saved.name, host: hostOf(saved.url) },
       'connector-api: oauth sign-in completed',

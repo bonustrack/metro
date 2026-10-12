@@ -48,7 +48,7 @@ describe('signed connector delivery boundary', () => {
     for (const hidden of ['API_KEY', 'URL_SECRET', own.secret ?? '', 'notassigned.example', 'Other organization']) expect(text).not.toContain(hidden);
     const opened = await openResponse(res, agent, requestId);
     expect(opened.expiresAt - opened.issuedAt).toBe(CONNECTOR_DELIVERY_LEASE_MS);
-    expect(opened.connectors).toEqual([{ id: CONN, name: 'Calendar', url: secret.targetUrl, auth: 'header', state: 'ready', headers: { Authorization: 'Bearer API_KEY' }, policy: { read: 'allow', write: 'allow' }, revision: credentialRevision(MASTER, own) }]);
+    expect(opened.connectors).toEqual([{ id: CONN, name: 'Calendar', url: secret.targetUrl, auth: 'header', state: 'ready', headers: { Authorization: 'Bearer API_KEY' }, policy: {}, revision: credentialRevision(MASTER, own) }]);
     const strangerId = opaque();
     expect((await openResponse(await api.call(stranger, { requestId: strangerId }), stranger, strangerId)).connectors).toEqual([]);
     const delivered = await held.db.select().from(connectorEvents).where(eq(connectorEvents.action, 'connector.delivered'));
@@ -122,7 +122,7 @@ describe('delivered credential and policy limits', () => {
     await assignConnector(held.db, agent, CONN, '{"write":"deny"}');
     const requestId = opaque();
     const opened = await openResponse(await api.call(agent, { requestId }), agent, requestId);
-    expect(opened.connectors[0]).toMatchObject({ state: 'ready', expiresAt, headers: { Authorization: 'Bearer ACCESS_OLD' }, policy: { read: 'allow', write: 'deny' } });
+    expect(opened.connectors[0]).toMatchObject({ state: 'ready', expiresAt, headers: { Authorization: 'Bearer ACCESS_OLD' }, policy: { write: 'deny' } });
     const text = JSON.stringify(opened);
     for (const secret of ['REFRESH_OLD', 'CLIENT_SECRET', 'tokenEndpoint', 'clientId', 'authorizationEndpoint']) expect(text).not.toContain(secret);
     expect(expiresAt).toBeGreaterThan(opened.expiresAt);

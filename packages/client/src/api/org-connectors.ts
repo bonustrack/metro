@@ -78,6 +78,7 @@ function orgCall(init: CallInit): Promise<unknown> {
   return call({ ...init, checkAccount: () => {
     checkAccountIdentity(identity);
     if (scope !== accountScopeIdentity()) throw new Error('The Metro account changed. Start again.');
+    init.checkAccount?.();
   } });
 }
 
@@ -147,11 +148,13 @@ function authorizeOf(body: Record<string, unknown>): string {
   return url;
 }
 
-export async function fetchOrgConnectors(): Promise<OrgConnectors> {
-  const body = await orgCall({ method: 'GET', base: base() });
+export async function readOrgConnectors(checkAccount?: () => void, signal?: AbortSignal): Promise<OrgConnectors> {
+  const body = await orgCall({ method: 'GET', base: base(), checkAccount, signal });
   if (!isRecord(body) || !Array.isArray(body.connectors)) throw unexpected();
   return { connectors: body.connectors.map(toOrgConnector), admin: body.admin === true };
 }
+
+export const fetchOrgConnectors = (): Promise<OrgConnectors> => readOrgConnectors();
 
 function addPayload(input: NewOrgConnector): Record<string, string> {
   const out: Record<string, string> = { name: input.name.trim(), url: input.url.trim(), returnTo: signInReturnUrl() };
@@ -178,8 +181,8 @@ export async function deleteOrgConnector(id: string): Promise<void> {
   await orgCall({ method: 'DELETE', base: base(), path: `/${id}` });
 }
 
-export const signInOrgConnector = async (id: string): Promise<string> =>
-  authorizeOf(recordOf(await orgCall({ method: 'POST', base: base(), path: `/${id}/sign-in`, headers: JSON_HEADERS, body: JSON.stringify({ returnTo: signInReturnUrl() }) })));
+export const signInOrgConnector = async (id: string, checkAccount?: () => void, signal?: AbortSignal): Promise<string> =>
+  authorizeOf(recordOf(await orgCall({ method: 'POST', base: base(), path: `/${id}/sign-in`, headers: JSON_HEADERS, body: JSON.stringify({ returnTo: signInReturnUrl() }), checkAccount, signal })));
 
 export const completeOrgConnectorSignIn = async (handoff: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'POST', base: base(), path: '/complete', headers: JSON_HEADERS, body: JSON.stringify({ handoff }) }));

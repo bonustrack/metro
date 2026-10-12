@@ -46,7 +46,8 @@ async function endSession(url: URL, auth: ConnectorAuth, session: Map<string, st
   try {
     const send = fetchImpl ?? fetch;
     const res = await send(url.toString(), { method: 'DELETE', redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { ...authHeaders(auth), ...Object.fromEntries(session) } });
-    await res.body?.cancel();
+    if (res.ok) await res.body?.pipeTo(new WritableStream<Uint8Array>());
+    else await res.body?.cancel();
   } catch (err) {
     log.debug(fetchImpl === undefined ? { host: url.hostname, err: errMsg(err) } : {}, 'connector-tools: the remote declined to end the session');
   }

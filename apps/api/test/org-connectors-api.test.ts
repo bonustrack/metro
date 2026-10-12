@@ -188,7 +188,7 @@ describe('assigning a connector to agents', () => {
     const view = await addKeyed();
     const assigned = await call('PUT', `/api/connectors/${view.id}/agents/${OURS}`, { readOnly: true });
     expect(assigned.status).toBe(200);
-    expect((await data<View>(assigned)).agents).toEqual([{ id: OURS, readOnly: true, assignedAt: expect.any(String) as unknown as string }]);
+    expect((await data<View>(assigned)).agents).toEqual([{ id: OURS, readOnly: true, policy: { write: 'deny' }, assignedAt: expect.any(String) as unknown as string }]);
     const same = await call('PUT', `/api/connectors/${view.id}/agents/${OURS}`, { readOnly: true });
     expect(same.status).toBe(200);
     const opened = await call('PUT', `/api/connectors/${view.id}/agents/${OURS}`, { readOnly: false });

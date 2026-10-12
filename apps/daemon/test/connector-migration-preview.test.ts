@@ -45,7 +45,7 @@ test('off by default and for every non-true switch value, with no connector or i
   try {
     for (const value of [undefined, '', 'false', '1', 'TRUE']) {
       if (value === undefined) delete process.env.METRO_CONNECTORS_SYNC_ENABLED; else process.env.METRO_CONNECTORS_SYNC_ENABLED = value;
-      expect(preview()).toEqual({ enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+      expect(preview()).toEqual({ migrationSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
     }
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview().liveEnabled).toBe(true);
@@ -62,7 +62,7 @@ test('enrollment uses the current API agent id only for the matching organizatio
   expect(preview()).toMatchObject({ enabled: true, enrolled: false, agentId: null });
   saveAgentKey(newAgentKey(), { server: AGENT, organization: OWNER, at: '2026-10-11T00:00:00Z' }, dir);
   const before = files();
-  expect(preview()).toEqual({ enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(preview()).toEqual({ migrationSupported: true, enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(connectorMigrationPreview('org_01OTHEROWNER00000', dir)).toMatchObject({ enrolled: false, agentId: null });
   expect(connectorMigrationPreview(null, dir)).toMatchObject({ enrolled: false, agentId: null, owner: null });
   expect(files()).toEqual(before);
@@ -81,7 +81,7 @@ test('legacy enrollment is read without renaming it and malformed enrollment sta
   expect(JSON.stringify(preview())).not.toContain('identity-secret');
 });
 
-test('only sanitized metadata and full policy leave the box; header reentry and OAuth sign-in never transfer tokens', () => {
+test('only sanitized metadata and full policy leave the box; preview never transfers credentials', () => {
   const policy = { read: 'ask', write: 'deny', tools: { read_tool: 'allow', delete_tool: 'ask' } };
   const oauth = { kind: 'oauth', accessToken: 'access-secret', refreshToken: 'refresh-secret', clientId: 'client-id-secret', clientSecret: 'client-secret', tokenEndpoint: 'https://auth.example.com/private-token-path?key=token-endpoint-secret', issuer: 'https://auth.example.com/issuer-secret', scope: 'scope-secret', expiresAt: 1 };
   write([
@@ -92,10 +92,10 @@ test('only sanitized metadata and full policy leave the box; header reentry and 
   ]);
   const before = files();
   const result = preview();
-  expect(result.connectors[0]).toEqual({ id: ID, name: 'Example', auth: 'none', origin: 'https://mcp.example.com', policy, policySupported: false, issues: ['custom_policy'] });
-  expect(result.connectors[1]).toMatchObject({ auth: 'header', issues: ['header_reentry'] });
-  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
-  expect(result.connectors[3]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
+  expect(result.connectors[0]).toEqual({ id: ID, name: 'Example', auth: 'none', origin: 'https://mcp.example.com', policy, policySupported: true, issues: [] });
+  expect(result.connectors[1]).toMatchObject({ auth: 'header', issues: [] });
+  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in', 'oauth_private_resource'] });
+  expect(result.connectors[3]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in', 'oauth_private_resource'] });
   const text = JSON.stringify(result);
   for (const secret of ['private-path', 'query-secret', 'access-secret', 'refresh-secret', 'client-id-secret', 'client-secret', 'preset-id-secret', 'preset-secret', 'token-endpoint-secret', 'issuer-secret', 'scope-secret', 'header-secret', 'X-Secret-Header']) expect(text).not.toContain(secret);
   for (const key of ['url', 'config', 'clientId', 'clientSecret', 'accessToken', 'refreshToken', 'verified', 'keyId', 'signing', 'sealing', 'revision']) expect(text).not.toContain(`"${key}"`);
@@ -142,14 +142,14 @@ test('malformed row identities have non-secret placeholders and duplicate rows a
   expect(files()).toEqual(before);
 });
 
-test('only losslessly representable default and read-only policies are supported', () => {
+test('all representable policies retain exact read, write and tool overrides', () => {
   const cases = [
     { policy: undefined, supported: true, output: {} },
     { policy: {}, supported: true }, { policy: { read: 'allow', write: 'allow' }, supported: true },
     { policy: { write: 'deny' }, supported: true }, { policy: { read: 'allow', write: 'deny', tools: {} }, supported: true },
-    { policy: { read: 'deny' }, supported: false }, { policy: { read: 'ask' }, supported: false },
-    { policy: { write: 'ask' }, supported: false }, { policy: { tools: { read_tool: 'allow' } }, supported: false },
-    { policy: { read: 'deny', write: 'ask', tools: { read_tool: 'ask', delete_tool: 'deny' } }, supported: false },
+    { policy: { read: 'deny' }, supported: true }, { policy: { read: 'ask' }, supported: true },
+    { policy: { write: 'ask' }, supported: true }, { policy: { tools: { read_tool: 'allow' } }, supported: true },
+    { policy: { read: 'deny', write: 'ask', tools: { read_tool: 'ask', delete_tool: 'deny' } }, supported: true },
   ];
   for (const entry of cases) {
     write([row({ config: config({ policy: entry.policy }) })]);
@@ -228,7 +228,7 @@ test('preview makes no network, DNS, file mutations or policy publication even w
   try {
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview()).toMatchObject({ enabled: true, enrolled: true, liveEnabled: true });
-    expect(preview().connectors[0]?.issues).toEqual(['oauth_sign_in']);
+    expect(preview().connectors[0]?.issues).toEqual(['oauth_sign_in', 'oauth_private_resource']);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     expect(publications).toBe(0);
   } finally {

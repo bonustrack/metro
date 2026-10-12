@@ -16,6 +16,8 @@ import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/b
 import { METRO_VERSION } from '@metro-labs/core/version';
 import type { ConnectorApiDeps } from '../connectors/api.js';
 import { connectorMigrationPreview } from '../connectors/migration-preview.js';
+import { ConnectorMigrations } from '../connectors/migration-control.js';
+import { migrationExportableRows } from '../connectors/migration-guard.js';
 import { ConnectorTransfers } from '../connectors/transfer-api.js';
 import { copyConnectorRows } from '../connectors/transfer-store.js';
 import { authenticate } from '../mcp/request-identity.js';
@@ -162,7 +164,7 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
       const bundle: AgentBundle = {
         version: 1,
         agent: { id: file.id, name: file.name ?? '', stations: file.stations.filter((a) => a.station !== 'gmail' || a.config.managed !== true) },
-        connectors: readLocalConnectors().map((c) => ({ id: c.id, name: c.name, url: c.url, config: { ...c.config } })),
+        connectors: migrationExportableRows(readLocalConnectors()).map((c) => ({ id: c.id, name: c.name, url: c.url, config: { ...c.config } })),
       };
       return Promise.resolve(bundle);
     },
@@ -206,7 +208,8 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     bundleApi: bundleApi(deps),
     connectorApi,
     connectorSyncApi: { status: orgConnectorSyncStatus, set: setOrgConnectorSync },
-    connectorTransfers: new ConnectorTransfers({ read: readLocalConnectors, copy: copyConnectorRows }),
+    connectorMigrationApi: new ConnectorMigrations(),
+    connectorTransfers: new ConnectorTransfers({ read: () => migrationExportableRows(readLocalConnectors()), copy: copyConnectorRows }),
     enrollApi: { owner: () => localOwner(), invalidate: invalidateOrgConnectorSync },
     relayApi,
     claudeApi: { liveEvents: deps.liveEvents },

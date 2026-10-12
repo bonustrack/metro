@@ -81,7 +81,7 @@ describe('delivery payload validation', () => {
 
 describe('strict connector policy intersection', () => {
   test('group decisions cannot be weakened and named overrides cannot bypass an assignment', () => {
-    expect(combineConnectorPolicies({}, {})).toEqual({ read: 'allow', write: 'allow' });
+    expect(combineConnectorPolicies({}, {})).toEqual({});
     expect(combineConnectorPolicies({ read: 'deny', write: 'ask' }, { read: 'allow', write: 'allow' })).toEqual({ read: 'deny', write: 'ask' });
     expect(combineConnectorPolicies({ tools: { send: 'allow', list: 'ask' } }, { write: 'deny' })).toEqual({ read: 'allow', write: 'deny', tools: { send: 'deny', list: 'deny' } });
     expect(combineConnectorPolicies({ tools: { send: 'deny' } }, { tools: { send: 'allow', list: 'ask' } })).toEqual({ read: 'allow', write: 'allow', tools: { send: 'deny', list: 'ask' } });

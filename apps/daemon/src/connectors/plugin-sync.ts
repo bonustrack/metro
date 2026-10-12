@@ -54,9 +54,10 @@ export function serverKeysOf(rows: PluginRow[]): Map<string, string> {
   return keys;
 }
 
-export function pluginServers(rows: PluginRow[], base: string): Record<string, PluginServer> {
+export function pluginServers(rows: PluginRow[], base: string, keys: ReadonlyMap<string, string> = serverKeysOf(rows)): Record<string, PluginServer> {
   const out: Record<string, PluginServer> = {};
-  for (const [id, key] of serverKeysOf(rows)) out[key] = { type: 'http', url: `${base}/relay/${id}`, headersHelper: HELPER };
+  const visible = new Set(rows.map((row) => row.id));
+  for (const [id, key] of keys) if (visible.has(id)) out[key] = { type: 'http', url: `${base}/relay/${id}`, headersHelper: HELPER };
   return out;
 }
 
@@ -112,6 +113,7 @@ export interface PluginSyncOptions {
   dir?: string;
   base?: string;
   staged?: string | null;
+  keys?: ReadonlyMap<string, string>;
 }
 
 function filesFor(opts: PluginSyncOptions): string[] {
@@ -122,7 +124,7 @@ function filesFor(opts: PluginSyncOptions): string[] {
 export function syncPluginServers(rows: PluginRow[], opts: PluginSyncOptions = {}): number {
   const files = filesFor(opts);
   if (files.length === 0) return 0;
-  const servers = pluginServers(rows, opts.base ?? loopbackBase());
+  const servers = pluginServers(rows, opts.base ?? loopbackBase(), opts.keys);
   const text = `${JSON.stringify(servers, null, 2)}\n`;
   let written = 0;
   for (const file of files) {

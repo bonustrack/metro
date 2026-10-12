@@ -1,12 +1,11 @@
-import { accountIdentity, accountScopeIdentity, activeAccount, checkAccountIdentity } from '../auth/account.js';
-import { currentServer, daemonBase } from '../auth/daemon.js';
+import { captureMigrationIdentity, type MigrationIdentity } from './connector-migration-identity.js';
 import { isRecord } from '../read.js';
 import { timeoutSignal } from '../platform.js';
 import { call, ForbiddenError, NotFoundError } from './client.js';
-import { fetchOrgConnectors, type OrgConnector } from './org-connectors.js';
+import { readOrgConnectors, type OrgConnector } from './org-connectors.js';
 import { ACCESS_CHOICES, type Access, type ToolPolicy } from './policy.js';
 
-export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry';
+export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry' | 'unused_oauth_client' | 'oauth_private_resource';
 
 export interface MigrationSource {
   id: string;
@@ -24,6 +23,7 @@ export interface MigrationPreview {
   agentId: string | null;
   owner: string | null;
   liveEnabled: boolean;
+  migrationSupported?: boolean;
   connectors: MigrationSource[];
 }
 
@@ -40,9 +40,9 @@ export interface MigrationPlan {
   organizationChecked: boolean;
 }
 
-export const MIGRATION_UPDATE = 'Update this agent to a Metro version that supports migration preview.';
-const ISSUES: readonly MigrationIssue[] = ['invalid_config', 'unsupported_url', 'custom_policy', 'oauth_sign_in', 'header_reentry'];
-const unexpected = (): Error => new Error('The agent returned an invalid migration preview. Nothing was changed.');
+export const MIGRATION_UPDATE = 'Update this agent to a Metro version that supports connector migration, then open this dialog again.';
+const ISSUES: readonly MigrationIssue[] = ['invalid_config', 'unsupported_url', 'custom_policy', 'oauth_sign_in', 'header_reentry', 'unused_oauth_client', 'oauth_private_resource'];
+const unexpected = (): Error => new Error('The agent returned an invalid migration preview. Refresh before continuing.');
 const access = (value: unknown): value is Access => ACCESS_CHOICES.some((item) => item === value);
 const nullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
 
@@ -83,7 +83,7 @@ function sourceOf(value: unknown): MigrationSource {
 function previewOf(value: unknown): MigrationPreview {
   if (!isRecord(value) || typeof value.enabled !== 'boolean' || typeof value.enrolled !== 'boolean' || typeof value.liveEnabled !== 'boolean' || !nullableString(value.agentId) || !nullableString(value.owner) || !Array.isArray(value.connectors)) throw unexpected();
   if (!value.enabled && value.connectors.length !== 0) throw unexpected();
-  return { enabled: value.enabled, enrolled: value.enrolled, liveEnabled: value.liveEnabled, agentId: value.agentId, owner: value.owner, connectors: value.connectors.map(sourceOf) };
+  return { enabled: value.enabled, enrolled: value.enrolled, liveEnabled: value.liveEnabled, migrationSupported: value.migrationSupported === true, agentId: value.agentId, owner: value.owner, connectors: value.connectors.map(sourceOf) };
 }
 
 function originOf(value: string): string | null {
@@ -104,36 +104,30 @@ function conflictsFor(source: MigrationSource, connectors: OrgConnector[], agent
   });
 }
 
-function scopeCheck(): () => void {
-  const identity = accountIdentity();
-  const scope = accountScopeIdentity();
-  const base = daemonBase();
-  const server = currentServer()?.id;
-  return () => {
-    checkAccountIdentity(identity);
-    if (scope !== accountScopeIdentity() || base !== daemonBase() || server !== currentServer()?.id) throw new Error('The account or agent changed. Open a new preview.');
-    if (activeAccount()?.role !== 'admin') throw new ForbiddenError('Only an organization admin can preview a migration.');
-  };
-}
-
-function checkSource(preview: MigrationPreview): void {
-  if (preview.owner !== activeAccount()?.organization || (preview.enrolled && currentServer() !== null && preview.agentId !== currentServer()?.id)) throw new Error('The preview does not match this organization and agent. Nothing was changed.');
-}
-
-export async function fetchMigrationPreview(): Promise<MigrationPlan> {
-  const checkAccount = scopeCheck();
-  checkAccount();
+export async function readMigrationPreview(identity: MigrationIdentity, signal: AbortSignal): Promise<MigrationPlan> {
+  identity.check();
   let preview: MigrationPreview;
   try {
-    preview = previewOf(await call({ method: 'GET', base: `${daemonBase()}/api/connectors/migration-preview`, checkAccount, redirect: 'error', signal: timeoutSignal(15_000) }));
+    preview = previewOf(await call({ method: 'GET', base: `${identity.base}/api/connectors/migration-preview`, checkAccount: identity.check, redirect: 'error', signal }));
   } catch (error) {
+    identity.check();
     if (error instanceof NotFoundError) throw new Error(MIGRATION_UPDATE);
     throw error;
   }
+  identity.check();
   if (!preview.enabled) return { preview, rows: [], organizationChecked: false };
-  checkSource(preview);
-  const organization = await fetchOrgConnectors();
-  checkAccount();
+  if (preview.owner !== identity.owner || (preview.enrolled && identity.agentId !== null && preview.agentId !== identity.agentId)) throw new Error('The preview does not match this organization and agent. Refresh before continuing.');
+  const organization = await readOrgConnectors(identity.check, signal);
+  identity.check();
   if (!organization.admin) throw new ForbiddenError('Only an organization admin can preview a migration.');
   return { preview, rows: preview.connectors.map((source) => ({ source, conflicts: conflictsFor(source, organization.connectors, preview.agentId) })), organizationChecked: true };
+}
+
+export async function fetchMigrationPreview(): Promise<MigrationPlan> {
+  const identity = captureMigrationIdentity();
+  try {
+    return await readMigrationPreview(identity, timeoutSignal(15_000));
+  } finally {
+    identity.dispose();
+  }
 }

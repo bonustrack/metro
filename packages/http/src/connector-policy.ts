@@ -40,6 +40,9 @@ const strictest = (...values: (ConnectorDecision | undefined)[]): ConnectorDecis
 
 export function combineConnectorPolicies(global: ConnectorPolicy, assignment: ConnectorPolicy): ConnectorPolicy {
   const policies = [connectorPolicyOf(global), connectorPolicyOf(assignment)];
+  const neutral = (policy: ConnectorPolicy): boolean => (policy.read ?? 'allow') === 'allow' && (policy.write ?? 'allow') === 'allow' && Object.keys(policy.tools ?? {}).length === 0;
+  if (neutral(assignment)) return connectorPolicyOf(global);
+  if (neutral(global)) return connectorPolicyOf(assignment);
   const out: ConnectorPolicy = {
     read: strictest(...policies.map((policy) => policy.read)),
     write: strictest(...policies.map((policy) => policy.write)),

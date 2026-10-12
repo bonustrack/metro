@@ -6,7 +6,7 @@ import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { ConnectorEdit, ConnectorRow, EventView } from '../db/connectors.js';
-import { connectorView, detailOf, detailText, isReadOnly, openConnectorSecret, readOnlyPolicy, sealConnectorSecret, type ConnectorView } from './model.js';
+import { connectorView, detailOf, detailText, isReadOnly, openConnectorSecret, readOnlyPolicy, sealConnectorSecret, simplePolicy, type ConnectorView } from './model.js';
 import { sealingKey, viewOf, type ActionDeps, type Caller } from './actions.js';
 
 const EVENTS_PAGE = 50;
@@ -42,6 +42,7 @@ function simpleEdit(caller: Caller, change: Exclude<Change, { kind: 'key' }>): (
   return (row) => {
     if (change.kind === 'name')
       return row.name === change.name ? { change: {}, event: null } : { change: { name: change.name }, event: event(caller, row, 'connector.renamed', { to: change.name }) };
+    if (!simplePolicy(row.policy)) throw new ApiError('This connector has a custom policy. A readOnly switch cannot replace it.', 409);
     if (isReadOnly(row.policy) === change.readOnly) return { change: {}, event: null };
     return { change: { policy: readOnlyPolicy(change.readOnly) }, event: event(caller, row, 'connector.read_only_changed', { readOnly: change.readOnly ? 'yes' : 'no' }) };
   };

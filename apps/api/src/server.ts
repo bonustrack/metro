@@ -55,6 +55,8 @@ import { AgentAuth } from './agents/auth.js';
 import { handleAgentConnectorsRequest, type AgentConnectorsDeps } from './agents/connectors.js';
 import { agentNonceStore } from './db/agent-nonces.js';
 import { connectorDeliveryStore } from './db/connector-delivery.js';
+import { handleAgentMigrationsRequest, type AgentMigrationsDeps } from './agents/connector-migrations.js';
+import { connectorMigrationStore } from './db/connector-migrations.js';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from './connectors/setup.js';
@@ -176,6 +178,16 @@ const agentConnectorsApi: AgentConnectorsDeps = {
   now: () => Date.now(),
 };
 
+const agentMigrationsApi: AgentMigrationsDeps = {
+  ...connectorsApi,
+  enabled: enrollmentApi.enabled,
+  deliveryEnabled: agentConnectorsApi.deliveryEnabled,
+  keys: enrollmentApi.store,
+  auth: enrollmentApi.auth,
+  nonces: agentConnectorsApi.nonces,
+  migrations: connectorMigrationStore(getDb),
+};
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -210,6 +222,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
   (req, res) => handleAgentConnectorsRequest(req, res, agentConnectorsApi),
+  (req, res) => handleAgentMigrationsRequest(req, res, agentMigrationsApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),

@@ -9,6 +9,7 @@ import {
 import type { RelayApiDeps } from '../connectors/relay.js';
 import type { ConnectorTransfers } from '../connectors/transfer-api.js';
 import { handleConnectorSyncRequest, type ConnectorSyncApiDeps } from '../connectors/org-sync-api.js';
+import { handleMigrationRequest, type MigrationApiDeps } from '../connectors/migration-api.js';
 import { handleEnrollRequest, type EnrollApiDeps } from '../connectors/enroll-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
@@ -41,6 +42,7 @@ export interface SessionApis {
   connectorTransfers?: ConnectorTransfers;
   enrollApi?: EnrollApiDeps;
   connectorSyncApi?: ConnectorSyncApiDeps;
+  connectorMigrationApi?: MigrationApiDeps;
   relayApi?: RelayApiDeps;
   mode?: () => ModeInfo;
 }
@@ -60,6 +62,7 @@ export function handleSessionApis(
     ...when(apis.connectorTransfers, (d) => d.handle(req, res)),
     ...when(apis.enrollApi, (d) => handleEnrollRequest(req, res, d)),
     ...when(apis.connectorSyncApi, (d) => handleConnectorSyncRequest(req, res, d)),
+    ...when(apis.connectorMigrationApi, (d) => handleMigrationRequest(req, res, d)),
     ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),

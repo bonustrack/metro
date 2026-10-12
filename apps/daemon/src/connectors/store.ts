@@ -1,5 +1,8 @@
 import { join } from 'node:path';
+import { closeSync, fsyncSync, openSync } from 'node:fs';
 import { publishLocalConnectors } from './publication.js';
+import { assertLocalMigrationEdit, localMigrationEnabled, localMigrationIdle, migrationSource, withLocalMigrationOperation } from './migration-guard.js';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { RelayTarget } from './relay-target.js';
 export type { RelayTarget } from './relay-target.js';
 import type { ToolPolicy } from '../policy/policy.js';
@@ -126,15 +129,16 @@ function rowOrThrow(id: string, dir: string): LocalConnectorRow {
   return row;
 }
 
-function replace(dir: string, row: LocalConnectorRow): Connector {
+function replace(dir: string, row: LocalConnectorRow, refresh = false): Connector {
+  if (!refresh) assertLocalMigrationEdit(row.id, row.name, dir);
   writeRows(dir, readLocalConnectors(dir).map((r) => (r.id === row.id ? row : r)));
   return connectorFromRow(row);
 }
 
-async function oauthCapable(url: URL, auth: ConnectorAuth): Promise<boolean> {
+async function oauthCapable(url: URL, auth: ConnectorAuth, send: FetchLike): Promise<boolean> {
   if (auth.kind === 'oauth') return true;
   if (auth.kind === 'header') return false;
-  return advertisesOAuth(url);
+  return advertisesOAuth(url, send);
 }
 
 export function localImportConnectors(
@@ -153,6 +157,7 @@ export function localImportConnectors(
     url: row.url,
     config: readConfig(row.config),
   }));
+  for (const row of imported) assertLocalMigrationEdit(row.id, row.name, dir);
   const ids = new Set(imported.map((r) => r.id));
   const names = new Set(imported.map((r) => r.name));
   writeRows(dir, [...current.filter((r) => !ids.has(r.id) && !names.has(r.name)), ...imported]);
@@ -173,6 +178,7 @@ function assertNameFree(name: string, exceptId: string | null, dir: string): voi
 }
 
 function insert(dir: string, name: string, url: URL, config: ConnectorConfig): Connector {
+  assertLocalMigrationEdit('', name, dir);
   assertNameFree(name, null, dir);
   const row: LocalConnectorRow = { id: newId(), name, url: connectorUrlText(url), config };
   writeRows(dir, [...readLocalConnectors(dir), row]);
@@ -184,14 +190,10 @@ export async function localCreateConnector(input: ConnectorInput, dir = agentsDi
   const url = parseConnectorUrl(input.url);
   const auth = connectorAuth(input.header, input.value);
   const client = connectorClient(input.clientId, input.clientSecret);
-  const verified = stamp(await verifyRemoteMcp(url, auth));
-  return insert(dir, name, url, {
-    auth,
-    createdAt: new Date().toISOString(),
-    verified,
-    oauth: await oauthCapable(url, auth),
-    client,
-  });
+  return withLocalMigrationOperation('', dir, async (operation) => {
+    const verified = stamp(await verifyRemoteMcp(url, auth, operation.fetch));
+    return insert(dir, name, url, { auth, createdAt: new Date().toISOString(), verified, oauth: await oauthCapable(url, auth, operation.fetch), client });
+  }, true, name);
 }
 
 export async function localCreatePendingConnector(input: PendingConnectorInput, dir = agentsDir()): Promise<Connector> {
@@ -208,9 +210,11 @@ export async function localReconnectConnector(
   auth: OAuthAuth,
   dir = agentsDir(),
 ): Promise<Connector> {
-  const row = rowOrThrow(id, dir);
-  const verified = stamp(await verifyRemoteMcp(parseConnectorUrl(row.url), auth));
-  return replace(dir, { ...row, config: { ...row.config, auth, verified, oauth: true } });
+  return withLocalMigrationOperation(id, dir, async (operation) => {
+    const row = rowOrThrow(id, dir);
+    const verified = stamp(await verifyRemoteMcp(parseConnectorUrl(row.url), auth, operation.fetch));
+    return replace(dir, { ...row, config: { ...row.config, auth, verified, oauth: true } });
+  }, true);
 }
 
 const signedOut = (row: LocalConnectorRow): LocalConnectorRow => ({ ...row, config: { ...row.config, auth: { kind: 'none' }, oauth: true } });
@@ -234,30 +238,34 @@ async function freshAuth(row: LocalConnectorRow, dir: string): Promise<Connector
   return refreshOnce(row, auth, dir);
 }
 
-function updateRow(dir: string, id: string, config: Partial<LocalConnectorRow['config']>): void {
+function updateRow(dir: string, id: string, config: Partial<LocalConnectorRow['config']>, refresh = false): void {
+  if (!refresh && migrationSource(id, dir) !== null) return;
   const now = readLocalConnectors(dir).find((r) => r.id === id);
-  if (now !== undefined) replace(dir, { ...now, config: { ...now.config, ...config } });
+  if (now !== undefined) replace(dir, { ...now, config: { ...now.config, ...config } }, refresh);
 }
 
 export async function localVerifyConnector(id: string, dir = agentsDir()): Promise<ConnectorCheck> {
-  const row = rowOrThrow(id, dir);
-  try {
-    const url = parseConnectorUrl(row.url);
-    const auth = await freshAuth(row, dir);
-    const verified = stamp(await verifyRemoteMcp(url, auth));
-    const oauth = row.config.oauth || (await oauthCapable(url, auth));
-    updateRow(dir, row.id, { auth, verified, oauth });
-    return { id: row.id, name: row.name, ok: true, verified };
-  } catch (err) {
-    if (!(err instanceof ConnectorVerifyError)) throw err;
-    return { id: row.id, name: row.name, ok: false, reason: err.message };
-  }
+  return withLocalMigrationOperation(id, dir, async (operation) => {
+    const row = rowOrThrow(id, dir);
+    try {
+      const url = parseConnectorUrl(row.url);
+      const auth = await freshAuth(row, dir);
+      const verified = stamp(await verifyRemoteMcp(url, auth, operation.fetch));
+      const oauth = row.config.oauth || (await oauthCapable(url, auth, operation.fetch));
+      updateRow(dir, row.id, { auth, verified, oauth });
+      return { id: row.id, name: row.name, ok: true, verified };
+    } catch (err) {
+      if (!(err instanceof ConnectorVerifyError)) throw err;
+      return { id: row.id, name: row.name, ok: false, reason: err.message };
+    }
+  });
 }
 
 const groupsOf = (tools: RemoteTool[]): Record<string, ToolGroup> =>
   Object.fromEntries(tools.map((tool) => [tool.name, tool.readOnly ? 'read' : 'write'] as const));
 
 function keepGroups(dir: string, id: string, tools: RemoteTool[]): void {
+  if (migrationSource(id, dir) !== null) return;
   const now = readLocalConnectors(dir).find((r) => r.id === id);
   const groups = groupsOf(tools);
   if (now === undefined || JSON.stringify(now.config.toolGroups ?? {}) === JSON.stringify(groups)) return;
@@ -267,11 +275,12 @@ function keepGroups(dir: string, id: string, tools: RemoteTool[]): void {
 }
 
 export async function localConnectorTools(id: string, dir = agentsDir()): Promise<RemoteTool[]> {
-  const row = rowOrThrow(id, dir);
-  const url = parseConnectorUrl(row.url);
-  const tools = await listRemoteTools(url, await freshAuth(row, dir));
-  keepGroups(dir, id, tools);
-  return tools;
+  return withLocalMigrationOperation(id, dir, async (operation) => {
+    const row = rowOrThrow(id, dir);
+    const tools = await listRemoteTools(parseConnectorUrl(row.url), await freshAuth(row, dir), operation.fetch);
+    keepGroups(dir, id, tools);
+    return tools;
+  });
 }
 
 async function refreshGroups(id: string, dir: string): Promise<void> {
@@ -294,7 +303,7 @@ export async function localSetConnectorPolicy(id: string, policy: ToolPolicy, di
 export async function loadConnectorPolicies(dir = agentsDir()): Promise<void> {
   const rows = readLocalConnectors(dir);
   publishLocalConnectors(rows);
-  for (const row of rows) if (row.config.policy !== undefined) await refreshGroups(row.id, dir);
+  for (const row of rows) if (row.config.policy !== undefined && localMigrationEnabled(row.id, dir)) await refreshGroups(row.id, dir);
 }
 
 export async function localRenameConnector(id: string, raw: string, dir = agentsDir()): Promise<Connector> {
@@ -306,6 +315,7 @@ export async function localRenameConnector(id: string, raw: string, dir = agents
 
 export async function localDeleteConnector(id: string, dir = agentsDir()): Promise<DeletedConnector> {
   const row = rowOrThrow(id, dir);
+  assertLocalMigrationEdit(id, row.name, dir);
   writeRows(dir, readLocalConnectors(dir).filter((r) => r.id !== id));
   return Promise.resolve({ id: row.id, name: row.name });
 }
@@ -313,17 +323,15 @@ export async function localDeleteConnector(id: string, dir = agentsDir()): Promi
 const inflight = new Map<string, Promise<OAuthAuth>>();
 
 function refreshOnce(row: LocalConnectorRow, auth: OAuthAuth, dir: string): Promise<OAuthAuth> {
-  const running = inflight.get(row.id);
+  const key = JSON.stringify([dir, row.id]);
+  const running = inflight.get(key);
   if (running !== undefined) return running;
-  const job = refreshOAuth(auth, parseConnectorUrl(row.url).toString())
-    .then((fresh) => {
-      updateRow(dir, row.id, { auth: fresh });
-      return fresh;
-    })
-    .finally(() => {
-      inflight.delete(row.id);
-    });
-  inflight.set(row.id, job);
+  const job = withLocalMigrationOperation(row.id, dir, async (operation) => {
+    const fresh = await refreshOAuth(auth, parseConnectorUrl(row.url).toString(), operation.fetch);
+    updateRow(dir, row.id, { auth: fresh }, true);
+    return fresh;
+  }).finally(() => { inflight.delete(key); });
+  inflight.set(key, job);
   return job;
 }
 
@@ -366,10 +374,23 @@ export async function localRelayTarget(
   force: boolean,
   dir = agentsDir(),
 ): Promise<RelayTarget> {
-  const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
-  if (row === undefined) return { kind: 'missing' };
-  parseConnectorUrl(row.url);
-  const auth = row.config.auth;
-  if (auth.kind === 'oauth') return oauthTarget(row, auth, force, dir);
-  return fixedTarget(row.url, auth, force);
+  return withLocalMigrationOperation(connectorId, dir, async (operation) => {
+    const row = readLocalConnectors(dir).find((r) => r.id === connectorId);
+    if (row === undefined) return { kind: 'missing' };
+    parseConnectorUrl(row.url);
+    const auth = row.config.auth;
+    const target = auth.kind === 'oauth' ? await oauthTarget(row, auth, force, dir) : fixedTarget(row.url, auth, force);
+    operation.check();
+    return target;
+  });
+}
+
+export function localRollbackMigrationSource(id: string, signOutOAuth: boolean, dir = agentsDir()): void {
+  if (migrationSource(id, dir)?.phase !== 'rollback' || !localMigrationIdle(id, dir)) throw new ConnectorError('The connector migration is not ready to roll back.', 409);
+  const row = rowOrThrow(id, dir);
+  if (signOutOAuth && row.config.auth.kind === 'oauth') replace(dir, signedOut(row), true);
+  if (signOutOAuth) for (const path of [filePath(dir), dir]) {
+    const fd = openSync(path, 'r');
+    try { fsyncSync(fd); } finally { closeSync(fd); }
+  }
 }

@@ -7,4 +7,5 @@ export interface RelaySession {
   blocker: () => BlockedReason;
   signal: AbortSignal;
   close: () => void;
+  dispatch?: (send: () => Promise<Response>, effectful?: boolean) => Promise<Response>;
 }

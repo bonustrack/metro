@@ -12,6 +12,7 @@ import {
 } from '@metro-labs/http/connector-oauth';
 import { discoverOAuth, type OAuthServer } from '@metro-labs/http/connector-discovery';
 import { ticketStore } from '@metro-labs/core/tickets';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
 
 export interface PendingAuth {
   name: string;
@@ -22,6 +23,7 @@ export interface PendingAuth {
   server: OAuthServer;
   client: OAuthClient;
   connectorId: string;
+  migrationId?: string | null;
 }
 
 const pending = ticketStore<PendingAuth>(10 * 60_000, 100);
@@ -53,17 +55,18 @@ export interface PreparedOAuth {
   redirectUri: string;
 }
 
-export async function prepareOAuth(input: PrepareInput): Promise<PreparedOAuth> {
+export async function prepareOAuth(input: PrepareInput, send: FetchLike = fetch): Promise<PreparedOAuth> {
   if (!validateReturnTo(input.returnTo))
     throw refused('that return address is not one Metro will send you back to');
-  const server = await discoverOAuth(input.url);
+  const server = await discoverOAuth(input.url, send);
   const redirectUri = callbackUri();
-  const client = input.client ?? (await registerClient(server, redirectUri));
+  const client = input.client ?? (await registerClient(server, redirectUri, send));
   return { server, client, redirectUri };
 }
 
 export interface BeginInput {
   connectorId: string;
+  migrationId?: string | null;
   name: string;
   url: URL;
   returnTo: string;
@@ -82,6 +85,7 @@ export function beginOAuth(prepared: PreparedOAuth, input: BeginInput): string {
     server,
     client,
     connectorId: input.connectorId,
+    migrationId: input.migrationId ?? null,
   });
   return authorizeUrl({
     server,
@@ -112,13 +116,14 @@ function authOf(pendingAuth: PendingAuth, tokens: OAuthTokens): OAuthAuth {
 export async function completeOAuth(
   entry: PendingAuth,
   code: string,
+  send: FetchLike = fetch,
 ): Promise<OAuthAuth> {
   const tokens = await exchangeCode(entry.server, entry.client, {
     code,
     redirectUri: callbackUri(),
     verifier: entry.verifier,
     resource: entry.resource,
-  });
+  }, send);
   return authOf(entry, tokens);
 }
 
@@ -129,6 +134,7 @@ export function oauthExpired(auth: OAuthAuth, now = Date.now()): boolean {
 export async function refreshOAuth(
   auth: OAuthAuth,
   resource: string,
+  send: FetchLike = fetch,
 ): Promise<OAuthAuth> {
   if (auth.refreshToken === undefined)
     throw refused('that connector needs signing in again');
@@ -152,6 +158,7 @@ export async function refreshOAuth(
     auth.refreshToken,
     resource,
     auth.scope,
+    send,
   );
   return {
     ...auth,
