@@ -50,7 +50,7 @@ const eventsOf = async (connector: string): Promise<{ action: string }[]> =>
 beforeAll(async () => {
   held = await testDb();
   vendor = await startVendor();
-  api = await startApi(() => held.db, () => now);
+  api = await startApi(() => held.db, () => now, vendor.fetch);
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
@@ -123,7 +123,7 @@ describe('adding a connector', () => {
     const text = await res.text();
     expect(text).not.toContain('good-vendor-key');
     const view = (JSON.parse(text) as { connector: View }).connector;
-    expect(view).toMatchObject({ name: 'Linear', auth: 'header', header: 'Authorization', server: 'Keyed MCP', readOnly: false, signIn: null, agents: [] });
+    expect(view).toMatchObject({ name: 'Linear', auth: 'header', header: 'Authorization', server: new URL(vendor.base).hostname, readOnly: false, signIn: null, agents: [] });
     const row = (await held.db.select().from(connectors).where(eq(connectors.id, view.id)))[0];
     expect(row?.secret).toMatch(/^v1\./);
     expect(row?.secret).not.toContain('good-vendor-key');
@@ -136,7 +136,7 @@ describe('adding a connector', () => {
   test('a wrong key, a non-MCP address or a bad url stores nothing', async () => {
     const wrong = await call('POST', '/api/connectors', { name: 'Linear', url: `${vendor.base}/keyed`, value: 'Bearer nope' });
     expect(wrong.status).toBe(400);
-    expect((await data<{ error: string }>(wrong)).error).toContain('rejected that credential');
+    expect((await data<{ error: string }>(wrong)).error).toBe('The provider could not verify the HTTP MCP endpoint. Check its endpoint and authentication settings.');
     expect((await call('POST', '/api/connectors', { name: 'Bad', url: 'ftp://vendor.example' })).status).toBe(400);
     expect((await call('POST', '/api/connectors', { name: '', url: `${vendor.base}/open` })).status).toBe(400);
     expect((await call('POST', '/api/connectors', { name: 'Gone', url: `${vendor.base}/nothing-here` })).status).toBe(400);
@@ -146,7 +146,7 @@ describe('adding a connector', () => {
   test('an open server needs no credential, and a name is unique inside the organization only', async () => {
     const res = await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` });
     expect(res.status).toBe(201);
-    expect((await data<{ connector: View }>(res)).connector).toMatchObject({ auth: 'none', header: null, server: 'Open MCP' });
+    expect((await data<{ connector: View }>(res)).connector).toMatchObject({ auth: 'none', header: null, server: new URL(vendor.base).hostname });
     const again = await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` });
     expect(again.status).toBe(409);
     expect((await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` }, await auth(TEST_STRANGER))).status).toBe(201);

@@ -18,7 +18,7 @@ export function deliveryPolicy(row: AssignedConnector): { policy: ConnectorPolic
 
 function deliveredOAuth(base: DeliveredConnector, secret: Extract<ConnectorSecret, { kind: 'oauth' }>, now: number): DeliveredConnector {
   const tokens = secret.tokens;
-  if (tokens === undefined) return { ...base, state: 'signin' };
+  if (tokens?.resource === undefined) return { ...base, state: 'signin' };
   if (tokens.expiresAt !== undefined && tokens.expiresAt <= now) return { ...base, state: tokens.refreshToken === undefined ? 'signin' : 'unavailable' };
   return { ...base, url: secret.targetUrl, state: 'ready', headers: { Authorization: `Bearer ${tokens.accessToken}` }, ...(tokens.expiresAt === undefined ? {} : { expiresAt: tokens.expiresAt }) };
 }

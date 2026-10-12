@@ -15,7 +15,7 @@ import { TextLink } from './TextLink.js';
 interface ProgressProps {
   snapshot: MigrationSnapshot;
   busy: boolean;
-  act: (sourceId: string, action: MigrationAction, selection: MigrationSelection) => void;
+  act: (sourceId: string, action: MigrationAction, selection: MigrationSelection, oauthResource?: string) => void;
   signIn: (sourceId: string, selection: MigrationSelection) => void;
 }
 
@@ -48,7 +48,7 @@ function ProgressRow({ sourceId, row, migration, snapshot, busy, act, signIn }: 
     {row === undefined ? <Text size="2xs" role="danger">The source preview is unavailable. Existing migration progress is kept visible. Refresh before preparing or switching.</Text> : <MigrationSource row={row} destinationId={migration?.destinationId ?? null} />}
     {migration === undefined ? null : <Phase migration={migration} />}
     {uncertain ? <Text size="2xs" role="danger">The last request is unconfirmed. Refresh and Reconcile before another change. This is the last confirmed progress, not proof of the current state.</Text> : null}
-    <MigrationActions sourceId={sourceId} name={name} row={row} migration={migration} disabled={busy || !ready} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} uncertain={uncertain} act={act} signIn={signIn} />
+    <MigrationActions sourceId={sourceId} name={name} row={row} migration={migration} disabled={busy || !ready} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} oauthResourceSupported={snapshot.plan?.preview.oauthResourceSupported === true} uncertain={uncertain} act={act} signIn={signIn} />
   </SettingsPad>;
 }
 

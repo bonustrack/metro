@@ -1,13 +1,13 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
-import { discoverOAuth, type OAuthServer } from '@metro-labs/http/connector-discovery';
+import type { OAuthServer } from '@metro-labs/http/connector-discovery';
+import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
+import { boundOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { verifyRemoteMcp, type OAuthTokens, type VerifiedServer } from '@metro-labs/http/connector-mcp';
 import { authorizeUrl, exchangeCode, newVerifier, registerClient, type OAuthClient } from '@metro-labs/http/connector-oauth';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { Session } from '@metro-labs/http/workos-token';
 import type { OwnerTickets } from '../agents/tickets.js';
-
-const ERROR_MAX = 200;
 
 export interface SignInState {
   owner: string;
@@ -17,6 +17,8 @@ export interface SignInState {
   verifier: string;
   returnTo: string;
   resource: string;
+  targetUrl: string;
+  configuredResource?: string;
   server: OAuthServer;
   client: OAuthClient;
 }
@@ -35,6 +37,7 @@ export interface SignInDeps {
 }
 
 export interface Prepared {
+  resource: string;
   server: OAuthServer;
   client: OAuthClient;
 }
@@ -47,14 +50,18 @@ export function returnToOf(raw: unknown): string {
   return returnTo;
 }
 
-export async function prepareSignIn(deps: SignInDeps, url: URL, client: OAuthClient | null): Promise<Prepared> {
-  const server = await discoverOAuth(url, deps.fetch);
-  if (deps.httpsOnly && new URL(server.authorizationEndpoint).protocol !== 'https:')
-    throw new ApiError(`${url.hostname} signs in on a page without https, which Metro will not open.`, 400);
-  return { server, client: client ?? (await registerClient(server, deps.callbackUrl, deps.fetch)) };
+export async function prepareSignIn(deps: SignInDeps, url: URL, client: OAuthClient | null, offeredResource?: unknown): Promise<Prepared> {
+  const { server, resource } = await discoverPublicOAuth(url.toString(), offeredResource, deps.fetch);
+  try {
+    return { server, resource, client: client ?? (await registerClient(server, deps.callbackUrl, deps.fetch)) };
+  } catch {
+    throw new ApiError('The provider could not register an OAuth client. Check its client registration and the central callback URL.', 400);
+  }
 }
 
 export function beginSignIn(deps: SignInDeps, state: Omit<SignInState, 'verifier'>): string {
+  boundOAuthResource(state.targetUrl, state.resource);
+  parsePublicConnectorUrl(state.server.authorizationEndpoint);
   const verifier = newVerifier();
   const { ticket } = deps.states.mint({ ...state, verifier }, deps.now());
   return authorizeUrl({ server: state.server, client: state.client, redirectUri: deps.callbackUrl, state: ticket, verifier, resource: state.resource });
@@ -67,11 +74,8 @@ function pageAddress(entry: SignInState, param: string, value: string): string {
   return url.toString();
 }
 
-function refusal(error: string, description: string): string {
-  if (error === 'access_denied') return 'The sign-in was declined, so nothing changed.';
-  const first = description.split(/\r?\n/)[0]?.trim() ?? '';
-  const text = first === '' ? `The sign-in was refused (${error}).` : `The sign-in was refused: ${first}`;
-  return text.slice(0, ERROR_MAX);
+function refusal(error: string): string {
+  return error === 'access_denied' ? 'The sign-in was declined, so nothing changed.' : 'The provider refused the sign-in. Check the public OAuth resource and client registration, then try again.';
 }
 
 export function callbackLocation(deps: SignInDeps, query: URLSearchParams): string {
@@ -80,7 +84,7 @@ export function callbackLocation(deps: SignInDeps, query: URLSearchParams): stri
   if (entry === undefined) throw expired();
   const error = query.get('error');
   const code = query.get('code') ?? '';
-  if (error !== null || code === '') return pageAddress(entry, 'org_connector_error', refusal(error ?? 'no_code', query.get('error_description') ?? ''));
+  if (error !== null || code === '') return pageAddress(entry, 'org_connector_error', refusal(error ?? 'no_code'));
   const { ticket } = deps.handoffs.mint({ ...entry, code }, now);
   return pageAddress(entry, 'org_connector', ticket);
 }
@@ -95,8 +99,13 @@ export function takeHandoff(deps: SignInDeps, raw: unknown, session: Session): H
 }
 
 export async function finishSignIn(deps: SignInDeps, entry: Handoff): Promise<{ tokens: OAuthTokens; verified: VerifiedServer }> {
-  const tokens = await exchangeCode(entry.server, entry.client, { code: entry.code, redirectUri: deps.callbackUrl, verifier: entry.verifier, resource: entry.resource }, deps.fetch);
-  const auth = { kind: 'oauth' as const, issuer: entry.server.issuer, tokenEndpoint: entry.server.tokenEndpoint, clientId: entry.client.clientId, ...tokens };
-  const verified = await verifyRemoteMcp(new URL(entry.resource), auth, deps.fetch);
-  return { tokens, verified };
+  try {
+    const tokens = await exchangeCode(entry.server, entry.client, { code: entry.code, redirectUri: deps.callbackUrl, verifier: entry.verifier, resource: entry.resource }, deps.fetch);
+    const auth = { kind: 'oauth' as const, issuer: entry.server.issuer, tokenEndpoint: entry.server.tokenEndpoint, clientId: entry.client.clientId, ...tokens };
+    const target = parsePublicConnectorUrl(entry.targetUrl);
+    await verifyRemoteMcp(target, auth, deps.fetch);
+    return { tokens, verified: { server: target.hostname } };
+  } catch {
+    throw new ApiError('The provider could not complete sign-in or verify the MCP endpoint. Check its public OAuth resource and client registration, then sign in again.', 400);
+  }
 }

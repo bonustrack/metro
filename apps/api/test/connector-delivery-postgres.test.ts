@@ -25,7 +25,7 @@ async function signIn(row: ConnectorRow): Promise<unknown> {
     fetch: (url) => Promise.resolve(url === secret.server.tokenEndpoint ? Response.json({ access_token: 'SIGNIN_ACCESS', refresh_token: 'SIGNIN_REFRESH', expires_in: 3600 }) : Response.json({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', serverInfo: { name: 'Signed in' } } })),
   };
   const userId = 'user_01TEST';
-  const { ticket } = handoffs.mint({ owner: TEST_OWNER, connector: row.id, generation: row.authGeneration ?? '', userId, verifier: 'verifier', code: 'code', returnTo: 'https://metro.box/', resource: secret.targetUrl, client: secret.client, server: secret.server }, Date.now());
+  const { ticket } = handoffs.mint({ owner: TEST_OWNER, connector: row.id, generation: row.authGeneration ?? '', userId, verifier: 'verifier', code: 'code', returnTo: 'https://metro.box/', resource: secret.oauthResource ?? '', configuredResource: secret.oauthResource, targetUrl: secret.targetUrl, client: secret.client, server: secret.server }, Date.now());
   return completeSignIn(deps, { owner: TEST_OWNER, session: { userId, sessionId: 'session_test', organization: TEST_OWNER, role: 'admin', expiresAt: Date.now() + 60_000 } }, { handoff: ticket });
 }
 

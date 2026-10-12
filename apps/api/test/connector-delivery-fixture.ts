@@ -47,7 +47,8 @@ export function oauthSecret(expiresAt = Date.now() - 1): Extract<ConnectorSecret
     kind: 'oauth', targetUrl: 'https://vendor.example/mcp?key=URL_SECRET',
     server: { issuer: 'https://vendor.example', authorizationEndpoint: 'https://vendor.example/authorize', tokenEndpoint: 'https://vendor.example/token', registrationEndpoint: null, supportsS256: true, scopes: ['read', 'write'] },
     client: { clientId: 'CLIENT_ID', clientSecret: 'CLIENT_SECRET' },
-    tokens: { accessToken: 'ACCESS_OLD', refreshToken: 'REFRESH_OLD', expiresAt },
+    oauthResource: 'https://vendor.example/mcp',
+    tokens: { accessToken: 'ACCESS_OLD', refreshToken: 'REFRESH_OLD', expiresAt, resource: 'https://vendor.example/mcp' },
   };
 }
 

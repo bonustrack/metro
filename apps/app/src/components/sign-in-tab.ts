@@ -4,17 +4,21 @@ import { openExternal } from '../lib/open.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryError, refresh } from '../lib/queries.js';
 
-export async function inNewTab<T>(begin: () => Promise<T>, urlOf: (started: T) => string, blocked: (url: string) => void): Promise<T> {
+export async function inNewTab<T>(begin: () => Promise<T>, urlOf: (started: T) => string | null, blocked: (url: string) => void): Promise<T> {
   if (Platform.OS !== 'web') {
     const started = await begin();
-    openExternal(urlOf(started));
+    const url = urlOf(started);
+    if (url !== null) openExternal(url);
     return started;
   }
   const tab = window.open('', '_blank');
   try {
+    if (tab !== null) tab.opener = null;
     const started = await begin();
-    if (tab === null) blocked(urlOf(started));
-    else tab.location.assign(urlOf(started));
+    const url = urlOf(started);
+    if (url === null) tab?.close();
+    else if (tab === null) blocked(url);
+    else tab.location.assign(url);
     return started;
   } catch (err) {
     tab?.close();

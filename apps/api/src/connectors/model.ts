@@ -4,13 +4,16 @@ import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connec
 import type { OAuthTokens } from '@metro-labs/http/connector-mcp';
 import type { OAuthServer } from '@metro-labs/http/connector-discovery';
 import type { OAuthClient } from '@metro-labs/http/connector-oauth';
+import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import type { AssignmentRow, ConnectorRow } from '../db/connectors.js';
 import { openSecret, sealSecret } from './secrets.js';
+
+interface OAuthGrant extends OAuthTokens { resource?: string }
 
 export type ConnectorSecret =
   | { kind: 'none'; targetUrl: string }
   | { kind: 'header'; targetUrl: string; name: string; value: string }
-  | { kind: 'oauth'; targetUrl: string; client: OAuthClient; server: OAuthServer; tokens?: OAuthTokens };
+  | { kind: 'oauth'; targetUrl: string; client: OAuthClient; server: OAuthServer; oauthResource?: string; tokens?: OAuthGrant };
 
 export interface ConnectorDetail {
   header?: string;
@@ -119,11 +122,17 @@ function validStoredRefresh(raw: Record<string, unknown>): boolean {
   return !Object.hasOwn(raw, 'refreshToken') || (typeof raw.refreshToken === 'string' && /^[\x21-\x7e]{1,16384}$/.test(raw.refreshToken));
 }
 
-function tokensOf(raw: unknown): OAuthTokens | null {
+function validStoredResource(raw: Record<string, unknown>): boolean {
+  if (!Object.hasOwn(raw, 'resource')) return true;
+  try { publicOAuthResource(raw.resource); return true; } catch { return false; }
+}
+
+function tokensOf(raw: unknown): OAuthGrant | null {
   if (!isRecord(raw) || typeof raw.accessToken !== 'string' || !/^[\x21-\x7e]{1,16377}$/.test(raw.accessToken)) return null;
-  if (!validStoredExpiry(raw) || !validStoredRefresh(raw)) return null;
+  if (!validStoredExpiry(raw) || !validStoredRefresh(raw) || !validStoredResource(raw)) return null;
   return {
     accessToken: raw.accessToken,
+    ...(typeof raw.resource === 'string' ? { resource: raw.resource } : {}),
     ...(typeof raw.refreshToken === 'string' ? { refreshToken: raw.refreshToken } : {}),
     ...(typeof raw.expiresAt === 'number' ? { expiresAt: raw.expiresAt } : {}),
   };
@@ -134,7 +143,11 @@ function oauthSecretOf(value: Record<string, unknown>, targetUrl: string): Conne
   const server = serverOf(value.server);
   if (client === null || server === null) return null;
   const tokens = tokensOf(value.tokens);
-  return { kind: 'oauth', targetUrl, client, server, ...(tokens === null ? {} : { tokens }) };
+  let oauthResource: string | undefined;
+  if (Object.hasOwn(value, 'oauthResource')) {
+    try { oauthResource = publicOAuthResource(value.oauthResource); } catch { return null; }
+  }
+  return { kind: 'oauth', targetUrl, client, server, ...(oauthResource === undefined ? {} : { oauthResource }), ...(tokens === null ? {} : { tokens }) };
 }
 
 export function openConnectorSecret(key: Buffer, row: Pick<ConnectorRow, 'owner' | 'id' | 'secret'>): ConnectorSecret | null {
@@ -152,6 +165,10 @@ function signInOf(row: ConnectorRow, detail: ConnectorDetail): ConnectorView['si
   return detail.signedInAt === undefined ? 'disconnected' : 'connected';
 }
 
+function publicServerName(url: string): string | null {
+  try { return new URL(url).hostname; } catch { return null; }
+}
+
 export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): ConnectorView {
   const detail = detailOf(row.detail);
   return {
@@ -161,7 +178,7 @@ export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): 
     auth: row.auth,
     header: detail.header ?? null,
     signIn: signInOf(row, detail),
-    server: detail.server ?? null,
+    server: detail.server === undefined ? null : publicServerName(row.url),
     verifiedAt: detail.verifiedAt ?? null,
     clientId: detail.clientId ?? null,
     readOnly: isReadOnly(row.policy),

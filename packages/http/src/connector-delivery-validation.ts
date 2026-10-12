@@ -2,7 +2,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { connectorName } from './connector-input.js';
 import { connectorPolicyOf, type ConnectorPolicy } from './connector-policy.js';
-import { parseConnectorUrl } from './connector-url.js';
+import { parsePublicConnectorUrl } from './connector-public-url.js';
 import { isOrganizationId } from './workos-token.js';
 
 export const CONNECTOR_DELIVERY_LEASE_MS = 90_000;
@@ -85,8 +85,8 @@ function stateOf(value: unknown, auth: DeliveredConnector['auth']): DeliveredCon
 }
 
 function urlOf(value: unknown): string {
-  const url = parseConnectorUrl(value);
-  if (url.protocol !== 'https:' || url.toString().length > 2048 || typeof value !== 'string') throw new Error('Invalid delivered connector URL.');
+  parsePublicConnectorUrl(value);
+  if (typeof value !== 'string') throw new Error('Invalid delivered connector URL.');
   return value;
 }
 

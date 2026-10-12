@@ -5,7 +5,7 @@ import { deliveryBytes, deliveryRecord } from './connector-delivery-validation.j
 import { connectorAuth, connectorClient, connectorName } from './connector-input.js';
 import type { OAuthClient } from './connector-oauth.js';
 import { connectorPolicyOf, type ConnectorPolicy } from './connector-policy.js';
-import { parseConnectorUrl } from './connector-url.js';
+import { boundOAuthResource, parsePublicConnectorUrl } from './connector-public-url.js';
 import { openTransfer, sealTransfer, type SealedTransfer } from './transfer-crypto.js';
 import { isOrganizationId } from './workos-token.js';
 
@@ -26,6 +26,7 @@ export interface MigrationPayload {
   url: string;
   auth: { kind: 'none' } | { kind: 'header'; name: string; value: string } | { kind: 'oauth' };
   client: OAuthClient | null;
+  oauthResource?: string;
   policy: ConnectorPolicy;
   sourceStamp: string;
 }
@@ -97,26 +98,20 @@ function clientOf(raw: unknown): OAuthClient | null {
   return client;
 }
 
-function canonicalResource(raw: unknown, url: URL): boolean {
-  return raw === `${url.origin}${url.pathname}` || (url.pathname === '/' && raw === url.origin);
-}
-
-function migrationClient(auth: MigrationPayload['auth'], url: URL, input: Record<string, unknown>): OAuthClient | null {
+function migrationClient(auth: MigrationPayload['auth'], input: Record<string, unknown>): OAuthClient | null {
   const client = clientOf(input.client);
-  if (auth.kind !== 'oauth' && client !== null) throw invalid();
-  if (auth.kind === 'oauth' && (url.search !== '' || !['/', '/mcp'].includes(url.pathname) || !canonicalResource(input.url, url))) throw invalid();
+  if (auth.kind !== 'oauth' && (client !== null || Object.hasOwn(input, 'oauthResource'))) throw invalid();
   return client;
 }
 
 export function migrationPayloadOf(raw: unknown): MigrationPayload {
-  const value = deliveryRecord(raw, ['name', 'url', 'auth', 'client', 'policy', 'sourceStamp']);
+  const value = deliveryRecord(raw, ['name', 'url', 'auth', 'client', 'oauthResource', 'policy', 'sourceStamp']);
   if (typeof value.name !== 'string' || connectorName(value.name) !== value.name || typeof value.url !== 'string' || typeof value.sourceStamp !== 'string') throw invalid();
-  const url = parseConnectorUrl(value.url);
-  if (url.protocol !== 'https:' || value.url.length > 2048) throw invalid();
+  parsePublicConnectorUrl(value.url);
   deliveryBytes(value.sourceStamp, 32);
   const auth = authOf(value.auth);
-  const client = migrationClient(auth, url, value);
-  const payload = { name: value.name, url: value.url, auth, client, policy: connectorPolicyOf(value.policy), sourceStamp: value.sourceStamp };
+  const client = migrationClient(auth, value);
+  const payload = { name: value.name, url: value.url, auth, client, ...(Object.hasOwn(value, 'oauthResource') ? { oauthResource: boundOAuthResource(value.url, value.oauthResource) } : {}), policy: connectorPolicyOf(value.policy), sourceStamp: value.sourceStamp };
   if (Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_MAX) throw invalid();
   return payload;
 }

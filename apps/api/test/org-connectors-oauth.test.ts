@@ -50,7 +50,7 @@ async function handoffFor(started: Started, code = 'code-1'): Promise<string> {
 beforeAll(async () => {
   held = await testDb();
   vendor = await startVendor();
-  api = await startApi(() => held.db, () => now);
+  api = await startApi(() => held.db, () => now, vendor.fetch);
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
@@ -91,7 +91,7 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(done.status).toBe(200);
     const text = await done.text();
     expect(text).not.toContain(ACCESS);
-    expect(JSON.parse(text)).toMatchObject({ id: started.id, signIn: 'connected', server: 'OAuth MCP' });
+    expect(JSON.parse(text)).toMatchObject({ id: started.id, signIn: 'connected', server: new URL(vendor.base).hostname });
     expect((await post('/api/connectors/complete', { handoff })).status).toBe(400);
     const row = (await held.db.select().from(connectors).where(eq(connectors.id, started.id)))[0];
     const key = api.deps.key();
@@ -134,7 +134,7 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     const handoff = new URLSearchParams(new URL(res.headers.get('location') ?? '').hash.split('?')[1]).get('org_connector') ?? '';
     const done = await post('/api/connectors/complete', { handoff });
     expect(done.status).toBe(400);
-    expect(((await done.json()) as { error: string }).error).toContain('refused to complete the sign-in');
+    expect(((await done.json()) as { error: string }).error).toBe('The provider could not complete sign-in or verify the MCP endpoint. Check its public OAuth resource and client registration, then sign in again.');
     const view = (await (await fetch(`${api.base}/api/connectors/${started.id}`, { headers: { authorization: await auth(TEST_OWNER) } })).json()) as { signIn: string };
     expect(view.signIn).toBe('disconnected');
   });

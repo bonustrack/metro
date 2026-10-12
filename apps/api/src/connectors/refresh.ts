@@ -28,10 +28,14 @@ function refreshEvent(row: ConnectorRow, identity: AgentKeyRow, action: string, 
 
 function failedRefresh(deps: RefreshDeps, row: ConnectorRow, identity: AgentKeyRow, secret: OAuthSecret, err: unknown): ConnectorEdit {
   if (!(err instanceof OAuthInvalidGrant)) return { change: {}, event: refreshEvent(row, identity, 'connector.refresh_failed', 'transient') };
+  return disconnected(deps, row, identity, secret, 'invalid_grant');
+}
+
+function disconnected(deps: RefreshDeps, row: ConnectorRow, identity: AgentKeyRow, secret: OAuthSecret, reason: string): ConnectorEdit {
   const detail = detailOf(row.detail);
   delete detail.signedInAt;
-  const disconnected: OAuthSecret = { kind: 'oauth', targetUrl: secret.targetUrl, client: secret.client, server: secret.server };
-  return { change: { secret: sealConnectorSecret(deps.key, row, disconnected), detail: detailText(detail) }, event: refreshEvent(row, identity, 'connector.signed_out', 'invalid_grant') };
+  const retained: OAuthSecret = { kind: 'oauth', targetUrl: secret.targetUrl, client: secret.client, server: secret.server, ...(secret.oauthResource === undefined ? {} : { oauthResource: secret.oauthResource }) };
+  return { change: { secret: sealConnectorSecret(deps.key, row, retained), detail: detailText(detail) }, event: refreshEvent(row, identity, 'connector.signed_out', reason) };
 }
 
 async function refreshLocked(deps: RefreshDeps, identity: AgentKeyRow, assigned: AssignedConnector, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
@@ -48,20 +52,21 @@ async function refreshLocked(deps: RefreshDeps, identity: AgentKeyRow, assigned:
 async function refreshSecret(deps: RefreshDeps, identity: AgentKeyRow, row: ConnectorRow, secret: OAuthSecret, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
   const { tokens } = secret;
   if (tokens === undefined) return unchanged();
+  if (tokens.resource === undefined) return disconnected(deps, row, identity, secret, 'resource_required');
   const revision = credentialRevision(deps.key, row);
   if (forced === undefined && (tokens.expiresAt === undefined || tokens.expiresAt > deps.now())) return unchanged();
   if (tokens.refreshToken === undefined) {
     if (forced !== undefined) failed.set(row.id, revision);
     return unchanged();
   }
-  return refreshedEdit(deps, identity, row, secret, tokens.refreshToken, failed);
+  return refreshedEdit(deps, identity, row, secret, tokens.refreshToken, tokens.resource, failed);
 }
 
-async function refreshedEdit(deps: RefreshDeps, identity: AgentKeyRow, row: ConnectorRow, secret: OAuthSecret, refreshToken: string, failed: Map<string, string>): Promise<ConnectorEdit> {
+async function refreshedEdit(deps: RefreshDeps, identity: AgentKeyRow, row: ConnectorRow, secret: OAuthSecret, refreshToken: string, resource: string, failed: Map<string, string>): Promise<ConnectorEdit> {
   try {
     const scope = secret.server.scopes.length === 0 ? undefined : secret.server.scopes.join(' ');
-    const refreshed = await refreshTokens(secret.server, secret.client, refreshToken, secret.targetUrl, scope, deps.fetch);
-    const next = { ...refreshed, refreshToken: refreshed.refreshToken ?? refreshToken };
+    const refreshed = await refreshTokens(secret.server, secret.client, refreshToken, resource, scope, deps.fetch);
+    const next = { ...refreshed, resource, refreshToken: refreshed.refreshToken ?? refreshToken };
     return { change: { secret: sealConnectorSecret(deps.key, row, { ...secret, tokens: next }) }, event: refreshEvent(row, identity, 'connector.refreshed') };
   } catch (err) {
     if (!(err instanceof OAuthInvalidGrant)) failed.set(row.id, credentialRevision(deps.key, row));

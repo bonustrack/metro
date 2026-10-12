@@ -14,6 +14,7 @@ export const POLICY = { read: 'allow', write: 'deny', tools: { special: 'ask', e
 
 export async function migrationVendor() {
   const oauth = await startVendor();
+  oauth.resource = `${VENDOR}/mcp`;
   const calls: { tool: string; authorization: string; url: string }[] = [];
   const streams = new Set<ServerResponse>();
   const writes = new Set<ServerResponse>();
@@ -61,7 +62,7 @@ export async function migrationVendor() {
     if (!url.startsWith(`${VENDOR}/`)) throw new Error('unexpected fixture vendor URL');
     const pathname = new URL(url).pathname;
     if (['/open', '/keyed', '/query-keyed', '/mcp'].includes(pathname)) return transportFetch(url.replace(VENDOR, base), init);
-    const response = await transportFetch(url.replace(VENDOR, oauth.base).replace('/oauth-protected-resource/mcp', '/oauth-protected-resource/oauth'), init);
+    const response = await oauth.fetch(url.replace(VENDOR, oauth.base), init);
     return new Response((await response.text()).replaceAll(`${oauth.base}/oauth`, `${VENDOR}/mcp`).replaceAll(oauth.base, VENDOR), { status: response.status, headers: response.headers });
   };
   return {

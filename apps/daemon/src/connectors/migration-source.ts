@@ -1,15 +1,18 @@
 import { createHash } from 'node:crypto';
 import type { MigrationPayload } from '@metro-labs/http/connector-migration';
 import { connectorPolicyOf } from '@metro-labs/http/connector-delivery';
+import { ApiError } from '@metro-labs/http/api-error';
+import { boundOAuthResource } from '@metro-labs/http/connector-public-url';
 import type { LocalConnectorRow } from './store.js';
 
-export function migrationPayload(row: LocalConnectorRow): MigrationPayload {
+export function migrationPayload(row: LocalConnectorRow, oauthResource?: string): MigrationPayload {
   const oauth = row.config.oauth || row.config.auth.kind === 'oauth';
   const auth = oauth ? { kind: 'oauth' as const } : row.config.auth;
-  if (auth.kind === 'oauth') {
-    return stamped({ name: row.name, url: row.url, auth: { kind: 'oauth' }, client: row.config.client, policy: connectorPolicyOf(row.config.policy ?? {}) });
-  }
-  return stamped({ name: row.name, url: row.url, auth, client: row.config.client, policy: connectorPolicyOf(row.config.policy ?? {}) });
+  if (!oauth && oauthResource !== undefined) throw new ApiError('Only an OAuth connector accepts a public OAuth resource.', 400);
+  return stamped({
+    name: row.name, url: row.url, auth, client: row.config.client, policy: connectorPolicyOf(row.config.policy ?? {}),
+    ...(oauthResource === undefined ? {} : { oauthResource: boundOAuthResource(row.url, oauthResource) }),
+  });
 }
 
 function stamped(value: Omit<MigrationPayload, 'sourceStamp'>): MigrationPayload {

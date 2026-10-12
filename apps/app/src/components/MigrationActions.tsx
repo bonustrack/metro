@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import type { MigrationPlan } from '@metro-labs/client/api/connector-migration';
+import { MIGRATION_RESOURCE_UPDATE, type MigrationPlan } from '@metro-labs/client/api/connector-migration';
 import type { MigrationSelection } from '@metro-labs/client/api/connector-migration-flow';
 import type { MigrationAction, MigrationView } from '@metro-labs/client/api/connector-migration-status';
 import { ConfirmModal } from './ConfirmModal.js';
+import { PublicOAuthResource } from './PublicOAuthResource.js';
 import { MIGRATION_CONFIRMATIONS, migrationConfirmation, migrationControls, type MigrationConfirmationAction } from './migration-copy.js';
 
 interface Props {
@@ -15,8 +17,9 @@ interface Props {
   migration: MigrationView | undefined;
   disabled: boolean;
   previewFailed: boolean;
+  oauthResourceSupported: boolean;
   uncertain: boolean;
-  act: (sourceId: string, action: MigrationAction, selection: MigrationSelection) => void;
+  act: (sourceId: string, action: MigrationAction, selection: MigrationSelection, oauthResource?: string) => void;
   signIn: (sourceId: string, selection: MigrationSelection) => void;
 }
 
@@ -43,7 +46,21 @@ function confirmationBlocked(disabled: boolean, confirm: ConfirmedSelection | nu
   return confirm.action === 'resolve' && (!available.resolve || confirm.selection.uncertainty !== current.uncertainty);
 }
 
-export function MigrationActions({ sourceId, name, row, migration, disabled, previewFailed, uncertain, act, signIn }: Props): ReactNode {
+function PrepareDestination({ sourceId, row, act, selection, disabled, oauthResourceSupported }: Pick<Props, 'sourceId' | 'row' | 'act' | 'disabled' | 'oauthResourceSupported'> & { selection: MigrationSelection }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [oauthResource, setOAuthResource] = useState('');
+  const oauth = row?.source.auth === 'oauth';
+  const publicOAuth = oauth && oauthResourceSupported;
+  return <>
+    {publicOAuth ? <PublicOAuthResource value={oauthResource} disabled={disabled} onChange={setOAuthResource} /> : null}
+    {oauth && !oauthResourceSupported ? <Text size="2xs" role="secondary">{MIGRATION_RESOURCE_UPDATE}</Text> : null}
+    <Row gap={8}>
+      <Button color="secondary" dark={dark} label="Prepare destination" disabled={disabled} onPress={() => { act(sourceId, 'prepare', selection, publicOAuth ? oauthResource : undefined); }} />
+    </Row>
+  </>;
+}
+
+export function MigrationActions({ sourceId, name, row, migration, disabled, previewFailed, oauthResourceSupported, uncertain, act, signIn }: Props): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [confirm, setConfirm] = useState<ConfirmedSelection | null>(null);
   const sourceBlocked = blockedSource(row, previewFailed);
@@ -52,8 +69,8 @@ export function MigrationActions({ sourceId, name, row, migration, disabled, pre
   const switchBlocked = disabled || sourceBlocked;
   const confirmBlocked = confirmationBlocked(disabled, confirm, selection, available, sourceBlocked);
   return <>
+    {available.prepare ? <PrepareDestination sourceId={sourceId} row={row} act={act} selection={selection} disabled={switchBlocked} oauthResourceSupported={oauthResourceSupported} /> : null}
     <Row gap={8} wrap>
-      {available.prepare ? <Button color="secondary" dark={dark} label="Prepare destination" disabled={switchBlocked} onPress={() => { act(sourceId, 'prepare', selection); }} /> : null}
       {available.signIn ? <Button color="secondary" dark={dark} label="Sign in centrally" disabled={switchBlocked || uncertain} onPress={() => { signIn(sourceId, selection); }} /> : null}
       {available.reconcile ? <Button color="secondary" dark={dark} label="Reconcile" disabled={disabled} onPress={() => { act(sourceId, 'reconcile', selection); }} /> : null}
       {available.cutover ? <Button color="primary" dark={dark} label="Switch to organization" disabled={switchBlocked} onPress={() => { setConfirm({ action: 'cutover', selection }); }} /> : null}

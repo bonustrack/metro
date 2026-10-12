@@ -12,6 +12,10 @@ import {
 import { useMachineQuery } from '../lib/queries.js';
 import { Modal } from './Modal.js';
 import { goExternal } from '../lib/open.js';
+import type { NewOrgConnector } from '@metro-labs/client/api/org-connectors';
+import { PublicOAuthResource } from './PublicOAuthResource.js';
+import { inNewTab } from './sign-in-tab.js';
+import { TextLink } from './TextLink.js';
 
 type FieldKey = keyof NewConnector;
 
@@ -96,7 +100,8 @@ function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): React
 interface ConnectorFormProps {
   hint: string;
   callbackUrl: string | null;
-  create: (values: NewConnector) => Promise<AddedConnector>;
+  create: (values: NewOrgConnector) => Promise<AddedConnector>;
+  allowPublicOAuthResource?: boolean;
   onAdded: (id: string) => void;
   onCancel: () => void;
 }
@@ -104,12 +109,16 @@ interface ConnectorFormProps {
 function ConnectorForm({
   hint,
   callbackUrl,
+  allowPublicOAuthResource = false,
   create,
   onAdded,
   onCancel,
 }: ConnectorFormProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [values, setValues] = useState<NewConnector>(EMPTY);
+  const [oauthResource, setOAuthResource] = useState('');
+  const [link, setLink] = useState<string | null>(null);
+  const publicOAuth = allowPublicOAuthResource && values.header.trim() === '' && values.value.trim() === '';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const complete = values.name.trim() !== '' && values.url.trim() !== '';
@@ -124,10 +133,13 @@ function ConnectorForm({
     if (busy || !complete) return;
     setBusy(true);
     setError(null);
-    create(trimmed(values))
+    setLink(null);
+    const begin = (): Promise<AddedConnector> => create({ ...trimmed(values), ...(publicOAuth && oauthResource.trim() !== '' ? { oauthResource: oauthResource.trim() } : {}) });
+    const request = publicOAuth ? inNewTab(begin, (result) => result.authorizeUrl, setLink) : begin();
+    request
       .then((result) => {
         if (result.authorizeUrl !== null) {
-          goExternal(result.authorizeUrl);
+          if (!publicOAuth) goExternal(result.authorizeUrl);
           return;
         }
         onAdded(result.id);
@@ -151,6 +163,8 @@ function ConnectorForm({
         {callbackUrl === null ? null : <Text size="2xs">{callbackUrl}</Text>}
         <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
+      {publicOAuth ? <PublicOAuthResource value={oauthResource} disabled={busy} onChange={setOAuthResource} /> : null}
+      {link === null ? null : <TextLink url={link}>Open sign-in</TextLink>}
       {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
@@ -177,18 +191,20 @@ interface ConnectorModalProps {
   title: string;
   hint: string;
   callbackUrl: string | null;
-  create: (values: NewConnector) => Promise<AddedConnector>;
+  create: (values: NewOrgConnector) => Promise<AddedConnector>;
+  allowPublicOAuthResource?: boolean;
   open: boolean;
   onClose: () => void;
   onAdded: (id: string) => void;
 }
 
-export function ConnectorModal({ title, hint, callbackUrl, create, open, onClose, onAdded }: ConnectorModalProps): ReactNode {
+export function ConnectorModal({ title, hint, callbackUrl, allowPublicOAuthResource, create, open, onClose, onAdded }: ConnectorModalProps): ReactNode {
   return (
     <Modal title={title} open={open} onClose={onClose}>
       <ConnectorForm
         hint={hint}
         callbackUrl={callbackUrl}
+        allowPublicOAuthResource={allowPublicOAuthResource}
         create={create}
         onCancel={onClose}
         onAdded={(id) => {

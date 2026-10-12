@@ -12,6 +12,7 @@ import { localOwner } from '../src/agents/file-admin.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
+import type { MigrationApiDeps } from '../src/connectors/migration-api.ts';
 
 const OWNER = 'org_01MIGRATIONOWNER00';
 const OTHER = 'org_01OTHEROWNER00000';
@@ -24,6 +25,8 @@ let saved: Record<string, string | undefined> = {};
 let dir = '';
 let daemon: Daemon;
 let outbound: string[] = [];
+let intents: Parameters<MigrationApiDeps['run']>[] = [];
+const migrationStatus = () => ({ scope: 'a'.repeat(64), owner: OWNER, agentId: 'apiagent001', enabled: true, enrolled: true, migrations: [] });
 let writes = 0;
 let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, 'fetch'>>;
 
@@ -46,7 +49,7 @@ beforeAll(async () => {
     syncStations: () => Promise.resolve(), reloadAgents: () => Promise.resolve(), restart: () => {}, stop: () => {},
     gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }), capabilities: () => ({}), prepareAccount: () => Promise.reject(new Error('unused')),
   });
-  daemon = await bootDaemon(apis, { monitor: true });
+  daemon = await bootDaemon({ ...apis, connectorMigrationApi: { status: migrationStatus, run: (...args) => { intents.push(args); return Promise.resolve(migrationStatus()); } } }, { monitor: true });
 });
 
 beforeEach(() => {
@@ -55,6 +58,7 @@ beforeEach(() => {
   delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
   delete process.env.METRO_CONNECTORS_LIVE_ENABLED;
   outbound = [];
+  intents = [];
   writes = 0;
   const keys = new SigningKeys('https://must-not-request.example.com/jwks', { read: () => jwks, write: () => { writes += 1; } });
   setBearerSessions(bearerSessionsFor(() => localOwner(dir), keys));
@@ -94,7 +98,7 @@ test('real local API exposes the disabled preview only to its owner admin', asyn
   expect(await wrong.json()).toEqual({ error: 'this machine belongs to another organization' });
   const admin = await call(bearer());
   expect(admin.status).toBe(200);
-  expect(await admin.json()).toEqual({ migrationSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(await admin.json()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(admin.headers.get('cache-control')).toBe('no-store');
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
@@ -111,7 +115,7 @@ test('enabled preview remains admin-only, reads current enrollment, and returns 
   const response = await call(bearer());
   expect(response.status).toBe(200);
   const text = await response.text();
-  expect(JSON.parse(text)).toEqual({ migrationSupported: true, enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: true, issues: [] }] });
+  expect(JSON.parse(text)).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: true, issues: [] }] });
   for (const value of ['header-secret', 'query-secret', 'private-path', 'Authorization', 'signing', 'sealing', 'keyId']) expect(text).not.toContain(value);
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
@@ -145,7 +149,7 @@ test('malformed source errors are generic and read-only and invalid rows remain 
   }
   writeFileSync(join(dir, 'connectors.json'), JSON.stringify({ version: 1, connectors: [{ id: 'conn0000001', name: 'Broken', url: 'http://127.0.0.1/private-path?secret', config: { auth: { kind: 'oauth', accessToken: 'oauth-secret' } } }] }));
   const before = files();
-  expect(await (await call(bearer())).json()).toMatchObject({ connectors: [{ id: 'conn0000001', auth: 'invalid', origin: null, issues: ['invalid_config', 'unsupported_url'] }] });
+  expect(await (await call(bearer())).json()).toMatchObject({ connectors: [{ id: 'conn0000001', auth: 'oauth', origin: null, issues: ['unsupported_url', 'oauth_sign_in'] }] });
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
 });
@@ -158,5 +162,27 @@ test('preview is GET-only and is mounted before the monitor catch-all', async ()
   expect((await call(bearer(), 'GET', `${PATH}?project=ignored`)).status).toBe(200);
   expect((await call(bearer(), 'GET', '/api/tail')).status).toBe(401);
   expect(files()).toEqual(before);
+  expect(outbound).toEqual([]);
+});
+
+
+test('migration writes whitelist an independently supplied public resource without accepting source credentials', async () => {
+  const post = (input: unknown, authorization = bearer()) => fetch(`${daemon.base}/api/connectors/migrations`, { method: 'POST', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify(input) });
+  const input = { scope: 'a'.repeat(64), sourceId: 'conn0000001', operationId: null, action: 'prepare' };
+  const resource = 'https://mcp.example.com/workspaces/public';
+  expect((await post({ ...input, oauthResource: resource }, bearer(OWNER, 'member'))).status).toBe(403);
+  expect((await post({ ...input, oauthResource: resource }, bearer(OTHER))).status).toBe(403);
+  expect(intents).toHaveLength(0);
+  expect((await post({ ...input, oauthResource: resource })).status).toBe(200);
+  expect(intents).toEqual([['conn0000001', 'prepare', input.scope, null, null, resource]]);
+  expect((await post(input)).status).toBe(200);
+  expect(intents.at(-1)?.[5]).toBeUndefined();
+  for (const oauthResource of ['', null, 7, 'http://mcp.example.com/path', 'https://127.0.0.1/mcp', 'https://user:secret@mcp.example.com/mcp', 'https://mcp.example.com/mcp?secret=1', 'https://mcp.example.com/mcp#secret']) {
+    const response = await post({ ...input, oauthResource });
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain('secret=1');
+  }
+  expect((await post({ ...input, oauthResource: resource, url: 'https://private.example/secret' })).status).toBe(400);
+  expect(intents).toHaveLength(2);
   expect(outbound).toEqual([]);
 });

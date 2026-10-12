@@ -388,7 +388,7 @@ export async function localRelayTarget(
 export function localRollbackMigrationSource(id: string, signOutOAuth: boolean, dir = agentsDir()): void {
   if (migrationSource(id, dir)?.phase !== 'rollback' || !localMigrationIdle(id, dir)) throw new ConnectorError('The connector migration is not ready to roll back.', 409);
   const row = rowOrThrow(id, dir);
-  if (signOutOAuth && row.config.auth.kind === 'oauth') replace(dir, signedOut(row), true);
+  if (signOutOAuth) replace(dir, signedOut(row), true);
   if (signOutOAuth) for (const path of [filePath(dir), dir]) {
     const fd = openSync(path, 'r');
     try { fsyncSync(fd); } finally { closeSync(fd); }

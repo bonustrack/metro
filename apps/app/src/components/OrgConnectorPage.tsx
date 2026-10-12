@@ -20,7 +20,9 @@ import { orgConnectorStatus } from './org-connector-status.js';
 import { queryError } from '../lib/queries.js';
 import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
-import { goExternal } from '../lib/open.js';
+import { PublicOAuthResource } from './PublicOAuthResource.js';
+import { TextLink } from './TextLink.js';
+import { inNewTab } from './sign-in-tab.js';
 import { logError } from '../lib/log.js';
 import { takeInitialOrgConnectorReturn } from '../lib/location.js';
 import { SHRINK } from '../lib/style.js';
@@ -58,15 +60,17 @@ function useSignInReturn(onDone: () => void): Outcome {
 function Header({ connector, admin, onError }: { connector: OrgConnector; admin: boolean; onError: (message: string) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
+  const [oauthResource, setOAuthResource] = useState('');
+  const [link, setLink] = useState<string | null>(null);
   const status = orgConnectorStatus(connector);
   const signIn = (): void => {
+    if (busy) return;
     setBusy(true);
-    signInOrgConnector(connector.id)
-      .then(goExternal)
+    setLink(null);
+    inNewTab(() => signInOrgConnector(connector.id, undefined, undefined, oauthResource), (url) => url, setLink)
       .catch((err: unknown) => {
         onError(queryError(err, 'Could not start the sign-in.'));
-        setBusy(false);
-      });
+      }).finally(() => { setBusy(false); });
   };
   return (
     <Col gap={16}>
@@ -83,6 +87,8 @@ function Header({ connector, admin, onError }: { connector: OrgConnector; admin:
         </Row>
         {admin && connector.auth === 'oauth' ? <Button size="md" color={status.bad ? 'primary' : 'secondary'} dark={dark} label={status.bad ? 'Sign in' : 'Sign in again'} loading={busy} disabled={busy} onPress={signIn} /> : null}
       </Row>
+      {admin && connector.auth === 'oauth' ? <PublicOAuthResource value={oauthResource} disabled={busy} onChange={setOAuthResource} /> : null}
+      {link === null ? null : <TextLink url={link}>Open sign-in</TextLink>}
     </Col>
   );
 }

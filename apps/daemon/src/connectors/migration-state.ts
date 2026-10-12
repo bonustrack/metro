@@ -6,6 +6,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { ensureSecureDir } from '@metro-labs/core/secure-fs';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-delivery';
+import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import { agentsDir } from '../agents/files.js';
 import { captureMigrationOperations } from './migration-operations.js';
 
@@ -22,6 +23,7 @@ export interface MigrationRecord {
   destinationId: string | null;
   phase: MigrationPhase;
   auth: MigrationAuth;
+  oauthResource?: string;
   sourceStamp: string;
   policy: ConnectorPolicy;
   reason: string | null;
@@ -29,7 +31,7 @@ export interface MigrationRecord {
 
 const phases: readonly MigrationPhase[] = ['preparing', 'prepared', 'cutover', 'active', 'rollback', 'rolled_back'];
 const auths: readonly MigrationAuth[] = ['none', 'header', 'oauth'];
-const fields = ['id', 'owner', 'agentId', 'keyId', 'sourceId', 'name', 'destinationId', 'phase', 'auth', 'sourceStamp', 'policy', 'reason'];
+const fields = ['id', 'owner', 'agentId', 'keyId', 'sourceId', 'name', 'destinationId', 'phase', 'auth', 'oauthResource', 'sourceStamp', 'policy', 'reason'];
 const unavailable = (): ApiError => new ApiError('Protected connector migration records cannot be read. Restore their file or permissions before using connectors.', 503);
 const DIGEST = /^[A-Za-z0-9_-]{43}$/;
 const pathOf = (dir: string): string => join(dir, 'connector-migrations.json');
@@ -50,8 +52,9 @@ function recordOf(value: unknown): MigrationRecord {
   if (!isRecord(value) || Object.keys(value).some((key) => !fields.includes(key))) throw unavailable();
   const phase = phases.find((item) => item === value.phase);
   const auth = auths.find((item) => item === value.auth);
-  if (phase === undefined || auth === undefined) throw unavailable();
+  if (phase === undefined || auth === undefined || (value.oauthResource !== undefined && auth !== 'oauth')) throw unavailable();
   return {
+    ...(value.oauthResource === undefined ? {} : { oauthResource: publicOAuthResource(value.oauthResource) }),
     id: requiredId(value.id), sourceId: requiredId(value.sourceId), agentId: requiredId(value.agentId),
     owner: field(value.owner, /^org_[A-Za-z0-9]{1,128}$/), keyId: field(value.keyId, DIGEST), sourceStamp: field(value.sourceStamp, DIGEST),
     name: field(value.name, /^.{1,200}$/), destinationId: value.destinationId === null ? null : requiredId(value.destinationId),

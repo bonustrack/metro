@@ -24,6 +24,7 @@ export interface MigrationPreview {
   owner: string | null;
   liveEnabled: boolean;
   migrationSupported?: boolean;
+  oauthResourceSupported?: boolean;
   connectors: MigrationSource[];
 }
 
@@ -40,6 +41,7 @@ export interface MigrationPlan {
   organizationChecked: boolean;
 }
 
+export const MIGRATION_RESOURCE_UPDATE = 'Update this agent before supplying a public OAuth resource. Older Metro migration uses its original OAuth discovery rules.';
 export const MIGRATION_UPDATE = 'Update this agent to a Metro version that supports connector migration, then open this dialog again.';
 const ISSUES: readonly MigrationIssue[] = ['invalid_config', 'unsupported_url', 'custom_policy', 'oauth_sign_in', 'header_reentry', 'unused_oauth_client', 'oauth_private_resource'];
 const unexpected = (): Error => new Error('The agent returned an invalid migration preview. Refresh before continuing.');
@@ -83,7 +85,7 @@ function sourceOf(value: unknown): MigrationSource {
 function previewOf(value: unknown): MigrationPreview {
   if (!isRecord(value) || typeof value.enabled !== 'boolean' || typeof value.enrolled !== 'boolean' || typeof value.liveEnabled !== 'boolean' || !nullableString(value.agentId) || !nullableString(value.owner) || !Array.isArray(value.connectors)) throw unexpected();
   if (!value.enabled && value.connectors.length !== 0) throw unexpected();
-  return { enabled: value.enabled, enrolled: value.enrolled, liveEnabled: value.liveEnabled, migrationSupported: value.migrationSupported === true, agentId: value.agentId, owner: value.owner, connectors: value.connectors.map(sourceOf) };
+  return { enabled: value.enabled, enrolled: value.enrolled, liveEnabled: value.liveEnabled, migrationSupported: value.migrationSupported === true, oauthResourceSupported: value.oauthResourceSupported === true, agentId: value.agentId, owner: value.owner, connectors: value.connectors.map(sourceOf) };
 }
 
 function originOf(value: string): string | null {

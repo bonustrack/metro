@@ -40,6 +40,7 @@ export interface NewOrgConnector {
   value: string;
   clientId: string;
   clientSecret: string;
+  oauthResource?: string;
 }
 
 export type OrgAddResult = { kind: 'added'; connector: OrgConnector } | { kind: 'oauth'; connector: OrgConnector; authorizeUrl: string };
@@ -159,6 +160,7 @@ export const fetchOrgConnectors = (): Promise<OrgConnectors> => readOrgConnector
 function addPayload(input: NewOrgConnector): Record<string, string> {
   const out: Record<string, string> = { name: input.name.trim(), url: input.url.trim(), returnTo: signInReturnUrl() };
   for (const key of ['header', 'value', 'clientId', 'clientSecret'] as const) if (input[key].trim() !== '') out[key] = input[key].trim();
+  if (input.oauthResource?.trim()) out.oauthResource = input.oauthResource.trim();
   return out;
 }
 
@@ -181,8 +183,8 @@ export async function deleteOrgConnector(id: string): Promise<void> {
   await orgCall({ method: 'DELETE', base: base(), path: `/${id}` });
 }
 
-export const signInOrgConnector = async (id: string, checkAccount?: () => void, signal?: AbortSignal): Promise<string> =>
-  authorizeOf(recordOf(await orgCall({ method: 'POST', base: base(), path: `/${id}/sign-in`, headers: JSON_HEADERS, body: JSON.stringify({ returnTo: signInReturnUrl() }), checkAccount, signal })));
+export const signInOrgConnector = async (id: string, checkAccount?: () => void, signal?: AbortSignal, oauthResource?: string): Promise<string> =>
+  authorizeOf(recordOf(await orgCall({ method: 'POST', base: base(), path: `/${id}/sign-in`, headers: JSON_HEADERS, body: JSON.stringify({ returnTo: signInReturnUrl(), ...(oauthResource?.trim() ? { oauthResource: oauthResource.trim() } : {}) }), checkAccount, signal })));
 
 export const completeOrgConnectorSignIn = async (handoff: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'POST', base: base(), path: '/complete', headers: JSON_HEADERS, body: JSON.stringify({ handoff }) }));

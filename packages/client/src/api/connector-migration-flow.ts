@@ -1,11 +1,12 @@
 import { accessToken } from './auth.js';
 import { AuthError, callBearer, NotFoundError } from './client.js';
 import { captureMigrationIdentity, type MigrationIdentity } from './connector-migration-identity.js';
-import { MIGRATION_UPDATE, readMigrationPreview, type MigrationPlan, type MigrationSource } from './connector-migration.js';
+import { MIGRATION_UPDATE, MIGRATION_RESOURCE_UPDATE, readMigrationPreview, type MigrationPlan, type MigrationSource } from './connector-migration.js';
 import { migrationStatusOf, type MigrationAction, type MigrationStatus, type MigrationView } from './connector-migration-status.js';
 import { signInOrgConnector } from './org-connectors.js';
 
 export const MIGRATION_UNCERTAIN = 'The migration outcome is uncertain. The request may have reached the agent. Refresh and Reconcile before making another change. No request is retried automatically.';
+export const MIGRATION_PUBLIC_RESOURCE_REQUIRED = "Enter the provider's public OAuth resource. Roll back this preparation, then prepare again with that public value; never enter credentials.";
 const READ_FAILED = 'Could not refresh migration status. Last confirmed progress is shown. Refresh and Reconcile before continuing.';
 let nextDialog = 0;
 
@@ -25,7 +26,7 @@ export interface MigrationSelection {
 export interface ConnectorMigration {
   id: string;
   refresh: () => Promise<MigrationSnapshot>;
-  act: (sourceId: string, action: MigrationAction, selection?: MigrationSelection) => Promise<MigrationSnapshot>;
+  act: (sourceId: string, action: MigrationAction, selection?: MigrationSelection, oauthResource?: string) => Promise<MigrationSnapshot>;
   signIn: (sourceId: string, selection?: MigrationSelection) => Promise<string>;
   snapshot: () => MigrationSnapshot;
   check: () => void;
@@ -76,14 +77,28 @@ function checkSelection(snapshot: MigrationSnapshot, sourceId: string, selection
   if (!sameOperation || !sameReceipt) throw new Error('The migration changed since this action was shown. Refresh and review it again.');
 }
 
-function actionBody(previous: MigrationStatus | null, action: { sourceId: string; action: MigrationAction } | undefined) {
+function resourceBody(state: MigrationSnapshot, sourceId: string, action: MigrationAction, value: string | undefined): { oauthResource?: string } {
+  const resource = value?.trim();
+  if (!resource) return {};
+  if (state.plan?.preview.oauthResourceSupported !== true) throw new Error(MIGRATION_RESOURCE_UPDATE);
+  const source = state.plan?.rows.find((row) => row.source.id === sourceId)?.source;
+  if (action !== 'prepare' || source?.auth !== 'oauth') throw new Error('Only OAuth preparation accepts a public resource.');
+  return { oauthResource: resource };
+}
+
+function actionFailure(error: unknown, action: MigrationAction): Error {
+  if (action === 'prepare' && error instanceof Error && error.message === MIGRATION_PUBLIC_RESOURCE_REQUIRED) return new Error(MIGRATION_PUBLIC_RESOURCE_REQUIRED);
+  return new Error(MIGRATION_UNCERTAIN);
+}
+
+function actionBody(previous: MigrationStatus | null, action: { sourceId: string; action: MigrationAction; oauthResource?: string } | undefined) {
   if (action === undefined) return {};
   const migration = previous?.migrations.find((row) => row.sourceId === action.sourceId);
   const body = { scope: previous?.scope, ...action, operationId: migration?.id ?? null, ...(action.action === 'resolve' ? { uncertainty: migration?.uncertainty ?? null } : {}) };
   return { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
 }
 
-async function requestStatus(identity: MigrationIdentity, signal: AbortSignal, previous: MigrationStatus | null, action?: { sourceId: string; action: MigrationAction }): Promise<MigrationStatus> {
+async function requestStatus(identity: MigrationIdentity, signal: AbortSignal, previous: MigrationStatus | null, action?: { sourceId: string; action: MigrationAction; oauthResource?: string }): Promise<MigrationStatus> {
   const token = await accessToken();
   identity.check();
   if (token === null) throw new AuthError('Sign in again as an organization admin.');
@@ -147,11 +162,12 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
     }
     return snapshot();
   });
-  const act = (sourceId: string, action: MigrationAction, selection?: MigrationSelection): Promise<MigrationSnapshot> => run(async (signal) => {
+  const act = (sourceId: string, action: MigrationAction, selection?: MigrationSelection, oauthResource?: string): Promise<MigrationSnapshot> => run(async (signal) => {
     checkSelection(state, sourceId, selection, action === 'resolve');
     actionAllowed(state, sourceId, action);
+    const resource = resourceBody(state, sourceId, action, oauthResource);
     try {
-      const status = await requestStatus(identity, signal, state.status, { sourceId, action });
+      const status = await requestStatus(identity, signal, state.status, { sourceId, action, ...resource });
       if (action !== 'reconcile' && !status.migrations.some((row) => row.sourceId === sourceId)) throw new Error(MIGRATION_UNCERTAIN);
       state = { ...state, status, statusError: null, uncertain: state.uncertain.filter((id) => id !== sourceId) };
       return snapshot();
@@ -162,7 +178,7 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
         state = { ...state, statusError: MIGRATION_UPDATE };
         throw new Error(MIGRATION_UPDATE);
       }
-      throw new Error(MIGRATION_UNCERTAIN);
+      throw actionFailure(error, action);
     }
   });
   const signIn = (sourceId: string, selection?: MigrationSelection): Promise<string> => run(async (signal) => {

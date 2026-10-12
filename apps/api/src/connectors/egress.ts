@@ -1,33 +1,16 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { request, type RequestOptions } from 'node:https';
 import type { IncomingMessage } from 'node:http';
-import { BlockList, isIP } from 'node:net';
+import { parsePublicConnectorUrl, publicConnectorAddress } from '@metro-labs/http/connector-public-url';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 
 const BODY_MAX = 1024 * 1024;
 const IDLE_MS = 20_000;
 const NO_BODY = new Set([101, 103, 204, 205, 304]);
 
-const PRIVATE_V4: [string, number][] = [
-  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12],
-  ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
-  ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
-];
-const SPECIAL_V6: [string, number][] = [['2001::', 32], ['2001:10::', 28], ['2001:20::', 28], ['2001:db8::', 32], ['2002::', 16]];
-
-const privateV4 = new BlockList();
-for (const [net, prefix] of PRIVATE_V4) privateV4.addSubnet(net, prefix, 'ipv4');
-const globalV6 = new BlockList();
-globalV6.addSubnet('2000::', 3, 'ipv6');
-const specialV6 = new BlockList();
-for (const [net, prefix] of SPECIAL_V6) specialV6.addSubnet(net, prefix, 'ipv6');
-
 export class EgressRefused extends Error {}
 
-export function publicAddress(address: string, family: number): boolean {
-  if (family === 4) return isIP(address) === 4 && !privateV4.check(address, 'ipv4');
-  return isIP(address) === 6 && globalV6.check(address, 'ipv6') && !specialV6.check(address, 'ipv6');
-}
+export const publicAddress = publicConnectorAddress;
 
 export type Resolve = (hostname: string) => Promise<LookupAddress[]>;
 
@@ -65,13 +48,7 @@ function guardedLookup(resolve: Resolve): (hostname: string, options: { all?: bo
 }
 
 function targetOf(input: string): URL {
-  const url = new URL(input);
-  if (url.protocol !== 'https:') throw new EgressRefused('Metro reaches organization connectors over https only');
-  if (url.username !== '' || url.password !== '') throw new EgressRefused('a connector address must not carry a user:password');
-  const host = url.hostname.replace(/^\[|\]$/g, '');
-  const family = isIP(host);
-  if (family !== 0 && !publicAddress(host, family)) throw new EgressRefused(`${host} is a private address, which an organization connector may not use`);
-  return url;
+  try { return parsePublicConnectorUrl(input); } catch { throw new EgressRefused('Organization connectors require a public HTTPS address without user information or a fragment.'); }
 }
 
 function headersOf(init: RequestInit, body: string | undefined): Record<string, string> {

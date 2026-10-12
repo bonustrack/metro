@@ -2,11 +2,12 @@ import { newId } from '@metro-labs/core/ids';
 import { log } from '@metro-labs/core/log';
 import type { ConnectorSyncStatus } from '@metro-labs/core/connector-sync';
 import { ApiError } from '@metro-labs/http/api-error';
+import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import { migrationResponseOf, sealConnectorMigration, type MigrationResponse, type MigrationView as RemoteMigration } from '@metro-labs/http/connector-migration';
 import { agentsDir } from '../agents/files.js';
 import { readAgentKey, type AgentKey } from './agent-key.js';
-import { agentCall, METRO_API, type MetroApi } from './metro-api.js';
+import { agentCall, METRO_API, MetroApiRefusal, type MetroApi } from './metro-api.js';
 import { migrationSource } from './migration-preview.js';
 import { migrationPayload } from './migration-source.js';
 import { localMigrationIdle } from './migration-guard.js';
@@ -47,6 +48,13 @@ const viewOf = ({ id, sourceId, name, destinationId, phase, auth, reason }: Migr
 const reasons: Record<RemoteMigration['readiness'], string | null> = { pending: 'not_verified', ready: null, signin: 'sign_in', changed: 'destination_changed', unavailable: 'unavailable' };
 const samePolicy = (a: MigrationRecord['policy'], b: MigrationRecord['policy']): boolean =>
   (a.read ?? 'allow') === (b.read ?? 'allow') && (a.write ?? 'allow') === (b.write ?? 'allow') && JSON.stringify(Object.entries(a.tools ?? {}).sort()) === JSON.stringify(Object.entries(b.tools ?? {}).sort());
+
+function callFailure(error: unknown, action: string): ApiError {
+  if (action === 'prepare' && error instanceof MetroApiRefusal && error.upstreamStatus === 400 && error.code === 'oauth_resource_required') {
+    return new ApiError("Enter the provider's public OAuth resource. Roll back this preparation, then prepare again with that public value; never enter credentials.", 400);
+  }
+  return uncertain();
+}
 
 function received(record: MigrationRecord, snapshot: DeliverySnapshot): boolean {
   const delivered = snapshot.connectors.find((row) => row.id === record.destinationId);
@@ -103,7 +111,7 @@ export class ConnectorMigrations {
   }
 
   private source(record: MigrationRecord): ReturnType<typeof migrationPayload> {
-    const payload = migrationPayload(migrationSource(record.sourceId, this.dir));
+    const payload = migrationPayload(migrationSource(record.sourceId, this.dir), record.oauthResource);
     if (payload.sourceStamp !== record.sourceStamp) throw conflict('The retained local connector changed. Restore its original settings before continuing; Metro will not overwrite it.');
     return payload;
   }
@@ -115,8 +123,8 @@ export class ConnectorMigrations {
       response = migrationResponseOf(await agentCall(this.api, context.key, '/api/agents/connector-migrations', {
         action, operationId: record.id, sourceId: record.sourceId, ...(sealed === undefined ? {} : { sealed }),
       }, { timeoutMs: 60_000 }));
-    } catch {
-      throw uncertain();
+    } catch (error) {
+      throw callFailure(error, action);
     }
     this.check(context, record);
     const remote = response.migration;
@@ -132,12 +140,13 @@ export class ConnectorMigrations {
     return this.save(context, { ...record, destinationId: remote.destinationId, reason: reasons[remote.readiness] });
   }
 
-  private create(context: Context, id: string): MigrationRecord {
-    const payload = migrationPayload(migrationSource(id, this.dir));
+  private create(context: Context, id: string, oauthResource?: string): MigrationRecord {
+    const payload = migrationPayload(migrationSource(id, this.dir), oauthResource);
     return this.save(context, {
       id: newId(), owner: context.owner, agentId: context.agentId, keyId: context.key.keyId,
       sourceId: id, name: payload.name, destinationId: null, phase: 'preparing', auth: payload.auth.kind,
       sourceStamp: payload.sourceStamp, policy: payload.policy, reason: null,
+      ...(payload.oauthResource === undefined ? {} : { oauthResource: payload.oauthResource }),
     });
   }
 
@@ -216,10 +225,10 @@ export class ConnectorMigrations {
     this.accept(context, record, migration);
   }
 
-  private obtain(context: Context, sourceId: string, action: MigrationAction): MigrationRecord | null {
+  private obtain(context: Context, sourceId: string, action: MigrationAction, oauthResource?: string): MigrationRecord | null {
     const record = migrationRecord(sourceId, this.dir);
     if (record !== null) this.check(context, record);
-    if (action === 'prepare' && (record === null || record.phase === 'rolled_back')) return this.create(context, sourceId);
+    if (action === 'prepare' && (record === null || record.phase === 'rolled_back')) return this.create(context, sourceId, oauthResource);
     if (record === null && action !== 'reconcile') throw conflict('Prepare this connector before moving it.');
     return record;
   }
@@ -238,18 +247,27 @@ export class ConnectorMigrations {
     this.save(context, { ...record, reason: record.phase === 'prepared' ? 'not_verified' : null });
   }
 
+  private validateResource(sourceId: string, action: MigrationAction, oauthResource: string | undefined): void {
+    if (oauthResource === undefined) return;
+    const resource = publicOAuthResource(oauthResource);
+    const record = migrationRecord(sourceId, this.dir);
+    if (action === 'prepare' && (record === null || record.phase === 'rolled_back')) return;
+    if (record?.oauthResource !== resource) throw conflict('The public OAuth resource is fixed for this preparation. Roll back, then prepare again to change it.');
+  }
+
   private validateIntent(sourceId: string, action: MigrationAction, operationId: string | null, receipt: string | null): void {
     if ((migrationRecord(sourceId, this.dir)?.id ?? null) !== operationId) throw conflict('This connector migration changed. Refresh before acting on its current operation.');
     if (action === 'resolve' && (receipt === null || receipt !== migrationUncertaintyReceipt(sourceId, this.dir))) throw conflict('The outstanding request receipt changed. Refresh before confirming that vendor requests have settled.');
   }
 
-  async run(sourceId: string, action: MigrationAction, scope: string, operationId: string | null, uncertainty: string | null = null): Promise<MigrationStatus> {
+  async run(sourceId: string, action: MigrationAction, scope: string, operationId: string | null, uncertainty: string | null = null, oauthResource?: string): Promise<MigrationStatus> {
     if (this.running) throw conflict('Another migration request is still running on this agent. Refresh after it finishes.');
     const context = this.context(scope, action === 'prepare' || action === 'cutover');
     this.validateIntent(sourceId, action, operationId, uncertainty);
+    this.validateResource(sourceId, action, oauthResource);
     this.running = true;
     try {
-      const record = this.obtain(context, sourceId, action);
+      const record = this.obtain(context, sourceId, action, oauthResource);
       if (record !== null) {
         if (action === 'resolve') this.resolve(context, record, uncertainty);
         else await this.perform(context, record, action);

@@ -49,7 +49,7 @@ export function connectorAuth(
       400,
     );
   const name = header === '' ? DEFAULT_HEADER : header;
-  if (!HEADER_NAME_RE.test(name))
+  if (!HEADER_NAME_RE.test(name) || ['__proto__', 'constructor', 'prototype'].includes(name))
     throw new ConnectorError('that is not a valid HTTP header name', 400);
   if (!HEADER_VALUE_RE.test(value))
     throw new ConnectorError('that header value is not sendable', 400);

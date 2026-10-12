@@ -30,7 +30,7 @@ export function migrationSnapshot(key: Buffer, row: MigrationRow): MigrationPayl
 
 function staticSecret(secret: ConnectorSecret): unknown {
   if (secret.kind !== 'oauth') return secret;
-  return { kind: secret.kind, targetUrl: secret.targetUrl, client: secret.client, server: secret.server };
+  return { kind: secret.kind, targetUrl: secret.targetUrl, client: secret.client, server: secret.server, ...(secret.oauthResource === undefined ? {} : { oauthResource: secret.oauthResource }) };
 }
 
 function ordered(value: unknown): unknown {
@@ -56,7 +56,7 @@ function authenticationReadiness(key: Buffer, row: ConnectorRow, now: number): M
   const secret = openConnectorSecret(key, row);
   if (secret === null) return 'unavailable';
   if (secret.kind !== 'oauth') return 'ready';
-  if (secret.tokens === undefined || (secret.tokens.expiresAt !== undefined && secret.tokens.expiresAt <= now)) return 'signin';
+  if (secret.tokens?.resource === undefined || (secret.tokens.expiresAt !== undefined && secret.tokens.expiresAt <= now)) return 'signin';
   return 'ready';
 }
 

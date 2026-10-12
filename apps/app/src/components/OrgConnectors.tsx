@@ -4,8 +4,8 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { connectorHost, type NewConnector } from '@metro-labs/client/api/connectors';
-import { addOrgConnector, orgConnectorCallbackUrl, type OrgConnector, type OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
+import { connectorHost } from '@metro-labs/client/api/connectors';
+import { addOrgConnector, orgConnectorCallbackUrl, type NewOrgConnector, type OrgConnector, type OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
 import { routeHash } from '@metro-labs/client/route';
 import { Frame } from './Shell.js';
 import { PlainSidebar } from './PlainSidebar.js';
@@ -57,7 +57,7 @@ function ConnectorList({ list }: { list: OrgList }): ReactNode {
   );
 }
 
-const createInOrganization = async (values: NewConnector): Promise<AddedConnector> => {
+const createInOrganization = async (values: NewOrgConnector): Promise<AddedConnector> => {
   const result = await addOrgConnector(values);
   return { id: result.connector.id, authorizeUrl: result.kind === 'oauth' ? result.authorizeUrl : null };
 };
@@ -72,6 +72,7 @@ function AddButton({ onAdded }: { onAdded: (id: string) => void }): ReactNode {
         title="Add connector"
         hint={HINT}
         callbackUrl={orgConnectorCallbackUrl()}
+        allowPublicOAuthResource
         create={createInOrganization}
         open={adding}
         onClose={() => { setAdding(false); }}

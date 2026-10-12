@@ -2,6 +2,7 @@ import { newId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { openConnectorMigration, type MigrationPayload, type MigrationRequest, type MigrationResponse } from '@metro-labs/http/connector-migration';
 import { verifyRemoteMcp, type ConnectorAuth } from '@metro-labs/http/connector-mcp';
+import { OAuthResourceRequired } from '@metro-labs/http/connector-resource';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { AgentKeyRow } from '../db/agent-keys.js';
 import { migrationConflict, type ConnectorMigrationStore, type MigrationState } from '../db/connector-migrations.js';
@@ -25,15 +26,16 @@ async function preparedConnector(deps: MigrationDeps, key: Buffer, state: Migrat
   const row: ConnectorRow = { id: state.mapping.destinationId, owner: state.mapping.owner, name: payload.name, url: url.origin, auth: payload.auth.kind, authGeneration: newId(), policy: JSON.stringify(payload.policy), secret: null, detail: null, createdBy: `agent:${state.mapping.agent}`, createdAt: now, updatedAt: now };
   try {
     if (payload.auth.kind === 'oauth') {
-      const { server, client } = await prepareSignIn(deps, url, payload.client);
-      row.secret = sealConnectorSecret(key, row, { kind: 'oauth', targetUrl: payload.url, server, client });
+      const { server, client, resource } = await prepareSignIn(deps, url, payload.client, payload.oauthResource);
+      row.secret = sealConnectorSecret(key, row, { kind: 'oauth', targetUrl: payload.url, server, client, oauthResource: resource });
       row.detail = detailText({ issuer: server.issuer, ...(payload.client === null ? {} : { clientId: payload.client.clientId }) });
     } else {
-      const verified = await verifyRemoteMcp(url, payload.auth, deps.fetch);
+      await verifyRemoteMcp(url, payload.auth, deps.fetch);
       row.secret = sealConnectorSecret(key, row, { ...payload.auth, targetUrl: payload.url });
-      row.detail = detailText({ server: verified.server, verifiedAt: now, ...(payload.auth.kind === 'header' ? { header: payload.auth.name } : {}) });
+      row.detail = detailText({ server: url.hostname, verifiedAt: now, ...(payload.auth.kind === 'header' ? { header: payload.auth.name } : {}) });
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof OAuthResourceRequired) throw err;
     throw new ApiError('The destination could not be prepared. Check its connection and try again.', 409);
   }
   return row;

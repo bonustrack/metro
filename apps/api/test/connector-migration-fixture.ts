@@ -12,7 +12,7 @@ import { agentNonceStore } from '../src/db/agent-nonces.js';
 import type { Database } from '../src/db/client.js';
 import { connectorMigrationStore } from '../src/db/connector-migrations.js';
 import { HOST, MASTER, opaque, signedDelivery, type DeliveryAgent } from './connector-delivery-fixture.js';
-import { CALLBACK, GOOD_KEY, type Vendor } from './org-connectors-fixture.js';
+import { CALLBACK, GOOD_KEY } from './org-connectors-fixture.js';
 
 export const MIGRATION_PATH = '/api/agents/connector-migrations';
 export const OPERATION = 'oper0000001';
@@ -20,15 +20,6 @@ export const SOURCE = 'local000001';
 export const input = (action: string, operationId = OPERATION, sourceId = SOURCE) => ({ action, operationId, sourceId });
 export const payload = (patch: Partial<MigrationPayload> = {}): MigrationPayload => ({ name: 'Calendar', url: 'https://vendor.example/keyed?key=URL_SECRET', auth: { kind: 'header', name: 'Authorization', value: GOOD_KEY }, client: null, policy: { write: 'deny', tools: { special: 'ask' } }, sourceStamp: opaque(), ...patch });
 export const verifiedFetch: FetchLike = () => Promise.resolve(Response.json({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', serverInfo: { name: 'Fixture MCP' } } }));
-
-export function vendorFetch(vendor: Vendor): FetchLike {
-  return async (url, init) => {
-    const address = url.replace('https://vendor.example/.well-known/oauth-protected-resource/mcp', `${vendor.base}/.well-known/oauth-protected-resource/oauth`).replace('https://vendor.example/mcp', `${vendor.base}/oauth`).replace('https://vendor.example', vendor.base);
-    const response = await fetch(address, init);
-    const text = (await response.text()).replaceAll(`${vendor.base}/oauth`, 'https://vendor.example/mcp').replaceAll(vendor.base, 'https://vendor.example');
-    return new Response(text, { status: response.status, headers: response.headers });
-  };
-}
 
 export async function startMigrationApi(db: Database, overrides: Partial<AgentMigrationsDeps> = {}) {
   const deps: AgentMigrationsDeps = { enabled: () => true, deliveryEnabled: () => true, key: () => MASTER, keys: agentKeyStore(() => db), nonces: agentNonceStore(() => db, Date.now), migrations: connectorMigrationStore(() => db), auth: new AgentAuth(HOST, Date.now), fetch: verifiedFetch, now: Date.now, httpsOnly: true, callbackUrl: CALLBACK, states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'migration sign-ins' }), handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'migration sign-ins' }), ...overrides };

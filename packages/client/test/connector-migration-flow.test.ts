@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { createConnectorMigration, MIGRATION_UNCERTAIN } from '../src/api/connector-migration-flow.js';
+import { createConnectorMigration, MIGRATION_UNCERTAIN, MIGRATION_PUBLIC_RESOURCE_REQUIRED } from '../src/api/connector-migration-flow.js';
 import { MIGRATION_UPDATE } from '../src/api/connector-migration.js';
 import { installTestAccount } from './account-fixture.js';
 import { CENTRAL, LOCAL, SOURCE, SCOPE, migrationFixture, migrationRow, previewBody, sourceRow, statusBody } from './connector-migration-fixture.js';
@@ -238,4 +238,68 @@ describe('staged connector migration', () => {
     await expect(session.act(SOURCE, 'prepare')).rejects.toThrow(MIGRATION_UNCERTAIN);
     expect(posts()).toHaveLength(1);
   });
+});
+
+
+test('only explicitly typed public resources accompany Prepare; later sign-in uses the prepared audience', async () => {
+  const resource = 'https://calendar.example/resources/team';
+  const session = fixture.open();
+  await session.refresh();
+  fixture.reply = statusBody([migrationRow('prepared', 'sign_in')]);
+  await session.act(SOURCE, 'prepare', undefined, ` ${resource} `);
+  expect(JSON.parse(String(posts()[0]?.init.body))).toEqual({ scope: SCOPE, sourceId: SOURCE, action: 'prepare', operationId: null, oauthResource: resource });
+  await session.signIn(SOURCE);
+  expect(JSON.parse(String(posts()[1]?.init.body))).not.toHaveProperty('oauthResource');
+  await session.act(SOURCE, 'reconcile');
+  expect(JSON.parse(String(posts()[2]?.init.body))).not.toHaveProperty('oauthResource');
+  await expect(session.act(SOURCE, 'prepare', undefined, `${resource}/other`)).rejects.toThrow('already has migration progress');
+  await expect(session.act(SOURCE, 'reconcile', undefined, `${resource}/other`)).rejects.toThrow('Only OAuth preparation');
+  expect(posts()).toHaveLength(3);
+});
+
+test('blank fields stay absent and non-OAuth sources never gain a public OAuth resource', async () => {
+  const session = fixture.open();
+  await session.refresh();
+  await session.act(SOURCE, 'prepare', undefined, '   ');
+  expect(JSON.parse(String(posts()[0]?.init.body))).not.toHaveProperty('oauthResource');
+  fixture.preview = { ...previewBody(), connectors: [{ ...sourceRow(), auth: 'header', issues: [] }] };
+  const header = fixture.open();
+  await header.refresh();
+  await expect(header.act(SOURCE, 'prepare', undefined, 'https://calendar.example/resource')).rejects.toThrow('Only OAuth preparation');
+  expect(posts()).toHaveLength(1);
+});
+
+test('a public-resource discovery prompt is fixed safe copy and still fences an unconfirmed preparation', async () => {
+  const session = fixture.open();
+  await session.refresh();
+  fixture.postCode = 400;
+  fixture.reply = { error: MIGRATION_PUBLIC_RESOURCE_REQUIRED };
+  await expect(session.act(SOURCE, 'prepare')).rejects.toThrow(MIGRATION_PUBLIC_RESOURCE_REQUIRED);
+  expect(session.snapshot().uncertain).toEqual([SOURCE]);
+  await expect(session.act(SOURCE, 'prepare', undefined, 'https://calendar.example/resource')).rejects.toThrow(MIGRATION_UNCERTAIN);
+  expect(posts()).toHaveLength(1);
+  fixture.postCode = 200;
+  fixture.status = statusBody([migrationRow('preparing', 'unavailable')]);
+  await session.refresh();
+  fixture.reply = statusBody([migrationRow('rolled_back', 'sign_in')]);
+  await session.act(SOURCE, 'rollback');
+  fixture.reply = statusBody([migrationRow('prepared', 'sign_in')]);
+  await session.act(SOURCE, 'prepare', undefined, 'https://calendar.example/resource');
+  expect(JSON.parse(String(posts()[2]?.init.body))).toMatchObject({ action: 'prepare', oauthResource: 'https://calendar.example/resource' });
+});
+
+
+test('old preview capabilities never send the new field, while legacy preparation and recovery remain available', async () => {
+  for (const supported of [undefined, false, 'true']) {
+    fixture.preview = { ...previewBody(), oauthResourceSupported: supported };
+    const session = fixture.open();
+    expect((await session.refresh()).plan?.preview.oauthResourceSupported).toBe(false);
+    const before = posts().length;
+    await expect(session.act(SOURCE, 'prepare', undefined, 'https://calendar.example/resource')).rejects.toThrow('Update this agent before supplying');
+    expect(posts()).toHaveLength(before);
+    await session.act(SOURCE, 'prepare');
+    expect(JSON.parse(String(posts().at(-1)?.init.body))).not.toHaveProperty('oauthResource');
+    await session.act(SOURCE, 'reconcile');
+    await session.act(SOURCE, 'rollback');
+  }
 });

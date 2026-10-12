@@ -33,7 +33,7 @@ export function migrationFixture(oauth = false) {
   let remote: MigrationView | null = null;
   let payload: MigrationPayload | null = null;
   const requests: string[] = [];
-  const controls = { localIdle: true, orgIdle: true, freshFail: false, drop: '', pause: null as Promise<void> | null, creates: 0, assignments: 0, rollbacks: 0, restored: 0 };
+  const controls = { refusal: null as { action: string; code: string; status: number } | null, localIdle: true, orgIdle: true, freshFail: false, drop: '', pause: null as Promise<void> | null, creates: 0, assignments: 0, rollbacks: 0, restored: 0 };
   const readSource = () => readFileSync(join(dir, 'connectors.json'), 'utf8');
   const context = (operationId: string): MigrationContext => ({ owner: OWNER, agent: AGENT, keyId: key.keyId, operationId, sourceId: SOURCE, destinationId: DESTINATION });
   const api = {
@@ -46,7 +46,8 @@ export function migrationFixture(oauth = false) {
       requests.push(body);
       const request = migrationRequestOf(JSON.parse(body));
       if (controls.pause !== null) await controls.pause;
-      if (remote === null) remote = { operationId: request.operationId, sourceId: SOURCE, destinationId: DESTINATION, phase: 'preparing', readiness: 'pending', name: null, auth: null, policy: null, sourceStamp: null };
+      if (controls.refusal?.action === request.action) return Response.json({ error: 'arbitrary-upstream-private-secret', code: controls.refusal.code }, { status: controls.refusal.status });
+      if (remote === null || remote.operationId !== request.operationId) remote = { operationId: request.operationId, sourceId: SOURCE, destinationId: DESTINATION, phase: 'preparing', readiness: 'pending', name: null, auth: null, policy: null, sourceStamp: null };
       if (request.action === 'prepare') {
         payload = openConnectorMigration(receiving.privateKey, context(request.operationId), request.sealed);
         if (remote.phase === 'preparing') controls.creates += 1;

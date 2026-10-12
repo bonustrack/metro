@@ -3,6 +3,7 @@ import { clearAccount } from '../src/auth/account.js';
 import { configurePlatform, location, memoryKeyValue, type Location } from '../src/platform.js';
 import {
   addOrgConnector,
+  signInOrgConnector,
   assignOrgConnector,
   fetchOrgConnectorEvents,
   fetchOrgConnectors,
@@ -139,4 +140,24 @@ describe('the organization connectors client', () => {
     search = '?org_connector_error=The+sign-in+was+declined.';
     expect(takeOrgConnectorReturn()).toEqual({ kind: 'error', error: 'The sign-in was declined.' });
   });
+});
+
+
+test('organization add and legacy sign-in forward only an explicitly typed resource, never the saved URL', async () => {
+  const resource = 'https://mcp.linear.app/public/workspace';
+  serve({ connector: ROW, authorizeUrl: 'https://mcp.linear.app/authorize' }, 201);
+  await addOrgConnector({ ...NEW, oauthResource: ` ${resource} ` });
+  expect(calls[0]?.body).toEqual({ name: 'Linear', url: NEW.url, returnTo: '', oauthResource: resource });
+  await addOrgConnector({ ...NEW, oauthResource: '  ' });
+  expect(calls[1]?.body).not.toHaveProperty('oauthResource');
+  serve({ authorizeUrl: 'https://mcp.linear.app/authorize' });
+  let checked = 0;
+  const signal = new AbortController().signal;
+  await signInOrgConnector(ROW.id, () => { checked += 1; }, signal, ` ${resource} `);
+  expect(checked).toBeGreaterThan(0);
+  expect(calls[0]).toEqual({ url: `${BASE}/${ROW.id}/sign-in`, method: 'POST', body: { returnTo: '', oauthResource: resource } });
+  await signInOrgConnector(ROW.id);
+  expect(calls[1]?.body).toEqual({ returnTo: '' });
+  await signInOrgConnector(ROW.id, undefined, undefined, '  ');
+  expect(calls[2]?.body).toEqual({ returnTo: '' });
 });

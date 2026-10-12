@@ -14,6 +14,8 @@
     "./sigv4": "./src/sigv4.ts",
     "./agent-signature": "./src/agent-signature.ts",
     "./connector-url": "./src/connector-url.ts",
+    "./connector-public-url": "./src/connector-public-url.ts",
+    "./connector-resource": "./src/connector-resource.ts",
     "./connector-reach": "./src/connector-reach.ts",
     "./connector-mcp": "./src/connector-mcp.ts",
     "./connector-discovery": "./src/connector-discovery.ts",

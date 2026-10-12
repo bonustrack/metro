@@ -26,12 +26,12 @@ describe('which addresses api.metro.box may reach for an organization connector'
   });
 
   test('only https goes out, and never to a private address literal', async () => {
-    expect(await refusal('http://vendor.example/mcp')).toContain('https only');
-    expect(await refusal('https://user:pass@vendor.example/mcp')).toContain('user:password');
-    expect(await refusal('https://127.0.0.1/mcp')).toContain('private address');
-    expect(await refusal('https://[::1]/mcp')).toContain('private address');
-    expect(await refusal('https://[fdaa:0:1::3]:4280/v1')).toContain('private address');
-    expect(await refusal('https://169.254.169.254/latest/meta-data')).toContain('private address');
+    let resolutions = 0;
+    const resolve: Resolve = () => { resolutions += 1; throw new Error('Must not resolve an invalid public URL'); };
+    for (const url of ['http://vendor.example/mcp', 'https://user:pass@vendor.example/mcp', 'https://127.0.0.1/mcp', 'https://[::1]/mcp', 'https://[fdaa:0:1::3]:4280/v1', 'https://169.254.169.254/latest/meta-data', 'https://vendor.example./mcp', 'https://@vendor.example/mcp', 'https://vendor.example/mcp?key=secret#fragment']) {
+      expect(await refusal(url, resolve)).toBe('Organization connectors require a public HTTPS address without user information or a fragment.');
+    }
+    expect(resolutions).toBe(0);
   });
 
   test('oversized request bodies fail before resolving or opening a connection', async () => {

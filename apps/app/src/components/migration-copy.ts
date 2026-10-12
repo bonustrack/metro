@@ -6,7 +6,7 @@ export const MIGRATION_ISSUES: Record<MigrationIssue, string> = {
   unsupported_url: 'Blocked: organization connectors require a public HTTPS server. Keep this connector local or change its address before preparing.',
   custom_policy: 'Blocked: these permission rules include names the organization policy validator cannot preserve, or this agent needs an update. Review unsupported tool names without weakening the policy. Do not replace it with a read-only switch.',
   unused_oauth_client: 'This connector saves an OAuth client but is not using OAuth. Confirm which authentication it should use, then recreate its local setup with that method before migrating. Metro will not discard the saved client.',
-  oauth_private_resource: 'This OAuth URL may contain private settings. Use a provider-supported public OAuth endpoint without URL credentials, or keep this connector local. Metro will not expose its saved URL in the sign-in page.',
+  oauth_private_resource: 'Older Metro migration only accepts OAuth endpoints at the public origin or /mcp path. Update this agent first. This restriction does not mean Metro detected a secret in the URL.',
   oauth_sign_in: 'A fresh central sign-in is required. Access and refresh tokens are never copied.',
   header_reentry: 'This older agent cannot transfer the saved key. Update it first. Do not paste credentials into this dialog.',
 };

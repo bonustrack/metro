@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { OwnerTickets } from '../src/agents/tickets.ts';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from '../src/connectors/api.ts';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.ts';
@@ -15,9 +16,25 @@ export const REFRESH = 'refresh-token-fixture';
 export const RETURN_TO = 'http://localhost:8081/';
 export const CALLBACK = 'https://api.metro.box/api/connectors/callback';
 
+export interface VendorReply {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+}
+
 export interface Vendor {
   base: string;
+  resource: string | null;
+  fetch: FetchLike;
+  requests: { url: string; method: string; headers: Headers; body: string }[];
+  received: { path: string; method: string; authorization: string }[];
+  replies: Map<string, VendorReply>;
+  oauthPaths: Set<string>;
+  openPaths: Set<string>;
+  keyedPaths: Set<string>;
+  serverTitle: string | null;
   challenges: Map<string, string>;
+  tokenForms: URLSearchParams[];
   tokenCalls: number;
   registrations: number;
   close: () => Promise<void>;
@@ -46,8 +63,8 @@ const closing = (server: Server): Promise<void> =>
     });
   });
 
-const json = (res: ServerResponse, status: number, body: unknown): void => {
-  res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+const json = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void => {
+  res.writeHead(status, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(body));
 };
 
 const initialized = (res: ServerResponse, name: string): void => {
@@ -60,18 +77,18 @@ async function bodyText(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function mcp(req: IncomingMessage, res: ServerResponse, path: string): boolean {
+function mcp(vendor: Vendor, req: IncomingMessage, res: ServerResponse, path: string): boolean {
   const auth = req.headers.authorization ?? '';
-  if (path === '/open') initialized(res, 'Open MCP');
+  if (vendor.openPaths.has(path)) initialized(res, vendor.serverTitle ?? 'Open MCP');
   else if (path === '/query-keyed') {
-    if (new URL(req.url ?? '', 'http://fixture').searchParams.get('api_key') === 'URL_ONLY_SECRET') initialized(res, 'Query MCP');
+    if (new URL(req.url ?? '', vendor.base).searchParams.get('api_key') === 'URL_ONLY_SECRET') initialized(res, vendor.serverTitle ?? 'Query MCP');
     else json(res, 401, { error: 'unauthorized' });
   }
-  else if (path === '/keyed') {
-    if (auth === GOOD_KEY) initialized(res, 'Keyed MCP');
+  else if (vendor.keyedPaths.has(path)) {
+    if (auth === GOOD_KEY) initialized(res, vendor.serverTitle ?? 'Keyed MCP');
     else json(res, 401, { error: 'unauthorized' });
-  } else if (path === '/oauth') {
-    if (auth === `Bearer ${ACCESS}`) initialized(res, 'OAuth MCP');
+  } else if (vendor.oauthPaths.has(path)) {
+    if (auth === `Bearer ${ACCESS}`) initialized(res, vendor.serverTitle ?? 'OAuth MCP');
     else json(res, 401, { error: 'unauthorized' });
   } else return false;
   return true;
@@ -80,10 +97,13 @@ function mcp(req: IncomingMessage, res: ServerResponse, path: string): boolean {
 async function token(vendor: Vendor, req: IncomingMessage, res: ServerResponse): Promise<void> {
   vendor.tokenCalls += 1;
   const form = new URLSearchParams(await bodyText(req));
+  vendor.tokenForms.push(form);
   const code = form.get('code') ?? '';
   const challenge = vendor.challenges.get(code);
   const verifier = form.get('code_verifier') ?? '';
-  if (challenge === undefined || createHash('sha256').update(verifier).digest('base64url') !== challenge || form.get('redirect_uri') !== CALLBACK) {
+  const refreshed = form.get('grant_type') === 'refresh_token' && form.get('refresh_token') === REFRESH;
+  const exchanged = challenge !== undefined && createHash('sha256').update(verifier).digest('base64url') === challenge && form.get('redirect_uri') === CALLBACK;
+  if ((!refreshed && !exchanged) || form.get('resource') !== vendor.resource) {
     json(res, 400, { error: 'invalid_grant' });
     return;
   }
@@ -92,7 +112,8 @@ async function token(vendor: Vendor, req: IncomingMessage, res: ServerResponse):
 }
 
 async function oauthServer(vendor: Vendor, req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
-  if (path === '/.well-known/oauth-protected-resource/oauth') json(res, 200, { resource: `${vendor.base}/oauth`, authorization_servers: [vendor.base], scopes_supported: ['read'] });
+  if (path === '/.well-known/oauth-protected-resource' || (vendor.resource !== null && path === `/.well-known/oauth-protected-resource${new URL(vendor.resource).pathname}`))
+    json(res, 200, { ...(vendor.resource === null ? {} : { resource: vendor.resource }), authorization_servers: [vendor.base], scopes_supported: ['read'] });
   else if (path === '/.well-known/oauth-authorization-server')
     json(res, 200, { issuer: vendor.base, authorization_endpoint: `${vendor.base}/authorize`, token_endpoint: `${vendor.base}/token`, registration_endpoint: `${vendor.base}/register`, code_challenge_methods_supported: ['S256'] });
   else if (path === '/register') {
@@ -103,20 +124,35 @@ async function oauthServer(vendor: Vendor, req: IncomingMessage, res: ServerResp
 }
 
 export async function startVendor(): Promise<Vendor> {
-  const vendor: Vendor = { base: '', challenges: new Map(), tokenCalls: 0, registrations: 0, close: () => Promise.resolve() };
+  const localFetch = globalThis.fetch;
+  const base = 'https://vendor.example.com';
+  let local = '';
+  const vendor: Vendor = {
+    base, resource: `${base}/oauth`, requests: [], received: [], replies: new Map(), oauthPaths: new Set(['/oauth']), openPaths: new Set(['/open']), keyedPaths: new Set(['/keyed']), serverTitle: null,
+    challenges: new Map(), tokenForms: [], tokenCalls: 0, registrations: 0, close: () => Promise.resolve(),
+    fetch: (raw, init) => {
+      const url = new URL(raw);
+      if (url.origin !== base || url.username !== '' || url.password !== '' || url.hash !== '' || init?.redirect !== 'manual') throw new Error('Unexpected provider request in isolated fixture');
+      vendor.requests.push({ url: raw, method: init.method ?? 'GET', headers: new Headers(init.headers), body: typeof init.body === 'string' ? init.body : '' });
+      return localFetch(`${local}${url.pathname}${url.search}`, init);
+    },
+  };
   const server = createServer((req, res) => {
+    vendor.received.push({ path: req.url ?? '', method: req.method ?? '', authorization: req.headers.authorization ?? '' });
     const path = (req.url ?? '').split('?')[0] ?? '';
-    if (req.method === 'POST' && mcp(req, res, path)) return;
+    const reply = vendor.replies.get(path);
+    if (reply !== undefined) { json(res, reply.status, reply.body, reply.headers); return; }
+    if (req.method === 'POST' && mcp(vendor, req, res, path)) return;
     oauthServer(vendor, req, res, path).catch(() => {
       json(res, 500, { error: 'vendor fixture failed' });
     });
   });
-  vendor.base = await listen(server);
+  local = await listen(server);
   vendor.close = () => closing(server);
   return vendor;
 }
 
-export async function startApi(db: () => TestDb['db'], now: () => number): Promise<Api> {
+export async function startApi(db: () => TestDb['db'], now: () => number, send: FetchLike): Promise<Api> {
   let enabled = true;
   let key: Buffer | null = randomBytes(32);
   const deps: ConnectorsApiDeps = {
@@ -124,8 +160,8 @@ export async function startApi(db: () => TestDb['db'], now: () => number): Promi
     key: () => key,
     keys: await testKeys(),
     store: orgConnectorStore(db),
-    fetch: (url, init) => fetch(url, init),
-    httpsOnly: false,
+    fetch: send,
+    httpsOnly: true,
     callbackUrl: CALLBACK,
     states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'connector sign-ins' }),
     handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'connector sign-ins', ttlMs: 5 * 60_000 }),

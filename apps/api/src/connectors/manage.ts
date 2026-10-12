@@ -4,7 +4,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
-import { parseConnectorUrl } from '@metro-labs/http/connector-url';
+import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import type { ConnectorEdit, ConnectorRow, EventView } from '../db/connectors.js';
 import { connectorView, detailOf, detailText, isReadOnly, openConnectorSecret, readOnlyPolicy, sealConnectorSecret, simplePolicy, type ConnectorView } from './model.js';
 import { sealingKey, viewOf, type ActionDeps, type Caller } from './actions.js';
@@ -57,11 +57,12 @@ async function keyEdit(deps: ActionDeps, caller: Caller, id: string, change: Ext
   if (row.auth === 'oauth') throw new ApiError('This connector signs in with OAuth. Sign in again instead.', 400);
   const secret = openConnectorSecret(key, row);
   if (secret === null) throw new ApiError('The connection address could not be opened. Add the connector again.', 400);
-  const verified = await verifyRemoteMcp(parseConnectorUrl(secret.targetUrl), auth, deps.fetch);
+  const target = parsePublicConnectorUrl(secret.targetUrl);
+  try { await verifyRemoteMcp(target, auth, deps.fetch); } catch { throw new ApiError('The provider could not verify the HTTP MCP endpoint with that key.', 400); }
   const now = at(deps);
   return (current) => {
     if (current.auth === 'oauth') throw new ApiError('This connector signs in with OAuth. Sign in again instead.', 400);
-    const detail = { ...detailOf(current.detail), header: auth.name, server: verified.server, verifiedAt: now };
+    const detail = { ...detailOf(current.detail), header: auth.name, server: target.hostname, verifiedAt: now };
     return {
       change: { auth: 'header', secret: sealConnectorSecret(key, current, { kind: 'header', targetUrl: secret.targetUrl, name: auth.name, value: auth.value }), detail: detailText(detail) },
       event: event(caller, current, 'connector.key_changed', { header: auth.name }),

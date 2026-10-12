@@ -65,3 +65,10 @@ describe('migration safety copy', () => {
     expect(migrationReason('destination_changed', 'rollback')).toContain('will not delete independently changed or shared access');
   });
 });
+
+
+test('legacy URL restrictions are an update requirement, not a detected secret', () => {
+  expect(MIGRATION_ISSUES.oauth_private_resource).toContain('Older Metro migration only accepts');
+  expect(MIGRATION_ISSUES.oauth_private_resource).toContain('Update this agent first');
+  expect(MIGRATION_ISSUES.oauth_private_resource).not.toContain('may contain private settings');
+});

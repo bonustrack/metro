@@ -10,7 +10,7 @@ export const SCOPE = 'a'.repeat(64);
 export const LOCAL = 'https://source.example/api/connectors';
 export const CENTRAL = 'https://api.metro.box/api/connectors';
 export const sourceRow = () => ({ id: SOURCE, name: 'Calendar', auth: 'oauth', origin: 'https://calendar.example', policy: { read: 'ask', write: 'deny', tools: { edit: 'ask' } }, policySupported: true, issues: ['oauth_sign_in'] });
-export const previewBody = () => ({ enabled: true, enrolled: true, agentId: AGENT, owner: TEST_ORGANIZATION, liveEnabled: false, migrationSupported: true, connectors: [sourceRow()] });
+export const previewBody = () => ({ enabled: true, enrolled: true, agentId: AGENT, owner: TEST_ORGANIZATION, liveEnabled: false, migrationSupported: true, oauthResourceSupported: true, connectors: [sourceRow()] });
 export const migrationRow = (phase = 'prepared', reason: string | null = null) => ({ id: 'migration01', sourceId: SOURCE, destinationId: 'central0001', name: 'Calendar', phase, auth: 'oauth', reason, uncertainty: reason === 'requests_uncertain' ? 'b'.repeat(64) : null });
 export const statusBody = (migrations: unknown[] = []) => ({ enabled: true, enrolled: true, agentId: AGENT, owner: TEST_ORGANIZATION, scope: SCOPE, migrations });
 

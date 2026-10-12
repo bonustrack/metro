@@ -41,7 +41,7 @@ describe('central encrypted OAuth refresh', () => {
       expect(url).toBe('https://vendor.example/token');
       expect(init?.redirect).toBe('manual');
       expect(init?.signal).toBeInstanceOf(AbortSignal);
-      expect(Object.fromEntries(new URLSearchParams(String(init?.body)))).toEqual({ grant_type: 'refresh_token', refresh_token: 'REFRESH_OLD', resource: 'https://vendor.example/mcp?key=URL_SECRET', scope: 'read write', client_id: 'CLIENT_ID', client_secret: 'CLIENT_SECRET' });
+      expect(Object.fromEntries(new URLSearchParams(String(init?.body)))).toEqual({ grant_type: 'refresh_token', refresh_token: 'REFRESH_OLD', resource: 'https://vendor.example/mcp', scope: 'read write', client_id: 'CLIENT_ID', client_secret: 'CLIENT_SECRET' });
       return Promise.resolve(Response.json({ access_token: 'ACCESS_NEW', refresh_token: 'REFRESH_ROTATED', expires_in: 3600 }));
     };
     const requestId = opaque();
@@ -52,10 +52,55 @@ describe('central encrypted OAuth refresh', () => {
     expect(calls).toBe(1);
     const current = await secretNow();
     expect(current.secret.tokens?.refreshToken).toBe('REFRESH_ROTATED');
+    expect(current.secret.tokens?.resource).toBe('https://vendor.example/mcp');
+    expect(current.secret.targetUrl).toBe('https://vendor.example/mcp?key=URL_SECRET');
+    expect(delivery.connectors[0]?.url).toBe(current.secret.targetUrl);
     expect(current.row.secret).not.toContain('REFRESH_ROTATED');
     expect(current.row.secret).not.toBe(original.secret);
     expect(delivery.connectors[0]?.revision).not.toBe(credentialRevision(MASTER, original));
     expect((await held.db.select().from(connectorEvents)).map((row) => [row.action, row.detail])).toEqual([['agent.enrolled', JSON.stringify({ keyId: agent.row.keyId })], ['connector.refreshed', '{"name":"Calendar"}'], ['connector.delivered', '{"name":"Calendar"}']]);
+  }));
+
+  test.each([false, true])('legacy tokens without a public grant resource require fresh sign-in, expired=%s', (expired) => done(async () => {
+    const secret = oauthSecret(expired ? Date.now() - 1 : Date.now() + 3600_000);
+    if (secret.tokens === undefined) throw new Error('missing fixture');
+    delete secret.tokens.resource;
+    await seedConnector(held.db, secret);
+    await assignConnector(held.db, agent);
+    let calls = 0;
+    api.deps.fetch = () => { calls += 1; throw new Error('Legacy resource must not refresh'); };
+    const requestId = opaque();
+    const response = await api.call(agent, { requestId });
+    expect(response.status).toBe(200);
+    expect((await openResponse(response, agent, requestId)).connectors[0]).toMatchObject({ state: 'signin', headers: {} });
+    const current = await secretNow();
+    expect(current.secret.tokens).toBeUndefined();
+    expect(current.secret.oauthResource).toBe(secret.oauthResource);
+    expect(current.secret.targetUrl).toBe(secret.targetUrl);
+    expect(current.row.detail).toBeNull();
+    expect(calls).toBe(0);
+    const events = await held.db.select().from(connectorEvents);
+    expect(events.find((event) => event.action === 'connector.signed_out')?.detail).toBe('{"name":"Calendar","reason":"resource_required"}');
+    for (const hidden of ['URL_SECRET', 'ACCESS_OLD', 'REFRESH_OLD', 'CLIENT_SECRET']) expect(JSON.stringify(events)).not.toContain(hidden);
+  }));
+
+  test.each(['stale revision', 'allowed tool exception'])('resource-less grants cannot bypass reauthentication through %s', (mode) => done(async () => {
+    const secret = oauthSecret(Date.now() + 3600_000);
+    if (secret.tokens === undefined) throw new Error('missing fixture');
+    delete secret.tokens.resource;
+    const policy = mode === 'allowed tool exception' ? '{"read":"deny","write":"deny","tools":{"read_item":"allow"}}' : null;
+    const row = await seedConnector(held.db, secret, { policy });
+    await assignConnector(held.db, agent);
+    let calls = 0;
+    api.deps.fetch = () => { calls += 1; throw new Error('No legacy refresh may run'); };
+    const requestId = opaque();
+    const response = await api.call(agent, { requestId, ...(mode === 'stale revision' ? { refresh: { connectorId: CONN, revision: opaque() } } : {}) });
+    expect(response.status).toBe(200);
+    const snapshot = await openResponse(response, agent, requestId);
+    expect(snapshot.connectors[0]).toMatchObject({ state: 'signin', headers: {}, url: 'https://vendor.example' });
+    for (const hidden of ['ACCESS_OLD', 'REFRESH_OLD', 'CLIENT_SECRET', 'URL_SECRET']) expect(JSON.stringify(snapshot)).not.toContain(hidden);
+    expect(calls).toBe(0);
+    expect((await secretNow()).row.secret).toBe(row.secret);
   }));
 
   test('an omitted refresh token is preserved, not erased by replacement access tokens', () => done(async () => {

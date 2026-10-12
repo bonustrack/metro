@@ -45,7 +45,7 @@ test('off by default and for every non-true switch value, with no connector or i
   try {
     for (const value of [undefined, '', 'false', '1', 'TRUE']) {
       if (value === undefined) delete process.env.METRO_CONNECTORS_SYNC_ENABLED; else process.env.METRO_CONNECTORS_SYNC_ENABLED = value;
-      expect(preview()).toEqual({ migrationSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+      expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
     }
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview().liveEnabled).toBe(true);
@@ -62,7 +62,7 @@ test('enrollment uses the current API agent id only for the matching organizatio
   expect(preview()).toMatchObject({ enabled: true, enrolled: false, agentId: null });
   saveAgentKey(newAgentKey(), { server: AGENT, organization: OWNER, at: '2026-10-11T00:00:00Z' }, dir);
   const before = files();
-  expect(preview()).toEqual({ migrationSupported: true, enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(preview()).toEqual({ migrationSupported: true, oauthResourceSupported: true, enabled: true, enrolled: true, agentId: AGENT, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(connectorMigrationPreview('org_01OTHEROWNER00000', dir)).toMatchObject({ enrolled: false, agentId: null });
   expect(connectorMigrationPreview(null, dir)).toMatchObject({ enrolled: false, agentId: null, owner: null });
   expect(files()).toEqual(before);
@@ -94,8 +94,8 @@ test('only sanitized metadata and full policy leave the box; preview never trans
   const result = preview();
   expect(result.connectors[0]).toEqual({ id: ID, name: 'Example', auth: 'none', origin: 'https://mcp.example.com', policy, policySupported: true, issues: [] });
   expect(result.connectors[1]).toMatchObject({ auth: 'header', issues: [] });
-  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in', 'oauth_private_resource'] });
-  expect(result.connectors[3]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in', 'oauth_private_resource'] });
+  expect(result.connectors[2]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
+  expect(result.connectors[3]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
   const text = JSON.stringify(result);
   for (const secret of ['private-path', 'query-secret', 'access-secret', 'refresh-secret', 'client-id-secret', 'client-secret', 'preset-id-secret', 'preset-secret', 'token-endpoint-secret', 'issuer-secret', 'scope-secret', 'header-secret', 'X-Secret-Header']) expect(text).not.toContain(secret);
   for (const key of ['url', 'config', 'clientId', 'clientSecret', 'accessToken', 'refreshToken', 'verified', 'keyId', 'signing', 'sealing', 'revision']) expect(text).not.toContain(`"${key}"`);
@@ -110,10 +110,8 @@ test('malformed raw auth and configuration are retained and blocked instead of b
     config({ auth: { kind: 'header', name: 'Authorization', value: 123 } }),
     config({ auth: { kind: 'header', name: '', value: 'bad-secret' } }),
     config({ auth: { kind: 'header', name: 'Authorization', value: 'bad\r\nsecret' } }),
-    config({ auth: { kind: 'oauth', accessToken: 'bad-secret' }, oauth: true }),
-    config({ auth: { kind: 'oauth', accessToken: 'bad-secret', clientId: 'id', issuer: 'https://auth.example.com', tokenEndpoint: 'https://auth.example.com/token', expiresAt: 'secret' } }),
-    config({ auth: { kind: 'oauth', accessToken: 'bad\r\nsecret', clientId: 'id', issuer: 'https://auth.example.com', tokenEndpoint: 'https://auth.example.com/token' } }),
-    config({ auth: { kind: 'oauth', accessToken: 'access', refreshToken: 7, clientId: 'id', issuer: 'https://auth.example.com', tokenEndpoint: 'https://auth.example.com/token' } }),
+    config({ auth: { kind: 'oauth', customAuth: 'unknown-secret' }, oauth: true }),
+    config({ customConfig: 'unknown-secret' }),
     config({ client: { clientSecret: 'bad-secret' } }), config({ client: { clientId: 7 } }), config({ client: { clientId: 'id', clientSecret: 7 } }),
     config({ oauth: 'true' }), config({ createdAt: 7 }), config({ verified: [] }), config({ toolGroups: { x: 'maybe' } }),
   ];
@@ -228,7 +226,7 @@ test('preview makes no network, DNS, file mutations or policy publication even w
   try {
     process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     expect(preview()).toMatchObject({ enabled: true, enrolled: true, liveEnabled: true });
-    expect(preview().connectors[0]?.issues).toEqual(['oauth_sign_in', 'oauth_private_resource']);
+    expect(preview().connectors[0]?.issues).toEqual(['oauth_sign_in']);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     expect(publications).toBe(0);
   } finally {
@@ -236,4 +234,30 @@ test('preview makes no network, DNS, file mutations or policy publication even w
     stop();
   }
   expect(files()).toEqual(before);
+});
+
+
+test('discarded historical OAuth token metadata cannot block a fresh organization login', () => {
+  const variants = [
+    { kind: 'oauth' },
+    { kind: 'oauth', accessToken: 'old-secret' },
+    { kind: 'oauth', accessToken: '', refreshToken: '', clientId: '', tokenEndpoint: '', issuer: '', expiresAt: -1 },
+    { kind: 'oauth', accessToken: 'old-secret', issuer: null, expiresAt: 'stale' },
+    { kind: 'oauth', accessToken: 'old\r\nsecret', refreshToken: 7, clientId: 'id', tokenEndpoint: 'not-a-url' },
+  ];
+  for (const auth of variants) {
+    write([row({ config: config({ auth }) })]);
+    const before = files();
+    expect(preview().connectors[0]).toMatchObject({ auth: 'oauth', issues: ['oauth_sign_in'] });
+    expect(JSON.stringify(preview())).not.toContain('secret');
+    expect(files()).toEqual(before);
+  }
+});
+
+test('arbitrary public HTTPS OAuth paths and queries remain private, eligible migration sources', () => {
+  for (const url of ['https://mcp.example.com/workspaces/demo/mcp', 'https://mcp.example.com/private-token?key=query-secret', 'https://mcp.example.com/sse', 'https://mcp.example.com/mcp/']) {
+    write([row({ url, config: config({ oauth: true }) })]);
+    expect(preview().connectors[0]).toMatchObject({ origin: 'https://mcp.example.com', auth: 'oauth', issues: ['oauth_sign_in'] });
+    expect(JSON.stringify(preview())).not.toContain(url);
+  }
 });

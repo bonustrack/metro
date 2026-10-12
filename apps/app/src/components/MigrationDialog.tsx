@@ -47,7 +47,7 @@ function useMigrationActions(session: ConnectorMigration, key: BoxKey) {
       setError(queryError(err, 'The migration outcome is uncertain. Refresh and Reconcile before continuing.'));
     }).finally(() => { pending.current = false; if (current()) setBusy(false); });
   };
-  const act = (sourceId: string, action: MigrationAction, selection: MigrationSelection): void => { perform(() => session.act(sourceId, action, selection), null); };
+  const act = (sourceId: string, action: MigrationAction, selection: MigrationSelection, oauthResource?: string): void => { perform(() => session.act(sourceId, action, selection, oauthResource), null); };
   const signIn = (sourceId: string, selection: MigrationSelection): void => {
     perform(() => inNewTab(() => session.signIn(sourceId, selection), (url) => url, (url) => { if (current()) setLink(url); }), 'Finish sign-in in the opened page, then choose Reconcile here. Opening sign-in is not proof of readiness.');
   };

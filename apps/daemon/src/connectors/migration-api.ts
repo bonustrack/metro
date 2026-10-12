@@ -3,6 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readJsonBody, sessionRoute } from '@metro-labs/http/api-http';
+import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import type { ConnectorMigrations, MigrationAction } from './migration-control.js';
 
 const PATH = '/api/connectors/migrations';
@@ -15,6 +16,7 @@ interface MigrationInput {
   scope: string;
   operationId: string | null;
   uncertainty: string | null;
+  oauthResource?: string;
 }
 
 function operationOf(value: unknown): string | null {
@@ -34,13 +36,16 @@ function receiptOf(body: Record<string, unknown>, action: MigrationAction): stri
 }
 
 function inputOf(body: unknown): MigrationInput {
-  if (!isRecord(body) || Object.keys(body).some((key) => !['scope', 'sourceId', 'action', 'operationId', 'uncertainty'].includes(key)) || typeof body.scope !== 'string' || !/^[a-f0-9]{64}$/.test(body.scope)) {
+  if (!isRecord(body) || Object.keys(body).some((key) => !['scope', 'sourceId', 'action', 'operationId', 'uncertainty', 'oauthResource'].includes(key)) || typeof body.scope !== 'string' || !/^[a-f0-9]{64}$/.test(body.scope)) {
     throw new ApiError('A migration needs its connector, action and current enrollment scope.', 400);
   }
   const sourceId = parseId(body.sourceId);
   const action = actions.find((value) => value === body.action);
   if (sourceId === null || action === undefined) throw new ApiError('A migration needs a valid connector and action.', 400);
-  return { sourceId, action, scope: body.scope, operationId: operationOf(body.operationId), uncertainty: receiptOf(body, action) };
+  return {
+    sourceId, action, scope: body.scope, operationId: operationOf(body.operationId), uncertainty: receiptOf(body, action),
+    ...(body.oauthResource === undefined ? {} : { oauthResource: publicOAuthResource(body.oauthResource) }),
+  };
 }
 
 export function handleMigrationRequest(req: IncomingMessage, res: ServerResponse, deps: MigrationApiDeps): boolean {
@@ -49,7 +54,7 @@ export function handleMigrationRequest(req: IncomingMessage, res: ServerResponse
     const current = deps.status();
     if (current.owner === null || current.owner !== session.subject) throw new ApiError('This agent belongs to another organization.', 403);
     if (req.method !== 'POST') return current;
-    const { sourceId, action, scope, operationId, uncertainty } = inputOf(body);
-    return deps.run(sourceId, action, scope, operationId, uncertainty);
+    const { sourceId, action, scope, operationId, uncertainty, oauthResource } = inputOf(body);
+    return deps.run(sourceId, action, scope, operationId, uncertainty, oauthResource);
   });
 }

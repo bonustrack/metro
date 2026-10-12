@@ -91,7 +91,7 @@ export async function migrationE2E(variant: Variant = 'header') {
     const vendor = await listening(migrationVendor); releases.push(vendor.close);
     const api = await listening(() => startMigrationApi(held.db1, { fetch: vendor.fetch })); releases.push(api.close);
     const delivery = await listening(() => startDeliveryApi(held.db2, { fetch: vendor.fetch })); releases.push(delivery.close);
-    const management = await listening(() => startApi(() => held.db2, Date.now)); releases.push(management.close);
+    const management = await listening(() => startApi(() => held.db2, Date.now, vendor.fetch)); releases.push(management.close);
     management.setKey(MASTER); management.deps.fetch = vendor.fetch; management.deps.httpsOnly = true;
     const keys = await testKeys();
     const admin = await auth(TEST_OWNER);
@@ -106,7 +106,7 @@ export async function migrationE2E(variant: Variant = 'header') {
     releases.push(async () => { daemon.server.closeAllConnections(); await daemon.close(); });
     const traffic: { path: string; body: string; authorization: string; response: string }[] = [];
     const faults = { drop: '', offline: false, badDelivery: false };
-    const allowed = [api.base, delivery.base, management.base, vendor.base, vendor.oauth.base];
+    const allowed = [api.base, delivery.base, management.base, vendor.base];
     const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = input instanceof Request ? input.url : String(input);
       if (url.startsWith(`${VENDOR}/`)) return vendor.fetch(url, init);
