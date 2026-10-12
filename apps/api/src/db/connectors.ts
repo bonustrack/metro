@@ -64,7 +64,7 @@ export interface OrgConnectorStore {
 }
 
 const missing = (): ApiError => new ApiError('no such connector', 404);
-const nameTaken = (): ApiError => new ApiError('This organization already has a connector with that name.', 409);
+const identityConflict = (): ApiError => new ApiError('This connector identity already exists. Nothing was overwritten.', 409);
 const owned = (owner: string, id: string): SQL | undefined => and(eq(connectors.id, id), eq(connectors.owner, owner));
 
 async function lockConnector(tx: Database, owner: string, id: string): Promise<ConnectorRow> {
@@ -162,7 +162,7 @@ async function unique<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (err) {
-    if (isUniqueViolation(err)) throw nameTaken();
+    if (isUniqueViolation(err)) throw identityConflict();
     throw err;
   }
 }

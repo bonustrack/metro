@@ -3,6 +3,7 @@ import { whyUnreachable } from '@metro-labs/http/connector-reach';
 import { noteHealth } from './health.js';
 import type { RelayTarget } from './relay-target.js';
 import type { RelaySession } from './relay-session.js';
+import { isRelaySse, passiveRelayListener, type PassiveSseListener } from './relay-passive.js';
 import { isOrgRelayId } from './relay-id.js';
 import { exchangeOrg } from './org-relay.js';
 import { assertLocalMigrationUse, migrationSource, withLocalMigrationOperation } from './migration-guard.js';
@@ -131,12 +132,12 @@ interface Keepalive {
   stop: () => void;
 }
 
-function startKeepalive(res: ServerResponse): Keepalive {
+function startKeepalive(res: ServerResponse, listener?: PassiveSseListener): Keepalive {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = (): void => {
     timer = setTimeout(() => {
       try {
-        res.write(': keepalive\n\n');
+        if (listener?.keepaliveAllowed() !== false) res.write(': keepalive\n\n');
       } catch {
         log.debug('relay: keepalive write failed');
       }
@@ -172,13 +173,17 @@ async function pumpBody(
   res: ServerResponse,
   body: ReadableStream<Uint8Array>,
   touch: () => void,
+  listener?: PassiveSseListener,
 ): Promise<void> {
   const reader = body.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) return;
+    listener?.observe(value);
     touch();
+    if (listener !== undefined) listener.forwarding = true;
     if (!res.write(value)) await drainedOrClosed(res);
+    if (listener !== undefined) listener.forwarding = false;
   }
 }
 
@@ -191,22 +196,23 @@ function passedHeaders(upstream: Response): Record<string, string> {
   return headers;
 }
 
-async function pipe(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[]): Promise<void> {
+async function pipe(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[], listener?: PassiveSseListener): Promise<void> {
   const headers = passedHeaders(upstream);
   if (answers.length > 0 && (upstream.status === 200 || upstream.status === 202)) {
     await mergeBlocked(res, upstream, headers, answers);
     return;
   }
-  const sse = (headers['content-type'] ?? '').includes('text/event-stream');
+  const sse = isRelaySse(headers['content-type']);
   if (sse) headers['x-accel-buffering'] = 'no';
   res.writeHead(upstream.status, headers);
+  if (sse) res.flushHeaders();
   if (upstream.body === null) {
     res.end();
     return;
   }
-  const keepalive = sse ? startKeepalive(res) : null;
+  const keepalive = sse ? startKeepalive(res, listener) : null;
   try {
-    await pumpBody(res, upstream.body, () => keepalive?.touch());
+    await pumpBody(res, upstream.body, () => keepalive?.touch(), listener);
   } finally {
     keepalive?.stop();
   }
@@ -262,7 +268,7 @@ async function relayExchange(
     res.socket?.removeListener('close', bail);
   });
   try {
-    await relayOnce(req, res, connectorId, deps, control.signal);
+    await relayOnce(req, res, connectorId, deps, control);
   } catch (err) {
     if (!control.signal.aborted) throw err;
     log.debug({ connector: connectorId }, 'relay: the client left before the answer ended');
@@ -276,6 +282,7 @@ async function deliver(
   deps: RelayApiDeps,
   out: Exchanged,
   answers: Record<string, unknown>[],
+  listener?: PassiveSseListener,
 ): Promise<void> {
   if (out.kind === 'missing') {
     answer(res, 404, { error: 'no such connector' });
@@ -295,7 +302,7 @@ async function deliver(
   }
   const { status } = out.upstream;
   noteHealth(connectorId, status < 400, status < 400 ? null : `the connector answered ${String(status)}`);
-  await pipe(res, out.upstream, answers);
+  await pipe(res, out.upstream, answers, listener);
 }
 
 async function relayOrg(req: IncomingMessage, res: ServerResponse, id: string, deps: RelayApiDeps, read: Uint8Array<ArrayBuffer> | null, signal: AbortSignal): Promise<void> {
@@ -316,8 +323,9 @@ async function relayOnce(
   res: ServerResponse,
   connectorId: string,
   deps: RelayApiDeps,
-  signal: AbortSignal,
+  control: AbortController,
 ): Promise<void> {
+  const { signal } = control;
   const read = req.method === 'POST' ? await readCapped(req) : null;
   const dir = deps.migrationDir ?? agentsDir();
   if (isOrgRelayId(connectorId) || migrationSource(connectorId, dir)?.phase === 'active') return relayOrg(req, res, connectorId, deps, read, signal);
@@ -328,7 +336,8 @@ async function relayOnce(
       return;
     }
     const out = await exchange(req, connectorId, deps, screened === null ? read : screened.forward, signal, operation.dispatch);
-    await deliver(res, connectorId, deps, out, screened?.answers ?? []);
+    const listener = out.kind === 'response' ? passiveRelayListener(req, res, out.upstream, operation, () => { control.abort(); }) : undefined;
+    await deliver(res, connectorId, deps, out, screened?.answers ?? [], listener);
   });
 }
 

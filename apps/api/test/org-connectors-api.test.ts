@@ -143,24 +143,28 @@ describe('adding a connector', () => {
     expect(await held.db.select().from(connectors)).toEqual([]);
   });
 
-  test('an open server needs no credential, and a name is unique inside the organization only', async () => {
+  test('an open server needs no credential and repeated names and endpoints create independent connectors', async () => {
     const res = await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` });
     expect(res.status).toBe(201);
-    expect((await data<{ connector: View }>(res)).connector).toMatchObject({ auth: 'none', header: null, server: new URL(vendor.base).hostname });
+    const first = (await data<{ connector: View }>(res)).connector;
+    expect(first).toMatchObject({ auth: 'none', header: null, server: new URL(vendor.base).hostname });
     const again = await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` });
-    expect(again.status).toBe(409);
+    expect(again.status).toBe(201);
+    expect((await data<{ connector: View }>(again)).connector.id).not.toBe(first.id);
     expect((await call('POST', '/api/connectors', { name: 'Docs', url: `${vendor.base}/open` }, await auth(TEST_STRANGER))).status).toBe(201);
+    expect(await held.db.$count(connectors)).toBe(3);
   });
 });
 
 describe('changing a connector', () => {
   test('rename, read-only for every agent and a new key are one change at a time', async () => {
     const view = await addKeyed();
-    await addKeyed('Taken');
-    expect((await call('PUT', `/api/connectors/${view.id}`, { name: 'Taken' })).status).toBe(409);
+    const other = await addKeyed('Linear work');
     expect((await call('PUT', `/api/connectors/${view.id}`, { name: 'Linear', readOnly: true })).status).toBe(400);
-    const renamed = await call('PUT', `/api/connectors/${view.id}`, { name: 'Linear work' });
-    expect((await data<View>(renamed)).name).toBe('Linear work');
+    const renamed = await call('PUT', `/api/connectors/${view.id}`, { name: other.name });
+    expect(renamed.status).toBe(200);
+    expect(await data<View>(renamed)).toMatchObject({ id: view.id, name: other.name });
+    expect(await data<View>(await call('GET', `/api/connectors/${other.id}`))).toMatchObject({ id: other.id, name: other.name, readOnly: false });
     const locked = await call('PUT', `/api/connectors/${view.id}`, { readOnly: true });
     expect((await data<View>(locked)).readOnly).toBe(true);
     expect((await held.db.select({ policy: connectors.policy }).from(connectors).where(eq(connectors.id, view.id)))[0]?.policy).toBe('{"write":"deny"}');

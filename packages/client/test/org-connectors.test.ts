@@ -96,11 +96,20 @@ describe('the organization connectors client', () => {
     });
     const names = (id: string): string | null => (id === 'a' ? 'Tony' : null);
     expect(page.events.map((e) => orgEventText(e, names))).toEqual([
-      'Less gave Linear to Tony, read-only',
-      'less@example.com removed Old',
+      'Less gave Linear (c) to Tony, read-only',
+      'less@example.com removed Old (c)',
       'Tony moved to another organization, so its agent key and connectors were removed',
     ]);
     expect(page.next).toEqual({ before: 't', beforeId: '3' });
+  });
+
+  test('same-name security activity identifies the exact connector instance', () => {
+    const actions = ['connector.key_changed', 'connector.assigned', 'connector.deleted'];
+    const page = toOrgEvents({ events: actions.flatMap((action) => ['instance001', 'instance002'].map((id) => ({ id: `${action}-${id}`, at: 't', action, actor: { kind: 'user', id: 'u', name: 'Less' }, connector: { id, name: action === 'connector.deleted' ? null : 'Calendar' }, agent: { id: 'a', name: 'Tony' }, detail: { name: 'Calendar' } }))), next: null });
+    for (const event of page.events) {
+      expect(orgEventText(event, () => null)).toContain(`Calendar (${event.connector?.id ?? ''})`);
+    }
+    expect(new Set(page.events.map((event) => orgEventText(event, () => null))).size).toBe(6);
   });
 
   test('old and new enrollment events use agent wording without rewriting stored history', () => {

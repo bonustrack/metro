@@ -20,7 +20,6 @@ export interface ConnectorGate {
 }
 
 let gates: ConnectorGate[] = [];
-let managed = new Set<string>();
 
 const normalized = (name: string): string => name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -31,21 +30,21 @@ function approvalChanged(gate: ConnectorGate, tool: string, next: GateRow | unde
   return before !== after;
 }
 
-export function registerConnectors(rows: readonly GateRow[], managedIds: readonly string[] = [], keys: ReadonlyMap<string, string> = serverKeysOf([...rows])): void {
-  const nextManaged = new Set(managedIds);
-  revokeToolPrompts((tool) => {
-    const found = connectorToolOf(tool);
-    if (found === undefined || (!isOrgRelayId(found.gate.id) && !managed.has(found.gate.id) && !nextManaged.has(found.gate.id))) return false;
-    return approvalChanged(found.gate, found.tool, rows.find((row) => row.id === found.gate.id), keys);
-  });
-  managed = nextManaged;
-  gates = rows.map((row) => ({
+export function registerConnectors(rows: readonly GateRow[], keys: ReadonlyMap<string, string> = serverKeysOf([...rows])): void {
+  const next = rows.map((row) => ({
     id: row.id,
     name: row.name,
     server: keys.get(row.id) ?? '',
     policy: row.config.policy ?? {},
     tools: row.config.toolGroups ?? {},
   }));
+  revokeToolPrompts((tool) => {
+    const before = connectorToolOf(tool);
+    const after = connectorToolOf(tool, next);
+    if (before?.gate.id !== after?.gate.id) return true;
+    return before !== undefined && approvalChanged(before.gate, before.tool, rows.find((row) => row.id === before.gate.id), keys);
+  });
+  gates = next;
   const entries = rows.flatMap((row): [PolicyTarget, ToolPolicy][] =>
     row.config.policy === undefined ? [] : [[{ kind: 'connector', id: row.id }, row.config.policy]],
   );
@@ -63,7 +62,7 @@ const promptFor = (connectorId: string, tool: string) => (asked: string): boolea
 
 export function blockedReason(connectorId: string, tool: string, args: Record<string, unknown> = {}): string | null {
   const gate = gates.find((g) => g.id === connectorId);
-  if (gate === undefined) return null;
+  if (gate === undefined) return 'This connector is not available.';
   settlePrompts(promptFor(connectorId, tool), args);
   const access = policyFor({ kind: 'connector', id: connectorId }, { name: tool, group: toolGroupOf(gate, tool) });
   if (access === 'deny') return `Blocked by the owner's policy for ${gate.name} (${tool}).`;
@@ -92,19 +91,24 @@ export function requestConnectorBlocker(): () => BlockedReason {
   };
 }
 
-function prefixesOf(gate: ConnectorGate): string[] {
-  const prefixes = [`mcp__plugin_metro_${gate.server}__`, `mcp__${gate.server}__`];
-  return isOrgRelayId(gate.id) ? prefixes : [...prefixes, `mcp__${normalized(`metro.box ${gate.name}`)}__`];
+function resolvedTool(gate: ConnectorGate, called: string): { gate: ConnectorGate; tool: string } {
+  const known = [...Object.keys(gate.tools), ...Object.keys(gate.policy.tools ?? {})];
+  return { gate, tool: known.find((name) => name === called) ?? known.find((name) => normalized(name) === called) ?? called };
 }
 
-export function connectorToolOf(toolName: string): { gate: ConnectorGate; tool: string } | undefined {
+export function connectorToolOf(toolName: string, entries: readonly ConnectorGate[] = gates): { gate: ConnectorGate; tool: string } | undefined {
   if (toolName.startsWith('mcp__metro__')) return undefined;
-  for (const gate of gates)
-    for (const prefix of prefixesOf(gate))
-      if (toolName.startsWith(prefix) && toolName.length > prefix.length) {
-        const called = toolName.slice(prefix.length);
-        const known = [...Object.keys(gate.tools), ...Object.keys(gate.policy.tools ?? {})];
-        return { gate, tool: known.find((name) => name === called) ?? known.find((name) => normalized(name) === called) ?? called };
-      }
-  return undefined;
+  for (const gate of entries)
+    for (const prefix of [`mcp__plugin_metro_${gate.server}__`, `mcp__${gate.server}__`])
+      if (toolName.startsWith(prefix) && toolName.length > prefix.length) return resolvedTool(gate, toolName.slice(prefix.length));
+  return legacyToolOf(toolName, entries);
+}
+
+function legacyToolOf(toolName: string, entries: readonly ConnectorGate[]): { gate: ConnectorGate; tool: string } | undefined {
+  if (!toolName.startsWith('mcp__metro_box_')) return undefined;
+  const legacy = entries.filter((gate) => !isOrgRelayId(gate.id) && toolName.startsWith(`mcp__${normalized(`metro.box ${gate.name}`)}__`));
+  const gate = legacy.length === 1 ? legacy[0] : undefined;
+  if (gate === undefined) return undefined;
+  const called = toolName.slice(`mcp__${normalized(`metro.box ${gate.name}`)}__`.length);
+  return called === '' ? undefined : resolvedTool(gate, called);
 }

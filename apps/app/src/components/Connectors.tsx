@@ -6,6 +6,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { ListHeader } from './ListHeader.js';
 import {
+  connectorLabel,
   connectorsInOrder,
   deleteConnector,
   takeConnectorError,
@@ -55,6 +56,7 @@ function ConnectorsBody({
           project={project}
           onChanged={onChanged}
           row={row}
+          label={connectorLabel(row, rows)}
           onDelete={onDelete}
           onError={onError}
         />

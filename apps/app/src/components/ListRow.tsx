@@ -22,6 +22,7 @@ const styles = StyleSheet.create({
 interface ListRowProps {
   title: string;
   detail: string;
+  label?: string;
   href?: string;
   onPress?: () => void;
   icon?: ReactNode;
@@ -45,7 +46,7 @@ function Opener({ href, onPress, label, children }: { href?: string; onPress?: (
   );
 }
 
-export function ListRow({ title, detail, href, onPress, icon, extra, muted = false, trailing, below }: ListRowProps): ReactNode {
+export function ListRow({ title, detail, label = title, href, onPress, icon, extra, muted = false, trailing, below }: ListRowProps): ReactNode {
   const palette = useKitPalette();
   const inCard = useInCard();
   const divider = useCardDivider();
@@ -54,7 +55,7 @@ export function ListRow({ title, detail, href, onPress, icon, extra, muted = fal
   const lit = hovered ? { backgroundColor: hoverColor(palette) } : null;
   return (
     <Pressable accessible={false} {...hover} style={[...frame, lit]}>
-      <Opener href={href} onPress={onPress} label={title}>
+      <Opener href={href} onPress={onPress} label={label}>
         {icon}
         <Col gap={2} flex={1} minWidth={0}>
           <Row gap={8} align="center">

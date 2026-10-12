@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { renameConnector, type Connector } from '@metro-labs/client/api/connectors';
+import { connectorLabel, renameConnector, type Connector } from '@metro-labs/client/api/connectors';
 import { useSignIn } from './connector-signin.js';
 import { type MenuItem } from './Dropdown.js';
 import { DeleteMenu } from './DeleteMenu.js';
@@ -61,12 +61,12 @@ export function ConnectorActions({ connector, inRow = false, check, onDelete, on
     <Row gap={8} align="center">
       <SignInButton connector={connector} inRow={inRow} busy={busy} connect={connect} disconnect={disconnect} />
       <DeleteMenu
-        label="Connector actions"
+        label={`Actions for ${connectorLabel(connector)}`}
         items={items}
         item="Remove"
         action="Remove connector"
         title="Remove this connector?"
-        lines={[`“${connector.name}” and its sign-in are removed from this machine. Claude Code drops its tools at the next /reload-plugins --force.`]}
+        lines={[`“${connectorLabel(connector)}” and its sign-in are removed from this machine. Claude Code drops its tools at the next /reload-plugins --force.`]}
         failure="Could not remove the connector."
         run={() => onDelete(connector.id)}
       />

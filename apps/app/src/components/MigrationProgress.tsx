@@ -7,6 +7,7 @@ import { MIGRATION_UPDATE, type MigrationPlan } from '@metro-labs/client/api/con
 import type { MigrationSelection, MigrationSnapshot } from '@metro-labs/client/api/connector-migration-flow';
 import type { MigrationAction, MigrationView } from '@metro-labs/client/api/connector-migration-status';
 import { routeHash } from '@metro-labs/client/route';
+import { connectorLabel } from '@metro-labs/client/api/connectors';
 import { MigrationActions } from './MigrationActions.js';
 import { MigrationSource } from './MigrationSource.js';
 import { migrationPhase, migrationReason } from './migration-copy.js';
@@ -50,7 +51,13 @@ function actionable(snapshot: MigrationSnapshot): boolean {
   return snapshot.plan.preview.migrationSupported === true && snapshot.status.enrolled && snapshot.statusError === null;
 }
 
-const rowName = (sourceId: string, row: MigrationPlan['rows'][number] | undefined, migration: MigrationView | undefined): string => row?.source.name ?? migration?.name ?? sourceId;
+const sourceIdentity = ({ sourceId, row, migration }: Pick<RowProps, 'sourceId' | 'row' | 'migration'>) => ({ id: sourceId, name: row?.source.name ?? migration?.name ?? sourceId });
+
+function rowName(props: RowProps): string {
+  const { snapshot } = props;
+  const peers = [...(snapshot.plan?.rows.map((value) => value.source) ?? []), ...(snapshot.status?.migrations.map((value) => ({ id: value.sourceId, name: value.name })) ?? [])];
+  return connectorLabel(sourceIdentity(props), peers);
+}
 
 type RowProps = ProgressProps & { sourceId: string; row: MigrationPlan['rows'][number] | undefined; migration: MigrationView | undefined };
 
@@ -80,9 +87,9 @@ function MoveResult({ sourceId, row, migration, snapshot, busy, act }: RowProps)
   </>;
 }
 
-function RecoverySource({ row, migration, detailed }: { row: RowProps['row']; migration: MigrationView | undefined; detailed: boolean }): ReactNode {
+function RecoverySource({ row, detailed }: { row: RowProps['row']; detailed: boolean }): ReactNode {
   if (!detailed || row === undefined) return null;
-  return <MigrationSource row={row} destinationId={migration?.destinationId ?? null} />;
+  return <MigrationSource row={row} />;
 }
 
 function RecoveryControls({ sourceId, row, migration, snapshot, busy, act, signIn }: RowProps): ReactNode {
@@ -92,7 +99,7 @@ function RecoveryControls({ sourceId, row, migration, snapshot, busy, act, signI
   const show = !simple || details;
   return <>
     {simple ? <Button color="secondary" dark={dark} label={details ? 'Hide recovery options' : 'Recovery options'} disabled={busy} onPress={() => { setDetails(!details); }} /> : null}
-    {show ? <><RecoverySource row={row} migration={migration} detailed={simple} /><MigrationActions sourceId={sourceId} name={rowName(sourceId, row, migration)} row={row} migration={migration} disabled={busy || !actionable(snapshot)} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} oauthResourceSupported={snapshot.plan?.preview.oauthResourceSupported === true} uncertain={snapshot.uncertain.includes(sourceId)} act={act} signIn={signIn} /></> : null}
+    {show ? <><RecoverySource row={row} detailed={simple} /><MigrationActions sourceId={sourceId} name={connectorLabel(sourceIdentity({ sourceId, row, migration }))} row={row} migration={migration} disabled={busy || !actionable(snapshot)} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} oauthResourceSupported={snapshot.plan?.preview.oauthResourceSupported === true} uncertain={snapshot.uncertain.includes(sourceId)} act={act} signIn={signIn} /></> : null}
   </>;
 }
 
@@ -100,9 +107,9 @@ function ProgressRow(props: RowProps): ReactNode {
   const { sourceId, row, migration, snapshot } = props;
   const simple = snapshot.plan?.preview.moveAllSupported === true;
   return <SettingsPad>
-    <Text size="xs" weight="semibold">{rowName(sourceId, row, migration)}</Text>
+    <Text size="xs" weight="semibold">{rowName(props)}</Text>
     {simple ? <MoveResult {...props} /> : null}
-    {row === undefined ? <Text size="2xs" role="danger">The source preview is unavailable. Durable progress is kept. Refresh before continuing.</Text> : <MigrationSource row={row} destinationId={migration?.destinationId ?? null} compact={simple} />}
+    {row === undefined ? <Text size="2xs" role="danger">The source preview is unavailable. Durable progress is kept. Refresh before continuing.</Text> : <MigrationSource row={row} compact={simple} />}
     {migration === undefined ? null : simple ? <MoveDetail migration={migration} /> : <Phase migration={migration} />}
     {snapshot.uncertain.includes(sourceId) ? <Text size="2xs" role="danger">The last request is unconfirmed. Refresh and Retry to continue the same operation; no credentials are sent again automatically.</Text> : null}
     <RecoveryControls {...props} />

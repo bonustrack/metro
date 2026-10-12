@@ -62,7 +62,7 @@ function checkResponse(record: MigrationRecord, remote: RemoteMigration): void {
 }
 
 function callFailure(error: unknown, action: string): ApiError {
-  if (error instanceof MetroApiRefusal && error.code === 'migration_conflict') return new MigrationBlocked('destination_changed', 'The destination already has credentials, a name conflict or changed settings. Inspect it and reconcile; Metro will not overwrite credentials or create a duplicate.');
+  if (error instanceof MetroApiRefusal && error.code === 'migration_conflict') return new MigrationBlocked('destination_changed', 'The mapped destination already has credentials or changed settings. Inspect it and reconcile; Metro will not overwrite credentials or create a duplicate.');
   if (action === 'prepare' && error instanceof MetroApiRefusal && error.upstreamStatus === 400 && error.code === 'oauth_resource_required') {
     return new ApiError("Enter the provider's public OAuth resource. Roll back this preparation, then prepare again with that public value; never enter credentials.", 400);
   }
@@ -210,7 +210,8 @@ export class ConnectorMigrations {
 
   private waiting(context: Context, record: MigrationRecord, includeOrganization = false): boolean {
     const uncertain = migrationUncertaintyReceipt(record.sourceId, this.dir) !== null;
-    if (!uncertain && this.localIdle(record.sourceId) && (!includeOrganization || this.orgIdle(record.sourceId))) return false;
+    const localIdle = this.localIdle(record.sourceId);
+    if (!uncertain && localIdle && (!includeOrganization || this.orgIdle(record.sourceId))) return false;
     this.save(context, { ...record, reason: uncertain ? migrationRefreshUncertain(record.sourceId, this.dir) ? 'local_refresh_uncertain' : 'requests_uncertain' : 'waiting_for_local' });
     return true;
   }
@@ -300,6 +301,7 @@ export class ConnectorMigrations {
   private async resolve(context: Context, record: MigrationRecord, receipt: string | null): Promise<void> {
     this.check(context, record);
     if (receipt === null || receipt !== migrationUncertaintyReceipt(record.sourceId, this.dir)) throw conflict('The outstanding request receipt changed. Refresh before confirming that vendor requests have settled.');
+    localMigrationIdle(record.sourceId, this.dir, true);
     if (migrationRefreshUncertain(record.sourceId, this.dir)) return this.recoverRefresh(context, record, receipt);
     if (!resolveMigrationUncertainty(record.sourceId, receipt, this.dir)) throw conflict('Requests are still running or their receipt changed. Wait for vendor completion, then refresh before confirming settlement.');
     this.save(context, { ...record, reason: record.phase === 'prepared' ? 'not_verified' : null });

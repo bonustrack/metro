@@ -127,17 +127,20 @@ describe('connectors on a local daemon, end to end through the real routes', () 
     expect(list.connectors.map((c) => c.id)).toEqual([linear]);
   });
 
-  test('every agent on the daemon holds every connector, and a name is unique on the daemon', async () => {
+  test('every agent holds distinct connectors even when create and rename reuse a name', async () => {
     expect(JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8'))).not.toHaveProperty('connectors');
     const agents = (await (await call('GET', `/api/agents`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect(agents.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     const twin = await call('POST', `/api/connectors`, { name: 'linear', url: `${vendorBase}/other`, header: null, value: null });
-    expect(twin.status).toBe(409);
+    expect(twin.status).toBe(201);
+    const made = await twin.json() as { id: string };
+    expect(made.id).not.toBe(linear);
     const jira = (await (await call('POST', `/api/connectors`, { name: 'jira', url: `${vendorBase}/other`, header: null, value: null })).json()) as { id: string };
-    expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'linear' })).status).toBe(409);
+    expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'linear' })).status).toBe(200);
     expect((await call('POST', `/api/connectors/${jira.id}/rename`, { name: 'jira2' })).status).toBe(200);
     expect((await call('DELETE', `/api/connectors/${jira.id}`)).status).toBe(200);
+    expect((await call('DELETE', `/api/connectors/${made.id}`)).status).toBe(200);
     const after = (await (await call('GET', `/api/agents`)).json()) as { agents: { id: string; connector_ids: string[] }[] };
     expect(after.agents.find((a) => a.id === tony.id)?.connector_ids).toEqual([linear]);
     expect((await call('GET', `/api/agents/${tony.id}/connectors`)).status).toBe(404);

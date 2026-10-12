@@ -89,13 +89,15 @@ describe('signed organization connector migration HTTP API', () => {
     expect((await answer(await api.call(agent, input('status', 'oper0000002')))).migration.phase).toBe('preparing');
   });
 
-  test('name conflicts never merge, prepared destinations cannot be assigned or toggled', async () => {
-    await seedConnector(held.db, { kind: 'none', targetUrl: 'https://vendor.example/existing' });
+  test('matching names and endpoints never merge, prepared destinations cannot be assigned or toggled', async () => {
+    const source = payload();
+    const existing = await seedConnector(held.db, { kind: 'none', targetUrl: source.url });
     const begin = await answer(await api.call(agent, input('begin')));
-    expect((await api.call(agent, prepareInput(begin, payload()))).status).toBe(409);
-    expect(await held.db.$count(connectors)).toBe(1);
-    const ready = await answer(await api.call(agent, prepareInput(begin, payload({ name: 'New Calendar' }))));
+    const ready = await answer(await api.call(agent, prepareInput(begin, source)));
+    expect(await held.db.$count(connectors)).toBe(2);
+    expect((await held.db.select().from(connectors).where(eq(connectors.id, existing.id)))[0]).toEqual(existing);
     const id = ready.migration.destinationId;
+    expect(id).not.toBe(existing.id);
     await expect(orgConnectorStore(() => held.db).assign(assignment(id))).rejects.toThrow('Finish or roll back');
     await expect(orgConnectorStore(() => held.db).edit(TEST_OWNER, id, new Date().toISOString(), () => ({ change: { policy: null }, event: null }))).rejects.toThrow('Finish or roll back');
     expect(await held.db.$count(connectorAgents)).toBe(0);

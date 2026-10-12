@@ -4,7 +4,6 @@ import { accountFromLine, knownAccounts } from '../agents/map.js';
 import { policyFor, storedPolicy, strictest, type Access, type PolicyTarget } from '../policy/policy.js';
 import { errResult } from './ctx.js';
 import { NEEDS_APPROVAL, takeGrant } from '../approvals/pending.js';
-import { connectorToolOf } from '../connectors/gates.js';
 import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
 import { stationForTool, toolGroupOf } from './tool-catalog.js';
@@ -56,7 +55,7 @@ export function channelDecision(name: string, a: Record<string, unknown>): Polic
   return verdict;
 }
 
-const isChannelTool = (name: string) => (tool: string): boolean => tool.endsWith(`__${name}`) && connectorToolOf(tool) === undefined;
+const isChannelTool = (name: string) => (tool: string): boolean => tool === `mcp__metro__${name}`;
 
 export function policyGate(name: string, a: Record<string, unknown>): ToolResult | undefined {
   const { access, target } = channelDecision(name, a);

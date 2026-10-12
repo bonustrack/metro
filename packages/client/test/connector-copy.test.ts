@@ -77,6 +77,18 @@ describe('the single and bulk connector copy client', () => {
     expect(activeAccount()?.refreshToken).toBe('rt_source_rotated');
   });
 
+  test('selected instances travel by ID and keep separate source and destination identities', async () => {
+    const serve = globalThis.fetch;
+    const results = [
+      { sourceId: 'conn0000001', id: 'copied00001', status: 'copied' },
+      { sourceId: 'conn0000002', id: 'copied00002', status: 'copied' },
+    ];
+    globalThis.fetch = ((url: string, init: RequestInit = {}) => url.endsWith('/receive')
+      ? Promise.resolve(Response.json({ results })) : serve(url, init)) as unknown as typeof fetch;
+    expect(await copyConnectors(target, results.map((row) => row.sourceId), true)).toEqual(results);
+    expect(calls.find((row) => row.url.endsWith('/export'))?.body).toEqual({ confirmed: true, ids: ['conn0000001', 'conn0000002'], publicKey: 'destination-public-key-fixture' });
+  });
+
   test('copy waits for a held account refresh before consuming its rotated token', async () => {
     const serve = globalThis.fetch;
     const source = activeAccount();
@@ -215,9 +227,30 @@ describe('the single and bulk connector copy client', () => {
     } catch (err) {
       message = err instanceof Error ? err.message : '';
     }
-    expect(message).toContain('Retry safely');
+    expect(message).toContain('Check the destination before retrying');
+    expect(message).toContain('another copy creates new instances without overwriting existing connectors');
     expect(message).not.toContain('do-not-reflect-fixture-secret');
   });
+
+  for (const kind of ['invalid', 'interrupted', 'unexpected']) {
+    test(`an ${kind} successful copy body warns before a non-idempotent retry`, async () => {
+      const serve = globalThis.fetch;
+      let received = 0;
+      globalThis.fetch = ((url: string, init: RequestInit = {}) => {
+        if (!url.endsWith('/receive')) return serve(url, init);
+        received += 1;
+        const body = kind === 'interrupted' ? new ReadableStream({ start(controller) { controller.error(new Error('private-fixture-body-error')); } }) : kind === 'unexpected' ? '{}' : '{private-fixture-truncated';
+        return Promise.resolve(new Response(body, { status: 200 }));
+      }) as unknown as typeof fetch;
+      let error = '';
+      try { await copyConnectors(target, null, true); }
+      catch (reason) { error = reason instanceof Error ? reason.message : ''; }
+      expect(error).toContain('Check the destination before retrying');
+      expect(error).toContain('another copy creates new instances');
+      expect(error).not.toContain('private-fixture');
+      expect(received).toBe(1);
+    });
+  }
 
   test('a failed source-session restoration signs out and stops before exporting any credentials', async () => {
     const serve = globalThis.fetch;

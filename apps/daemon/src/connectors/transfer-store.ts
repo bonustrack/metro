@@ -6,7 +6,7 @@ import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { readConfig } from './config.js';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
 import { normalizePolicy } from '../policy/policy.js';
-import { localImportConnectors, readLocalConnectors, type LocalConnectorRow } from './store.js';
+import { localImportConnectors, type LocalConnectorRow } from './store.js';
 
 export interface ConnectorCopyResult {
   sourceId: string | null;
@@ -28,7 +28,6 @@ function copyRow(raw: unknown): LocalConnectorRow {
 export function copyConnectorRows(value: unknown, dir?: string): ConnectorCopyResult[] {
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.connectors) || value.connectors.length > 500)
     throw new ApiError('invalid connector transfer', 400);
-  const names = new Set(readLocalConnectors(dir).map((row) => row.name));
   const imported: LocalConnectorRow[] = [];
   const results: ConnectorCopyResult[] = value.connectors.map((raw: unknown) => {
     const sourceId = isRecord(raw) && typeof raw.id === 'string' ? parseId(raw.id) : null;
@@ -38,8 +37,6 @@ export function copyConnectorRows(value: unknown, dir?: string): ConnectorCopyRe
     } catch {
       return { sourceId, status: 'invalid' };
     }
-    if (names.has(row.name)) return { sourceId, status: 'skipped' };
-    names.add(row.name);
     const id = newId();
     imported.push({ ...row, id });
     return { sourceId, id, status: 'copied' };

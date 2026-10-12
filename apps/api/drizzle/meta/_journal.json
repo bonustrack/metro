@@ -64,6 +64,13 @@
       "when": 1791702000001,
       "tag": "0008_connector_migrations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791828840000,
+      "tag": "0009_connector_instances",
+      "breakpoints": true
     }
   ]
 }
