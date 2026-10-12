@@ -56,7 +56,10 @@ function requestInit(row: DeliveredConnector, init: RequestInit | undefined, sca
 
 async function discoveryResponse(response: Response, init: RequestInit | undefined, signal: AbortSignal): Promise<Response> {
   if (response.status >= 300) throw new ApiError('The organization connector refused tool discovery.', 502);
-  if (init?.method === 'DELETE') return new Response(null, { status: response.status });
+  if (init?.method === 'DELETE') {
+    await boundedResponse(response, signal);
+    return new Response(null, { status: response.status });
+  }
   return boundedResponse(response, signal);
 }
 

@@ -140,7 +140,7 @@ describe('organization migration preparation', () => {
       setCurrentServer({ id: 'other000001', host: 'other.example' });
       return response;
     }) as unknown as typeof fetch;
-    await expect(fetchMigrationPreview()).rejects.toThrow('account or agent changed');
+    await expect(fetchMigrationPreview()).rejects.toThrow('account, agent or enrollment changed');
     expect(requests).toHaveLength(1);
     setCurrentServer({ id: AGENT, host: 'source.example' });
     globalThis.fetch = ((input: string, init?: RequestInit) => {

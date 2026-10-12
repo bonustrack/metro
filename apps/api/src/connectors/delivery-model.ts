@@ -29,7 +29,7 @@ export function deliveredConnector(key: Buffer, assigned: AssignedConnector, now
   const revision = credentialRevision(key, row);
   const auth = row.auth === 'oauth' || row.auth === 'header' ? row.auth : 'none';
   const base: DeliveredConnector = { id: row.id, name: row.name, url: row.url, auth, policy, revision, state: 'unavailable', headers: {} };
-  if (!valid || (policy.read === 'deny' && policy.write === 'deny') || failed.get(row.id) === revision) return base;
+  if (!valid || (policy.read === 'deny' && policy.write === 'deny' && Object.values(policy.tools ?? {}).every((rule) => rule === 'deny')) || failed.get(row.id) === revision) return base;
   return readyConnector(key, row, base, now);
 }
 

@@ -8,6 +8,9 @@ import { OrgConnectorSync, type OrgSyncDeps } from './org-sync.js';
 import { OrgConnectorRuntime } from './org-runtime.js';
 import { connectorSyncScope, disableSavedSync, saveSyncSetting, syncOptedIn, syncSetting } from './org-sync-setting.js';
 import type { RelaySession } from './relay-session.js';
+import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
+import { localMigrationIdle, migrationRuntimeMapping } from './migration-guard.js';
+import { publishConnectors } from './publication.js';
 
 type ControlDeps = Pick<OrgSyncDeps, 'owner' | 'key' | 'monotonic'> & { api?: MetroApi; dir?: string };
 type Context = Pick<ConnectorSyncStatus, 'owner' | 'agentId' | 'scope' | 'enrolled'>;
@@ -20,6 +23,7 @@ export class OrgConnectorControl {
   private readonly api: MetroApi;
   private sync: OrgConnectorSync | null = null;
   private runtime: OrgConnectorRuntime | null = null;
+  private readonly draining = new Set<OrgConnectorRuntime>();
   private scope: string | null = null;
   private operation = randomBytes(16).toString('hex');
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -43,6 +47,8 @@ export class OrgConnectorControl {
     this.sync = null;
     const runtime = this.runtime;
     this.runtime = null;
+    for (const previous of this.draining) if (previous.idle()) this.draining.delete(previous);
+    if (runtime !== null && !runtime.idle()) this.draining.add(runtime);
     try {
       runtime?.stop();
     } catch {
@@ -64,9 +70,15 @@ export class OrgConnectorControl {
     else if (start && this.sync === null) {
       const scope = context.scope;
       this.sync = new OrgConnectorSync({ ...this.deps, api: this.api, enabled: () => this.context().scope === scope && syncSetting(this.dir, scope).enabled });
-      if (liveEnabled()) this.runtime = new OrgConnectorRuntime(this.sync, { enabled: liveEnabled });
     }
+    if (start) this.startRuntime();
     return { context, setting };
+  }
+
+  private startRuntime(): void {
+    if (this.sync === null || this.runtime !== null) return;
+    const mapping = () => migrationRuntimeMapping(this.deps.owner(), this.deps.key(), this.dir);
+    if (liveEnabled() || mapping().aliases.length > 0) this.runtime = new OrgConnectorRuntime(this.sync, { enabled: liveEnabled, mapping, migrationDir: this.dir });
   }
 
   status(): ConnectorSyncStatus {
@@ -104,6 +116,28 @@ export class OrgConnectorControl {
     await this.sync?.sync();
   }
 
+  async fresh(): Promise<DeliverySnapshot> {
+    this.reconcile(true);
+    const sync = this.sync;
+    if (sync === null) throw new ApiError('Enable organization connector sync before moving this connector.', 409);
+    await sync.syncFresh();
+    this.reconcile(false);
+    const snapshot = this.sync === sync ? sync.read() : null;
+    if (snapshot === null) throw new ApiError('A fresh organization connector snapshot is unavailable.', 503);
+    return snapshot;
+  }
+
+  refreshRuntime(): void {
+    this.reconcile(true);
+    this.runtime?.refresh();
+    publishConnectors();
+  }
+
+  migrationIdle(id: string): boolean {
+    for (const runtime of this.draining) if (runtime.idle()) this.draining.delete(runtime);
+    return localMigrationIdle(id, this.dir) && (this.runtime?.idle(id) ?? true) && [...this.draining].every((runtime) => runtime.idle(id));
+  }
+
   private tick(): void {
     this.poll().catch(() => {
       log.warn('organization connectors: memory sync unavailable; cached credentials were cleared');
@@ -130,9 +164,9 @@ export class OrgConnectorControl {
   }
 
   open(id: string): RelaySession {
+    if (this.runtime === null && !syncOptedIn(this.dir)) throw new ApiError('Organization connectors are not available on this agent.', 503);
+    this.reconcile(true);
     if (this.runtime === null) throw new ApiError('Organization connectors are not available on this agent.', 503);
-    this.reconcile(false);
-    if (!liveEnabled() || this.runtime === null) throw new ApiError('Organization connectors are not available on this agent.', 503);
     return this.runtime.open(id);
   }
 }

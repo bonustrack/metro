@@ -20,23 +20,25 @@ export interface ConnectorGate {
 }
 
 let gates: ConnectorGate[] = [];
+let managed = new Set<string>();
 
 const normalized = (name: string): string => name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-function approvalChanged(gate: ConnectorGate, tool: string, next: GateRow | undefined, keys: Map<string, string>): boolean {
+function approvalChanged(gate: ConnectorGate, tool: string, next: GateRow | undefined, keys: ReadonlyMap<string, string>): boolean {
   if (next === undefined || gate.server !== keys.get(gate.id) || JSON.stringify([gate.name, gate.policy]) !== JSON.stringify([next.name, next.config.policy ?? {}])) return true;
   const before = decide(gate.policy, { name: tool, group: toolGroupOf(gate, tool) });
   const after = decide(next.config.policy, { name: tool, group: next.config.toolGroups?.[tool] === 'read' ? 'read' : 'write' });
   return before !== after;
 }
 
-export function registerConnectors(rows: readonly GateRow[]): void {
-  const keys = serverKeysOf([...rows]);
+export function registerConnectors(rows: readonly GateRow[], managedIds: readonly string[] = [], keys: ReadonlyMap<string, string> = serverKeysOf([...rows])): void {
+  const nextManaged = new Set(managedIds);
   revokeToolPrompts((tool) => {
     const found = connectorToolOf(tool);
-    if (found === undefined || !isOrgRelayId(found.gate.id)) return false;
+    if (found === undefined || (!isOrgRelayId(found.gate.id) && !managed.has(found.gate.id) && !nextManaged.has(found.gate.id))) return false;
     return approvalChanged(found.gate, found.tool, rows.find((row) => row.id === found.gate.id), keys);
   });
+  managed = nextManaged;
   gates = rows.map((row) => ({
     id: row.id,
     name: row.name,

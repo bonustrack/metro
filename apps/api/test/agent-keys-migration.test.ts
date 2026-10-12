@@ -85,7 +85,7 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     await migrate(db, { migrationsFolder: DIR });
     expect(await rows(client, 'agent_keys')).toEqual(keys);
     expect(await rows(client, 'box_keys')).toEqual(keys);
-    expect(await rows(client, 'connector_agents')).toEqual(assignments);
+    expect(await rows(client, 'connector_agents')).toEqual(assignments.map((row) => ({ ...row, migration_operation: null })));
     expect(await rows(client, 'connector_events')).toEqual(events);
     expect(await rows(client, 'connectors')).toEqual(connectors.map((row) => ({ ...row, detail: null, auth_generation: null })));
     expect((await rows(client, 'drizzle.__drizzle_migrations')).slice(0, journal.length)).toEqual(journal);

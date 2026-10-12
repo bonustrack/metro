@@ -19,7 +19,8 @@
     "./connector-discovery": "./src/connector-discovery.ts",
     "./connector-oauth": "./src/connector-oauth.ts",
     "./connector-input": "./src/connector-input.ts",
-    "./connector-delivery": "./src/connector-delivery.ts"
+    "./connector-delivery": "./src/connector-delivery.ts",
+    "./connector-migration": "./src/connector-migration.ts"
   },
   "scripts": {
     "build": "tsc",

@@ -57,6 +57,13 @@
       "when": 1791702000000,
       "tag": "0007_agent_nonces",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791702000001,
+      "tag": "0008_connector_migrations",
+      "breakpoints": true
     }
   ]
 }

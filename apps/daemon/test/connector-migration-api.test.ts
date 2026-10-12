@@ -94,7 +94,7 @@ test('real local API exposes the disabled preview only to its owner admin', asyn
   expect(await wrong.json()).toEqual({ error: 'this machine belongs to another organization' });
   const admin = await call(bearer());
   expect(admin.status).toBe(200);
-  expect(await admin.json()).toEqual({ enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
+  expect(await admin.json()).toEqual({ migrationSupported: true, enabled: false, enrolled: false, agentId: null, owner: OWNER, liveEnabled: false, connectors: [] });
   expect(admin.headers.get('cache-control')).toBe('no-store');
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);
@@ -111,7 +111,7 @@ test('enabled preview remains admin-only, reads current enrollment, and returns 
   const response = await call(bearer());
   expect(response.status).toBe(200);
   const text = await response.text();
-  expect(JSON.parse(text)).toEqual({ enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: false, issues: ['custom_policy', 'header_reentry'] }] });
+  expect(JSON.parse(text)).toEqual({ migrationSupported: true, enabled: true, enrolled: true, agentId: 'apiagent001', owner: OWNER, liveEnabled: false, connectors: [{ id: 'conn0000001', name: 'Example', auth: 'header', origin: 'https://mcp.example.com', policy: { read: 'ask', write: 'deny', tools: { list: 'allow' } }, policySupported: true, issues: [] }] });
   for (const value of ['header-secret', 'query-secret', 'private-path', 'Authorization', 'signing', 'sealing', 'keyId']) expect(text).not.toContain(value);
   expect(files()).toEqual(before);
   expect(outbound).toEqual([]);

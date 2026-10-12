@@ -5,6 +5,7 @@ import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/cl
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import { connectorTransfer } from '../../packages/client/src/api/connector-copy.ts';
 import { fetchMigrationPreview, MIGRATION_UPDATE } from '../../packages/client/src/api/connector-migration.ts';
+import { createConnectorMigration } from '../../packages/client/src/api/connector-migration-flow.ts';
 import { createConnectorSync, CONNECTOR_SYNC_UPDATE } from '../../packages/client/src/api/connector-sync.ts';
 import { isRecord } from '../../packages/client/src/read.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
@@ -241,6 +242,20 @@ await ok('migration preview off or explicit upgrade notice', async () => {
   try {
     const plan = await fetchMigrationPreview();
     if (plan.preview.enabled || plan.rows.length !== 0) throw new Error('migration preview must be off by default');
+    if (plan.preview.migrationSupported === true) {
+      const migration = createConnectorMigration();
+      try {
+        const view = await migration.refresh();
+        if (view.statusError !== null) throw new Error(view.statusError);
+        if (view.status === null || view.status.enabled || view.status.migrations.length !== 0) throw new Error('migration status must be off without migration progress');
+        await refused('migration POST refuses an invalid scope', /scope/i, () => client.call({
+          method: 'POST', base: `${baseFromSegment(host)}/api/connectors/migrations`, redirect: 'error',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope: 'invalid', sourceId: 'zzzzzzzzzzz', action: 'prepare', operationId: null }),
+        }));
+      } finally {
+        migration.dispose();
+      }
+    }
   } catch (err) {
     if (message(err) === MIGRATION_UPDATE) return;
     throw err;

@@ -5,7 +5,8 @@
       "outputs": ["dist/**"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["TEST_DATABASE_URL"]
     }
   }
 }

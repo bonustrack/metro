@@ -84,6 +84,7 @@ export const connectorAgents = pgTable(
     connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
     agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
     policy: text('policy'),
+    migrationOperation: text('migration_operation'),
     createdBy: text('created_by').notNull(),
     createdAt: text('created_at').notNull(),
   },
@@ -131,3 +132,28 @@ export const agentNonces = pgTable(
 );
 
 export const agentNonceGuard = pgTable('agent_nonce_guard', { id: text('id').primaryKey() });
+
+export const connectorMigrations = pgTable(
+  'connector_migrations',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id').notNull(),
+    operationId: text('operation_id').notNull(),
+    destinationId: text('destination_id').notNull(),
+    keyId: text('key_id').notNull(),
+    signingKey: text('signing_key').notNull(),
+    sealingKey: text('sealing_key').notNull(),
+    enrolledAt: text('enrolled_at').notNull(),
+    phase: text('phase').notNull(),
+    receivingKey: text('receiving_key').notNull(),
+    receivingSecret: text('receiving_secret').notNull(),
+    snapshot: text('snapshot'),
+    configStamp: text('config_stamp'),
+    retiredOperations: text('retired_operations').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('connector_migrations_source_idx').on(t.owner, t.agent, t.sourceId), uniqueIndex('connector_migrations_operation_idx').on(t.operationId), uniqueIndex('connector_migrations_destination_idx').on(t.destinationId)],
+);

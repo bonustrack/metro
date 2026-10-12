@@ -6,13 +6,16 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { bodyField } from '@metro-labs/http/api-http';
 import { connectorAuth, connectorClient, connectorName } from '@metro-labs/http/connector-input';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
+import { connectorPolicyOf } from '@metro-labs/http/connector-delivery';
+import { readConfig } from './config.js';
+import type { LocalConnectorRow } from './store.js';
 import { agentsDir } from '../agents/files.js';
 import { normalizePolicy, type ToolPolicy } from '../policy/policy.js';
 import { connectorSyncScope, syncOptedIn, syncSetting } from './org-sync-setting.js';
 import { readAgentKey } from './agent-key.js';
 import { migrationOrigin } from './migration-url.js';
 
-export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry';
+export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry' | 'unused_oauth_client' | 'oauth_private_resource';
 
 export interface MigrationConnector {
   id: string;
@@ -25,6 +28,7 @@ export interface MigrationConnector {
 }
 
 export interface ConnectorMigrationPreview {
+  migrationSupported: true;
   enabled: boolean;
   enrolled: boolean;
   agentId: string | null;
@@ -45,7 +49,8 @@ function validClient(raw: unknown): boolean {
   if (raw === undefined || raw === null) return true;
   if (!isRecord(raw) || !onlyKeys(raw, ['clientId', 'clientSecret'])) return false;
   if (!nonempty(raw.clientId) || !optionalStrings(raw, ['clientSecret'])) return false;
-  return connectorClient(raw.clientId, raw.clientSecret) !== null;
+  const client = connectorClient(raw.clientId, raw.clientSecret);
+  return client !== null && client.clientId === raw.clientId && client.clientSecret === raw.clientSecret;
 }
 
 function oauthTokensValid(raw: Record<string, unknown>): boolean {
@@ -64,14 +69,18 @@ function oauthAuth(raw: Record<string, unknown>): 'oauth' {
   return 'oauth';
 }
 
+function headerAuth(raw: Record<string, unknown>): 'header' {
+  if (raw.kind !== 'header' || !onlyKeys(raw, ['kind', 'name', 'value'])) return invalid();
+  if (!nonempty(raw.name) || !nonempty(raw.value)) return invalid();
+  const auth = connectorAuth(raw.name, raw.value);
+  return auth.kind === 'header' && auth.name === raw.name && auth.value === raw.value ? 'header' : invalid();
+}
+
 function authKind(raw: unknown): Exclude<MigrationConnector['auth'], 'invalid'> {
   if (!isRecord(raw)) return invalid();
   if (raw.kind === 'oauth') return oauthAuth(raw);
   if (raw.kind === 'none' && onlyKeys(raw, ['kind'])) return 'none';
-  if (raw.kind !== 'header' || !onlyKeys(raw, ['kind', 'name', 'value'])) return invalid();
-  if (!nonempty(raw.name) || !nonempty(raw.value)) return invalid();
-  const auth = connectorAuth(raw.name, raw.value);
-  return auth.kind === 'header' ? 'header' : invalid();
+  return headerAuth(raw);
 }
 
 function metadataValid(config: Record<string, unknown>): boolean {
@@ -120,7 +129,13 @@ function strictPolicy(raw: unknown): ToolPolicy {
 function policyPreview(raw: unknown): Pick<MigrationConnector, 'policy' | 'policySupported'> & { valid: boolean } {
   try {
     const policy = strictPolicy(raw);
-    const policySupported = (policy.read ?? 'allow') === 'allow' && policy.write !== 'ask' && Object.keys(policy.tools ?? {}).length === 0;
+    let policySupported = false;
+    try {
+      connectorPolicyOf(policy);
+      policySupported = true;
+    } catch {
+      policySupported = false;
+    }
     return { policy, policySupported, valid: true };
   } catch {
     return { policy: {}, policySupported: false, valid: false };
@@ -141,6 +156,18 @@ function rowIdentity(row: Record<string, unknown>, index: number): { id: string;
   return { id: id ?? `invalid-${String(index + 1)}`, name: name ?? `Connector ${String(index + 1)}`, valid: id !== null && name !== null };
 }
 
+function authIssues(row: Record<string, unknown>, auth: MigrationConnector['auth'], origin: string | null): MigrationIssue[] {
+  if (auth === 'oauth') {
+    const issues: MigrationIssue[] = ['oauth_sign_in'];
+    if (origin === null) return issues;
+    const url = parseConnectorUrl(row.url);
+    if (![url.origin, `${url.origin}/`, `${url.origin}/mcp`].includes(String(row.url))) issues.push('oauth_private_resource');
+    return issues;
+  }
+  const client = bodyField(row.config, 'client');
+  return (auth === 'none' || auth === 'header') && client !== undefined && client !== null ? ['unused_oauth_client'] : [];
+}
+
 function previewRow(raw: unknown, index: number): MigrationConnector {
   const row = isRecord(raw) ? raw : {};
   const identity = rowIdentity(row, index);
@@ -151,8 +178,7 @@ function previewRow(raw: unknown, index: number): MigrationConnector {
   if (!identity.valid || auth === 'invalid' || !valid) issues.push('invalid_config');
   if (origin === null) issues.push('unsupported_url');
   if (valid && !policySupported) issues.push('custom_policy');
-  if (auth === 'oauth') issues.push('oauth_sign_in');
-  if (auth === 'header') issues.push('header_reentry');
+  issues.push(...authIssues(row, auth, origin));
   return { id: identity.id, name: identity.name, auth, origin, policy, policySupported, issues };
 }
 
@@ -191,11 +217,20 @@ function previewRows(dir: string): MigrationConnector[] {
   return rows;
 }
 
+export function migrationSource(id: string, dir = agentsDir()): LocalConnectorRow {
+  const source = previewRows(dir).find((row) => row.id === id);
+  if (source === undefined) throw new ApiError('The local connector is missing.', 404);
+  if (source.issues.some((issue) => issue !== 'oauth_sign_in')) throw new ApiError('This connector cannot be migrated without changing its settings or permissions. Resolve the preview blockers first.', 409);
+  const raw = readRows(dir).find((row) => isRecord(row) && row.id === id);
+  if (!isRecord(raw) || typeof raw.url !== 'string') throw unavailable();
+  return { id, name: source.name, url: raw.url, config: { ...readConfig(raw.config), policy: source.policy } };
+}
+
 export function connectorMigrationPreview(owner: string | null, dir = agentsDir()): ConnectorMigrationPreview {
   const enabled = syncOptedIn(dir) && syncSetting(dir, connectorSyncScope(owner, readAgentKey(dir))).enabled;
   const liveEnabled = process.env.METRO_CONNECTORS_LIVE_ENABLED === 'true';
-  if (!enabled) return { enabled, enrolled: false, agentId: null, owner, liveEnabled, connectors: [] };
+  if (!enabled) return { migrationSupported: true, enabled, enrolled: false, agentId: null, owner, liveEnabled, connectors: [] };
   const enrollment = owner === null ? null : readAgentKey(dir)?.enrollment;
   const agentId = enrollment?.organization === owner ? enrollment?.server ?? null : null;
-  return { enabled, enrolled: agentId !== null, agentId, owner, liveEnabled, connectors: previewRows(dir) };
+  return { migrationSupported: true, enabled, enrolled: agentId !== null, agentId, owner, liveEnabled, connectors: previewRows(dir) };
 }

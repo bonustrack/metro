@@ -5,11 +5,15 @@ import type { RelayTarget } from './relay-target.js';
 import type { RelaySession } from './relay-session.js';
 import { isOrgRelayId } from './relay-id.js';
 import { exchangeOrg } from './org-relay.js';
+import { assertLocalMigrationUse, migrationSource, withLocalMigrationOperation } from './migration-guard.js';
+import { agentsDir } from '../agents/files.js';
+import { migrationRequestEffectful, type MigrationOperation } from './migration-operations.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { errMsg, log } from '@metro-labs/core/log';
 import { answerBlocked, mergeBlocked, screenCalls, type BlockedReason } from './relay-policy.js';
 
 export interface RelayApiDeps {
+  migrationDir?: string;
   target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
   identify: (req: IncomingMessage) => { subject: string; agentId: string } | null;
   signedOut: (connectorId: string) => void;
@@ -223,15 +227,20 @@ async function exchange(
   deps: RelayApiDeps,
   body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
+  dispatch: MigrationOperation['dispatch'],
 ): Promise<Exchanged> {
+  assertLocalMigrationUse(connectorId, deps.migrationDir);
   const target = await deps.target(connectorId, false);
+  assertLocalMigrationUse(connectorId, deps.migrationDir);
   if (target.kind !== 'ok') return { kind: target.kind };
-  let upstream = await forward(req, target, body, signal);
+  let upstream = await dispatch(() => forward(req, target, body, signal), { effectful: migrationRequestEffectful(req.method, body) });
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
   await upstream.body?.cancel();
+  assertLocalMigrationUse(connectorId, deps.migrationDir);
   const fresh = await deps.target(connectorId, true);
+  assertLocalMigrationUse(connectorId, deps.migrationDir);
   if (fresh.kind !== 'ok') return { kind: 'signin' };
-  upstream = await forward(req, fresh, body, signal);
+  upstream = await dispatch(() => forward(req, fresh, body, signal), { effectful: migrationRequestEffectful(req.method, body) });
   if (!authFailed(upstream.status)) return { kind: 'response', upstream };
   await upstream.body?.cancel();
   return { kind: 'signin' };
@@ -293,7 +302,10 @@ async function relayOrg(req: IncomingMessage, res: ServerResponse, id: string, d
   const session = deps.open?.(id);
   if (session === undefined || session === null) throw new ApiError('Organization connector tools are not switched on yet.', 503);
   try {
-    const out = await exchangeOrg(id, session, read, signal, (target, body, guard) => forward(req, target, body, guard, true));
+    const out = await exchangeOrg(id, session, read, signal, (target, body, guard) => {
+      const send = () => forward(req, target, body, guard, true);
+      return session.dispatch?.(send, migrationRequestEffectful(req.method, body)) ?? send();
+    });
     if (out.kind === 'blocked') answerBlocked(res, out.screened);
     else await deliver(res, id, deps, out, out.answers);
   } finally { session.close(); }
@@ -307,14 +319,17 @@ async function relayOnce(
   signal: AbortSignal,
 ): Promise<void> {
   const read = req.method === 'POST' ? await readCapped(req) : null;
-  if (isOrgRelayId(connectorId)) return relayOrg(req, res, connectorId, deps, read, signal);
-  const screened = read === null || deps.blocked === undefined ? null : screenCalls(read, connectorId, deps.blocked);
-  if (screened?.forward === null) {
-    answerBlocked(res, screened);
-    return;
-  }
-  const out = await exchange(req, connectorId, deps, screened === null ? read : screened.forward, signal);
-  await deliver(res, connectorId, deps, out, screened?.answers ?? []);
+  const dir = deps.migrationDir ?? agentsDir();
+  if (isOrgRelayId(connectorId) || migrationSource(connectorId, dir)?.phase === 'active') return relayOrg(req, res, connectorId, deps, read, signal);
+  await withLocalMigrationOperation(connectorId, dir, async (operation) => {
+    const screened = read === null || deps.blocked === undefined ? null : screenCalls(read, connectorId, deps.blocked);
+    if (screened?.forward === null) {
+      answerBlocked(res, screened);
+      return;
+    }
+    const out = await exchange(req, connectorId, deps, screened === null ? read : screened.forward, signal, operation.dispatch);
+    await deliver(res, connectorId, deps, out, screened?.answers ?? []);
+  });
 }
 
 function dispatch(
