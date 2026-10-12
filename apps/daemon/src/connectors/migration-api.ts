@@ -7,7 +7,7 @@ import { publicOAuthResource } from '@metro-labs/http/connector-public-url';
 import type { ConnectorMigrations, MigrationAction } from './migration-control.js';
 
 const PATH = '/api/connectors/migrations';
-const actions: readonly MigrationAction[] = ['prepare', 'reconcile', 'cutover', 'rollback', 'resolve'];
+const actions: readonly MigrationAction[] = ['move', 'prepare', 'reconcile', 'cutover', 'rollback', 'resolve'];
 export type MigrationApiDeps = Pick<ConnectorMigrations, 'status' | 'run'>;
 
 interface MigrationInput {

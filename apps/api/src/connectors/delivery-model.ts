@@ -17,6 +17,7 @@ export function deliveryPolicy(row: AssignedConnector): { policy: ConnectorPolic
 }
 
 function deliveredOAuth(base: DeliveredConnector, secret: Extract<ConnectorSecret, { kind: 'oauth' }>, now: number): DeliveredConnector {
+  if (secret.imported !== undefined && secret.imported.state !== 'owned') return { ...base, state: secret.imported.state === 'signin' ? 'signin' : 'unavailable' };
   const tokens = secret.tokens;
   if (tokens?.resource === undefined) return { ...base, state: 'signin' };
   if (tokens.expiresAt !== undefined && tokens.expiresAt <= now) return { ...base, state: tokens.refreshToken === undefined ? 'signin' : 'unavailable' };

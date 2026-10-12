@@ -6,7 +6,7 @@ import { notEnrolled } from '../agents/auth.js';
 import { agentKeyStore, type AgentKeyRow } from './agent-keys.js';
 import type { Database } from './client.js';
 import { eventRow } from './connector-events.js';
-import type { AssignmentRow, ConnectorRow } from './connectors.js';
+import type { AssignmentRow, ConnectorRow, ConnectorChange } from './connectors.js';
 import { isUniqueViolation } from './errors.js';
 import { agents, connectorAgents, connectorEvents, connectorMigrations, connectors } from './schema.js';
 
@@ -21,15 +21,19 @@ export interface MigrationState {
 export interface MigrationChange {
   mapping?: Partial<Pick<MigrationRow, 'phase' | 'snapshot' | 'configStamp' | 'updatedAt'>>;
   create?: ConnectorRow;
+  connector?: ConnectorChange;
   assignment?: 'create' | 'remove';
 }
 
 export interface ConnectorMigrationStore {
   begin: (identity: AgentKeyRow, create: (id: string) => MigrationRow, replace?: boolean) => Promise<MigrationState>;
-  change: (identity: AgentKeyRow, input: Pick<MigrationRequest, 'operationId' | 'sourceId'>, edit: (state: MigrationState) => MigrationChange) => Promise<MigrationState>;
+  change: (identity: AgentKeyRow, input: Pick<MigrationRequest, 'operationId' | 'sourceId'>, edit: (state: MigrationState) => MigrationChange | Promise<MigrationChange>) => Promise<MigrationState>;
 }
 
-export const migrationConflict = (): ApiError => new ApiError('This connector migration changed. Start again from its current status.', 409);
+export class MigrationConflict extends ApiError {
+  constructor(message = 'This connector migration changed. Start again from its current status.') { super(message, 409); }
+}
+export const migrationConflict = (): ApiError => new MigrationConflict();
 const sourceFilter = (identity: AgentKeyRow, sourceId: string): SQL | undefined => and(eq(connectorMigrations.owner, identity.owner), eq(connectorMigrations.agent, identity.agent), eq(connectorMigrations.sourceId, sourceId));
 
 function checkBinding(row: MigrationRow, identity: AgentKeyRow): void {
@@ -93,10 +97,18 @@ async function createDestination(tx: Database, state: MigrationState, connector:
   state.connector = connector;
 }
 
+async function editDestination(tx: Database, state: MigrationState, edit: ConnectorChange, at: string): Promise<void> {
+  if (state.connector === null) throw migrationConflict();
+  const saved = (await tx.update(connectors).set({ ...edit, updatedAt: at }).where(eq(connectors.id, state.mapping.destinationId)).returning())[0];
+  if (saved === undefined) throw migrationConflict();
+  state.connector = saved;
+}
+
 async function applyIn(tx: Database, state: MigrationState, edit: MigrationChange): Promise<MigrationState> {
   const { mapping } = state;
   const at = edit.mapping?.updatedAt ?? mapping.updatedAt;
   if (edit.create !== undefined) await createDestination(tx, state, edit.create);
+  if (edit.connector !== undefined) await editDestination(tx, state, edit.connector, at);
   if (edit.assignment === 'create') await createAssignment(tx, state, at);
   if (edit.assignment === 'remove') await removeAssignment(tx, state);
   if (edit.mapping !== undefined) {
@@ -108,18 +120,18 @@ async function applyIn(tx: Database, state: MigrationState, edit: MigrationChang
   return state;
 }
 
-async function changeIn(tx: Database, identity: AgentKeyRow, input: Pick<MigrationRequest, 'operationId' | 'sourceId'>, edit: (state: MigrationState) => MigrationChange): Promise<MigrationState> {
+async function changeIn(tx: Database, identity: AgentKeyRow, input: Pick<MigrationRequest, 'operationId' | 'sourceId'>, edit: (state: MigrationState) => MigrationChange | Promise<MigrationChange>): Promise<MigrationState> {
   const mapping = (await tx.select().from(connectorMigrations).where(sourceFilter(identity, input.sourceId)).for('update'))[0];
   if (mapping === undefined || mapping.operationId !== input.operationId) throw migrationConflict();
   const state = await stateIn(tx, identity, mapping);
-  return applyIn(tx, state, edit(state));
+  return applyIn(tx, state, await edit(state));
 }
 
 async function unique<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (err) {
-    if (isUniqueViolation(err)) throw new ApiError('A connector with that name or migration already exists. Nothing was merged.', 409);
+    if (isUniqueViolation(err)) throw new MigrationConflict('A connector with that name or migration already exists. Nothing was merged.');
     throw err;
   }
 }

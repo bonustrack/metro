@@ -4,6 +4,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { CONNECTOR_MIGRATION_MAX_BYTES, migrationRequestOf, type MigrationRequest, type MigrationResponse } from '@metro-labs/http/connector-migration';
 import { runMigration, type MigrationDeps } from '../connectors/migration-actions.js';
+import { MigrationConflict } from '../db/connector-migrations.js';
 import type { AgentKeyStore } from '../db/agent-keys.js';
 import type { AgentNonceStore } from '../db/agent-nonces.js';
 import { AgentKeyMissing, refuseBrowser, type AgentAuth } from './auth.js';
@@ -49,6 +50,7 @@ export function handleAgentMigrationsRequest(req: IncomingMessage, res: ServerRe
     sendJson(req, res, 200, body);
   }).catch((err: unknown) => {
     if (err instanceof OAuthResourceRequired) sendJson(req, res, err.status, { error: err.message, code: 'oauth_resource_required' });
+    else if (err instanceof MigrationConflict) sendJson(req, res, err.status, { error: err.message, code: 'migration_conflict' });
     else if (err instanceof AgentKeyMissing) sendJson(req, res, err.status, { error: err.message, code: 'agent_key_missing' });
     else apiFailure(req, res, err instanceof ApiError ? err : new ApiError('Connector migration is unavailable. Check its status and try again.', 409), 'agent-connector-migrations');
   });

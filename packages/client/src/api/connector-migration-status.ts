@@ -1,9 +1,9 @@
 import { isRecord } from '../read.js';
 import type { MigrationIdentity } from './connector-migration-identity.js';
 
-export type MigrationAction = 'prepare' | 'reconcile' | 'cutover' | 'rollback' | 'resolve';
-export type MigrationPhase = 'preparing' | 'prepared' | 'cutover' | 'active' | 'rollback' | 'rolled_back';
-export type MigrationReason = 'sign_in' | 'not_verified' | 'source_changed' | 'destination_changed' | 'assignment_changed' | 'waiting_for_local' | 'sync_unavailable' | 'identity_changed' | 'rolled_back' | 'unavailable' | 'requests_uncertain' | 'unknown';
+export type MigrationAction = 'move' | 'prepare' | 'reconcile' | 'cutover' | 'rollback' | 'resolve';
+export type MigrationPhase = 'recovering' | 'freezing' | 'preparing' | 'prepared' | 'cutover' | 'active' | 'rollback' | 'rolled_back';
+export type MigrationReason = 'sign_in' | 'not_verified' | 'source_changed' | 'destination_changed' | 'assignment_changed' | 'waiting_for_local' | 'sync_unavailable' | 'identity_changed' | 'rolled_back' | 'unavailable' | 'requests_uncertain' | 'unknown' | 'refresh_uncertain' | 'local_refresh_uncertain' | 'finish_forward' | 'unsupported_grant';
 
 export interface MigrationView {
   id: string;
@@ -14,6 +14,8 @@ export interface MigrationView {
   auth: 'none' | 'header' | 'oauth';
   reason: MigrationReason | null;
   uncertainty: string | null;
+  move?: boolean;
+  grantImported?: boolean;
 }
 
 export interface MigrationStatus {
@@ -25,7 +27,7 @@ export interface MigrationStatus {
   migrations: MigrationView[];
 }
 
-const REASONS: readonly MigrationReason[] = ['sign_in', 'not_verified', 'source_changed', 'destination_changed', 'assignment_changed', 'waiting_for_local', 'sync_unavailable', 'identity_changed', 'rolled_back', 'unavailable', 'requests_uncertain'];
+const REASONS: readonly MigrationReason[] = ['sign_in', 'not_verified', 'source_changed', 'destination_changed', 'assignment_changed', 'waiting_for_local', 'sync_unavailable', 'identity_changed', 'rolled_back', 'unavailable', 'requests_uncertain', 'refresh_uncertain', 'local_refresh_uncertain', 'finish_forward', 'unsupported_grant'];
 const invalid = (): Error => new Error('The agent returned an invalid migration status. Refresh and Reconcile before continuing.');
 const nullable = (value: unknown): value is string | null => value === null || typeof value === 'string';
 
@@ -39,11 +41,11 @@ function uncertaintyOf(value: unknown): string | null {
 
 function migrationOf(value: unknown): MigrationView {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.sourceId !== 'string' || typeof value.name !== 'string' || !nullable(value.destinationId) || !nullable(value.reason)) throw invalid();
-  const phase = (['preparing', 'prepared', 'cutover', 'active', 'rollback', 'rolled_back'] as const).find((item) => item === value.phase);
+  const phase = (['recovering', 'freezing', 'preparing', 'prepared', 'cutover', 'active', 'rollback', 'rolled_back'] as const).find((item) => item === value.phase);
   const auth = (['none', 'header', 'oauth'] as const).find((item) => item === value.auth);
   if (phase === undefined || auth === undefined) throw invalid();
   const reason = reasonOf(value.reason);
-  return { id: value.id, sourceId: value.sourceId, name: value.name, destinationId: value.destinationId, phase, auth, reason, uncertainty: uncertaintyOf(value.uncertainty) };
+  return { id: value.id, sourceId: value.sourceId, name: value.name, destinationId: value.destinationId, phase, auth, reason, uncertainty: uncertaintyOf(value.uncertainty), move: value.move === true, grantImported: value.grantImported === true };
 }
 
 function envelopeOf(value: unknown): MigrationStatus {

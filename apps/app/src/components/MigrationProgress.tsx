@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
+import { Button } from '@stage-labs/kit/react-native/button';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { MIGRATION_UPDATE, type MigrationPlan } from '@metro-labs/client/api/connector-migration';
 import type { MigrationSelection, MigrationSnapshot } from '@metro-labs/client/api/connector-migration-flow';
-import { orgConnectorCallbackUrl } from '@metro-labs/client/api/org-connectors';
 import type { MigrationAction, MigrationView } from '@metro-labs/client/api/connector-migration-status';
 import { routeHash } from '@metro-labs/client/route';
 import { MigrationActions } from './MigrationActions.js';
@@ -19,16 +20,28 @@ interface ProgressProps {
   signIn: (sourceId: string, selection: MigrationSelection) => void;
 }
 
+function Destination({ migration }: { migration: MigrationView }): ReactNode {
+  return migration.destinationId === null ? null : <TextLink to={routeHash({ kind: 'org-connector', id: migration.destinationId })}>View organization connector</TextLink>;
+}
+
+function MoveDetail({ migration }: { migration: MigrationView }): ReactNode {
+  const reason = migrationReason(migration.reason, migration.phase);
+  return <>
+    {reason === null ? null : <Text size="2xs" role="danger">{reason}</Text>}
+    <Destination migration={migration} />
+  </>;
+}
+
 function Phase({ migration }: { migration: MigrationView }): ReactNode {
   const reason = migrationReason(migration.reason, migration.phase);
   return <Col gap={8}>
     <Text size="2xs" weight="semibold">{migrationPhase(migration)}</Text>
     {reason === null ? null : <Text size="2xs" role="danger">{reason}</Text>}
-    {migration.phase === 'prepared' ? <Text size="2xs" role="secondary">Preparation does not assign the new destination or retire the local source. For OAuth, finish central sign-in. Reconcile checks readiness before a separate cutover.</Text> : null}
-    {migration.phase === 'cutover' ? <Text size="2xs" role="danger">Cutover is not confirmed active. The source remains fenced. Choose Reconcile to continue, or explicitly Roll back.</Text> : null}
+    {migration.phase === 'prepared' && migration.move !== true ? <Text size="2xs" role="secondary">Preparation does not assign the new destination or retire the local source. For OAuth, finish central sign-in. Reconcile checks readiness before a separate cutover.</Text> : null}
+    {migration.phase === 'cutover' ? <Text size="2xs" role="danger">Cutover is not confirmed active. The source stays stopped. Retry to finish forward. Imported OAuth grants cannot roll back to old tokens.</Text> : null}
     {migration.phase === 'active' && migration.reason === null ? <Text size="2xs" role="secondary">The agent confirmed the organization path is active. The same source relay ID and plugin key are retained.</Text> : null}
     {migration.phase === 'rollback' ? <Text size="2xs" role="danger">Rollback is not confirmed complete. The source remains stopped, with no automatic local fallback. Resolve any conflict, then choose Reconcile; do not assume local access is restored yet.</Text> : null}
-    {migration.destinationId === null ? null : <TextLink to={routeHash({ kind: 'org-connector', id: migration.destinationId })}>{`Organization destination: ${migration.name}`}</TextLink>}
+    <Destination migration={migration} />
   </Col>;
 }
 
@@ -39,16 +52,60 @@ function actionable(snapshot: MigrationSnapshot): boolean {
 
 const rowName = (sourceId: string, row: MigrationPlan['rows'][number] | undefined, migration: MigrationView | undefined): string => row?.source.name ?? migration?.name ?? sourceId;
 
-function ProgressRow({ sourceId, row, migration, snapshot, busy, act, signIn }: ProgressProps & { sourceId: string; row: MigrationPlan['rows'][number] | undefined; migration: MigrationView | undefined }): ReactNode {
-  const name = rowName(sourceId, row, migration);
-  const ready = actionable(snapshot);
+type RowProps = ProgressProps & { sourceId: string; row: MigrationPlan['rows'][number] | undefined; migration: MigrationView | undefined };
+
+const sourceMovable = (row: RowProps['row']): boolean => row !== undefined && row.source.policySupported && row.source.issues.length === 0;
+const retryAction = (migration: MigrationView | undefined): MigrationAction => migration?.phase === 'recovering' ? 'reconcile' : 'move';
+
+function migrationResult(migration: MigrationView, busy: boolean): string {
+  if (migration.phase === 'active' && migration.reason === null) return 'Moved';
+  if (['unsupported_grant', 'destination_changed', 'sign_in', 'local_refresh_uncertain', 'refresh_uncertain'].includes(migration.reason ?? '')) return 'Blocked';
+  if (busy && migration.move === true) return migrationPhase(migration);
+  return 'Retry';
+}
+
+function resultLabel(row: RowProps['row'], migration: MigrationView | undefined, busy: boolean): string {
+  if (migration !== undefined) return migrationResult(migration, busy);
+  return sourceMovable(row) ? 'Ready to move' : 'Blocked';
+}
+
+function MoveResult({ sourceId, row, migration, snapshot, busy, act }: RowProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const label = resultLabel(row, migration, busy);
   const uncertain = snapshot.uncertain.includes(sourceId);
+  const retry = label === 'Retry' && (migration?.move === true || uncertain);
+  return <>
+    <Text size="2xs" weight="semibold">{label}</Text>
+    {retry ? <Button color="secondary" dark={dark} label="Retry" disabled={busy || !actionable(snapshot)} onPress={() => { act(sourceId, retryAction(migration), { operationId: migration?.id ?? null, uncertainty: migration?.uncertainty ?? null }); }} /> : null}
+  </>;
+}
+
+function RecoverySource({ row, migration, detailed }: { row: RowProps['row']; migration: MigrationView | undefined; detailed: boolean }): ReactNode {
+  if (!detailed || row === undefined) return null;
+  return <MigrationSource row={row} destinationId={migration?.destinationId ?? null} />;
+}
+
+function RecoveryControls({ sourceId, row, migration, snapshot, busy, act, signIn }: RowProps): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const [details, setDetails] = useState(false);
+  const simple = snapshot.plan?.preview.moveAllSupported === true;
+  const show = !simple || details;
+  return <>
+    {simple ? <Button color="secondary" dark={dark} label={details ? 'Hide recovery options' : 'Recovery options'} disabled={busy} onPress={() => { setDetails(!details); }} /> : null}
+    {show ? <><RecoverySource row={row} migration={migration} detailed={simple} /><MigrationActions sourceId={sourceId} name={rowName(sourceId, row, migration)} row={row} migration={migration} disabled={busy || !actionable(snapshot)} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} oauthResourceSupported={snapshot.plan?.preview.oauthResourceSupported === true} uncertain={snapshot.uncertain.includes(sourceId)} act={act} signIn={signIn} /></> : null}
+  </>;
+}
+
+function ProgressRow(props: RowProps): ReactNode {
+  const { sourceId, row, migration, snapshot } = props;
+  const simple = snapshot.plan?.preview.moveAllSupported === true;
   return <SettingsPad>
-    <Text size="xs" weight="semibold">{name}</Text>
-    {row === undefined ? <Text size="2xs" role="danger">The source preview is unavailable. Existing migration progress is kept visible. Refresh before preparing or switching.</Text> : <MigrationSource row={row} destinationId={migration?.destinationId ?? null} />}
-    {migration === undefined ? null : <Phase migration={migration} />}
-    {uncertain ? <Text size="2xs" role="danger">The last request is unconfirmed. Refresh and Reconcile before another change. This is the last confirmed progress, not proof of the current state.</Text> : null}
-    <MigrationActions sourceId={sourceId} name={name} row={row} migration={migration} disabled={busy || !ready} previewFailed={snapshot.previewError !== null || snapshot.status?.enabled !== true} oauthResourceSupported={snapshot.plan?.preview.oauthResourceSupported === true} uncertain={uncertain} act={act} signIn={signIn} />
+    <Text size="xs" weight="semibold">{rowName(sourceId, row, migration)}</Text>
+    {simple ? <MoveResult {...props} /> : null}
+    {row === undefined ? <Text size="2xs" role="danger">The source preview is unavailable. Durable progress is kept. Refresh before continuing.</Text> : <MigrationSource row={row} destinationId={migration?.destinationId ?? null} compact={simple} />}
+    {migration === undefined ? null : simple ? <MoveDetail migration={migration} /> : <Phase migration={migration} />}
+    {snapshot.uncertain.includes(sourceId) ? <Text size="2xs" role="danger">The last request is unconfirmed. Refresh and Retry to continue the same operation; no credentials are sent again automatically.</Text> : null}
+    <RecoveryControls {...props} />
   </SettingsPad>;
 }
 
@@ -69,10 +126,7 @@ export function MigrationProgress(props: ProgressProps): ReactNode {
   const ids = [...new Set([...sources.map((row) => row.source.id), ...migrations.map((row) => row.sourceId), ...snapshot.uncertain])];
   return <Col gap={16}>
     <Availability snapshot={snapshot} />
-    <Text size="2xs" role="secondary">Prepare creates a new, unassigned organization connector. Saved credentials travel sealed from the daemon to the API using the local configuration, never through this page. Preparation does not retire local access.</Text>
-    <Text size="2xs" role="secondary">OAuth copies no access or refresh token. Fresh central sign-in can change the provider grant and invalidate the older local login before cutover. A manually registered OAuth client must allow the central callback below. Rollback may require a fresh local sign-in.</Text>
-    <Text size="2xs" selectable>{orgConnectorCallbackUrl()}</Text>
-    <Text size="2xs" role="secondary">Conflicts from the preview are advisory. Same-service matches may be different accounts. The server blocks name conflicts and never merges connectors. Reconcile verifies readiness on the server; this page cannot declare a connector ready.</Text>
+    {plan?.preview.moveAllSupported === true ? null : <Text size="2xs" role="secondary">Use the individual preparation and recovery controls below, or update this agent to transfer existing OAuth grants with Move all.</Text>}
     {ids.length === 0 ? <Text size="2xs">No migration progress or eligible source is available in this view.</Text> : <SettingsGroup>{ids.map((sourceId) => <ProgressRow key={sourceId} {...props} sourceId={sourceId} row={sources.find((row) => row.source.id === sourceId)} migration={migrations.find((row) => row.sourceId === sourceId)} />)}</SettingsGroup>}
     <TextLink to={routeHash({ kind: 'org-connectors' })}>View organization connectors</TextLink>
   </Col>;

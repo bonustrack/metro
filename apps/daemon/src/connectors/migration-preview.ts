@@ -5,6 +5,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { bodyField } from '@metro-labs/http/api-http';
 import { connectorAuth, connectorClient, connectorName } from '@metro-labs/http/connector-input';
+import { portableGrant } from '@metro-labs/http/connector-grant';
 import { connectorPolicyOf } from '@metro-labs/http/connector-delivery';
 import { readConfig } from './config.js';
 import type { LocalConnectorRow } from './store.js';
@@ -12,9 +13,10 @@ import { agentsDir } from '../agents/files.js';
 import { normalizePolicy, type ToolPolicy } from '../policy/policy.js';
 import { connectorSyncScope, syncOptedIn, syncSetting } from './org-sync-setting.js';
 import { readAgentKey } from './agent-key.js';
+import { MigrationBlocked } from './migration-source.js';
 import { migrationOrigin } from './migration-url.js';
 
-export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry' | 'unused_oauth_client';
+export type MigrationIssue = 'invalid_config' | 'unsupported_url' | 'custom_policy' | 'oauth_sign_in' | 'header_reentry' | 'unused_oauth_client' | 'oauth_unsupported';
 
 export interface MigrationConnector {
   id: string;
@@ -29,6 +31,7 @@ export interface MigrationConnector {
 export interface ConnectorMigrationPreview {
   migrationSupported: true;
   oauthResourceSupported: true;
+  moveAllSupported: true;
   enabled: boolean;
   enrolled: boolean;
   agentId: string | null;
@@ -54,7 +57,7 @@ function validClient(raw: unknown): boolean {
 }
 
 function oauthAuth(raw: Record<string, unknown>): 'oauth' {
-  if (!onlyKeys(raw, ['kind', 'accessToken', 'refreshToken', 'clientId', 'clientSecret', 'tokenEndpoint', 'issuer', 'scope', 'expiresAt'])) invalid();
+  if (!onlyKeys(raw, ['kind', 'accessToken', 'refreshToken', 'clientId', 'clientSecret', 'tokenEndpoint', 'issuer', 'scope', 'expiresAt', 'resource', 'tokenEndpointAuthMethod'])) invalid();
   return 'oauth';
 }
 
@@ -145,8 +148,17 @@ function rowIdentity(row: Record<string, unknown>, index: number): { id: string;
   return { id: id ?? `invalid-${String(index + 1)}`, name: name ?? `Connector ${String(index + 1)}`, valid: id !== null && name !== null };
 }
 
+function grantIssues(row: Record<string, unknown>): MigrationIssue[] {
+  const grant = bodyField(row.config, 'auth');
+  if (!isRecord(grant) || grant.kind !== 'oauth') return ['oauth_sign_in'];
+  try {
+    const portable = portableGrant(grant, String(row.url));
+    return portable.expiresAt !== undefined && portable.expiresAt <= Date.now() && portable.refreshToken === undefined ? ['oauth_sign_in'] : [];
+  } catch { return ['oauth_unsupported']; }
+}
+
 function authIssues(row: Record<string, unknown>, auth: MigrationConnector['auth']): MigrationIssue[] {
-  if (auth === 'oauth') return ['oauth_sign_in'];
+  if (auth === 'oauth') return grantIssues(row);
   const client = bodyField(row.config, 'client');
   return (auth === 'none' || auth === 'header') && client !== undefined && client !== null ? ['unused_oauth_client'] : [];
 }
@@ -200,10 +212,16 @@ function previewRows(dir: string): MigrationConnector[] {
   return rows;
 }
 
-export function migrationSource(id: string, dir = agentsDir()): LocalConnectorRow {
+function assertTransferable(source: MigrationConnector): void {
+  if (source.issues.includes('oauth_sign_in')) throw new MigrationBlocked('sign_in', 'No usable local OAuth grant is saved. Sign in locally before moving it.');
+  if (source.issues.includes('oauth_unsupported')) throw new MigrationBlocked('unsupported_grant', 'This OAuth grant has unsupported client authentication or provider binding. Keep it local or sign in separately.');
+}
+
+export function migrationSource(id: string, dir = agentsDir(), transfer = false): LocalConnectorRow {
   const source = previewRows(dir).find((row) => row.id === id);
   if (source === undefined) throw new ApiError('The local connector is missing.', 404);
-  if (source.issues.some((issue) => issue !== 'oauth_sign_in')) throw new ApiError('This connector cannot be migrated without changing its settings or permissions. Resolve the preview blockers first.', 409);
+  if (source.issues.some((issue) => issue !== 'oauth_sign_in' && issue !== 'oauth_unsupported')) throw new ApiError('This connector cannot be migrated without changing its settings or permissions. Resolve the preview blockers first.', 409);
+  if (transfer) assertTransferable(source);
   const raw = readRows(dir).find((row) => isRecord(row) && row.id === id);
   if (!isRecord(raw) || typeof raw.url !== 'string') throw unavailable();
   return { id, name: source.name, url: raw.url, config: { ...readConfig(raw.config), oauth: source.auth === 'oauth', policy: source.policy } };
@@ -212,8 +230,8 @@ export function migrationSource(id: string, dir = agentsDir()): LocalConnectorRo
 export function connectorMigrationPreview(owner: string | null, dir = agentsDir()): ConnectorMigrationPreview {
   const enabled = syncOptedIn(dir) && syncSetting(dir, connectorSyncScope(owner, readAgentKey(dir))).enabled;
   const liveEnabled = process.env.METRO_CONNECTORS_LIVE_ENABLED === 'true';
-  if (!enabled) return { migrationSupported: true, oauthResourceSupported: true, enabled, enrolled: false, agentId: null, owner, liveEnabled, connectors: [] };
+  if (!enabled) return { migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled, enrolled: false, agentId: null, owner, liveEnabled, connectors: [] };
   const enrollment = owner === null ? null : readAgentKey(dir)?.enrollment;
   const agentId = enrollment?.organization === owner ? enrollment?.server ?? null : null;
-  return { migrationSupported: true, oauthResourceSupported: true, enabled, enrolled: agentId !== null, agentId, owner, liveEnabled, connectors: previewRows(dir) };
+  return { migrationSupported: true, oauthResourceSupported: true, moveAllSupported: true, enabled, enrolled: agentId !== null, agentId, owner, liveEnabled, connectors: previewRows(dir) };
 }

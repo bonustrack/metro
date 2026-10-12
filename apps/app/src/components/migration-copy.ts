@@ -7,11 +7,14 @@ export const MIGRATION_ISSUES: Record<MigrationIssue, string> = {
   custom_policy: 'Blocked: these permission rules include names the organization policy validator cannot preserve, or this agent needs an update. Review unsupported tool names without weakening the policy. Do not replace it with a read-only switch.',
   unused_oauth_client: 'This connector saves an OAuth client but is not using OAuth. Confirm which authentication it should use, then recreate its local setup with that method before migrating. Metro will not discard the saved client.',
   oauth_private_resource: 'Older Metro migration only accepts OAuth endpoints at the public origin or /mcp path. Update this agent first. This restriction does not mean Metro detected a secret in the URL.',
-  oauth_sign_in: 'A fresh central sign-in is required. Access and refresh tokens are never copied.',
+  oauth_sign_in: 'No transferable local OAuth grant. Sign in locally before moving, or use the separate central sign-in flow.',
+  oauth_unsupported: 'Blocked: this OAuth grant uses unsupported client authentication or provider binding. Keep it local or use a separate sign-in. Metro will not register a replacement automatically.',
   header_reentry: 'This older agent cannot transfer the saved key. Update it first. Do not paste credentials into this dialog.',
 };
 
 const MIGRATION_PHASES: Record<MigrationPhase, string> = {
+  recovering: 'Recovering local sign-in',
+  freezing: 'Pausing and draining local requests',
   preparing: 'Preparing destination',
   prepared: 'Destination prepared',
   cutover: 'Cutover pending',
@@ -34,6 +37,10 @@ const REASONS: Record<MigrationReason, string> = {
   rolled_back: 'The migrated path is disabled and the local source is restored. OAuth may need a fresh local sign-in.',
   unavailable: 'The migration is unavailable. Refresh and Reconcile before continuing.',
   requests_uncertain: 'An interrupted vendor request may have completed despite its missing reply. Inspect the vendor first. Confirm requests settled only after checking the outcome; this does not undo or retry the request. The migration remains fenced until you explicitly confirm.',
+  refresh_uncertain: 'The provider refresh outcome is unknown. Central owns this grant and will not repeat the refresh. Sign in centrally to recover; old local tokens cannot be restored.',
+  local_refresh_uncertain: 'A local refresh may have rotated its token. After inspecting outstanding vendor requests, choose Recover local sign-in to abort the handover, discard the uncertain grant and sign in locally. No refresh will be retried.',
+  finish_forward: 'Central owns the imported OAuth grant. Retry to finish forward, or sign in centrally if required. Rollback to old local tokens is disabled.',
+  unsupported_grant: 'This grant cannot be transferred with its current client authentication or provider binding. Keep it local or sign in separately.',
   unknown: 'The agent reported an unknown blocker. Update if needed, then Refresh and Reconcile. Cutover is blocked.',
 };
 
@@ -44,27 +51,34 @@ export function migrationReason(reason: MigrationReason | null, phase: Migration
 
 const canPrepareAgain = (migration: MigrationView, uncertain: boolean): boolean => migration.phase === 'rolled_back' && !uncertain && [null, 'rolled_back', 'sign_in'].includes(migration.reason);
 
+const rollbackAllowed = (migration: MigrationView): boolean => migration.phase !== 'rolled_back' && migration.grantImported !== true && migration.reason !== 'local_refresh_uncertain';
+
 export function migrationControls(migration: MigrationView | undefined, uncertain: boolean) {
   if (migration === undefined) return { prepare: !uncertain, cutover: false, signIn: false, rollback: false, reconcile: uncertain, resolve: false };
   return {
     prepare: canPrepareAgain(migration, uncertain),
     cutover: migration.phase === 'prepared' && migration.reason === null && !uncertain,
     signIn: migration.auth === 'oauth' && migration.phase === 'prepared' && migration.destinationId !== null && migration.reason !== 'requests_uncertain',
-    rollback: migration.phase !== 'rolled_back',
+    rollback: rollbackAllowed(migration),
     reconcile: true,
-    resolve: migration.reason === 'requests_uncertain' && migration.uncertainty !== null,
+    resolve: (migration.reason === 'requests_uncertain' || migration.reason === 'local_refresh_uncertain') && migration.uncertainty !== null,
   };
 }
 
-export type MigrationConfirmationAction = 'cutover' | 'rollback' | 'resolve';
+export type MigrationConfirmationAction = 'cutover' | 'rollback' | 'resolve' | 'recover';
 
 export const MIGRATION_CONFIRMATIONS: Record<MigrationConfirmationAction, { title: string; word: string; label: string }> = {
+  recover: { title: 'Recover local sign-in?', word: 'recover', label: 'Discard uncertain grant' },
   cutover: { title: 'Switch this connector?', word: 'switch', label: 'Switch connector' },
   rollback: { title: 'Roll back this connector?', word: 'rollback', label: 'Roll back connector' },
   resolve: { title: 'Confirm requests settled?', word: 'settled', label: 'Confirm requests settled' },
 };
 
 export function migrationConfirmation(name: string, action: MigrationConfirmationAction): string[] {
+  if (action === 'recover') return [
+    `Inspect outstanding requests for ${name} at the vendor before confirming. The local refresh reply was lost; the saved grant may be stale.`,
+    'This aborts the handover only if central has not taken ownership, then discards the uncertain local grant. Sign in locally afterward. It never retries a refresh or a vendor tool.',
+  ];
   if (action === 'resolve') return [
     `Inspect ${name} at the vendor before confirming. An outstanding request may have committed despite an interrupted or missing reply. Check its actual outcome first.`,
     'This confirmation does not undo or retry that request. It only clears the migration fence after no local sessions are running; the server refuses while a local session is still running.',

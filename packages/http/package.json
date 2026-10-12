@@ -22,7 +22,8 @@
     "./connector-oauth": "./src/connector-oauth.ts",
     "./connector-input": "./src/connector-input.ts",
     "./connector-delivery": "./src/connector-delivery.ts",
-    "./connector-migration": "./src/connector-migration.ts"
+    "./connector-migration": "./src/connector-migration.ts",
+    "./connector-grant": "./src/connector-grant.ts"
   },
   "scripts": {
     "build": "tsc",

@@ -11,6 +11,7 @@ import { MIGRATION_PREVIEW_QUERY } from '../lib/migration-preview-query.js';
 import { boxKey, queryError, useBoxQuery, type BoxKey } from '../lib/queries.js';
 import { logError } from '../lib/log.js';
 import { Loading } from './Loading.js';
+import { MoveAllConnectors } from './MoveAllConnectors.js';
 import { MigrationProgress } from './MigrationProgress.js';
 import { Modal } from './Modal.js';
 import { TextLink } from './TextLink.js';
@@ -51,7 +52,8 @@ function useMigrationActions(session: ConnectorMigration, key: BoxKey) {
   const signIn = (sourceId: string, selection: MigrationSelection): void => {
     perform(() => inNewTab(() => session.signIn(sourceId, selection), (url) => url, (url) => { if (current()) setLink(url); }), 'Finish sign-in in the opened page, then choose Reconcile here. Opening sign-in is not proof of readiness.');
   };
-  return { busy, error, link, note, act, signIn };
+  const moveAll = (): void => { perform(() => session.moveAll(publish), 'Batch finished. Check each connector below. Moved is confirmed by the agent; Retry continues the same durable operation.'); };
+  return { busy, error, link, note, act, signIn, moveAll };
 }
 
 const readError = (error: Error | null): string | null => error === null ? null : queryError(error, 'Could not refresh migration status.');
@@ -70,12 +72,12 @@ export function MigrationDialog({ session, invalidated, onClose }: { session: Co
   return <Modal title="Move to organization" open onClose={onClose}>
     <Col gap={16}>
       {invalidated ? <Text size="2xs" role="danger">{MIGRATION_CHANGED}</Text> : <>
-        <Text size="2xs" role="secondary">Prepare, verify, then switch each connector separately. Nothing is retried automatically. Closing this dialog does not undo or reliably cancel a request. Reopen it and Refresh to check progress.</Text>
+        <Text size="2xs" role="secondary">Move this agent’s supported connectors with their existing credentials. Progress stays on the agent if you close this page.</Text>
         {busy ? <Loading /> : null}
         {[...new Set(errors)].map((error) => <Text key={error} size="2xs" role="danger">{error}</Text>)}
         {actions.note === null ? null : <Text size="2xs" role="secondary">{actions.note}</Text>}
         {actions.link === null ? null : <TextLink url={actions.link}>Open central sign-in</TextLink>}
-        {query.data === undefined ? null : <MigrationProgress snapshot={query.data} busy={busy} act={actions.act} signIn={actions.signIn} />}
+        {query.data === undefined ? null : <><MoveAllConnectors snapshot={query.data} busy={busy} move={actions.moveAll} /><MigrationProgress snapshot={query.data} busy={busy} act={actions.act} signIn={actions.signIn} /></>}
       </>}
       <Row gap={8} justify="between" wrap>
         <Button color="secondary" dark={dark} label="Close" onPress={onClose} />

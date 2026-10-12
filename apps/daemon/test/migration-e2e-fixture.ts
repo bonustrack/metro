@@ -69,7 +69,7 @@ async function listening<T>(start: () => Promise<T>): Promise<T> {
   throw new Error('No test port available after ten attempts');
 }
 
-export async function migrationE2E(variant: Variant = 'header') {
+export async function migrationE2E(variant: Variant = 'header', configure?: (source: LocalConnectorRow) => void) {
   if (TEST_DATABASE_URL === undefined) throw new Error('TEST_DATABASE_URL is required');
   const sandbox = isolate();
   const releases: (() => void | Promise<void>)[] = [sandbox.restore];
@@ -84,6 +84,7 @@ export async function migrationE2E(variant: Variant = 'header') {
     writeFileSync(join(dir, '.owner'), TEST_OWNER);
     writeFileSync(join(dir, 'agent.json'), JSON.stringify({ version: 1, id: 'localagent1', key: LOCAL_KEY, stations: [] }));
     const source = sourceRow(variant);
+    configure?.(source);
     writeFileSync(join(dir, 'connectors.json'), JSON.stringify({ version: 1, connectors: [source, { ...sourceRow('none'), id: UNMIGRATED, name: 'Unmigrated fixture' }] }));
     const plugin = join(process.env.METRO_RUNTIME_STORE ?? '', 'marketplace', 'plugin');
     mkdirSync(join(plugin, 'bin'), { recursive: true });

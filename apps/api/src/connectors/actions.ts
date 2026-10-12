@@ -110,13 +110,15 @@ export async function startSignIn(deps: ActionDeps, caller: Caller, id: string, 
   const returnTo = returnToOf(input.returnTo);
   const before = await deps.store.find(caller.owner, id);
   if (before === null) throw new ApiError('no such connector', 404);
-  const secret = openConnectorSecret(key, before);
+  let secret = openConnectorSecret(key, before);
   if (before.auth !== 'oauth' || secret?.kind !== 'oauth') throw new ApiError('This connector does not sign in with OAuth.', 400);
+  if (secret.imported !== undefined) secret = await importedSignIn(deps, secret, input.oauthResource);
   const resource = await signInResource(deps, secret, input.oauthResource);
+  const signing = secret;
   const generation = newId();
   const row = await deps.store.edit(caller.owner, id, at(deps), (current) => {
     if (current.secret !== before.secret || current.authGeneration !== before.authGeneration) throw new ApiError('The connector changed. Start sign-in again.', 409);
-    return { change: { authGeneration: generation }, event: null };
+    return { change: { authGeneration: generation, ...(signing.imported === undefined ? {} : { secret: sealConnectorSecret(key, current, signing) }) }, event: null };
   });
   const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: row.id, generation, userId: caller.session.userId, returnTo, targetUrl: secret.targetUrl, resource, configuredResource: secret.oauthResource, server: secret.server, client: secret.client });
   log.info({ owner: caller.owner, id: row.id }, 'org-connectors: sending the admin to sign in again');
@@ -149,7 +151,7 @@ export async function completeSignIn(deps: ActionDeps, caller: Caller, body: unk
     const secret = checkSignInTarget(key, row, entry);
     const detail: ConnectorDetail = { ...detailOf(row.detail), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
     return {
-      change: { secret: sealConnectorSecret(key, row, { ...secret, tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
+      change: { secret: sealConnectorSecret(key, row, { ...secret, ...(secret.imported === undefined ? {} : { imported: { state: 'owned', tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } }), tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
       event: { owner: caller.owner, connector: row.id, actor: actorOf(caller), action: 'connector.signed_in', detail: { name: row.name } },
     };
   });
@@ -166,4 +168,10 @@ function checkSignInTarget(key: Buffer, row: ConnectorRow | null, entry: SignInS
   const secret = row === null ? null : openConnectorSecret(key, row);
   if (secret?.kind !== 'oauth' || secret.targetUrl !== entry.targetUrl || JSON.stringify(secret.client) !== JSON.stringify(entry.client) || JSON.stringify(secret.server) !== JSON.stringify(entry.server) || secret.oauthResource !== entry.configuredResource) throw new ApiError('The connector changed. Start sign-in again.', 409);
   return secret;
+}
+
+async function importedSignIn(deps: ActionDeps, secret: Extract<NonNullable<ReturnType<typeof openConnectorSecret>>, { kind: 'oauth' }>, offered: unknown): Promise<typeof secret> {
+  const discovered = await discoverPublicOAuth(secret.targetUrl, optionalOAuthResource(offered), deps.fetch);
+  if (discovered.server.issuer !== secret.server.issuer || discovered.server.tokenEndpoint !== secret.server.tokenEndpoint) throw new ApiError('The provider binding changed. This imported grant needs a separately configured sign-in; Metro will not register a replacement automatically.', 409);
+  return { ...secret, server: discovered.server, oauthResource: discovered.resource, ...(secret.imported === undefined ? {} : { imported: { ...secret.imported, state: 'signin' } }) };
 }
