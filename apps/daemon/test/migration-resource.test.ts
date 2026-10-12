@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { migrationPayload } from '../src/connectors/migration-source.ts';
 import { migrationSource } from '../src/connectors/migration-preview.ts';
 import { migrationRecord, saveMigration } from '../src/connectors/migration-state.ts';
+import { migrationExportableRows } from '../src/connectors/migration-guard.ts';
 import { migrationFixture, SOURCE } from './migration-control-fixture.ts';
 
 const RESOURCE = 'https://mcp.example.com/mcp';
@@ -21,7 +22,7 @@ function record(f: ReturnType<typeof fixture>) {
 
 test('explicit resource is sealed, stamped and retained across reconstructed preparation and source checks', async () => {
   const f = fixture();
-  const local = { ...f.source, url: 'https://mcp.example.com/mcp/private/workspace?key=local-secret' };
+  const local = { ...f.source, url: 'https://mcp.example.com/mcp/SECRET_PATH/workspace?key=SECRET_QUERY' };
   writeFileSync(join(f.dir, 'connectors.json'), JSON.stringify({ version: 1, connectors: [local] }));
   const unchanged = f.readSource();
   const source = migrationSource(SOURCE, f.dir);
@@ -39,11 +40,16 @@ test('explicit resource is sealed, stamped and retained across reconstructed pre
   const resumed = await f.control().run(SOURCE, 'reconcile', f.status.scope, record(f).id);
   expect(resumed.migrations[0]?.phase).toBe('prepared');
   expect(JSON.stringify(resumed)).not.toContain(RESOURCE);
+  const unrelated = { ...local, id: 'other000001', name: 'Unrelated', url: 'https://mcp.example.com/open' };
+  const exported = migrationExportableRows([local, unrelated], f.dir);
+  expect(exported).toEqual([unrelated]);
+  for (const secret of ['SECRET_PATH', 'SECRET_QUERY']) expect(JSON.stringify({ resumed, exported })).not.toContain(secret);
   expect(f.controls.creates).toBe(1);
   expect(f.readSource()).toBe(unchanged);
   f.ready();
   await f.control().run(SOURCE, 'cutover', f.status.scope, record(f).id);
   expect(record(f).phase).toBe('active');
+  expect(migrationExportableRows([local, unrelated], f.dir)).toEqual([unrelated]);
 });
 
 test('an existing preparation cannot change its chosen resource, but rollback permits a new choice', async () => {
