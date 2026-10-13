@@ -34,6 +34,11 @@ export interface ConnectorMigration {
   dispose: () => void;
 }
 
+const leftover = (snapshot: MigrationSnapshot, migration: MigrationView): boolean =>
+  snapshot.plan !== null && migration.phase === 'rolled_back' && !snapshot.uncertain.includes(migration.sourceId) && !snapshot.plan.rows.some((row) => row.source.id === migration.sourceId);
+
+export const shownMigrations = (snapshot: MigrationSnapshot): MigrationView[] => (snapshot.status?.migrations ?? []).filter((migration) => !leftover(snapshot, migration));
+
 function actionable(snapshot: MigrationSnapshot, requireSync = false): { plan: MigrationPlan; status: MigrationStatus } {
   if (snapshot.plan?.preview.migrationSupported !== true) throw new Error(MIGRATION_UPDATE);
   if (snapshot.status === null || snapshot.statusError !== null) throw new Error('Refresh migration status before continuing.');

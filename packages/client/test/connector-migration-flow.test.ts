@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { createConnectorMigration, MIGRATION_UNCERTAIN, MIGRATION_PUBLIC_RESOURCE_REQUIRED } from '../src/api/connector-migration-flow.js';
+import { createConnectorMigration, MIGRATION_UNCERTAIN, MIGRATION_PUBLIC_RESOURCE_REQUIRED, shownMigrations } from '../src/api/connector-migration-flow.js';
 import { MIGRATION_UPDATE } from '../src/api/connector-migration.js';
 import { installTestAccount } from './account-fixture.js';
 import { CENTRAL, LOCAL, SOURCE, SCOPE, migrationFixture, migrationRow, previewBody, sourceRow, statusBody } from './connector-migration-fixture.js';
@@ -67,6 +67,18 @@ describe('staged connector migration', () => {
     await session.act(SOURCE, 'prepare');
     expect(posts().map((row) => JSON.parse(String(row.init.body)).action)).toEqual(['rollback', 'reconcile', 'prepare']);
     expect(posts().every((row) => row.url === `${LOCAL}/migrations`)).toBe(true);
+  });
+
+  test('a rolled-back migration whose local connector was removed is no longer shown, while every other one is', async () => {
+    fixture.preview = { ...previewBody(), connectors: [] };
+    fixture.status = statusBody([migrationRow('rolled_back', 'sign_in'), { ...migrationRow('preparing', 'unavailable'), id: 'migration02', sourceId: 'conn0000002' }]);
+    const session = fixture.open();
+    const gone = await session.refresh();
+    expect(shownMigrations(gone).map((row) => row.sourceId)).toEqual(['conn0000002']);
+    fixture.preview = previewBody();
+    expect(shownMigrations(await session.refresh()).map((row) => row.sourceId)).toEqual([SOURCE, 'conn0000002']);
+    expect(shownMigrations({ ...gone, plan: null }).map((row) => row.sourceId)).toEqual([SOURCE, 'conn0000002']);
+    expect(shownMigrations({ ...gone, uncertain: [SOURCE] }).map((row) => row.sourceId)).toEqual([SOURCE, 'conn0000002']);
   });
 
   test('interrupted writes stay uncertain with no automatic retry, Refresh alone cannot clear them', async () => {

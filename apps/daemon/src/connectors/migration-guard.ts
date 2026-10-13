@@ -8,6 +8,7 @@ import { assertMigrationOutcomeKnown, beginMigrationOperation, drainMigrationLis
 const locked = (phase: string): boolean => phase !== 'rolled_back';
 const retired = (record: NonNullable<ReturnType<typeof migrationRecord>>): boolean => record.move === true || record.phase === 'cutover' || record.phase === 'active' || record.phase === 'rollback';
 const refused = (): ApiError => new ApiError('This local connector is locked while it moves to the organization.', 409);
+const editRefused = (): ApiError => new ApiError('This local connector is locked while it moves to the organization. To change or remove it, open Move to organization and roll back its migration first.', 409);
 
 export function migrationSource(id: string, dir = agentsDir()): ReturnType<typeof migrationRecords>[number] | null {
   const record = migrationRecord(id, dir);
@@ -27,7 +28,7 @@ export function assertLocalMigrationUse(id: string, dir = agentsDir()): void {
 }
 
 export function assertLocalMigrationEdit(id: string, dir = agentsDir()): void {
-  if (migrationRecords(dir).some((record) => locked(record.phase) && record.sourceId === id)) throw refused();
+  if (migrationRecords(dir).some((record) => locked(record.phase) && record.sourceId === id)) throw editRefused();
 }
 
 export function migrationExportableRows<T extends { id: string; name: string }>(rows: readonly T[], dir = agentsDir()): T[] {
