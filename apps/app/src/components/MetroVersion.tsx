@@ -24,7 +24,7 @@ async function untilVersion(version: string, base: string): Promise<void> {
     const mode = await fetchMode().catch(() => null);
     if (mode?.version === version) return;
   }
-  throw new Error(`The daemon did not come back on ${version} yet. Check the machine.`);
+  throw new Error(`Metro is not back on ${version} yet. Check the machine.`);
 }
 
 function useMetroUpdate() {
@@ -42,12 +42,12 @@ function useMetroUpdate() {
   }, []);
   const update = (): void => {
     const base = daemonBase();
-    setBusy(true); setStatus('Updating Metro. The agent restarts, this takes a minute…'); setError(null);
+    setBusy(true); setStatus('Updating Metro. The agent restarts in about a minute…'); setError(null);
     runUpdate().then(async (result) => {
       if (result.restarting) await untilVersion(result.version, base);
       if (daemonBase() !== base) return;
       setStatus(result.updated ? `Installed ${result.version}.${result.restarting ? ' Metro is running this version.' : ' Restart Metro to run this version.'}` : null);
-      if (!result.updated) setError('Metro did not install an update. Its release check may be cached for up to 10 minutes. Try again shortly.');
+      if (!result.updated) setError('No update was installed. The release check can lag up to 10 minutes, so try again soon.');
       await client.invalidateQueries({ predicate: (query) => query.queryKey[1] === base });
     }).catch((err: unknown) => {
       if (daemonBase() !== base) return;
@@ -100,9 +100,9 @@ function updateQuiet(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): bo
 
 function UpdateDetails({ u }: { u: MetroUpdate }): ReactNode {
   return <Col gap={6} style={SHRINK}>
-    {u.status === null ? null : <Text size="2xs">{u.status}</Text>}
-    {u.error === null ? null : <Text size="2xs" role="danger">{u.error}</Text>}
-    {u.check.isError ? <Text size="2xs" role="secondary">Could not check the installed package version.</Text> : null}
+    {u.status === null ? null : <Text size="md">{u.status}</Text>}
+    {u.error === null ? null : <Text size="md" role="danger">{u.error}</Text>}
+    {u.check.isError ? <Text size="md" role="secondary">Could not check the installed package version.</Text> : null}
   </Col>;
 }
 
@@ -115,7 +115,7 @@ export function MetroVersion({ quiet = false }: { quiet?: boolean }): ReactNode 
   if (quiet) {
     if (updateQuiet(facts, u)) return null;
     return <Col gap={12} padding={16} radius={8} surface="raised">
-      <Text size="2xs">{note}</Text>{details}{buttons}
+      <Text size="md">{note}</Text>{details}{buttons}
     </Col>;
   }
   return <SettingsSection title="Version" note={note}>{buttons}{details}</SettingsSection>;

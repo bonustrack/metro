@@ -67,9 +67,9 @@ function ConnectContent({ agentId, attachable, features, onClose, onChanged }: C
         />
       ) : (
         <Col gap={12}>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             {known.length === 0
-              ? 'This Metro daemon offers no channel you can connect.'
+              ? 'This Metro offers no channel you can connect.'
               : 'Pick where this agent should be reachable.'}
           </Text>
           <StationPicker stations={known} disabled={false} onPick={setStation} />

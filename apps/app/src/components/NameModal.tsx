@@ -71,7 +71,7 @@ export function NameModal({
           style={GROW}
         />
         {error === null ? null : (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         )}

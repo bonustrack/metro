@@ -127,7 +127,7 @@ function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onN
   const text = phase.kind === 'closed' ? phase.reason : phase.kind === 'none' ? NONE : 'Connecting…';
   return (
     <div className="terminal-note">
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {text}
       </Text>
       {phase.kind === 'none' ? <Button size="md" dark={dark} label="New session" onPress={onNew} /> : null}

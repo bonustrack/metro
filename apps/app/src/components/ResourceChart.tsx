@@ -83,10 +83,10 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
   return (
     <Col gap={6}>
       <Row justify="between" align="center">
-        <Text size="2xs" weight="semibold">
+        <Text size="md" weight="semibold">
           {title}
         </Text>
-        <Text size="2xs" role={danger && hover === undefined ? 'danger' : 'secondary'}>
+        <Text size="md" role={danger && hover === undefined ? 'danger' : 'secondary'}>
           {reading}
         </Text>
       </Row>
@@ -124,10 +124,10 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
         </Svg>
       </View>
       <Row justify="between">
-        <Text size="3xs" role="secondary">
+        <Text size="md" role="secondary">
           {timeLabel(from, range)}
         </Text>
-        <Text size="3xs" role="secondary">
+        <Text size="md" role="secondary">
           {timeLabel(to, range)}
         </Text>
       </Row>

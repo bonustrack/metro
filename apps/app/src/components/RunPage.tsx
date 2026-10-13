@@ -30,10 +30,10 @@ const styles = StyleSheet.create({ grow: { flex: 1, minWidth: 0 } });
 function FeedNotice({ unsupported, pending, error, updatedAt, catchingUp }: {
   unsupported: boolean; pending: boolean; error: Error | null; updatedAt: number; catchingUp: boolean;
 }): ReactNode {
-  if (unsupported) return <Text size="sm" role="secondary">Update this box to Metro {RUN_EVENTS_SINCE} or later for its message feed. SDK activity can still appear below.</Text>;
+  if (unsupported) return <Text size="sm" role="secondary">Update this box to Metro {RUN_EVENTS_SINCE} or later to see messages. SDK activity still shows below.</Text>;
   if (error !== null) return <Text size="sm" role="danger">Metro feed disconnected. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last confirmed ${stamp(updatedAt)}.` : ''}</Text>;
-  if (pending) return <Text size="2xs" role="secondary">Loading retained Metro events…</Text>;
-  return <Text size="2xs" role="secondary">{catchingUp ? 'Catching up with retained events…' : `Metro feed checked ${stamp(updatedAt)}. Polled every 5 seconds.`}</Text>;
+  if (pending) return <Text size="md" role="secondary">Loading retained Metro events…</Text>;
+  return <Text size="md" role="secondary">{catchingUp ? 'Catching up with retained events…' : `Metro feed checked ${stamp(updatedAt)}. Polled every 5 seconds.`}</Text>;
 }
 
 function combinedEntries(feed: RetainedRunFeed | undefined, status: ClaudeSessionStatus | undefined, agent: AgentSummary | undefined, now: number, disconnected: boolean): RunEntry[] {
@@ -73,7 +73,7 @@ function useRunSources(agent: AgentSummary | undefined, agentError: Error | null
 }
 
 function AgentNotice({ error, pending }: { error: Error | null; pending: boolean }): ReactNode {
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read this agent.')} The Metro feed is unavailable until its agent identity can be read.</Text>;
+  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read this agent.')} The feed shows once the agent loads.</Text>;
   return <Text size="sm" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
 }
 
@@ -93,7 +93,7 @@ function RunData({ agent, agentError, agentPending }: { agent: AgentSummary | un
       <Row gap={8} align="center" wrap><Text size="sm" weight="semibold">{agent?.name ?? 'Agent'}</Text>
         <Text size="sm" role="secondary">Selected model: {selectedModel(data.settings)}</Text></Row>
       {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
-      <Text size="2xs" role="secondary">{snapshotLabel(data.status)} · {data.state}</Text>
+      <Text size="md" role="secondary">{snapshotLabel(data.status)} · {data.state}</Text>
     </Col>
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
       onWorker={(worker) => { setFocus((current) => ({ worker, revision: current.revision + 1, scope: data.scope })); }} />

@@ -50,7 +50,7 @@ function LiveEvents({ on }: { on: boolean }): ReactNode {
           live.run(() => setClaudeLiveEvents(next === 'on'));
         }}
       />
-      {live.error === null ? null : <Text size="2xs" role="danger">{live.error}</Text>}
+      {live.error === null ? null : <Text size="md" role="danger">{live.error}</Text>}
     </SettingsSection>
   );
 }
@@ -73,13 +73,13 @@ function Runner({ setup, runner }: { setup: Setup; runner: HarnessRunner }): Rea
         }}
       />
       {session.error !== null ? (
-        <Text size="2xs" role="danger">{queryError(session.error, 'Could not check whether the session is stopped.')}</Text>
+        <Text size="md" role="danger">{queryError(session.error, 'Could not check whether the session is stopped.')}</Text>
       ) : (
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {session.data === undefined ? 'Checking session status.' : session.data.running ? 'Session is running. Stop it before changing the runner.' : 'Session is stopped. Press Start after choosing the runner.'}
         </Text>
       )}
-      {flip.error === null ? null : <Text size="2xs" role="danger">{flip.error}</Text>}
+      {flip.error === null ? null : <Text size="md" role="danger">{flip.error}</Text>}
     </SettingsSection>
   );
 }
@@ -97,7 +97,7 @@ function SdkOnLogin({ on }: { on: boolean }): ReactNode {
           flip.run(() => setSdkOnLogin(next === 'on'));
         }}
       />
-      {flip.error === null ? null : <Text size="2xs" role="danger">{flip.error}</Text>}
+      {flip.error === null ? null : <Text size="md" role="danger">{flip.error}</Text>}
     </SettingsSection>
   );
 }
@@ -131,7 +131,7 @@ function MemoryRoutine({ on, job }: { on: boolean; job: MemoryJob | null }): Rea
           memory.run(() => setClaudeMemoryRoutine(next === 'on'));
         }}
       />
-      {memory.error === null ? null : <Text size="2xs" role="danger">{memory.error}</Text>}
+      {memory.error === null ? null : <Text size="md" role="danger">{memory.error}</Text>}
     </SettingsSection>
   );
 }
@@ -152,7 +152,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             privacy.run(() => setClaudePrivacy(next === 'on'));
           }}
         />
-        {privacy.error === null ? null : <Text size="2xs" role="danger">{privacy.error}</Text>}
+        {privacy.error === null ? null : <Text size="md" role="danger">{privacy.error}</Text>}
       </SettingsSection>
       <SettingsSection title="Approvals" note={MODE_NOTE}>
         <Choice
@@ -164,7 +164,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
             mode.run(() => setClaudePermissionMode(next));
           }}
         />
-        {mode.error === null ? null : <Text size="2xs" role="danger">{mode.error}</Text>}
+        {mode.error === null ? null : <Text size="md" role="danger">{mode.error}</Text>}
       </SettingsSection>
       <RunnerRows setup={setup} />
       {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
@@ -191,7 +191,7 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
   return (
     <SettingsSection
       title="Harness setup"
-      note={missing.length === 0 ? `Everything Metro needs is in place. Conversations are kept ${String(setup.retentionDays ?? 7)} days.` : `Still to be written: ${missing.join(', ')}. This happens on the next start.`}
+      note={missing.length === 0 ? `Everything Metro needs is in place. Conversations are kept ${String(setup.retentionDays ?? 7)} days.` : `Still to write: ${missing.join(', ')}. Done at the next start.`}
     >
       <Tag label={missing.length === 0 ? 'All set' : 'In progress'} />
     </SettingsSection>
@@ -199,13 +199,13 @@ function SetupRow({ setup }: { setup: Setup }): ReactNode {
 }
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
-const LIVE_NOTE = 'On: messages from your channels reach the agent as they arrive. Off: nothing arrives on its own. The agent can still send, react and read past messages, and approvals are answered on metro.box only.';
-const MEMORY_NOTE = 'Twice a day, at 00:00 and 12:00 UTC, when there was activity, the agent files what happened into its memory: people, facts, decisions, work, and daily and weekly notes, following the memory skill (MEMORY.md).';
-const MODE_NOTE = 'Ask first sends risky actions to the chat for a yes. Never ask lets the agent act alone. Finish active work and press Stop before changing this, then Start to apply it.';
+const LIVE_NOTE = 'On: messages reach the agent as they arrive. Off: nothing arrives, but the agent can still send, react and read. Approvals then work on metro.box only.';
+const MEMORY_NOTE = 'At 00:00 and 12:00 UTC, if there was activity, the agent saves what happened to its memory: people, facts, decisions and notes.';
+const MODE_NOTE = 'Ask first asks you in chat before risky actions. Never ask lets the agent act alone. To change it, let work finish and press Stop, then Start.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const setup = useClaudeSetupQuery();
-  if (setup.error !== null) return <Text size="2xs" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
+  if (setup.error !== null) return <Text size="md" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
   if (setup.data === undefined) return null;
   return (
     <>

@@ -24,7 +24,7 @@ function attachmentText(count: number): string {
 
 function eventText(event: RunEvent): string {
   if (event.metadata.attachmentStatus !== undefined) return `Attachment ${event.metadata.attachmentStatus}.`;
-  if (event.kind === 'system') return 'Metro system event. Its body is not exposed in this view.';
+  if (event.kind === 'system') return 'Metro system event, details hidden.';
   if (event.kind === 'delete') return 'Message deleted.';
   if (event.kind === 'react') return reactionText(event);
   return event.text !== undefined && event.text !== '' ? event.text : attachmentText(event.metadata.attachmentCount ?? 0);

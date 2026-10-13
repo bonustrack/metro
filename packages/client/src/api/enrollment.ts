@@ -23,10 +23,10 @@ interface Ticket {
 }
 
 const CHANGED = 'The account or agent changed. Close this dialog and start again.';
-const UNCONFIRMED = 'Enrollment could not be confirmed. It may have reached the agent. Try again to finish enrollment. Saved connector sync may now be off. Check sync status before enabling it again; no live tools were enabled.';
+const UNCONFIRMED = 'Enrollment could not be confirmed and may have reached the agent. Try again. Saved connector sync may now be off, so check it before turning it back on.';
 const DISABLED = 'Organization connectors are not switched on yet.';
 const STALE = 'This enrollment ticket is stale or belongs to another organization. Start again from the agent page.';
-const UPDATE = 'Update this agent to a Metro version that supports organization enrollment, then try again.';
+const UPDATE = 'Update this agent to the latest Metro, then try again.';
 const running = new Set<string>();
 
 class EnrollmentError extends Error {}
@@ -37,24 +37,24 @@ function ticketOf(value: unknown): Ticket {
 }
 
 function resultOf(value: unknown, server: string, organization: string): EnrollmentResult {
-  if (!isRecord(value) || value.server !== server || value.organization !== organization || typeof value.keyId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.keyId)) throw new EnrollmentError('Enrollment returned a different or invalid identity. Enrollment is not confirmed. Close this dialog and check the selected agent and organization.');
+  if (!isRecord(value) || value.server !== server || value.organization !== organization || typeof value.keyId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.keyId)) throw new EnrollmentError('Enrollment returned a different or invalid identity and is not confirmed. Close this and check the agent and organization.');
   return { server, organization };
 }
 
 function stageError(error: unknown, stage: 'ticket' | 'agent'): string {
   if (stage === 'agent') {
-    if (error instanceof Error && error.message === STALE) return 'The enrollment ticket expired or was already used. Retry to request a new ticket. This can replace an enrollment already received by the agent. Saved connector sync may now be off; check sync status.';
+    if (error instanceof Error && error.message === STALE) return 'The ticket expired or was used. Retry to request a new ticket, which can replace an enrollment the agent already got. Saved connector sync may now be off.';
     return UNCONFIRMED;
   }
   if (error instanceof Error && error.message === DISABLED) return `${DISABLED} Enrollment did not start. No settings were changed.`;
-  return 'Could not start enrollment. Check that organization setup is available, then try again. No settings were changed.';
+  return 'Could not start enrollment, and nothing changed. Check organization setup, then try again.';
 }
 
 function safeError(error: unknown, stage: 'ticket' | 'agent'): Error {
   if (error instanceof EnrollmentError) return error;
   if (error instanceof AuthError) return new EnrollmentError('Sign in again as an organization admin to enroll this agent.');
   if (error instanceof ForbiddenError) return new EnrollmentError('Only an admin of this agent’s organization can enroll it.');
-  if (error instanceof NotFoundError) return new EnrollmentError(stage === 'agent' ? UPDATE : 'This agent is no longer available in this organization. Reload the page.');
+  if (error instanceof NotFoundError) return new EnrollmentError(stage === 'agent' ? UPDATE : 'This agent is no longer in this organization. Reload the page.');
   return new EnrollmentError(stageError(error, stage));
 }
 
@@ -71,7 +71,7 @@ function matchesDestination(id: string, origin: string, central: string): boolea
 
 function checkMode(body: unknown, organization: string | undefined): void {
   const mode = toMode(body);
-  if (mode === null || mode.stopped) throw new EnrollmentError('The agent is not running. Start Metro on this agent before enrolling.');
+  if (mode === null || mode.stopped) throw new EnrollmentError('The agent is not running. Start it, then enroll.');
   if (olderThan(mode.version, '0.1.0-beta.288')) throw new EnrollmentError(UPDATE);
   if (mode.owner !== organization) throw new EnrollmentError('This agent does not belong to the selected organization. Enrollment did not start.');
 }

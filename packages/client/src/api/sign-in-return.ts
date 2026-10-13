@@ -26,7 +26,7 @@ export type ReturnPlan =
 const KEY = 'metro.outlook.pending';
 const TTL_MS = 15 * 60_000;
 const KEPT = 5;
-const EXPIRED = 'This sign-in link has expired, start again from the Channels page.';
+const EXPIRED = 'This sign-in link expired. Start again from the Channels page.';
 
 const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 

@@ -26,7 +26,6 @@ export interface AdminApiDeps {
   slugs: SlugStore;
   agents: () => Promise<AgentSummary[]>;
   deletion: AdminDeletionDeps;
-  awsCheck: () => Promise<unknown>;
 }
 
 async function operator(req: IncomingMessage, deps: AdminApiDeps): Promise<Session> {
@@ -107,7 +106,6 @@ const LISTS = new Map<string, (deps: AdminApiDeps) => Promise<unknown>>([
   ['/users', listUsers],
   ['/organizations', organizations],
   ['/agents', agentsList],
-  ['/aws', (deps) => deps.awsCheck()],
 ]);
 
 async function byId(req: IncomingMessage, deps: AdminApiDeps, session: Session, path: string, method: string): Promise<{ body: unknown } | null> {

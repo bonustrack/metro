@@ -38,14 +38,14 @@ export function SettingsGroup({ title, note, action, children }: { title?: strin
     <Col gap={12}>
       {title === undefined ? null : (
         <Row align="center" justify="between" gap={16}>
-          <Text size="md" weight="semibold">
+          <Text size="xl" weight="semibold">
             {title}
           </Text>
           {action}
         </Row>
       )}
       {note === undefined ? null : (
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {note}
         </Text>
       )}
@@ -67,7 +67,7 @@ export function EmptyCard({ text }: { text: string }): ReactNode {
   return (
     <SettingsGroup>
       <SettingsPad>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {text}
         </Text>
       </SettingsPad>
@@ -89,13 +89,13 @@ function RowText({ title, note, count, stacked }: { title: string; note?: string
   return (
     <Col gap={2} flex={stacked ? undefined : 1} minWidth={0} style={stacked ? undefined : TEXT_BASIS}>
       <Row align="center" gap={8}>
-        <Text size="xs" weight="medium">
+        <Text size="md" weight="medium">
           {title}
         </Text>
         {count === undefined ? null : <CountBadge count={count} />}
       </Row>
       {note === undefined ? null : (
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {note}
         </Text>
       )}
@@ -125,7 +125,7 @@ export function FactRow({ label, value, href, danger = false }: { label: string;
   return (
     <SettingsSection title={label} compact>
       {href === undefined ? (
-        <Text size="2xs" role={danger ? 'danger' : 'secondary'} numberOfLines={1}>
+        <Text size="md" role={danger ? 'danger' : 'secondary'} numberOfLines={1}>
           {value}
         </Text>
       ) : (

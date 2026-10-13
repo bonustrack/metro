@@ -14,7 +14,7 @@ import { PageScroll } from './PageScroll.js';
 const CARD_WIDTH = 400;
 const NAME_MIN = 2;
 const NAME_MAX = 64;
-const WHAT = 'Your agents belong to an organization. Name it, and invite others to it later from the Members page.';
+const WHAT = 'Your agents belong to an organization. Name it now and invite people later.';
 
 export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLock: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -48,7 +48,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
         <Row justify="center">
           <PageTitle>Name your organization</PageTitle>
         </Row>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {WHAT}
         </Text>
         <FormField label="Organization name" name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
@@ -57,7 +57,7 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
           <Button color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={onLock} />
         </Row>
         {error === null ? null : (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         )}

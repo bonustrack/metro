@@ -14,7 +14,7 @@ import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.j
 import { queryError, useServersQuery } from '../lib/queries.js';
 
 const AVATAR = 28;
-const NOTE = 'Give this connector only to the agents that need it. Each agent inherits organization permissions and can be restricted further.';
+const NOTE = 'Give it only to agents that need it. Each follows the organization permissions and can be stricter.';
 
 interface RowProps {
   server: Server;
@@ -29,7 +29,7 @@ interface RowProps {
 function AgentRow({ server, held, admin, busy, onChange, onPermissions, connector }: RowProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <SettingsSection title={serverLabel(server)} note={held === undefined ? 'Does not have it' : 'Organization policy applies; view effective tool permissions below.'} leading={<AgentAvatar seed={server.id} src={server.avatar} size={AVATAR} />}>
+    <SettingsSection title={serverLabel(server)} note={held === undefined ? 'Does not have it' : 'Has it. Its permissions are below.'} leading={<AgentAvatar seed={server.id} src={server.avatar} size={AVATAR} />}>
       <Row gap={16} align="center" wrap>
         {held === undefined ? null : <Button size="md" color="secondary" dark={dark} label="Permissions" onPress={onPermissions} />}
         <Switch label="Can use" checked={held !== undefined} dark={dark} disabled={!admin || busy}
@@ -53,13 +53,13 @@ export function OrgConnectorAgents({ connector, admin, onChanged }: { connector:
   const server = servers.data?.find((agent) => agent.id === selected);
   return (
     <SettingsGroup title="Agents" note={NOTE}>
-      {servers.error === null ? null : <SettingsPad><Text size="2xs" role="danger">{queryError(servers.error, 'Could not load the agents.')}</Text></SettingsPad>}
+      {servers.error === null ? null : <SettingsPad><Text size="md" role="danger">{queryError(servers.error, 'Could not load the agents.')}</Text></SettingsPad>}
       {servers.data === undefined || servers.data.length === 0 ? (
-        <SettingsPad><Text size="2xs" role="secondary">{servers.data === undefined ? 'Loading the agents…' : 'This organization has no agent yet.'}</Text></SettingsPad>
+        <SettingsPad><Text size="md" role="secondary">{servers.data === undefined ? 'Loading the agents…' : 'This organization has no agent yet.'}</Text></SettingsPad>
       ) : servers.data.map((agent) => (
         <AgentRow key={agent.id} server={agent} held={connector.agents.find((a) => a.id === agent.id)} admin={admin} busy={busy} onChange={change} connector={connector.id} onPermissions={() => { setSelected(agent.id); }} />
       ))}
-      {error === null ? null : <SettingsPad><Text size="2xs" role="danger">{error}</Text></SettingsPad>}
+      {error === null ? null : <SettingsPad><Text size="md" role="danger">{error}</Text></SettingsPad>}
       {held === undefined || server === undefined ? null : (
         <Modal title={`${serverLabel(server)} permissions`} open onClose={() => { setSelected(null); }}>
           <OrgConnectorPermissions connector={connector} agent={held} admin={admin} title={connectorLabel(connector)} />

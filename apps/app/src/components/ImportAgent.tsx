@@ -10,10 +10,10 @@ import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, typ
 import { applyPayload, type Applied, type Mode } from '@metro-labs/client/export/transfer';
 import { pickText } from '../lib/files.js';
 
-const HOW = 'Opened in the browser with its passphrase. Nothing reaches Metro before you choose.';
+const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND = 'Adds what is missing. Nothing already here is replaced.';
-const OVERWRITE = 'Replaces anything that matches, and the model setup as a whole. What is not in the file is left alone.';
+const OVERWRITE = 'Replaces what matches, including the whole model setup. The rest stays.';
 
 interface ImportAgentProps {
   open: boolean;
@@ -85,7 +85,7 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
           }}
         />
       </Row>
-      <Text size="2xs" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
+      <Text size="md" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
         {mode === 'overwrite' ? OVERWRITE : APPEND}
       </Text>
     </Col>
@@ -271,8 +271,8 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
   return (
     <Modal title="Import agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="2xs" role="secondary">{HOW}</Text>
-        <Text size="2xs" role="secondary">Gmail credentials managed by Metro are not included in exports. Reconnect those mailboxes after import.</Text>
+        <Text size="md" role="secondary">{HOW}</Text>
+        <Text size="md" role="secondary">Exports skip Gmail logins managed by Metro. Reconnect those mailboxes after import.</Text>
         {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} onError={state.failed} /> : null}
         {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
         {ready && state.payload !== null ? (
@@ -286,7 +286,7 @@ export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNo
           />
         ) : null}
         {state.done === null ? null : <Text size="xs">{`Imported ${landed(state.done)}.`}</Text>}
-        {state.error === null ? null : <Text size="2xs" role="danger">{state.error}</Text>}
+        {state.error === null ? null : <Text size="md" role="danger">{state.error}</Text>}
         <Footer state={state} close={close} ready={ready} />
       </Col>
     </Modal>

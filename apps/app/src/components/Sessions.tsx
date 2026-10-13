@@ -34,7 +34,7 @@ function SessionRow({ claudeProject, session, target }: { claudeProject: string;
 
 function SessionList({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
   const { data, error } = useClaudeSessionsQuery(claudeProject);
-  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
   if (data.length === 0) return <EmptyCard text="No conversation yet." />;
   return (

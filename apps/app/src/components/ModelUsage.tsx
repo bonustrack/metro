@@ -29,7 +29,7 @@ export function UsageBar({ used, blocked = false }: { used: number | null; block
   return (
     <Row gap={10} align="center">
       <Meter used={used} warn={warn} />
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
@@ -39,7 +39,7 @@ export function UsageBar({ used, blocked = false }: { used: number | null; block
 export function UsageShort({ used }: { used: number | null }): ReactNode {
   if (used === null) return null;
   return (
-    <Text size="2xs" role="secondary">
+    <Text size="md" role="secondary">
       {`${String(Math.round(used * 100))}%`}
     </Text>
   );
@@ -47,7 +47,7 @@ export function UsageShort({ used }: { used: number | null }): ReactNode {
 
 export function ModelReadError({ error, cached }: { error: Error | null; cached: boolean }): ReactNode {
   if (error === null) return null;
-  return <Text size="2xs" role="danger">{cached ? 'Could not refresh model settings. Showing the last reading.' : queryError(error, 'Could not read the model settings.')}</Text>;
+  return <Text size="md" role="danger">{cached ? 'Could not refresh model settings. Showing the last reading.' : queryError(error, 'Could not read the model settings.')}</Text>;
 }
 
 export function UsageUnavailable({ provider }: { provider: Provider }): ReactNode {
@@ -55,7 +55,7 @@ export function UsageUnavailable({ provider }: { provider: Provider }): ReactNod
   const fetching = useIsFetching({ queryKey: boxKey('model'), exact: true }) > 0;
   const old = olderThan(mode.data?.version ?? null, USAGE_SINCE);
   return (
-    <Text size="2xs" role="secondary">
+    <Text size="md" role="secondary">
       {old ? 'Update Metro to see the usage.' : fetching ? 'Checking usage...' : missingUsage(provider)}
     </Text>
   );

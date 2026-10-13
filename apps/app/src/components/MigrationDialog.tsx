@@ -45,14 +45,14 @@ function useMigrationActions(session: ConnectorMigration, key: BoxKey) {
     }).catch((err: unknown) => {
       if (!current()) return;
       publish();
-      setError(queryError(err, 'The migration outcome is uncertain. Refresh and Reconcile before continuing.'));
+      setError(queryError(err, 'Not sure the move went through. Refresh and Reconcile before going on.'));
     }).finally(() => { pending.current = false; if (current()) setBusy(false); });
   };
   const act = (sourceId: string, action: MigrationAction, selection: MigrationSelection, oauthResource?: string): void => { perform(() => session.act(sourceId, action, selection, oauthResource), null); };
   const signIn = (sourceId: string, selection: MigrationSelection): void => {
-    perform(() => inNewTab(() => session.signIn(sourceId, selection), (url) => url, (url) => { if (current()) setLink(url); }), 'Finish sign-in in the opened page, then choose Reconcile here. Opening sign-in is not proof of readiness.');
+    perform(() => inNewTab(() => session.signIn(sourceId, selection), (url) => url, (url) => { if (current()) setLink(url); }), 'Finish signing in on the new page, then choose Reconcile here.');
   };
-  const moveAll = (): void => { perform(() => session.moveAll(publish), 'Batch finished. Check each connector below. Moved is confirmed by the agent; Retry continues the same durable operation.'); };
+  const moveAll = (): void => { perform(() => session.moveAll(publish), 'Done. Check each connector below. Retry picks up where it stopped.'); };
   return { busy, error, link, note, act, signIn, moveAll };
 }
 
@@ -71,11 +71,11 @@ export function MigrationDialog({ session, invalidated, onClose }: { session: Co
   const errors = [readError(query.error), query.data?.previewError, query.data?.statusError, actions.error].filter((value): value is string => typeof value === 'string');
   return <Modal title="Move to organization" open onClose={onClose}>
     <Col gap={16}>
-      {invalidated ? <Text size="2xs" role="danger">{MIGRATION_CHANGED}</Text> : <>
-        <Text size="2xs" role="secondary">Move this agent’s supported connectors with their existing credentials. Progress stays on the agent if you close this page.</Text>
+      {invalidated ? <Text size="md" role="danger">{MIGRATION_CHANGED}</Text> : <>
+        <Text size="md" role="secondary">Move this agent’s connectors with their current logins. Progress is kept if you close this page.</Text>
         {busy ? <Loading /> : null}
-        {[...new Set(errors)].map((error) => <Text key={error} size="2xs" role="danger">{error}</Text>)}
-        {actions.note === null ? null : <Text size="2xs" role="secondary">{actions.note}</Text>}
+        {[...new Set(errors)].map((error) => <Text key={error} size="md" role="danger">{error}</Text>)}
+        {actions.note === null ? null : <Text size="md" role="secondary">{actions.note}</Text>}
         {actions.link === null ? null : <TextLink url={actions.link}>Open central sign-in</TextLink>}
         {query.data === undefined ? null : <><MoveAllConnectors snapshot={query.data} busy={busy} move={actions.moveAll} /><MigrationProgress snapshot={query.data} busy={busy} act={actions.act} signIn={actions.signIn} /></>}
       </>}

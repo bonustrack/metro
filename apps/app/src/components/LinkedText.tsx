@@ -10,21 +10,21 @@ const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '
 export function LinkedText({ text, links }: { text: string; links: HintLink[] }): ReactNode {
   if (links.length === 0)
     return (
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {text}
       </Text>
     );
   const pattern = new RegExp(`(${links.map((l) => escape(l.text)).join('|')})`, 'g');
   const parts = text.split(pattern);
   return (
-    <Text size="2xs" role="secondary">
+    <Text size="md" role="secondary">
       {parts.map((part, index) => {
         const link = links.find((l) => l.text === part);
         if (link === undefined) return part;
         return (
           <Text
             key={`${link.href}-${String(index)}`}
-            size="2xs"
+            size="md"
             role="link"
             style={UNDERLINE}
             accessibilityRole="link"

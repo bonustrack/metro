@@ -27,15 +27,15 @@ export function ScheduledJobs({ project }: { project: string }): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Scheduled tasks</PageTitle>
-      <Text size="2xs" role="secondary">{ABOUT}</Text>
+      <Text size="md" role="secondary">{ABOUT}</Text>
       {schedules.error !== null ? (
-        <Text size="2xs" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
+        <Text size="md" role="danger">{queryError(schedules.error, 'Could not read the scheduled tasks.')}</Text>
       ) : schedules.data === undefined ? (
-        <Text size="2xs" role="secondary">Reading the scheduled tasks…</Text>
+        <Text size="md" role="secondary">Reading the scheduled tasks…</Text>
       ) : schedules.data.jobs.length === 0 ? (
         <SettingsGroup>
           <SettingsPad>
-            <Text size="2xs" role="secondary">{EMPTY}</Text>
+            <Text size="md" role="secondary">{EMPTY}</Text>
           </SettingsPad>
         </SettingsGroup>
       ) : (

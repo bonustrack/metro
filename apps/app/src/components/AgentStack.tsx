@@ -8,7 +8,7 @@ import { AgentAvatar } from './AgentAvatar.js';
 import { Tip } from './Tip.js';
 import { useServersQuery } from '../lib/queries.js';
 
-const SIZE = 24;
+const SIZE = 28;
 const MAX = 5;
 const RING = 2;
 
@@ -43,7 +43,7 @@ export function AgentStack({ ids }: { ids: string[] }): ReactNode {
       {extra > 0 ? (
         <View style={[styles.cell, styles.overlap, { borderColor: palette.bg }]}>
           <View style={[styles.more, { backgroundColor: palette.inputBg }]}>
-            <Text size="4xs" weight="semibold">{`+${String(extra)}`}</Text>
+            <Text size="md" weight="semibold">{`+${String(extra)}`}</Text>
           </View>
         </View>
       ) : null}

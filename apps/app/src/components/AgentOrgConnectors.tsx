@@ -14,9 +14,9 @@ import { OrgConnectorPermissions } from './OrgConnectorPermissions.js';
 import { RouteLink } from './RouteLink.js';
 
 function AssignedNotice({ loading, empty, error }: { loading: boolean; empty: boolean; error: unknown }): ReactNode {
-  if (error !== null) return <SettingsPad><Text size="2xs" role="danger">{queryError(error, 'Could not load organization connectors.')}</Text></SettingsPad>;
+  if (error !== null) return <SettingsPad><Text size="md" role="danger">{queryError(error, 'Could not load organization connectors.')}</Text></SettingsPad>;
   if (!loading && !empty) return null;
-  return <SettingsPad><Text size="2xs" role="secondary">{loading ? 'Loading organization connectors…' : 'No organization connector is assigned to this agent.'}</Text></SettingsPad>;
+  return <SettingsPad><Text size="md" role="secondary">{loading ? 'Loading organization connectors…' : 'No organization connector is assigned to this agent.'}</Text></SettingsPad>;
 }
 
 function Assigned(): ReactNode {
@@ -38,7 +38,7 @@ function Assigned(): ReactNode {
       ))}
       {connector === undefined || agent === undefined ? null : (
         <Modal title={`${name} permissions`} open onClose={() => { setSelected(null); }}>
-          <RouteLink to={routeHash({ kind: 'org-connector', id: connector.id })}><Text size="2xs" role="link">{connectorLabel(connector)}</Text></RouteLink>
+          <RouteLink to={routeHash({ kind: 'org-connector', id: connector.id })}><Text size="md" role="link">{connectorLabel(connector)}</Text></RouteLink>
           <OrgConnectorPermissions connector={connector} agent={agent} admin={data?.admin === true} title="Agent permissions" />
         </Modal>
       )}

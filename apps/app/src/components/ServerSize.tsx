@@ -62,8 +62,8 @@ function confirmLines(view: Resizable, picked: ServerSize): string[] {
       ? [`AWS bills about ${monthlyLabel(picked.hourlyUsd)} for it, ${monthlyLabel(view.current.hourlyUsd)} now.`]
       : [];
   return [
-    `The server stops, becomes ${sizeText(picked)}, and starts again. It is offline for 1 to 2 minutes.`,
-    'Your agent does not answer meanwhile, and its Claude session restarts once the server is back.',
+    `The server stops, becomes ${sizeText(picked)} and starts again, 1 to 2 minutes offline.`,
+    'Your agent does not answer meanwhile. Its session restarts when the server is back.',
     ...price,
   ];
 }
@@ -72,7 +72,7 @@ function Notice({ text, danger = false }: { text: string; danger?: boolean }): R
   return (
     <SettingsGroup title={TITLE}>
       <SettingsPad>
-        <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
+        <Text size="md" role={danger ? 'danger' : 'secondary'}>
           {text}
         </Text>
       </SettingsPad>
@@ -85,7 +85,7 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
   const running = jobRunning(job);
   return (
     <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner color={palette.link} /> : undefined}>
-      <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
+      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {phaseText(job)}
       </Text>
     </SettingsSection>
@@ -107,7 +107,7 @@ function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactN
         }}
       />
       {resize.error === null ? null : (
-        <Text size="2xs" role="danger">
+        <Text size="md" role="danger">
           {resize.error}
         </Text>
       )}

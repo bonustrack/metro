@@ -11,7 +11,7 @@ import { GROW } from '../lib/style.js';
 
 const EDITOR = { minHeight: 160, lineHeight: 22 } as const;
 const NO_ASSIST = { multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false } as const;
-const NOTE = 'Who your agent is and how it should behave. Finish active work and press Stop before saving, then Start to apply it.';
+const NOTE = 'Who your agent is and how it behaves. To save, let work finish and press Stop, then Start.';
 
 export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   const client = useQueryClient();
@@ -37,7 +37,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Text size="2xs" role="secondary">{NOTE}</Text>
+      <Text size="md" role="secondary">{NOTE}</Text>
       <FormField label="System prompt"
         name="system-prompt"
         value={draft}
@@ -61,7 +61,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
             }}
           />
         ) : null}
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </Row>
     </Col>
   );

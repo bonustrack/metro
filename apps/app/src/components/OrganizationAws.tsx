@@ -16,8 +16,8 @@ import { refreshAws, useAwsQuery } from '../lib/aws-queries.js';
 import { activeAccount } from '@metro-labs/client/auth/account';
 
 const TITLE = 'AWS accounts';
-const NOTE = 'See and manage the Metro servers of your own AWS account: charts, size and storage. No access key: AWS lets Metro take a role that only Metro can use, and only for this organization.';
-const STEP_ONE = 'Opens AWS with the setup ready. Check it, tick the IAM box and create the stack. For an account in an AWS Organization, sign in to that member account first.';
+const NOTE = 'See charts, size and storage of servers in your own AWS account. No access key: Metro uses a role made for this organization only.';
+const STEP_ONE = 'Opens AWS with the setup ready. Tick the IAM box and create the stack. In an AWS Organization, sign in to the member account first.';
 const STEP_TWO = 'When the stack is done, copy RoleArn from its Outputs tab and paste it here.';
 const MEMBER_NOTE = 'Only an admin of the organization can connect an AWS account.';
 const ROLE_RE = /^arn:aws:iam::\d{12}:role\/\S+$/;
@@ -25,7 +25,7 @@ const ROLE_RE = /^arn:aws:iam::\d{12}:role\/\S+$/;
 function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
     <SettingsPad>
-      <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
+      <Text size="md" role={danger ? 'danger' : 'secondary'}>
         {text}
       </Text>
     </SettingsPad>
@@ -42,7 +42,7 @@ function ConnectionRow({ connection, admin }: { connection: AwsConnection; admin
           action="Disconnect"
           title={`Disconnect AWS account ${connection.accountId}?`}
           lines={[
-            'Metro stops reading this account. Its linked servers lose their charts, size and storage here.',
+            'Metro stops reading this account. Its servers lose their charts, size and storage here.',
             'Nothing changes in AWS. To remove the role, delete the metro-access stack in that account.',
           ]}
           word="disconnect"
@@ -84,7 +84,7 @@ function RoleField(): ReactNode {
       <Row gap={8}>
         <Button size="lg" color="primary" dark={dark} label={busy ? 'Checking…' : 'Connect'} loading={busy} disabled={busy || !ROLE_RE.test(role.trim())} onPress={save} />
       </Row>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }
@@ -99,7 +99,7 @@ function ConnectSteps({ view }: { view: AwsOverview }): ReactNode {
           <SignInLink link={link} label="Open AWS">
             <Button size="md" color="secondary" dark={dark} label="Connect AWS" loading={starting} disabled={starting} onPress={start} />
           </SignInLink>
-          {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+          {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         </Col>
       </SettingsSection>
       {started === null && view.externalId === null ? null : (

@@ -24,12 +24,12 @@ export function RunSessionDetails({ status, model, state }: { status: ClaudeSess
     <Text size="sm">Runner · {runnerLabel(status?.runner)}</Text>
     <Text size="sm" selectable>Session · {activity?.sessionId ?? 'Not reported'}</Text>
     <Text size="sm">Selected model · {selectedModel(model)}</Text>
-    <Text size="sm" role="secondary">Selection from Model settings, not execution evidence for this session or its workers. Fallbacks can serve a different model.</Text>
+    <Text size="sm" role="secondary">The model picked in Model settings. A fallback may answer instead.</Text>
     {model?.lastServed && <Text size="sm">Last model request on this box · {model.lastServed.model} · {model.lastServed.at}</Text>}
     <Text size="sm">Last SDK report · {activity === null || activity === undefined ? 'Not reported' : stamp(activity.updatedAt)} · {state}</Text>
     <Text size="sm">Session cost · Not available</Text>
     <Text size="sm">Main context · Not available</Text>
-    <Text size="2xs" role="secondary">The activity API has no session cost or context fields. Provider usage is not a substitute. No context percentage is shown without a model window.</Text>
-    <Text size="sm" role="secondary">Read-only view. Use Harness settings to start or stop the session. Stop cancels the session and its workers and disables autostart; it does not wait for work to finish.</Text>
+    <Text size="md" role="secondary">Cost and context use are not reported for the session.</Text>
+    <Text size="sm" role="secondary">Start or stop the session in Harness settings. Stop cancels all work at once and turns autostart off.</Text>
   </Col>;
 }

@@ -136,7 +136,7 @@ export async function fetchTranscript(
 export async function fetchSessionFile(project: string, id: string): Promise<string> {
   const res = await callRaw({ base: base(), path: `/sessions/${id}?project=${encodeURIComponent(project)}&raw=1`, method: 'GET' });
   if (!(res.headers.get('content-type') ?? '').includes('text/plain'))
-    throw new Error('This box is on a metro that cannot hand out session files yet. Update it from the Server page first.');
+    throw new Error('Update Metro on this box from the Server page to open session files.');
   return res.text();
 }
 

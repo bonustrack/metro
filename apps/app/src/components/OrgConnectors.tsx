@@ -25,8 +25,8 @@ import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can add or change connectors.';
-const EMPTY = 'No organization connector yet. A connector gives agents tools, like a calendar, Notion or GitHub.';
-const HINT = 'Metro checks the server from api.metro.box, so it must be a public https address. Leave the header empty for a server you sign in to.';
+const EMPTY = 'No connector yet. Connectors give agents tools, like a calendar, Notion or GitHub.';
+const HINT = 'Use a public https address. Leave the header empty for a server you sign in to.';
 
 function ConnectorRow({ connector, label }: { connector: OrgConnector; label: string }): ReactNode {
   const status = orgConnectorStatus(connector);
@@ -41,7 +41,7 @@ function ConnectorRow({ connector, label }: { connector: OrgConnector; label: st
       muted={status.bad}
       highlight={false}
       extra={connector.readOnly ? <Tag label="Read-only" /> : undefined}
-      trailing={connector.agents.length === 0 ? <Text size="2xs" role="secondary">No agent</Text> : <AgentStack ids={connector.agents.map((a) => a.id)} />}
+      trailing={connector.agents.length === 0 ? <Text size="md" role="secondary">No agent</Text> : <AgentStack ids={connector.agents.map((a) => a.id)} />}
     />
   );
 }
@@ -83,7 +83,7 @@ function AddButton({ onAdded }: { onAdded: (id: string) => void }): ReactNode {
 }
 
 function ListState({ list, error }: { list: OrgList | undefined; error: Error | null }): ReactNode {
-  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not load the connectors.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load the connectors.')}</Text>;
   return list === undefined ? <Loading /> : <ConnectorList list={list} />;
 }
 
@@ -96,9 +96,9 @@ function Body(): ReactNode {
     go({ kind: 'org-connector', id });
   };
   return (
-    <Col gap={20} width="100%">
+    <Col gap={12} width="100%">
       <ListHeader title="Connectors" rule={false} count={data?.connectors.length} action={data === undefined || admin ? <AddButton onAdded={added} /> : undefined} />
-      {data === undefined || admin ? null : <Text size="2xs" role="secondary">{MEMBER_NOTE}</Text>}
+      {data === undefined || admin ? null : <Text size="md" role="secondary">{MEMBER_NOTE}</Text>}
       <ListState list={data} error={error} />
     </Col>
   );

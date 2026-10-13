@@ -17,8 +17,8 @@ import { queryError, useBoxQuery } from '../lib/queries.js';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
 
-const INTRO = 'Keys your agent can use without ever seeing them. The agent only holds a stand-in; Metro puts the real key in when the agent talks to that key’s website.';
-const ON_NOTE = 'All of the agent’s web traffic goes through Metro. Other traffic, like git over SSH, is blocked.';
+const INTRO = 'Keys your agent uses without seeing them. It holds a stand-in, and Metro adds the real key only for that key’s website.';
+const ON_NOTE = 'All web traffic goes through Metro. Other traffic, like git over SSH, is blocked.';
 
 function useVault(): { vault: Vault | undefined; error: unknown; set: (v: Vault) => void } {
   const client = useQueryClient();
@@ -57,9 +57,9 @@ function Switch({ vault, onChanged }: { vault: Vault; onChanged: (v: Vault) => v
         disabled={busy}
         onChange={flip}
       />
-      {vault.problem === null ? null : <Text size="2xs" role="danger">{vault.problem}</Text>}
-      {vault.enabled && vault.browsers !== null ? <Text size="2xs" role="secondary">{vault.browsers}</Text> : null}
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {vault.problem === null ? null : <Text size="md" role="danger">{vault.problem}</Text>}
+      {vault.enabled && vault.browsers !== null ? <Text size="md" role="secondary">{vault.browsers}</Text> : null}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -77,7 +77,7 @@ function SecretRow({ secret, onEdit, onRemoved }: { secret: VaultSecret; onEdit:
           label={`Actions for ${secret.name}`}
           action="Delete secret"
           title="Delete this secret?"
-          lines={[`The value of ${secret.env} is removed from this machine. Anything the agent sends with the placeholder stops working.`]}
+          lines={[`The value of ${secret.env} is removed from this machine. Requests that use its stand-in stop working.`]}
           failure="Could not delete the secret."
           run={async () => {
             onRemoved(await changeVault({ action: 'remove', id: secret.id }));
@@ -96,7 +96,7 @@ function Recent({ vault }: { vault: Vault }): ReactNode {
       <SettingsPad>
       <Col gap={4}>
         {vault.recent.slice(0, 40).map((r, at) => (
-          <Text key={`${String(at)}:${r.at}`} size="2xs" role={r.swapped.length > 0 ? 'default' : 'secondary'} numberOfLines={1}>
+          <Text key={`${String(at)}:${r.at}`} size="md" role={r.swapped.length > 0 ? 'default' : 'secondary'} numberOfLines={1}>
             {`${whenLabel(r.at)} · ${r.method} ${r.host}${r.path} · ${r.status === null ? '…' : String(r.status)}${r.swapped.length > 0 ? ` · used ${r.swapped.map(envOf).join(', ')}` : ''}`}
           </Text>
         ))}
@@ -125,7 +125,7 @@ function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): 
       )}
       {vault.secrets.length === 0 && form === null ? (
         <SettingsPad>
-          <Text size="2xs" role="secondary">No secret yet. Add one, then turn protection on.</Text>
+          <Text size="md" role="secondary">No secret yet. Add one, then turn protection on.</Text>
         </SettingsPad>
       ) : null}
       {vault.secrets.map((s) => (
@@ -137,7 +137,7 @@ function SecretList({ vault, set }: { vault: Vault; set: (v: Vault) => void }): 
 
 function SecretsBody(): ReactNode {
   const { vault, error, set } = useVault();
-  if (error !== null && error !== undefined) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
+  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the vault.')}</Text>;
   if (vault === undefined) return <Loading />;
   if (!vault.available) return <EmptyCard text="Secrets need a Linux server where the agent runs as its own user." />;
   return (
@@ -156,7 +156,7 @@ export function Secrets(): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Secrets</PageTitle>
-      <Text size="2xs" role="secondary">{INTRO}</Text>
+      <Text size="md" role="secondary">{INTRO}</Text>
       <SecretsBody />
     </Col>
   );

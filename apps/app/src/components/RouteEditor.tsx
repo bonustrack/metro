@@ -35,15 +35,15 @@ function Footer({ changes, problem, error, busy, restart, onSave, onCancel }: Fo
   const ready = changes.length > 0 && problem === null && !busy;
   return (
     <Col gap={10} padding={{ x: 16, top: 14 }} border={{ top: { width: 1, color: palette.border } }}>
-      {changes.length === 0 ? <Text size="2xs" role="secondary">{NO_CHANGE}</Text> : (
+      {changes.length === 0 ? <Text size="md" role="secondary">{NO_CHANGE}</Text> : (
         <Col gap={4}>
           {changes.map((c) => (
-            <Text key={c.label} size="2xs" numberOfLines={2}>{c.from === '' ? `${c.label}: ${c.to}` : `${c.label}: ${c.from} → ${c.to}`}</Text>
+            <Text key={c.label} size="md" numberOfLines={2}>{c.from === '' ? `${c.label}: ${c.to}` : `${c.label}: ${c.from} → ${c.to}`}</Text>
           ))}
         </Col>
       )}
-      {problem !== null ? <Text size="2xs" role="danger">{problem}</Text> : restart && changes.length > 0 ? <Text size="2xs" role="secondary">{RESTART}</Text> : null}
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {problem !== null ? <Text size="md" role="danger">{problem}</Text> : restart && changes.length > 0 ? <Text size="md" role="secondary">{RESTART}</Text> : null}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       <Row gap={8} justify="end">
         <Button size="md" color="secondary" dark={dark} label="Cancel" onPress={onCancel} />
         <Button size="md" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={!ready} onPress={onSave} />

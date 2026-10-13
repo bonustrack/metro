@@ -13,6 +13,9 @@ import { selectionProject, type Selection } from '@metro-labs/client/selection';
 import { location } from '@metro-labs/client/platform';
 import { BootLoading } from './BootLoading.js';
 import { Notice } from './Notice.js';
+import { Frame } from './Shell.js';
+import { PlainSidebar } from './PlainSidebar.js';
+import { Loading } from './Loading.js';
 import { StoppedNotice } from './StoppedNotice.js';
 import { Dashboard } from './Dashboard.js';
 import { refreshServers, useServersQuery, useSessionQuery } from '../lib/queries.js';
@@ -144,6 +147,6 @@ export function OrganizationGate({ selection, onLock, children }: { selection: S
     if (location().hash() !== wantedHash) location().replace(wantedHash);
   }, [selection, mismatch]);
   if (refused !== null) return <Notice text={`${wanted ?? ''}: ${refused}`} onRetry={onLock} retryLabel="Log in with another account" />;
-  if (mismatch) return <BootLoading />;
+  if (mismatch) return <Frame sidebar={(close) => <PlainSidebar selection={selection} onSelect={close} />} onLock={onLock}><Loading /></Frame>;
   return children;
 }

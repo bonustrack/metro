@@ -69,8 +69,8 @@ export function syncReceiptLabel(status: ConnectorSyncStatus): string {
   const labels = {
     off: 'Sync is off.',
     not_enrolled: 'Enroll this agent with the organization before enabling sync.',
-    waiting: 'Waiting for a verified receipt. Refresh status to check again.',
-    expired: 'The last receipt expired. No current connector counts are available.',
+    waiting: 'Waiting for the first delivery. Refresh status to check.',
+    expired: 'The last delivery expired, so no counts are shown.',
     unavailable: 'Connector delivery is unavailable. Refresh status to check again.',
     received: SYNC_UNAVAILABLE,
   };

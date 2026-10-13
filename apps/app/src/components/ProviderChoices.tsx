@@ -20,7 +20,7 @@ function Choice({ provider, onPick }: { provider: (typeof PROVIDERS)[number]; on
         <ProviderLogo provider={provider} size={LOGO} />
         <Col gap={2} style={SHRINK}>
           <Text size="xs" weight="medium">{provider.label}</Text>
-          <Text size="2xs" role="secondary">{provider.blurb}</Text>
+          <Text size="md" role="secondary">{provider.blurb}</Text>
         </Col>
       </Row>
     </Pressable>

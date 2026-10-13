@@ -16,7 +16,7 @@ interface TextLinkProps {
   onPress?: () => void;
 }
 
-export function TextLink({ children, size = '2xs', to, url, onPress }: TextLinkProps): ReactNode {
+export function TextLink({ children, size = 'md', to, url, onPress }: TextLinkProps): ReactNode {
   if (to !== undefined)
     return (
       <Link href={pathOfHash(to)} push>

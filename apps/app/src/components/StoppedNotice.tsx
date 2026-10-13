@@ -42,7 +42,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
         </Text>
         <Button dark={dark} label={busy ? 'Starting…' : 'Start metro'} loading={busy} disabled={busy} onPress={start} style={CENTER_SELF} />
         {error !== null ? (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         ) : null}

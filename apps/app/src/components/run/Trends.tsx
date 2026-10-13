@@ -27,7 +27,7 @@ function EventPlot({ buckets, selected, onSelect }: PlotProps): ReactNode {
   if (first === undefined || last === undefined) return <Text size="sm" role="secondary">No events match these filters.</Text>;
   return <Col gap={6}>
     <Row gap={10} align="end">
-      <Col height={76} justify="between"><Text size="2xs">{max}</Text><Text size="2xs">0</Text></Col>
+      <Col height={76} justify="between"><Text size="md">{max}</Text><Text size="md">0</Text></Col>
       <Row gap={3} style={styles.plot} border={{ bottom: { width: 1, color: palette.border } }}>
         {buckets.map((bucket) => <Pressable key={bucket.start} style={styles.target} accessibilityRole="button"
           accessibilityLabel={bucketAction(bucket, selected)} accessibilityState={{ selected: sameTimeRange(selected, bucket) }}
@@ -39,8 +39,8 @@ function EventPlot({ buckets, selected, onSelect }: PlotProps): ReactNode {
         </Pressable>)}
       </Row>
     </Row>
-    <Row justify="between"><Text size="2xs">{clock(first.start)}</Text><Text size="2xs">{clock(last.end)} UTC</Text></Row>
-    <Text size="2xs" accessibilityLiveRegion="polite">{hovered === null ? `Retained events per ${String((first.end - first.start) / 60_000)} minute interval. Select a bar to filter.` : bucketLabel(hovered)}</Text>
+    <Row justify="between"><Text size="md">{clock(first.start)}</Text><Text size="md">{clock(last.end)} UTC</Text></Row>
+    <Text size="md" accessibilityLiveRegion="polite">{hovered === null ? `Events per ${String((first.end - first.start) / 60_000)} minutes. Select a bar to filter.` : bucketLabel(hovered)}</Text>
   </Col>;
 }
 
@@ -59,9 +59,9 @@ export function RunTrends({ entries, selected, onSelect }: { entries: RunEntry[]
       {table && <Col gap={6} testID="chart-table">{buckets.map((bucket) => <Button key={bucket.start} dark={dark} color="secondary"
         label={`${clock(bucket.start)} · ${String(bucket.count)} events`} accessibilityLabel={bucketLabel(bucket)}
         onPress={() => { onSelect(sameTimeRange(selected, bucket) ? null : bucket); }} />)}</Col>}
-      <Text size="2xs" role="secondary">Filtered, partial history. Missing or expired events are not counted. Zero means no retained events, not proof of inactivity.</Text>
+      <Text size="md" role="secondary">Partial history: only events still kept are counted, so zero does not mean idle.</Text>
     </> : <Text size="sm" role="secondary">{mode === 'workers'
-      ? 'Worker history is not exposed by the runner. The latest observed worker count appears above.'
-      : 'Session cost is not exposed by the activity API. Provider usage on the Model page is a different scope.'}</Text>}
+      ? 'The runner keeps no worker history. The latest count is above.'
+      : 'Session cost is not reported. Usage on the Model page covers more than this session.'}</Text>}
   </Col>;
 }

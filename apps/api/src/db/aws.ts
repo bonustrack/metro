@@ -128,23 +128,6 @@ async function unlink(owner: string, agentId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export interface MetroServer {
-  id: string;
-  owner: string;
-  name: string | null;
-  instanceId: string;
-  region: string;
-}
-
-export async function metroServers(): Promise<MetroServer[]> {
-  const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, name: agents.name, instanceId: agents.instanceId, region: agents.launchRegion })
-    .from(agents)
-    .where(and(isNull(agents.awsConnection), isNotNull(agents.instanceId), isNotNull(agents.launchRegion)))
-    .orderBy(asc(agents.addedAt));
-  return rows.flatMap((r) => (r.instanceId === null || r.region === null ? [] : [{ ...r, instanceId: r.instanceId, region: r.region }]));
-}
-
 export interface AwsStore {
   externalId: (owner: string) => Promise<string | null>;
   ensureExternalId: (owner: string, fresh: string) => Promise<string>;

@@ -38,15 +38,15 @@ export function CardUsage({ usage, provider, model }: { usage: ModelSettings['us
   return (
     <Col gap={4} margin={{ top: 4 }}>
       {window === null ? (
-        <Text size="2xs" role="secondary">{usageDetail(usage, provider, model, now)}</Text>
+        <Text size="md" role="secondary">{usageDetail(usage, provider, model, now)}</Text>
       ) : (
         <Row gap={10} align="center" wrap>
           <UsageBar used={window.used} blocked={blocked} />
-          <Text size="2xs" role="secondary">{limitNote(window)}</Text>
-          {blocked ? <Text size="2xs" role="secondary">Over the 95% switch limit</Text> : null}
+          <Text size="md" role="secondary">{limitNote(window)}</Text>
+          {blocked ? <Text size="md" role="secondary">Over the 95% switch limit</Text> : null}
         </Row>
       )}
-      {reported === null ? null : <Text size="2xs" role="secondary">{reported}</Text>}
+      {reported === null ? null : <Text size="md" role="secondary">{reported}</Text>}
     </Col>
   );
 }
@@ -69,17 +69,17 @@ function Card({ settings, href }: { settings: ModelSettings; href: string }): Re
         <Text size="md" weight="semibold" numberOfLines={1}>
           {name}
         </Text>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {[conn?.label ?? 'Your Claude Code login', account].filter((part): part is string => part !== null).join(' · ')}
         </Text>
         <CardUsage usage={usage} provider={conn?.provider ?? 'anthropic'} model={model} />
         {settings.reason !== null ? (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {settings.reason}
           </Text>
         ) : null}
       </Col>
-      <Text size="2xs" role="link">
+      <Text size="md" role="link">
         Change
       </Text>
     </RouteLink>

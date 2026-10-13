@@ -2,14 +2,14 @@ import type { MigrationIssue } from '@metro-labs/client/api/connector-migration'
 import type { MigrationPhase, MigrationReason, MigrationView } from '@metro-labs/client/api/connector-migration-status';
 
 export const MIGRATION_ISSUES: Record<MigrationIssue, string> = {
-  invalid_config: 'Blocked: these local settings cannot be safely interpreted. Fix them locally, then Refresh.',
-  unsupported_url: 'Blocked: organization connectors require a public HTTPS server. Keep this connector local or change its address before preparing.',
-  custom_policy: 'Blocked: these permission rules include names the organization policy validator cannot preserve, or this agent needs an update. Review unsupported tool names without weakening the policy. Do not replace it with a read-only switch.',
-  unused_oauth_client: 'This connector saves an OAuth client but is not using OAuth. Confirm which authentication it should use, then recreate its local setup with that method before migrating. Metro will not discard the saved client.',
-  oauth_private_resource: 'Older Metro migration only accepts OAuth endpoints at the public origin or /mcp path. Update this agent first. This restriction does not mean Metro detected a secret in the URL.',
-  oauth_sign_in: 'No transferable local OAuth grant. Sign in locally before moving, or use the separate central sign-in flow.',
-  oauth_unsupported: 'Blocked: this OAuth grant uses unsupported client authentication or provider binding. Keep it local or use a separate sign-in. Metro will not register a replacement automatically.',
-  header_reentry: 'This older agent cannot transfer the saved key. Update it first. Do not paste credentials into this dialog.',
+  invalid_config: 'Blocked: these local settings cannot be read safely. Fix them, then Refresh.',
+  unsupported_url: 'Blocked: organization connectors need a public HTTPS server. Keep this one local or change its address.',
+  custom_policy: 'Blocked: some rules cannot carry over, or this agent needs an update. Fix the tool names without weakening the policy. Do not replace it with a read-only switch.',
+  unused_oauth_client: 'This connector saves an OAuth client but does not use OAuth. Set it up again with the right sign-in first. Metro will not discard the saved client.',
+  oauth_private_resource: 'Older Metro migration only accepts OAuth at the public origin or /mcp path. Update this agent first. This is not about a secret in the URL.',
+  oauth_sign_in: 'No OAuth login to move. Sign in locally first, or sign in centrally.',
+  oauth_unsupported: 'Blocked: this OAuth login cannot move. Keep it local or sign in separately. Metro will not make a new one for you.',
+  header_reentry: 'This agent is too old to move the saved key. Update it first. Never paste keys here.',
 };
 
 const MIGRATION_PHASES: Record<MigrationPhase, string> = {
@@ -26,26 +26,26 @@ const MIGRATION_PHASES: Record<MigrationPhase, string> = {
 export const migrationPhase = (migration: MigrationView): string => migration.phase === 'active' && migration.reason !== null ? 'Organization path needs attention' : MIGRATION_PHASES[migration.phase];
 
 const REASONS: Record<MigrationReason, string> = {
-  sign_in: 'Sign in centrally, then choose Reconcile to verify the destination.',
-  not_verified: 'The destination is not verified. Choose Reconcile to check it with the server.',
-  source_changed: 'The local source changed. Cutover is blocked. Review its current settings and Reconcile, or Roll back.',
-  destination_changed: 'The destination or its assignment changed. Inspect the organization connector and assignments, resolve the ownership conflict, then Reconcile. Metro will not delete independently changed or shared access; rollback may remain blocked.',
-  assignment_changed: 'The original assignment changed. Inspect the organization connector and assignments, resolve the ownership conflict, then Reconcile. Independently changed assignments, other agents and shared access will not be removed.',
-  waiting_for_local: 'Waiting for existing local requests to finish. The source stays fenced during cutover. Choose Reconcile to check again.',
-  sync_unavailable: 'Organization sync is unavailable. Restore sync using its separate controls, then Refresh and Reconcile. This dialog changes no sync flags.',
-  identity_changed: 'Enrollment or ownership changed. Close this dialog, check the agent identity and reopen it before continuing.',
-  rolled_back: 'The migrated path is disabled and the local source is restored. OAuth may need a fresh local sign-in.',
+  sign_in: 'Sign in centrally, then choose Reconcile to check.',
+  not_verified: 'The destination is not checked yet. Choose Reconcile.',
+  source_changed: 'The local connector changed, so the switch is blocked. Review it and Reconcile, or Roll back.',
+  destination_changed: 'The destination or its assignment changed. Fix the conflict in organization connectors, then Reconcile. Metro will not delete independently changed or shared access, so rollback may stay blocked.',
+  assignment_changed: 'The original assignment changed. Fix the conflict in organization connectors, then Reconcile. Other agents and shared access stay untouched.',
+  waiting_for_local: 'Waiting for local requests to finish. The source stays paused. Choose Reconcile to check again.',
+  sync_unavailable: 'Organization sync is unavailable. Turn it back on in its own settings, then Refresh and Reconcile.',
+  identity_changed: 'Enrollment or ownership changed. Close this, check the agent, then open it again.',
+  rolled_back: 'Rolled back: the local connector is back. OAuth may need a fresh local sign-in.',
   unavailable: 'The migration is unavailable. Refresh and Reconcile before continuing.',
-  requests_uncertain: 'An interrupted vendor request may have completed despite its missing reply. Inspect the vendor first. Confirm requests settled only after checking the outcome; this does not undo or retry the request. The migration remains fenced until you explicitly confirm.',
-  refresh_uncertain: 'The provider refresh outcome is unknown. Central owns this grant and will not repeat the refresh. Sign in centrally to recover; old local tokens cannot be restored.',
-  local_refresh_uncertain: 'A local refresh may have rotated its token. After inspecting outstanding vendor requests, choose Recover local sign-in to abort the handover, discard the uncertain grant and sign in locally. No refresh will be retried.',
-  finish_forward: 'Central owns the imported OAuth grant. Retry to finish forward, or sign in centrally if required. Rollback to old local tokens is disabled.',
-  unsupported_grant: 'This grant cannot be transferred with its current client authentication or provider binding. Keep it local or sign in separately.',
-  unknown: 'The agent reported an unknown blocker. Update if needed, then Refresh and Reconcile. Cutover is blocked.',
+  requests_uncertain: 'A request may have gone through even though no reply came. Check at the vendor first, then confirm it settled. Nothing is undone or retried, and the move stays paused until you confirm.',
+  refresh_uncertain: 'A login refresh may have failed. The organization owns this login now: sign in centrally to fix it. Old local tokens cannot come back.',
+  local_refresh_uncertain: 'A local refresh may have changed the token. Check open requests at the vendor, then choose Recover local sign-in to cancel the move and sign in locally again.',
+  finish_forward: 'The organization owns this OAuth login now. Retry to finish, or sign in centrally. It cannot roll back.',
+  unsupported_grant: 'This login cannot move as it is. Keep it local or sign in separately.',
+  unknown: 'The agent reported an unknown problem. Update if needed, then Refresh and Reconcile. Cutover is blocked.',
 };
 
 export function migrationReason(reason: MigrationReason | null, phase: MigrationPhase): string | null {
-  if (reason === 'sign_in' && phase === 'rolled_back') return 'The local source is restored, but OAuth needs a fresh local sign-in. The older provider grant may no longer work.';
+  if (reason === 'sign_in' && phase === 'rolled_back') return 'The local connector is back, but OAuth needs a fresh local sign-in.';
   return reason === null ? null : REASONS[reason];
 }
 
@@ -76,22 +76,22 @@ export const MIGRATION_CONFIRMATIONS: Record<MigrationConfirmationAction, { titl
 
 export function migrationConfirmation(name: string, action: MigrationConfirmationAction): string[] {
   if (action === 'recover') return [
-    `Inspect outstanding requests for ${name} at the vendor before confirming. The local refresh reply was lost; the saved grant may be stale.`,
-    'This aborts the handover only if central has not taken ownership, then discards the uncertain local grant. Sign in locally afterward. It never retries a refresh or a vendor tool.',
+    `Check open requests for ${name} at the vendor first. The local refresh reply was lost, so the saved login may be stale.`,
+    'This cancels the move if the organization has not taken over yet, and drops the local login. Sign in locally after. Nothing is retried.',
   ];
   if (action === 'resolve') return [
-    `Inspect ${name} at the vendor before confirming. An outstanding request may have committed despite an interrupted or missing reply. Check its actual outcome first.`,
-    'This confirmation does not undo or retry that request. It only clears the migration fence after no local sessions are running; the server refuses while a local session is still running.',
-    'After confirmation, separately choose Reconcile, Switch to organization or Roll back. This confirmation does not activate or roll back the migration.',
+    `Inspect ${name} at the vendor first. A request may have committed even without a reply.`,
+    'This does not undo or retry it. It only lifts the pause once no local sessions are running.',
+    'Then separately choose Reconcile, Switch to organization or Roll back.',
   ];
   if (action === 'rollback') return [
-    `Roll back only ${name}? This disables its migrated organization path, removes only the original assignment created by this migration, and restores the local source.`,
-    'The organization destination is kept. Shared assignments, other agents and other connectors are not deleted or changed.',
-    'OAuth may require a fresh local sign-in. Saved tokens are not a guaranteed recovery. If interrupted, Refresh and Reconcile; do not assume rollback finished.',
+    `Roll back only ${name}? This stops using the organization connector, removes only the original assignment created by this migration and brings the local connector back.`,
+    'The organization destination is kept. Shared assignments, other agents and connectors stay as they are.',
+    'OAuth may need a fresh local sign-in. If interrupted, Refresh and Reconcile: do not assume rollback finished.',
   ];
   return [
-    `Switch only ${name} to its verified organization destination? The server checks readiness again, blocks new local requests, then waits for existing local requests to finish before switching.`,
-    'The source relay ID and plugin key stay the same. Unmigrated connectors, their default local path and fallback behavior are unaffected. No environment variables or sync flags change.',
-    'If cutover is pending or interrupted, the source stays fenced. Refresh and Reconcile to confirm the result, or explicitly Roll back. Only the server can confirm activation.',
+    `Switch only ${name} to the organization? The server checks again, stops new local requests and waits for existing local requests to finish.`,
+    'The source relay ID and plugin key stay the same. Unmigrated connectors are not touched. No environment variables or sync flags change.',
+    'If the switch stops halfway, the source stays paused. Refresh and Reconcile to check, or Roll back.',
   ];
 }

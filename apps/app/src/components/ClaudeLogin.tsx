@@ -15,7 +15,7 @@ import { LogBlock } from './ui/LogBlock.js';
 
 const FIELD_WIDTH = 420;
 const POLL_MS = 1_500;
-const WHAT = 'Runs Claude Code’s own sign-in. Each account keeps its own login on the machine, so you can add as many as you like.';
+const WHAT = 'Uses Claude Code’s own sign-in. Add as many accounts as you like.';
 const NEW_LOGIN = 'Each Claude account you sign in with becomes its own provider.';
 
 function useLoginPolling(login: ClaudeLogin | null, onUpdate: (next: ClaudeLogin) => void, onError: (message: string) => void): void {
@@ -44,13 +44,13 @@ function Waiting({ login, onCode }: { login: ClaudeLogin; onCode: (code: string)
   return (
     <Col gap={8} maxWidth={FIELD_WIDTH}>
       {login.url === null ? (
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           Waiting for the sign-in to print its address…
         </Text>
       ) : (
-        <TextLink size="2xs" url={login.url}>Open the Anthropic sign-in</TextLink>
+        <TextLink size="md" url={login.url}>Open the Anthropic sign-in</TextLink>
       )}
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         Finish it in that tab. If it asks you to paste a code back, put it here.
       </Text>
       <FormField label="Sign-in code"
@@ -85,7 +85,7 @@ function Note({ text }: { text: string }): ReactNode {
   return (
     <Col gap={4}>
       <FieldLabel>Claude subscription</FieldLabel>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {text}
       </Text>
     </Col>
@@ -96,7 +96,7 @@ function statusLine(connection: ConnectionRow | null, account: ClaudeAccount | n
   if (connection === null) return NEW_LOGIN;
   if (connection.signedIn) return `Signed in${connection.account === null ? '' : ` as ${connection.account}`}${connection.plan === null ? '' : ` (${connection.plan})`}`;
   const machine = account?.signedIn === true && account.account !== null ? ` (${account.account})` : '';
-  return `Uses the Claude Code login of this machine${machine}. Sign in to give it a login of its own.`;
+  return `Uses this machine’s Claude Code login${machine}. Sign in to give it its own.`;
 }
 
 export function ClaudeLoginCard({ connection, onDone }: { connection: ConnectionRow | null; onDone: () => void }): ReactNode {
@@ -147,8 +147,8 @@ export function ClaudeLoginCard({ connection, onDone }: { connection: Connection
   return (
     <Col gap={8}>
       <FieldLabel>Claude subscription</FieldLabel>
-      <Text size="2xs">{statusLine(connection, account)}</Text>
-      <Text size="2xs" role="secondary">
+      <Text size="md">{statusLine(connection, account)}</Text>
+      <Text size="md" role="secondary">
         {WHAT}
       </Text>
       {login === null ? (
@@ -172,7 +172,7 @@ export function ClaudeLoginCard({ connection, onDone }: { connection: Connection
         </Col>
       )}
       {error === null ? null : (
-        <Text size="2xs" role="danger">
+        <Text size="md" role="danger">
           {error}
         </Text>
       )}

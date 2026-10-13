@@ -20,7 +20,7 @@ import { GROW } from '../lib/style.js';
 import { TextLink } from './TextLink.js';
 import { ProviderChoices } from './ProviderChoices.js';
 
-const ANTHROPIC_KEY_NOTE = 'No key: it uses the Claude sign-in above, or else the Claude Code login of this machine.';
+const ANTHROPIC_KEY_NOTE = 'No key: it uses the Claude sign-in above, or this machine’s Claude Code login.';
 
 export interface Editing {
   provider: Provider | null;
@@ -34,7 +34,7 @@ interface Chosen {
 
 function KeyLink({ url, label }: { url: string; label: string }): ReactNode {
   return (
-    <TextLink size="2xs" url={url}>{label}</TextLink>
+    <TextLink size="md" url={url}>{label}</TextLink>
   );
 }
 
@@ -60,7 +60,7 @@ function Extras({ provider, draft, setDraft }: { provider: Provider; draft: Draf
     return (
       <Col gap={6}>
         <KeyLink url={ANTHROPIC_KEYS_URL} label="Get a key from the Anthropic Console" />
-        <Text size="2xs" role="secondary">{ANTHROPIC_KEY_NOTE}</Text>
+        <Text size="md" role="secondary">{ANTHROPIC_KEY_NOTE}</Text>
       </Col>
     );
   if (provider === 'bedrock')
@@ -105,7 +105,7 @@ function KeyForm({ editing, onDone }: { editing: Chosen; onDone: () => void }): 
       <Extras provider={editing.provider} draft={draft} setDraft={setDraft} />
       <Row gap={12} align="center" wrap>
         <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy} onPress={save} />
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </Row>
     </Col>
   );
@@ -144,9 +144,9 @@ function Blurb({ editing }: { editing: Chosen }): ReactNode {
   const info = PROVIDERS.find((p) => p.id === editing.provider);
   return (
     <>
-      <Text size="2xs" role="secondary">{info?.blurb ?? ''}</Text>
+      <Text size="md" role="secondary">{info?.blurb ?? ''}</Text>
       {editing.connection?.signedIn !== true ? null : (
-        <Text size="2xs" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
+        <Text size="md" role="secondary">Signing in again replaces this connection&apos;s credential.</Text>
       )}
     </>
   );
@@ -170,7 +170,7 @@ export function ProviderSetup({ onDone, onBack }: { onDone: (draft: RouteDraft) 
       )}
       {back === undefined ? null : (
         <Row>
-          <TextLink size="2xs" onPress={back}>{provider === null ? 'Back to connections' : 'Choose another provider'}</TextLink>
+          <TextLink size="md" onPress={back}>{provider === null ? 'Back to connections' : 'Choose another provider'}</TextLink>
         </Row>
       )}
     </Col>

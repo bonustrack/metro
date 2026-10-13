@@ -24,11 +24,11 @@ function ZdrSwitch({ conn, on, shared, onChange }: { conn: ConnectionRow; on: bo
         <Icon name="shieldCheck" size={18} color={useKitPalette().link} />
         <Col flex={1} minWidth={0} gap={2}>
           <Text size="xs" weight="medium">Zero data retention</Text>
-          <Text size="2xs" role="secondary">{ZDR_NOTE}</Text>
+          <Text size="md" role="secondary">{ZDR_NOTE}</Text>
         </Col>
         <Switch name="Zero data retention" checked={on} dark={dark} onChange={onChange} />
       </Row>
-      {shared ? <Text size="2xs" role="secondary">{`A setting of the ${conn.label} connection: it also applies to the other models on the list that use it.`}</Text> : null}
+      {shared ? <Text size="md" role="secondary">{`Set on the ${conn.label} connection, so it applies to every model that uses it.`}</Text> : null}
     </Col>
   );
 }
@@ -54,9 +54,9 @@ function visible(rows: PickRow[], slot: Slot, model: string): PickRow[] {
 }
 
 function ListStatus({ loading, empty, error }: { loading: boolean; empty: boolean; error: string | null }): ReactNode {
-  if (error !== null) return <Text size="2xs" role="danger">{error}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{error}</Text>;
   if (!empty) return null;
-  return <Text size="2xs" role="secondary">{loading ? 'Loading models…' : 'No model matches your search.'}</Text>;
+  return <Text size="md" role="secondary">{loading ? 'Loading models…' : 'No model matches your search.'}</Text>;
 }
 
 export function ModelStep({ conn, slot, draft, zdr, shared, onPick, onZdr }: ModelStepProps): ReactNode {

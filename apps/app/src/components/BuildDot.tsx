@@ -33,11 +33,11 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
       }}
     >
       <Col gap={2} padding={{ x: 10, y: 7 }} radius={8} surface="raised" border={allSides(palette.border)}>
-        <Text size="2xs" weight="medium">
+        <Text size="md" weight="medium">
           {head}
         </Text>
         {build.time === '' ? null : (
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             {build.time}
           </Text>
         )}

@@ -74,7 +74,7 @@ export function ChannelCards({ groups, project }: { groups: AccountGroup[]; proj
   const accounts = flattenAccounts(groups).filter((a) => a.row.id !== null);
   if (accounts.length === 0)
     return (
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         No channel yet.
       </Text>
     );
@@ -111,7 +111,7 @@ export function ConnectorIcons({ connectors, project }: { connectors: Connector[
   const hover = { backgroundColor: palette.inputBg };
   if (connectors.length === 0)
     return (
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         No connector yet.
       </Text>
     );
@@ -122,7 +122,7 @@ export function ConnectorIcons({ connectors, project }: { connectors: Connector[
         return (
           <RouteLink key={c.id} to={routeHash(target)} label={c.name} style={chip} hoverStyle={hover}>
             <ConnectorFavicon name={c.name} url={c.url} size={CONNECTOR_ICON} />
-            <Text size="2xs" numberOfLines={1}>
+            <Text size="md" numberOfLines={1}>
               {c.name}
             </Text>
           </RouteLink>

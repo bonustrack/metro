@@ -27,10 +27,9 @@ import { access } from './aws/access.js';
 import { callerIdentity } from './aws/sts.js';
 import { publishTemplate, templatesOf } from './aws/templates.js';
 import { describeInstanceFacts, listInstances, tagInstance } from './aws/teardown.js';
-import { dbAws, metroServers } from './db/aws.js';
+import { dbAws } from './db/aws.js';
 import { handleAwsConnectionsRequest, type AwsConnectionsDeps } from './aws-connections.js';
 import { handleServerLinkRequest, type ServerLinkDeps } from './server-link.js';
-import { roleCheck } from './admin-aws.js';
 import { gbMonthPrice, hourlyPrice } from './aws/pricing.js';
 import { LIVE_RESIZE } from './aws/resize.js';
 import { LIVE_DELETION } from './aws/deletion.js';
@@ -86,8 +85,7 @@ const gmailApi = {
 const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
 const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
-const awsCheck = (): Promise<unknown> => roleCheck({ config: () => readLaunchConfig(), servers: metroServers, access, caller: callerIdentity, describe: describeInstanceFacts });
-const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow }, awsCheck };
+const adminApi: AdminApiDeps = { ...authApi, agents: listAllServers, deletion: { ...deletionCore, lookup: deletionRowById, remove: deleteServerRow } };
 const usageApi: UsageApiDeps = { ...metricsCore, lookup: usageRowForOwner, keys };
 const latestApi: LatestApiDeps = { ...metricsCore, rows: usageRowsForOwner, keys };
 const serversApi: ServersApiDeps = {

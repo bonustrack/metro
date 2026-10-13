@@ -12,7 +12,7 @@ export function TerminalPage(): ReactNode {
     <PageScroll>
       <Col gap={12} padding={24}>
         <PageTitle>Terminal</PageTitle>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           The terminal needs a keyboard and opens in a browser for now.
         </Text>
         <TextLink url={`https://metro.box/${location().hash()}`}>Open the terminal on metro.box</TextLink>

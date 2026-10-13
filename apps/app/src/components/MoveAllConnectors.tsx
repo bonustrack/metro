@@ -23,14 +23,14 @@ export function MoveAllConnectors({ snapshot, busy, move }: { snapshot: Migratio
   const selection = selectionOf(snapshot);
   const blocked = busy || !supported || unavailable(snapshot);
   return <>
-    {supported ? <Button color="primary" dark={dark} label="Move all to organization" disabled={blocked} onPress={() => { setConfirmation(selection); }} /> : <Text size="2xs" role="secondary">Update this agent to use Move all with existing credentials.</Text>}
+    {supported ? <Button color="primary" dark={dark} label="Move all to organization" disabled={blocked} onPress={() => { setConfirmation(selection); }} /> : <Text size="md" role="secondary">Update this agent to use Move all with existing credentials.</Text>}
     {confirmation === null ? null : <ConfirmModal open title="Move all to organization?" confirmWord="move" confirmLabel="Move all to organization" busy={false}
-      blocked={blocked || confirmation !== selection} error={confirmation !== selection ? 'The migration changed. Cancel and review its current status.' : null}
+      blocked={blocked || confirmation !== selection} error={confirmation !== selection ? 'The move changed. Cancel and check it again.' : null}
       lines={[
-        'Move this agent’s supported connectors one at a time. Names, permissions and the original agent assignments stay unchanged. No other agent gains access.',
-        'Each connector pauses while its credentials are sent encrypted directly to the organization. Metro verifies the destination and fresh delivery before switching. This page never receives the credentials.',
-        'Compatible OAuth grants move without another sign-in. Unsupported connectors stay visible with a blocker. After the organization takes an OAuth grant, recovery finishes forward, never by restoring old local tokens.',
-        'Closing this page stops the remaining batch, not a request already accepted. Durable progress stays on the agent. Reopen and Retry to continue; sync settings and production flags do not change.',
+        'Moves this agent’s supported connectors one by one. Names, permissions and assignments stay the same, and no other agent gets access.',
+        'Each connector pauses while its login is sent, encrypted, to the organization. Metro checks it arrived before switching. This page never sees it.',
+        'Most OAuth logins move without a new sign-in. Connectors that cannot move stay listed with the reason. A moved OAuth login cannot go back to the old local one.',
+        'Closing this page stops what is left, not what already started. Progress stays on the agent: reopen and Retry to go on. Sync settings do not change.',
       ]}
       onClose={() => { setConfirmation(null); }} onConfirm={() => { setConfirmation(null); move(); }} />}
   </>;

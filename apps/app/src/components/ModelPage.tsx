@@ -69,11 +69,11 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
   return (
     <Col gap={32}>
       <ModelRouting settings={settings} busy={busy} actions={actions} />
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       <SettingsGroup title="Connections" note={CONNECTIONS} action={add}>
         {settings.connections.length === 0 ? (
           <SettingsPad row>
-            <Text size="2xs" role="secondary">{NONE_YET}</Text>
+            <Text size="md" role="secondary">{NONE_YET}</Text>
             <CardUsage usage={settings.usage.passthrough} provider="anthropic" model={settings.lastServed?.model ?? ''} />
           </SettingsPad>
         ) : (
@@ -94,7 +94,7 @@ export function ModelPage(): ReactNode {
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {modelNote(setup.data)}
         </Text>
       </Col>

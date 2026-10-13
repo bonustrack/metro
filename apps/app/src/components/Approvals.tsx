@@ -38,7 +38,7 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
       <Row justify="between" align="center" gap={12}>
         <Col gap={2} style={SHRINK}>
           <Text size="xs" weight="medium" numberOfLines={2}>{summary(approval)}</Text>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             {`${whenLabel(approval.requestedAt)} · id ${approval.id}${approval.inChat ? ' · also asked in the chat' : ''}`}
           </Text>
         </Col>
@@ -47,7 +47,7 @@ function PendingRow({ approval }: { approval: Approval }): ReactNode {
           <Button size="md" dark={dark} disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
         </Row>
       </Row>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }

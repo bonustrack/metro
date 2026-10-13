@@ -30,7 +30,7 @@ import { factLabel, factValue } from './channel-facts.js';
 import { type GroupedTool } from '@metro-labs/client/api/policy';
 
 const ICON = 32;
-const ENDPOINT_NOTE = 'Whoever holds this URL can post to the agent. Paste it straight into the service, never anywhere public.';
+const ENDPOINT_NOTE = 'Anyone with this URL can post to the agent. Paste it only into the service.';
 const RECEIVE_ON = 'The agent gets the messages written here.';
 const RECEIVE_OFF = 'Off. Messages written here do not reach the agent.';
 const RECEIVE_ONLY = 'This channel only brings messages in. The agent cannot write here.';
@@ -62,7 +62,7 @@ function Header({ station, project, row }: { station: string; project: string; r
           <StationIcon station={station} size={ICON} />
           <Col gap={2} style={SHRINK}>
             <PageTitle>{handle ?? row.id ?? stationLabel(station)}</PageTitle>
-            <Text size="2xs" role="secondary">
+            <Text size="md" role="secondary">
               {`${stationLabel(station)} · ${row.enabled ? 'Receiving' : 'Not receiving'}`}
             </Text>
           </Col>
@@ -146,7 +146,7 @@ function Receive({ station, id, enabled, onToggle }: { station: string; id: stri
           flip(value === 'on');
         }}
       />
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -186,7 +186,7 @@ function Abilities({ station, row, agent, verbs, tools, onSaved }: { station: st
     return (
       <SettingsGroup title={title}>
         <SettingsPad>
-          <Text size="2xs" role="secondary">{RECEIVE_ONLY}</Text>
+          <Text size="md" role="secondary">{RECEIVE_ONLY}</Text>
         </SettingsPad>
       </SettingsGroup>
     );

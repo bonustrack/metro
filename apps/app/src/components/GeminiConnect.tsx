@@ -10,8 +10,8 @@ import { beginGeminiLogin, finishGeminiLogin, type ConnectionRow } from '@metro-
 import { useSignInTab } from './sign-in-tab.js';
 import { FIELD_WIDTH, PasteAddress, SignedInAs, SignInLink } from './ProviderSignIn.js';
 
-const PASTE_HINT = 'Google ends on a localhost:51121 address that will not load. Paste that whole address here.';
-const WHICH_ACCOUNT = 'Use the account with your Google AI plan. Metro presents itself as Google Antigravity, which Google does not support.';
+const PASTE_HINT = 'Google ends on a localhost:51121 page that does not load. Paste its full address here.';
+const WHICH_ACCOUNT = 'Use the account with your Google AI plan. Unofficial: Metro signs in as Google Antigravity.';
 const PROJECT_HINT = 'Optional: a Google Cloud project with a Gemini Code Assist licence. Empty for a personal account.';
 
 function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 'secondary'; id: string }): ReactNode {
@@ -22,7 +22,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
     <Col gap={10}>
       <Col gap={6} maxWidth={FIELD_WIDTH}>
         <FormField label="Google Cloud project (optional)" name="gemini-project" value={project} placeholder="my-project-123456" dark={dark} onChangeText={setProject} style={GROW} />
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {PROJECT_HINT}
         </Text>
       </Col>
@@ -37,7 +37,7 @@ function SignInFlow({ label, color, id }: { label: string; color: 'primary' | 's
           finish={(code) => finishGeminiLogin(code, started.state, project.trim(), id)}
         />
       )}
-      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -52,7 +52,7 @@ export function GeminiConnect({ gemini }: { gemini: ConnectionRow | null }): Rea
         </SignedInAs>
       ) : (
         <Col gap={10}>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             Not connected. {WHICH_ACCOUNT}
           </Text>
           <SignInFlow label="Connect Google" color="primary" id={gemini?.id ?? ''} />

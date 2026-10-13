@@ -37,7 +37,7 @@ const detailOf = (entry: FileEntry): string => {
 };
 
 function FolderList({ project, answer }: { project: string; answer: Extract<AgentPath, { kind: 'folder' }> }): ReactNode {
-  if (answer.entries.length === 0) return <Text size="2xs" role="secondary">{EMPTY}</Text>;
+  if (answer.entries.length === 0) return <Text size="md" role="secondary">{EMPTY}</Text>;
   return (
     <SettingsGroup>
       {answer.entries.map((entry) => {
@@ -54,7 +54,7 @@ function FolderList({ project, answer }: { project: string; answer: Extract<Agen
       })}
       {answer.more ? (
         <SettingsPad>
-          <Text size="2xs" role="secondary">Only the first 2,000 entries are shown.</Text>
+          <Text size="md" role="secondary">Only the first 2,000 entries are shown.</Text>
         </SettingsPad>
       ) : null}
     </SettingsGroup>
@@ -65,20 +65,20 @@ function FileView({ answer }: { answer: Extract<AgentPath, { kind: 'file' }> }):
   const facts = `${sizeLabel(answer.bytes)}${answer.modifiedAt === '' ? '' : ` · changed ${whenLabel(answer.modifiedAt)}`}`;
   return (
     <Col gap={12}>
-      <Text size="2xs" role="secondary">{facts}</Text>
+      <Text size="md" role="secondary">{facts}</Text>
       {answer.text === null ? (
-        <Text size="2xs" role="secondary">This file is not text, so it cannot be shown here.</Text>
+        <Text size="md" role="secondary">This file is not text, so it cannot be shown here.</Text>
       ) : (
         <LogBlock text={answer.text} maxHeight={null} />
       )}
-      {answer.truncated ? <Text size="2xs" role="secondary">Only the first 256 KB are shown.</Text> : null}
+      {answer.truncated ? <Text size="md" role="secondary">Only the first 256 KB are shown.</Text> : null}
     </Col>
   );
 }
 
 function FilesBody({ project, path }: FilesProps): ReactNode {
   const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
-  if (query.error !== null) return <Text size="2xs" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
+  if (query.error !== null) return <Text size="md" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
   if (query.data === undefined) return <Loading />;
   return (
     <Col gap={16}>
@@ -93,7 +93,7 @@ export function Files({ project, path }: FilesProps): ReactNode {
   return (
     <Col gap={16}>
       <PageTitle>Files</PageTitle>
-      <Text size="2xs" role="secondary">{INTRO}</Text>
+      <Text size="md" role="secondary">{INTRO}</Text>
       <FilesBody project={project} path={path} />
     </Col>
   );

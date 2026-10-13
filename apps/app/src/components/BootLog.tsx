@@ -62,11 +62,11 @@ export function BootLog({ server, onClose }: { server: Server | null; onClose: (
   return (
     <Modal title={server === null ? 'Boot log' : `Boot log of ${serverLabel(server)}`} open={server !== null} onClose={onClose}>
       <Col gap={12}>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {view === null ? 'Reading the instance console from AWS…' : summary(view)}
         </Text>
         {error === null ? null : (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         )}

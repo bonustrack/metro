@@ -44,14 +44,14 @@ export function PermissionTool({ tool, title, description, policy, organization,
   return (
     <Row align="center" justify="between" gap={24} padding={{ x: 16, y: 10 }}>
       <Col gap={2} style={SHRINK}>
-        <Text size="2xs">{name}</Text>
-        {name === tool.name ? null : <Text size="2xs" role="secondary">{tool.name}</Text>}
-        {description === undefined || description === '' ? null : <Text size="2xs" role="secondary">{description}</Text>}
-        <Text size="2xs" role="secondary">{permissionNote(policy, organization, tool)}</Text>
+        <Text size="md">{name}</Text>
+        {name === tool.name ? null : <Text size="md" role="secondary">{tool.name}</Text>}
+        {description === undefined || description === '' ? null : <Text size="md" role="secondary">{description}</Text>}
+        <Text size="md" role="secondary">{permissionNote(policy, organization, tool)}</Text>
       </Col>
-      {disabled ? <Text size="2xs" role="secondary">{ACCESS_LABEL[effective]}</Text> : (
+      {disabled ? <Text size="md" role="secondary">{ACCESS_LABEL[effective]}</Text> : (
         <Dropdown items={items} label={`Permission for ${tool.name}`} align="end" style={ACCESS} hoverStyle={hover}>
-          <Text size="2xs" role={override === undefined ? 'secondary' : 'link'}>{ACCESS_LABEL[effective]}</Text>
+          <Text size="md" role={override === undefined ? 'secondary' : 'link'}>{ACCESS_LABEL[effective]}</Text>
           <Icon name="selector" size={14} color={palette.sub} />
         </Dropdown>
       )}

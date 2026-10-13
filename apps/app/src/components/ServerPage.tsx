@@ -78,7 +78,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       </SettingsGroup>
       {server === undefined ? null : <><EnrollAgent server={server} /><ConnectorSync server={server} /></>}
       {machine.error !== null ? (
-        <Text size="2xs" role="danger">
+        <Text size="md" role="danger">
           {queryError(machine.error, FALLBACK)}
         </Text>
       ) : machine.data === undefined ? (

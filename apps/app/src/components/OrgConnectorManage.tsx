@@ -58,10 +58,10 @@ function KeyModal({ connector, open, onClose, onSaved }: { connector: OrgConnect
   return (
     <Modal title="Replace the key" open={open} onClose={onClose}>
       <Col gap={12}>
-        <Text size="2xs" role="secondary">Metro checks the new key with the server before it keeps it.</Text>
+        <Text size="md" role="secondary">Metro checks the new key with the server before it keeps it.</Text>
         <FormField label="Header (optional)" name="org-connector-header" value={header} placeholder="Authorization" dark={dark} disabled={busy} onChangeText={setHeader} />
         <FormField label="Value" name="org-connector-value" value={value} placeholder="Bearer sk-…" inputType="password" dark={dark} disabled={busy} onChangeText={setValue} onSubmit={save} />
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Row justify="end">
           <Button size="lg" color="primary" dark={dark} label="Save" loading={busy} disabled={busy || value.trim() === ''} onPress={save} />
         </Row>

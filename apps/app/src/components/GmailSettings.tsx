@@ -44,7 +44,7 @@ function Upgrade({ agentId, accountId, onClose, onSaved }: UpgradeProps): ReactN
       {done ? (
         <Col gap={14}>
           <Text size="xs">Sending authorized with Google.</Text>
-          <Text size="2xs" role="secondary">Metro Write permission has not changed. Choose Allow or Ask in the permissions below when you want the agent to send.</Text>
+          <Text size="md" role="secondary">Metro Write permission is unchanged. Set it to Allow or Ask below to let the agent send.</Text>
           <Button color="secondary" dark={dark} label="Done" onPress={close} />
         </Col>
       ) : session !== null ? (
@@ -52,7 +52,7 @@ function Upgrade({ agentId, accountId, onClose, onSaved }: UpgradeProps): ReactN
       ) : (
         <Col gap={14}>
           <Text size="xs">{GMAIL_SENDING_CONSENT}</Text>
-          {attach.error === null ? null : <Text size="2xs" role="danger">{attach.error}</Text>}
+          {attach.error === null ? null : <Text size="md" role="danger">{attach.error}</Text>}
           <Button color="primary" dark={dark} label="Continue to Google" disabled={attach.busy} loading={attach.busy} onPress={() => { attach.start('gmail', gmailUpgradeFields(accountId)); }} />
         </Col>
       )}

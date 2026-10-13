@@ -51,7 +51,7 @@ export function CopyBlock({ label, value, secret = false, hide, actions }: CopyB
           {actions}
         </Row>
       </Row>
-      <Text size="2xs" selectable={!masked}>
+      <Text size="md" selectable={!masked}>
         {masked ? display(value, hide) : value}
       </Text>
     </Col>

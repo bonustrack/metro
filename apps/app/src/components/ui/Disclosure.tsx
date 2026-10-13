@@ -18,7 +18,7 @@ export function Disclosure({ summary, body, danger = false }: { summary: string;
           setOpen((v) => !v);
         }}
       >
-        <Text size="2xs" role={danger ? 'danger' : 'secondary'} numberOfLines={open ? undefined : 1}>
+        <Text size="md" role={danger ? 'danger' : 'secondary'} numberOfLines={open ? undefined : 1}>
           {`${open ? '▾' : '▸'} ${summary}`}
         </Text>
       </Pressable>

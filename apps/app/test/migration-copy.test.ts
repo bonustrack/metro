@@ -10,7 +10,7 @@ describe('migration safety copy', () => {
     expect(copy).toContain('source relay ID and plugin key');
     expect(copy).toContain('Unmigrated connectors');
     expect(copy).toContain('No environment variables or sync flags change');
-    expect(copy).toContain('source stays fenced');
+    expect(copy).toContain('source stays paused');
   });
 
   test('rollback confirmation never implies deleting the destination or shared access', () => {

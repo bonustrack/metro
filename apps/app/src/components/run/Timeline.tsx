@@ -50,7 +50,7 @@ function Details({ selected, entries, filtered, split, narrow, inspect, onSelect
   split: boolean; narrow: boolean; inspect: boolean; onSelect: (id: string) => void; onClose: () => void;
 }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const content = selected === undefined ? <Text size="sm" role="secondary">Select an event to see its details and verified links.</Text>
+  const content = selected === undefined ? <Text size="sm" role="secondary">Select an event to see its details and links.</Text>
     : <RunInspector key={selected.id} entry={selected} entries={entries} onSelect={onSelect} visible={filtered.some((entry) => entry.id === selected.id)} />;
   if (split) return <Col style={styles.inspector} gap={14}>
     <Text weight="semibold">Event details</Text><Card dark={dark}>{content}</Card>
@@ -69,14 +69,14 @@ export function RunTimeline({ entries, now, notice, initialWorker = 'All' }: Pro
     <Col style={styles.feed} gap={16}>
       <Row justify="between" align="center" wrap gap={8}>
         <Row align="center" gap={8}><Text weight="semibold">Activity</Text><Badge label={String(data.filtered.length)} /></Row>
-        <Row align="center" gap={8}><Text size="2xs" role="secondary">Newest first · UTC</Text>
+        <Row align="center" gap={8}><Text size="md" role="secondary">Newest first · UTC</Text>
           <Button dark={dark} color="secondary" label={charts ? 'Hide charts' : 'Charts'} onPress={() => { setCharts(!charts); }} accessibilityState={{ expanded: charts }} /></Row>
       </Row>
       {notice}
       <RunFiltersBar entries={entries} filters={data.filters} onChange={data.change} more={data.more} onMore={data.toggleMore} minute={data.bucket?.start ?? null} onReset={data.reset} narrow={narrow} />
       {charts && <Card dark={dark}><RunTrends entries={data.rows} selected={data.bucket} onSelect={data.selectBucket} /></Card>}
       <RunActivity entries={data.filtered} selected={split ? data.selected?.id ?? null : null} onSelect={data.select} limit={data.limit} onMore={data.loadMore} onReset={data.reset} />
-      <Text size="2xs" role="secondary">Partial history. Up to 500 Metro events across this box and 40 SDK lifecycle events in the latest snapshot, plus retained failures. No hidden reasoning.</Text>
+      <Text size="md" role="secondary">Partial history: the last 500 Metro events, 40 SDK events and recent failures.</Text>
     </Col>
     <Details selected={data.selected} entries={entries} filtered={data.filtered} split={split} narrow={narrow} inspect={data.inspect} onSelect={data.select} onClose={data.close} />
   </Row>;

@@ -28,12 +28,12 @@ import { useDocumentTitle } from '../lib/title.js';
 import { TextLink } from './TextLink.js';
 
 const INTRO =
-  'Call your agent from Stage and talk to it live. Metro listens and speaks with ElevenLabs, and the agent answers with its own memory, skills, connectors and tools, and knows which chat you call from. It picks up calls from the people who can approve on its Stage channel.';
+  'Call your agent from Stage and talk live, with voice by ElevenLabs. It has all its tools and knows the chat you call from. It answers only people who can approve there.';
 const PORTS_NOTE = 'The server needs inbound UDP ports 40000 to 40100 open for the call audio.';
 const KEY_NOTE = 'Give the key Speech to Text and Text to Speech access. Create one in ElevenLabs:';
-const VOICE_NOTE = 'Empty means Sarah, the default voice. Paste any voice ID from the ElevenLabs voice library:';
-const LANGUAGE_NOTE = 'The language you speak on calls, so speech to text does not guess. Detect lets ElevenLabs guess each time.';
-const MODEL_NOTE = 'The model that thinks during calls, through the connections on the Model page, at low effort for speed.';
+const VOICE_NOTE = 'Empty means Sarah, the default. Paste any voice ID from the ElevenLabs library:';
+const LANGUAGE_NOTE = 'The language you speak on calls. Detect lets ElevenLabs guess each time.';
+const MODEL_NOTE = 'The model used on calls, through your Model page connections, at low effort for speed.';
 
 type Set = (next: VoiceSettings) => void;
 
@@ -82,7 +82,7 @@ function ChoiceSetting<T extends string>({ title, note, value, options, patch, s
   return (
     <SettingsSection title={title} note={note}>
       <Choice label={title} value={value} options={options} disabled={busy} onChange={pick} />
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
   );
 }
@@ -151,7 +151,7 @@ function VoiceModel({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNo
   const settings = model.data;
   return (
     <SettingsSection title="Model" note={MODEL_NOTE}>
-      <Text size="2xs">{voiceModelLabel(current)}</Text>
+      <Text size="md">{voiceModelLabel(current)}</Text>
       {settings === undefined || settings.connections.length === 0 ? null : (
         <>
           <Button size="md" color="secondary" dark={dark} label="Change" onPress={() => { setOpen(true); }} />
@@ -171,14 +171,14 @@ function VoiceModel({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNo
 
 function VoiceBody(): ReactNode {
   const { voice, error, set } = useVoice();
-  if (error !== null && error !== undefined) return <Text size="2xs" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
+  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
   if (voice === undefined) return <Loading />;
   return (
     <Col gap={32}>
       <SettingsGroup>
         <AnswerCalls voice={voice} set={set} />
         <SettingsSection title="Provider" compact>
-          <Text size="2xs" role="secondary">{providerName(voice.provider)}</Text>
+          <Text size="md" role="secondary">{providerName(voice.provider)}</Text>
         </SettingsSection>
         <ApiKey voice={voice} set={set} />
       </SettingsGroup>
@@ -203,7 +203,7 @@ export function VoicePage(): ReactNode {
   return (
     <Col gap={32}>
       <PageTitle>Voice</PageTitle>
-      <Text size="2xs" role="secondary">{INTRO}</Text>
+      <Text size="md" role="secondary">{INTRO}</Text>
       <VoiceGate />
     </Col>
   );

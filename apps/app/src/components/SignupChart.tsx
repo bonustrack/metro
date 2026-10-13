@@ -37,10 +37,10 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
   return (
     <Col gap={6} padding={{ bottom: 8 }}>
       <Row justify="between" align="center">
-        <Text size="2xs" weight="semibold">
+        <Text size="md" weight="semibold">
           Sign-ups, last {String(DAYS)} days
         </Text>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {String(total)} new
         </Text>
       </Row>
@@ -51,10 +51,10 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
         })}
       </Svg>
       <Row justify="between">
-        <Text size="3xs" role="secondary">
+        <Text size="md" role="secondary">
           {from}
         </Text>
-        <Text size="3xs" role="secondary">
+        <Text size="md" role="secondary">
           {to}
         </Text>
       </Row>

@@ -19,7 +19,7 @@ const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings'];
 
 export const worksOffline = (kind: Selection['kind']): boolean => OFFLINE_PAGES.includes(kind);
 
-const WHY = 'Nothing on this page can be read while the box does not answer. Its name, picture and address are kept by Metro, so Settings still works.';
+const WHY = 'The box does not answer, so this page is empty. Settings still works: Metro keeps its name, picture and address.';
 
 export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -36,14 +36,14 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
           <Row gap={8} align="center" wrap>
             <Badge label="Offline" color="secondary" variant="soft" pill />
             {here === null ? null : (
-              <Text size="2xs" role="secondary" numberOfLines={1}>
+              <Text size="md" role="secondary" numberOfLines={1}>
                 {here.host}
               </Text>
             )}
           </Row>
         </Col>
       </Row>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {WHY}
       </Text>
       <Button size="md" color="secondary" dark={dark} label="Try again" onPress={onRetry} />
