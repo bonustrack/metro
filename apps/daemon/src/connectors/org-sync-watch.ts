@@ -41,8 +41,8 @@ export function invalidateOrgConnectorSync(): void {
   active?.invalidate();
 }
 
-export function stopOrgConnectorSync(): void {
-  active?.stop();
+export function stopOrgConnectorSync(keepPublished = false): void {
+  active?.stop(keepPublished);
   active = null;
 }
 

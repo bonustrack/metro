@@ -165,7 +165,7 @@ test('a cached discovery failure is bounded and logs only its stage and safe sta
   } finally { clock.mockRestore(); debug.mockRestore(); }
 });
 
-test('startup discovery capacity is bounded and a refused connector can discover after a slot frees', async () => {
+test('startup discovery capacity is bounded and a fifth connector waits for a slot instead of failing', async () => {
   const first = fixture.state.rows[0]!;
   fixture.state.rows = Array.from({ length: 5 }, (_, i) => ({ ...first, id: `conn000000${i + 1}` }));
   await fixture.sync.sync();
@@ -183,11 +183,11 @@ test('startup discovery capacity is bounded and a refused connector can discover
   const sessions = fixture.state.rows.map((row) => fixture.runtime.open(`org-${row.id}`));
   const scans = sessions.slice(0, 4).map((session) => session.target(false));
   await allReached.promise;
-  await expectStatus(() => sessions[4]!.target(false), 503);
+  const fifth = sessions[4]!.target(false);
+  await Bun.sleep(20);
   expect(reached).toBe(4);
   release.resolve();
-  await Promise.all(scans);
-  await sessions[4]!.target(false);
+  await Promise.all([...scans, fifth]);
   expect(reached).toBe(5);
   for (const session of sessions) session.close();
 });

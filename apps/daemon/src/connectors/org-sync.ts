@@ -94,12 +94,14 @@ export class OrgConnectorSync {
   }
 
   private refused = false;
+  private settled = false;
 
   lapsed(): boolean {
-    return !this.refused && (this.receipt.state === 'expired' || this.receipt.state === 'unavailable');
+    return !this.refused && (!this.settled || this.receipt.state === 'expired' || this.receipt.state === 'unavailable');
   }
 
   invalidate(reason: 'waiting' | 'expired' | 'unavailable' = 'waiting'): void {
+    if (reason === 'waiting') this.settled = true;
     this.generation += 1;
     this.controller?.abort();
     this.controller = null;
@@ -197,6 +199,7 @@ export class OrgConnectorSync {
     this.receiptToken = identity.token;
     const total = snapshot.connectors.length;
     const ready = snapshot.connectors.filter((row) => row.state === 'ready').length;
+    this.settled = true;
     this.receipt = { state: 'received', lastReceivedAt: this.deps.api.now(), leaseExpiresAt: this.wallDeadline, counts: { total, ready, unavailable: total - ready } };
     this.expiry = setTimeout(() => { this.invalidate('expired'); }, remaining);
     this.expiry.unref();
