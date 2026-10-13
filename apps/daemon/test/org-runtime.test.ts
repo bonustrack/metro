@@ -116,20 +116,24 @@ test.each([401, 403, 502, 503])('central %s fails closed with safe daemon status
   await expectStatus(() => session.target(false), status >= 500 ? 503 : 424);
   expect(fixture.vendors).toHaveLength(count);
   expect(active.signal.aborted).toBe(true);
-  expect(fixture.publications.at(-1)).toEqual([]);
+  if (status >= 500) expect(fixture.publications.at(-1)?.map((row) => row.id)).toEqual([RELAY_ID]);
+  else expect(fixture.publications.at(-1)).toEqual([]);
 });
 
-test('missing, signin and unavailable assignments keep distinct safe statuses', async () => {
+test('missing, signin and unavailable assignments keep distinct safe statuses, stay listed, and leave the list once unassigned', async () => {
   await expectStatus(() => fixture.runtime.open('org-absent00001'), 404);
   for (const [state, status] of [['signin', 424], ['unavailable', 503]] as const) {
     fixture.state.rows = fixture.state.rows.map((row) => ({ ...row, state, headers: {} }));
     await fixture.sync.sync();
     await expectStatus(() => fixture.runtime.open(RELAY_ID), status);
-    expect(fixture.publications.at(-1)).toEqual([]);
+    expect(fixture.publications.at(-1)?.map((row) => row.id)).toEqual([RELAY_ID]);
   }
+  fixture.state.rows = [];
+  await fixture.sync.sync();
+  expect(fixture.publications.at(-1)).toEqual([]);
 });
 
-test('monotonic expiry and real expiry timer both abort requests and withdraw metadata', async () => {
+test('monotonic expiry and real expiry timer both abort requests but keep the published list until the next delivery', async () => {
   const session = await readyTarget();
   fixture.state.monotonic += 90_001;
   await expectStatus(() => session.current(), 503);
@@ -139,7 +143,9 @@ test('monotonic expiry and real expiry timer both abort requests and withdraw me
   const expiring = fixture.runtime.open(RELAY_ID);
   await Bun.sleep(40);
   expect(expiring.signal.aborted).toBe(true);
-  expect(fixture.publications.at(-1)).toEqual([]);
+  expect(fixture.publications.at(-1)?.map((row) => row.id)).toEqual([RELAY_ID]);
+  const first = fixture.publications.findIndex((rows) => rows.length > 0);
+  expect(fixture.publications.slice(first).some((rows) => rows.length === 0)).toBe(false);
 });
 
 test('live and sync flags fail closed without changing local files', async () => {
