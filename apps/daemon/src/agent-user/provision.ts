@@ -10,9 +10,11 @@ import { watchAgentView } from './view.js';
 import { closeMetroHome } from './metro-home.js';
 import { mustHelper } from '../metro-user/privilege.js';
 import { stagedPluginVersion } from '../claude/plugin-install.js';
+import { CLAUDE_CODE_VERSION } from '../claude/pinned.js';
+import { pinClaudeCode } from '../claude/version.js';
 
 const INSTALL_MS = 10 * 60_000;
-const INSTALLER = 'curl -fsSL https://claude.ai/install.sh | bash';
+const INSTALLER = `curl -fsSL https://claude.ai/install.sh | bash -s ${CLAUDE_CODE_VERSION}`;
 
 export type Provisioned = 'off' | 'failed' | 'ready';
 
@@ -55,6 +57,14 @@ function installClaude(user: AgentUser): Promise<void> {
   });
 }
 
+function pinCheckedClaude(): void {
+  try {
+    pinClaudeCode();
+  } catch (err) {
+    log.warn({ want: CLAUDE_CODE_VERSION, err: errMsg(err) }, 'agent-user: could not install the Claude Code version metro was checked with; keeping the installed one');
+  }
+}
+
 function copyMarketplace(user: AgentUser, env: NodeJS.ProcessEnv): void {
   const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
   const from = join(store, 'marketplace');
@@ -71,6 +81,7 @@ export async function provisionAgentUser(env: NodeJS.ProcessEnv = process.env): 
     const user = ensureUser();
     if (user === null) throw new Error(`the user ${AGENT_NAME} could not be found after creating it`);
     await installClaude(user);
+    pinCheckedClaude();
     copyMarketplace(user, env);
     watchAgentView();
     return 'ready';

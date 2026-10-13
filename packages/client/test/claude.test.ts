@@ -13,7 +13,7 @@ const activity = {
 describe('the optional SDK runtime status', () => {
   test('old daemons keep their safe defaults and have no runtime details', () => {
     expect(toClaudeSession({ running: true })).toEqual({
-      name: 'metro', running: true, runner: null, autostart: true, blocked: null, lastStartedAt: null, lastError: null, activity: null,
+      name: 'metro', running: true, runner: null, autostart: true, blocked: null, lastStartedAt: null, lastError: null, channelsSkipped: null, activity: null,
     });
     expect(toClaudeSession({ running: false, activity: { phase: 'idle' } }).activity).toBeNull();
   });

@@ -212,9 +212,9 @@ function answer(method: string, path: string, query: URLSearchParams, dir: strin
 function versionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
   const version: VersionDeps = { ...deps.version, session: deps.version?.session ?? deps.session };
   const method = req.method ?? 'GET';
-  if (method === 'GET') return claudeVersion(version);
+  if (method === 'GET') return Promise.resolve(claudeVersion(version));
   if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  return updateClaude(version);
+  return Promise.resolve(updateClaude(version));
 }
 
 const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps, session: ApiSession) => Promise<unknown>> = {

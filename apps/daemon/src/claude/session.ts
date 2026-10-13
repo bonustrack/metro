@@ -18,6 +18,7 @@ import { harnessRunner, isHarnessRunner, sdkAllowed, SDK_NEEDS_KEY, type Harness
 import { claudeAccount, claudeInstalled } from './login.js';
 import { trustFolder } from './onboarding.js';
 import { inSessionScope } from './memory.js';
+import { channelState, forgetChannelState, noteChannelState, type ChannelState } from './channel-check.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
@@ -59,6 +60,7 @@ export interface SessionStatus {
   blocked: string | null;
   lastStartedAt: string | null;
   lastError: string | null;
+  channels?: ChannelState | null;
 }
 
 export interface SessionSnapshot {
@@ -212,12 +214,15 @@ function noteLaunchLines(pane: string, seen: Set<string>): void {
     }
 }
 
-function confirmChannels(tmux: string, until: number): void {
+function confirmChannels(tmux: string, home: string, startedAt: number): void {
+  const until = startedAt + CONFIRM_WAIT_MS;
   const seen = new Set<string>();
   let confirmed = false;
+  let checked = false;
   const tick = (): void => {
     const pane = capturePane(tmux);
     noteLaunchLines(pane, seen);
+    checked ||= noteChannelState(home, startedAt);
     if (!confirmed && pane.includes(WARNING) && pane.includes('server:metro')) {
       spawnSync(...asAgent(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter']), { stdio: 'ignore' });
       log.info('claude-session: confirmed the development channels dialog for server:metro');
@@ -230,6 +235,7 @@ function confirmChannels(tmux: string, until: number): void {
 
 function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?: Error; status: number | null; stderr: string }): void {
   memory.lastStartedAt = now;
+  forgetChannelState();
   if (run.error !== undefined || run.status !== 0) {
     memory.lastError = run.error === undefined ? `tmux new-session exited ${String(run.status)}: ${run.stderr.trim()}` : errMsg(run.error);
     log.warn({ err: memory.lastError }, 'claude-session: tmux could not start');
@@ -238,7 +244,7 @@ function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?
   memory.lastError = null;
   const agents = deps.agents ?? agentsDir();
   writeState(agents, { version: deps.version ?? METRO_VERSION, runner: harnessRunner(agents) });
-  confirmChannels(tmux, now + CONFIRM_WAIT_MS);
+  confirmChannels(tmux, sessionHome(deps), now);
 }
 
 function tmuxLaunch(deps: SessionDeps, tmux: string, args: string[]): [string, string[]] {
@@ -296,6 +302,7 @@ export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
     autostart: autostartEnabled(deps.agents ?? agentsDir()),
     blocked: sessionBlocked(deps),
     lastError: memory.lastError,
+    channels: channelState(),
   };
 }
 

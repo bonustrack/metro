@@ -1,5 +1,11 @@
 # Metro history
 
+## 2026-10-13: Claude Code is pinned, and a refused channel is reported
+
+Emma got no chat message for about ten hours. The Harness page's Update ran `claude install latest` at 08:17 UTC and moved her Claude Code from 2.1.289 to 2.1.296. The daemon kept delivering (`relay: notify` for every event, `/mcp/status` showed the stream attached), but Claude Code's own MCP log for the metro server said `Channel notifications skipped: channels feature is not currently available` at every start after the update, and `Channel notifications registered` at every start before it. In 2.1.296 the channel check also asks a new compliance verdict (`allow_channels`, which denies when the verdict is missing), so the `tengu_harbor` seed alone no longer turns channels on. Emma's own debugging looked at the daemon's replay code, which was not at fault. Moving the box back to 2.1.289 (`claude install 2.1.289` as the agent, then a session restart) brought `Channel notifications registered` back.
+
+Less chose to pin and warn. `CLAUDE_CODE_VERSION` in `claude/pinned.ts` names the one Claude Code build Metro has checked: the first install (`install.sh` with that version), the Harness Update (`claude install <version>`, which also moves a newer build back) and every boot (`pinClaudeCode` in `provision.ts`, a failure only logged) install it. After each session start the daemon reads the newest metro MCP log of Claude Code (`claude/channel-check.ts`) and logs an error when the channel was skipped; `/api/claude/session` carries `channels: {registered, reason}` and the Harness page says the agent gets no chat messages.
+
 ## 2026-10-08: A refresh keeps the selected organization
 
 Users were signed out again and again. WorkOS's refresh grant answers for the organization the session started with unless it names another one (`organization_id`), so once the app was on another organization (after a switch on metro.box), every refresh came back for the wrong one, the app's same-source check refused it and cleared the account within minutes. The app now sends its selected `organization` with every `POST /api/auth/refresh` and the api forwards it; WorkOS still refuses an organization the session may not use.
