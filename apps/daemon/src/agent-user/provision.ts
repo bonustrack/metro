@@ -34,7 +34,10 @@ function ensureUser(): AgentUser | null {
   openMetroHome();
   forgetAgentUser();
   const user = agentUser();
-  if (user !== null) run(...asUser(user, 'chmod', ['711', user.home]));
+  if (user !== null) {
+    run(...asUser(user, 'chmod', ['711', user.home]));
+    run(...asUser(user, 'sh', ['-c', 'test ! -d "$1" || chmod go-w "$1"', 'sh', join(user.home, '.metro')]));
+  }
   return user;
 }
 

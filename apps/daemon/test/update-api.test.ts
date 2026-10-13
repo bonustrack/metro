@@ -77,6 +77,19 @@ describe('updating metro from the page', () => {
     expect(restarts).toBe(1);
   });
 
+  test('pressing Update checks again instead of trusting a cached "nothing newer"', async () => {
+    fakeCli(`process.stdout.write(JSON.stringify({ current: '0.1.0-beta.52', latest: '0.1.0-beta.52', newer: false }) + '\\n');`);
+    expect(await (await call('GET', OWNER)).json()).toMatchObject({ newer: false });
+    fakeCli(`
+      if (process.argv.includes('--check')) process.stdout.write(JSON.stringify({ current: '0.1.0-beta.52', latest: '0.1.0-beta.53', newer: true }) + '\\n');
+      else process.stderr.write('metro is now 0.1.0-beta.53\\n');
+    `);
+    const res = await call('POST', OWNER);
+    expect(await res.json()).toEqual({ updated: true, version: '0.1.0-beta.53', restarting: true });
+    await new Promise((r) => setTimeout(r, 700));
+    expect(restarts).toBe(1);
+  });
+
   test('a failing CLI is a 502 carrying its words, and no restart', async () => {
     fakeCli(`
       if (process.argv.includes('--check')) process.stdout.write(JSON.stringify({ current: '0.1.0-beta.51', latest: '0.1.0-beta.53', newer: true }) + '\\n');
