@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { AGENT_CLOCK_SKEW_MS } from '@metro-labs/http/agent-signature';
 import { CONNECTOR_DELIVERY_LEASE_MS, CONNECTOR_DELIVERY_MAX_BYTES, openConnectorDelivery, type DeliveryContext, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import type { AgentKey } from './agent-key.js';
-import { agentCall, type MetroApi } from './metro-api.js';
+import { agentCall, MetroApiRefusal, type MetroApi } from './metro-api.js';
 
 interface Identity {
   key: AgentKey;
@@ -93,6 +93,12 @@ export class OrgConnectorSync {
     this.expiry = null;
   }
 
+  private refused = false;
+
+  lapsed(): boolean {
+    return !this.refused && (this.receipt.state === 'expired' || this.receipt.state === 'unavailable');
+  }
+
   invalidate(reason: 'waiting' | 'expired' | 'unavailable' = 'waiting'): void {
     this.generation += 1;
     this.controller?.abort();
@@ -147,8 +153,13 @@ export class OrgConnectorSync {
     this.token = identity.token;
     const generation = this.generation;
     this.controller = new AbortController();
-    this.running = this.fetch(identity, refresh, generation, this.controller.signal).catch((err: unknown) => {
-      if (generation === this.generation) this.invalidate('unavailable');
+    this.running = this.fetch(identity, refresh, generation, this.controller.signal).then(() => {
+      this.refused = false;
+    }, (err: unknown) => {
+      if (generation === this.generation) {
+        this.refused = err instanceof MetroApiRefusal && err.upstreamStatus < 500;
+        this.invalidate('unavailable');
+      }
       throw err;
     }).finally(() => { this.running = null; });
     return this.running;

@@ -3,7 +3,7 @@ import { agentsDir } from '../agents/files.js';
 import { assertMigrationOutcomeKnown, beginMigrationOperation, migrationRequestEffectful, type MigrationOperation } from './migration-operations.js';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
-import { effectiveConnectorPolicy, type DeliveredConnector } from '@metro-labs/http/connector-delivery';
+import { effectiveConnectorPolicy, type DeliveredConnector, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import type { ApiError } from '@metro-labs/http/api-error';
 import { requestConnectorBlocker, type GateRow } from './gates.js';
 import { publishOrgConnectors } from './publication.js';
@@ -92,7 +92,7 @@ export class OrgConnectorRuntime {
   }
 
   private publish(rows: RuntimeRow[]): void {
-    const metadata: GateRow[] = rows.filter((row) => row.state === 'ready').map((row) => ({
+    const metadata: GateRow[] = rows.map((row) => ({
       id: row.relayId, name: row.relayName,
       config: { policy: effectiveConnectorPolicy(row, this.entries.get(row.id)?.groups ?? {}), toolGroups: { ...this.entries.get(row.id)?.groups } },
     }));
@@ -145,14 +145,13 @@ export class OrgConnectorRuntime {
   private update(): RuntimeRow[] | null {
     try {
       const mapping = this.mapping();
-      const snapshot = this.enabled() || mapping.aliases.length > 0 ? this.sync.read() : null;
-      const rows = this.mappedRows(snapshot?.connectors ?? [], mapping);
+      const wanted = this.enabled() || mapping.aliases.length > 0;
+      const snapshot = wanted ? this.sync.read() : null;
       const epoch = this.sync.epoch();
+      if (this.held(snapshot, wanted, epoch)) return null;
+      const rows = this.mappedRows(snapshot?.connectors ?? [], mapping);
       this.invalidateEntries(rows, epoch, snapshot !== null);
-      for (const row of rows) {
-        if (row.state !== 'ready' || this.entries.has(row.id)) continue;
-        this.entries.set(row.id, { id: row.id, relayId: row.relayId, epoch, stamp: stampOf(row), controller: new AbortController(), groups: {}, scan: null, nextScan: 0, error: null });
-      }
+      this.track(rows, epoch);
       this.publish(rows);
       return snapshot === null ? null : rows;
     } catch {
@@ -160,6 +159,19 @@ export class OrgConnectorRuntime {
       this.publish([]);
       throw orgUnavailable();
     }
+  }
+
+  private track(rows: RuntimeRow[], epoch: number): void {
+    for (const row of rows) {
+      if (row.state !== 'ready' || this.entries.has(row.id)) continue;
+      this.entries.set(row.id, { id: row.id, relayId: row.relayId, epoch, stamp: stampOf(row), controller: new AbortController(), groups: {}, scan: null, nextScan: 0, error: null });
+    }
+  }
+
+  private held(snapshot: DeliverySnapshot | null, wanted: boolean, epoch: number): boolean {
+    if (snapshot !== null || !wanted || !this.sync.lapsed()) return false;
+    this.invalidateEntries([], epoch, false);
+    return true;
   }
 
   refresh(): void {
