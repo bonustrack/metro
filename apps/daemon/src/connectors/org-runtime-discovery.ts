@@ -98,8 +98,9 @@ export async function discoverOrgGroups(url: string, guard: DiscoveryGuard): Pro
       try {
         return await guardedRequest(input, init, guard, budget);
       } catch (error) {
-        failure.error = orgRuntimeError(error);
-        throw failure.error;
+        const safe = orgRuntimeError(error);
+        if (init?.method !== 'DELETE' || safe.status !== 502) failure.error = safe;
+        throw safe;
       }
     };
     const tools = await listRemoteTools(new URL(url), { kind: 'none' }, send);

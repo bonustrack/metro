@@ -62,6 +62,14 @@ test.each(['assignment', 'policy', 'target', 'epoch'] as const)('a stale respons
   expect(fixture.vendors).toHaveLength(3);
 });
 
+test.each([405, 404, 302])('a vendor that refuses to end the session (%s) still has its tools discovered', async (status) => {
+  fixture.state.vendor = async (call) => (call.method === 'DELETE' ? new Response(null, { status }) : null);
+  const session = fixture.runtime.open(RELAY_ID);
+  await session.target(false);
+  expect(fixture.vendors.at(-1)?.method).toBe('DELETE');
+  expect(fixture.publications.at(-1)?.length).toBeGreaterThan(0);
+});
+
 test('a final fresh delivery after discovery rejects revocation during discovery', async () => {
   fixture.state.vendor = async (call) => {
     if (call.method === 'DELETE') fixture.state.rows = [];
