@@ -4,7 +4,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { MIGRATION_UPDATE, type MigrationPlan } from '@metro-labs/client/api/connector-migration';
-import type { MigrationSelection, MigrationSnapshot } from '@metro-labs/client/api/connector-migration-flow';
+import { shownMigrations, type MigrationSelection, type MigrationSnapshot } from '@metro-labs/client/api/connector-migration-flow';
 import type { MigrationAction, MigrationView } from '@metro-labs/client/api/connector-migration-status';
 import { routeHash } from '@metro-labs/client/route';
 import { connectorLabel } from '@metro-labs/client/api/connectors';
@@ -128,7 +128,7 @@ function Availability({ snapshot }: { snapshot: MigrationSnapshot }): ReactNode 
 export function MigrationProgress(props: ProgressProps): ReactNode {
   const { snapshot } = props;
   const plan = snapshot.plan;
-  const migrations = snapshot.status?.migrations ?? [];
+  const migrations = shownMigrations(snapshot);
   const sources = plan?.rows ?? [];
   const ids = [...new Set([...sources.map((row) => row.source.id), ...migrations.map((row) => row.sourceId), ...snapshot.uncertain])];
   return <Col gap={16}>
