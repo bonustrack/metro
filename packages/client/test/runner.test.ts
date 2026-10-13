@@ -64,6 +64,16 @@ describe('switching and observing a session', () => {
     expect(sessionNote(toClaudeSession({ running: false, lastError: 'Failed to launch' }), now)).toBe('Not running: Failed to launch');
     expect(sessionNote(toClaudeSession({ running: false, blocked: 'No model' }), now)).toBe('Waiting: No model.');
   });
+
+  test('a Claude Code session that refused the Metro channel says so, and a registered or unknown one reads as running', () => {
+    const cli = (channels: unknown): string => sessionNote(toClaudeSession({ running: true, runner: 'cli', channels }), now);
+    expect(cli({ registered: false, reason: 'channels feature is not currently available' })).toBe(
+      'Running, but Claude Code refused the Metro channel (channels feature is not currently available), so chat messages do not reach the agent.',
+    );
+    expect(cli({ registered: false })).toContain('(no reason given)');
+    expect(cli({ registered: true, reason: null })).toBe('Running.');
+    expect(cli(undefined)).toBe('Running.');
+  });
 });
 
 describe('the Model page says how a switch reaches the agent', () => {

@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import * as agentUser from '../src/agent-user/user.js';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import type { SessionDeps } from '../src/claude/session.js';
-import { claudeVersion, forgetClaudeVersion, newerThan, updateClaude } from '../src/claude/version.js';
+import { CLAUDE_CODE_VERSION } from '../src/claude/pinned.js';
+import { claudeVersion, pinClaudeCode, updateClaude } from '../src/claude/version.js';
 import * as privilege from '../src/metro-user/privilege.js';
 import { auth } from './identity-helper.ts';
 
@@ -24,14 +25,12 @@ const script = (name: string, body: string): string => {
 const fakeClaude = (): string =>
   script(
     'claude',
-    `case "$1" in --version) cat ${dir}/installed; echo " (Claude Code)";; install) echo 2.1.274 > ${dir}/installed;; *) exit 1;; esac`,
+    `case "$1" in --version) cat ${dir}/installed; echo " (Claude Code)";; install) echo "$2" > ${dir}/installed; echo "$2" >> ${dir}/installs;; *) exit 1;; esac`,
   );
 
 const fakeTmux = (): string => script('tmux', `case "$1" in has-session) exit 0;; kill-session) touch ${dir}/killed;; esac; exit 0`);
 
 const session = (): SessionDeps => ({ tmux: fakeTmux(), home: join(dir, 'home'), agents: join(dir, 'agents') });
-
-const npm = (version: string): typeof fetch => (() => Promise.resolve(new Response(JSON.stringify({ version }), { status: 200 }))) as unknown as typeof fetch;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-claude-version-'));
@@ -42,8 +41,7 @@ beforeEach(() => {
   }));
   spyOn(privilege, 'runningAsMetro').mockReturnValue(false);
   spyOn(agentUser, 'claudeHome').mockReturnValue(ambientHome);
-  writeFileSync(join(dir, 'installed'), '2.1.272');
-  forgetClaudeVersion();
+  writeFileSync(join(dir, 'installed'), '2.1.296');
 });
 
 afterEach(() => {
@@ -52,38 +50,42 @@ afterEach(() => {
 });
 
 describe('the Claude Code version on a box', () => {
-  test('orders releases numerically', () => {
-    expect(newerThan('2.1.274', '2.1.272')).toBe(true);
-    expect(newerThan('2.2.0', '2.1.999')).toBe(true);
-    expect(newerThan('2.1.272', '2.1.272')).toBe(false);
-    expect(newerThan('2.1.9', '2.1.10')).toBe(false);
-  });
-
-  test('reads the installed build from the binary and the latest from npm, and says when the box is behind', async () => {
+  test('the version metro was checked with is the target, and any other installed build is offered the switch', () => {
     const claude = fakeClaude();
-    expect(await claudeVersion({ claude, fetchImpl: npm('2.1.274') })).toEqual({ installed: '2.1.272', latest: '2.1.274', newer: true });
-    forgetClaudeVersion();
-    expect(await claudeVersion({ claude, fetchImpl: npm('2.1.272') })).toEqual({ installed: '2.1.272', latest: '2.1.272', newer: false });
+    expect(claudeVersion({ claude })).toEqual({ installed: '2.1.296', latest: CLAUDE_CODE_VERSION, newer: true });
+    writeFileSync(join(dir, 'installed'), CLAUDE_CODE_VERSION);
+    expect(claudeVersion({ claude })).toEqual({ installed: CLAUDE_CODE_VERSION, latest: CLAUDE_CODE_VERSION, newer: false });
   });
 
-  test('a box without Claude Code or without npm reports nulls rather than failing', async () => {
-    const down = (() => Promise.reject(new Error('offline'))) as unknown as typeof fetch;
-    expect(await claudeVersion({ claude: join(dir, 'missing'), fetchImpl: down })).toEqual({ installed: null, latest: null, newer: false });
+  test('a box without Claude Code reports no installed build rather than failing', () => {
+    expect(claudeVersion({ claude: join(dir, 'missing') })).toEqual({ installed: null, latest: CLAUDE_CODE_VERSION, newer: false });
   });
 
-  test('an update restarts only the fixture session, not the runner recorded in the configured agent home', async () => {
-    const claude = fakeClaude();
-    const result = await updateClaude({ claude, fetchImpl: npm('2.1.274'), session: session() });
-    expect(result).toEqual({ installed: '2.1.274', latest: '2.1.274', newer: false, restarted: true });
+  test('an update installs the checked version, never latest, and restarts only the fixture session', () => {
+    const result = updateClaude({ claude: fakeClaude(), session: session() });
+    expect(result).toEqual({ installed: CLAUDE_CODE_VERSION, latest: CLAUDE_CODE_VERSION, newer: false, restarted: true });
+    expect(readFileSync(join(dir, 'installs'), 'utf8').trim()).toBe(CLAUDE_CODE_VERSION);
     expect(existsSync(join(dir, 'killed'))).toBe(true);
-    expect(readFileSync(join(dir, 'installed'), 'utf8').trim()).toBe('2.1.274');
   });
 
-  test('an update that changes nothing leaves the session alone', async () => {
-    writeFileSync(join(dir, 'installed'), '2.1.274');
-    const result = await updateClaude({ claude: fakeClaude(), fetchImpl: npm('2.1.274'), session: session() });
-    expect(result.restarted).toBe(false);
+  test('an update that changes nothing leaves the session alone', () => {
+    writeFileSync(join(dir, 'installed'), CLAUDE_CODE_VERSION);
+    expect(updateClaude({ claude: fakeClaude(), session: session() }).restarted).toBe(false);
     expect(existsSync(join(dir, 'killed'))).toBe(false);
+  });
+
+  test('the boot pin installs the checked version only when another one is there', () => {
+    const claude = fakeClaude();
+    pinClaudeCode({ claude });
+    expect(readFileSync(join(dir, 'installed'), 'utf8').trim()).toBe(CLAUDE_CODE_VERSION);
+    pinClaudeCode({ claude });
+    expect(readFileSync(join(dir, 'installs'), 'utf8').trim().split('\n')).toEqual([CLAUDE_CODE_VERSION]);
+    pinClaudeCode({ claude: join(dir, 'missing') });
+  });
+
+  test('a failed install is an error naming the version', () => {
+    const broken = script('claude', 'case "$1" in --version) echo "2.1.296 (Claude Code)";; *) echo offline >&2; exit 1;; esac');
+    expect(() => updateClaude({ claude: broken, session: session() })).toThrow(`claude install ${CLAUDE_CODE_VERSION} failed: offline`);
   });
 });
 
@@ -96,7 +98,7 @@ describe('the version over the API', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         session: session(),
-        version: { claude, fetchImpl: npm('2.1.274') },
+        version: { claude },
       });
       if (!ok) res.writeHead(404).end();
     });
@@ -114,7 +116,7 @@ describe('the version over the API', () => {
     fetch(`${base}/api/claude/version`, { method, headers: { authorization: await auth(OWNER) } });
 
   test('the owner reads the versions and runs the update', async () => {
-    expect((await (await call('GET')).json()) as unknown).toEqual({ installed: '2.1.272', latest: '2.1.274', newer: true });
-    expect((await (await call('POST')).json()) as unknown).toEqual({ installed: '2.1.274', latest: '2.1.274', newer: false, restarted: true });
+    expect((await (await call('GET')).json()) as unknown).toEqual({ installed: '2.1.296', latest: CLAUDE_CODE_VERSION, newer: true });
+    expect((await (await call('POST')).json()) as unknown).toEqual({ installed: CLAUDE_CODE_VERSION, latest: CLAUDE_CODE_VERSION, newer: false, restarted: true });
   });
 });

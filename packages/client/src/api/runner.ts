@@ -17,14 +17,18 @@ const ACTIVITY_STALE_MS = 30_000;
 
 export const activityIsStale = (updatedAt: number, now: number): boolean => now - updatedAt > ACTIVITY_STALE_MS || updatedAt > now + ACTIVITY_STALE_MS;
 
+function runningNote(status: ClaudeSessionStatus, now: number): string {
+  const activity = status.activity;
+  if (status.runner === 'cli' && status.channelsSkipped !== null)
+    return `Running, but Claude Code refused the Metro channel (${status.channelsSkipped}), so chat messages do not reach the agent.`;
+  if (activity === null || status.runner === 'cli') return status.runner === 'sdk' ? 'Session process running. Waiting for Agent SDK status.' : 'Running.';
+  const phase = activity.phase === 'approval' ? 'waiting for approval' : activity.phase;
+  if (activityIsStale(activity.updatedAt, now)) return `Session process running. SDK status is stale; last reported ${phase}.`;
+  return `Session process running. Agent SDK reports ${phase}.`;
+}
+
 export function sessionNote(status: ClaudeSessionStatus, now: number): string {
-  if (status.running) {
-    const activity = status.activity;
-    if (activity === null || status.runner === 'cli') return status.runner === 'sdk' ? 'Session process running. Waiting for Agent SDK status.' : 'Running.';
-    const phase = activity.phase === 'approval' ? 'waiting for approval' : activity.phase;
-    if (activityIsStale(activity.updatedAt, now)) return `Session process running. SDK status is stale; last reported ${phase}.`;
-    return `Session process running. Agent SDK reports ${phase}.`;
-  }
+  if (status.running) return runningNote(status, now);
   if (status.lastError !== null) return `Not running: ${status.lastError}`;
   if (status.blocked !== null) return `Waiting: ${status.blocked}.`;
   return status.autostart ? 'Starting in a few seconds.' : 'Not running. Press Start to run the selected runner.';

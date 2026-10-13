@@ -10,8 +10,14 @@ export interface ClaudeSessionStatus {
   blocked: string | null;
   lastStartedAt: string | null;
   lastError: string | null;
+  channelsSkipped: string | null;
   activity: RunnerActivity | null;
 }
+
+const skippedReason = (raw: unknown): string | null => {
+  if (!isRecord(raw) || raw.registered !== false) return null;
+  return filled(raw.reason) ?? 'no reason given';
+};
 
 export function toClaudeSession(body: unknown): ClaudeSessionStatus {
   if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
@@ -23,6 +29,7 @@ export function toClaudeSession(body: unknown): ClaudeSessionStatus {
     blocked: filled(body.blocked),
     lastStartedAt: filled(body.lastStartedAt),
     lastError: filled(body.lastError),
+    channelsSkipped: skippedReason(body.channels),
     activity: parseRunnerActivity(body.activity),
   };
 }
