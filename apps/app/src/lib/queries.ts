@@ -55,6 +55,8 @@ const LONG_MS = 10 * 60_000;
 const STATUS_POLL_MS = 15_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
+export const CLAUDE_SETUP_QUERY = { staleTime: 10_000, refetchOnMount: 'always' } as const;
+
 type BoxName =
   | 'update'
   | 'approvals'
@@ -278,7 +280,7 @@ export function useAccountOf(conn: ConnectionRow | undefined): string | null {
   return login ?? conn?.account ?? null;
 }
 
-export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000 });
+export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, CLAUDE_SETUP_QUERY);
 
 export const useSchedulesQuery = (): UseQueryResult<Schedules> => useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, retry: false });
 

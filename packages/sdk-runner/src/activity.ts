@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { runnerFailureSummary, type RunnerActivity, type RunnerEvent, type RunnerEventKind, type RunnerFailure, type RunnerFailureCode, type RunnerInput, type RunnerPhase, type RunnerTool } from '@metro-labs/core/runner-activity';
+import { runnerFailureSummary, type RunnerActivity, type RunnerDiagnostic, type RunnerEvent, type RunnerEventKind, type RunnerFailure, type RunnerFailureCode, type RunnerInput, type RunnerPhase, type RunnerTool } from '@metro-labs/core/runner-activity';
 import { writeAtomic } from '@metro-labs/core/secure-fs';
 import { ActivityTasks, activityName } from './activity-tasks.js';
 import type { ApprovalAsk } from './approvals.js';
 import type { SavedTask } from './task-state.js';
+import { sessionFailure } from './errors.js';
+export { failureSummary } from './errors.js';
 
 const HEARTBEAT_MS = 5_000;
 const MAX_TRACKED = 200;
@@ -18,18 +20,9 @@ type System = Extract<SDKMessage, { type: 'system' }>;
 interface TrackedTool extends RunnerTool { parent: string | null }
 interface Approval { tool: string | null; taskId: string | null; worker: boolean }
 
-function sessionFailureCode(err: unknown): RunnerFailureCode {
-  const text = err instanceof Error ? err.message : String(err);
-  for (const code of ['status_unavailable', 'session_ended', 'interrupted', 'saved_state', 'authentication', 'executable', 'connection'] as const)
-    if (text === runnerFailureSummary(code)) return code;
-  if (/saved Agent SDK state/i.test(text)) return 'saved_state';
-  if (/unauthorized|authentication|invalid.*key|\b40[13]\b/i.test(text)) return 'authentication';
-  if (/ENOENT|not found|executable|spawn/i.test(text)) return 'executable';
-  if (/ECONN|network|fetch failed|timed? ?out/i.test(text)) return 'connection';
-  return 'session_error';
+function copyEvent<T extends RunnerEvent>(event: T): T {
+  return { ...event, ...(event.diagnostic === undefined ? {} : { diagnostic: { ...event.diagnostic } }) };
 }
-
-export function failureSummary(err: unknown): string { return runnerFailureSummary(sessionFailureCode(err)); }
 
 const PROVIDER_ERRORS: Record<NonNullable<Extract<SDKMessage, { type: 'assistant' }>['error']>, RunnerFailureCode> = {
   authentication_failed: 'authentication', oauth_org_not_allowed: 'authentication', cloud_credential_error: 'authentication', account_on_hold: 'authentication', verification_required: 'authentication',
@@ -94,9 +87,9 @@ export class Activity {
     const s = this.state;
     return {
       ...s, tools: [...s.tools], activeTools: s.activeTools.map((tool) => ({ ...tool })),
-      tasks: s.tasks.map((task) => ({ ...task })), events: s.events.map((event) => ({ ...event })),
+      tasks: s.tasks.map((task) => ({ ...task })), events: s.events.map(copyEvent),
       ...(s.inputs === undefined ? {} : { inputs: s.inputs.map((input) => ({ ...input })) }),
-      activeFailure: s.activeFailure ? { ...s.activeFailure } : null, lastFailure: s.lastFailure ? { ...s.lastFailure } : null,
+      activeFailure: s.activeFailure ? copyEvent(s.activeFailure) : null, lastFailure: s.lastFailure ? copyEvent(s.lastFailure) : null,
     };
   }
 
@@ -154,13 +147,14 @@ export class Activity {
     this.update();
   }
 
-  fail(message: string): void {
+  fail(err: unknown): void {
     this.failed = true;
-    const failure = this.failure('session_failed', sessionFailureCode(message), true);
+    const safe = sessionFailure(err);
+    const failure = this.failure('session_failed', safe.code, true, null, null, {}, safe.diagnostic);
     if (failure.code === 'interrupted') this.interrupted = failure;
     this.state.phase = 'error';
     this.state.mainPhase = 'error';
-    log.error({ reason: failure.code }, 'sdk-runner: activity error');
+    log.error({ reason: failure.code, diagnostic: failure.diagnostic, summary: this.state.lastError }, 'sdk-runner: activity error');
     this.flush();
   }
 
@@ -335,12 +329,12 @@ export class Activity {
     this.state.lastError = this.interrupted === null ? null : runnerFailureSummary(this.interrupted.code);
   }
 
-  private failure(kind: RunnerEventKind, code: RunnerFailureCode, active: boolean, tool: string | null = null, taskId: string | null = null, identity: Pick<RunnerEvent, 'id' | 'toolUseId'> = {}): RunnerFailure {
-    const failure: RunnerFailure = { id: activityName(identity.id) ?? randomUUID(), at: Date.now(), kind, code, tool, taskId, ...(activityName(identity.toolUseId) === null ? {} : { toolUseId: identity.toolUseId }) };
+  private failure(kind: RunnerEventKind, code: RunnerFailureCode, active: boolean, tool: string | null = null, taskId: string | null = null, identity: Pick<RunnerEvent, 'id' | 'toolUseId'> = {}, diagnostic?: RunnerDiagnostic): RunnerFailure {
+    const failure: RunnerFailure = { id: activityName(identity.id) ?? randomUUID(), at: Date.now(), kind, code, tool, taskId, ...(activityName(identity.toolUseId) === null ? {} : { toolUseId: identity.toolUseId }), ...(diagnostic === undefined ? {} : { diagnostic }) };
     this.state.lastFailure = failure;
     if (active) {
       this.state.activeFailure = failure;
-      this.state.lastError = runnerFailureSummary(code, tool);
+      this.state.lastError = runnerFailureSummary(code, tool, diagnostic);
     }
     this.record(failure);
     return failure;

@@ -159,7 +159,7 @@ function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
 function failureRow(failure: RunnerFailure, active: boolean, clock: Clock): { text: string; danger: boolean } {
   const label = !active ? 'Historical failure' : clock.mode === 'live' ? 'Current failure' : 'Failure at last report (not live)';
   const details = [date(failure.at), failure.tool, failure.taskId === null ? null : `worker ${failure.taskId}`, failure.toolUseId === undefined ? null : `tool call ${failure.toolUseId}`].filter((part) => part !== null).join(' · ');
-  return { text: `${label}: ${runnerFailureSummary(failure.code, failure.tool)} (${details})`, danger: active && clock.mode === 'live' };
+  return { text: `${label}: ${runnerFailureSummary(failure.code, failure.tool, failure.diagnostic)} (${details})`, danger: active && clock.mode === 'live' };
 }
 
 function failures(activity: RunnerActivity, clock: Clock): { text: string; danger: boolean }[] {
@@ -177,7 +177,7 @@ function failures(activity: RunnerActivity, clock: Clock): { text: string; dange
 function recentEvents(activity: RunnerActivity, clock: Clock): string[] {
   return activity.events.map((event) => [
     ago(event.at, clock.now), EVENT[event.kind], event.tool, event.taskId === null ? null : `worker ${event.taskId}`,
-    event.code === undefined ? null : `${event.id === activity.activeFailure?.id && clock.mode === 'live' ? 'Current failure' : 'Historical failure'}: ${runnerFailureSummary(event.code, event.tool)}`,
+    event.code === undefined ? null : `${event.id === activity.activeFailure?.id && clock.mode === 'live' ? 'Current failure' : 'Historical failure'}: ${runnerFailureSummary(event.code, event.tool, event.diagnostic)}`,
     event.code === undefined || event.id === undefined ? null : `event ${event.id}`,
     event.toolUseId === undefined ? null : `tool call ${event.toolUseId}`,
   ].filter((part) => part !== null).join(' · '));

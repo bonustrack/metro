@@ -52,7 +52,7 @@ describe('unfinished SDK input recovery', () => {
     });
     runner.inbox.push('chat', 'possible side effect', undefined, active);
     runner.inbox.push('chat', 'queued request', undefined, queued);
-    await expect(runner.run()).rejects.toThrow('fixture crash');
+    await expect(runner.run()).rejects.toMatchObject({ failure: { code: 'session_error' } });
     runner.close();
     expect(store.unanswered()).toEqual([
       expect.objectContaining({ uuid: active, state: 'started' }),

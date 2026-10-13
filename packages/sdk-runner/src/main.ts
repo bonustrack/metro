@@ -3,6 +3,7 @@ import { log } from '@metro-labs/core/log';
 import { Activity, failureSummary } from './activity.js';
 import { startAgent, type RunningAgent } from './app.js';
 import { runnerConfig } from './config.js';
+import { sessionFailure } from './errors.js';
 
 let agent: RunningAgent | null = null;
 let starting: Promise<RunningAgent> | null = null;
@@ -45,9 +46,10 @@ try {
     await agent.done;
     if (!exiting) activity.fail('The Agent SDK session ended unexpectedly.');
   } catch (err) {
-    if (!exiting) activity.fail(failureSummary(err));
+    if (!exiting) activity.fail(err);
   }
 } catch (err) {
-  log.error({ reason: failureSummary(err) }, 'sdk-runner: the Agent SDK session failed to start');
+  const failure = sessionFailure(err);
+  log.error({ reason: failure.code, diagnostic: failure.diagnostic, summary: failureSummary(err) }, 'sdk-runner: the Agent SDK session failed to start');
 }
 await exit(1);

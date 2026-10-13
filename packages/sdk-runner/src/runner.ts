@@ -18,6 +18,7 @@ import type { SessionStore } from './session-store.js';
 import { completedCommand, SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
 import { TaskRecovery } from './task-recovery.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
+import { failureSummary, SessionError, StartupDiagnostics } from './errors.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
 export const COMPACT_AT = 120_000;
@@ -53,9 +54,6 @@ export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: 
     includePartialMessages: true,
     extraArgs: { 'system-prompt-snapshot': 'off' },
     ...(resume === null ? {} : { resume }),
-    stderr: (text: string) => {
-      log.debug({ text: text.slice(0, 500) }, 'sdk-runner: claude stderr');
-    },
   };
 }
 
@@ -98,6 +96,7 @@ export class Runner {
   readonly automation: Automation | null;
   private readonly recovery: TaskRecovery;
   private readonly watch: SessionWatch;
+  private readonly diagnostics = new StartupDiagnostics();
   private readonly tasks = new ActivityTasks(() => undefined);
   private readonly skillWork = new SkillWork();
   private compactTimer: ReturnType<typeof setTimeout> | null = null;
@@ -149,7 +148,13 @@ export class Runner {
     if (this.session !== null) throw new Error('the runner was already started');
     if (options.resume === undefined) this.watch.restoreContext(0);
     else this.maybeCompact(true);
-    this.session = (this.parts.open ?? query)({ prompt: this.inbox, options });
+    try {
+      this.session = (this.parts.open ?? query)({ prompt: this.inbox, options: { ...options, stderr: (text) => { if (this.sessionId === null) this.diagnostics.stderr(text); } } });
+    } catch (err) {
+      const failure = this.diagnostics.failure(err);
+      this.diagnostics.clear();
+      throw new SessionError(failure);
+    }
     this.model = options.model ?? null;
     this.queueModel(this.model);
     this.parts.skills?.start({
@@ -185,13 +190,20 @@ export class Runner {
         this.maybeCompact();
         observe?.(message);
       }
+    } catch (err) {
+      throw new SessionError(this.diagnostics.failure(err));
     } finally {
-      this.cancelCompact();
-      this.parts.skills?.close();
-      this.automation?.close(false);
-      this.recovery.close(false);
-      this.ended = true;
+      this.finishRun();
     }
+  }
+
+  private finishRun(): void {
+    this.diagnostics.clear();
+    this.cancelCompact();
+    this.parts.skills?.close();
+    this.automation?.close(false);
+    this.recovery.close(false);
+    this.ended = true;
   }
 
   chat(event: ChannelEvent): Uuid {
@@ -228,8 +240,9 @@ export class Runner {
     this.switching = this.switching
       .then(() => this.applyModel(model))
       .catch((err: unknown) => {
-        this.parts.activity?.fail('The SDK could not apply the selected model. Check the Model page.');
-        log.warn({ model, err: errMsg(err) }, 'sdk-runner: the session could not take the model the Model page picked');
+        const failure = new SessionError(this.diagnostics.failure(err));
+        this.parts.activity?.fail(failure);
+        log.warn({ reason: failure.failure.code, diagnostic: failure.failure.diagnostic, summary: failureSummary(failure) }, 'sdk-runner: the session could not take the model the Model page picked');
       });
   }
 
@@ -333,6 +346,7 @@ export class Runner {
     const id = typeof m.session_id === 'string' ? m.session_id : null;
     if (id === null || id === this.sessionId) return;
     this.sessionId = id;
+    this.diagnostics.clear();
     log.info({ session: id, model: m.model, claude: m.claude_code_version }, 'sdk-runner: session up');
     try {
       this.parts.store.save(id);

@@ -84,7 +84,7 @@ async function serveGet(
     scope: session.scope,
     req,
     res,
-    previous: session.currentSink,
+    previous: () => session.currentSink,
     log: channelLog,
     registerSink: (sink) => {
       session.bindSink(sink);

@@ -30,6 +30,23 @@ describe('runner activity is optional, validated and bounded', () => {
     expect(parseRunnerActivity({ ...valid, lastError: 'Read failed. See its result in Conversations.' })?.lastError).toBe('Read failed. See its result in Conversations.');
   });
 
+  test('session diagnostics accept only fixed codes and bounded numbers, never raw errors or addresses', () => {
+    const diagnostic = { source: 'stderr', errorCode: 'ERR_MODULE_NOT_FOUND', exitCode: 1, httpStatus: 401, signal: 'SIGKILL' };
+    const failure = { id: 'startup', at: 123, kind: 'session_failed', code: 'module', tool: null, taskId: null, diagnostic };
+    const privateFields = { message: 'PRIVATE', stderr: 'PRIVATE', stack: 'PRIVATE', headers: 'PRIVATE', endpoint: 'https://private.invalid/PRIVATE?token=PRIVATE' };
+    const parsed = parseRunnerActivity({ ...valid, activeFailure: { ...failure, diagnostic: { ...diagnostic, ...privateFields } }, lastFailure: failure, events: [failure] });
+    expect(parsed).toMatchObject({ activeFailure: failure, lastFailure: failure, events: [failure] });
+    expect(parsed?.lastError).toContain('ERR_MODULE_NOT_FOUND, HTTP 401, exit 1, SIGKILL (startup stderr)');
+    expect(JSON.stringify(parsed)).not.toContain('PRIVATE');
+    expect(parseRunnerActivity(parsed)).toEqual(parsed);
+    for (const bad of [{ source: 'PRIVATE' }, { source: 'exception', errorCode: 'PRIVATE', signal: 'PRIVATE', exitCode: -1, httpStatus: 1 }, { source: 'stderr', exitCode: 256, httpStatus: 600 }, { source: 'stderr', exitCode: 1.5, httpStatus: '401' }, { source: 'stderr', exitCode: Infinity, httpStatus: NaN }]) {
+      const sanitized = parseRunnerActivity({ ...valid, activeFailure: { ...failure, diagnostic: bad } });
+      expect(sanitized?.activeFailure?.diagnostic).toEqual(bad.source === 'PRIVATE' ? undefined : { source: bad.source });
+      expect(sanitized?.lastError).toBe(runnerFailureSummary('module'));
+    }
+    expect(parseRunnerActivity({ ...valid, events: [{ ...failure, kind: 'turn_started' }] })?.events[0]).not.toHaveProperty('diagnostic');
+  });
+
   test('task descriptions and observed models have a narrow, idempotent allowlist', () => {
     const task = { id: 'w', status: 'running', description: ' Review\tworker metadata\nPRIVATE second line', lastObservedModel: 'openrouter:anthropic/worker-model', prompt: 'PRIVATE', summary: 'PRIVATE', model: 'PRIVATE' };
     const parsed = parseRunnerActivity({ ...valid, tasks: [task] });

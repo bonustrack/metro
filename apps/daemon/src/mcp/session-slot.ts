@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { currentBusSeq } from '@metro-labs/core/events';
+import { errMsg } from '@metro-labs/core/log';
 import { newReplayLedger } from '../channels/relay.js';
 import { McpSession, channelLog, type SessionKind } from './session.js';
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
@@ -9,6 +10,7 @@ export class SessionSlot {
   private readonly ledger = newReplayLedger();
   private started = false;
   private live: boolean;
+  private changing: Promise<void> = Promise.resolve();
 
   constructor(
     live = true,
@@ -45,10 +47,20 @@ export class SessionSlot {
     if (this.started) this.session?.startChannel();
   }
 
-  async open(
-    identity: RequestIdentity,
-    adoptId?: string,
-  ): Promise<McpSession> {
+  open(identity: RequestIdentity, adoptId?: string): Promise<McpSession> {
+    return this.change(() => this.replace(identity, adoptId));
+  }
+
+  private change<T>(run: () => Promise<T>): Promise<T> {
+    const changed = this.changing.then(run);
+    this.changing = changed.then(() => undefined).catch((err: unknown) => {
+      channelLog('session: change failed', errMsg(err));
+    });
+    return changed;
+  }
+
+  private async replace(identity: RequestIdentity, adoptId?: string): Promise<McpSession> {
+    if (adoptId !== undefined && this.session?.id === adoptId) return this.session;
     await this.session?.close();
     if (this.ledger.startAt < 0) this.ledger.startAt = currentBusSeq();
     const id = adoptId ?? randomUUID();
@@ -61,6 +73,11 @@ export class SessionSlot {
       live: () => this.live,
       onClosed: (s) => {
         if (this.session === s) this.session = undefined;
+        s.channel.whenIdle().then(() => {
+          if (this.session?.streamAttached) this.session.replayMissed();
+        }).catch((err: unknown) => {
+          channelLog('session: handoff replay failed', errMsg(err));
+        });
       },
     });
     this.session = session;
@@ -69,7 +86,9 @@ export class SessionSlot {
     return session;
   }
 
-  async close(): Promise<void> {
-    await this.session?.close();
+  close(): Promise<void> {
+    return this.change(async () => {
+      await this.session?.close();
+    });
   }
 }

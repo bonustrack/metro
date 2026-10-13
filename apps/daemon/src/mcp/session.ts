@@ -177,6 +177,10 @@ export class McpSession {
   }
 
   bindSink(sink: RawGetSink | undefined): void {
+    if (this.closed) {
+      sink?.close();
+      return;
+    }
     this.sink = sink;
     if (sink !== undefined) {
       this.announceCallState();

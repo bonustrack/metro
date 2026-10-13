@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { EventEmitter } from 'node:events';
 import {
   isStandaloneGet,
+  serveChannelGet,
   serveStandaloneGet,
   validateStandaloneSession,
   type RawGetSink,
@@ -213,6 +214,81 @@ async function serve(): Promise<Served> {
     registered,
   };
 }
+
+describe('overlapping GET reconnects', () => {
+  test('a GET disconnected during replay never installs a dead sink', async () => {
+    const transport = fakeTransport('s1', true);
+    const eventStore = new BoundedEventStore();
+    const resumed = Promise.withResolvers<string>();
+    eventStore.replayEventsAfter = () => resumed.promise;
+    const out = new PassThrough();
+    out.resume();
+    const res = out as unknown as ServerResponse;
+    (res as { writeHead: unknown }).writeHead = () => res;
+    (res as { flushHeaders?: () => void }).flushHeaders = () => undefined;
+    const req = fakeReq('GET', { 'mcp-session-id': 's1', 'last-event-id': '_GET_stream_0' });
+    const registered: (RawGetSink | undefined)[] = [];
+    const serving = serveStandaloneGet({
+      transport: transport as never,
+      eventStore,
+      scope: TONY,
+      req,
+      res,
+      log: () => undefined,
+      registerSink: (stream) => registered.push(stream),
+    });
+    req.emit('close');
+    resumed.resolve('_GET_stream');
+    await serving;
+    expect(registered).toEqual([]);
+    expect(transport._webStandardTransport._streamMapping.size).toBe(0);
+  });
+
+  test('closing a displaced replaying GET cannot detach the replacement', async () => {
+    const transport = fakeTransport('s1', true);
+    const eventStore = new BoundedEventStore();
+    const sinks: RawGetSink[] = [];
+    let current: RawGetSink | undefined;
+    const connect = (): Promise<boolean> => {
+      const out = new PassThrough();
+      out.resume();
+      const res = out as unknown as ServerResponse;
+      (res as { writeHead: unknown }).writeHead = () => res;
+      (res as { flushHeaders?: () => void }).flushHeaders = () => undefined;
+      return serveChannelGet({
+        transport: transport as never,
+        eventStore,
+        scope: TONY,
+        req: fakeReq('GET', { 'mcp-session-id': 's1', 'last-event-id': '_GET_stream_0' }),
+        res,
+        previous: () => current,
+        log: () => undefined,
+        registerSink: (sink) => {
+          current = sink;
+          if (sink) sinks.push(sink);
+        },
+      });
+    };
+    try {
+      await Promise.all([connect(), connect()]);
+      expect(sinks).toHaveLength(2);
+      const displaced = sinks[0];
+      const replacement = sinks[1];
+      expect(displaced).toBeDefined();
+      expect(replacement).toBeDefined();
+      const mapping = transport._webStandardTransport._streamMapping;
+      const entry = mapping.get('_GET_stream');
+      expect(entry).toBeDefined();
+      displaced?.close();
+      expect(current).toBe(replacement);
+      expect(mapping.get('_GET_stream')).toBe(entry);
+      expect(replacement?.closed).toBe(false);
+      expect(displaced?.closed).toBe(true);
+    } finally {
+      for (const sink of sinks) sink.close();
+    }
+  });
+});
 
 describe('a displaced stream is closed at the wire, not just flagged', () => {
   test('close() ends the response, drops the mapping and releases the sink', async () => {

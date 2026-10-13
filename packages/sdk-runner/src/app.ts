@@ -4,7 +4,7 @@ import { AutomationStore } from '@metro-labs/core/automation-store';
 import { errMsg, log } from '@metro-labs/core/log';
 import { skillSourceRoot } from '@metro-labs/core/skill-source';
 import { SkillsRefresh } from './skills.js';
-import { failureSummary, type Activity } from './activity.js';
+import type { Activity } from './activity.js';
 import { approvalsThrough } from './approvals.js';
 import type { RunnerConfig } from './config.js';
 import { MetroLink } from './link.js';
@@ -79,7 +79,7 @@ export async function startAgent(cfg: RunnerConfig, hooks: AppHooks): Promise<Ru
     hooks.activity?.start();
     return await connected(cfg, hooks, release);
   } catch (err) {
-    hooks.activity?.fail(failureSummary(err));
+    hooks.activity?.fail(err);
     hooks.activity?.stop();
     await release().catch(() => { log.warn('sdk-runner: releasing process ownership failed'); });
     throw err;

@@ -284,6 +284,19 @@ describe('recent sanitized events and polling', () => {
     }
   });
 
+  test('startup diagnostics are actionable in current and historical UI text without copying raw detail', () => {
+    const failure = { id: 'startup', at: now, kind: 'session_failed', code: 'module', tool: null, taskId: null,
+      diagnostic: { source: 'stderr', errorCode: 'ERR_MODULE_NOT_FOUND', exitCode: 1, message: 'PRIVATE', stderr: 'PRIVATE', endpoint: 'https://private.invalid/PRIVATE' } };
+    const current = view({ phase: 'error', mainPhase: 'error', activeFailure: failure, lastFailure: failure, events: [failure], lastError: 'PRIVATE' });
+    expect(current.failures[0]?.text).toContain('Prepare the SDK runtime again. Observed: ERR_MODULE_NOT_FOUND, exit 1 (startup stderr)');
+    expect(current.events[0]).toContain('ERR_MODULE_NOT_FOUND, exit 1 (startup stderr)');
+    expect(JSON.stringify(current)).not.toContain('PRIVATE');
+    const historical = view({ activeFailure: null, lastFailure: failure });
+    expect(historical.failures[0]?.text).toContain('Historical failure:');
+    expect(historical.failures[0]?.text).toContain('ERR_MODULE_NOT_FOUND');
+    expect(historical.failures[0]?.danger).toBe(false);
+  });
+
   test('legacy last errors are historical unless the main agent still reports error', () => {
     const lastError = 'SDK turn failed (provider_error). Check Conversations and the Model page.';
     expect(view({ mainPhase: 'idle', lastError }).failures[0]).toEqual({ text: `Historical failure: ${lastError} (time not reported)`, danger: false });

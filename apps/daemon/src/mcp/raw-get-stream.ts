@@ -55,6 +55,9 @@ export interface RawGetSink {
   close: () => void;
 }
 
+const streamEnded = (sink: RawGetSink, res: ServerResponse): boolean =>
+  sink.closed || res.destroyed || res.writableEnded;
+
 export interface ValidateResult {
   ok: boolean;
   status?: number;
@@ -93,6 +96,7 @@ export interface ServeOpts {
   res: ServerResponse;
   log: (...a: unknown[]) => void;
   registerSink: (sink: RawGetSink | undefined) => void;
+  previous?: () => RawGetSink | undefined;
 }
 
 export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
@@ -111,13 +115,17 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   res.write(COMMENT);
 
   let active = transport;
+  let entry: StreamEntry | undefined;
   const timers: { keepalive?: ReturnType<typeof setInterval> } = {};
   const closeStream = (): void => {
     if (sink.closed) return;
     sink.closed = true;
     if (timers.keepalive) clearInterval(timers.keepalive);
-    web(active)?._streamMapping?.delete(STANDALONE_STREAM_ID);
-    registerSink(undefined);
+    const mapping = web(active)?._streamMapping;
+    if (entry !== undefined && mapping?.get(STANDALONE_STREAM_ID) === entry) {
+      mapping.delete(STANDALONE_STREAM_ID);
+      registerSink(undefined);
+    }
     try {
       res.end();
     } catch {
@@ -128,11 +136,10 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
     closed: false,
     attach: (next: StreamableHTTPServerTransport): void => {
       active = next;
-      const entry: StreamEntry = {
+      entry = {
         controller: {
           enqueue: (chunk: Uint8Array): void => {
-            if (sink.closed) return;
-            if (res.destroyed || res.writableEnded) {
+            if (streamEnded(sink, res)) {
               closeStream();
               return;
             }
@@ -146,6 +153,10 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
     },
     close: closeStream,
   };
+
+  res.on('close', closeStream);
+  res.on('error', closeStream);
+  req.on('close', closeStream);
 
   const lastEventId = headerValue(req, 'last-event-id');
   if (lastEventId) {
@@ -168,12 +179,17 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
     });
   }
 
+  if (streamEnded(sink, res)) {
+    closeStream();
+    return;
+  }
+  opts.previous?.()?.close();
   sink.attach(transport);
   registerSink(sink);
+  if (sink.closed) return;
 
   timers.keepalive = setInterval(() => {
-    if (sink.closed) return;
-    if (res.destroyed || res.writableEnded) {
+    if (streamEnded(sink, res)) {
       closeStream();
       return;
     }
@@ -185,14 +201,10 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
     }
   }, KEEPALIVE_MS);
   timers.keepalive.unref?.();
-
-  res.on('close', closeStream);
-  res.on('error', closeStream);
-  req.on('close', closeStream);
 }
 
 export interface ChannelGetOpts extends ServeOpts {
-  previous: RawGetSink | undefined;
+  previous: () => RawGetSink | undefined;
 }
 
 export async function serveChannelGet(opts: ChannelGetOpts): Promise<boolean> {
@@ -201,7 +213,7 @@ export async function serveChannelGet(opts: ChannelGetOpts): Promise<boolean> {
     opts.res.writeHead(check.status ?? 400).end(check.message ?? 'bad request');
     return false;
   }
-  if (opts.previous && !opts.previous.closed) opts.previous.close();
+  opts.previous()?.close();
   await serveStandaloneGet(opts);
   return true;
 }

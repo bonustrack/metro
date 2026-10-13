@@ -72,7 +72,7 @@ describe('durable worker recovery', () => {
     const runner = new Runner({ store: f.store, open, readOnly: () => false });
     runner.inbox.push('chat', 'original edit and send request', undefined, input);
     runner.start({});
-    await expect(runner.run()).rejects.toThrow('fixture crash');
+    await expect(runner.run()).rejects.toMatchObject({ failure: { code: 'session_error' } });
     runner.close(false);
     expect(f.store.unanswered()).toEqual([]);
     const resumed = fixture(f.store);

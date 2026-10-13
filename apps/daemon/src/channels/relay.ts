@@ -42,6 +42,10 @@ export class ChannelRelay {
     });
   }
 
+  whenIdle(): Promise<void> {
+    return this.chain;
+  }
+
   replayMissed(): void {
     const missed = bufferedSince(this.ledger.startAt).filter(
       (b) => !this.ledger.delivered.has(b.busSeq),

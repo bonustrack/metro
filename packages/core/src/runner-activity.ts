@@ -26,6 +26,9 @@ const FAILURE = {
   status_unavailable: 'The SDK status file cannot be written. Check its path and permissions before starting.',
   saved_state: 'The saved Agent SDK state cannot be read. Restore it before starting.',
   executable: 'The SDK executable could not start. Prepare the SDK runtime again.',
+  module: 'The SDK runtime could not load a required module. Prepare the SDK runtime again.',
+  configuration: 'The SDK launch configuration is missing or invalid. Check Harness and the Model page before starting.',
+  process_exit: 'The SDK process exited unexpectedly. Check its reported exit code or signal before retrying.',
   connection: 'The SDK connection failed. Check the server and provider connection.',
   session_ended: 'The Agent SDK session ended unexpectedly.',
   interrupted: 'The SDK stopped before finishing a chat request. Check Conversations before retrying; actions may already have run.',
@@ -33,8 +36,40 @@ const FAILURE = {
 } as const;
 export type RunnerFailureCode = keyof typeof FAILURE;
 
-export function runnerFailureSummary(code: RunnerFailureCode, tool: string | null = null): string {
-  return code === 'tool_error' && name(tool) !== null ? `${tool} failed. See its result in Conversations.` : FAILURE[code];
+const ERROR_CODES = ['ENOENT', 'EACCES', 'EPERM', 'ENOEXEC', 'ENOMEM', 'ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND', 'ERR_DLOPEN_FAILED', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'] as const;
+const SIGNALS = ['SIGTERM', 'SIGKILL', 'SIGSEGV', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGINT', 'SIGHUP', 'SIGPIPE'] as const;
+
+export interface RunnerDiagnostic {
+  source: 'exception' | 'stderr';
+  errorCode?: (typeof ERROR_CODES)[number];
+  httpStatus?: number;
+  exitCode?: number;
+  signal?: (typeof SIGNALS)[number];
+}
+
+const boundedNumber = (value: unknown, min: number, max: number): number | undefined => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max ? value : undefined;
+
+export function runnerDiagnostic(raw: unknown): RunnerDiagnostic | undefined {
+  if (!isRecord(raw) || (raw.source !== 'exception' && raw.source !== 'stderr')) return undefined;
+  const errorCode = ERROR_CODES.find((code) => code === raw.errorCode);
+  const signal = SIGNALS.find((value) => value === raw.signal);
+  const httpStatus = boundedNumber(raw.httpStatus, 400, 599);
+  const exitCode = boundedNumber(raw.exitCode, 0, 255);
+  return {
+    source: raw.source,
+    ...(errorCode === undefined ? {} : { errorCode }),
+    ...(httpStatus === undefined ? {} : { httpStatus }),
+    ...(exitCode === undefined ? {} : { exitCode }),
+    ...(signal === undefined ? {} : { signal }),
+  };
+}
+
+export function runnerFailureSummary(code: RunnerFailureCode, tool: string | null = null, diagnostic?: RunnerDiagnostic): string {
+  const summary = code === 'tool_error' && name(tool) !== null ? `${tool} failed. See its result in Conversations.` : FAILURE[code];
+  const safe = runnerDiagnostic(diagnostic);
+  if (safe === undefined) return summary;
+  const details = [safe.errorCode, safe.httpStatus === undefined ? null : `HTTP ${safe.httpStatus}`, safe.exitCode === undefined ? null : `exit ${safe.exitCode}`, safe.signal].filter((value) => value !== undefined && value !== null);
+  return details.length === 0 ? summary : `${summary} Observed: ${details.join(', ')} (${safe.source === 'stderr' ? 'startup stderr' : 'exception'}).`;
 }
 
 export interface RunnerTask {
@@ -70,6 +105,7 @@ export interface RunnerEvent {
   toolUseId?: string;
   taskId: string | null;
   code?: RunnerFailureCode;
+  diagnostic?: RunnerDiagnostic;
 }
 
 export interface RunnerFailure extends RunnerEvent {
@@ -146,16 +182,17 @@ function tool(raw: unknown): RunnerTool | null {
   return { id: String(raw.id), name: String(raw.name), taskId: name(raw.taskId), startedAt: count(raw.startedAt), ...(typeof raw.worker === 'boolean' ? { worker: raw.worker } : {}) };
 }
 
-const failureCode = (value: unknown): value is RunnerFailureCode => typeof value === 'string' && Object.hasOwn(FAILURE, value);
+export const runnerFailureCode = (value: unknown): value is RunnerFailureCode => typeof value === 'string' && Object.hasOwn(FAILURE, value);
 const failureKind = (value: RunnerEventKind): boolean => ['turn_failed', 'tool_failed', 'task_failed', 'compact_failed', 'session_failed'].includes(value);
 
 function event(raw: unknown): RunnerEvent | null {
   if (!isRecord(raw) || !eventKind(raw.kind) || count(raw.at) === 0) return null;
+  const diagnostic = runnerDiagnostic(raw.diagnostic);
   return {
     at: count(raw.at), kind: raw.kind, tool: name(raw.tool), taskId: name(raw.taskId),
     ...(name(raw.id) === null ? {} : { id: String(raw.id) }),
     ...(name(raw.toolUseId) === null ? {} : { toolUseId: String(raw.toolUseId) }),
-    ...(failureKind(raw.kind) && failureCode(raw.code) ? { code: raw.code } : {}),
+    ...(failureKind(raw.kind) && runnerFailureCode(raw.code) ? { code: raw.code, ...(diagnostic === undefined ? {} : { diagnostic }) } : {}),
   };
 }
 
@@ -184,7 +221,7 @@ function processIdentity(value: unknown): Pick<RunnerActivity, 'procStart'> {
 function failureFields(raw: Record<string, unknown>): Pick<RunnerActivity, 'lastError' | 'activeFailure' | 'lastFailure'> {
   const activeFailure = failure(raw.activeFailure);
   return {
-    lastError: Object.hasOwn(raw, 'activeFailure') ? activeFailure === null ? null : runnerFailureSummary(activeFailure.code, activeFailure.tool) : safeError(raw.lastError),
+    lastError: Object.hasOwn(raw, 'activeFailure') ? activeFailure === null ? null : runnerFailureSummary(activeFailure.code, activeFailure.tool, activeFailure.diagnostic) : safeError(raw.lastError),
     ...(Object.hasOwn(raw, 'activeFailure') ? { activeFailure } : {}),
     ...(Object.hasOwn(raw, 'lastFailure') ? { lastFailure: failure(raw.lastFailure) } : {}),
   };
