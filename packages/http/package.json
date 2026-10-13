@@ -18,6 +18,7 @@
     "./connector-resource": "./src/connector-resource.ts",
     "./connector-reach": "./src/connector-reach.ts",
     "./connector-mcp": "./src/connector-mcp.ts",
+    "./connector-tools": "./src/connector-tools.ts",
     "./connector-discovery": "./src/connector-discovery.ts",
     "./connector-oauth": "./src/connector-oauth.ts",
     "./connector-input": "./src/connector-input.ts",

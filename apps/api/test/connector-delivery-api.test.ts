@@ -5,7 +5,7 @@ import { AgentAuth } from '../src/agents/auth.js';
 import { credentialRevision } from '../src/connectors/delivery-model.js';
 import { openConnectorSecret } from '../src/connectors/model.js';
 import { readConnectorsSetup } from '../src/connectors/setup.js';
-import { agents, agentNonces, connectorAgents, connectorEvents, connectors } from '../src/db/schema.js';
+import { agents, agentNonces, connectorAgents, connectors } from '../src/db/schema.js';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';
 import { CONN, HOST, MASTER, PATH, assignConnector, enrollDeliveryAgent, newDeliveryAgent, oauthSecret, opaque, openResponse, seedConnector, signedDelivery, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
@@ -51,8 +51,6 @@ describe('signed connector delivery boundary', () => {
     expect(opened.connectors).toEqual([{ id: CONN, name: 'Calendar', url: secret.targetUrl, auth: 'header', state: 'ready', headers: { Authorization: 'Bearer API_KEY' }, policy: {}, revision: credentialRevision(MASTER, own) }]);
     const strangerId = opaque();
     expect((await openResponse(await api.call(stranger, { requestId: strangerId }), stranger, strangerId)).connectors).toEqual([]);
-    const delivered = await held.db.select().from(connectorEvents).where(eq(connectorEvents.action, 'connector.delivered'));
-    expect(delivered.map((event) => [event.connector, event.agent, event.owner, event.detail])).toEqual([[CONN, agent.row.agent, TEST_OWNER, '{"name":"Calendar"}']]);
   }));
 
   test('both independent switches are required, off requests spend nothing', () => done(async () => {
@@ -82,7 +80,6 @@ describe('signed connector delivery boundary', () => {
     expect((await fetch(`${api.base}${PATH}`)).status).toBe(405);
     expect(calls).toBe(0);
     expect(await held.db.select().from(agentNonces)).toEqual([]);
-    expect(await held.db.$count(connectorEvents, eq(connectorEvents.action, 'connector.delivered'))).toBe(0);
   }));
 
   test('whole request bodies are strictly checked and bounded before side effects', () => done(async () => {
@@ -92,7 +89,7 @@ describe('signed connector delivery boundary', () => {
     expect(await held.db.select().from(agentNonces)).toEqual([]);
   }));
 
-  test('replay is durable across AgentAuth instances and restarts without duplicate delivery audit', () => done(async () => {
+  test('replay is durable across AgentAuth instances and restarts', () => done(async () => {
     await seedConnector(held.db, { kind: 'none', targetUrl: 'https://vendor.example/mcp' });
     await assignConnector(held.db, agent);
     const request = signedDelivery(agent, { requestId: opaque() });
@@ -102,7 +99,6 @@ describe('signed connector delivery boundary', () => {
     const second = await startDeliveryApi(held.db);
     try { expect((await fetch(`${second.base}${PATH}`, { method: 'POST', ...request })).status).toBe(401); } finally { await second.close(); }
     expect((await held.db.select().from(agentNonces)).length).toBe(1);
-    expect(await held.db.$count(connectorEvents, eq(connectorEvents.action, 'connector.delivered'))).toBe(1);
   }));
 
   test('missing keys keep their machine-readable code, moved and deleted agents fail closed', () => done(async () => {
@@ -157,36 +153,44 @@ describe('delivered credential and policy limits', () => {
     expect(JSON.stringify(opened)).not.toContain('ACCESS_OLD');
   }));
 
-  test('snapshot oversize fails explicitly instead of silently truncating assigned connectors', () => done(async () => {
+  test('snapshot oversize isolates large payloads without dropping assignments or smaller ready rows', () => done(async () => {
+    const expected = new Map<string, { name: string; revision: string; expiresAt: number; token: string }>();
     for (let index = 0; index < 60; index += 1) {
       const id = `conn${String(index).padStart(7, '0')}`;
-      const secret = oauthSecret(Date.now() + 3600_000);
+      const expiresAt = Date.now() + 3600_000;
+      const secret = oauthSecret(expiresAt);
       if (secret.tokens === undefined) throw new Error('missing fixture');
-      secret.tokens.accessToken = 'a'.repeat(16_000);
-      await seedConnector(held.db, secret, { id, name: `Connector ${String(index)}` });
+      secret.tokens.accessToken = index === 59 ? 'SMALL_ACCESS' : `${id}_${'a'.repeat(16_000)}`;
+      const row = await seedConnector(held.db, secret, { id, name: `Connector ${String(index)}` });
+      expected.set(id, { name: row.name, revision: credentialRevision(MASTER, row), expiresAt, token: secret.tokens.accessToken });
       await assignConnector(held.db, agent, id);
     }
-    const response = await api.call(agent);
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: 'Connector delivery is too large.' });
-    expect(await held.db.$count(connectorAgents)).toBe(60);
-    expect(await held.db.$count(connectorEvents, eq(connectorEvents.action, 'connector.delivered'))).toBe(0);
+    const requestId = opaque();
+    const response = await api.call(agent, { requestId });
+    expect(response.status).toBe(200);
+    const opened = await openResponse(response, agent, requestId);
+    expect(opened.connectors.map((row) => row.id).sort()).toEqual([...expected.keys()].sort());
+    expect(opened.connectors.filter((row) => row.state === 'unavailable').length).toBeGreaterThan(0);
+    expect(opened.connectors.filter((row) => row.state === 'ready').length).toBeGreaterThan(1);
+    expect(opened.connectors.find((row) => row.id === 'conn0000059')?.state).toBe('ready');
+    for (const row of opened.connectors) {
+      const original = expected.get(row.id);
+      if (original === undefined) throw new Error('unknown delivered assignment');
+      const base = { id: row.id, name: original.name, auth: 'oauth', revision: original.revision };
+      if (row.state === 'unavailable') {
+        expect(row).toEqual({ ...base, url: 'https://vendor.example', state: 'unavailable', headers: {}, policy: { read: 'deny', write: 'deny' } });
+      } else {
+        expect(row).toEqual({ ...base, url: 'https://vendor.example/mcp?key=URL_SECRET', state: 'ready', headers: { Authorization: `Bearer ${original.token}` }, policy: {}, expiresAt: original.expiresAt });
+      }
+    }
+    expect(await held.db.$count(connectorAgents)).toBe(expected.size);
   }));
 
-  test('successful delivery writes only safe audit metadata and preserves its name after rename or delete', () => done(async () => {
+  test('successful delivery preserves the encrypted credential', () => done(async () => {
     const original = await seedConnector(held.db, oauthSecret(Date.now() + 3600_000));
     await assignConnector(held.db, agent);
     expect((await api.call(agent)).status).toBe(200);
     expect((await held.db.select().from(connectors))[0]?.secret).toBe(original.secret);
-    const events = await held.db.select().from(connectorEvents);
-    expect(events.map((row) => row.action)).toEqual(['agent.enrolled', 'connector.delivered']);
-    const delivered = events.find((row) => row.action === 'connector.delivered');
-    expect(delivered).toMatchObject({ owner: TEST_OWNER, connector: CONN, agent: agent.row.agent, actor: `agent:${agent.row.agent}`, detail: '{"name":"Calendar"}' });
-    const text = JSON.stringify(delivered);
-    for (const hidden of ['ACCESS_OLD', 'REFRESH_OLD', 'CLIENT_SECRET', 'URL_SECRET', 'Authorization', original.secret ?? '']) expect(text).not.toContain(hidden);
-    await held.db.update(connectors).set({ name: 'Renamed' }).where(eq(connectors.id, CONN));
-    await held.db.delete(connectors).where(eq(connectors.id, CONN));
-    expect((await held.db.select().from(connectorEvents).where(eq(connectorEvents.action, 'connector.delivered')))[0]?.detail).toBe('{"name":"Calendar"}');
     expect(openConnectorSecret(MASTER, original)?.kind).toBe('oauth');
   }));
 });

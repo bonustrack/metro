@@ -33,7 +33,7 @@ async function fetchApi(url: string, init: RequestInit): Promise<Response> {
   const proof = readAgentProof(new Headers(init.headers).get('authorization') ?? undefined);
   expect(proof).not.toBeNull();
   if (proof === null) throw new Error('missing proof');
-  expect(agentSignatureValid({ method: init.method ?? '', host: new URL(url).host, path: new URL(url).pathname, body: Buffer.from(text) }, proof, key.signingKey)).toBe(true);
+  expect(agentSignatureValid({ method: init.method ?? '', host: new URL(url).host, path: new URL(url).pathname + new URL(url).search, body: Buffer.from(text) }, proof, key.signingKey)).toBe(true);
   expect(body.requestId).toMatch(/^[A-Za-z0-9_-]{43}$/);
   expect(init.redirect).toBe('error');
   const context = { owner: OWNER, agent: AGENT, keyId: key.keyId, requestId: String(body.requestId) };
@@ -65,7 +65,7 @@ afterEach(() => {
 test('signed delivery lives only in memory and never changes local configuration or key files', async () => {
   const before = files();
   await sync.sync();
-  expect(calls[0]?.url).toBe(`${BASE}/api/agents/connectors`);
+  expect(calls[0]?.url).toBe(`${BASE}/api/agents/connectors?policy_layers=1`);
   expect(Object.keys(calls[0]?.body ?? {})).toEqual(['requestId']);
   expect(sync.read()?.connectors).toEqual(rows);
   expect(files()).toEqual(before);

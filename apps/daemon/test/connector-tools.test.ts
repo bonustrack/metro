@@ -4,6 +4,7 @@ import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { randomInt } from 'node:crypto';
 import { listRemoteTools } from '../src/connectors/tools.ts';
 import { ConnectorVerifyError } from '@metro-labs/http/connector-url';
 
@@ -18,6 +19,7 @@ let origin = '';
 let seen: Seen[] = [];
 let pages = 1;
 let status = 200;
+let malformed = false;
 
 const answer = (res: ServerResponse, id: number, result: unknown): void => {
   res.writeHead(200, { 'content-type': 'application/json', 'mcp-session-id': 'sess-1' });
@@ -44,13 +46,13 @@ beforeAll(async () => {
       else if (body.method === 'tools/list') {
         const page = body.params?.cursor === 'p2' ? 2 : 1;
         answer(res, 2, {
-          tools: page === 1 ? [{ name: 'search', title: 'Search', description: 'Finds things', annotations: { readOnlyHint: true } }, { name: 'delete_thing' }, { nope: 1 }] : [{ name: 'page_two' }],
+          tools: malformed ? [{ name: 'valid' }, { nope: 1 }] : page === 1 ? [{ name: 'search', title: 'Search', description: 'Finds things', annotations: { readOnlyHint: true } }, { name: 'delete_thing' }] : [{ name: 'page_two' }],
           ...(page === 1 && pages > 1 ? { nextCursor: 'p2' } : {}),
         });
       } else res.writeHead(405).end();
     });
   });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  await new Promise<void>((r) => server.listen(randomInt(10_000, 30_000), '127.0.0.1', () => r()));
   origin = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
 });
 
@@ -62,6 +64,7 @@ beforeEach(() => {
   seen = [];
   pages = 1;
   status = 200;
+  malformed = false;
 });
 
 describe('listing a connector\'s tools live', () => {
@@ -115,8 +118,9 @@ describe('listing a connector\'s tools live', () => {
         return fetch(url, init);
       };
       await expect(listRemoteTools(new URL(`${origin}/mcp`), { kind: 'none' }, transport)).rejects.toBe(refusal);
-      expect(calls).toBe(stage);
-      expect(seen).toHaveLength(stage - 1);
+      expect(calls).toBe(stage === 1 ? 1 : stage + 1);
+      expect(seen).toHaveLength(stage === 1 ? 0 : stage);
+      if (stage > 1) expect(seen.at(-1)?.method).toBe('DELETE');
     });
   }
 
@@ -135,6 +139,12 @@ describe('listing a connector\'s tools live', () => {
     } finally {
       debug.mockRestore();
     }
+  });
+
+  test('malformed entries refuse an incomplete catalogue instead of hiding available tools', async () => {
+    malformed = true;
+    await expect(listRemoteTools(new URL(`${origin}/mcp`), { kind: 'none' })).rejects.toThrow('invalid tool list');
+    expect(seen.at(-1)?.method).toBe('DELETE');
   });
 
   test('a refused credential and a dead server are refusals the page can show', async () => {

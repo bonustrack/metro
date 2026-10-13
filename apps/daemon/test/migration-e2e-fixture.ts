@@ -107,6 +107,8 @@ export async function migrationE2E(variant: Variant = 'header', configure?: (sou
     releases.push(async () => { daemon.server.closeAllConnections(); await daemon.close(); });
     const traffic: { path: string; body: string; authorization: string; response: string }[] = [];
     const faults = { drop: '', offline: false, badDelivery: false };
+    const clock = { elapsed: 0 };
+    const monotonic = () => performance.now() + clock.elapsed;
     const allowed = [api.base, delivery.base, management.base, vendor.base];
     const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = input instanceof Request ? input.url : String(input);
@@ -118,7 +120,7 @@ export async function migrationE2E(variant: Variant = 'header', configure?: (sou
       if (faults.offline) throw new Error('fixture network unavailable');
       const path = new URL(url).pathname;
       const endpoint = path === '/api/agents/connector-migrations' ? api : delivery;
-      const response = await transportFetch(`${endpoint.base}${path}`, init);
+      const response = await transportFetch(`${endpoint.base}${path}${new URL(url).search}`, init);
       const body = String(init?.body ?? '');
       const text = await response.text();
       traffic.push({ path, body, authorization: new Headers(init?.headers).get('authorization') ?? '', response: text });
@@ -129,7 +131,7 @@ export async function migrationE2E(variant: Variant = 'header', configure?: (sou
     });
     releases.push(() => { fetchSpy.mockRestore(); });
     releases.push(() => { stopOrgConnectorSync(); publishOrgConnectors([]); publishLocalConnectors([]); });
-    watchOrgConnectorSync({ owner: () => localOwner(dir), key: () => readAgentKey(dir), dir });
+    watchOrgConnectorSync({ owner: () => localOwner(dir), key: () => readAgentKey(dir), dir, monotonic });
     publishLocalConnectors(readLocalConnectors(dir));
     const request = (path: string, method = 'GET', body?: unknown, authorization = admin, signal?: AbortSignal) => fetch(`${daemon.base}${path}`, { method, signal, headers: { authorization, 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const status = async (): Promise<MigrationStatus> => {
@@ -171,13 +173,13 @@ export async function migrationE2E(variant: Variant = 'header', configure?: (sou
       const text = await completed.text(); expect(text).not.toContain(ACCESS); expect(text).not.toContain(REFRESH);
     };
     return {
-      dir, held, agent, key, source, vendor, api, delivery, management, traffic, faults, admin, member, stranger,
+      dir, held, agent, key, source, vendor, api, delivery, management, traffic, faults, clock, admin, member, stranger,
       get daemon() { return daemon; },
       request, status, action, move, setSync, tool, manage, destination, completeOAuth,
       restart: async (disconnect = false) => {
         if (disconnect) daemon.server.closeAllConnections();
         stopOrgConnectorSync(); await daemon.close(); daemon = await listening(() => bootDaemon(apis()));
-        watchOrgConnectorSync({ owner: () => localOwner(dir), key: () => readAgentKey(dir), dir });
+        watchOrgConnectorSync({ owner: () => localOwner(dir), key: () => readAgentKey(dir), dir, monotonic });
         publishLocalConnectors(readLocalConnectors(dir));
       },
       plugins: () => JSON.parse(readFileSync(join(plugin, '.mcp.json'), 'utf8')) as Record<string, { url: string }>,

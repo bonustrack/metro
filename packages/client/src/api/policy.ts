@@ -59,12 +59,23 @@ export function toolGroupsOf(value: unknown): Record<string, GroupedTool[]> {
 
 export const groupAccess = (policy: ToolPolicy, group: ToolGroup): Access => policy[group] ?? 'allow';
 
-export const toolOverride = (policy: ToolPolicy, name: string): Access | undefined => policy.tools?.[name];
+export const toolOverride = (policy: ToolPolicy, name: string): Access | undefined => policy.tools !== undefined && Object.hasOwn(policy.tools, name) ? policy.tools[name] : undefined;
 
 export const effectiveAccess = (policy: ToolPolicy, tool: GroupedTool): Access =>
   toolOverride(policy, tool.name) ?? groupAccess(policy, tool.group);
 
-export const withGroup = (policy: ToolPolicy, group: ToolGroup, access: Access): ToolPolicy => ({ ...policy, [group]: access });
+export const stricterAccess = (left: Access, right: Access): Access => ACCESS_CHOICES.indexOf(left) > ACCESS_CHOICES.indexOf(right) ? left : right;
+
+export const inheritedToolAccess = (organization: ToolPolicy, agent: ToolPolicy, tool: GroupedTool): Access =>
+  stricterAccess(effectiveAccess(organization, tool), effectiveAccess(agent, tool));
+
+export function withGroup(policy: ToolPolicy, group: ToolGroup, access: Access | undefined): ToolPolicy {
+  const next = { ...policy };
+  if (access !== undefined) next[group] = access;
+  else if (group === 'read') delete next.read;
+  else delete next.write;
+  return next;
+}
 
 export function withTool(policy: ToolPolicy, name: string, access: Access | undefined): ToolPolicy {
   const tools: Record<string, Access> = Object.fromEntries(Object.entries(policy.tools ?? {}).filter(([tool]) => tool !== name));

@@ -3,7 +3,7 @@ import { agentsDir } from '../agents/files.js';
 import { assertMigrationOutcomeKnown, beginMigrationOperation, migrationRequestEffectful, type MigrationOperation } from './migration-operations.js';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
-import type { DeliveredConnector } from '@metro-labs/http/connector-delivery';
+import { effectiveConnectorPolicy, type DeliveredConnector } from '@metro-labs/http/connector-delivery';
 import type { ApiError } from '@metro-labs/http/api-error';
 import { requestConnectorBlocker, type GateRow } from './gates.js';
 import { publishOrgConnectors } from './publication.js';
@@ -49,7 +49,7 @@ interface Session {
 
 const stampOf = (row: RuntimeRow): string => JSON.stringify([
   row.relayId, row.relayName, row.name, row.url, row.auth, row.policy.read ?? 'allow', row.policy.write ?? 'allow',
-  Object.entries(row.policy.tools ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+  Object.entries(row.policy.tools ?? {}).sort(([a], [b]) => a.localeCompare(b)), row.policyLayers,
 ]);
 
 const rowError = (row: DeliveredConnector | undefined): ApiError | null => {
@@ -94,7 +94,7 @@ export class OrgConnectorRuntime {
   private publish(rows: RuntimeRow[]): void {
     const metadata: GateRow[] = rows.filter((row) => row.state === 'ready').map((row) => ({
       id: row.relayId, name: row.relayName,
-      config: { policy: structuredClone(row.policy), toolGroups: { ...this.entries.get(row.id)?.groups } },
+      config: { policy: effectiveConnectorPolicy(row, this.entries.get(row.id)?.groups ?? {}), toolGroups: { ...this.entries.get(row.id)?.groups } },
     }));
     const text = JSON.stringify(metadata);
     if (text === this.published) return;
@@ -230,15 +230,21 @@ export class OrgConnectorRuntime {
   private discover(entry: Entry): Promise<void> | null {
     if (entry.scan !== null) return entry.scan;
     if (performance.now() < entry.nextScan) {
-      if (entry.error !== null) throw entry.error;
+      if (entry.error !== null) {
+        log.debug({ stage: 'discovery_backoff', status: entry.error.status }, 'organization connectors: request unavailable');
+        throw entry.error;
+      }
       return null;
     }
-    if (this.scans >= 4) throw orgUnavailable();
+    if (this.scans >= 4) {
+      log.debug({ stage: 'discovery_capacity', active: this.scans }, 'organization connectors: request unavailable');
+      throw orgUnavailable();
+    }
     this.scans += 1;
     entry.scan = this.scan(entry).catch((error: unknown) => {
       entry.error = orgRuntimeError(error);
       entry.nextScan = performance.now() + 30_000;
-      log.debug({ status: entry.error.status }, 'organization connectors: tool discovery failed');
+      log.debug({ stage: 'tool_discovery', status: entry.error.status }, 'organization connectors: tool discovery failed');
       throw entry.error;
     }).finally(() => {
       this.scans -= 1;

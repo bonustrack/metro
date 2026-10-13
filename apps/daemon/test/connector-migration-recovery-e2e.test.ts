@@ -5,7 +5,6 @@ import { enrollDeliveryAgent, newDeliveryAgent } from '../../api/test/connector-
 import { connectorAgents, connectorMigrations, connectors } from '../../api/src/db/schema.js';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.js';
 import { readLocalConnectors } from '../src/connectors/store.js';
-import { freshOrgConnectors } from '../src/connectors/org-sync-watch.js';
 import { destinationId, MIGRATIONS, migrationE2E, SOURCE, TEST_DATABASE_URL, TEST_OWNER, TEST_STRANGER, UNMIGRATED, type MigrationE2E } from './migration-e2e-fixture.js';
 import { POLICY } from './migration-e2e-vendor.js';
 
@@ -76,7 +75,6 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('migration recovery through dae
     f.faults.offline = true;
     expect((await f.tool()).status).toBe(503); expect(f.vendor.calls.length).toBe(before);
     f.faults.offline = false;
-    await freshOrgConnectors();
     expect((await f.tool()).status).toBe(200);
   });
 

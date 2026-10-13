@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import { credentialRevision } from '../src/connectors/delivery-model.js';
 import { openConnectorSecret, sealConnectorSecret } from '../src/connectors/model.js';
-import { connectorEvents, connectors } from '../src/db/schema.js';
+import { connectors } from '../src/db/schema.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';
 import { CONN, MASTER, assignConnector, enrollDeliveryAgent, newDeliveryAgent, oauthSecret, opaque, openResponse, seedConnector, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
 
@@ -58,7 +58,6 @@ describe('central encrypted OAuth refresh', () => {
     expect(current.row.secret).not.toContain('REFRESH_ROTATED');
     expect(current.row.secret).not.toBe(original.secret);
     expect(delivery.connectors[0]?.revision).not.toBe(credentialRevision(MASTER, original));
-    expect((await held.db.select().from(connectorEvents)).map((row) => [row.action, row.detail])).toEqual([['agent.enrolled', JSON.stringify({ keyId: agent.row.keyId })], ['connector.refreshed', '{"name":"Calendar"}'], ['connector.delivered', '{"name":"Calendar"}']]);
   }));
 
   test.each([false, true])('legacy tokens without a public grant resource require fresh sign-in, expired=%s', (expired) => done(async () => {
@@ -79,9 +78,6 @@ describe('central encrypted OAuth refresh', () => {
     expect(current.secret.targetUrl).toBe(secret.targetUrl);
     expect(current.row.detail).toBeNull();
     expect(calls).toBe(0);
-    const events = await held.db.select().from(connectorEvents);
-    expect(events.find((event) => event.action === 'connector.signed_out')?.detail).toBe('{"name":"Calendar","reason":"resource_required"}');
-    for (const hidden of ['URL_SECRET', 'ACCESS_OLD', 'REFRESH_OLD', 'CLIENT_SECRET']) expect(JSON.stringify(events)).not.toContain(hidden);
   }));
 
   test.each(['stale revision', 'allowed tool exception'])('resource-less grants cannot bypass reauthentication through %s', (mode) => done(async () => {
@@ -100,7 +96,27 @@ describe('central encrypted OAuth refresh', () => {
     expect(snapshot.connectors[0]).toMatchObject({ state: 'signin', headers: {}, url: 'https://vendor.example' });
     for (const hidden of ['ACCESS_OLD', 'REFRESH_OLD', 'CLIENT_SECRET', 'URL_SECRET']) expect(JSON.stringify(snapshot)).not.toContain(hidden);
     expect(calls).toBe(0);
-    expect((await secretNow()).row.secret).toBe(row.secret);
+    if (mode === 'stale revision') expect((await secretNow()).row.secret).toBe(row.secret);
+    else expect((await secretNow()).secret.tokens).toBeUndefined();
+  }));
+
+  test.each([
+    { name: 'named allow', policy: '{"read":"deny","write":"deny","tools":{"read_item":"allow"}}', refresh: true },
+    { name: 'named approval', policy: '{"read":"deny","write":"deny","tools":{"read_item":"ask"}}', refresh: true },
+    { name: 'all denied', policy: '{"read":"deny","write":"deny"}', refresh: false },
+    { name: 'invalid', policy: '{"read":"invalid"}', refresh: false },
+  ])('$name policy refreshes only potentially callable credentials', ({ policy, refresh }) => done(async () => {
+    const original = await seedConnector(held.db, oauthSecret(), { policy });
+    await assignConnector(held.db, agent);
+    let calls = 0;
+    api.deps.fetch = () => { calls += 1; return Promise.resolve(Response.json({ access_token: 'ACCESS_NEW', refresh_token: 'REFRESH_ROTATED', expires_in: 3600 })); };
+    const requestId = opaque();
+    const opened = await openResponse(await api.call(agent, { requestId }), agent, requestId);
+    expect(calls).toBe(refresh ? 1 : 0);
+    expect(opened.connectors[0]?.state).toBe(refresh ? 'ready' : 'unavailable');
+    const current = await secretNow();
+    if (refresh) expect(current.secret.tokens?.refreshToken).toBe('REFRESH_ROTATED');
+    else expect(current.row.secret).toBe(original.secret);
   }));
 
   test('an omitted refresh token is preserved, not erased by replacement access tokens', () => done(async () => {
@@ -148,10 +164,6 @@ describe('central encrypted OAuth refresh', () => {
     expect(current.secret.tokens).toBeUndefined();
     expect(current.secret.client.clientSecret).toBe('CLIENT_SECRET');
     expect(current.row.detail).toBeNull();
-    const audit = await held.db.select().from(connectorEvents);
-    expect(audit.find((event) => event.action === 'connector.signed_out')).toMatchObject({ detail: '{"name":"Calendar","reason":"invalid_grant"}' });
-    expect(JSON.stringify(audit)).not.toContain('SECRET_ERROR');
-    expect(JSON.stringify(audit)).not.toContain('REFRESH_OLD');
   }));
 
   test('transient HTTP, network and malformed token answers preserve all credentials and never deliver expired tokens', () => done(async () => {
@@ -178,12 +190,6 @@ describe('central encrypted OAuth refresh', () => {
       expect(opened.connectors[0]).toMatchObject({ state: 'unavailable', headers: {} });
       expect((await secretNow()).row.secret).toBe(row.secret);
     }
-    const audit = await held.db.select().from(connectorEvents);
-    const failures = audit.filter((entry) => entry.action === 'connector.refresh_failed');
-    expect(failures).toHaveLength(responses.length);
-    expect(failures.every((entry) => entry.detail === '{"name":"Calendar","reason":"transient"}')).toBe(true);
-    expect(JSON.stringify(audit)).not.toContain('SECRET_URL');
-    expect(JSON.stringify(audit)).not.toContain('REFRESH_OLD');
     expect((await secretNow()).secret.tokens?.refreshToken).toBe('REFRESH_OLD');
   }));
 

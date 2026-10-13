@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { agents, agentKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
+import { agents, agentKeys, connectorAgents, connectors } from '../src/db/schema.ts';
 import { openSecret, sealSecret } from '../src/connectors/secrets.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 
@@ -39,7 +39,7 @@ afterAll(async () => {
 describe('the organization connector tables', () => {
   test('the migration creates every table with its columns', async () => {
     const result = await held.client.query<{ table_name: string; column_name: string }>(
-      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','connector_events','agent_keys','connector_migrations') order by table_name, ordinal_position",
+      "select table_name, column_name from information_schema.columns where table_schema = 'public' and table_name in ('connectors','connector_agents','agent_keys','connector_migrations') order by table_name, ordinal_position",
     );
     const columns: Record<string, string[]> = {};
     for (const row of result.rows) (columns[row.table_name] ??= []).push(row.column_name);
@@ -47,7 +47,6 @@ describe('the organization connector tables', () => {
       agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
       connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at', 'migration_operation'],
       connector_migrations: ['id', 'owner', 'agent', 'source_id', 'operation_id', 'destination_id', 'key_id', 'signing_key', 'sealing_key', 'enrolled_at', 'phase', 'receiving_key', 'receiving_secret', 'snapshot', 'config_stamp', 'retired_operations', 'created_at', 'updated_at'],
-      connector_events: ['id', 'owner', 'connector', 'agent', 'actor', 'action', 'detail', 'at'],
       connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
     });
   });
@@ -62,17 +61,15 @@ describe('the organization connector tables', () => {
     await expect(settled(held.db.insert(connectors).values(connector('conn0000001', OWNER, 'Another name')))).rejects.toThrow();
   });
 
-  test('an assignment goes with its connector or its agent, the audit log stays', async () => {
+  test('an assignment goes with its connector or its agent', async () => {
     await held.db.insert(connectors).values([connector('conn0000001', OWNER, 'Linear'), connector('conn0000002', OWNER, 'Notion')]);
     await held.db.insert(connectorAgents).values([assignment('conn0000001', 'agent000001'), assignment('conn0000001', 'agent000002'), assignment('conn0000002', 'agent000001')]);
-    await held.db.insert(connectorEvents).values({ id: 'event000001', owner: OWNER, connector: 'conn0000001', agent: null, actor: 'user:user_01TEST', action: 'connector.created', detail: null, at: AT });
     await expect(settled(held.db.insert(connectorAgents).values(assignment('conn0000001', 'agent000001')))).rejects.toThrow();
     await expect(settled(held.db.insert(connectorAgents).values(assignment('missing0001', 'agent000001')))).rejects.toThrow();
     await held.db.delete(connectors).where(eq(connectors.id, 'conn0000001'));
     expect(await held.db.select().from(connectorAgents)).toEqual([assignment('conn0000002', 'agent000001')]);
     await held.db.delete(agents).where(eq(agents.id, 'agent000001'));
     expect(await held.db.select().from(connectorAgents)).toEqual([]);
-    expect((await held.db.select().from(connectorEvents)).map((row) => row.action)).toEqual(['connector.created']);
   });
 
   test('an agent key belongs to one agent, goes with it, and a key id is used once', async () => {

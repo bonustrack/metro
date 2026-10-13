@@ -195,7 +195,10 @@ export interface ConnectorTool {
 }
 
 export async function fetchConnectorTools(id: string): Promise<ConnectorTool[]> {
-  const body = await call({ method: 'GET', base: connectorsUrl(), path: `/${id}/tools` });
+  return connectorToolsOf(await call({ method: 'GET', base: connectorsUrl(), path: `/${id}/tools` }));
+}
+
+export function connectorToolsOf(body: unknown): ConnectorTool[] {
   if (!isRecord(body) || !Array.isArray(body.tools)) throw new Error('Metro returned an unexpected response.');
   return body.tools.flatMap((t: unknown) =>
     isRecord(t) && typeof t.name === 'string'

@@ -1,83 +1,26 @@
-import { type ReactNode, useState } from 'react';
-import { Icon } from './Icon.js';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { type ReactNode, useRef, useState } from 'react';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
-import { Dropdown, type MenuItem } from './Dropdown.js';
+import { PermissionTool } from './PermissionTool.js';
 import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { SHRINK } from '../lib/style.js';
 import {
-  ACCESS_CHOICES,
-  ACCESS_LABEL,
-  GROUP_LABEL,
-  groupAccess,
-  toolOverride,
-  toolsIn,
-  withGroup,
-  withTool,
-  type Access,
-  type GroupedTool,
-  type ToolGroup,
-  type ToolPolicy,
+  ACCESS_CHOICES, ACCESS_LABEL, GROUP_LABEL, groupAccess, stricterAccess, toolsIn, withGroup,
+  type Access, type GroupedTool, type ToolGroup, type ToolPolicy,
 } from '@metro-labs/client/api/policy';
 import { queryError } from '../lib/queries.js';
 
 const SAVE_FAILED = 'Could not save the permissions.';
-const ACCESS = { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8, paddingRight: 2, marginVertical: -4, marginLeft: -8, marginRight: -2, borderRadius: 6 } as const;
-const CHEVRON = 14;
 const GROUPS: readonly ToolGroup[] = ['read', 'write'];
 const GROUP_NOTE: Record<ToolGroup, string> = {
-  read: 'Tools that only look, and change nothing.',
-  write: 'Tools that send, change or delete.',
+  read: 'Tools classified as read-only.',
+  write: 'Tools that send, change or delete, and tools without a read-only classification.',
 };
-
-
 const ASK_NOTE = 'Ask first sends you a request in the chat or on the Home page, and waits for your answer.';
+const INHERITED_NOTE = 'The stricter organization or agent rule wins for each tool. Agent settings never weaken the organization’s Ask first or Block.';
 const OPTIONS = ACCESS_CHOICES.map((access) => ({ value: access, label: ACCESS_LABEL[access] }));
+const toolText = (values: Record<string, string> | undefined, name: string): string | undefined => values !== undefined && Object.hasOwn(values, name) ? values[name] : undefined;
 
-const toolLabel = (name: string): string => {
-  const words = name.replace(/[_-]+/g, ' ').trim();
-  return words === '' ? name : `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
-};
-
-function ToolRow({ tool, title, policy, busy, onSave }: { tool: GroupedTool; title?: string; policy: ToolPolicy; busy: boolean; onSave: (next: ToolPolicy) => void }): ReactNode {
-  const palette = useKitPalette();
-  const override = toolOverride(policy, tool.name);
-  const inherited = groupAccess(policy, tool.group);
-  const items: MenuItem[] = [
-    {
-      label: `Same as ${GROUP_LABEL[tool.group]} (${ACCESS_LABEL[inherited]})`,
-      selected: override === undefined,
-      onSelect: () => {
-        if (!busy) onSave(withTool(policy, tool.name, undefined));
-      },
-    },
-    ...ACCESS_CHOICES.map((access, at) => ({
-      label: ACCESS_LABEL[access],
-      ...(at === 0 ? { separated: true } : {}),
-      selected: override === access,
-      onSelect: () => {
-        if (!busy) onSave(withTool(policy, tool.name, access));
-      },
-    })),
-  ];
-  const name = title === undefined || title === '' || title === tool.name ? toolLabel(tool.name) : title;
-  const hover = { backgroundColor: palette.inputBg };
-  return (
-    <Row align="center" justify="between" gap={24} padding={{ x: 16, y: 10 }}>
-      <Text size="2xs" numberOfLines={1} style={SHRINK}>
-        {name}
-      </Text>
-      <Dropdown items={items} label={`Permission for ${name}`} align="end" style={ACCESS} hoverStyle={hover}>
-        <Text size="2xs" role={override === undefined ? 'secondary' : 'link'}>
-          {ACCESS_LABEL[override ?? inherited]}
-        </Text>
-        <Icon name="selector" size={CHEVRON} color={palette.sub} />
-      </Dropdown>
-    </Row>
-  );
-}
+type GroupChoice = Access | 'inherit';
 
 interface PermissionsProps {
   title: string;
@@ -86,48 +29,54 @@ interface PermissionsProps {
   store: (next: ToolPolicy) => Promise<unknown>;
   onSaved: () => Promise<unknown>;
   titles?: Record<string, string>;
+  descriptions?: Record<string, string>;
+  organization?: ToolPolicy;
+  disabled?: boolean;
 }
 
-export function Permissions({ title, policy, tools, store, onSaved, titles }: PermissionsProps): ReactNode {
+function groupNote(policy: ToolPolicy, organization: ToolPolicy | undefined, group: ToolGroup): string {
+  if (organization === undefined) return GROUP_NOTE[group];
+  const inherited = groupAccess(organization, group);
+  const effective = stricterAccess(inherited, groupAccess(policy, group));
+  return `${GROUP_NOTE[group]} Organization: ${ACCESS_LABEL[inherited]} · Effective default: ${ACCESS_LABEL[effective]}. Tool overrides are shown below.`;
+}
+
+function withSavedTools(tools: GroupedTool[], policies: (ToolPolicy | undefined)[]): GroupedTool[] {
+  const known = new Set(tools.map((tool) => tool.name));
+  const saved = new Set(policies.flatMap((policy) => Object.keys(policy?.tools ?? {})));
+  return [...tools, ...[...saved].filter((name) => !known.has(name)).map((name): GroupedTool => ({ name, group: 'write' }))];
+}
+
+export function Permissions({ title, policy, tools, store, onSaved, titles, descriptions, organization, disabled = false }: PermissionsProps): ReactNode {
   const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const save = (next: ToolPolicy): void => {
+    if (pending.current || disabled) return;
+    pending.current = true;
     setBusy(true);
     setError(null);
     store(next)
       .then(() => onSaved())
-      .catch((err: unknown) => {
-        setError(queryError(err, SAVE_FAILED));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
+      .catch((err: unknown) => { setError(queryError(err, SAVE_FAILED)); })
+      .finally(() => { pending.current = false; setBusy(false); });
   };
-  const groups = GROUPS.filter((group) => toolsIn(tools, group).length > 0);
+  const listed = withSavedTools(tools, [policy, organization]);
+  const options: { value: GroupChoice; label: string }[] = organization === undefined ? OPTIONS : [{ value: 'inherit', label: 'Organization' }, ...OPTIONS];
   return (
-    <SettingsGroup title={title} note={ASK_NOTE}>
-      {groups.flatMap((group) => {
-        const inGroup = toolsIn(tools, group);
+    <SettingsGroup title={title} note={organization === undefined ? ASK_NOTE : `${INHERITED_NOTE} ${ASK_NOTE}`}>
+      {GROUPS.flatMap((group) => {
+        const inGroup = toolsIn(listed, group);
+        const value: GroupChoice = organization !== undefined && policy[group] === undefined ? 'inherit' : groupAccess(policy, group);
         return [
-          <SettingsSection key={group} title={GROUP_LABEL[group]} count={inGroup.length} note={GROUP_NOTE[group]}>
-            <Choice<Access>
-              label={GROUP_LABEL[group]}
-              value={groupAccess(policy, group)}
-              options={OPTIONS}
-              disabled={busy}
-              onChange={(access) => {
-                save(withGroup(policy, group, access));
-              }}
-            />
+          <SettingsSection key={group} title={GROUP_LABEL[group]} count={inGroup.length} note={groupNote(policy, organization, group)}>
+            <Choice<GroupChoice> label={`${title}: ${GROUP_LABEL[group]}`} value={value} options={options} disabled={busy || disabled}
+              onChange={(access) => { save(withGroup(policy, group, access === 'inherit' ? undefined : access)); }} />
           </SettingsSection>,
-          ...inGroup.map((tool) => <ToolRow key={tool.name} tool={tool} title={titles?.[tool.name]} policy={policy} busy={busy} onSave={save} />),
+          ...inGroup.map((tool) => <PermissionTool key={tool.name} tool={tool} title={toolText(titles, tool.name)} description={toolText(descriptions, tool.name) ?? (tools.some((known) => known.name === tool.name) ? undefined : 'Saved rule. This tool is not in the current list; its group defaults to Write.')} policy={policy} organization={organization} disabled={busy || disabled} onSave={save} />),
         ];
       })}
-      {error === null ? null : (
-        <SettingsPad>
-          <Text size="2xs" role="danger">{error}</Text>
-        </SettingsPad>
-      )}
+      {error === null ? null : <SettingsPad><Text size="2xs" role="danger">{error}</Text></SettingsPad>}
     </SettingsGroup>
   );
 }

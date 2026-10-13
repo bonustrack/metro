@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { openSecret } from '../src/connectors/secrets.ts';
-import { connectorEvents, connectors } from '../src/db/schema.ts';
+import { connectors } from '../src/db/schema.ts';
 import { auth, bearer, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { ACCESS, CALLBACK, challengeOf, GOOD_KEY, REFRESH, RETURN_TO, startApi, startVendor, type Api, type Vendor } from './org-connectors-fixture.ts';
@@ -97,8 +97,6 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     const key = api.deps.key();
     if (row?.secret === null || row === undefined || key === null) throw new Error('nothing was kept');
     expect(openSecret(key, TEST_OWNER, started.id, row.secret)).toMatchObject({ kind: 'oauth', client: { clientId: challengeOf(started.authorizeUrl).clientId }, tokens: { accessToken: ACCESS, refreshToken: REFRESH } });
-    const actions = await held.db.select({ action: connectorEvents.action }).from(connectorEvents).where(eq(connectorEvents.connector, started.id));
-    expect(actions.map((a) => a.action).sort()).toEqual(['connector.created', 'connector.signed_in']);
   });
 
   test('a declined sign-in goes back to the page with the reason and stores no token', async () => {

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { openSecret } from '../src/connectors/secrets.ts';
-import { connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
-import { auth, bearer, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
+import { connectorAgents, connectors } from '../src/db/schema.ts';
+import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { addUser, GOOD_KEY, startApi, startVendor, type Api, type Vendor } from './org-connectors-fixture.ts';
 
@@ -44,9 +44,6 @@ const addKeyed = async (name = 'Linear'): Promise<View> => {
   return (await data<{ connector: View }>(res)).connector;
 };
 
-const eventsOf = async (connector: string): Promise<{ action: string }[]> =>
-  held.db.select({ action: connectorEvents.action }).from(connectorEvents).where(eq(connectorEvents.connector, connector)).orderBy(connectorEvents.at, connectorEvents.id);
-
 beforeAll(async () => {
   held = await testDb();
   vendor = await startVendor();
@@ -72,7 +69,7 @@ afterAll(async () => {
 describe('the switch and who may do what', () => {
   test('every route answers 503 while organization connectors are off', async () => {
     api.setEnabled(false);
-    for (const [method, path] of [['GET', '/api/connectors'], ['POST', '/api/connectors'], ['GET', '/api/connectors/events'], ['GET', '/api/connectors/callback?state=x&code=y']] as const) {
+    for (const [method, path] of [['GET', '/api/connectors'], ['POST', '/api/connectors'], ['GET', '/api/connectors/callback?state=x&code=y']] as const) {
       const res = await call(method, path, method === 'POST' ? {} : undefined);
       expect(res.status).toBe(503);
       expect((await data<{ error: string }>(res)).error).toBe('Organization connectors are not switched on yet.');
@@ -86,7 +83,8 @@ describe('the switch and who may do what', () => {
     expect(list.status).toBe(200);
     expect(await data<unknown>(list)).toEqual({ connectors: [], admin: false });
     expect((await call('POST', '/api/connectors', { name: 'x', url: `${vendor.base}/open` }, member)).status).toBe(403);
-    expect((await call('GET', '/api/connectors/events', undefined, member)).status).toBe(403);
+    expect((await call('GET', '/api/connectors/events', undefined, member)).status).toBe(404);
+    expect((await call('GET', '/api/connectors/events')).status).toBe(404);
   });
 
   test('without METRO_CONNECTORS_KEY nothing is added', async () => {
@@ -113,8 +111,6 @@ describe('adding a connector', () => {
     const shown = await member.text();
     expect(shown).not.toContain('URL_ONLY_SECRET');
     expect(shown).not.toContain('/query-keyed');
-    const activity = await call('GET', '/api/connectors/events');
-    expect(await activity.text()).not.toContain('URL_ONLY_SECRET');
   });
 
   test('a key connector is verified first and its key is kept sealed, never shown', async () => {
@@ -130,7 +126,6 @@ describe('adding a connector', () => {
     const key = api.deps.key();
     if (row === undefined || row.secret === null || key === null) throw new Error('the row was not stored');
     expect(openSecret(key, TEST_OWNER, view.id, row.secret)).toEqual({ kind: 'header', targetUrl: `${vendor.base}/keyed`, name: 'Authorization', value: GOOD_KEY });
-    expect(await eventsOf(view.id)).toEqual([{ action: 'connector.created' }]);
   });
 
   test('a wrong key, a non-MCP address or a bad url stores nothing', async () => {
@@ -171,9 +166,6 @@ describe('changing a connector', () => {
     expect((await call('PUT', `/api/connectors/${view.id}`, { value: 'Bearer nope' })).status).toBe(400);
     const rekeyed = await call('PUT', `/api/connectors/${view.id}`, { header: 'Authorization', value: GOOD_KEY });
     expect(rekeyed.status).toBe(200);
-    expect((await eventsOf(view.id)).map((e) => e.action)).toEqual(['connector.created', 'connector.renamed', 'connector.read_only_changed', 'connector.key_changed']);
-    const activity = await data<{ events: { action: string; connector: { name: string } }[] }>(await call('GET', `/api/connectors/events?connector=${view.id}`));
-    expect(activity.events.find((e) => e.action === 'connector.renamed')?.connector.name).toBe('Linear');
   });
 
   test('another organization sees and changes nothing', async () => {
@@ -203,40 +195,14 @@ describe('assigning a connector to agents', () => {
     const dropped = await call('DELETE', `/api/connectors/${view.id}/agents/${OURS}`);
     expect((await data<View>(dropped)).agents.map((a) => a.id)).toEqual([SECOND]);
     expect((await call('DELETE', `/api/connectors/${view.id}/agents/${OURS}`)).status).toBe(404);
-    expect((await eventsOf(view.id)).map((e) => e.action)).toEqual(['connector.created', 'connector.assigned', 'connector.assignment_changed', 'connector.assigned', 'connector.unassigned']);
   });
 
-  test('deleting a connector removes its assignments, the audit log keeps its name', async () => {
+  test('deleting a connector removes its assignments', async () => {
     const view = await addKeyed();
     await call('PUT', `/api/connectors/${view.id}/agents/${OURS}`, {});
     const gone = await call('DELETE', `/api/connectors/${view.id}`);
     expect(await data<unknown>(gone)).toEqual({ id: view.id, deleted: true });
     expect((await call('GET', `/api/connectors/${view.id}`)).status).toBe(404);
     expect(await held.db.select().from(connectorAgents)).toEqual([]);
-    const log = await data<{ events: { action: string; connector: { name: string } | null; actor: { name: string | null } }[] }>(await call('GET', `/api/connectors/events?connector=${view.id}`));
-    expect(log.events.map((e) => e.action)).toEqual(['connector.deleted', 'connector.assigned', 'connector.created']);
-    expect(log.events[0]?.connector?.name).toBe('Linear');
-    expect(log.events[0]?.actor.name).toBe('Less');
-  });
-});
-
-describe('the audit log', () => {
-  test('pages newest first and names who did what', async () => {
-    const view = await addKeyed();
-    for (let i = 0; i < 55; i += 1) {
-      now += 1_000;
-      await call('PUT', `/api/connectors/${view.id}`, { readOnly: i % 2 === 0 });
-    }
-    const first = await data<{ events: { id: string; at: string }[]; next: { before: string; beforeId: string } | null }>(await call('GET', '/api/connectors/events'));
-    expect(first.events).toHaveLength(50);
-    expect(first.next).not.toBeNull();
-    const next = first.next ?? { before: '', beforeId: '' };
-    const second = await data<{ events: { id: string }[]; next: unknown }>(await call('GET', `/api/connectors/events?before=${encodeURIComponent(next.before)}&beforeId=${next.beforeId}`));
-    expect(second.events).toHaveLength(6);
-    expect(second.next).toBeNull();
-    expect(new Set([...first.events, ...second.events].map((e) => e.id)).size).toBe(56);
-    expect((await call('GET', '/api/connectors/events?before=yesterday&beforeId=x')).status).toBe(400);
-    const other = await bearer({ sub: 'user_01OTHER', org_id: TEST_STRANGER, role: 'admin' });
-    expect((await data<{ events: unknown[] }>(await call('GET', '/api/connectors/events', undefined, other))).events).toEqual([]);
   });
 });

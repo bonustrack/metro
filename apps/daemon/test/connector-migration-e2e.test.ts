@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { connectorAgents, connectorEvents, connectorMigrations, connectors } from '../../api/src/db/schema.js';
+import { connectorAgents, connectorMigrations, connectors } from '../../api/src/db/schema.js';
 import { destinationId, LOCAL_KEY, MIGRATIONS, migrationE2E, SOURCE, TEST_DATABASE_URL, UNMIGRATED, type MigrationE2E, type Variant } from './migration-e2e-fixture.js';
 import { ACCESS, GOOD_KEY, REFRESH } from '../../api/test/org-connectors-fixture.js';
 import { LOCAL_ACCESS, LOCAL_REFRESH, MANUAL_SECRET, POLICY, URL_SECRET } from './migration-e2e-vendor.js';
@@ -60,7 +60,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('migration from real daemon adm
       expect(secret?.kind).toBe(variant === 'header' ? 'header' : 'none');
       if (secret?.kind === 'header') expect(secret.value).toBe(GOOD_KEY);
       secretFree(JSON.stringify(await (await f.request(MIGRATIONS)).json()));
-      secretFree(JSON.stringify({ rows: await f.held.db1.select().from(connectors), migrations: await f.held.db1.select().from(connectorMigrations), events: await f.held.db1.select().from(connectorEvents) }));
+      secretFree(JSON.stringify({ rows: await f.held.db1.select().from(connectors), migrations: await f.held.db1.select().from(connectorMigrations) }));
       secretFree(JSON.stringify(f.traffic));
       expect((await f.move('cutover')).phase).toBe('active');
       expect(await f.held.db1.$count(connectorAgents)).toBe(1);

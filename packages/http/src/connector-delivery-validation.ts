@@ -1,7 +1,7 @@
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { connectorName } from './connector-input.js';
-import { connectorPolicyOf, type ConnectorPolicy } from './connector-policy.js';
+import { connectorPolicyLayersOf, connectorPolicyOf, type ConnectorPolicy, type ConnectorPolicyLayers } from './connector-policy.js';
 import { parsePublicConnectorUrl } from './connector-public-url.js';
 import { isOrganizationId } from './workos-token.js';
 
@@ -23,6 +23,7 @@ export interface DeliveredConnector {
   auth: 'none' | 'header' | 'oauth';
   headers: Record<string, string>;
   policy: ConnectorPolicy;
+  policyLayers?: ConnectorPolicyLayers;
   revision: string;
   state: 'ready' | 'signin' | 'unavailable';
   expiresAt?: number;
@@ -91,7 +92,7 @@ function urlOf(value: unknown): string {
 }
 
 function connectorOf(raw: unknown): DeliveredConnector {
-  const value = deliveryRecord(raw, ['id', 'name', 'url', 'auth', 'headers', 'policy', 'revision', 'state', 'expiresAt']);
+  const value = deliveryRecord(raw, ['id', 'name', 'url', 'auth', 'headers', 'policy', 'policyLayers', 'revision', 'state', 'expiresAt']);
   const id = parseId(value.id);
   if (id === null || typeof value.name !== 'string' || connectorName(value.name) !== value.name) throw new Error('Invalid delivered connector.');
   const url = urlOf(value.url);
@@ -99,7 +100,7 @@ function connectorOf(raw: unknown): DeliveredConnector {
   const state = stateOf(value.state, auth);
   deliveryBytes(value.revision, 32);
   if (Object.hasOwn(value, 'expiresAt') && !timestamp(value.expiresAt)) throw new Error('Invalid delivered connector expiry.');
-  return { id, name: value.name, url, auth, state, revision: String(value.revision), headers: headersOf(value.headers, auth, state), policy: connectorPolicyOf(value.policy), ...(timestamp(value.expiresAt) ? { expiresAt: value.expiresAt } : {}) };
+  return { id, name: value.name, url, auth, state, revision: String(value.revision), headers: headersOf(value.headers, auth, state), policy: connectorPolicyOf(value.policy), ...(Object.hasOwn(value, 'policyLayers') ? { policyLayers: connectorPolicyLayersOf(value.policyLayers) } : {}), ...(timestamp(value.expiresAt) ? { expiresAt: value.expiresAt } : {}) };
 }
 
 export function deliverySnapshotOf(raw: unknown): DeliverySnapshot {

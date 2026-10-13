@@ -73,7 +73,7 @@ export async function runtimeFixture(mapping?: () => MigrationRuntimeMapping): P
       const proof = readAgentProof(new Headers(init.headers).get('authorization') ?? undefined);
       expect(proof).not.toBeNull();
       if (proof === null) throw new Error('Missing proof');
-      expect(agentSignatureValid({ method: 'POST', host: new URL(url).host, path: new URL(url).pathname, body: Buffer.from(String(init.body)) }, proof, state.key.signingKey)).toBe(true);
+      expect(agentSignatureValid({ method: 'POST', host: new URL(url).host, path: new URL(url).pathname + new URL(url).search, body: Buffer.from(String(init.body)) }, proof, state.key.signingKey)).toBe(true);
       const context = { owner: OWNER, agent: AGENT, keyId: state.key.keyId, requestId: String(body.requestId) };
       const snapshot: DeliverySnapshot = { version: 1, issuedAt: state.now, expiresAt: state.now + state.lease, connectors: structuredClone(state.rows) };
       return state.deliver === null ? Response.json({ sealed: sealConnectorDelivery(state.key.sealingKey, context, snapshot) }) : state.deliver(context, snapshot);

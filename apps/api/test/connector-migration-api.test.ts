@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import { agentKeyStore, leaveOrganization } from '../src/db/agent-keys.js';
 import { orgConnectorStore } from '../src/db/connectors.js';
-import { agents, connectorAgents, connectorEvents, connectorMigrations, connectors } from '../src/db/schema.js';
+import { agents, connectorAgents, connectorMigrations, connectors } from '../src/db/schema.js';
 import { fullPolicy, openConnectorSecret } from '../src/connectors/model.js';
 import { updateConnector } from '../src/connectors/manage.js';
 import { enrollDeliveryAgent, latch, MASTER, newDeliveryAgent, opaque, openResponse, seedConnector, signedDelivery, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
@@ -18,7 +18,7 @@ const assignment = (connector: string, id = agent.row.agent) => ({ owner: TEST_O
 async function moved(): Promise<void> {
   await held.db.transaction(async (tx) => {
     await tx.select().from(agents).where(eq(agents.id, agent.row.agent)).for('update');
-    await leaveOrganization(tx, agent.row.agent, TEST_OWNER, new Date().toISOString());
+    await leaveOrganization(tx, agent.row.agent);
     await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, agent.row.agent));
   });
 }
@@ -57,7 +57,7 @@ describe('signed organization connector migration HTTP API', () => {
       expect(stored.url).toBe('https://vendor.example');
       expect(openConnectorSecret(MASTER, stored)).toEqual({ ...source.auth, targetUrl: source.url });
       expect(fullPolicy(stored.policy)).toEqual(source.policy);
-      const serialized = JSON.stringify({ mappings: await held.db.select().from(connectorMigrations), connectors: await held.db.select().from(connectors), events: await held.db.select().from(connectorEvents), response: ready });
+      const serialized = JSON.stringify({ mappings: await held.db.select().from(connectorMigrations), connectors: await held.db.select().from(connectors), response: ready });
       expect(serialized).not.toContain('URL_SECRET');
       expect(serialized).not.toContain(source.auth.kind === 'header' ? source.auth.value : 'unused-secret');
       expect((await answer(await api.call(agent, input('activate')))).migration.phase).toBe('active');
@@ -99,7 +99,7 @@ describe('signed organization connector migration HTTP API', () => {
     const id = ready.migration.destinationId;
     expect(id).not.toBe(existing.id);
     await expect(orgConnectorStore(() => held.db).assign(assignment(id))).rejects.toThrow('Finish or roll back');
-    await expect(orgConnectorStore(() => held.db).edit(TEST_OWNER, id, new Date().toISOString(), () => ({ change: { policy: null }, event: null }))).rejects.toThrow('Finish or roll back');
+    await expect(orgConnectorStore(() => held.db).edit(TEST_OWNER, id, new Date().toISOString(), () => ({ change: { policy: null } }))).rejects.toThrow('Finish or roll back');
     expect(await held.db.$count(connectorAgents)).toBe(0);
   });
 

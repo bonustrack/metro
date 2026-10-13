@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '../src/connectors/model.js';
-import { connectorEvents, connectors } from '../src/db/schema.js';
+import { connectors } from '../src/db/schema.js';
 import { auth, TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS, testDb, type TestDb } from './pglite-db.js';
 import { ACCESS, challengeOf, GOOD_KEY, REFRESH, RETURN_TO, startApi, startVendor, type Api, type Vendor } from './org-connectors-fixture.js';
@@ -95,7 +95,6 @@ describe('public OAuth discovery never guesses a private transport resource', ()
     redacted(await response.text());
     expect(vendor.requests.map((request) => request.url)).toEqual([TARGET, `${BASE}${PRM}`]);
     expect(await held.db.$count(connectors)).toBe(0);
-    expect(await held.db.$count(connectorEvents)).toBe(0);
   });
 
   test.each([false, true])('missing resource metadata requires an explicit public value, missing document=%s', async (missing) => {
@@ -186,7 +185,6 @@ describe('private inputs and provider errors never return to the page', () => {
     redacted(failure);
     expect(JSON.parse(failure)).toEqual({ error: 'The provider could not verify the HTTP MCP endpoint with that key.' });
     expect((await held.db.select().from(connectors).where(eq(connectors.id, id)))[0]).toEqual(row);
-    redacted(JSON.stringify(await held.db.select().from(connectorEvents)));
   });
 
   test.each([
@@ -213,7 +211,6 @@ describe('private inputs and provider errors never return to the page', () => {
     expect(new URL(location).search).toBe('');
     expect(new URLSearchParams(new URL(location).hash.split('?')[1]).has('org_connector_error')).toBe(true);
     expect(vendor.tokenCalls).toBe(count);
-    redacted(JSON.stringify(await held.db.select().from(connectorEvents)));
   });
 
   test.each(['/token', PRIVATE_PATH])('redirects during %s are not followed or reflected', async (path) => {
@@ -228,7 +225,6 @@ describe('private inputs and provider errors never return to the page', () => {
     const text = await shown.text();
     expect(JSON.parse(text)).toMatchObject({ signIn: 'disconnected' });
     redacted(text);
-    redacted(JSON.stringify(await held.db.select().from(connectorEvents)));
   });
 });
 
@@ -250,7 +246,6 @@ describe('a pending sign-in is bound to its prepared configuration', () => {
     redacted(await response.text());
     expect(vendor.tokenCalls).toBe(count);
     expect((await post('/api/connectors/complete', { handoff: ticket })).status).toBe(400);
-    expect(await held.db.$count(connectorEvents, eq(connectorEvents.action, 'connector.signed_in'))).toBe(0);
   });
 
   test('configuration changed during code exchange cannot be overwritten by completed tokens', async () => {

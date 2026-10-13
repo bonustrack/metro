@@ -308,7 +308,7 @@ async function changeOwner(id: string, from: string, to: string): Promise<Server
         })
         .where(and(eq(agents.id, id), eq(agents.owner, from)))
         .returning(columns);
-      if (moved.length > 0) await leaveOrganization(tx, id, from, new Date().toISOString());
+      if (moved.length > 0) await leaveOrganization(tx, id);
       return moved;
     });
     const row = rows[0];

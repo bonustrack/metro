@@ -8,7 +8,7 @@ import type { Handoff, SignInState } from '../src/connectors/sign-in.js';
 import { agentKeyStore, leaveOrganization } from '../src/db/agent-keys.js';
 import { agentNonceStore } from '../src/db/agent-nonces.js';
 import { orgConnectorStore, type ConnectorRow } from '../src/db/connectors.js';
-import { agents, agentNonces, connectorEvents, connectors } from '../src/db/schema.js';
+import { agents, agentNonces, connectors } from '../src/db/schema.js';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.js';
 import { TEST_DATABASE_URL, postgresFixture } from './connector-postgres-fixture.js';
 import { CONN, MASTER, PATH, assignConnector, enrollDeliveryAgent, latch, newDeliveryAgent, oauthSecret, opaque, openResponse, seedConnector, signedDelivery, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
@@ -32,7 +32,7 @@ async function signIn(row: ConnectorRow): Promise<unknown> {
 async function moved(): Promise<void> {
   await held.db2.transaction(async (tx) => {
     await tx.select().from(agents).where(eq(agents.id, agent.row.agent)).for('update');
-    await leaveOrganization(tx, agent.row.agent, TEST_OWNER, new Date().toISOString());
+    await leaveOrganization(tx, agent.row.agent);
     await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, agent.row.agent));
   });
 }
@@ -77,7 +77,6 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('real Postgres connector delive
       expect(left.connectors[0]?.headers).toEqual({ Authorization: 'Bearer ROTATED_ACCESS' });
       expect(right.connectors[0]?.revision).toBe(left.connectors[0]?.revision);
       expect(tokens).toEqual(['REFRESH_OLD']);
-      expect(await held.db1.$count(connectorEvents, eq(connectorEvents.action, 'connector.refreshed'))).toBe(1);
       const stored = (await held.db1.select().from(connectors))[0];
       expect(stored).toBeDefined();
       if (stored !== undefined) {
@@ -147,7 +146,6 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('real Postgres connector delive
         expect(response.status).toBe(401);
         expect(await response.text()).not.toContain('sealed');
         expect(await held.db1.$count(agentNonces)).toBe(1);
-        expect(await held.db1.$count(connectorEvents, eq(connectorEvents.action, 'connector.delivered'))).toBe(0);
       } finally { hold.release(); await one.close(); }
     }, 20_000);
   }
@@ -165,9 +163,9 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('real Postgres connector delive
         const store = orgConnectorStore(() => held.db2);
         const at = new Date().toISOString();
         let edit: Promise<unknown>;
-        if (action === 'unassign') edit = store.unassign({ owner: TEST_OWNER, connector: CONN, agent: agent.row.agent, actor: 'user:test', at });
-        else if (action === 'delete-connector') edit = store.remove(TEST_OWNER, CONN, at, () => ({ owner: TEST_OWNER, connector: CONN, actor: 'user:test', action: 'connector.deleted' }));
-        else edit = store.edit(TEST_OWNER, CONN, at, () => ({ change: { policy: '{"read":"deny","write":"deny"}' }, event: null }));
+        if (action === 'unassign') edit = store.unassign({ owner: TEST_OWNER, connector: CONN, agent: agent.row.agent });
+        else if (action === 'delete-connector') edit = store.remove(TEST_OWNER, CONN);
+        else edit = store.edit(TEST_OWNER, CONN, at, () => ({ change: { policy: '{"read":"deny","write":"deny"}' } }));
         await held.waiting('two');
         hold.release();
         await edit;
@@ -175,10 +173,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('real Postgres connector delive
         expect(response.status).toBe(200);
         const opened = await openResponse(response, agent, requestId);
         if (action === 'deny-policy') expect(opened.connectors[0]).toMatchObject({ state: 'unavailable', headers: {}, policy: { read: 'deny', write: 'deny' } });
-        else {
-          expect(opened.connectors).toEqual([]);
-          expect(await held.db1.$count(connectorEvents, eq(connectorEvents.action, 'connector.delivered'))).toBe(0);
-        }
+        else expect(opened.connectors).toEqual([]);
         expect(JSON.stringify(opened)).not.toContain('NEW_ACCESS');
       } finally { hold.release(); await one.close(); }
     }, 20_000);
@@ -193,7 +188,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('real Postgres connector delive
       const moving = held.db2.transaction(async (tx) => {
         await tx.select().from(agents).where(eq(agents.id, agent.row.agent)).for('update');
         await hold.pause();
-        await leaveOrganization(tx, agent.row.agent, TEST_OWNER, new Date().toISOString());
+        await leaveOrganization(tx, agent.row.agent);
         await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, agent.row.agent));
       });
       await hold.reached;

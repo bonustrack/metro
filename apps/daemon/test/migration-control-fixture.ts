@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { ConnectorSyncStatus } from '@metro-labs/core/connector-sync';
 import { agentSignatureValid, rawPublicKey, readAgentProof } from '@metro-labs/http/agent-signature';
 import { migrationRequestOf, openConnectorMigration, type MigrationContext, type MigrationPayload, type MigrationView } from '@metro-labs/http/connector-migration';
-import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
+import type { ConnectorPolicyLayers, DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import { newAgentKey } from '../src/connectors/agent-key.ts';
 import { ConnectorMigrations } from '../src/connectors/migration-control.ts';
 import { localRollbackMigrationSource } from '../src/connectors/store.ts';
@@ -33,7 +33,7 @@ export function migrationFixture(oauth = false) {
   let remote: MigrationView | null = null;
   let payload: MigrationPayload | null = null;
   const requests: string[] = [];
-  const controls = { refusal: null as { action: string; code: string; status: number } | null, localIdle: true, orgIdle: true, freshFail: false, drop: '', pause: null as Promise<void> | null, creates: 0, assignments: 0, rollbacks: 0, restored: 0 };
+  const controls = { refusal: null as { action: string; code: string; status: number } | null, localIdle: true, orgIdle: true, freshFail: false, layers: null as ConnectorPolicyLayers | null, drop: '', pause: null as Promise<void> | null, creates: 0, assignments: 0, rollbacks: 0, restored: 0 };
   const readSource = () => readFileSync(join(dir, 'connectors.json'), 'utf8');
   const context = (operationId: string): MigrationContext => ({ owner: OWNER, agent: AGENT, keyId: key.keyId, operationId, sourceId: SOURCE, destinationId: DESTINATION });
   const api = {
@@ -67,7 +67,7 @@ export function migrationFixture(oauth = false) {
   };
   const fresh = (): Promise<DeliverySnapshot> => {
     if (controls.freshFail || payload === null) return Promise.reject(new Error('no decrypted receipt'));
-    return Promise.resolve({ issuedAt: Date.now(), expiresAt: Date.now() + 60_000, connectors: [{ id: DESTINATION, name: payload.name, url: payload.url, auth: payload.auth.kind, headers: {}, policy: payload.policy, state: 'ready', revision: 'r'.repeat(43) }] });
+    return Promise.resolve({ issuedAt: Date.now(), expiresAt: Date.now() + 60_000, connectors: [{ id: DESTINATION, name: payload.name, url: payload.url, auth: payload.auth.kind, headers: {}, ...(controls.layers === null ? { policy: payload.policy } : { policy: { read: 'deny', write: 'deny' }, policyLayers: controls.layers }), state: 'ready', revision: 'r'.repeat(43) }] });
   };
   const control = (localIdle = () => controls.localIdle) => new ConnectorMigrations({
     dir, api, key: () => key, status: () => status, fresh, changed: () => {}, localIdle, orgIdle: () => controls.orgIdle,

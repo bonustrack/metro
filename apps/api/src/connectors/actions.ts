@@ -8,7 +8,6 @@ import { boundOAuthResource, optionalOAuthResource, parsePublicConnectorUrl } fr
 import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
 import { ConnectorUnauthorized, parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { Session } from '@metro-labs/http/workos-token';
-import type { ConnectorEvent } from '../db/connector-events.js';
 import type { ConnectorRow, OrgConnectorStore } from '../db/connectors.js';
 import { connectorView, detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail, type ConnectorView } from './model.js';
 import { beginSignIn, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
@@ -30,8 +29,6 @@ export interface Created {
   connector: ConnectorView;
   authorizeUrl?: string;
 }
-
-const actorOf = (caller: Caller): string => `user:${caller.session.userId}`;
 
 const at = (deps: ActionDeps): string => new Date(deps.now()).toISOString();
 
@@ -59,8 +56,6 @@ function newRow(caller: Caller, name: string, url: URL, now: string): ConnectorR
   return { id: newId(), owner: caller.owner, name, url: url.origin, auth: 'none', authGeneration: newId(), policy: null, secret: null, detail: null, createdBy: caller.session.userId, createdAt: now, updatedAt: now };
 }
 
-const createdEvent = (caller: Caller, row: ConnectorRow): ConnectorEvent => ({ owner: caller.owner, connector: row.id, actor: actorOf(caller), action: 'connector.created', detail: { name: row.name, auth: row.auth } });
-
 async function addVerified(deps: ActionDeps, caller: Caller, row: ConnectorRow, auth: ConnectorAuth, server: string, targetUrl: string): Promise<Created> {
   const detail: ConnectorDetail = { server, verifiedAt: row.createdAt, ...(auth.kind === 'header' ? { header: auth.name } : {}) };
   const saved: ConnectorRow = {
@@ -69,7 +64,7 @@ async function addVerified(deps: ActionDeps, caller: Caller, row: ConnectorRow, 
     secret: sealConnectorSecret(sealingKey(deps), row, auth.kind === 'header' ? { ...auth, targetUrl } : { kind: 'none', targetUrl }),
     detail: detailText(detail),
   };
-  await deps.store.create(saved, createdEvent(caller, saved));
+  await deps.store.create(saved);
   log.info({ owner: caller.owner, id: saved.id, host: new URL(saved.url).hostname, auth: saved.auth }, 'org-connectors: connector added');
   return { connector: connectorView(saved, []) };
 }
@@ -80,7 +75,7 @@ async function addOAuth(deps: ActionDeps, caller: Caller, row: ConnectorRow, url
   const { server, client, resource } = await prepareSignIn(deps, url, offered, body.oauthResource);
   const detail: ConnectorDetail = { issuer: server.issuer, ...(offered === null ? {} : { clientId: offered.clientId }) };
   const saved: ConnectorRow = { ...row, auth: 'oauth', secret: sealConnectorSecret(sealingKey(deps), row, { kind: 'oauth', targetUrl: url.toString(), client, server, oauthResource: resource }), detail: detailText(detail) };
-  await deps.store.create(saved, createdEvent(caller, saved));
+  await deps.store.create(saved);
   const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: saved.id, generation: saved.authGeneration ?? '', userId: caller.session.userId, returnTo, targetUrl: url.toString(), resource, configuredResource: resource, server, client });
   log.info({ owner: caller.owner, id: saved.id, host: url.hostname }, 'org-connectors: connector added, sending the admin to sign in');
   return { connector: connectorView(saved, []), authorizeUrl };
@@ -118,7 +113,7 @@ export async function startSignIn(deps: ActionDeps, caller: Caller, id: string, 
   const generation = newId();
   const row = await deps.store.edit(caller.owner, id, at(deps), (current) => {
     if (current.secret !== before.secret || current.authGeneration !== before.authGeneration) throw new ApiError('The connector changed. Start sign-in again.', 409);
-    return { change: { authGeneration: generation, ...(signing.imported === undefined ? {} : { secret: sealConnectorSecret(key, current, signing) }) }, event: null };
+    return { change: { authGeneration: generation, ...(signing.imported === undefined ? {} : { secret: sealConnectorSecret(key, current, signing) }) } };
   });
   const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: row.id, generation, userId: caller.session.userId, returnTo, targetUrl: secret.targetUrl, resource, configuredResource: secret.oauthResource, server: secret.server, client: secret.client });
   log.info({ owner: caller.owner, id: row.id }, 'org-connectors: sending the admin to sign in again');
@@ -152,7 +147,6 @@ export async function completeSignIn(deps: ActionDeps, caller: Caller, body: unk
     const detail: ConnectorDetail = { ...detailOf(row.detail), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
     return {
       change: { secret: sealConnectorSecret(key, row, { ...secret, ...(secret.imported === undefined ? {} : { imported: { state: 'owned', tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } }), tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
-      event: { owner: caller.owner, connector: row.id, actor: actorOf(caller), action: 'connector.signed_in', detail: { name: row.name } },
     };
   });
   log.info({ owner: caller.owner, id: entry.connector }, 'org-connectors: sign-in completed');

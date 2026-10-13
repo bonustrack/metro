@@ -139,7 +139,7 @@ export class SyncControlFixture {
     const request = { method: req.method ?? '', host: req.headers.host ?? '', path, body: bytes };
     const signatureValid = proof !== null && key !== null && agentSignatureValid(request, proof, key.signingKey);
     this.calls.push({ path, body, signatureValid });
-    if (!signatureValid || key?.enrollment === null || key?.enrollment === undefined || path !== '/api/agents/connectors') {
+    if (!signatureValid || key?.enrollment === null || key?.enrollment === undefined || path !== '/api/agents/connectors?policy_layers=1') {
       res.writeHead(401).end(JSON.stringify({ error: 'invalid fixture agent signature' }));
       return;
     }

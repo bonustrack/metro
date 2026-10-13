@@ -71,6 +71,17 @@ describe('delivery payload validation', () => {
     expect(deliverySnapshotOf({ ...snapshot, connectors: [] }).connectors).toEqual([]);
   });
 
+  test('negotiated policy layers are strict and older snapshots remain readable', () => {
+    expect(deliverySnapshotOf(snapshot)).toEqual(snapshot);
+    const connector = snapshot.connectors[0];
+    const policyLayers = { organization: { write: 'deny', tools: { find: 'allow' } }, agent: { read: 'ask' } };
+    const layered = { ...snapshot, connectors: [{ ...connector, policyLayers }] };
+    expect(deliverySnapshotOf(layered).connectors[0]?.policyLayers).toEqual(policyLayers);
+    for (const invalid of [null, {}, { ...policyLayers, extra: {} }, { organization: { read: 'unknown' }, agent: {} }, { organization: {}, agent: { tools: { constructor: 'allow' } } }]) {
+      expect(() => deliverySnapshotOf({ ...snapshot, connectors: [{ ...connector, policyLayers: invalid }] })).toThrow();
+    }
+  });
+
   test('no credential material outside a sendable ready header is accepted', () => {
     const connector = snapshot.connectors[0];
     for (const patch of [{ refreshToken: 'SECRET' }, { clientSecret: 'SECRET' }, { secret: 'CIPHERTEXT' }, { policy: { read: 'surprise' } }, { revision: 'not-a-revision' }, { headers: { Authorization: 'Bearer BAD\r\nInjected: 1' } }, { headers: { 'X-Token': 'ACCESS_SECRET' } }, { state: 'signin' }, { state: 'unavailable' }, { expiresAt: now }, { expiresAt: -1 }, { url: 'http://vendor.example/' }, { url: 'https://user:pass@vendor.example/' }]) {

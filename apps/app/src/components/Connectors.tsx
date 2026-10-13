@@ -25,6 +25,7 @@ import { useDocumentTitle } from '../lib/title.js';
 import { CopyAllConnectors } from './CopyConnectors.js';
 import { MoveConnectors } from './MoveConnectors.js';
 import { go } from '../lib/nav.js';
+import { AgentOrgConnectors } from './AgentOrgConnectors.js';
 
 
 const ACTIONS = { flexShrink: 1, maxWidth: '100%' } as const;
@@ -126,6 +127,7 @@ export function Connectors({
         />
       )}
 
+      <AgentOrgConnectors />
       <AddConnector
         open={adding}
         onClose={() => {

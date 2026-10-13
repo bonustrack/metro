@@ -11,6 +11,7 @@ import type { RelaySession } from './relay-session.js';
 import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import { localMigrationIdle, migrationRuntimeMapping } from './migration-guard.js';
 import { publishConnectors } from './publication.js';
+import { orgRuntimeError, orgUnavailable } from './org-runtime-discovery.js';
 
 type ControlDeps = Pick<OrgSyncDeps, 'owner' | 'key' | 'monotonic'> & { api?: MetroApi; dir?: string };
 type Context = Pick<ConnectorSyncStatus, 'owner' | 'agentId' | 'scope' | 'enrolled'>;
@@ -163,10 +164,22 @@ export class OrgConnectorControl {
     this.clear();
   }
 
-  open(id: string): RelaySession {
+  async open(id: string): Promise<RelaySession> {
     if (this.runtime === null && !syncOptedIn(this.dir)) throw new ApiError('Organization connectors are not available on this agent.', 503);
     this.reconcile(true);
-    if (this.runtime === null) throw new ApiError('Organization connectors are not available on this agent.', 503);
-    return this.runtime.open(id);
+    const runtime = this.runtime;
+    const sync = this.sync;
+    if (runtime === null || sync === null) throw new ApiError('Organization connectors are not available on this agent.', 503);
+    const state = sync.status().state;
+    try {
+      await sync.recover();
+      this.reconcile(false);
+      if (this.runtime !== runtime || this.sync !== sync) throw orgUnavailable();
+    } catch (error) {
+      const safe = orgRuntimeError(error);
+      log.debug({ stage: 'receipt_open', state, status: safe.status }, 'organization connectors: request unavailable');
+      throw safe;
+    }
+    return runtime.open(id);
   }
 }

@@ -5,10 +5,9 @@ import type { MigrationRequest } from '@metro-labs/http/connector-migration';
 import { notEnrolled } from '../agents/auth.js';
 import { agentKeyStore, type AgentKeyRow } from './agent-keys.js';
 import type { Database } from './client.js';
-import { eventRow } from './connector-events.js';
 import type { AssignmentRow, ConnectorRow, ConnectorChange } from './connectors.js';
 import { isUniqueViolation } from './errors.js';
-import { agents, connectorAgents, connectorEvents, connectorMigrations, connectors } from './schema.js';
+import { agents, connectorAgents, connectorMigrations, connectors } from './schema.js';
 
 export type MigrationRow = typeof connectorMigrations.$inferSelect;
 
@@ -115,7 +114,6 @@ async function applyIn(tx: Database, state: MigrationState, edit: MigrationChang
     const saved = (await tx.update(connectorMigrations).set(edit.mapping).where(eq(connectorMigrations.id, mapping.id)).returning())[0];
     if (saved === undefined) throw migrationConflict();
     state.mapping = saved;
-    if (saved.phase !== mapping.phase) await tx.insert(connectorEvents).values(eventRow({ owner: mapping.owner, connector: mapping.destinationId, agent: mapping.agent, actor: `agent:${mapping.agent}`, action: `connector.migration_${saved.phase}`, detail: {} }, at));
   }
   return state;
 }

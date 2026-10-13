@@ -19,7 +19,7 @@ export interface RelayApiDeps {
   identify: (req: IncomingMessage) => { subject: string; agentId: string } | null;
   signedOut: (connectorId: string) => void;
   blocked?: BlockedReason;
-  open?: (connectorId: string) => RelaySession | null;
+  open?: (connectorId: string) => RelaySession | Promise<RelaySession> | null;
 }
 
 const ID_PATH_RE = /^\/relay\/((?:org-)?[A-Za-z0-9][A-Za-z0-9_-]{10})$/;
@@ -306,7 +306,7 @@ async function deliver(
 }
 
 async function relayOrg(req: IncomingMessage, res: ServerResponse, id: string, deps: RelayApiDeps, read: Uint8Array<ArrayBuffer> | null, signal: AbortSignal): Promise<void> {
-  const session = deps.open?.(id);
+  const session = await deps.open?.(id);
   if (session === undefined || session === null) throw new ApiError('Organization connector tools are not switched on yet.', 503);
   try {
     const out = await exchangeOrg(id, session, read, signal, (target, body, guard) => {

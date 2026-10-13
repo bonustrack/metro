@@ -44,8 +44,7 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
     const store = orgConnectorStore(() => db);
     const duplicate = { ...legacy, id: 'conn0000002' };
     duplicate.secret = sealConnectorSecret(MASTER, duplicate, { kind: 'header', targetUrl: 'https://vendor.example/mcp', name: 'Authorization', value: 'Bearer duplicate-key-fixture' });
-    const event = { owner: TEST_OWNER, connector: duplicate.id, actor: 'user_01TEST', action: 'connector.created' };
-    await expect(store.create(duplicate, event)).rejects.toThrow();
+    await expect(store.create(duplicate)).rejects.toThrow();
     const tables = ['agents', 'agent_keys', 'connectors', 'connector_agents', 'connector_migrations', 'connector_events'];
     const before = await Promise.all(tables.map((table) => rows(client, table)));
     const journal = await rows(client, 'drizzle.__drizzle_migrations');
@@ -56,15 +55,15 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
     expect(applied).toHaveLength(journal.length + 1);
     const indexes = await client.query<{ indexname: string }>("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'connectors' ORDER BY indexname");
     expect(indexes.rows.map((row) => row.indexname)).toEqual(['connectors_owner_idx', 'connectors_pkey']);
-    await store.create(duplicate, event);
-    await store.edit(TEST_OWNER, duplicate.id, new Date().toISOString(), () => ({ change: { name: 'Migrated Calendar' }, event: null }));
+    await store.create(duplicate);
+    await store.edit(TEST_OWNER, duplicate.id, new Date().toISOString(), () => ({ change: { name: 'Migrated Calendar' } }));
     const after = await Promise.all(tables.map((table) => rows(client, table)));
     await migrate(db, { migrationsFolder: DIR });
     expect(await rows(client, 'drizzle.__drizzle_migrations')).toEqual(applied);
     expect(await Promise.all(tables.map((table) => rows(client, table)))).toEqual(after);
     expect(await store.find(TEST_OWNER, legacy.id)).toEqual(legacy);
     expect(openConnectorSecret(MASTER, legacy)).toMatchObject({ value: 'Bearer legacy-key-fixture' });
-    await expect(store.create(duplicate, event)).rejects.toThrow('connector identity');
+    await expect(store.create(duplicate)).rejects.toThrow('connector identity');
   } finally {
     await client.close();
     rmSync(folder, { recursive: true, force: true });

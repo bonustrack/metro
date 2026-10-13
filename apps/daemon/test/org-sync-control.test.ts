@@ -116,7 +116,7 @@ test('LIVE blocks enabling through the control but never blocks saving OFF', asy
   enable();
   await f.control.poll();
   expect(f.control.status()).toMatchObject({ enabled: true, liveEnabled: false, state: 'received' });
-  expect(() => f.control.open('conn0000001')).toThrow('not available');
+  await expect(f.control.open('conn0000001')).rejects.toThrow('not available');
   expect(process.env.METRO_CONNECTORS_LIVE_ENABLED).toBe('TRUE');
 });
 
@@ -129,7 +129,7 @@ test('signed and sealed receipt is real, counts only validated delivery, and emp
   held.release();
   await pending;
   expect(f.calls).toHaveLength(1);
-  expect(f.calls[0]).toMatchObject({ path: '/api/agents/connectors', signatureValid: true });
+  expect(f.calls[0]).toMatchObject({ path: '/api/agents/connectors?policy_layers=1', signatureValid: true });
   expect(Object.keys(f.calls[0]?.body ?? {})).toEqual(['requestId']);
   expect(f.calls[0]?.body.requestId).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const receipt = f.control.status();
@@ -188,7 +188,7 @@ test('memory-only control never modifies local connectors, policy, enrollment ke
   const after = f.files();
   delete after['org-connector-sync.json'];
   expect(after).toEqual(before);
-  expect(() => f.control.open('conn0000001')).toThrow('not available');
+  await expect(f.control.open('conn0000001')).rejects.toThrow('not available');
   disable();
   const disabled = f.files();
   delete disabled['org-connector-sync.json'];

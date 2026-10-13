@@ -19,59 +19,55 @@ export interface RefreshDeps {
   now: () => number;
 }
 
-const unchanged = (): ConnectorEdit => ({ change: {}, event: null });
+const unchanged = (): ConnectorEdit => ({ change: {} });
 
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;
 
-function refreshEvent(row: ConnectorRow, identity: AgentKeyRow, action: string, reason?: string): ConnectorEdit['event'] {
-  return { owner: row.owner, connector: row.id, agent: identity.agent, actor: `agent:${identity.agent}`, action, detail: { name: row.name, ...(reason === undefined ? {} : { reason }) } };
+function failedRefresh(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret, err: unknown): ConnectorEdit {
+  if (!(err instanceof OAuthInvalidGrant)) return unchanged();
+  return disconnected(deps, row, secret);
 }
 
-function failedRefresh(deps: RefreshDeps, row: ConnectorRow, identity: AgentKeyRow, secret: OAuthSecret, err: unknown): ConnectorEdit {
-  if (!(err instanceof OAuthInvalidGrant)) return { change: {}, event: refreshEvent(row, identity, 'connector.refresh_failed', 'transient') };
-  return disconnected(deps, row, identity, secret, 'invalid_grant');
-}
-
-function disconnected(deps: RefreshDeps, row: ConnectorRow, identity: AgentKeyRow, secret: OAuthSecret, reason: string): ConnectorEdit {
+function disconnected(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret): ConnectorEdit {
   const detail = detailOf(row.detail);
   delete detail.signedInAt;
   const retained: OAuthSecret = { kind: 'oauth', targetUrl: secret.targetUrl, client: secret.client, server: secret.server, ...(secret.oauthResource === undefined ? {} : { oauthResource: secret.oauthResource }) };
-  return { change: { secret: sealConnectorSecret(deps.key, row, retained), detail: detailText(detail) }, event: refreshEvent(row, identity, 'connector.signed_out', reason) };
+  return { change: { secret: sealConnectorSecret(deps.key, row, retained), detail: detailText(detail) } };
 }
 
-async function refreshLocked(deps: RefreshDeps, identity: AgentKeyRow, assigned: AssignedConnector, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
+async function refreshLocked(deps: RefreshDeps, assigned: AssignedConnector, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
   const row = assigned.connector;
-  const { policy, valid } = deliveryPolicy(assigned);
-  if (row.auth !== 'oauth' || !valid || (policy.read === 'deny' && policy.write === 'deny')) return unchanged();
+  const { valid, blocked } = deliveryPolicy(assigned);
+  if (row.auth !== 'oauth' || !valid || blocked) return unchanged();
   const revision = credentialRevision(deps.key, row);
   if (forced !== undefined && forced.revision !== revision) return unchanged();
   const secret = openConnectorSecret(deps.key, row);
   if (secret?.kind !== 'oauth' || secret.imported !== undefined) return unchanged();
-  return refreshSecret(deps, identity, row, secret, forced, failed);
+  return refreshSecret(deps, row, secret, forced, failed);
 }
 
-async function refreshSecret(deps: RefreshDeps, identity: AgentKeyRow, row: ConnectorRow, secret: OAuthSecret, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
+async function refreshSecret(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<ConnectorEdit> {
   const { tokens } = secret;
   if (tokens === undefined) return unchanged();
-  if (tokens.resource === undefined) return disconnected(deps, row, identity, secret, 'resource_required');
+  if (tokens.resource === undefined) return disconnected(deps, row, secret);
   const revision = credentialRevision(deps.key, row);
   if (forced === undefined && (tokens.expiresAt === undefined || tokens.expiresAt > deps.now())) return unchanged();
   if (tokens.refreshToken === undefined) {
     if (forced !== undefined) failed.set(row.id, revision);
     return unchanged();
   }
-  return refreshedEdit(deps, identity, row, secret, tokens.refreshToken, tokens.resource, failed);
+  return refreshedEdit(deps, row, secret, tokens.refreshToken, tokens.resource, failed);
 }
 
-async function refreshedEdit(deps: RefreshDeps, identity: AgentKeyRow, row: ConnectorRow, secret: OAuthSecret, refreshToken: string, resource: string, failed: Map<string, string>): Promise<ConnectorEdit> {
+async function refreshedEdit(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret, refreshToken: string, resource: string, failed: Map<string, string>): Promise<ConnectorEdit> {
   try {
     const scope = secret.server.scopes.length === 0 ? undefined : secret.server.scopes.join(' ');
     const refreshed = await refreshTokens(secret.server, secret.client, refreshToken, resource, scope, deps.fetch);
     const next = { ...refreshed, resource, refreshToken: refreshed.refreshToken ?? refreshToken };
-    return { change: { secret: sealConnectorSecret(deps.key, row, { ...secret, tokens: next }) }, event: refreshEvent(row, identity, 'connector.refreshed') };
+    return { change: { secret: sealConnectorSecret(deps.key, row, { ...secret, tokens: next }) } };
   } catch (err) {
     if (!(err instanceof OAuthInvalidGrant)) failed.set(row.id, credentialRevision(deps.key, row));
-    return failedRefresh(deps, row, identity, secret, err);
+    return failedRefresh(deps, row, secret, err);
   }
 }
 
@@ -87,12 +83,12 @@ export async function refreshAssigned(deps: RefreshDeps, identity: AgentKeyRow, 
     const conditional = forced?.connectorId === connector.id ? forced : undefined;
     await refreshImported(bounded, async (edit) => {
       await deps.store.refresh(identity, connector.id, new Date(deps.now()).toISOString(), async (current) => {
-        const { policy, valid } = deliveryPolicy(current);
-        if (!valid || (policy.read === 'deny' && policy.write === 'deny' && Object.values(policy.tools ?? {}).every((rule) => rule === 'deny'))) return unchanged();
+        const { valid, blocked } = deliveryPolicy(current);
+        if (!valid || blocked) return unchanged();
         return edit(current.connector);
       });
     }, conditional?.revision);
-    await deps.store.refresh(identity, connector.id, new Date(deps.now()).toISOString(), (current) => refreshLocked(bounded, identity, current, conditional, failed));
+    await deps.store.refresh(identity, connector.id, new Date(deps.now()).toISOString(), (current) => refreshLocked(bounded, current, conditional, failed));
   }
   return failed;
 }

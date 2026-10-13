@@ -1,9 +1,8 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './client.js';
-import { eventRow } from './connector-events.js';
 import { isUniqueViolation } from './errors.js';
-import { agents, agentKeys, connectorAgents, connectorEvents } from './schema.js';
+import { agents, agentKeys, connectorAgents } from './schema.js';
 
 export interface AgentKeyRow {
   agent: string;
@@ -40,20 +39,13 @@ async function enrollIn(tx: Database, row: AgentKeyRow): Promise<void> {
   if (listed.length === 0) throw new ApiError('This agent is no longer in this organization. Enroll it again from its page.', 404);
   const elsewhere = await tx.select({ agent: agentKeys.agent }).from(agentKeys).where(and(eq(agentKeys.keyId, row.keyId), ne(agentKeys.agent, row.agent)));
   if (elsewhere.length > 0) throw keyInUse();
-  const before = await tx.select({ keyId: agentKeys.keyId }).from(agentKeys).where(eq(agentKeys.agent, row.agent));
-  const { agent, ...changes } = row;
-  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: changes });
-  const replaced = before[0]?.keyId;
-  const detail: Record<string, string> = replaced === undefined || replaced === row.keyId ? { keyId: row.keyId } : { keyId: row.keyId, replaced };
-  await tx.insert(connectorEvents).values(eventRow({ owner: row.owner, agent, actor: `user:${row.enrolledBy}`, action: 'agent.enrolled', detail }, row.enrolledAt));
+  const { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } = row;
+  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } });
 }
 
-export async function leaveOrganization(tx: Database, agent: string, owner: string, at: string): Promise<void> {
+export async function leaveOrganization(tx: Database, agent: string): Promise<void> {
   await tx.delete(connectorAgents).where(eq(connectorAgents.agent, agent));
-  const gone = await tx.delete(agentKeys).where(eq(agentKeys.agent, agent)).returning({ keyId: agentKeys.keyId });
-  const key = gone[0];
-  if (key === undefined) return;
-  await tx.insert(connectorEvents).values(eventRow({ owner, agent, actor: 'metro', action: 'agent.unenrolled', detail: { keyId: key.keyId, reason: 'the agent moved to another organization' } }, at));
+  await tx.delete(agentKeys).where(eq(agentKeys.agent, agent));
 }
 
 export function agentKeyStore(db: () => Database): AgentKeyStore {

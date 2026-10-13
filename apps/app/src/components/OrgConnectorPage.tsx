@@ -14,8 +14,8 @@ import { PageTitle } from './PageTitle.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { Loading } from './Loading.js';
 import { OrgConnectorAgents } from './OrgConnectorAgents.js';
-import { OrgConnectorAccess, OrgConnectorFacts, OrgConnectorManage } from './OrgConnectorManage.js';
-import { OrgConnectorActivity } from './OrgConnectorActivity.js';
+import { OrgConnectorFacts, OrgConnectorManage } from './OrgConnectorManage.js';
+import { OrgConnectorPermissions } from './OrgConnectorPermissions.js';
 import { orgConnectorStatus } from './org-connector-status.js';
 import { queryError } from '../lib/queries.js';
 import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
@@ -121,12 +121,10 @@ function Body({ id }: { id: string }): ReactNode {
     <Col gap={32} width="100%">
       <Header connector={connector} admin={data.admin} onError={setFailure} />
       <Notes outcome={outcome} failure={failure} />
-      <Text size="2xs" role="secondary">These settings are saved for a coming Metro update. Agents still use their own connectors for now.</Text>
+      <OrgConnectorPermissions connector={connector} admin={data.admin} />
       <OrgConnectorAgents connector={connector} admin={data.admin} onChanged={reload} />
-      <OrgConnectorAccess connector={connector} admin={data.admin} onChanged={reload} />
       <OrgConnectorFacts connector={connector} />
       {data.admin ? <OrgConnectorManage connector={connector} onChanged={reload} /> : null}
-      {data.admin ? <OrgConnectorActivity connector={connector.id} /> : null}
     </Col>
   );
 }
