@@ -8,6 +8,7 @@ const sink = (): RawGetSink => {
   const stream: RawGetSink = {
     closed: false,
     attach: () => undefined,
+    diagnostics: () => ({ tag: 'fixture', openedAt: new Date().toISOString(), attachedAt: null, closedAt: null, ownsMapping: !stream.closed }),
     close: () => {
       stream.closed = true;
     },

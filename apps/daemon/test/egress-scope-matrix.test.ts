@@ -24,6 +24,8 @@ import { callInScope } from '../src/mcp/call-bridge.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
 import { asLine } from '@metro-labs/core/lines';
+import { SessionSlot } from '../src/mcp/session-slot.ts';
+import { diagnosticTag, incomingDiagnostic } from '../src/mcp/diagnostics.ts';
 import { auth, TEST_OWNER } from './identity-helper.js';
 
 const STREAM = '_GET_stream';
@@ -247,6 +249,13 @@ async function runEvents(reader: Reader, line: string, text: string): Promise<bo
   return page.events.some((event) => event.text === text);
 }
 
+function incomingStatus(reader: Reader, line: string, text: string): Promise<boolean> {
+  const event = inbound(line, text);
+  publishEvent(event);
+  const snapshot = incomingDiagnostic(new SessionSlot(), reader.scope);
+  return Promise.resolve(snapshot.accounts.some((account) => account.latestEventTag === diagnosticTag(event.messageId ?? event.id)));
+}
+
 const EGRESS: Record<
   string,
   (reader: Reader, line: string, text: string) => Promise<boolean>
@@ -258,6 +267,7 @@ const EGRESS: Record<
   'channel bus replay after reconnect': busReplayAfterReconnect,
   'SSE resumption from Last-Event-ID': sseResume,
   'monitor tail': monitorTail,
+  'content-free MCP diagnostic': incomingStatus,
   'Run events': runEvents,
 };
 
@@ -276,6 +286,7 @@ describe('every egress applies the same scope predicate', () => {
       'SSE resumption from Last-Event-ID',
       'channel bus replay after reconnect',
       'channel live delivery',
+      'content-free MCP diagnostic',
       'monitor tail',
       'shared call notification',
     ]);

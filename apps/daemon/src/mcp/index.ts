@@ -8,6 +8,7 @@ import {
   authenticate,
   runWithIdentity,
   type RequestIdentity,
+  allowedAgents,
 } from './request-identity.js';
 import {
   headerValue,
@@ -18,6 +19,7 @@ import { errMsg } from '@metro-labs/core/log';
 import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
 import { connectCallBridge } from './call-bridge.js';
+import { handleIncomingDiagnostic } from './diagnostics.js';
 
 const isInitialize = (b: unknown): boolean =>
   !!b &&
@@ -128,6 +130,7 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
       res.writeHead(401).end('unauthorized');
       return;
     }
+    if (handleIncomingDiagnostic(req, res, slot, allowedAgents(identity))) return;
     const parsed = await readOrReject(req, res);
     if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {

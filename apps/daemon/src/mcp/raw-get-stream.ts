@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import type {
   StreamableHTTPServerTransport,
   EventId,
@@ -49,10 +50,19 @@ export const headerValue = (
   return typeof raw === 'string' ? raw : undefined;
 };
 
+export interface GetStreamDiagnostic {
+  tag: string;
+  openedAt: string;
+  attachedAt: string | null;
+  closedAt: string | null;
+  ownsMapping: boolean;
+}
+
 export interface RawGetSink {
   closed: boolean;
   attach: (transport: StreamableHTTPServerTransport) => void;
   close: () => void;
+  diagnostics: () => GetStreamDiagnostic;
 }
 
 const streamEnded = (sink: RawGetSink, res: ServerResponse): boolean =>
@@ -99,10 +109,8 @@ export interface ServeOpts {
   previous?: () => RawGetSink | undefined;
 }
 
-export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
-  const { transport, eventStore, scope, req, res, log, registerSink } = opts;
+function primeStream(transport: StreamableHTTPServerTransport, res: ServerResponse): void {
   const sessionId = web(transport)?.sessionId;
-
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',
@@ -113,13 +121,23 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
   res.flushHeaders?.();
   res.write(RETRY_DIRECTIVE);
   res.write(COMMENT);
+}
+
+export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
+  const { transport, eventStore, scope, req, res, log, registerSink } = opts;
+  primeStream(transport, res);
 
   let active = transport;
   let entry: StreamEntry | undefined;
+  const tag = randomUUID();
+  const openedAt = new Date().toISOString();
+  let attachedAt: string | null = null;
+  let closedAt: string | null = null;
   const timers: { keepalive?: ReturnType<typeof setInterval> } = {};
   const closeStream = (): void => {
     if (sink.closed) return;
     sink.closed = true;
+    closedAt = new Date().toISOString();
     if (timers.keepalive) clearInterval(timers.keepalive);
     const mapping = web(active)?._streamMapping;
     if (entry !== undefined && mapping?.get(STANDALONE_STREAM_ID) === entry) {
@@ -150,8 +168,16 @@ export async function serveStandaloneGet(opts: ServeOpts): Promise<void> {
         cleanup: closeStream,
       };
       web(next)?._streamMapping?.set(STANDALONE_STREAM_ID, entry);
+      attachedAt = new Date().toISOString();
     },
     close: closeStream,
+    diagnostics: () => ({
+      tag,
+      openedAt,
+      attachedAt,
+      closedAt,
+      ownsMapping: entry !== undefined && web(active)?._streamMapping?.get(STANDALONE_STREAM_ID) === entry,
+    }),
   };
 
   res.on('close', closeStream);

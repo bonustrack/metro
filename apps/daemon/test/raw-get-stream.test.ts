@@ -284,6 +284,9 @@ describe('overlapping GET reconnects', () => {
       expect(mapping.get('_GET_stream')).toBe(entry);
       expect(replacement?.closed).toBe(false);
       expect(displaced?.closed).toBe(true);
+      expect(replacement?.diagnostics().ownsMapping).toBe(true);
+      expect(displaced?.diagnostics().ownsMapping).toBe(false);
+      expect(displaced?.diagnostics().closedAt).toBeString();
     } finally {
       for (const sink of sinks) sink.close();
     }

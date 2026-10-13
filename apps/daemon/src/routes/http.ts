@@ -12,6 +12,7 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { Line } from '@metro-labs/core/lines';
+import { MCP_STATUS_PATH } from '../mcp/diagnostics.js';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
   classifyEvent,
@@ -214,7 +215,7 @@ export async function startWebhookServer(
 
 function isMcpPath(req: IncomingMessage): boolean {
   const path = (req.url ?? '').split('?')[0];
-  return path === '/' || path === '/mcp' || path === VOICE_MCP_PATH;
+  return path === '/' || path === '/mcp' || path === VOICE_MCP_PATH || path === MCP_STATUS_PATH;
 }
 
 function flatHeaders(req: IncomingMessage): Record<string, string> {

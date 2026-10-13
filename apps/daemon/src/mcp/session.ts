@@ -15,6 +15,7 @@ import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
 import { web, type RawGetSink } from './raw-get-stream.js';
 import { sharedCalls } from '../voice/shared.js';
 import { CALL_STATE } from '@metro-labs/core/call';
+import { clientDiagnostic, diagnosticTag, type SessionDiagnostic } from './diagnostics.js';
 
 export const channelLog = (...a: unknown[]): void => {
   console.error('[metro-mcp]', ...a);
@@ -84,6 +85,10 @@ export class McpSession {
   private announcing = false;
   private readonly onClosed: (session: McpSession) => void;
   private readonly kind: SessionKind;
+  private readonly openedAt = new Date().toISOString();
+  private clientInitializedAt: string | null = null;
+  private lastStreamAttachedAt: string | null = null;
+  private lastStreamDetachedAt: string | null = null;
 
   private constructor(init: SessionInit) {
     this.id = init.id;
@@ -102,6 +107,9 @@ export class McpSession {
         instructions: voice ? VOICE_MCP_INSTRUCTIONS : MCP_INSTRUCTIONS,
       },
     );
+    this.server.oninitialized = (): void => {
+      this.clientInitializedAt = new Date().toISOString();
+    };
     registerToolHandlers(this.server, {
       markCurrent: (): void => {
         this.issuedSchema = toolSchemaSignature();
@@ -159,6 +167,21 @@ export class McpSession {
     return this.sink;
   }
 
+  diagnostics(): SessionDiagnostic {
+    return {
+      tag: diagnosticTag(this.id),
+      openedAt: this.openedAt,
+      transportInitialized: web(this.transport)?._initialized === true,
+      clientInitializedAt: this.clientInitializedAt,
+      client: clientDiagnostic(this.server.getClientVersion()),
+      subscribed: this.unsubscribe !== undefined,
+      streamAttached: this.streamAttached,
+      lastStreamAttachedAt: this.lastStreamAttachedAt,
+      lastStreamDetachedAt: this.lastStreamDetachedAt,
+      stream: this.sink?.diagnostics() ?? null,
+    };
+  }
+
   inScope(line: string): boolean {
     return this.streamAttached && eventInScope(this.scope, line);
   }
@@ -181,8 +204,10 @@ export class McpSession {
       sink?.close();
       return;
     }
+    if (sink === undefined && this.sink !== undefined) this.lastStreamDetachedAt = new Date().toISOString();
     this.sink = sink;
     if (sink !== undefined) {
+      this.lastStreamAttachedAt = new Date().toISOString();
       this.announceCallState();
       this.announceToolSchema();
     }
@@ -227,6 +252,7 @@ export class McpSession {
 
   dropStream(): void {
     const sink = this.sink;
+    if (sink !== undefined) this.lastStreamDetachedAt = new Date().toISOString();
     this.sink = undefined;
     sink?.close();
   }
