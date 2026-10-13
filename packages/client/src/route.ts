@@ -97,7 +97,6 @@ function pathSegmentsOf(raw: string): string {
 }
 
 const GLOBAL: Partial<Record<Selection['kind'], string>> = {
-  'all-agents': '#/',
   settings: '#/settings',
   'terms-of-use': '#/terms-of-use',
   'privacy-policy': '#/privacy-policy',
@@ -126,7 +125,6 @@ const home = (prefix: string): string => (prefix === '#/' ? '#/' : prefix.slice(
 export function routeSelection(fullHash: string): Selection {
   const { organization, rest } = splitOrganization(fullHash);
   noteRoutedOrganization(organization);
-  if (organization === null && SERVERS_PATH.test(rest)) return { kind: 'all-agents' };
   return plainSelection(rest);
 }
 

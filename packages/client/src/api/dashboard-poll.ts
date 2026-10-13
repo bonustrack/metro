@@ -91,7 +91,7 @@ export class DashboardPoll {
       if (model.status === 'rejected') throw model.reason;
       return { session: session.value, model: model.value };
     } catch (error) {
-      if (!signal.aborted) this.source.forgetToken(row.organization.id);
+      if (!signal.aborted && denied(error)) this.source.forgetToken(row.organization.id);
       return { session: failedReading(row.session, error), model: failedReading(row.model, error) };
     }
   }

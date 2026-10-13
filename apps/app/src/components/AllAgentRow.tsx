@@ -1,61 +1,92 @@
 import { type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Badge } from '@stage-labs/kit/react-native/badge';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { dashboardModel, dashboardReadingStale, dashboardSession, type DashboardRow } from '@metro-labs/client/api/dashboard';
 import { releaseAvailability, type MetroRelease } from '@metro-labs/client/api/metro-release';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
 import { AgentAvatar } from './AgentAvatar.js';
-import { Icon, type IconName } from './Icon.js';
 import { RouteLink } from './RouteLink.js';
+import { Spinner } from './Spinner.js';
+import { Tip } from './Tip.js';
+import { UsageBar } from './ModelUsage.js';
 import { side } from './ui/edges.js';
+import { SHRINK } from '../lib/style.js';
+
+const AVATAR = 32;
+const DOT = 8;
+const FULL = 0.95;
+export const AGENT_COLUMNS = { agent: 2.4, status: 1.6, model: 2.6, metro: 1.6 } as const;
+export const MENU_WIDTH = 40;
+
+const styles = StyleSheet.create({
+  dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
+  menu: { width: MENU_WIDTH, alignItems: 'flex-end' },
+});
 
 const stamp = (at: number): string => new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-function MissingModel({ row }: { row: DashboardRow }): ReactNode {
-  const { error, unavailable } = row.model;
-  return <Col gap={4}>
-    <Text size="sm" role="secondary">{unavailable || error !== null ? 'Model usage unavailable' : 'Checking…'}</Text>
-    {!unavailable && error !== null ? <Text size="2xs" role="secondary">{error}</Text> : null}
-  </Col>;
-}
-
-function ModelReading({ row, now }: { row: DashboardRow; now: number }): ReactNode {
-  const { data, error, at } = row.model;
-  if (data === null) return <MissingModel row={row} />;
-  const model = dashboardModel(data, now);
-  return <Col gap={3}>
-    <Text size="sm" weight="medium">{model.model}</Text>
-    <Text size="2xs" role="secondary">{model.connection}</Text>
-    <Text size="sm">{model.usage}</Text>
-    {model.report === null ? null : <Text size="2xs" role="secondary">{model.report}</Text>}
-    {model.note === null || model.note === 'Primary route' ? null : <Text size="2xs" role="secondary">{model.note}</Text>}
-    {dashboardReadingStale(row.model, now) ? <Text size="2xs" role="secondary">{at === null ? 'Observation time unavailable.' : `Last seen ${stamp(at)}`}{error === null ? '' : `. ${error}`}</Text> : null}
-  </Col>;
-}
-
-function statusIcon(status: string): IconName {
-  if (status === 'Working' || status === 'Running') return 'play';
-  if (status === 'Idle') return 'check';
-  if (status.includes('Stopped') || status === 'Metro stopped') return 'pause';
-  if (status === 'Waiting for approval') return 'hand';
-  if (status === 'Error' || status === 'Unreachable') return 'exclamationCircle';
-  return 'clock';
-}
-
-function StatusReading({ row, now }: { row: DashboardRow; now: number }): ReactNode {
+function Checking(): ReactNode {
   const palette = useKitPalette();
+  return <Spinner color={palette.link} />;
+}
+
+function Pair({ top, bottom, link }: { top: string | null; bottom: string | null; link?: string }): ReactNode {
+  return (
+    <Col gap={2} minWidth={0}>
+      {top === null ? <Checking /> : <Text size="sm" numberOfLines={1} style={SHRINK}>{top}</Text>}
+      {bottom === null ? null : link === undefined ? (
+        <Text size="2xs" role="secondary" numberOfLines={1}>{bottom}</Text>
+      ) : (
+        <RouteLink to={link} label={bottom}><Text size="2xs" role="link" numberOfLines={1}>{bottom}</Text></RouteLink>
+      )}
+    </Col>
+  );
+}
+
+function useDotColor(status: string): string {
+  const palette = useKitPalette();
+  if (status === 'Error' || status === 'Unreachable') return palette.danger;
+  if (status === 'Waiting for approval') return palette.primary;
+  if (status === 'Working' || status === 'Running' || status === 'Idle' || status === 'Starting' || status === 'Compacting') return palette.success;
+  return palette.sub;
+}
+
+function StatusCell({ row, now }: { row: DashboardRow; now: number }): ReactNode {
   const session = dashboardSession(row.session, now);
-  const color = session.status === 'Error' ? 'danger' : session.status === 'Waiting for approval' ? 'warning' : undefined;
-  return <Col gap={6}>
-    <Row gap={6} align="center" wrap>
-      <Icon name={statusIcon(session.status)} size={14} color={palette.sub} />
-      <Badge label={session.status} color={color} />
-    </Row>
-    <Text size="2xs" role="secondary">{session.harness}</Text>
-    {session.observed === null || row.session.unavailable ? null : <Text size="2xs" role="secondary">{session.observed}</Text>}
-  </Col>;
+  const color = useDotColor(session.status);
+  return (
+    <Col gap={2} minWidth={0}>
+      <Row gap={8} align="center">
+        {session.status === 'Checking…' ? <Checking /> : <>
+          <View style={[styles.dot, { backgroundColor: color }]} />
+          <Text size="sm" numberOfLines={1} style={SHRINK}>{session.status}</Text>
+        </>}
+      </Row>
+      {session.harness === 'Unknown' ? null : <Text size="2xs" role="secondary" numberOfLines={1}>{session.harness}</Text>}
+    </Col>
+  );
+}
+
+function ModelCell({ row, now }: { row: DashboardRow; now: number }): ReactNode {
+  const { data, error, unavailable, at } = row.model;
+  if (data === null) return <Pair top={unavailable || error !== null ? 'Unavailable' : null} bottom={null} />;
+  const model = dashboardModel(data, now);
+  const stale = dashboardReadingStale(row.model, now);
+  if (stale || model.used === null) return <Pair top={model.model} bottom={stale && at !== null ? `Last seen ${stamp(at)}` : model.usage} />;
+  return (
+    <Col gap={4} minWidth={0}>
+      <Text size="sm" numberOfLines={1} style={SHRINK}>{model.model}</Text>
+      <Tip label={model.usage}><UsageBar used={model.used} blocked={model.used >= FULL} /></Tip>
+    </Col>
+  );
+}
+
+function metroLine(row: DashboardRow, release: MetroRelease | undefined, releaseFailed: boolean, now: number): string | null {
+  if (row.session.unavailable || row.model.unavailable) return 'Update for status';
+  const availability = releaseAvailability(row.mode.data?.version ?? null, release, releaseFailed, now);
+  return availability.kind === 'newer' ? 'Update available' : null;
 }
 
 interface Props {
@@ -64,59 +95,58 @@ interface Props {
   narrow: boolean;
   release: MetroRelease | undefined;
   releaseFailed: boolean;
+  note?: string;
+  menu?: ReactNode;
 }
 
-function RowUpdate({ availability, stale, href, name }: { availability: ReturnType<typeof releaseAvailability>; stale: boolean; href: string; name: string }): ReactNode {
-  if (availability.kind === 'newer') return <RouteLink to={`${href}/server`} label={`Update Metro for ${name}`}>
-    <Text size="2xs" role="link">{stale ? 'Update available at last report' : 'Update available'}</Text>
-  </RouteLink>;
-  return !stale && availability.kind === 'current' ? <Text size="2xs" role="secondary">Up to date</Text> : null;
+function MetroCell({ row, now, release, releaseFailed, note, href }: Omit<Props, 'narrow' | 'menu'> & { href: string }): ReactNode {
+  const version = row.mode.data?.version ?? (row.mode.error === null ? null : 'Unknown');
+  if (note !== undefined) return <Pair top={version} bottom={note} />;
+  const line = metroLine(row, release, releaseFailed, now);
+  return <Pair top={version} bottom={line} link={line === null ? undefined : `${href}/server`} />;
 }
 
-const versionLabel = (row: DashboardRow): string => row.mode.data?.version ?? (row.mode.error === null && row.mode.data === null ? 'Checking…' : 'Version unavailable');
-
-function VersionReading({ row, now, release, releaseFailed, href }: Omit<Props, 'narrow'> & { href: string }): ReactNode {
-  const stale = row.mode.data !== null && dashboardReadingStale(row.mode, now);
-  const availability = releaseAvailability(row.mode.data?.version ?? null, release, releaseFailed, now);
-  return <Col gap={5}>
-    <Text size="2xs">{versionLabel(row)}</Text>
-    {stale ? <Text size="2xs" role="secondary">{row.mode.at === null ? 'Version stale' : `Last seen ${stamp(row.mode.at)}`}</Text> : null}
-    <RowUpdate availability={availability} stale={stale} href={href} name={row.agent.name ?? row.agent.id} />
-    {row.session.unavailable || row.model.unavailable ? <Text size="2xs" role="secondary">Update Metro for status and usage.</Text> : null}
-  </Col>;
+function Identity({ row, href, detail }: { row: DashboardRow; href: string; detail: string }): ReactNode {
+  const { organization, agent } = row;
+  const name = agent.name ?? agent.slug ?? agent.id;
+  return (
+    <RouteLink to={href} label={`Open ${name} in ${organization.name ?? organization.id}`}>
+      <Row gap={12} align="center">
+        <AgentAvatar seed={agent.host} src={agent.avatar} size={AVATAR} />
+        <Col gap={2} flex={1} minWidth={0}>
+          <Text size="sm" weight="semibold" numberOfLines={1} style={SHRINK}>{name}</Text>
+          <Text size="2xs" role="secondary" numberOfLines={1}>{detail}</Text>
+        </Col>
+      </Row>
+    </RouteLink>
+  );
 }
 
-export function AllAgentRow({ row, now, narrow, release, releaseFailed }: Props): ReactNode {
+export function AllAgentRow({ row, now, narrow, release, releaseFailed, note, menu }: Props): ReactNode {
   const palette = useKitPalette();
   const { organization, agent } = row;
   const orgName = organization.name ?? organization.slug ?? organization.id;
-  const agentName = agent.name ?? agent.slug ?? agent.id;
   const href = `#/${namedSegment(organization.id, organization.slug)}/${namedSegment(agent.id, agent.slug)}`;
-  const identity = <RouteLink to={href} label={`Open ${agentName} in ${orgName}`}>
-    <Row gap={12} align="center">
-      <AgentAvatar seed={agent.host} src={agent.avatar} size={40} />
-      <Col gap={3} flex={1} minWidth={0}>
-        <Text size="md" weight="semibold" role="link">{agentName}</Text>
-        <Text size="2xs" role="secondary">{orgName}</Text>
-      </Col>
-    </Row>
-  </RouteLink>;
-  const status = <StatusReading row={row} now={now} />;
-  const model = <ModelReading row={row} now={now} />;
-  const version = <VersionReading row={row} now={now} release={release} releaseFailed={releaseFailed} href={href} />;
   const border = { bottom: side(palette.border) };
-  if (narrow) return <Col gap={16} padding={{ y: 20 }} border={border}>
-    {identity}
-    <Row gap={16} align="start">
-      <Col flex={1} minWidth={0}>{status}</Col>
-      <Col flex={1} minWidth={0}><Text size="2xs" role="secondary">Metro</Text>{version}</Col>
+  const trailing = <View style={styles.menu}>{menu}</View>;
+  if (narrow) {
+    const session = dashboardSession(row.session, now);
+    const model = row.model.data === null ? null : dashboardModel(row.model.data, now).model;
+    const detail = [session.status === 'Checking…' ? null : session.status, model, note ?? row.mode.data?.version].filter((part) => part != null).join(' · ');
+    return (
+      <Row gap={12} align="center" padding={{ y: 12 }} border={border}>
+        <Col flex={1} minWidth={0}><Identity row={row} href={href} detail={detail} /></Col>
+        {trailing}
+      </Row>
+    );
+  }
+  return (
+    <Row gap={24} align="center" padding={{ y: 12 }} border={border}>
+      <Col flex={AGENT_COLUMNS.agent} minWidth={0}><Identity row={row} href={href} detail={orgName} /></Col>
+      <Col flex={AGENT_COLUMNS.status} minWidth={0}><StatusCell row={row} now={now} /></Col>
+      <Col flex={AGENT_COLUMNS.model} minWidth={0}><ModelCell row={row} now={now} /></Col>
+      <Col flex={AGENT_COLUMNS.metro} minWidth={0}><MetroCell row={row} now={now} release={release} releaseFailed={releaseFailed} note={note} href={href} /></Col>
+      {trailing}
     </Row>
-    {model}
-  </Col>;
-  return <Row gap={24} align="start" padding={{ y: 20 }} border={border}>
-    <Col flex={2.4} minWidth={0}>{identity}</Col>
-    <Col flex={1.8} minWidth={0}>{status}</Col>
-    <Col flex={3} minWidth={0}>{model}</Col>
-    <Col flex={1.6} minWidth={0}>{version}</Col>
-  </Row>;
+  );
 }

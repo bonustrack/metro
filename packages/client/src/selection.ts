@@ -1,6 +1,5 @@
 export type Selection =
   | { kind: 'none' }
-  | { kind: 'all-agents' }
   | { kind: 'servers' }
   | { kind: 'settings' }
   | { kind: 'terms-of-use' }

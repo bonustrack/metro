@@ -53,7 +53,7 @@ describe('dashboard identity and model selection', () => {
         { label: 'gemini-default', used: 1 }, { label: 'gemini-flash', used: 0.12 }, { label: 'gemini-flash-plus', used: 0.99 },
       ] } },
     });
-    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'gemini-flash', usage: 'gemini-flash · 12% used', note: 'Current fallback route' });
+    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'gemini-flash', usage: 'gemini-flash · 12% used', used: 0.12, note: 'Current fallback route' });
   });
 
   test('a current held route reports the hold rather than silently presenting an inactive fallback', () => {
@@ -70,7 +70,7 @@ describe('dashboard identity and model selection', () => {
     const value = settings();
     value.connections = value.connections.filter((row) => row.id !== 'a');
     value.lastServed = { connection: 'b', provider: 'codex', model: 'gpt-elsewhere', at: new Date(NOW).toISOString() };
-    expect(dashboardModel(value, NOW)).toEqual({ model: 'Model unavailable', connection: 'Connection unavailable', usage: 'Usage unavailable', report: null, note: null });
+    expect(dashboardModel(value, NOW)).toEqual({ model: 'Model unavailable', connection: 'Connection unavailable', usage: 'Usage unavailable', used: null, report: null, note: null });
   });
 
   test('missing per-connection usage and identity do not inherit other account data', () => {

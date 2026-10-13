@@ -229,7 +229,16 @@ describe('dashboard polling controller', () => {
     run.source.token = () => Promise.reject(new Error('token service offline'));
     nextPoll(); await flush();
     expect(run.latest().rows[0]?.session).toMatchObject({ data: SESSION, at: NOW, error: 'token service offline' });
-    expect(run.source.forgetToken).toHaveBeenCalledWith('org-a');
+    expect(run.source.forgetToken).not.toHaveBeenCalled();
+  });
+
+  test.each([new Error('Agent did not answer.'), new StoppedError('Metro is stopped.'), new NotFoundError('update first')])('an agent that fails without refusing the token keeps it: %s', async (error) => {
+    const run = harness();
+    run.poll.start(); await flush();
+    run.source.session = () => Promise.reject(error);
+    nextPoll(); await flush();
+    nextPoll(); await flush();
+    expect(run.source.forgetToken).not.toHaveBeenCalled();
   });
 
   test.each([new AuthError('expired'), new ForbiddenError('membership removed')])('authorization refusal clears both endpoint snapshots: %s', async (error) => {

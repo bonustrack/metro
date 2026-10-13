@@ -5,7 +5,8 @@ import { FieldLabel } from './FieldLabel.js';
 import { NAV_GAP, NavRow } from './NavRow.js';
 import { AdminUsers } from './AdminUsers.js';
 import { AdminOverview } from './AdminOverview.js';
-import { AdminOrganizations, AdminAgents } from './AdminLists.js';
+import { AdminOrganizations } from './AdminLists.js';
+import { AdminAgents } from './AdminAgents.js';
 import { type Selection } from '@metro-labs/client/selection';
 
 export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
