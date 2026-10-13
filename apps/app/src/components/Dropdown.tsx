@@ -18,7 +18,8 @@ export interface MenuItem {
 }
 
 interface TriggerButton {
-  label: string;
+  label?: string;
+  icon?: ReactNode;
   color?: 'primary' | 'secondary';
   size?: 'sm' | 'md';
   style?: ButtonProps['style'];
@@ -147,7 +148,8 @@ export function Dropdown({ items, label, align = 'end', matchWidth = false, butt
             {children}
           </Pressable>
         ) : (
-          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} dark={dark} label={button.label} style={button.style} textStyle={button.textStyle} onPress={open} />
+          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} dark={dark} label={button.label} icon={button.icon} uniform={button.label === undefined} pill={button.label === undefined}
+            accessibilityLabel={label} style={button.style} textStyle={button.textStyle} onPress={open} />
         )}
       </View>
       <AnchoredPanel at={at} onClose={close}>

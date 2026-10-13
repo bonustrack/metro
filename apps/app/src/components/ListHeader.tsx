@@ -16,7 +16,7 @@ export function ListHeader({ title, count, action, rule = true }: { title: strin
       </Row>
     );
   return (
-    <Row justify="between" align="center" gap={12} wrap minHeight={64} padding={{ bottom: 12 }} border={rule ? { bottom: side(palette.border) } : undefined}>
+    <Row justify="between" align="center" gap={12} wrap minHeight={64} padding={rule ? { bottom: 12 } : undefined} border={rule ? { bottom: side(palette.border) } : undefined}>
       <Row gap={10} align="center">
         <PageTitle>{title}</PageTitle>
         {count === undefined ? null : <CountBadge count={count} beside="title" />}

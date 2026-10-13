@@ -84,7 +84,7 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
   const palette = useKitPalette();
   const running = jobRunning(job);
   return (
-    <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner size={16} color={palette.link} /> : undefined}>
+    <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner color={palette.link} /> : undefined}>
       <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {phaseText(job)}
       </Text>

@@ -83,7 +83,7 @@ function JobRow({ job }: { job: GrowJob }): ReactNode {
   const palette = useKitPalette();
   const running = growRunning(job);
   return (
-    <SettingsSection title={running ? 'Growing' : 'Last change'} leading={running ? <Spinner size={16} color={palette.link} /> : undefined}>
+    <SettingsSection title={running ? 'Growing' : 'Last change'} leading={running ? <Spinner color={palette.link} /> : undefined}>
       <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {growText(job)}
       </Text>

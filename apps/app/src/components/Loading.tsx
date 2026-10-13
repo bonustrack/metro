@@ -24,7 +24,7 @@ export function Loading(): ReactNode {
   if (!visible) return null;
   return (
     <Row justify="center" align="center" flex={1} padding={24}>
-      <Spinner size={24} color={palette.link} />
+      <Spinner color={palette.link} />
     </Row>
   );
 }

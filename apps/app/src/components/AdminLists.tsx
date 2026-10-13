@@ -1,18 +1,14 @@
-import { type ReactNode, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { AgentAvatar } from './AgentAvatar.js';
 import { ListHeader } from './ListHeader.js';
-import { DeleteDialog } from './DeleteServer.js';
-import { fetchAllAgents, fetchAllOrganizations, type AgentRow } from '@metro-labs/client/api/admin';
-import { queryError, refreshServers } from '../lib/queries.js';
+import { fetchAllOrganizations } from '@metro-labs/client/api/admin';
+import { queryError } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { SHRINK } from '../lib/style.js';
 
-const AVATAR = 32;
 const ROW_PAD_Y = 10;
 const LIST_WIDTH = 760;
 
@@ -87,52 +83,5 @@ export function AdminOrganizations(): ReactNode {
       error={error}
       render={(o) => <Item key={o.id} title={o.name ?? o.id} detail={`${o.slug ?? o.id} · created ${dateLabel(o.createdAt)}`} />}
     />
-  );
-}
-
-const AGENTS_KEY = ['admin', 'agents'];
-
-function DeleteButton({ onPress }: { onPress: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return <Button size="md" color="danger" dark={dark} label="Delete" onPress={onPress} />;
-}
-
-export function AdminAgents(): ReactNode {
-  useDocumentTitle('Agents');
-  const client = useQueryClient();
-  const [deleting, setDeleting] = useState<AgentRow | null>(null);
-  const { data, error } = useQuery({ queryKey: AGENTS_KEY, queryFn: fetchAllAgents, staleTime: 15_000, retry: false });
-  return (
-    <>
-      <Listing
-        title="Agents"
-        failed="Could not load the agents."
-        rows={data}
-        error={error}
-        render={(a) => (
-          <Item
-            key={a.id}
-            title={a.name ?? a.slug ?? a.host}
-            detail={`${a.host} · ${a.organizationName ?? a.owner} · added ${dateLabel(a.addedAt)}`}
-            avatar={<AgentAvatar seed={a.host} src={a.avatar} size={AVATAR} />}
-            trailing={<DeleteButton onPress={() => { setDeleting(a); }} />}
-          />
-        )}
-      />
-      {deleting === null ? null : (
-        <DeleteDialog
-          id={deleting.id}
-          label={deleting.name ?? deleting.host}
-          scope="admin"
-          onDeleted={async () => {
-            await Promise.all([client.invalidateQueries({ queryKey: AGENTS_KEY }), refreshServers(client)]);
-            setDeleting(null);
-          }}
-          onClose={() => {
-            setDeleting(null);
-          }}
-        />
-      )}
-    </>
   );
 }
