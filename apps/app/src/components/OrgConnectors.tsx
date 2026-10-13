@@ -13,9 +13,10 @@ import { ListHeader } from './ListHeader.js';
 import { ListRow, LIST_ICON_SIZE } from './ListRow.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { ConnectorModal, type AddedConnector } from './AddConnector.js';
-import { EmptyCard, SettingsGroup } from './SettingsSection.js';
+import { EmptyCard } from './SettingsSection.js';
 import { Loading } from './Loading.js';
 import { Tag } from './Tag.js';
+import { AgentStack } from './AgentStack.js';
 import { orgConnectorStatus } from './org-connector-status.js';
 import { queryError } from '../lib/queries.js';
 import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
@@ -23,12 +24,9 @@ import { useDocumentTitle } from '../lib/title.js';
 import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
 
-const NOTE = 'Connectors your organization shares with its agents. Give each one only to the agents that need it, with organization permissions and stricter rules for each agent.';
 const MEMBER_NOTE = 'Only an admin of the organization can add or change connectors.';
 const EMPTY = 'No organization connector yet. A connector gives agents tools, like a calendar, Notion or GitHub.';
 const HINT = 'Metro checks the server from api.metro.box, so it must be a public https address. Leave the header empty for a server you sign in to.';
-
-const agentsLabel = (count: number): string => (count === 1 ? '1 agent' : `${String(count)} agents`);
 
 function ConnectorRow({ connector, label }: { connector: OrgConnector; label: string }): ReactNode {
   const status = orgConnectorStatus(connector);
@@ -41,8 +39,9 @@ function ConnectorRow({ connector, label }: { connector: OrgConnector; label: st
       href={routeHash({ kind: 'org-connector', id: connector.id })}
       icon={<ConnectorFavicon name={connector.name} url={connector.url} size={LIST_ICON_SIZE} />}
       muted={status.bad}
+      highlight={false}
       extra={connector.readOnly ? <Tag label="Read-only" /> : undefined}
-      trailing={<Text size="2xs" role="secondary">{agentsLabel(connector.agents.length)}</Text>}
+      trailing={connector.agents.length === 0 ? <Text size="2xs" role="secondary">No agent</Text> : <AgentStack ids={connector.agents.map((a) => a.id)} />}
     />
   );
 }
@@ -50,11 +49,11 @@ function ConnectorRow({ connector, label }: { connector: OrgConnector; label: st
 function ConnectorList({ list }: { list: OrgList }): ReactNode {
   if (list.connectors.length === 0) return <EmptyCard text={EMPTY} />;
   return (
-    <SettingsGroup>
+    <Col>
       {list.connectors.map((connector) => (
         <ConnectorRow key={connector.id} connector={connector} label={connectorLabel(connector, list.connectors)} />
       ))}
-    </SettingsGroup>
+    </Col>
   );
 }
 
@@ -98,8 +97,8 @@ function Body(): ReactNode {
   };
   return (
     <Col gap={20} width="100%">
-      <ListHeader title="Connectors" count={data?.connectors.length} action={admin ? <AddButton onAdded={added} /> : undefined} />
-      <Text size="2xs" role="secondary">{data === undefined || admin ? NOTE : `${NOTE} ${MEMBER_NOTE}`}</Text>
+      <ListHeader title="Connectors" rule={false} count={data?.connectors.length} action={data === undefined || admin ? <AddButton onAdded={added} /> : undefined} />
+      {data === undefined || admin ? null : <Text size="2xs" role="secondary">{MEMBER_NOTE}</Text>}
       <ListState list={data} error={error} />
     </Col>
   );

@@ -30,6 +30,7 @@ interface ListRowProps {
   muted?: boolean;
   trailing?: ReactNode;
   below?: ReactNode;
+  highlight?: boolean;
 }
 
 function Opener({ href, onPress, label, children }: { href?: string; onPress?: () => void; label: string; children: ReactNode }): ReactNode {
@@ -46,13 +47,13 @@ function Opener({ href, onPress, label, children }: { href?: string; onPress?: (
   );
 }
 
-export function ListRow({ title, detail, label = title, href, onPress, icon, extra, muted = false, trailing, below }: ListRowProps): ReactNode {
+export function ListRow({ title, detail, label = title, href, onPress, icon, extra, muted = false, trailing, below, highlight = true }: ListRowProps): ReactNode {
   const palette = useKitPalette();
   const inCard = useInCard();
   const divider = useCardDivider();
   const [hovered, hover] = useHover();
   const frame = inCard ? [styles.row, styles.card, divider] : [styles.row, styles.page, { borderBottomColor: palette.border }];
-  const lit = hovered ? { backgroundColor: hoverColor(palette) } : null;
+  const lit = highlight && hovered ? { backgroundColor: hoverColor(palette) } : null;
   return (
     <Pressable accessible={false} {...hover} style={[...frame, lit]}>
       <Opener href={href} onPress={onPress} label={label}>
