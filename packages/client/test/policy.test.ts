@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   connectorToolGroups,
   effectiveAccess,
+  inheritedToolAccess,
   groupAccess,
   policyOf,
   toolGroupsOf,
@@ -74,6 +75,31 @@ describe('Claude Code permission prompts on the page', () => {
 });
 
 describe('a connector tool policy on the page', () => {
+  test('organization Ask first and Block cannot be weakened by agent tool overrides', () => {
+    expect(inheritedToolAccess({ read: 'ask', write: 'deny' }, { tools: { read: 'allow', send: 'allow' } }, READ)).toBe('ask');
+    expect(inheritedToolAccess({ read: 'ask', write: 'deny' }, { tools: { read: 'allow', send: 'allow' } }, SEND)).toBe('deny');
+    expect(inheritedToolAccess({ write: 'deny', tools: { send: 'allow' } }, { read: 'deny', write: 'ask' }, SEND)).toBe('ask');
+    expect(inheritedToolAccess({ tools: { send: 'deny' } }, { write: 'allow' }, SEND)).toBe('deny');
+  });
+
+  test('prototype-named tools display the organization floor rather than an inherited object property', () => {
+    for (const name of ['toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+      const tool = { name, group: 'write' } as const;
+      for (const floor of ['ask', 'deny'] as const) {
+        const organization = { write: floor, tools: { other: 'allow' } } as const;
+        expect(effectiveAccess(organization, tool)).toBe(floor);
+        expect(inheritedToolAccess(organization, { tools: { [name]: 'allow' } }, tool)).toBe(floor);
+      }
+    }
+  });
+
+  test('restoring organization inheritance preserves other groups and saved tools', () => {
+    const original = { read: 'ask', write: 'deny', tools: { absent: 'deny' } } as const;
+    expect(withGroup(original, 'read', undefined)).toEqual({ write: 'deny', tools: { absent: 'deny' } });
+    expect(withGroup(original, 'write', undefined)).toEqual({ read: 'ask', tools: { absent: 'deny' } });
+    expect(original).toEqual({ read: 'ask', write: 'deny', tools: { absent: 'deny' } });
+  });
+
   test('the vendor read-only hint is the read group, everything else is write', () => {
     const tools = connectorToolGroups([
       { name: 'list_issues', readOnly: true },

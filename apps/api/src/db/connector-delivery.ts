@@ -5,8 +5,7 @@ import { notEnrolled } from '../agents/auth.js';
 import { agentKeyStore, type AgentKeyRow } from './agent-keys.js';
 import type { Database } from './client.js';
 import { editConnectorIn, type ConnectorEdit, type ConnectorRow } from './connectors.js';
-import { eventRow } from './connector-events.js';
-import { agents, agentKeys, connectorAgents, connectorEvents, connectors } from './schema.js';
+import { agents, agentKeys, connectorAgents, connectors } from './schema.js';
 
 export interface AssignedConnector {
   connector: ConnectorRow;
@@ -32,7 +31,7 @@ function assignedQuery(db: Database, identity: AgentKeyRow, id?: string) {
 async function refreshIn(tx: Database, identity: AgentKeyRow, id: string, at: string, edit: (row: AssignedConnector) => Promise<ConnectorEdit>): Promise<void> {
   await editConnectorIn(tx, identity.owner, id, at, async (connector) => {
     const assigned = (await assignedQuery(tx, identity, id))[0];
-    if (assigned === undefined) return { change: {}, event: null };
+    if (assigned === undefined) return { change: {} };
     return edit({ ...assigned, connector });
   });
 }
@@ -46,12 +45,7 @@ async function sealIn(tx: Database, identity: AgentKeyRow, seal: (rows: Assigned
   const rows = await assignedQuery(tx, identity);
   const ids = new Set(locked.map((row) => row.connector.id));
   if (rows.some((row) => !ids.has(row.connector.id))) throw new ApiError('Connector assignments changed. Request a fresh snapshot.', 409);
-  const sealed = seal(rows);
-  if (rows.length > 0) {
-    const at = new Date().toISOString();
-    await tx.insert(connectorEvents).values(rows.map(({ connector }) => eventRow({ owner: identity.owner, connector: connector.id, agent: identity.agent, actor: `agent:${identity.agent}`, action: 'connector.delivered', detail: { name: connector.name } }, at)));
-  }
-  return sealed;
+  return seal(rows);
 }
 
 export function connectorDeliveryStore(db: () => Database): ConnectorDeliveryStore {

@@ -205,11 +205,11 @@ test('fresh migration snapshots use the current control with no env switch and O
     expect(process.env.METRO_CONNECTORS_LIVE_ENABLED).toBeUndefined();
     migration(control.dir, 'active', { keyId: control.key?.keyId ?? '' });
     control.control.refreshRuntime();
-    const session = control.control.open(SOURCE);
+    const session = await control.control.open(SOURCE);
     expect(control.control.migrationIdle(SOURCE)).toBe(false);
     control.control.set(false, control.control.status().scope);
     expect(control.control.migrationIdle(SOURCE)).toBe(false);
-    expect(() => control.control.open(SOURCE)).toThrow('not available');
+    await expect(control.control.open(SOURCE)).rejects.toThrow('not available');
     session.close();
     expect(control.control.migrationIdle(SOURCE)).toBe(true);
   } finally { await control.cleanup(); }

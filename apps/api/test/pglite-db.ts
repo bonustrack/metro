@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
@@ -10,7 +11,7 @@ export const PGLITE_START_MS = 60_000;
 export const PGLITE_STEP_MS = 20_000;
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
-const TABLES = ['connector_migrations', 'agent_nonces', 'agent_keys', 'connector_events', 'connector_agents', 'connectors', 'aws_connections', 'aws_external_ids', 'organizations', 'users', 'agents'];
+const TABLES = ['connector_migrations', 'agent_nonces', 'agent_keys', 'connector_agents', 'connectors', 'aws_connections', 'aws_external_ids', 'organizations', 'users', 'agents'];
 
 export interface TestDb {
   db: Database;
@@ -19,10 +20,11 @@ export interface TestDb {
   close: () => Promise<void>;
 }
 
-export async function testDb(): Promise<TestDb> {
+export async function testDb({ retainActivity = false } = {}): Promise<TestDb> {
   const client = new PGlite();
   const db = drizzle(client, { schema });
   await migrate(db, { migrationsFolder: MIGRATIONS });
+  if (!retainActivity) await client.exec(readFileSync(join(MIGRATIONS, 'pending', '0010_drop_connector_events.sql'), 'utf8'));
   return {
     db,
     client,

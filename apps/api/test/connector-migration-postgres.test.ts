@@ -91,7 +91,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('connector migration with indep
       await hold.reached;
       await held.db2.transaction(async (tx) => {
         await tx.select().from(agents).where(eq(agents.id, agent.row.agent)).for('update');
-        await leaveOrganization(tx, agent.row.agent, TEST_OWNER, new Date().toISOString());
+        await leaveOrganization(tx, agent.row.agent);
         await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, agent.row.agent));
       });
       hold.release();

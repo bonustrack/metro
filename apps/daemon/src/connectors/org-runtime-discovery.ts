@@ -1,7 +1,7 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { DeliveredConnector } from '@metro-labs/http/connector-delivery';
+import { validConnectorToolName, type DeliveredConnector } from '@metro-labs/http/connector-delivery';
 import { MetroApiRefusal } from './metro-api.js';
 import { listRemoteTools } from './tools.js';
 
@@ -106,8 +106,8 @@ export async function discoverOrgGroups(url: string, guard: DiscoveryGuard): Pro
     if (failure.error !== null) throw failure.error;
     guard.current();
     guard.signal.throwIfAborted();
-    if (tools.length > MAX_TOOLS) throw orgUnavailable();
-    return Object.fromEntries(tools.filter((tool) => /^[A-Za-z0-9_.-]{1,128}$/.test(tool.name)).map((tool) => [tool.name, tool.readOnly ? 'read' : 'write']));
+    if (tools.length > MAX_TOOLS || tools.some((tool) => !validConnectorToolName(tool.name))) throw orgUnavailable();
+    return Object.fromEntries(tools.map((tool) => [tool.name, tool.readOnly ? 'read' : 'write']));
   } catch (error) {
     throw orgRuntimeError(error);
   }

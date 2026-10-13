@@ -74,6 +74,28 @@ test('cutover waits for existing local work and verified memory receipt before e
   expect(f.controls.assignments).toBe(1);
 });
 
+test('layered receipt accepts the unchanged organization policy despite its deny-both compatibility placeholder', async () => {
+  const f = fixture();
+  await f.control().run(SOURCE, 'prepare', f.status.scope, null);
+  f.controls.layers = { organization: f.payload()!.policy, agent: {} };
+  await f.control().run(SOURCE, 'cutover', f.status.scope, migrationRecord(SOURCE, f.dir)!.id);
+  expect(migrationRecord(SOURCE, f.dir)).toMatchObject({ phase: 'active', reason: null });
+  expect(f.controls.assignments).toBe(1);
+});
+
+test.each(['organization', 'agent'] as const)('a changed %s layer keeps cutover fenced until a matching receipt arrives', async (layer) => {
+  const f = fixture();
+  await f.control().run(SOURCE, 'prepare', f.status.scope, null);
+  f.controls.layers = { organization: f.payload()!.policy, agent: {} };
+  f.controls.layers[layer] = { read: 'deny', write: 'deny' };
+  await f.control().run(SOURCE, 'cutover', f.status.scope, migrationRecord(SOURCE, f.dir)!.id);
+  expect(migrationRecord(SOURCE, f.dir)).toMatchObject({ phase: 'cutover', reason: 'sync_unavailable' });
+  f.controls.layers = { organization: f.payload()!.policy, agent: {} };
+  await f.control().run(SOURCE, 'reconcile', f.status.scope, migrationRecord(SOURCE, f.dir)!.id);
+  expect(migrationRecord(SOURCE, f.dir)).toMatchObject({ phase: 'active', reason: null });
+  expect(f.controls.assignments).toBe(1);
+});
+
 test('lost activation and rollback responses remain fenced and resume after daemon reconstruction', async () => {
   const f = fixture();
   await f.control().run(SOURCE, 'prepare', f.status.scope, migrationRecord(SOURCE, f.dir)?.id ?? null);

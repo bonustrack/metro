@@ -16,7 +16,6 @@ import { ConnectorModal, type AddedConnector } from './AddConnector.js';
 import { EmptyCard, SettingsGroup } from './SettingsSection.js';
 import { Loading } from './Loading.js';
 import { Tag } from './Tag.js';
-import { OrgConnectorActivity } from './OrgConnectorActivity.js';
 import { orgConnectorStatus } from './org-connector-status.js';
 import { queryError } from '../lib/queries.js';
 import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
@@ -24,7 +23,7 @@ import { useDocumentTitle } from '../lib/title.js';
 import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
 
-const NOTE = 'Connectors your organization shares with its agents. Give each one only to the agents that need it. Agents start using them in a coming Metro update. Until then, each agent keeps its own connectors.';
+const NOTE = 'Connectors your organization shares with its agents. Give each one only to the agents that need it, with organization permissions and stricter rules for each agent.';
 const MEMBER_NOTE = 'Only an admin of the organization can add or change connectors.';
 const EMPTY = 'No organization connector yet. A connector gives agents tools, like a calendar, Notion or GitHub.';
 const HINT = 'Metro checks the server from api.metro.box, so it must be a public https address. Leave the header empty for a server you sign in to.';
@@ -102,7 +101,6 @@ function Body(): ReactNode {
       <ListHeader title="Connectors" count={data?.connectors.length} action={admin ? <AddButton onAdded={added} /> : undefined} />
       <Text size="2xs" role="secondary">{data === undefined || admin ? NOTE : `${NOTE} ${MEMBER_NOTE}`}</Text>
       <ListState list={data} error={error} />
-      {admin ? <OrgConnectorActivity connector={null} /> : null}
     </Col>
   );
 }

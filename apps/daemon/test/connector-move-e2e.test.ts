@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connectorAgents, connectorEvents, connectorMigrations, connectors } from '../../api/src/db/schema.js';
+import { connectorAgents, connectorMigrations, connectors } from '../../api/src/db/schema.js';
 import { ACCESS, REFRESH } from '../../api/test/org-connectors-fixture.js';
 import { localMigrationEnabled, migrationExportableRows } from '../src/connectors/migration-guard.js';
 import { freshOrgConnectors } from '../src/connectors/org-sync-watch.js';
@@ -21,7 +21,7 @@ async function frozen(f: MigrationE2E): Promise<void> {
 }
 
 async function privateState(f: MigrationE2E): Promise<void> {
-  const text = JSON.stringify({ status: await f.status(), rows: await f.held.db1.select().from(connectors), mappings: await f.held.db1.select().from(connectorMigrations), events: await f.held.db1.select().from(connectorEvents), traffic: f.traffic });
+  const text = JSON.stringify({ status: await f.status(), rows: await f.held.db1.select().from(connectors), mappings: await f.held.db1.select().from(connectorMigrations), traffic: f.traffic });
   for (const token of [LOCAL_ACCESS, LOCAL_REFRESH, MANUAL_SECRET, ACCESS, REFRESH]) expect(text).not.toContain(token);
   expect(migrationExportableRows(readLocalConnectors(f.dir), f.dir).map((row) => row.id)).toEqual([UNMIGRATED]);
 }

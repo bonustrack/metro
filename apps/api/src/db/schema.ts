@@ -91,21 +91,6 @@ export const connectorAgents = pgTable(
   (t) => [primaryKey({ columns: [t.connector, t.agent] }), index('connector_agents_agent_idx').on(t.agent)],
 );
 
-export const connectorEvents = pgTable(
-  'connector_events',
-  {
-    id: text('id').primaryKey(),
-    owner: text('owner').notNull(),
-    connector: text('connector'),
-    agent: text('agent'),
-    actor: text('actor').notNull(),
-    action: text('action').notNull(),
-    detail: text('detail'),
-    at: text('at').notNull(),
-  },
-  (t) => [index('connector_events_owner_at_idx').on(t.owner, t.at)],
-);
-
 export const agentKeys = pgTable(
   'agent_keys',
   {

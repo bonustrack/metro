@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { sealConnectorDelivery } from '@metro-labs/http/connector-delivery';
 import { expectStatus, RELAY_ID, revision, runtimeFixture, type RuntimeFixture } from './org-runtime-fixture.ts';
@@ -133,6 +134,54 @@ test.each([424, 503])('injected transport ApiError %s is preserved without sensi
   fixture.state.vendor = async () => { throw new ApiError('https://vendor.example org-access-secret org-url-secret', status); };
   await expectStatus(() => fixture.runtime.open(RELAY_ID).target(false), status);
   expect(fixture.publications.at(-1)?.[0]?.config.toolGroups).toEqual({});
+});
+
+test('a cached discovery failure is bounded and logs only its stage and safe status', async () => {
+  const clock = spyOn(performance, 'now').mockReturnValue(1000);
+  const debug = spyOn(log, 'debug');
+  try {
+    fixture.state.vendor = async () => { throw new Error('org-access-secret org-url-secret'); };
+    await expectStatus(() => fixture.runtime.open(RELAY_ID).target(false), 503);
+    const count = fixture.vendors.length;
+    fixture.state.vendor = null;
+    await expectStatus(() => fixture.runtime.open(RELAY_ID).target(false), 503);
+    expect(fixture.vendors).toHaveLength(count);
+    expect(debug.mock.calls).toContainEqual([{ stage: 'discovery_backoff', status: 503 }, 'organization connectors: request unavailable']);
+    for (const secret of ['org-access-secret', 'org-url-secret', 'vendor.example']) expect(JSON.stringify(debug.mock.calls)).not.toContain(secret);
+    clock.mockReturnValue(31_001);
+    const session = fixture.runtime.open(RELAY_ID);
+    await session.target(false);
+    expect(fixture.vendors.length).toBeGreaterThan(count);
+    expect(session.blocker()(RELAY_ID, 'read_item', {})).toBeNull();
+    session.close();
+  } finally { clock.mockRestore(); debug.mockRestore(); }
+});
+
+test('startup discovery capacity is bounded and a refused connector can discover after a slot frees', async () => {
+  const first = fixture.state.rows[0]!;
+  fixture.state.rows = Array.from({ length: 5 }, (_, i) => ({ ...first, id: `conn000000${i + 1}` }));
+  await fixture.sync.sync();
+  const allReached = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let reached = 0;
+  fixture.state.vendor = async (call) => {
+    if (call.rpc === 'initialize') {
+      reached += 1;
+      if (reached === 4) allReached.resolve();
+      await release.promise;
+    }
+    return null;
+  };
+  const sessions = fixture.state.rows.map((row) => fixture.runtime.open(`org-${row.id}`));
+  const scans = sessions.slice(0, 4).map((session) => session.target(false));
+  await allReached.promise;
+  await expectStatus(() => sessions[4]!.target(false), 503);
+  expect(reached).toBe(4);
+  release.resolve();
+  await Promise.all(scans);
+  await sessions[4]!.target(false);
+  expect(reached).toBe(5);
+  for (const session of sessions) session.close();
 });
 
 test('manual redirects and oversized discovery responses fail closed', async () => {

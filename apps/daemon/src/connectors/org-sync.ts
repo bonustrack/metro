@@ -47,6 +47,7 @@ export class OrgConnectorSync {
   private wallDeadline = 0;
   private generation = 0;
   private running: Promise<void> | null = null;
+  private recovery: Promise<void> | null = null;
   private expiry: ReturnType<typeof setTimeout> | null = null;
   private readonly monotonic: () => number;
   private readonly listeners = new Set<() => void>();
@@ -153,6 +154,12 @@ export class OrgConnectorSync {
     return this.running;
   }
 
+  recover(): Promise<void> {
+    if (this.read() !== null) return Promise.resolve();
+    this.recovery ??= this.syncFresh().finally(() => { this.recovery = null; });
+    return this.recovery;
+  }
+
   async syncFresh(refresh?: RefreshRequest): Promise<void> {
     if (this.running !== null) {
       await this.running.catch(() => {
@@ -167,7 +174,7 @@ export class OrgConnectorSync {
     const context = { ...identity.context, requestId };
     const started = this.deps.api.now();
     const clock = this.monotonic();
-    const response = await agentCall(this.deps.api, identity.key, '/api/agents/connectors', { requestId, ...(refresh === undefined ? {} : { refresh }) }, { answerMax: CONNECTOR_DELIVERY_MAX_BYTES, timeoutMs: 60_000, signal });
+    const response = await agentCall(this.deps.api, identity.key, '/api/agents/connectors?policy_layers=1', { requestId, ...(refresh === undefined ? {} : { refresh }) }, { answerMax: CONNECTOR_DELIVERY_MAX_BYTES, timeoutMs: 60_000, signal });
     this.validate(this.identity());
     if (generation !== this.generation || this.token !== identity.token) throw invalid();
     const snapshot = openConnectorDelivery(identity.key.sealing, context, response.sealed);

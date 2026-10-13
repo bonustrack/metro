@@ -161,8 +161,9 @@ Code's config, the browser or metro.box. For Microsoft 365, see
 The organization sidebar has a **Connectors** page when api.metro.box has
 `METRO_CONNECTORS_ENABLED=true`. Admins can add a public HTTPS MCP server with a key
 or an OAuth sign-in, rename or remove it, replace its key, assign it to agents,
-make it read-only for all agents or just one, and read its activity log. Members
-can see the connectors and assignments but cannot change them or read the activity log.
+set its permissions for all agents or just one. Members can see the connectors
+and assignments but cannot change them. Connector Activity is no longer collected
+or shown.
 The URL is `https://metro.box/#/<organization>/organization/connectors`.
 
 **This is setup only for now.** Boxes still use their own connectors. Assignment
@@ -177,7 +178,7 @@ hands the Metro page a one-use code. Only the admin who started the sign-in can
 finish it. A provider that cannot register Metro itself needs an app registered
 with that callback URL, with its client ID and optional client secret entered on Add.
 Secrets and the full connection URL are sealed in Postgres using `METRO_CONNECTORS_KEY`
-and never returned to the page or written to the activity log. Only the server origin
+and never returned to the page. Only the server origin
 is displayed, since paths and query strings can contain credentials. A newer sign-in
 invalidates an older attempt, including one whose token exchange is still running.
 
@@ -320,6 +321,42 @@ Always commit `bun.lock`: CI and Docker install with `--frozen-lockfile`.
 - **The CLI** (`@stage-labs/metro`) is published by hand with the "Publish
   @stage-labs/metro" workflow in the GitHub Actions tab. It always publishes under the
   `beta` tag. Boxes pick it up with `metro update` or the Update button on the page.
+
+### Removing connector Activity storage in two releases
+
+The first release removes connector Activity readers, writers and UI, but retains
+`connector_events` and its existing rows. The drop is prepared only in
+`apps/api/drizzle/pending/0010_drop_connector_events.sql`, outside the migration
+journal. Fly's release command does not run pending SQL.
+
+1. Deploy the code removal with the active journal unchanged. Verify every API
+   machine is running that release, all old API workers and in-flight requests have
+   stopped, and connector enrollment, refresh, delivery and migration still work.
+   Do not drop the table during this release: Fly applies migrations before old
+   API machines stop. An old Activity insert can otherwise fail after a vendor has
+   rotated its refresh token, rolling back the only saved copy of the new token.
+2. Only after that verification and separate deployment approval, move the SQL
+   into `apps/api/drizzle/` and append one entry to `meta/_journal.json`. Use the
+   next contiguous `idx` and filename prefix (currently 10 and `0010`), journal
+   version `7`, `breakpoints: true`, and a `when` strictly greater than every
+   existing entry. If another migration lands first, renumber the pending file
+   rather than reusing its index. Update the test fixtures and staged-migration
+   regression for the now-active path, run the gates, and deploy separately.
+
+The second release permanently deletes only the connector Activity history. The
+SQL has no `CASCADE`; `connector_events` has no foreign keys. Keep `connectors`,
+`connector_agents`, `agent_keys`, `connector_migrations`, `agent_nonces` and
+`agent_nonce_guard`, including their data. Local migration journals, maps and
+receipts, encrypted refresh intents, the namespace ledger, sync receipt, and
+unrelated local, account or runner history are not Activity storage and are not
+removed. There is no local connector Activity table.
+
+After the drop, do not roll back to API code that reads or writes Activity. The
+first code-removal release remains compatible. Restoring old Activity data would
+require a database backup; this change does not create one. Historical migrations
+stay unchanged. Disposable test fixtures apply the pending SQL explicitly so the
+safety suites also exercise the future table-free schema; that does not activate
+it for deployment.
 
 ## License
 

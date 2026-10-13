@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { fullPolicy, openConnectorSecret, type ConnectorView } from '../src/connectors/model.js';
-import { connectorAgents, connectorEvents, connectorMigrations, connectors } from '../src/db/schema.js';
+import { connectorAgents, connectorMigrations, connectors } from '../src/db/schema.js';
 import { assignConnector, enrollDeliveryAgent, MASTER, newDeliveryAgent, opaque, openResponse, seedConnector, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
 import { answer, input, payload, prepareInput, startMigrationApi, verifiedFetch, type MigrationApi } from './connector-migration-fixture.js';
 import { postgresFixture, TEST_DATABASE_URL } from './connector-postgres-fixture.js';
@@ -29,7 +29,6 @@ const stored = async () => ({
   connectors: await held.db2.select().from(connectors).orderBy(connectors.id),
   assignments: await held.db2.select().from(connectorAgents).orderBy(connectorAgents.connector),
   mappings: await held.db2.select().from(connectorMigrations).orderBy(connectorMigrations.sourceId),
-  events: await held.db2.select().from(connectorEvents).orderBy(connectorEvents.id),
 });
 
 describe.skipIf(TEST_DATABASE_URL === undefined)('independent connector instances in real Postgres', () => {

@@ -71,7 +71,9 @@ function callFailure(error: unknown, action: string): ApiError {
 
 function received(record: MigrationRecord, snapshot: DeliverySnapshot): boolean {
   const delivered = snapshot.connectors.find((row) => row.id === record.destinationId);
-  return delivered?.state === 'ready' && delivered.name === record.name && samePolicy(delivered.policy, record.policy);
+  if (delivered?.state !== 'ready' || delivered.name !== record.name) return false;
+  const layers = delivered.policyLayers;
+  return layers === undefined ? samePolicy(delivered.policy, record.policy) : samePolicy(layers.organization, record.policy) && samePolicy(layers.agent, {});
 }
 
 export class ConnectorMigrations {

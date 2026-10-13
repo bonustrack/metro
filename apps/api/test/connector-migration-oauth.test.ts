@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { credentialRevision } from '../src/connectors/delivery-model.js';
 import { migrationConfigStamp } from '../src/connectors/migration-model.js';
 import { openConnectorSecret, sealConnectorSecret } from '../src/connectors/model.js';
-import { connectorAgents, connectorEvents, connectorMigrations, connectors } from '../src/db/schema.js';
+import { connectorAgents, connectorMigrations, connectors } from '../src/db/schema.js';
 import { enrollDeliveryAgent, MASTER, newDeliveryAgent, opaque, openResponse, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';
 import { answer, input, payload, prepared, prepareInput, startMigrationApi, type MigrationApi } from './connector-migration-fixture.js';
 import { auth, TEST_OWNER } from './identity-helper.js';
@@ -79,7 +79,7 @@ describe('migration through real central OAuth HTTP sign-in', () => {
     if (secret?.kind !== 'oauth') throw new Error('missing OAuth secret');
     expect(secret.client).toEqual(source.client);
     expect(secret.tokens).toBeUndefined();
-    const bytes = JSON.stringify({ rows: await held.db.select().from(connectors), mappings: await held.db.select().from(connectorMigrations), events: await held.db.select().from(connectorEvents), response: ready });
+    const bytes = JSON.stringify({ rows: await held.db.select().from(connectors), mappings: await held.db.select().from(connectorMigrations), response: ready });
     for (const text of ['URL_SECRET', 'MANUAL_CLIENT_SECRET', 'LOCAL_ACCESS', 'LOCAL_REFRESH']) expect(bytes).not.toContain(text);
     await complete(id);
     const signedIn = (await held.db.select().from(connectors).where(eq(connectors.id, id)))[0];
@@ -137,10 +137,10 @@ describe('migration through real central OAuth HTTP sign-in', () => {
     expect(verification).toHaveLength(2);
     expect(verification.every((request) => request.url === targetUrl && request.headers.get('authorization') === `Bearer ${ACCESS}`)).toBe(true);
     expect(vendor.received.filter((request) => request.path.startsWith(path))).toEqual(Array.from({ length: 2 }, () => ({ path: targetUrl.slice(vendor.base.length), method: 'POST', authorization: `Bearer ${ACCESS}` })));
-    const stored = JSON.stringify({ rows: await held.db.select().from(connectors), migrations: await held.db.select().from(connectorMigrations), events: await held.db.select().from(connectorEvents), migration: ready });
+    const stored = JSON.stringify({ rows: await held.db.select().from(connectors), migrations: await held.db.select().from(connectorMigrations), migration: ready });
     for (const hidden of [path, 'URL_SECRET', 'SECRET_QUERY', 'SECRET_PATH', 'Sealed%2fSecret', ACCESS, REFRESH, 'MANUAL_CLIENT_SECRET']) expect(stored).not.toContain(hidden);
-    for (const route of ['/api/connectors', `/api/connectors/${id}`, '/api/connectors/events']) {
-      const shown = await (await fetch(`${management.base}${route}`, { headers: { authorization: await auth(TEST_OWNER, route.endsWith('events') ? 'admin' : 'member') } })).text();
+    for (const route of ['/api/connectors', `/api/connectors/${id}`]) {
+      const shown = await (await fetch(`${management.base}${route}`, { headers: { authorization: await auth(TEST_OWNER, 'member') } })).text();
       for (const hidden of [path, 'URL_SECRET', 'SECRET_QUERY', 'SECRET_PATH', ACCESS, REFRESH, 'MANUAL_CLIENT_SECRET']) expect(shown).not.toContain(hidden);
     }
   });
@@ -174,10 +174,10 @@ describe('migration through real central OAuth HTTP sign-in', () => {
       for (const secret of hidden) expect(encrypted).not.toContain(secret);
       expect((await openResponse(response, agent, requestId)).connectors[0]).toMatchObject({ id, url: targetUrl, state: 'ready', headers: kind === 'header' ? { Authorization: GOOD_KEY } : {} });
     } finally { await delivery.close(); }
-    const persisted = JSON.stringify({ rows: await held.db.select().from(connectors), mappings: await held.db.select().from(connectorMigrations), events: await held.db.select().from(connectorEvents), prepared: ready, active });
+    const persisted = JSON.stringify({ rows: await held.db.select().from(connectors), mappings: await held.db.select().from(connectorMigrations), prepared: ready, active });
     for (const secret of hidden) expect(persisted).not.toContain(secret);
-    for (const route of ['/api/connectors', `/api/connectors/${id}`, '/api/connectors/events']) {
-      const response = await fetch(`${management.base}${route}`, { headers: { authorization: await auth(TEST_OWNER, route.endsWith('events') ? 'admin' : 'member') } });
+    for (const route of ['/api/connectors', `/api/connectors/${id}`]) {
+      const response = await fetch(`${management.base}${route}`, { headers: { authorization: await auth(TEST_OWNER, 'member') } });
       expect(response.status).toBe(200);
       const shown = await response.text();
       for (const secret of hidden) expect(shown).not.toContain(secret);

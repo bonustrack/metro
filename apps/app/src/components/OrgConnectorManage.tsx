@@ -1,10 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Switch } from '@stage-labs/kit/react-native/switch';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { deleteOrgConnector, renameOrgConnector, replaceOrgConnectorKey, setOrgConnectorReadOnly, type OrgConnector } from '@metro-labs/client/api/org-connectors';
+import { deleteOrgConnector, renameOrgConnector, replaceOrgConnectorKey, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { connectorLabel } from '@metro-labs/client/api/connectors';
 import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
@@ -14,8 +13,6 @@ import { Modal } from './Modal.js';
 import { NameModal } from './NameModal.js';
 import { queryError } from '../lib/queries.js';
 import { go } from '../lib/nav.js';
-
-const READ_ONLY_NOTE = 'Blocks the write tools of this connector for every agent that has it.';
 
 function authLabel(connector: OrgConnector): string {
   if (connector.auth === 'oauth') return 'Sign-in with the service';
@@ -31,31 +28,6 @@ export function OrgConnectorFacts({ connector }: { connector: OrgConnector }): R
       {connector.server === null ? null : <FactRow label="Service" value={connector.server} />}
       {connector.verifiedAt === null ? null : <FactRow label="Last checked" value={whenLabel(connector.verifiedAt)} />}
       {connector.clientId === null ? null : <FactRow label="App id" value={connector.clientId} />}
-    </SettingsGroup>
-  );
-}
-
-export function OrgConnectorAccess({ connector, admin, onChanged }: { connector: OrgConnector; admin: boolean; onChanged: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const toggle = (on: boolean): void => {
-    setBusy(true);
-    setError(null);
-    setOrgConnectorReadOnly(connector.id, on)
-      .then(onChanged)
-      .catch((err: unknown) => {
-        setError(queryError(err, 'Could not change the access.'));
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
-  return (
-    <SettingsGroup title="Access">
-      <SettingsSection title="Read-only for every agent" note={error ?? READ_ONLY_NOTE}>
-        <Switch name="Read-only for every agent" checked={connector.readOnly} dark={dark} disabled={!admin || busy} onChange={toggle} />
-      </SettingsSection>
     </SettingsGroup>
   );
 }

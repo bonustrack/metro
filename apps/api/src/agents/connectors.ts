@@ -6,6 +6,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { CONNECTOR_DELIVERY_LEASE_MS, sealConnectorDelivery, type SealedDelivery } from '@metro-labs/http/connector-delivery';
 import { deliveredConnector } from '../connectors/delivery-model.js';
+import { boundedDeliverySnapshot } from '../connectors/delivery-snapshot.js';
 import { refreshAssigned, type RefreshRequest } from '../connectors/refresh.js';
 import type { AgentKeyStore } from '../db/agent-keys.js';
 import type { AgentNonceStore } from '../db/agent-nonces.js';
@@ -67,8 +68,9 @@ async function answer(req: IncomingMessage, deps: AgentConnectorsDeps): Promise<
   const context = { owner: identity.owner, agent: identity.agent, keyId: identity.keyId, requestId: input.requestId };
   const sealed = await deps.store.seal(identity, (rows) => {
     const issuedAt = deps.now();
-    const connectors = rows.map((row) => deliveredConnector(key, row, issuedAt, failed));
-    return sealConnectorDelivery(identity.sealingKey, context, { version: 1, issuedAt, expiresAt: issuedAt + CONNECTOR_DELIVERY_LEASE_MS, connectors });
+    const layered = new URLSearchParams((req.url ?? '').split('?')[1]).get('policy_layers') === '1';
+    const connectors = rows.map((row) => deliveredConnector(key, row, issuedAt, failed, layered));
+    return sealConnectorDelivery(identity.sealingKey, context, boundedDeliverySnapshot({ version: 1, issuedAt, expiresAt: issuedAt + CONNECTOR_DELIVERY_LEASE_MS, connectors }));
   });
   return { sealed };
 }

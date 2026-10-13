@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { accountScopeIdentity, storeAccount } from '../../packages/client/src/auth/account.ts';
 import { configurePlatform, memoryKeyValue } from '../../packages/client/src/platform.ts';
 import { dashboardSource, DASHBOARD_SINCE } from '../../packages/client/src/api/dashboard-source.ts';
@@ -20,7 +21,7 @@ import * as machine from '../../packages/client/src/api/machine.ts';
 import * as mode from '../../packages/client/src/api/mode.ts';
 import * as model from '../../packages/client/src/api/model.ts';
 import * as openrouter from '../../packages/client/src/api/openrouter-login.ts';
-import { olderThan } from '../../packages/client/src/api/version.ts';
+import { isVersion, olderThan } from '../../packages/client/src/api/version.ts';
 import * as term from '../../packages/client/src/api/terminal.ts';
 import type { Section } from '../../packages/client/src/export/pack.ts';
 import * as transfer from '../../packages/client/src/export/transfer.ts';
@@ -288,9 +289,28 @@ await ok('connector copy or explicit upgrade notice', async () => {
     throw err;
   }
   if (!isRecord(prepared) || typeof prepared.ticket !== 'string' || typeof prepared.publicKey !== 'string') throw new Error('invalid copy preparation');
+  if (!isVersion(daemonMode?.version)) throw new Error('connector copy needs a known daemon version for its compatibility contract');
+  const before = (await bundle.fetchBundle(agent)).connectors;
+  const source = before.find((row) => isRecord(row) && row.id === connector);
+  if (!isRecord(source)) throw new Error('copy source fixture is missing');
   const envelope = await connectorTransfer(base, 'export', token, { confirmed: true, ids: [connector], publicKey: prepared.publicKey });
   const received = await connectorTransfer(base, 'receive', token, { confirmed: true, ticket: prepared.ticket, envelope });
-  if (!isRecord(received) || !Array.isArray(received.results) || !received.results.every((row: unknown) => isRecord(row) && row.status === 'skipped')) throw new Error('same-agent fixture copy should skip the existing name');
+  if (!isRecord(received) || !Array.isArray(received.results) || received.results.length !== 1) throw new Error('copy should report exactly one result');
+  const result: unknown = received.results[0];
+  if (!isRecord(result) || result.sourceId !== connector) throw new Error('copy result should identify the source');
+  const after = (await bundle.fetchBundle(agent)).connectors;
+  if (olderThan(daemonMode?.version ?? null, '0.1.0-beta.293')) {
+    if (result.status !== 'skipped' || result.id !== undefined) throw new Error('before beta.293, same-agent copy should skip the existing name');
+    if (!isDeepStrictEqual(after, before)) throw new Error('skipped copy should preserve existing connectors');
+    return;
+  }
+  if (result.status !== 'copied' || typeof result.id !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(result.id) || before.some((row) => isRecord(row) && row.id === result.id))
+    throw new Error('same-agent copy should create an independent destination ID');
+  const copied = after.find((row) => isRecord(row) && row.id === result.id);
+  if (after.length !== before.length + 1 || !isDeepStrictEqual(copied, { ...source, id: result.id })) throw new Error('copy should preserve the source name and settings in the new instance');
+  if (!isDeepStrictEqual(after.filter((row) => isRecord(row) && row.id !== result.id), before)) throw new Error('copy should preserve every existing instance');
+  await conn.deleteConnector(result.id);
+  if (!isDeepStrictEqual((await bundle.fetchBundle(agent)).connectors, before)) throw new Error('deleting the copy should preserve every existing instance');
 });
 
 await ok('deleteConnector', () => conn.deleteConnector(connector));

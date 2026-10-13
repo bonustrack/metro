@@ -9,7 +9,7 @@ import { AgentAuth } from '../src/agents/auth.ts';
 import { handleEnrollmentRequest, type EnrollmentDeps } from '../src/agents/enrollment.ts';
 import { EnrollTickets } from '../src/agents/tickets.ts';
 import { agentKeyStore, leaveOrganization } from '../src/db/agent-keys.ts';
-import { agents, agentKeys, connectorAgents, connectorEvents, connectors } from '../src/db/schema.ts';
+import { agents, agentKeys, connectorAgents, connectors } from '../src/db/schema.ts';
 import { auth, bearer, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { newAgentKey } from '../../daemon/src/connectors/agent-key.ts';
@@ -142,14 +142,12 @@ describe('enrollment tickets', () => {
 });
 
 describe('an agent enrolling', () => {
-  test('a signed enroll with a fresh ticket registers the agent key and logs it', async () => {
+  test('a signed enroll with a fresh ticket registers the agent key', async () => {
     const agent = newAgent();
     const res = await enroll(agent, enrollBody(agent, await ticketFor()));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
     expect(await held.db.select().from(agentKeys)).toEqual([{ agent: OURS, owner: TEST_OWNER, keyId: agent.keyId, signingKey: agent.signingKey, sealingKey: agent.sealingKey, enrolledBy: 'user_01ABC', enrolledAt: new Date(now).toISOString() }]);
-    const events = await held.db.select().from(connectorEvents);
-    expect(events.map((e) => [e.owner, e.agent, e.actor, e.action, e.detail])).toEqual([[TEST_OWNER, OURS, 'user:user_01ABC', 'agent.enrolled', JSON.stringify({ keyId: agent.keyId })]]);
     const who = await session(agent);
     expect(who.status).toBe(200);
     expect(await who.json()).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
@@ -239,8 +237,6 @@ describe('signed agent requests', () => {
     expect((await enroll(second, enrollBody(second, await ticketFor()))).status).toBe(200);
     expect((await session(first)).status).toBe(401);
     expect((await session(second)).status).toBe(200);
-    const events = await held.db.select().from(connectorEvents);
-    expect(events.map((e) => e.detail)).toContain(JSON.stringify({ keyId: second.keyId, replaced: first.keyId }));
   });
 
   test('an agent key enrolled as one agent cannot be enrolled as another', async () => {
@@ -270,19 +266,17 @@ describe('signed agent requests', () => {
     expect(await held.db.select().from(agentKeys)).toEqual([]);
   });
 
-  test('an agent that moves leaves its agent key and its assignments behind, and the old organization log says so', async () => {
+  test('an agent that moves loses its agent key and its assignments', async () => {
     const agent = newAgent();
     expect((await enroll(agent, enrollBody(agent, await ticketFor()))).status).toBe(200);
     await held.db.insert(connectors).values({ id: 'conn0000001', owner: TEST_OWNER, name: 'Linear', url: 'https://vendor.example/mcp', auth: 'none', policy: null, secret: null, createdBy: 'user_01ABC', createdAt: '2026-10-09T00:00:00.000Z', updatedAt: '2026-10-09T00:00:00.000Z' });
     await held.db.insert(connectorAgents).values({ connector: 'conn0000001', agent: OURS, policy: null, createdBy: 'user_01ABC', createdAt: '2026-10-09T00:00:00.000Z' });
     await held.db.transaction(async (tx) => {
       await tx.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, OURS));
-      await leaveOrganization(tx, OURS, TEST_OWNER, '2026-10-10T00:00:00.000Z');
+      await leaveOrganization(tx, OURS);
     });
     expect(await held.db.select().from(agentKeys)).toEqual([]);
     expect(await held.db.select().from(connectorAgents)).toEqual([]);
-    const events = await held.db.select().from(connectorEvents);
-    expect(events.map((e) => [e.owner, e.agent, e.actor, e.action])).toContainEqual([TEST_OWNER, OURS, 'metro', 'agent.unenrolled']);
     await held.db.update(agents).set({ owner: TEST_OWNER }).where(eq(agents.id, OURS));
     expect((await session(agent)).status).toBe(401);
   });

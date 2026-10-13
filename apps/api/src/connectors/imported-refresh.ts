@@ -8,8 +8,8 @@ import { openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;
 export type RefreshLock = (edit: (row: ConnectorRow) => Promise<ConnectorEdit>) => Promise<void>;
 interface Deps { key: Buffer; now: () => number; fetch: FetchLike }
-const unchanged = (): ConnectorEdit => ({ change: {}, event: null });
-const save = (key: Buffer, row: ConnectorRow, secret: OAuthSecret): ConnectorEdit => ({ change: { secret: sealConnectorSecret(key, row, secret) }, event: null });
+const unchanged = (): ConnectorEdit => ({ change: {} });
+const save = (key: Buffer, row: ConnectorRow, secret: OAuthSecret): ConnectorEdit => ({ change: { secret: sealConnectorSecret(key, row, secret) } });
 
 function needsRefresh(deps: Deps, row: ConnectorRow, secret: OAuthSecret, forced?: string): boolean {
   if (secret.imported?.state !== 'owned' || secret.tokens?.refreshToken === undefined || secret.tokens.resource === undefined) return false;

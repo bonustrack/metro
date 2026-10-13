@@ -5,11 +5,12 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
-import { assignConnector, deleteConnector, listConnectorEvents, listConnectors, unassignConnector, updateConnector } from './manage.js';
+import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
+import { listConnectorTools } from './catalogue.js';
 import { callbackLocation } from './sign-in.js';
 
 const PREFIX = '/api/connectors';
-const BODY_MAX = 16 * 1024;
+const BODY_MAX = 1024 * 1024;
 
 export interface ConnectorsApiDeps extends ActionDeps {
   enabled: () => boolean;
@@ -18,30 +19,38 @@ export interface ConnectorsApiDeps extends ActionDeps {
 
 type Target =
   | { kind: 'collection' }
-  | { kind: 'events' }
   | { kind: 'callback' }
   | { kind: 'complete' }
   | { kind: 'connector'; id: string }
   | { kind: 'sign-in'; id: string }
-  | { kind: 'agent'; id: string; agent: string };
+  | { kind: 'tools'; id: string }
+  | { kind: 'agent' | 'agent-policy'; id: string; agent: string };
 
 const METHODS: Record<Target['kind'], string[]> = {
   collection: ['GET', 'POST'],
-  events: ['GET'],
+  tools: ['GET'],
   callback: ['GET'],
   complete: ['POST'],
   connector: ['GET', 'PUT', 'DELETE'],
   'sign-in': ['POST'],
   agent: ['PUT', 'DELETE'],
+  'agent-policy': ['PUT'],
 };
 
-const NAMED: Record<string, Target> = { events: { kind: 'events' }, callback: { kind: 'callback' }, complete: { kind: 'complete' } };
+const NAMED: Record<string, Target> = { callback: { kind: 'callback' }, complete: { kind: 'complete' } };
+
+function byAgent(id: string, rest: string[]): Target | 'unknown' {
+  const agent = parseId(rest[1] ?? '');
+  if (rest[0] !== 'agents' || agent === null) return 'unknown';
+  if (rest.length === 2) return { kind: 'agent', id, agent };
+  return rest.length === 3 && rest[2] === 'policy' ? { kind: 'agent-policy', id, agent } : 'unknown';
+}
 
 function byId(id: string, rest: string[]): Target | 'unknown' {
   if (rest.length === 0) return { kind: 'connector', id };
   if (rest.length === 1 && rest[0] === 'sign-in') return { kind: 'sign-in', id };
-  const agent = parseId(rest[1] ?? '');
-  return rest.length === 2 && rest[0] === 'agents' && agent !== null ? { kind: 'agent', id, agent } : 'unknown';
+  if (rest.length === 1 && rest[0] === 'tools') return { kind: 'tools', id };
+  return byAgent(id, rest);
 }
 
 function targetOf(path: string): Target | 'unknown' | null {
@@ -71,7 +80,6 @@ interface Context {
   deps: ConnectorsApiDeps;
   caller: Caller;
   body: unknown;
-  query: URLSearchParams;
   id: string;
   agent: string;
 }
@@ -79,17 +87,18 @@ interface Context {
 const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'GET collection': async (c) => ({ connectors: await listConnectors(c.deps, c.caller.owner), admin: c.caller.session.role === 'admin' }),
   'POST collection': (c) => createConnector(c.deps, c.caller, c.body),
-  'GET events': (c) => listConnectorEvents(c.deps, c.caller.owner, c.query),
+  'GET tools': (c) => listConnectorTools(c.deps, c.caller.owner, c.id),
   'POST complete': (c) => completeSignIn(c.deps, c.caller, c.body),
   'GET connector': (c) => viewOf(c.deps, c.caller.owner, c.id),
   'PUT connector': (c) => updateConnector(c.deps, c.caller, c.id, c.body),
   'DELETE connector': (c) => deleteConnector(c.deps, c.caller, c.id),
   'POST sign-in': (c) => startSignIn(c.deps, c.caller, c.id, c.body),
   'PUT agent': (c) => assignConnector(c.deps, c.caller, c.id, c.agent, c.body),
+  'PUT agent-policy': (c) => updateConnectorAgentPolicy(c.deps, c.caller, c.id, c.agent, c.body),
   'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
 };
 
-const MEMBER_READS = new Set(['GET collection', 'GET connector']);
+const MEMBER_READS = new Set(['GET collection', 'GET connector', 'GET tools']);
 
 async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exclude<Target, { kind: 'callback' }>): Promise<unknown> {
   const caller = await callerOf(req, deps);
@@ -99,8 +108,7 @@ async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exc
   const handler = ROUTES[route];
   if (handler === undefined) throw new ApiError('method not allowed', 405);
   const body = method === 'GET' || method === 'DELETE' ? {} : await readJsonBody(req, BODY_MAX);
-  const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
-  return handler({ deps, caller, body, query, id: 'id' in target ? target.id : '', agent: target.kind === 'agent' ? target.agent : '' });
+  return handler({ deps, caller, body, id: 'id' in target ? target.id : '', agent: 'agent' in target ? target.agent : '' });
 }
 
 function callback(req: IncomingMessage, res: ServerResponse, deps: ConnectorsApiDeps): void {

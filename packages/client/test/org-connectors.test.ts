@@ -5,12 +5,12 @@ import {
   addOrgConnector,
   signInOrgConnector,
   assignOrgConnector,
-  fetchOrgConnectorEvents,
+  fetchOrgConnectorTools,
+  setOrgConnectorPolicy,
+  setOrgConnectorAgentPolicy,
   fetchOrgConnectors,
-  orgEventText,
   takeOrgConnectorReturn,
   toOrgConnector,
-  toOrgEvents,
   unassignOrgConnector,
 } from '../src/api/org-connectors.js';
 import { installTestAccount } from './account-fixture.js';
@@ -82,57 +82,46 @@ describe('the organization connectors client', () => {
     expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'DELETE', body: undefined });
   });
 
-  test('the audit log pages with the cursor the api gave and reads as sentences', async () => {
-    serve({ events: [], next: null });
-    await fetchOrgConnectorEvents('aB3-_xYz9Qw', { before: '2026-10-11T05:00:00.000Z', beforeId: 'ev0-_xYz9Qw' });
-    expect(calls[0]?.url).toBe(`${BASE}/events?connector=aB3-_xYz9Qw&before=2026-10-11T05%3A00%3A00.000Z&beforeId=ev0-_xYz9Qw`);
-    const page = toOrgEvents({
-      events: [
-        { id: '1', at: 't', action: 'connector.assigned', actor: { kind: 'user', id: 'u', name: 'Less' }, connector: { id: 'c', name: 'Linear' }, agent: { id: 'a', name: null }, detail: { name: 'Linear', readOnly: 'yes' } },
-        { id: '2', at: 't', action: 'connector.deleted', actor: { kind: 'user', id: 'u', name: null, email: 'less@example.com' }, connector: { id: 'c', name: null }, agent: null, detail: { name: 'Old' } },
-        { id: '3', at: 't', action: 'agent.unenrolled', actor: { kind: 'metro' }, connector: null, agent: { id: 'a', name: 'Andy' }, detail: {} },
-      ],
-      next: { before: 't', beforeId: '3' },
-    });
-    const names = (id: string): string | null => (id === 'a' ? 'Tony' : null);
-    expect(page.events.map((e) => orgEventText(e, names))).toEqual([
-      'Less gave Linear (c) to Tony, read-only',
-      'less@example.com removed Old (c)',
-      'Tony moved to another organization, so its agent key and connectors were removed',
-    ]);
-    expect(page.next).toEqual({ before: 't', beforeId: '3' });
+  test('tool discovery is a scoped GET and preserves vendor names and read-only hints', async () => {
+    serve({ tools: [{ name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false }, { name: 'fetch', readOnly: true }] });
+    expect(await fetchOrgConnectorTools(ROW.id)).toEqual([{ name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false }, { name: 'fetch', title: 'fetch', description: '', readOnly: true }]);
+    expect(calls).toEqual([{ url: `${BASE}/${ROW.id}/tools`, method: 'GET', body: undefined }]);
   });
 
-  test('same-name security activity identifies the exact connector instance', () => {
-    const actions = ['connector.key_changed', 'connector.assigned', 'connector.deleted'];
-    const page = toOrgEvents({ events: actions.flatMap((action) => ['instance001', 'instance002'].map((id) => ({ id: `${action}-${id}`, at: 't', action, actor: { kind: 'user', id: 'u', name: 'Less' }, connector: { id, name: action === 'connector.deleted' ? null : 'Calendar' }, agent: { id: 'a', name: 'Tony' }, detail: { name: 'Calendar' } }))), next: null });
-    for (const event of page.events) {
-      expect(orgEventText(event, () => null)).toContain(`Calendar (${event.connector?.id ?? ''})`);
-    }
-    expect(new Set(page.events.map((event) => orgEventText(event, () => null))).size).toBe(6);
-  });
-
-  test('old and new enrollment events use agent wording without rewriting stored history', () => {
-    const actions = ['agent.enrolled', 'box.enrolled', 'agent.unenrolled', 'box.unenrolled'];
-    const page = toOrgEvents({ events: actions.map((action) => ({ id: action, at: 't', action, actor: { kind: 'user', id: 'u', name: 'Less' }, connector: null, agent: { id: 'a', name: 'Tony' }, detail: {} })), next: null });
-    expect(page.events.map((event) => event.action)).toEqual(actions);
-    expect(page.events.map((event) => orgEventText(event, () => null))).toEqual([
-      'Less enrolled Tony',
-      'Less enrolled Tony',
-      'Tony moved to another organization, so its agent key and connectors were removed',
-      'Tony moved to another organization, so its agent key and connectors were removed',
+  test('full organization and assignment policies are retained and written independently by instance ID', async () => {
+    const policy = { read: 'ask', write: 'deny', tools: { special: 'allow', old_tool: 'deny' } } as const;
+    const agentPolicy = { tools: { special: 'deny' } } as const;
+    const row = { ...ROW, policy, agents: [{ ...ROW.agents[0], policy: agentPolicy }] };
+    expect(toOrgConnector(row).policy).toEqual(policy);
+    expect(toOrgConnector(row).agents[0]?.policy).toEqual(agentPolicy);
+    expect(toOrgConnector(ROW).policy).toEqual({ write: 'deny' });
+    serve(row);
+    await setOrgConnectorPolicy('instance001', policy);
+    await setOrgConnectorAgentPolicy('instance002', 'zz9-_xYz9Qw', agentPolicy);
+    await assignOrgConnector('instance002', 'zz9-_xYz9Qw');
+    expect(calls).toEqual([
+      { url: `${BASE}/instance001`, method: 'PUT', body: { policy } },
+      { url: `${BASE}/instance002/agents/zz9-_xYz9Qw/policy`, method: 'PUT', body: { policy: agentPolicy } },
+      { url: `${BASE}/instance002/agents/zz9-_xYz9Qw`, method: 'PUT', body: {} },
     ]);
   });
 
-  test('central refresh activity uses agent names and retains a removed connector name', () => {
-    const actions = ['connector.refreshed', 'connector.refresh_failed', 'connector.signed_out', 'connector.delivered'];
-    const page = toOrgEvents({ events: actions.map((action) => ({ id: action, at: 't', action, actor: { kind: 'agent', id: 'a' }, connector: null, agent: { id: 'a', name: 'Tony' }, detail: { name: 'Old connector' } })), next: null });
-    expect(page.events.map((event) => orgEventText(event, () => null))).toEqual([
-      'Metro refreshed Old connector for Tony',
-      'Metro could not refresh Old connector for Tony',
-      'Old connector needs signing in again',
-      'Metro prepared Old connector for Tony',
-    ]);
+  test('a new agent policy write fails closed against an older API without falling back to assignment', async () => {
+    const path = `${BASE}/${ROW.id}/agents/zz9-_xYz9Qw`;
+    let readOnly = true;
+    calls = [];
+    globalThis.fetch = ((url: string, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { readOnly?: boolean };
+      calls.push({ url, method: init?.method, body });
+      if (url === path) {
+        readOnly = body.readOnly === true;
+        return Promise.resolve(Response.json({ ...ROW, agents: [{ ...ROW.agents[0], readOnly }] }));
+      }
+      return Promise.resolve(Response.json({ error: 'not found' }, { status: 404 }));
+    }) as unknown as typeof fetch;
+    await expect(setOrgConnectorAgentPolicy(ROW.id, 'zz9-_xYz9Qw', { write: 'deny' })).rejects.toThrow('not found');
+    expect(calls).toEqual([{ url: `${path}/policy`, method: 'PUT', body: { policy: { write: 'deny' } } }]);
+    expect(readOnly).toBe(true);
   });
 
   test('the sign-in return is read once from the address and cleared', () => {

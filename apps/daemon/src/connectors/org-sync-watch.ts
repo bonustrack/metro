@@ -13,7 +13,7 @@ function control(): OrgConnectorControl {
   return active;
 }
 
-export function orgConnectorRelaySession(id: string): RelaySession | null {
+export function orgConnectorRelaySession(id: string): Promise<RelaySession> | null {
   return isOrgRelayId(id) || migrationSource(id)?.phase === 'active' ? control().open(id) : null;
 }
 
