@@ -39,8 +39,11 @@ export type RunnerFailureCode = keyof typeof FAILURE;
 const ERROR_CODES = ['ENOENT', 'EACCES', 'EPERM', 'ENOEXEC', 'ENOMEM', 'ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND', 'ERR_DLOPEN_FAILED', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'] as const;
 const SIGNALS = ['SIGTERM', 'SIGKILL', 'SIGSEGV', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGINT', 'SIGHUP', 'SIGPIPE'] as const;
 
+const ERROR_NAME_RE = /^[A-Z][A-Za-z0-9]{0,39}Error$/;
+
 export interface RunnerDiagnostic {
   source: 'exception' | 'stderr';
+  errorName?: string;
   errorCode?: (typeof ERROR_CODES)[number];
   httpStatus?: number;
   exitCode?: number;
@@ -49,14 +52,18 @@ export interface RunnerDiagnostic {
 
 const boundedNumber = (value: unknown, min: number, max: number): number | undefined => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max ? value : undefined;
 
+const errorNameOf = (value: unknown): string | undefined => typeof value === 'string' && value !== 'Error' && ERROR_NAME_RE.test(value) ? value : undefined;
+
 export function runnerDiagnostic(raw: unknown): RunnerDiagnostic | undefined {
   if (!isRecord(raw) || (raw.source !== 'exception' && raw.source !== 'stderr')) return undefined;
   const errorCode = ERROR_CODES.find((code) => code === raw.errorCode);
   const signal = SIGNALS.find((value) => value === raw.signal);
   const httpStatus = boundedNumber(raw.httpStatus, 400, 599);
   const exitCode = boundedNumber(raw.exitCode, 0, 255);
+  const errorName = errorNameOf(raw.errorName);
   return {
     source: raw.source,
+    ...(errorName === undefined ? {} : { errorName }),
     ...(errorCode === undefined ? {} : { errorCode }),
     ...(httpStatus === undefined ? {} : { httpStatus }),
     ...(exitCode === undefined ? {} : { exitCode }),
@@ -68,7 +75,7 @@ export function runnerFailureSummary(code: RunnerFailureCode, tool: string | nul
   const summary = code === 'tool_error' && name(tool) !== null ? `${tool} failed. See its result in Conversations.` : FAILURE[code];
   const safe = runnerDiagnostic(diagnostic);
   if (safe === undefined) return summary;
-  const details = [safe.errorCode, safe.httpStatus === undefined ? null : `HTTP ${safe.httpStatus}`, safe.exitCode === undefined ? null : `exit ${safe.exitCode}`, safe.signal].filter((value) => value !== undefined && value !== null);
+  const details = [safe.errorName, safe.errorCode, safe.httpStatus === undefined ? null : `HTTP ${safe.httpStatus}`, safe.exitCode === undefined ? null : `exit ${safe.exitCode}`, safe.signal].filter((value) => value !== undefined && value !== null);
   return details.length === 0 ? summary : `${summary} Observed: ${details.join(', ')} (${safe.source === 'stderr' ? 'startup stderr' : 'exception'}).`;
 }
 

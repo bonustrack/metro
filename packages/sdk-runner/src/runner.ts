@@ -18,7 +18,7 @@ import type { SessionStore } from './session-store.js';
 import { completedCommand, SessionWatch, startedCommand, uuidsOf } from './session-watch.js';
 import { TaskRecovery } from './task-recovery.js';
 import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
-import { failureSummary, SessionError, StartupDiagnostics } from './errors.js';
+import { debugFailure, failureSummary, SessionError, StartupDiagnostics } from './errors.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
 export const COMPACT_AT = 120_000;
@@ -240,6 +240,7 @@ export class Runner {
     this.switching = this.switching
       .then(() => this.applyModel(model))
       .catch((err: unknown) => {
+        debugFailure('model switch', err);
         const failure = new SessionError(this.diagnostics.failure(err));
         this.parts.activity?.fail(failure);
         log.warn({ reason: failure.failure.code, diagnostic: failure.failure.diagnostic, summary: failureSummary(failure) }, 'sdk-runner: the session could not take the model the Model page picked');

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseRunnerActivity, runnerFailureSummary } from '../src/runner-activity.ts';
+import { parseRunnerActivity, runnerDiagnostic, runnerFailureSummary } from '../src/runner-activity.ts';
 
 const valid = { runner: 'sdk', pid: 123, phase: 'idle', sessionId: '11111111-1111-4111-8111-111111111111', updatedAt: 123456, pending: 0, workers: 0, tools: [], lastError: null };
 
@@ -45,6 +45,16 @@ describe('runner activity is optional, validated and bounded', () => {
       expect(sanitized?.lastError).toBe(runnerFailureSummary('module'));
     }
     expect(parseRunnerActivity({ ...valid, events: [{ ...failure, kind: 'turn_started' }] })?.events[0]).not.toHaveProperty('diagnostic');
+  });
+
+  test('an error type name is kept only when it is a plain identifier ending in Error', () => {
+    const failure = { id: 'startup', at: 123, kind: 'session_failed', code: 'session_error', tool: null, taskId: null, diagnostic: { source: 'exception', errorName: 'TypeError' } };
+    const parsed = parseRunnerActivity({ ...valid, activeFailure: failure, lastFailure: failure, events: [failure] });
+    expect(parsed?.activeFailure?.diagnostic).toEqual({ source: 'exception', errorName: 'TypeError' });
+    expect(parsed?.lastError).toContain('Observed: TypeError (exception).');
+    for (const errorName of ['Error', 'typeError', 'PRIVATE prompt Error', 'Type-Error', `${'A'.repeat(41)}Error`, 'TypeErrorPRIVATE', 42]) {
+      expect(runnerDiagnostic({ source: 'exception', errorName })).toEqual({ source: 'exception' });
+    }
   });
 
   test('task descriptions and observed models have a narrow, idempotent allowlist', () => {
