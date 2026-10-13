@@ -1,9 +1,7 @@
 import { type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { AgentAvatar } from './AgentAvatar.js';
+import { RowDots } from './RowDots.js';
 import { dateLabel, Item, Listing } from './AdminLists.js';
 import { Badge } from '@stage-labs/kit/react-native/badge';
 import { fetchUsers, setUserStatus, type UserRow, type UserStatus } from '@metro-labs/client/api/admin';
@@ -16,14 +14,13 @@ const USERS_KEY = ['admin', 'users'];
 const STATUS_LABEL: Record<UserStatus, string> = { approved: 'Approved', waitlist: 'Waiting', rejected: 'Rejected' };
 
 function Actions({ user, busy, onSet }: { user: UserRow; busy: boolean; onSet: (status: UserStatus) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   if (user.operator) return null;
-  return (
-    <Row gap={8}>
-      {user.status === 'approved' ? null : <Button size="md" color="primary" dark={dark} label="Approve" disabled={busy} onPress={() => { onSet('approved'); }} />}
-      {user.status === 'rejected' ? null : <Button size="md" color="secondary" dark={dark} label="Reject" disabled={busy} onPress={() => { onSet('rejected'); }} />}
-    </Row>
-  );
+  const set = (status: UserStatus) => (): void => { if (!busy) onSet(status); };
+  const items = [
+    ...(user.status === 'approved' ? [] : [{ label: 'Approve', onSelect: set('approved') }]),
+    ...(user.status === 'rejected' ? [] : [{ label: 'Reject', danger: true, onSelect: set('rejected') }]),
+  ];
+  return <RowDots items={items} label={`Actions for ${user.name ?? user.email ?? user.id}`} />;
 }
 
 function UserItem({ user, busy, onSet }: { user: UserRow; busy: boolean; onSet: (status: UserStatus) => void }): ReactNode {

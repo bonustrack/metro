@@ -61,9 +61,9 @@ function reportNote(status: ClaudeSessionStatus, activity: RunnerActivity, clock
   }
   if (clock.mode === 'stale') {
     const reason = activity.updatedAt > clock.now ? 'The report time is ahead of this device.' : `Last report ${ago(activity.updatedAt, clock.now)}.`;
-    return `Stale status. ${reason} Times stop at the last report, ${at}. This may no longer describe the session.`;
+    return `Stale status. ${reason} Times stop at the last report, ${at}.`;
   }
-  return `Last report ${ago(activity.updatedAt, clock.now)}. Reported state, not a readiness check.`;
+  return `Last report ${ago(activity.updatedAt, clock.now)}.`;
 }
 
 function mainStatus(activity: RunnerActivity, clock: Clock): string {

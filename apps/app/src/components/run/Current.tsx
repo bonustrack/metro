@@ -27,11 +27,11 @@ interface Props {
 }
 
 function unavailableNote(status: ClaudeSessionStatus | undefined, disconnected: boolean): string {
-  if (disconnected) return 'Could not refresh the session. Anything below is the last observed state, not live.';
+  if (disconnected) return 'Could not refresh the session. Below is the last known state, not live.';
   if (status === undefined) return 'Loading session status…';
-  if (!status.running) return status.blocked === null ? 'The session is not running. This page will not start it.' : 'Starting the session is blocked. Check Harness settings.';
-  if (status.runner !== 'sdk') return 'This runner does not report live SDK activity. Metro messages remain available below.';
-  return 'The session process is running, but no SDK activity has been reported. This is not a readiness check.';
+  if (!status.running) return status.blocked === null ? 'The session is not running. Start it in Harness settings.' : 'Starting the session is blocked. Check Harness settings.';
+  if (status.runner !== 'sdk') return 'This runner reports no live activity. Messages still show below.';
+  return 'The session is running, but has reported no activity yet.';
 }
 
 type SessionView = ReturnType<typeof sessionView>;
@@ -61,7 +61,7 @@ function MainSessionReport({ status, disconnected, view, state, observed }: Omit
   const activity = status?.activity;
   return <>
     {activity && observed && <Text size="sm" role="secondary">{state === 'Fresh' ? '' : 'At last report: '}{activity.pending} queued · {activity.workers} active workers · {activity.approvals} approvals</Text>}
-    <Text size="2xs" role="secondary">{disconnected || view === null ? unavailableNote(status, disconnected) : view.note}</Text>
+    <Text size="md" role="secondary">{disconnected || view === null ? unavailableNote(status, disconnected) : view.note}</Text>
     {view?.failures.map((failure) => <Text key={failure.text} size="sm" role={failure.danger ? 'danger' : 'secondary'}>{failure.text}</Text>)}
   </>;
 }
@@ -75,7 +75,7 @@ function MainSessionCard({ status, disconnected, view, state, observed, dark }: 
     <Text size="sm">{view?.main ?? unavailableNote(status, disconnected)}</Text>
     {view !== null && <Text size="sm" role="secondary">{view.tools}</Text>}
     <MainSessionReport status={status} disconnected={disconnected} view={view} state={state} observed={observed} />
-    {activity?.approvals !== undefined && activity.approvals > 0 && <Text size="2xs" role="secondary">Approval decisions happen in the existing approval channel. This view cannot approve or cancel work.</Text>}
+    {activity?.approvals !== undefined && activity.approvals > 0 && <Text size="md" role="secondary">Answer approvals in chat or on the Home page, not here.</Text>}
   </Col></Card>;
 }
 
@@ -85,10 +85,10 @@ function WorkerCard({ row, dark, onDetails, onWorker }: { row: Worker; dark: boo
   const color = mark.color === null ? palette.text : statusColor(mark.color, dark ? 'dark' : 'light');
   return <Box testID={`worker-card-${row.id}`}><Card dark={dark}><Col gap={8}>
     <Text size="sm" weight="semibold" numberOfLines={1} testID="worker-title">{row.title}</Text>
-    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-model">Last observed model: {row.lastObservedModel}</Text>
+    <Text size="md" role="secondary" numberOfLines={1} testID="worker-model">Last observed model: {row.lastObservedModel}</Text>
     <Row gap={8} align="center"><Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={mark.icon} size={18} color={color} /></Box><Text size="sm" style={styles.title} numberOfLines={1} testID="worker-state">{row.stateLabel}</Text></Row>
-    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-tools">{row.tools}</Text>
-    <Text size="2xs" role="secondary" numberOfLines={1} testID="worker-progress">{row.progress}</Text>
+    <Text size="md" role="secondary" numberOfLines={1} testID="worker-tools">{row.tools}</Text>
+    <Text size="md" role="secondary" numberOfLines={1} testID="worker-progress">{row.progress}</Text>
     <Row gap={8} wrap testID="worker-actions"><Button dark={dark} color="secondary" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
       <Button dark={dark} color="secondary" label="Activity" accessibilityLabel={`Filter activity for worker ${row.id}`} onPress={() => { onWorker(row.id); }} /></Row>
   </Col></Card></Box>;
@@ -125,10 +125,10 @@ function CurrentWorkers({ workers, observed, dark, narrow, onWorker }: Pick<Prop
       <Row justify="between" align="center" wrap gap={8}><Text size="sm" weight="semibold">{observed ? 'Workers' : 'Last reported workers'}</Text>
         <WorkerControls filter={filter} expanded={expanded} count={matching.length} narrow={narrow} dark={dark}
           onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} /></Row>
-      <Text size="2xs" role="secondary" accessibilityLiveRegion="polite">Showing {shown.length} of {matching.length} {filter === 'all' ? 'workers' : `matching workers (${String(workers.length)} total)`}</Text>
+      <Text size="md" role="secondary" accessibilityLiveRegion="polite">Showing {shown.length} of {matching.length} {filter === 'all' ? 'workers' : `matching workers (${String(workers.length)} total)`}</Text>
       {matching.length === 0 && <Text size="sm" role="secondary">No workers with this status.</Text>}
       <Grid min={240} gap={12}>{shown.map((row) => <WorkerCard key={row.id} row={row} dark={dark} onDetails={setWorkerId} onWorker={onWorker} />)}</Grid>
-      <Text size="2xs" role="secondary">Members of this SDK session, not a nested tree. Up to 30 recent tasks, including completed and background work.</Text>
+      <Text size="md" role="secondary">Up to 30 recent tasks in this session, finished and background ones included.</Text>
     </Col>}
     <Modal open={worker !== undefined} onClose={() => { setWorkerId(null); }} title="Worker details" side={narrow ? 'bottom' : 'center'}>
       {worker !== undefined && <Text size="sm" selectable>{worker.details}</Text>}

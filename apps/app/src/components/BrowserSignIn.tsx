@@ -11,13 +11,13 @@ import { Platform } from 'react-native';
 import { TextLink } from './TextLink.js';
 import { openExternal } from '../lib/open.js';
 
-const ON_THE_WEB = 'This sign-in comes back to metro.box, so it works from a browser only for now. Connect this channel on metro.box.';
+const ON_THE_WEB = 'This sign-in works only in a browser for now. Connect this channel on metro.box.';
 
 function OnTheWeb({ provider, onUseCode, busy }: { provider: string; onUseCode: (() => void) | null; busy: boolean }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={10}>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {ON_THE_WEB}
       </Text>
       <TextLink url={`https://metro.box/${location().hash()}`}>{`Sign in with ${provider} on metro.box`}</TextLink>
@@ -69,11 +69,11 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
     <Col gap={10}>
       <Button color="primary" dark={dark} onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
       {blocked ? (
-        <TextLink size="2xs" url={authorizeUrl}>Open the {provider} sign-in page</TextLink>
+        <TextLink size="md" url={authorizeUrl}>Open the {provider} sign-in page</TextLink>
       ) : null}
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       {opened ? (
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           Waiting for you to sign in.
         </Text>
       ) : null}

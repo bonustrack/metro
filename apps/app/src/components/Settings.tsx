@@ -21,7 +21,7 @@ export function Settings(): ReactNode {
       <Col gap={12}>
           <Col gap={2}>
             <Text size="sm" weight="medium">Appearance</Text>
-            <Text size="2xs" role="secondary">
+            <Text size="md" role="secondary">
               System follows your device setting and changes with it.
             </Text>
           </Col>

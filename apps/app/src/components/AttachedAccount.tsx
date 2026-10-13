@@ -8,14 +8,14 @@ import { CopyBlock } from './CopyBlock.js';
 import { Field } from './Field.js';
 
 export const CALLBACK_NOTE =
-  'Paste this as the callback URL at gateway.threema.ch. The whole URL is the credential, so keep it out of public places.';
+  'Paste this as the callback URL at gateway.threema.ch. Keep it private: the URL is the password.';
 
 function activationNote(result: AttachResult): string {
   if (!result.activated)
-    return 'The channel is stored, but Metro could not reload it. It becomes live at the next daemon restart.';
+    return 'Saved, but Metro could not reload it. It goes live at the next restart.';
   if (result.station === 'webhook')
     return 'The endpoint is live now. Anything posted to it reaches your agent.';
-  return `The ${stationLabel(result.station)} station is restarting to pick it up. It appears in the list above once it is connected.`;
+  return `The ${stationLabel(result.station)} channel is restarting to pick it up. It shows above once connected.`;
 }
 
 export function AttachedAccount({
@@ -38,7 +38,7 @@ export function AttachedAccount({
           <Text size="sm" weight="medium">
             {stationLabel(result.station)} attached
           </Text>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             {activationNote(result)}
           </Text>
         </Col>
@@ -51,16 +51,16 @@ export function AttachedAccount({
         {endpoint === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="post events here" value={endpoint} secret />
-            <Text size="2xs" role="secondary">
-              The whole URL is the credential. Paste it into the provider as the
-              webhook URL — no secret or signature header to configure.
+            <Text size="md" role="secondary">
+              Paste it into the provider as the webhook URL. Keep it private:
+              the URL is the password.
             </Text>
           </Col>
         )}
         {callback === undefined ? null : (
           <Col gap={8}>
             <CopyBlock label="threema delivers here" value={callback} secret />
-            <Text size="2xs" role="secondary">
+            <Text size="md" role="secondary">
               {CALLBACK_NOTE}
             </Text>
           </Col>
@@ -68,7 +68,7 @@ export function AttachedAccount({
         {secret !== null ? (
           <Col gap={8}>
             <CopyBlock label={secret.label} value={secret.value} secret />
-            <Text size="2xs" role="danger">
+            <Text size="md" role="danger">
               {secret.note} Copy it somewhere safe before you close this.
             </Text>
           </Col>

@@ -17,7 +17,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'anthropic',
     label: 'Anthropic',
     site: 'https://anthropic.com',
-    blurb: 'Claude models, on a Claude subscription you sign in with or on an API key you add.',
+    blurb: 'Claude models, with your Claude subscription or an API key.',
   },
   { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account.' },
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },
@@ -25,7 +25,7 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'codex',
     label: 'Codex (ChatGPT)',
     site: 'https://openai.com',
-    blurb: "GPT models on your ChatGPT Plus or Pro plan, through OpenAI's official Sign in with ChatGPT.",
+    blurb: "GPT models on your ChatGPT Plus or Pro plan, with OpenAI's official sign-in.",
   },
   {
     id: 'gemini',

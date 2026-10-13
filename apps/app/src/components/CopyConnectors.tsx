@@ -18,11 +18,11 @@ function CopyReport({ results, connectors }: { results: CopyResult[]; connectors
   const names = new Map(connectors.map((row) => [row.id, connectorLabel(row, connectors)]));
   const copied = results.filter((row) => row.status === 'copied').length;
   return <Col gap={8}>
-    <Text size="2xs">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
-    {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="2xs" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
+    <Text size="md">{`${String(copied)} copied. Source settings were not changed by this copy.`}</Text>
+    {results.map((row, index) => <Text key={`${row.sourceId ?? ''}:${String(index)}`} size="md" role={row.status === 'invalid' ? 'danger' : 'secondary'}>
       {`${names.get(row.sourceId ?? '') ?? `Connector (${row.sourceId ?? 'unknown'})`}: ${row.status === 'skipped' ? 'skipped by the destination agent' : row.status === 'invalid' ? 'not copied, invalid settings' : `copied${row.id === undefined ? '' : ` as ${row.id}`}`}`}
     </Text>)}
-    <Text size="2xs" role="secondary">Reload plugins on the destination to make new connector tools available. Some services rotate login tokens, so either agent may need to reconnect for independent logins.</Text>
+    <Text size="md" role="secondary">Reload plugins on the other agent to see the new tools. Some services rotate logins, so either agent may need to sign in again.</Text>
   </Col>;
 }
 
@@ -71,11 +71,11 @@ function CopyChooser(props: ChooserProps): ReactNode {
   return <Modal title={props.title} open={props.open} onClose={props.onClose}>
     <Col gap={14}>
       {props.results === null ? <>
-        <Text size="2xs" role="secondary">Choose an agent. Copy includes saved logins, client secrets, tool permissions and settings. You must administer both organizations.</Text>
+        <Text size="md" role="secondary">Choose an agent. Logins, secrets, permissions and settings are copied. You must be an admin of both organizations.</Text>
         {props.pending ? <Loading /> : null}
-        {props.error === null ? null : <Text size="2xs" role="danger">{queryError(props.error, 'Could not load agents.')}</Text>}
+        {props.error === null ? null : <Text size="md" role="danger">{queryError(props.error, 'Could not load agents.')}</Text>}
         {props.targets.map((row) => <Button key={`${row.organization}:${row.id}`} color="secondary" dark={dark} label={`${row.name} (${row.organizationName})`} onPress={() => { props.onSelect(row); }} />)}
-        {!props.pending && props.targets.length === 0 ? <Text size="2xs" role="secondary">No other agent is available in an organization you administer.</Text> : null}
+        {!props.pending && props.targets.length === 0 ? <Text size="md" role="secondary">No other agent in an organization where you are admin.</Text> : null}
       </> : <CopyReport results={props.results} connectors={props.connectors} />}
       <Button color="secondary" dark={dark} label={props.results === null ? 'Cancel' : 'Done'} onPress={props.onClose} />
     </Col>
@@ -86,7 +86,7 @@ function CopyConfirmation({ title, state, onClose }: { title: string; state: Ret
   if (state.target === null) return null;
   const target = state.target;
   return <ConfirmModal open={state.results === null} title={`${title} to ${target.name}?`}
-    lines={[`Saved logins and client secrets will be copied to ${target.name} in ${target.organizationName}. Members of that organization will be able to use them.`, 'Some services rotate login tokens. A copied login can sign the source or destination out. Reconnect each agent separately to keep independent logins.', 'Source settings are not changed by this copy. Each copy creates a separate instance, even with the same name and address. Existing destination connectors are never overwritten.']}
+    lines={[`Logins and secrets are copied to ${target.name} in ${target.organizationName}, and its members can use them.`, 'Some services rotate logins, so a copy can sign one agent out. Sign each one in again to keep them apart.', 'Nothing changes here. Each copy is a new connector, and nothing there is overwritten.']}
     confirmWord="copy" confirmLabel="Copy with saved logins" busy={state.busy} error={state.error} onClose={onClose} onConfirm={state.run} />;
 }
 

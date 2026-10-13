@@ -18,7 +18,6 @@ export function AccountMenu({ onLock, onNavigate }: { onLock: () => void; onNavi
   const palette = useKitPalette();
   const account = activeAccount();
   const name = account?.user.name ?? account?.user.email ?? 'Account';
-  const hover = { backgroundColor: palette.inputBg };
   const open = (kind: 'settings' | 'admin') => (): void => {
     onNavigate();
     go({ kind });
@@ -29,7 +28,7 @@ export function AccountMenu({ onLock, onNavigate }: { onLock: () => void; onNavi
     { label: 'Log out', danger: true, onSelect: onLock },
   ];
   return (
-    <Dropdown label="Account menu" align="start" items={items} style={TRIGGER} hoverStyle={hover}>
+    <Dropdown label="Account menu" align="start" items={items} style={TRIGGER}>
       <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={AVATAR} />
       <Row flex={1} minWidth={0}>
         <Text size="md" numberOfLines={1} style={SHRINK}>

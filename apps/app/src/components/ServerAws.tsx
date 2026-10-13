@@ -13,7 +13,7 @@ import type { Server } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 
 const TITLE = 'AWS';
-const PICK_NOTE = 'Pick the instance this server runs on. Metro tags it with the server name, then shows its charts, size and storage.';
+const PICK_NOTE = 'Pick the instance this server runs on. Metro tags it and shows its charts, size and storage.';
 const MEMBER_NOTE = 'Only an admin of the organization can link it.';
 
 interface Busy {
@@ -43,7 +43,7 @@ function useBusy(): Busy {
 
 const Note = ({ text, danger = false }: { text: string; danger?: boolean }): ReactNode => (
   <SettingsPad>
-    <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
+    <Text size="md" role={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   </SettingsPad>

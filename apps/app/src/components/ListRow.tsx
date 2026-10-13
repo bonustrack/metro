@@ -66,7 +66,7 @@ export function ListRow({ title, detail, label = title, href, onPress, icon, ext
             {extra}
           </Row>
           {detail === '' ? null : (
-            <Text size="2xs" role="secondary" numberOfLines={1}>
+            <Text size="xs" role="secondary" numberOfLines={1}>
               {detail}
             </Text>
           )}

@@ -10,21 +10,21 @@ interface DetachAccountProps {
 
 const RECONNECT_NOTES: Record<string, string> = {
   webhook:
-    'This cannot be undone. Connecting it again mints a new URL and a new secret, so whoever posts to this one has to be updated.',
+    'This cannot be undone. Connecting again makes a new URL, so senders must be updated.',
   threema:
-    'This cannot be undone. Connecting it again mints a new callback URL, which has to be pasted into the Gateway ID settings again.',
+    'This cannot be undone. Connecting again makes a new callback URL to paste into Threema Gateway.',
 };
 
 export function detachLines(station: string, managed = false): string[] {
   if (station === 'gmail' && managed) return [
-    'This revokes Google access and deletes the Gmail channel and its local credentials. Messages stop reaching the agent.',
-    'Google revokes all permissions and tokens for this Google account across every client in Metro’s Google app project. This also disconnects the same Google account on other Metro boxes using that project. You will need to sign in again there.',
+    'This revokes Google access and deletes the channel and its login. Mail stops reaching the agent.',
+    'Google revokes all of Metro’s access to this account, so other boxes using it must sign in again too.',
     'If Google cannot revoke access, the connection is kept so you can retry.',
   ];
   const reconnectNote =
     RECONNECT_NOTES[station] ??
-    'This cannot be undone. Connecting it again means going through the whole sign-in once more.';
-  return ['This deletes the channel and the credentials Metro keeps for it. Messages stop reaching the agent at once.', reconnectNote];
+    'This cannot be undone. To connect again, you sign in again.';
+  return ['This deletes the channel and its saved login. Messages stop reaching the agent at once.', reconnectNote];
 }
 
 export function DetachAccount({ station, accountId, managed = false, onDetach }: DetachAccountProps): ReactNode {

@@ -32,7 +32,7 @@ export function PasteAddress({ hint, name, placeholder, finish, ready }: PasteAd
   };
   return (
     <Col gap={6} maxWidth={FIELD_WIDTH}>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {hint}
       </Text>
       <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={change} style={GROW} />
@@ -48,7 +48,7 @@ export function PasteAddress({ hint, name, placeholder, finish, ready }: PasteAd
           }}
         />
       </Row>
-      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -56,7 +56,7 @@ export function PasteAddress({ hint, name, placeholder, finish, ready }: PasteAd
 export function SignedInAs({ connection, how = '', children }: { connection: ConnectionRow; how?: string; children: ReactNode }): ReactNode {
   return (
     <Col gap={10}>
-      <Text size="2xs">
+      <Text size="md">
         Signed in{how === '' ? '' : ` ${how}`}
         {connection.account === null ? '' : ` as ${connection.account}`}
         {connection.plan === null ? '' : ` (${connection.plan})`}
@@ -71,7 +71,7 @@ export function SignInLink({ link, label, children }: { link: string | null; lab
     <Row gap={8} wrap align="center">
       {children}
       {link !== null ? (
-        <TextLink size="2xs" url={link}>{label}</TextLink>
+        <TextLink size="md" url={link}>{label}</TextLink>
       ) : null}
     </Row>
   );

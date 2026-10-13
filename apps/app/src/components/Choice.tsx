@@ -36,7 +36,7 @@ export function Choice<T extends string>({ label, value, options, disabled = fal
               if (!selected) onChange(option.value);
             }}
           >
-            <Text size="2xs" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+            <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
               {option.label}
             </Text>
           </Pressable>

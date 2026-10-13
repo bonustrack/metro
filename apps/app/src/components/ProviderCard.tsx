@@ -49,7 +49,7 @@ export function ConnectionItem({ connection, settings, items, onOpen }: Connecti
       detail={note}
       icon={<ProviderLogo provider={PROVIDERS.find((p) => p.id === connection.provider)} size={LIST_ICON_SIZE} />}
       extra={connection.provider === 'openrouter' && connection.zdr ? <Tag label="Zero data retention" /> : undefined}
-      below={<Col gap={4}><Text size="2xs" role="secondary">{name}</Text><CardUsage usage={usage} provider={connection.provider} model={model} /></Col>}
+      below={<Col gap={4}><Text size="md" role="secondary">{name}</Text><CardUsage usage={usage} provider={connection.provider} model={model} /></Col>}
       onPress={onOpen}
       trailing={<KebabMenu label={`${connection.label} menu`} items={items} />}
     />

@@ -5,9 +5,9 @@ import { MIGRATION_UPDATE, MIGRATION_RESOURCE_UPDATE, readMigrationPreview, type
 import { migrationStatusOf, type MigrationAction, type MigrationStatus, type MigrationView } from './connector-migration-status.js';
 import { signInOrgConnector } from './org-connectors.js';
 
-export const MIGRATION_UNCERTAIN = 'The migration outcome is uncertain. The request may have reached the agent. Refresh and Reconcile before making another change. No request is retried automatically.';
+export const MIGRATION_UNCERTAIN = 'Not sure the move went through: it may have reached the agent. Refresh and Reconcile before changing anything. Nothing is retried on its own.';
 export const MIGRATION_PUBLIC_RESOURCE_REQUIRED = "Enter the provider's public OAuth resource. Roll back this preparation, then prepare again with that public value; never enter credentials.";
-const READ_FAILED = 'Could not refresh migration status. Last confirmed progress is shown. Refresh and Reconcile before continuing.';
+const READ_FAILED = 'Could not refresh the move status. Last confirmed progress is shown. Refresh and Reconcile to go on.';
 let nextDialog = 0;
 
 export interface MigrationSnapshot {
@@ -42,7 +42,7 @@ export const shownMigrations = (snapshot: MigrationSnapshot): MigrationView[] =>
 function actionable(snapshot: MigrationSnapshot, requireSync = false): { plan: MigrationPlan; status: MigrationStatus } {
   if (snapshot.plan?.preview.migrationSupported !== true) throw new Error(MIGRATION_UPDATE);
   if (snapshot.status === null || snapshot.statusError !== null) throw new Error('Refresh migration status before continuing.');
-  if (!snapshot.status.enrolled || (requireSync && !snapshot.status.enabled)) throw new Error('Organization sync and enrollment are required for preparation and cutover. This dialog does not change either setting.');
+  if (!snapshot.status.enrolled || (requireSync && !snapshot.status.enabled)) throw new Error('Organization sync and enrollment must be on first. This dialog does not change them.');
   return { plan: snapshot.plan, status: snapshot.status };
 }
 
@@ -61,7 +61,7 @@ function forwardAllowed(snapshot: MigrationSnapshot, sourceId: string, action: '
     prepareAllowed(source, migration);
     return;
   }
-  if (migration?.phase !== 'prepared' || migration.reason !== null) throw new Error('Reconcile until the agent confirms the destination is ready before switching.');
+  if (migration?.phase !== 'prepared' || migration.reason !== null) throw new Error('Choose Reconcile until the agent says the destination is ready, then switch.');
 }
 
 function moveAllowed(snapshot: MigrationSnapshot, sourceId: string): void {
@@ -84,7 +84,7 @@ function actionAllowed(snapshot: MigrationSnapshot, sourceId: string, action: Mi
   const { status } = actionable(snapshot);
   const migration = status.migrations.find((row) => row.sourceId === sourceId);
   if (migration === undefined && !snapshot.uncertain.includes(sourceId)) throw new Error('Refresh to find this migration first.');
-  if (action === 'resolve' && !settlementAvailable(migration)) throw new Error('Refresh to find the outstanding request fence before confirming it is settled.');
+  if (action === 'resolve' && !settlementAvailable(migration)) throw new Error('Refresh to find the open request before confirming it settled.');
 }
 
 function checkSelection(snapshot: MigrationSnapshot, sourceId: string, selection: MigrationSelection | undefined, checkReceipt = false): void {
@@ -92,7 +92,7 @@ function checkSelection(snapshot: MigrationSnapshot, sourceId: string, selection
   const current = snapshot.status?.migrations.find((row) => row.sourceId === sourceId);
   const sameOperation = (current?.id ?? null) === selection.operationId;
   const sameReceipt = !checkReceipt || current?.uncertainty === selection.uncertainty;
-  if (!sameOperation || !sameReceipt) throw new Error('The migration changed since this action was shown. Refresh and review it again.');
+  if (!sameOperation || !sameReceipt) throw new Error('The move changed since this was shown. Refresh and check again.');
 }
 
 function resourceBody(state: MigrationSnapshot, sourceId: string, action: MigrationAction, value: string | undefined): { oauthResource?: string } {
@@ -169,7 +169,7 @@ export function createConnectorMigration(onInvalidate?: () => void): ConnectorMi
       state = { ...state, plan, previewError: null };
     } catch (error) {
       identity.check();
-      state = { ...state, previewError: safeReadError(error, 'Could not refresh the source preview. Last confirmed settings are shown; preparation and cutover are blocked.') };
+      state = { ...state, previewError: safeReadError(error, 'Could not refresh this connector. Last confirmed settings are shown, and moving is blocked.') };
     }
     try {
       const status = await requestStatus(identity, signal, state.status);

@@ -27,9 +27,9 @@ const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google
 const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const WAITLIST_TITLE = 'Join the waitlist';
-const JOINED = 'You are on the waitlist. We will let you in soon, and you can then log in with the same account.';
+const JOINED = 'You are on the waitlist. Once we let you in, log in with the same account.';
 const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
-const INVITATION = 'You are invited to an organization. Log in with the address the invitation was sent to: Google, Microsoft, GitHub or a code by email.';
+const INVITATION = 'You are invited to an organization. Log in with the email the invitation went to.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 const TOP_LOGO = 24;
 const WEB = Platform.OS === 'web';
@@ -38,7 +38,7 @@ const REFUSALS: Record<string, string> = {
   'no-account': 'No Metro account for this email yet. Join the waitlist first.',
   waiting: 'You are on the waitlist already. We will let you in soon.',
   'not-open': 'Metro is not open to this account.',
-  unverified: 'That account has no verified email address, so Metro cannot accept it. Log in with a code sent to your email instead.',
+  unverified: 'That account has no verified email. Log in with an email code instead.',
   cancelled: 'The sign-in was cancelled.',
   failed: 'The sign-in failed. Try again.',
 };
@@ -100,7 +100,7 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
 function Footer(): ReactNode {
   return (
     <Row justify="center" gap={16}>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {COPYRIGHT}
       </Text>
       <LegalLinks newTab />
@@ -149,7 +149,7 @@ function DaemonHint(): ReactNode {
   if (heading === null) return null;
   return (
     <Row justify="center">
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         then on to {daemonHost(heading)}
       </Text>
     </Row>
@@ -197,7 +197,7 @@ export function Login(): ReactNode {
       <Notes failed={refusalText(outcome.refused)} invited={outcome.invited} />
       <Col padding={{ top: 8 }} gap={16}>
         <EmailLogin intent={intent} />
-        <Text size="2xs" role="secondary" style={CENTER_TEXT}>
+        <Text size="md" role="secondary" style={CENTER_TEXT}>
           or
         </Text>
         <ProviderButtons intent={intent} />

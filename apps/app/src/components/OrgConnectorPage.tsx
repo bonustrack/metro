@@ -80,7 +80,7 @@ function Header({ connector, admin, onError }: { connector: OrgConnector; admin:
           <ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />
           <Col gap={2} style={SHRINK}>
             <PageTitle>{connector.name}</PageTitle>
-            <Text size="2xs" role={status.bad ? 'danger' : 'secondary'} numberOfLines={1}>
+            <Text size="md" role={status.bad ? 'danger' : 'secondary'} numberOfLines={1}>
               {`${connectorHost(connector.url)} · ${status.text}`}
             </Text>
           </Col>
@@ -97,9 +97,9 @@ function Notes({ outcome, failure }: { outcome: Outcome; failure: string | null 
   const error = failure ?? outcome.error;
   return (
     <>
-      {outcome.busy ? <Text size="2xs" role="secondary">Finishing the sign-in…</Text> : null}
-      {outcome.note === null ? null : <Text size="2xs" role="secondary">{outcome.note}</Text>}
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {outcome.busy ? <Text size="md" role="secondary">Finishing the sign-in…</Text> : null}
+      {outcome.note === null ? null : <Text size="md" role="secondary">{outcome.note}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </>
   );
 }
@@ -114,9 +114,9 @@ function Body({ id }: { id: string }): ReactNode {
   const outcome = useSignInReturn(reload);
   const connector = data?.connectors.find((c) => c.id === id);
   useDocumentTitle(connector?.name ?? 'Connector');
-  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not load this connector.')}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load this connector.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (connector === undefined) return <Text size="2xs" role="danger">This connector is not in this organization any more.</Text>;
+  if (connector === undefined) return <Text size="md" role="danger">This connector is not in this organization any more.</Text>;
   return (
     <Col gap={32} width="100%">
       <Header connector={connector} admin={data.admin} onError={setFailure} />

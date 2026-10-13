@@ -42,13 +42,13 @@ export function ConnectionModel({ conn, settings, onDone }: { conn: ConnectionRo
   return (
     <Col gap={12}>
       <Text size="xs" weight="medium">Default model</Text>
-      <Text size="2xs" role="secondary">Used when you choose this connection. Each fallback can use a different model.</Text>
+      <Text size="md" role="secondary">Used when you choose this connection. Each fallback can use a different model.</Text>
       <ModelStep conn={conn} slot={SLOT} draft={draft} zdr={allowed} shared={sharesConnection(settings, SLOT, conn.id)} onPick={(model) => { setDraft((d) => ({ ...d, model })); }} onZdr={(on) => { setDraft((d) => ({ ...d, zdr: on })); }} />
       <Limits conn={conn} settings={settings} model={draft.model} />
-      {settings.route === conn.id && draft.model !== conn.model ? <Text size="2xs" role="secondary">Saving restarts the agent on this model. The conversation is kept.</Text> : null}
+      {settings.route === conn.id && draft.model !== conn.model ? <Text size="md" role="secondary">Saving restarts the agent on this model. The conversation is kept.</Text> : null}
       <Row gap={12} align="center" wrap>
         <Button size="lg" dark={dark} label="Save default model" loading={busy} disabled={busy || problem !== null} onPress={save} />
-        {error === null && problem === null ? null : <Text size="2xs" role={error === null ? 'secondary' : 'danger'}>{error ?? problem}</Text>}
+        {error === null && problem === null ? null : <Text size="md" role={error === null ? 'secondary' : 'danger'}>{error ?? problem}</Text>}
       </Row>
     </Col>
   );

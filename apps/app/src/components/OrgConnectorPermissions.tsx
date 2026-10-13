@@ -20,9 +20,9 @@ interface Props {
 }
 
 function CatalogueNotice({ rows, error }: { rows: ConnectorTool[] | undefined; error: unknown }): ReactNode {
-  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, 'Could not load the tools.')}{rows === undefined ? ' Saved permissions are kept.' : ' Showing the last tool list. Saved permissions are kept.'}</Text>;
-  if (rows === undefined) return <Text size="2xs" role="secondary">Loading tools…</Text>;
-  return rows.length === 0 ? <Text size="2xs" role="secondary">The provider returned no tools.</Text> : null;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load the tools.')}{rows === undefined ? ' Saved permissions are kept.' : ' Showing the last tool list. Saved permissions are kept.'}</Text>;
+  if (rows === undefined) return <Text size="md" role="secondary">Loading tools…</Text>;
+  return rows.length === 0 ? <Text size="md" role="secondary">The provider returned no tools.</Text> : null;
 }
 
 export function OrgConnectorPermissions({ connector, admin, agent, title }: Props): ReactNode {
@@ -33,10 +33,10 @@ export function OrgConnectorPermissions({ connector, admin, agent, title }: Prop
   return (
     <Col gap={12}>
       <Row justify="between" align="center" gap={12}>
-        <Text size="2xs" role="secondary">Tool discovery does not enable any permission or run a tool.</Text>
+        <Text size="md" role="secondary">Listing the tools runs none and allows none.</Text>
         <Button size="md" color="secondary" dark={dark} label="Refresh tools" loading={tools.isFetching} disabled={tools.isFetching} onPress={() => { tools.refetch().catch(logError('org-connector-tools')); }} />
       </Row>
-      <Text size="2xs" role="secondary">Read uses the provider’s read-only hint. All other tools use Write. Older agents may apply stricter permissions until Metro is updated.</Text>
+      <Text size="md" role="secondary">Tools the provider marks read-only use Read, the rest use Write. Older agents may be stricter until updated.</Text>
       <CatalogueNotice rows={tools.data} error={tools.error} />
       <Permissions title={title ?? 'Organization permissions'} policy={agent?.policy ?? connector.policy} organization={agent === undefined ? undefined : connector.policy}
         tools={connectorToolGroups(rows)} titles={Object.fromEntries(rows.map((tool) => [tool.name, tool.title]))}

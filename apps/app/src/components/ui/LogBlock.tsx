@@ -21,7 +21,7 @@ export function LogBlock({ lines, text, maxHeight = 360, muted = false }: LogBlo
   const frame = [styles.box, { backgroundColor: palette.inputBg }, maxHeight === null ? null : { maxHeight }];
   const body = text ?? (lines ?? []).join('\n');
   const content = (
-    <Text size="2xs" role={muted ? 'secondary' : 'default'} selectable style={styles.line}>
+    <Text size="md" role={muted ? 'secondary' : 'default'} selectable style={styles.line}>
       {body}
     </Text>
   );

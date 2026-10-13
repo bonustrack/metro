@@ -14,9 +14,9 @@ const ICONS: Record<EntryKind, IconName> = { Message: 'chat', Tool: 'chip', Work
 
 function ActivityContext({ entry }: { entry: RunEntry }): ReactNode {
   return <Row gap={8} align="center" wrap>
-    {entry.kind === 'Message' ? <Text size="2xs" role="secondary">{entry.station} · {short(entry.account, 20)} · {short(entry.channel, 40)}</Text>
-      : <><Badge label={entry.status} color={entry.status === 'Failed' ? 'danger' : entry.status === 'Waiting' ? 'warning' : undefined} /><Text size="2xs" role="secondary">{entry.station}{entry.worker === 'Unlinked' ? '' : ` · ${short(entry.worker)}`}</Text></>}
-    {entry.truncated && <Text size="2xs" role="secondary">Truncated</Text>}
+    {entry.kind === 'Message' ? <Text size="md" role="secondary">{entry.station} · {short(entry.account, 20)} · {short(entry.channel, 40)}</Text>
+      : <><Badge label={entry.status} color={entry.status === 'Failed' ? 'danger' : entry.status === 'Waiting' ? 'warning' : undefined} /><Text size="md" role="secondary">{entry.station}{entry.worker === 'Unlinked' ? '' : ` · ${short(entry.worker)}`}</Text></>}
+    {entry.truncated && <Text size="md" role="secondary">Truncated</Text>}
   </Row>;
 }
 
@@ -32,8 +32,8 @@ function RunActivityRow({ entry, selected, onSelect }: { entry: RunEntry; select
         <Col style={styles.grow} gap={message ? 6 : 4}>
           <Row align="center" gap={8} wrap>
             <Text size="sm" weight="semibold">{short(entry.sender, 48)}</Text>
-            <Text size="2xs" role="secondary">{message ? entry.direction === 'inbound' ? 'received' : 'sent' : entry.title}</Text>
-            <Box style={styles.grow} /><Text size="2xs" role="secondary" style={styles.time}>{clock(entry.at)}</Text>
+            <Text size="md" role="secondary">{message ? entry.direction === 'inbound' ? 'received' : 'sent' : entry.title}</Text>
+            <Box style={styles.grow} /><Text size="md" role="secondary" style={styles.time}>{clock(entry.at)}</Text>
           </Row>
           <Text size="sm" numberOfLines={4}>{entry.text}</Text>
           <ActivityContext entry={entry} />
@@ -58,7 +58,7 @@ export function RunActivity({ entries, selected, onSelect, limit, onMore, onRese
   return <Col testID="activity-list" border={{ top: { width: 1, color: palette.border } }}>
     {entries.length === 0 ? <Col padding={24} gap={12}>
       <Text weight="semibold">No matching activity</Text>
-      <Text size="sm" role="secondary">Only retained Metro events and the latest SDK snapshot are available. Try fewer filters.</Text>
+      <Text size="sm" role="secondary">Only recent events are kept. Try fewer filters.</Text>
       <Button dark={dark} color="secondary" label="Clear filters" onPress={onReset} />
     </Col> : entries.slice(0, limit).map((entry) => <RunActivityRow key={entry.id} entry={entry} selected={selected === entry.id} onSelect={() => { onSelect(entry.id); }} />)}
     {entries.length > limit && <Box padding={16}><Button dark={dark} color="secondary" label={`Show older events (${String(entries.length - limit)})`} onPress={onMore} /></Box>}

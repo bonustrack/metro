@@ -13,7 +13,7 @@ import { LogBlock } from './ui/LogBlock.js';
 
 const DOT = 8;
 const MARK: Record<StepState, string> = { pending: '·', active: '…', done: '✓', failed: '✗' };
-const CAPTURE_NOTE = 'AWS captures the console only every few minutes, so this lags the box by that much.';
+const CAPTURE_NOTE = 'AWS updates this every few minutes, so it can lag behind.';
 
 function StepRow({ label, state }: { label: string; state: StepState }): ReactNode {
   const palette = useKitPalette();
@@ -21,7 +21,7 @@ function StepRow({ label, state }: { label: string; state: StepState }): ReactNo
   return (
     <Row align="center" gap={10} padding={{ y: 4 }}>
       <Row width={DOT} height={DOT} radius={DOT} background={color} />
-      <Text size="2xs" role={state === 'pending' ? 'secondary' : undefined}>{`${MARK[state]} ${label}`}</Text>
+      <Text size="md" role={state === 'pending' ? 'secondary' : undefined}>{`${MARK[state]} ${label}`}</Text>
     </Row>
   );
 }
@@ -29,9 +29,9 @@ function StepRow({ label, state }: { label: string; state: StepState }): ReactNo
 function headline(instance: string | null, boot: BootView | null, live: boolean): string {
   if (live) return 'Live. The daemon answers on its address.';
   if (boot?.failed === true) return 'The first-boot script stopped. The last lines below say where.';
-  if (boot?.finished === true) return 'Installed. Waiting for the Funnel address to resolve, usually a minute or two.';
+  if (boot?.finished === true) return 'Installed. Waiting for its address to work, usually a minute or two.';
   if (boot?.steps.some((s) => s.state !== 'pending') === true) return 'Installing…';
-  if (instance === 'running') return 'The instance is running; waiting for the first console capture.';
+  if (instance === 'running') return 'The instance is running. Waiting for its first log.';
   return instance === null ? 'Starting the instance…' : `Instance ${instance}.`;
 }
 
@@ -94,9 +94,9 @@ export function LaunchProgress({ launched }: { launched: Launched }): ReactNode 
   return (
     <Col gap={14}>
       <Text size="sm" weight="medium">{headline(watch.instance, watch.boot, live)}</Text>
-      {watch.error === null ? null : <Text size="2xs" role="danger">{watch.error}</Text>}
+      {watch.error === null ? null : <Text size="md" role="danger">{watch.error}</Text>}
       <Steps launched={launched} watch={watch} live={live} />
-      <Text size="2xs" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>
+      <Text size="md" role="secondary">{captureNote(watch.boot?.at ?? null)}</Text>
       <LogTail lines={watch.boot?.lines ?? []} />
       <CopyBlock label="address" value={launched.host} />
       <Actions launched={launched} live={live} />

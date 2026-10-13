@@ -37,9 +37,9 @@ function Pair({ top, bottom, link }: { top: string | null; bottom: string | null
     <Col gap={2} minWidth={0}>
       {top === null ? <Checking /> : <Text size="sm" numberOfLines={1} style={SHRINK}>{top}</Text>}
       {bottom === null ? null : link === undefined ? (
-        <Text size="2xs" role="secondary" numberOfLines={1}>{bottom}</Text>
+        <Text size="xs" role="secondary" numberOfLines={1}>{bottom}</Text>
       ) : (
-        <RouteLink to={link} label={bottom}><Text size="2xs" role="link" numberOfLines={1}>{bottom}</Text></RouteLink>
+        <RouteLink to={link} label={bottom}><Text size="xs" role="link" numberOfLines={1}>{bottom}</Text></RouteLink>
       )}
     </Col>
   );
@@ -64,7 +64,7 @@ function StatusCell({ row, now }: { row: DashboardRow; now: number }): ReactNode
           <Text size="sm" numberOfLines={1} style={SHRINK}>{session.status}</Text>
         </>}
       </Row>
-      {session.harness === 'Unknown' ? null : <Text size="2xs" role="secondary" numberOfLines={1}>{session.harness}</Text>}
+      {session.harness === 'Unknown' ? null : <Text size="xs" role="secondary" numberOfLines={1}>{session.harness}</Text>}
     </Col>
   );
 }
@@ -115,7 +115,7 @@ function Identity({ row, href, detail }: { row: DashboardRow; href: string; deta
         <AgentAvatar seed={agent.host} src={agent.avatar} size={AVATAR} />
         <Col gap={2} flex={1} minWidth={0}>
           <Text size="sm" weight="semibold" numberOfLines={1} style={SHRINK}>{name}</Text>
-          <Text size="2xs" role="secondary" numberOfLines={1}>{detail}</Text>
+          <Text size="xs" role="secondary" numberOfLines={1}>{detail}</Text>
         </Col>
       </Row>
     </RouteLink>

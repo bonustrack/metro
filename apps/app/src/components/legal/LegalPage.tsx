@@ -35,7 +35,7 @@ export function LegalPage({ kind }: { kind: LegalKind }): ReactNode {
         <MarkdownBlock text={page.text} size={BODY} lineHeight={LINE} />
       </Col>
       <Row justify="between" align="center" gap={16} width="100%" maxWidth={MAX} padding={{ x: 24, y: 24 }} style={CENTER}>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           Stage Labs
         </Text>
         <Row gap={16}>

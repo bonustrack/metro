@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react';
+import { Pressable } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -28,14 +29,14 @@ const EMPTY: NewConnector = {
   clientSecret: '',
 };
 
-const HINT = 'Metro reaches the server from its own machine, so a localhost url never works. Leave the header empty for an OAuth server.';
+const HINT = 'Metro calls it from its own machine, so your own localhost will not work. Leave the header empty for an OAuth server.';
 
 export interface AddedConnector {
   id: string;
   authorizeUrl: string | null;
 }
 
-const APP_HINT = 'Only for a server that cannot register clients itself, such as Microsoft 365: register an app with this redirect url and paste its client id.';
+const APP_HINT = 'For servers like Microsoft 365 only: register an app with this redirect url and paste its client id.';
 
 interface FieldSpec {
   key: FieldKey;
@@ -47,6 +48,9 @@ interface FieldSpec {
 const FIELDS: FieldSpec[] = [
   { key: 'name', label: 'Name', placeholder: 'linear' },
   { key: 'url', label: 'URL', placeholder: 'https://mcp.linear.app/mcp' },
+];
+
+const HEADER_FIELDS: FieldSpec[] = [
   { key: 'header', label: 'Header (optional)', placeholder: 'Authorization' },
   { key: 'value', label: 'Value (optional)', placeholder: 'Bearer sk-…', secret: true },
 ];
@@ -95,6 +99,33 @@ function Fields({ specs, values, busy, onChange, onSubmit }: FieldsProps): React
       onSubmit={onSubmit}
     />
   ));
+}
+
+interface AdvancedProps {
+  fields: FieldsProps;
+  callbackUrl: string | null;
+  publicOAuth: boolean;
+  oauth: { value: string; onChange: (value: string) => void };
+}
+
+function Advanced({ fields, callbackUrl, publicOAuth, oauth }: AdvancedProps): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setOpen(!open); }}>
+        <Text size="md" role="link">{open ? 'Hide advanced' : 'Advanced'}</Text>
+      </Pressable>
+      {open ? (
+        <Col gap={10}>
+          <Fields {...fields} specs={HEADER_FIELDS} />
+          <Text size="md" role="secondary">{APP_HINT}</Text>
+          {callbackUrl === null ? null : <Text size="md">{callbackUrl}</Text>}
+          <Fields {...fields} specs={APP_FIELDS} />
+          {publicOAuth ? <PublicOAuthResource value={oauth.value} disabled={fields.busy} onChange={oauth.onChange} /> : null}
+        </Col>
+      ) : null}
+    </>
+  );
 }
 
 interface ConnectorFormProps {
@@ -154,18 +185,13 @@ function ConnectorForm({
 
   return (
     <Col gap={14}>
-      <Text size="2xs" role="secondary">{hint}</Text>
+      <Text size="md" role="secondary">{hint}</Text>
       <Col gap={10}>
         <Fields specs={FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
       </Col>
-      <Col gap={10}>
-        <Text size="2xs" role="secondary">{APP_HINT}</Text>
-        {callbackUrl === null ? null : <Text size="2xs">{callbackUrl}</Text>}
-        <Fields specs={APP_FIELDS} values={values} busy={busy} onChange={change} onSubmit={submit} />
-      </Col>
-      {publicOAuth ? <PublicOAuthResource value={oauthResource} disabled={busy} onChange={setOAuthResource} /> : null}
+      <Advanced fields={{ specs: [], values, busy, onChange: change, onSubmit: submit }} callbackUrl={callbackUrl} publicOAuth={publicOAuth} oauth={{ value: oauthResource, onChange: setOAuthResource }} />
       {link === null ? null : <TextLink url={link}>Open sign-in</TextLink>}
-      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
       <Row justify="between" align="center" gap={12} wrap>
         <Button
           color="secondary"

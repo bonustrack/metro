@@ -28,7 +28,7 @@ export interface MigrationStatus {
 }
 
 const REASONS: readonly MigrationReason[] = ['sign_in', 'not_verified', 'source_changed', 'destination_changed', 'assignment_changed', 'waiting_for_local', 'sync_unavailable', 'identity_changed', 'rolled_back', 'unavailable', 'requests_uncertain', 'refresh_uncertain', 'local_refresh_uncertain', 'finish_forward', 'unsupported_grant'];
-const invalid = (): Error => new Error('The agent returned an invalid migration status. Refresh and Reconcile before continuing.');
+const invalid = (): Error => new Error('The agent sent an invalid migration status. Refresh and Reconcile to go on.');
 const nullable = (value: unknown): value is string | null => value === null || typeof value === 'string';
 
 const reasonOf = (value: string | null): MigrationReason | null => value === null ? null : REASONS.find((item) => item === value) ?? 'unknown';

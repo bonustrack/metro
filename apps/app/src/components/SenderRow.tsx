@@ -67,7 +67,7 @@ export function SenderRow({ station, id, name, handle, avatar, busy, approves, o
             {approves === true ? <Tag label="Approver" /> : null}
           </Row>
           {subtitle === '' ? null : (
-            <Text size="2xs" role="secondary" numberOfLines={1}>
+            <Text size="md" role="secondary" numberOfLines={1}>
               {subtitle}
             </Text>
           )}

@@ -24,8 +24,8 @@ export function DeviceSignIn({ code, uri }: { code: string; uri: string | null }
         </Text>
         <Button size="md" color="secondary" dark={dark} onPress={copy} label={copied ? 'Copied' : 'Copy code'} />
       </Row>
-      <TextLink size="2xs" url={page}>Open {page.replace(/^https:\/\//, '')}</TextLink>
-      <Text size="2xs" role="secondary">
+      <TextLink size="md" url={page}>Open {page.replace(/^https:\/\//, '')}</TextLink>
+      <Text size="md" role="secondary">
         Waiting for you to sign in.
       </Text>
     </Col>

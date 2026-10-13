@@ -29,7 +29,7 @@ function Confirmation({ action, name, blocked, onClose, onConfirm }: { action: M
   const prompt = MIGRATION_CONFIRMATIONS[action];
   return <ConfirmModal open title={prompt.title}
     lines={migrationConfirmation(name, action)} confirmWord={prompt.word} confirmLabel={prompt.label}
-    busy={false} blocked={blocked} error={blocked ? 'Migration data changed or is unavailable. Cancel, Refresh and review again.' : null} onClose={onClose} onConfirm={onConfirm} />;
+    busy={false} blocked={blocked} error={blocked ? 'The move changed or could not load. Cancel, Refresh and check again.' : null} onClose={onClose} onConfirm={onConfirm} />;
 }
 
 interface ConfirmedSelection {
@@ -54,7 +54,7 @@ function PrepareDestination({ sourceId, row, act, selection, disabled, oauthReso
   const publicOAuth = oauth && oauthResourceSupported;
   return <>
     {publicOAuth ? <PublicOAuthResource value={oauthResource} disabled={disabled} onChange={setOAuthResource} /> : null}
-    {oauth && !oauthResourceSupported ? <Text size="2xs" role="secondary">{MIGRATION_RESOURCE_UPDATE}</Text> : null}
+    {oauth && !oauthResourceSupported ? <Text size="md" role="secondary">{MIGRATION_RESOURCE_UPDATE}</Text> : null}
     <Row gap={8}>
       <Button color="secondary" dark={dark} label="Prepare destination" disabled={disabled} onPress={() => { act(sourceId, 'prepare', selection, publicOAuth ? oauthResource : undefined); }} />
     </Row>

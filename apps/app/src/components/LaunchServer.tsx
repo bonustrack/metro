@@ -28,15 +28,15 @@ const PICTURE = 48;
 const CARD_WIDTH = 480;
 const NO_AUTOFILL = { autoComplete: 'off' } as const;
 const HINT =
-  'Metro issues the machine from its own AWS account and sets it up for you. It belongs to your organization, and is usually live within five minutes.';
-const OFF = 'This Metro deployment issues no agents. Add your own from the list instead.';
-const OFF_IDENTITY = 'To configure it: the AWS and Tailscale secrets are missing on this deployment.';
+  'Metro creates the server on its AWS account and sets it up. It belongs to your organization and is usually live in five minutes.';
+const OFF = 'Launching is off here. Add your own server from the list instead.';
+const OFF_IDENTITY = 'To turn it on, set the AWS and Tailscale secrets on this deployment.';
 
 function RegionChoice({ regions, value, disabled, onPick }: { regions: string[]; value: string; disabled: boolean; onPick: (code: string) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={6}>
-      <Text size="2xs" role="secondary">Region</Text>
+      <Text size="md" role="secondary">Region</Text>
       <Row gap={8} wrap>
         {regions.map((code) => (
           <Button
@@ -60,10 +60,10 @@ function Off(): ReactNode {
   const organization = activeAccount()?.organization ?? null;
   return (
     <Col gap={12}>
-      <Text size="2xs" role="secondary">{OFF}</Text>
+      <Text size="md" role="secondary">{OFF}</Text>
       {organization === null ? null : (
         <Col gap={8}>
-          <Text size="2xs" role="secondary">{OFF_IDENTITY}</Text>
+          <Text size="md" role="secondary">{OFF_IDENTITY}</Text>
           <CopyBlock label="your organization" value={organization} />
         </Col>
       )}
@@ -123,8 +123,8 @@ function LaunchedView({ launched }: { launched: Launched }): ReactNode {
       <Row justify="center">
         <PageTitle>{`Launching ${launched.server.name ?? launched.host}`}</PageTitle>
       </Row>
-      <Text size="2xs" role="secondary">
-        {`It installs everything on first boot, joins the tailnet as ${launched.node}, and is already in your agent list. Open it once it is live to create the agent.`}
+      <Text size="md" role="secondary">
+        {`It sets itself up and joins the tailnet as ${launched.node}. Open it from your list once it is live to create the agent.`}
       </Text>
       <LaunchProgress launched={launched} />
     </Col>
@@ -138,7 +138,7 @@ function PictureChoice({ form }: { form: ReturnType<typeof useLaunchForm> }): Re
       <AgentAvatar seed={form.name.trim() === '' ? 'new agent' : form.name.trim()} src={form.avatar} size={PICTURE} />
       <Button size="md" color="secondary" dark={dark} label={form.avatar === null ? 'Choose a picture' : 'Change'} disabled={form.busy || form.picker.busy} onPress={form.picker.pick} />
       {form.avatar === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove" disabled={form.busy} onPress={form.picker.remove} />}
-      {form.picker.error === null ? null : <Text size="2xs" role="danger">{form.picker.error}</Text>}
+      {form.picker.error === null ? null : <Text size="md" role="danger">{form.picker.error}</Text>}
     </Row>
   );
 }
@@ -152,7 +152,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
       <Row justify="center">
         <PageTitle>Have Metro issue an agent</PageTitle>
       </Row>
-      <Text size="2xs" role="secondary">{HINT}</Text>
+      <Text size="md" role="secondary">{HINT}</Text>
       <Col gap={10}>
         <PictureChoice form={form} />
         <Col gap={4}>
@@ -170,9 +170,9 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
         </Col>
         <RegionChoice regions={launchRegions(overview.regions)} value={form.region} disabled={form.busy} onPick={form.setRegion} />
       </Col>
-      {form.error === null ? null : <Text size="2xs" role="danger">{form.error}</Text>}
+      {form.error === null ? null : <Text size="md" role="danger">{form.error}</Text>}
       <Row justify="between" align="center" gap={12} wrap>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           <TextLink to={routeHash({ kind: 'servers' })}>Back to your agents</TextLink>
         </Text>
         <Button size="lg"
@@ -190,7 +190,7 @@ function LaunchForm({ overview }: { overview: LaunchOverview }): ReactNode {
 
 function Body(): ReactNode {
   const { data, error } = useLaunchOverviewQuery();
-  if (error !== null) return <Text size="2xs" role="danger">{queryError(error, OFF)}</Text>;
+  if (error !== null) return <Text size="md" role="danger">{queryError(error, OFF)}</Text>;
   if (data === undefined) return <Loading />;
   if (!data.enabled) return <Off />;
   return <LaunchForm overview={data} />;

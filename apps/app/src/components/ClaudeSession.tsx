@@ -12,7 +12,7 @@ import { queryError, refresh, useClaudeSessionQuery } from '../lib/queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
 
-const AUTOSTART = 'Starts the agent by itself when the server starts. Stop cancels active work and turns this off. Start runs the agent and enables automatic starts again.';
+const AUTOSTART = 'Starts the agent when the server starts. Stop cancels work and turns this off. Start turns it back on.';
 const CLOCK_MS = 1_000;
 
 type Send = (input: { action?: 'start' | 'stop'; autostart?: boolean }) => void;
@@ -55,11 +55,11 @@ function Rows({ status, project, live }: { status: ClaudeSessionStatus; project:
         ) : (
           <Button size="md" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
         )}
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </SettingsSection>
       {status.running && status.runner !== null ? (
         <SettingsSection title="Running runner">
-          <Text size="2xs" role="secondary">{status.runner === 'sdk' ? 'Agent SDK' : 'Claude Code'}</Text>
+          <Text size="md" role="secondary">{status.runner === 'sdk' ? 'Agent SDK' : 'Claude Code'}</Text>
         </SettingsSection>
       ) : null}
       <RunnerActivity status={status} now={now} live={live} />

@@ -53,7 +53,7 @@ export function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow
         <Text size="md" weight="semibold" role="link" numberOfLines={1}>
           {niceName(row)}
         </Text>
-        <Text size="2xs" role="secondary" numberOfLines={1}>
+        <Text size="md" role="secondary" numberOfLines={1}>
           {rowDetail(row)}
         </Text>
       </Col>
@@ -65,7 +65,7 @@ export function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow
 function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; typed: PickRow | null; connections: ConnectionRow[]; busy: boolean; onPick: (row: PickRow) => void }): ReactNode {
   if (rows.length === 0 && typed === null)
     return (
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         No model matches your search.
       </Text>
     );
@@ -80,7 +80,7 @@ function Groups({ rows, typed, connections, busy, onPick }: { rows: PickRow[]; t
             <Col key={c.id}>
               <Row align="center" gap={8} padding={{ y: 6 }}>
                 <ProviderLogo provider={PROVIDERS.find((p) => p.id === c.provider)} size={LOGO} />
-                <Text size="2xs" role="secondary">
+                <Text size="md" role="secondary">
                   {c.label}
                 </Text>
               </Row>
@@ -158,11 +158,11 @@ export function ModelPickerModal({ open, settings, scope, title, isCurrent, onPi
     <Modal title={titleOf(scope, title)} open={open} onClose={onClose}>
       <Col gap={12}>
         <FormField label="Search models" name="model-search" value={query} placeholder="Search models" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoFocus: true, autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
-        {lists.loading && rows.length === 0 ? <Text size="2xs" role="secondary">Loading models…</Text> : null}
+        {lists.loading && rows.length === 0 ? <Text size="md" role="secondary">Loading models…</Text> : null}
         {lists.errors.map((e) => (
-          <Text key={e} size="2xs" role="danger">{e}</Text>
+          <Text key={e} size="md" role="danger">{e}</Text>
         ))}
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Groups rows={rows} typed={typed} connections={settings.connections} busy={busy} onPick={pick} />
       </Col>
     </Modal>

@@ -37,7 +37,7 @@ interface AttachSessionProps {
 
 function Waiting({ label }: { label: string }): ReactNode {
   return (
-    <Text size="2xs" role="secondary">
+    <Text size="md" role="secondary">
       {label}
     </Text>
   );
@@ -245,25 +245,25 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
           <Text size="sm" weight="medium">
             Connecting {stationLabel(session.station)}
           </Text>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             {session.prompt}
           </Text>
         </Col>
         <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
         {session.status === 'failed' ? (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {session.error ?? 'That sign-in failed.'}
           </Text>
         ) : null}
         {error !== null ? (
-          <Text size="2xs" role="danger">
+          <Text size="md" role="danger">
             {error}
           </Text>
         ) : null}
         <Row justify="between" align="center" gap={12} wrap>
-          <Text size="2xs" role="secondary">
-            Nothing is stored until the sign-in completes. Metro drops an
-            unfinished sign-in after a few minutes.
+          <Text size="md" role="secondary">
+            Nothing is saved until you finish signing in. An unfinished
+            sign-in expires after a few minutes.
           </Text>
           <Button
             size="md"

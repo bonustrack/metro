@@ -57,13 +57,13 @@ function confirmLines(view: Growable, sizeGib: number): string[] {
   const price = view.gbMonthUsd === null ? [] : [`AWS bills about ${monthlyDisk(sizeGib, view.gbMonthUsd)} for it, ${monthlyDisk(view.sizeGib, view.gbMonthUsd)} now.`];
   const restart =
     view.state === 'running'
-      ? 'Then the server restarts once to use the new space. Your agent is offline for about a minute and its Claude session restarts.'
+      ? 'Then the server restarts once to use it. Your agent is offline about a minute and its session restarts.'
       : 'The server is stopped, so it uses the new space when it starts.';
   return [
-    `AWS grows the disk from ${String(view.sizeGib)} to ${String(sizeGib)} GB. This cannot be undone: a disk never shrinks back.`,
+    `AWS grows the disk from ${String(view.sizeGib)} to ${String(sizeGib)} GB. This cannot be undone.`,
     restart,
     ...price,
-    'AWS takes the next change only once this one is fully done, which can take a few hours.',
+    'The next change waits until this one is done, which can take a few hours.',
   ];
 }
 
@@ -71,7 +71,7 @@ function Notice({ text, danger = false }: { text: string; danger?: boolean }): R
   return (
     <SettingsGroup title={TITLE}>
       <SettingsPad>
-        <Text size="2xs" role={danger ? 'danger' : 'secondary'}>
+        <Text size="md" role={danger ? 'danger' : 'secondary'}>
           {text}
         </Text>
       </SettingsPad>
@@ -84,7 +84,7 @@ function JobRow({ job }: { job: GrowJob }): ReactNode {
   const running = growRunning(job);
   return (
     <SettingsSection title={running ? 'Growing' : 'Last change'} leading={running ? <Spinner color={palette.link} /> : undefined}>
-      <Text size="2xs" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
+      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
         {growText(job)}
       </Text>
     </SettingsSection>
@@ -96,7 +96,7 @@ function Controls({ view, onPick }: { view: Growable; onPick: (sizeGib: number) 
   if (activeAccount()?.role !== 'admin') return <SettingsSection title={GROW_TITLE} note={MEMBER_NOTE}>{null}</SettingsSection>;
   if (applying(view.modification)) {
     const progress = view.modification?.progress ?? 0;
-    return <SettingsSection title={GROW_TITLE} note={`AWS is still applying the last change (${String(progress)}%). The disk can grow again once it is done.`}>{null}</SettingsSection>;
+    return <SettingsSection title={GROW_TITLE} note={`AWS is still applying the last change (${String(progress)}%). You can grow it again after.`}>{null}</SettingsSection>;
   }
   if (view.state !== 'running' && view.state !== 'stopped') return <SettingsSection title={GROW_TITLE} note={WAIT_NOTE}>{null}</SettingsSection>;
   if (view.options.length === 0) return <SettingsSection title={GROW_TITLE} note={NO_BIGGER}>{null}</SettingsSection>;

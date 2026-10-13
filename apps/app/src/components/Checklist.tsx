@@ -40,7 +40,7 @@ function StepRow({ step, first }: { step: Step; first: boolean }): ReactNode {
         <Text size="xs" weight="medium">
           {step.title}
         </Text>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {step.hint}
         </Text>
       </Col>
@@ -81,7 +81,7 @@ export function Checklist({ name, project, channels, connectors }: ChecklistProp
         <Text size="md" weight="semibold">
           {`Get ${name} ready`}
         </Text>
-        <Text size="2xs" role="secondary">
+        <Text size="md" role="secondary">
           {`${String(steps.length - left)} of ${String(steps.length)} done`}
         </Text>
       </Row>

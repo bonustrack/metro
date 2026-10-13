@@ -10,9 +10,9 @@ import type { Server } from './servers.js';
 import { olderThan } from './version.js';
 
 export const CONNECTOR_SYNC_SINCE = '0.1.0-beta.289';
-export const CONNECTOR_SYNC_UPDATE = 'Update this agent to a Metro version that supports connector sync controls, then refresh status.';
-const CHANGED = 'The account, agent or enrollment changed. Refresh this page before changing sync.';
-const SAVE_FAILED = 'The sync change could not be confirmed. It may have reached the agent. Refresh status before trying again.';
+export const CONNECTOR_SYNC_UPDATE = 'Update this agent’s Metro to manage connector sync, then refresh status.';
+const CHANGED = 'The account, agent or enrollment changed. Refresh this page first.';
+const SAVE_FAILED = 'The sync change could not be confirmed and may have reached the agent. Refresh status first.';
 
 export interface ConnectorSync {
   read: () => Promise<ConnectorSyncStatus>;
@@ -59,7 +59,7 @@ function safeError(error: unknown, saving: boolean): Error {
 
 function checkMode(body: unknown, organization: string): void {
   const mode = toMode(body);
-  if (mode === null || mode.stopped) throw new SyncError('Start Metro on this agent before managing connector sync.');
+  if (mode === null || mode.stopped) throw new SyncError('Start Metro on this agent first.');
   if (olderThan(mode.version, CONNECTOR_SYNC_SINCE)) throw new SyncError(CONNECTOR_SYNC_UPDATE);
   if (mode.owner !== organization) throw new SyncError(CHANGED);
 }
@@ -67,7 +67,7 @@ function checkMode(body: unknown, organization: string): void {
 function saveBody(status: ConnectorSyncStatus | null, enabled: boolean) {
   if (status === null) throw new SyncError('Refresh status before changing connector sync.');
   if (enabled && !status.enrolled) throw new SyncError('Enroll this agent with the organization before enabling sync.');
-  if (enabled && status.liveEnabled) throw new SyncError('Live organization tools are controlled elsewhere. Turn them off there before enabling sync here.');
+  if (enabled && status.liveEnabled) throw new SyncError('Live organization tools are on in the server environment. Turn them off before turning on sync.');
   return { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled, scope: status.scope }) };
 }
 

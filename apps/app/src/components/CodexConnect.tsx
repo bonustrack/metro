@@ -30,8 +30,8 @@ const START_FAILED = 'Could not start the ChatGPT sign-in.';
 const LEAVE_NOTE = "After you sign in, ChatGPT opens a 127.0.0.1 page that will not load. That is normal: copy that page's whole address and paste it here.";
 const PASTE_HINT = 'Metro finishes the sign-in as soon as you paste the address.';
 const CODE_NOTE = "Uses the Codex app's sign-in (not in OpenAI's docs for other apps).";
-const PLAN_NOTE = 'Not connected. It needs ChatGPT Plus or Pro, and requests then use your ChatGPT plan.';
-const SIGN_IN_AGAIN = 'Not signed in. Sign in again with one of the options below. Your model and fallbacks stay.';
+const PLAN_NOTE = 'Not connected. Needs ChatGPT Plus or Pro, and uses that plan.';
+const SIGN_IN_AGAIN = 'Not signed in. Sign in again below. Your model and fallbacks stay.';
 const HOW: Record<CodexMethod, string> = { chatgpt: 'with ChatGPT', code: 'with a code' };
 
 function useDevicePolling(login: DeviceLogin | null, id: string, settle: (error: string | null) => void): void {
@@ -71,7 +71,7 @@ function ChatgptFlow({ color, id }: { color: Color; id: string }): ReactNode {
       <SignInLink link={link} label={SIGN_IN_LINK}>
         <Button size="md" color={color} dark={dark} label="Continue with ChatGPT" loading={starting} disabled={starting} onPress={start} />
       </SignInLink>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {LEAVE_NOTE}
       </Text>
       {started === null ? null : (
@@ -83,7 +83,7 @@ function ChatgptFlow({ color, id }: { color: Color; id: string }): ReactNode {
           finish={(pasted) => finishCodexLogin(pasted, id)}
         />
       )}
-      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -97,19 +97,19 @@ function CodeFlow({ id }: { id: string }): ReactNode {
       <SignInLink link={link} label={SIGN_IN_LINK}>
         <Button size="md" color="secondary" dark={dark} label="Sign in with a code" loading={starting} disabled={starting || login !== null} onPress={start} />
       </SignInLink>
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {CODE_NOTE}
       </Text>
       {login !== null ? (
         <Col gap={4}>
-          <Text size="2xs">Enter this code on the ChatGPT page that opened:</Text>
+          <Text size="md">Enter this code on the ChatGPT page that opened:</Text>
           <Text size="xs">{login.userCode}</Text>
-          <Text size="2xs" role="secondary">
+          <Text size="md" role="secondary">
             Waiting for ChatGPT to confirm. This page finishes on its own.
           </Text>
         </Col>
       ) : null}
-      {error !== null ? <Text size="2xs" role="danger">{error}</Text> : null}
+      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
     </Col>
   );
 }
@@ -118,7 +118,7 @@ function CodeOption({ id }: { id: string }): ReactNode {
   const mode = useModeQuery();
   if (olderThan(mode.data?.version ?? null, CODEX_CODE_SINCE))
     return (
-      <Text size="2xs" role="secondary">
+      <Text size="md" role="secondary">
         {`Sign in with a code needs metro ${CODEX_CODE_SINCE}. Update first, from the Server page.`}
       </Text>
     );
@@ -140,12 +140,12 @@ export function CodexConnect({ codex }: { codex: ConnectionRow | null }): ReactN
       <FieldLabel>ChatGPT account</FieldLabel>
       {codex?.signedIn === true ? (
         <SignedInAs connection={codex} how={codex.method === null ? '' : HOW[codex.method]}>
-          <TextLink size="2xs" url={CHATGPT_USAGE_URL}>Manage usage in ChatGPT</TextLink>
+          <TextLink size="md" url={CHATGPT_USAGE_URL}>Manage usage in ChatGPT</TextLink>
           <SignInOptions color="secondary" id={codex.id} />
         </SignedInAs>
       ) : (
         <Col gap={10}>
-          <Text size="2xs" role={codex === null ? 'secondary' : 'danger'}>
+          <Text size="md" role={codex === null ? 'secondary' : 'danger'}>
             {codex === null ? PLAN_NOTE : SIGN_IN_AGAIN}
           </Text>
           <SignInOptions color="primary" id={codex?.id ?? ''} />

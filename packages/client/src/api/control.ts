@@ -30,7 +30,7 @@ export async function startDaemon(base = daemonBase()): Promise<void> {
   try {
     res = await fetch(`${base}/api/start`, { method: 'POST' });
   } catch {
-    throw new Error(`No Metro daemon answered at ${daemonHost(base)}. Is metro serve running there?`);
+    throw new Error(`Metro did not answer at ${daemonHost(base)}. Is metro serve running there?`);
   }
   if (res.ok) return;
   const body: unknown = await res.json().catch(() => null);

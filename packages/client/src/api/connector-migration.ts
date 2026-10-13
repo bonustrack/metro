@@ -35,10 +35,10 @@ export interface MigrationPlan {
   organizationChecked: boolean;
 }
 
-export const MIGRATION_RESOURCE_UPDATE = 'Update this agent before supplying a public OAuth resource. Older Metro migration uses its original OAuth discovery rules.';
-export const MIGRATION_UPDATE = 'Update this agent to a Metro version that supports connector migration, then open this dialog again.';
+export const MIGRATION_RESOURCE_UPDATE = 'Update this agent before supplying a public OAuth resource.';
+export const MIGRATION_UPDATE = 'Update this agent to move connectors, then open this again.';
 const ISSUES: readonly MigrationIssue[] = ['invalid_config', 'unsupported_url', 'custom_policy', 'oauth_sign_in', 'header_reentry', 'unused_oauth_client', 'oauth_private_resource', 'oauth_unsupported'];
-const unexpected = (): Error => new Error('The agent returned an invalid migration preview. Refresh before continuing.');
+const unexpected = (): Error => new Error('The agent sent an invalid migration preview. Refresh to go on.');
 const access = (value: unknown): value is Access => ACCESS_CHOICES.some((item) => item === value);
 const nullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
 

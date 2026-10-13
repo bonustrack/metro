@@ -31,11 +31,11 @@ describe('switching and observing a session', () => {
 
   test('explains the explicit stop and start and the separate saved conversations', () => {
     const note = runnerNote(answer({ runnerAllowed: true }));
-    expect(note).toContain('finish active work, press Stop, choose a runner, then press Start');
+    expect(note).toContain('let work finish, press Stop, pick a runner, then Start');
     expect(note).toContain('Each runner keeps its own saved conversation');
     expect(note).toContain('Chats from one runner are not copied to the other');
     expect(note).toContain('Voice calls remain separate');
-    expect(note).toContain('it does not wait for work to finish');
+    expect(note).toContain('Stop cancels work at once');
     expect(OPERATOR_NOTE).toContain('let active work and queued messages finish, then Stop');
     expect(OPERATOR_NOTE).toContain('stays stopped until Start');
   });

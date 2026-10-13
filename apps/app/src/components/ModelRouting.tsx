@@ -16,10 +16,10 @@ import type { MenuItem } from './Dropdown.js';
 import { holdLine, PROVIDERS, type ModelSettings } from '@metro-labs/client/api/model';
 import type { Slot } from '@metro-labs/client/api/route-edit';
 
-const NOTE = 'Uses the first available model. Switches above 95% usage and returns when the limit resets. Tap a model to edit.';
+const NOTE = 'Uses the first model under 95% usage, and goes back when limits reset. Tap a model to edit.';
 const OLD = 'Update Metro to add fallback models.';
 const NONE = 'No fallback yet. Add one so the agent keeps working when its model runs out.';
-const MARK = 22;
+const MARK = 24;
 
 export interface RouteActions {
   edit: (slot: Slot) => void;
@@ -33,7 +33,7 @@ function Mark({ n, active }: { n: number; active: boolean }): ReactNode {
   const style = { width: MARK, height: MARK, borderRadius: MARK / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? palette.text : palette.border } as const;
   return (
     <View style={style}>
-      <Text size="4xs" weight="semibold" color={active ? palette.bg : palette.link}>{String(n)}</Text>
+      <Text size="md" weight="semibold" color={active ? palette.bg : palette.link}>{String(n)}</Text>
     </View>
   );
 }
@@ -75,7 +75,7 @@ function RouteRow({ item, n, last, busy, actions }: { item: ModelOrderItem; n: n
       detail={noteOf(item)}
       below={(
         <Col gap={4}>
-          <Text size="2xs" role="secondary" numberOfLines={1}>{account}</Text>
+          <Text size="md" role="secondary" numberOfLines={1}>{account}</Text>
           <CardUsage usage={item.usage} provider={item.connection?.provider ?? 'anthropic'} model={item.model} />
         </Col>
       )}
@@ -100,16 +100,16 @@ export function ModelRouting({ settings, busy, actions }: { settings: ModelSetti
       ))}
       {settings.reason === null ? null : (
         <SettingsPad>
-          <Text size="2xs" role="danger">{settings.reason}</Text>
+          <Text size="md" role="danger">{settings.reason}</Text>
         </SettingsPad>
       )}
       {settings.fallbacks === null ? (
         <SettingsPad>
-          <Text size="2xs" role="secondary">{OLD}</Text>
+          <Text size="md" role="secondary">{OLD}</Text>
         </SettingsPad>
       ) : settings.fallbacks.length === 0 && settings.connections.length > 0 ? (
         <SettingsPad>
-          <Text size="2xs" role="secondary">{NONE}</Text>
+          <Text size="md" role="secondary">{NONE}</Text>
         </SettingsPad>
       ) : null}
     </SettingsGroup>

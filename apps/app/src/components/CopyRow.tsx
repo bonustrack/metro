@@ -33,7 +33,7 @@ export function CopyRow({ title, note, value, secret = false }: { title: string;
         ) : null}
         <Button size="md" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
       </Row>
-      <Text size="2xs" role="secondary" numberOfLines={1} selectable={shown}>
+      <Text size="md" role="secondary" numberOfLines={1} selectable={shown}>
         {shown ? value : MASK}
       </Text>
     </SettingsSection>

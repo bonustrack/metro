@@ -1,17 +1,17 @@
 import type { ClaudeSessionStatus, ClaudeSetup } from './claude-box.js';
 
 const RUNNER_NOTE =
-  'Each runner keeps its own saved conversation. First use may start a new one. Chats from one runner are not copied to the other. Voice calls remain separate. To switch, finish active work, press Stop, choose a runner, then press Start. Stop cancels the session and its workers; it does not wait for work to finish.';
-const MODEL_LIST = 'The AI your agent thinks with: an ordered list of models, and the connections they run on.';
-const MODEL_RESTARTS = `${MODEL_LIST} Changing the first model restarts the agent, which takes a few seconds.`;
-const MODEL_LIVE = `${MODEL_LIST} The agent cannot pick another model itself, and changing the first model applies at once, with no restart.`;
+  'Each runner keeps its own saved conversation. Chats from one runner are not copied to the other. Voice calls remain separate. To switch, let work finish, press Stop, pick a runner, then Start. Stop cancels work at once.';
+const MODEL_LIST = 'The models your agent uses, in order, and the connections they run on.';
+const MODEL_RESTARTS = `${MODEL_LIST} Changing the first one restarts the agent for a few seconds.`;
+const MODEL_LIVE = `${MODEL_LIST} The agent cannot pick another model, and changing the first one applies at once, with no restart.`;
 const NEEDS_KEY =
-  'Agent SDK needs an API key or a ChatGPT sign-in on every model of the Model page, the first one and each fallback: Anthropic with an API key, Amazon Bedrock, OpenRouter, or a signed-in Codex connection (with ChatGPT or with a code). Anthropic does not allow products built on the Agent SDK to use a Claude login.';
-const KEYS_ONLY = 'Every model in the list needs an API key or a ChatGPT sign-in. A change to an unallowed model is refused while the Agent SDK is running. When stopped, it stays selected but cannot start until all models are allowed.';
+  'Agent SDK needs an API key or a ChatGPT sign-in on the first model and each fallback: Anthropic with an API key, Amazon Bedrock, OpenRouter, or a signed-in Codex connection (with ChatGPT or with a code). Anthropic does not allow a Claude login here.';
+const KEYS_ONLY = 'Every model in the list needs an API key or a ChatGPT sign-in. Other models are refused while the Agent SDK is running. When stopped, it stays selected but cannot start.';
 const ON_LOGIN = "The Metro operator allows the Agent SDK on this server's Claude login.";
 
 export const OPERATOR_NOTE =
-  'Only the Metro operator sees and changes this. Anthropic asks products built on the Agent SDK to use an API key, so allow the Claude login only on your own servers. If taking it back requires Claude Code, let active work and queued messages finish, then Stop. It switches to Claude Code and stays stopped until Start.';
+  'Only the Metro operator sees this. Anthropic asks Agent SDK products to use an API key, so allow it only on your own servers. Taking it back moves the agent to Claude Code: let active work and queued messages finish, then Stop. It stays stopped until Start.';
 
 const ACTIVITY_STALE_MS = 30_000;
 

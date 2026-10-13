@@ -40,7 +40,7 @@ export interface StationForm {
 export const STATION_FORMS: Record<string, StationForm> = {
   'discord-bot': {
     label: 'Discord bot',
-    hint: 'Paste the bot token from the Discord developer portal. Message Content must be enabled under Privileged Gateway Intents.',
+    hint: 'Paste the bot token from the Discord developer portal. Turn on Message Content under Privileged Gateway Intents.',
     links: [
       {
         text: 'Discord developer portal',
@@ -75,7 +75,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   threema: {
     label: 'Threema',
-    hint: 'A Gateway ID in end-to-end mode: the private key stays on this machine. Create the ID at gateway.threema.ch, download its key file, and paste the three values here. Messages cost Gateway credits.',
+    hint: 'Create an end-to-end Gateway ID at gateway.threema.ch and paste its three values. The private key stays here. Messages cost Gateway credits.',
     links: [{ text: 'gateway.threema.ch', href: 'https://gateway.threema.ch/' }],
     interactive: false,
     fields: [
@@ -104,13 +104,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   xmtp: {
     label: 'XMTP',
-    hint: 'Metro generates a fresh XMTP identity for this agent. The private key is shown once and never again.',
+    hint: 'Metro makes a new XMTP identity for this agent. Its private key is shown only once.',
     interactive: false,
     fields: [],
   },
   'telegram': {
     label: 'Telegram',
-    hint: 'Signs in as a real Telegram user. Get an api id and hash at my.telegram.org, then Telegram sends a login code. A full-account credential with ban risk, so use a dedicated number.',
+    hint: 'Signs in as a real Telegram user with an api id and hash from my.telegram.org. Full account access with ban risk, so use a separate number.',
     links: [{ text: 'my.telegram.org', href: 'https://my.telegram.org/apps' }],
     interactive: true,
     fields: [
@@ -139,7 +139,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
   outlook: {
     label: 'Outlook',
-    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. You sign in with Microsoft in a new tab. The agent reads new mail, searches it and answers in the same thread.',
+    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. Sign in with Microsoft in a new tab. The agent reads, searches and answers mail.',
     interactive: true,
     provider: 'Microsoft',
     codeFallback: true,
@@ -151,13 +151,13 @@ export const STATION_FORMS: Record<string, StationForm> = {
         secret: false,
         kind: 'text',
         optional: true,
-        hint: 'Type the mailbox to connect, and Metro refuses any other account.',
+        hint: 'If set, Metro refuses any other account.',
       },
     ],
   },
   gmail: {
     label: 'Gmail',
-    hint: 'Connects a Gmail or Google Workspace mailbox through your own Google OAuth client. You sign in with Google in a new tab. The agent reads new mail, searches it and answers in the same thread.',
+    hint: 'Connects a Gmail or Google Workspace mailbox with your own Google OAuth client. Sign in with Google in a new tab. The agent reads, searches and answers mail.',
     links: [{ text: 'How to set up the Google client', href: 'https://github.com/bonustrack/metro/blob/main/docs/GMAIL.md' }],
     interactive: true,
     provider: 'Google',
@@ -171,19 +171,19 @@ export const STATION_FORMS: Record<string, StationForm> = {
         secret: false,
         kind: 'text',
         optional: true,
-        hint: 'Type the mailbox to connect, and Metro refuses any other account.',
+        hint: 'If set, Metro refuses any other account.',
       },
     ],
   },
   webhook: {
     label: 'Webhook',
-    hint: 'Metro mints a URL to POST events to. The whole URL is the credential, so treat it like a password. Inbound only: the agent receives events and cannot reply.',
+    hint: 'Metro makes a URL to POST events to. Keep it private: the URL is the password. Inbound only, the agent cannot reply.',
     interactive: false,
     fields: [],
   },
   whatsapp: {
     label: 'WhatsApp',
-    hint: 'Links Metro as a companion device on a real WhatsApp account. Pair with a code, or leave the number blank to scan a QR. Ban risk, so use a dedicated number.',
+    hint: 'Links Metro as a device on a real WhatsApp account. Pair with a code, or leave the number blank to scan a QR. Ban risk, so use a separate number.',
     interactive: true,
     fields: [
       {

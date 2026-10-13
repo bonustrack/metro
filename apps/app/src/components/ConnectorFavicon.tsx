@@ -44,7 +44,7 @@ export function ConnectorFavicon({ name, url, size, radius = Math.round(size / 4
   return (
     <View style={tile}>
       {blank ? (
-        <Text size={size >= 28 ? '2xs' : '3xs'} weight="semibold" role="secondary">
+        <Text size="md" weight="semibold" role="secondary">
           {(name.trim()[0] ?? '?').toUpperCase()}
         </Text>
       ) : (

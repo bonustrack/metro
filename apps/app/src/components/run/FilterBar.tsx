@@ -52,10 +52,10 @@ export function RunFiltersBar({ entries, filters, onChange, more, onMore, minute
     </Row>
     {more && <Col gap={12}>
       <Row gap={8} wrap>{DIMENSIONS.filter((key) => narrow || !['station', 'channel', 'time'].includes(key)).map(menu)}</Row>
-      <Text size="2xs" role="secondary">Filters combine. Metro messages have no verified worker link.</Text>
+      <Text size="md" role="secondary">Filters combine. Messages are not linked to workers.</Text>
     </Col>}
     {count > 0 && <Row gap={12} align="center" wrap>
-      <Text size="2xs" role="secondary">{minute === null ? '' : `${stamp(minute)} · `}{count} active {count === 1 ? 'filter' : 'filters'}</Text>
+      <Text size="md" role="secondary">{minute === null ? '' : `${stamp(minute)} · `}{count} active {count === 1 ? 'filter' : 'filters'}</Text>
       <Button dark={dark} color="secondary" label="Clear filters" onPress={onReset} />
     </Row>}
   </Col>;

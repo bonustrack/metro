@@ -1,8 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -12,7 +10,8 @@ import { awaitLive, startDaemon } from '@metro-labs/client/api/control';
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import { ListHeader } from './ListHeader.js';
-import { KebabMenu } from './KebabMenu.js';
+import { ListRow } from './ListRow.js';
+import { RowDots } from './RowDots.js';
 import { Loading } from './Loading.js';
 import { Frame } from './Shell.js';
 import { PlainSidebar } from './PlainSidebar.js';
@@ -20,26 +19,12 @@ import { StatusDot } from './StatusDot.js';
 import { BootLog } from './BootLog.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { LatestUsageLine } from './LatestUsage.js';
-import { RouteLink } from './RouteLink.js';
-import { Grid } from './ui/Grid.js';
-import { allSides } from './ui/edges.js';
 import { queryError, refreshServers, refreshServerStatus, useServersQuery, useServerStatus } from '../lib/queries.js';
 import { useBootingState } from '../lib/use-launch.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { go } from '../lib/nav.js';
-import { ABSOLUTE_FILL, SHRINK } from '../lib/style.js';
+import { useIsNarrow } from '../lib/media.js';
 
-const LIST_WIDTH = 880;
-const CARD_AVATAR = 44;
-const CARD_MIN = 240;
-const CARD_HEIGHT = 176;
-const HOW = 'Each agent runs on its own server. Open one to manage its channels, memory and settings.';
-
-const styles = StyleSheet.create({
-  card: { position: 'relative', minHeight: CARD_HEIGHT, borderRadius: BLOCK_RADIUS_DEFAULT },
-  cover: { ...ABSOLUTE_FILL, borderRadius: BLOCK_RADIUS_DEFAULT },
-  dashed: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed' },
-});
 
 function StatusText({ server }: { server: Server }): ReactNode {
   const { data } = useServerStatus(server.host);
@@ -75,7 +60,7 @@ function StartButton({ host }: { host: string }): ReactNode {
   return (
     <Row gap={8} align="center">
       {error !== null ? (
-        <Text size="2xs" role="danger" numberOfLines={1}>
+        <Text size="md" role="danger" numberOfLines={1}>
           {error}
         </Text>
       ) : null}
@@ -84,65 +69,40 @@ function StartButton({ host }: { host: string }): ReactNode {
   );
 }
 
-function AgentCard({ server, onRemove, onBootLog }: { server: Server; onRemove: () => void; onBootLog: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const launched = server.instanceId !== null;
-  const hover = { backgroundColor: palette.inputBg };
-  return (
-    <View style={styles.card}>
-      <RouteLink to={routeHash({ kind: 'home', project: server.id })} label={`Open ${serverLabel(server)}`} style={styles.cover} hoverStyle={hover}>
-        {null}
-      </RouteLink>
-      <Col pointerEvents="box-none" gap={14} padding={16} flex={1} radius={BLOCK_RADIUS_DEFAULT} border={allSides(palette.border)}>
-        <Row pointerEvents="box-none" justify="between" align="start" gap={8}>
-          <View pointerEvents="none">
-            <AgentAvatar seed={server.host} src={server.avatar} size={CARD_AVATAR} />
-          </View>
-          <KebabMenu label={`Agent menu for ${serverLabel(server)}`} items={[...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []), { label: 'Remove', danger: true, onSelect: onRemove }]} />
-        </Row>
-        <Col pointerEvents="none" gap={2} flex={1}>
-          <Row gap={8} align="center">
-            <StatusDot host={server.host} />
-            <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
-              {serverLabel(server)}
-            </Text>
-          </Row>
-          <Text size="2xs" role="secondary" numberOfLines={1}>
-            {server.host}
-          </Text>
-          <LatestUsageLine serverId={server.id} />
-        </Col>
-        <Row pointerEvents="box-none" gap={8} align="center" wrap>
-          <View pointerEvents="none">
-            <StatusText server={server} />
-          </View>
-          <StartButton host={server.host} />
-        </Row>
-      </Col>
-    </View>
-  );
-}
+const AVATAR = 32;
 
-function NewAgentCard(): ReactNode {
-  const palette = useKitPalette();
-  const hover = { backgroundColor: palette.inputBg };
-  const frame = [styles.card, styles.dashed, { borderColor: palette.border }];
+function AgentRow({ server, narrow, onRemove, onBootLog }: { server: Server; narrow: boolean; onRemove: () => void; onBootLog: () => void }): ReactNode {
+  const launched = server.instanceId !== null;
+  const items = [...(launched ? [{ label: 'Boot log', onSelect: onBootLog }] : []), { label: 'Remove', danger: true, onSelect: onRemove }];
   return (
-    <RouteLink to={routeHash({ kind: 'launch' })} label="New agent" style={frame} hoverStyle={hover}>
-      <Text size="xs" weight="medium" role="secondary">
-        + New agent
-      </Text>
-    </RouteLink>
+    <ListRow
+      title={serverLabel(server)}
+      label={`Open ${serverLabel(server)}`}
+      detail={server.host}
+      href={routeHash({ kind: 'home', project: server.id })}
+      highlight={false}
+      icon={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR} />}
+      extra={<StatusDot host={server.host} />}
+      trailing={
+        <Row gap={12} align="center">
+          {narrow ? null : <LatestUsageLine serverId={server.id} />}
+          <StatusText server={server} />
+          <StartButton host={server.host} />
+          <RowDots items={items} label={`Agent menu for ${serverLabel(server)}`} />
+        </Row>
+      }
+    />
   );
 }
 
 function ServerList({ servers, onBootLog }: { servers: Server[]; onBootLog: (s: Server) => void }): ReactNode {
   const client = useQueryClient();
+  const narrow = useIsNarrow();
   const [failed, setFailed] = useState<string | null>(null);
   if (servers.length === 0)
     return (
-      <Text size="2xs" role="secondary">
-        No agents yet. Add the address your daemon printed at start-up.
+      <Text size="md" role="secondary">
+        No agents yet. Add the address Metro printed when it started.
       </Text>
     );
   const remove = (server: Server): void => {
@@ -159,15 +119,16 @@ function ServerList({ servers, onBootLog }: { servers: Server[]; onBootLog: (s: 
   return (
     <>
       {failed === null ? null : (
-        <Text size="2xs" role="danger">
+        <Text size="md" role="danger">
           {failed}
         </Text>
       )}
-      <Grid min={CARD_MIN} gap={16}>
+      <Col>
         {servers.map((server) => (
-          <AgentCard
+          <AgentRow
             key={server.id}
             server={server}
+            narrow={narrow}
             onBootLog={() => {
               onBootLog(server);
             }}
@@ -176,8 +137,7 @@ function ServerList({ servers, onBootLog }: { servers: Server[]; onBootLog: (s: 
             }}
           />
         ))}
-        <NewAgentCard />
-      </Grid>
+      </Col>
     </>
   );
 }
@@ -187,7 +147,7 @@ function Body({ onBootLog }: { onBootLog: (s: Server) => void }): ReactNode {
   if (isPending) return <Loading />;
   if (error !== null)
     return (
-      <Text size="2xs" role="danger">
+      <Text size="md" role="danger">
         {queryError(error, 'Could not list your agents.')}
       </Text>
     );
@@ -200,9 +160,10 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
   useDocumentTitle('Agents');
   return (
     <Frame sidebar={(closeMenu) => <PlainSidebar selection={{ kind: 'servers' }} onSelect={closeMenu} />} onLock={onLock}>
-      <Col gap={20} width="100%">
+      <Col gap={12} width="100%">
         <ListHeader
           title="Agents"
+          rule={false}
           action={
             <Button
               color="primary"
@@ -214,12 +175,7 @@ export function Servers({ onLock }: { onLock: () => void }): ReactNode {
             />
           }
         />
-        <Col gap={20} width="100%" maxWidth={LIST_WIDTH}>
-          <Text size="2xs" role="secondary">
-            {HOW}
-          </Text>
-          <Body onBootLog={setLogOf} />
-        </Col>
+        <Body onBootLog={setLogOf} />
         <BootLog
           server={logOf}
           onClose={() => {

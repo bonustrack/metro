@@ -12,13 +12,13 @@ import { useConnectorScope } from '../lib/org-connector-queries.js';
 import { useConnectorSync } from '../lib/connector-sync-query.js';
 import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
 
-const NOTE = 'Receive assigned organization connectors in this agent’s memory. Sync alone does not enable live tools or move local connectors.';
+const NOTE = 'Keeps this agent’s organization connectors in memory. It does not turn on live tools or move local ones.';
 const sourceNote = {
-  saved: 'Saved on this server. This setting overrides its sync environment flag.',
-  environment: 'Using this server’s sync environment flag. Changing this switch saves an override.',
-  default: 'Off by default. Changing this switch saves a setting on this server.',
-  invalid: 'The saved sync setting is invalid, so sync is off. Save a new setting to replace it.',
-  scope_changed: 'The organization or enrollment changed, so the saved sync setting is off. Save again for this identity.',
+  saved: 'Saved on this server. It overrides the environment flag.',
+  environment: 'Set by this server’s environment flag. Changing it saves an override.',
+  default: 'Off by default. Changing it saves a setting on this server.',
+  invalid: 'The saved setting is invalid, so sync is off. Save it again to fix it.',
+  scope_changed: 'The organization or enrollment changed, so sync is off. Save it again.',
 };
 
 function useCurrentStatus(status: ConnectorSyncStatus | undefined): ConnectorSyncStatus | undefined {
@@ -35,18 +35,18 @@ function useCurrentStatus(status: ConnectorSyncStatus | undefined): ConnectorSyn
 
 function ReceiptTimes({ status }: { status: ConnectorSyncStatus }): ReactNode {
   return <>
-    {status.lastReceivedAt === null ? null : <Text size="2xs" role="secondary">{`Last verified receipt: ${new Date(status.lastReceivedAt).toLocaleString()}`}</Text>}
-    {status.state !== 'received' || status.leaseExpiresAt === null ? null : <Text size="2xs" role="secondary">{`Receipt expires: ${new Date(status.leaseExpiresAt).toLocaleString()}`}</Text>}
+    {status.lastReceivedAt === null ? null : <Text size="md" role="secondary">{`Last verified receipt: ${new Date(status.lastReceivedAt).toLocaleString()}`}</Text>}
+    {status.state !== 'received' || status.leaseExpiresAt === null ? null : <Text size="md" role="secondary">{`Receipt expires: ${new Date(status.leaseExpiresAt).toLocaleString()}`}</Text>}
   </>;
 }
 
 function SyncDetails({ status }: { status: ConnectorSyncStatus }): ReactNode {
   return <>
-    <Text size="2xs">{syncReceiptLabel(status)}</Text>
-    {!status.enrolled && status.state !== 'not_enrolled' ? <Text size="2xs" role="secondary">Enroll this agent with the organization before enabling sync.</Text> : null}
-    <Text size="2xs" role="secondary">{sourceNote[status.source]}</Text>
-    <Text size="2xs" role={status.liveEnabled ? 'danger' : 'secondary'}>{status.liveEnabled ? 'The live organization tools flag is enabled in the server environment and controlled elsewhere. This switch does not change that flag. Turn that setting off before enabling sync here.' : 'Live organization tools are off. This switch does not enable them.'}</Text>
-    {status.enrolled ? <Text size="2xs" role="secondary">Enrollment is confirmed locally, not a fresh check with the organization service.</Text> : null}
+    <Text size="md">{syncReceiptLabel(status)}</Text>
+    {!status.enrolled && status.state !== 'not_enrolled' ? <Text size="md" role="secondary">Enroll this agent with the organization before enabling sync.</Text> : null}
+    <Text size="md" role="secondary">{sourceNote[status.source]}</Text>
+    <Text size="md" role={status.liveEnabled ? 'danger' : 'secondary'}>{status.liveEnabled ? 'Live organization tools are on in this server’s environment. Turn that flag off before you turn on sync here.' : 'Live organization tools are off. This switch does not enable them.'}</Text>
+    {status.enrolled ? <Text size="md" role="secondary">Enrollment as this agent saved it, not a live check.</Text> : null}
     <ReceiptTimes status={status} />
   </>;
 }
@@ -58,12 +58,12 @@ function SyncSection({ server, scope }: { server: Server; scope: string }): Reac
   const pending = sync.saving ? 'Saving sync setting…' : 'Checking sync status…';
   return <SettingsGroup title="Organization connectors">
     <SettingsSection title="Sync org connectors" note={NOTE}>
-      {status === undefined ? <Text size="2xs" role="secondary">{sync.busy ? pending : 'Sync status is not available.'}</Text> : <Switch name="Sync org connectors" checked={status.enabled} dark={dark} disabled={!status.enabled && (!status.enrolled || status.liveEnabled)} onChange={sync.save} />}
+      {status === undefined ? <Text size="md" role="secondary">{sync.busy ? pending : 'Sync status is not available.'}</Text> : <Switch name="Sync org connectors" checked={status.enabled} dark={dark} disabled={!status.enabled && (!status.enrolled || status.liveEnabled)} onChange={sync.save} />}
     </SettingsSection>
     <SettingsPad>
       <Col gap={8}>
         {status === undefined ? null : <SyncDetails status={status} />}
-        {sync.error === null ? null : <Text size="2xs" role="danger">{sync.error}</Text>}
+        {sync.error === null ? null : <Text size="md" role="danger">{sync.error}</Text>}
         <Row><Button color="secondary" dark={dark} label="Refresh status" disabled={sync.busy} onPress={sync.refresh} /></Row>
       </Col>
     </SettingsPad>
@@ -74,7 +74,7 @@ export function ConnectorSync({ server }: { server: Server }): ReactNode {
   const account = useConnectorScope();
   const enrollment = useSyncExternalStore(subscribeEnrollmentScope, enrollmentScopeIdentity, enrollmentScopeIdentity);
   if (activeAccount()?.role !== 'admin') return null;
-  if (enrollmentRunning()) return <SettingsGroup title="Organization connectors"><SettingsSection title="Sync org connectors" note={NOTE}><Text size="2xs" role="secondary">Waiting for enrollment to finish…</Text></SettingsSection></SettingsGroup>;
+  if (enrollmentRunning()) return <SettingsGroup title="Organization connectors"><SettingsSection title="Sync org connectors" note={NOTE}><Text size="md" role="secondary">Waiting for enrollment to finish…</Text></SettingsSection></SettingsGroup>;
   const scope = `${String(account)}:${String(enrollment)}:${server.id}:${server.host}`;
   return <SyncSection key={scope} scope={scope} server={server} />;
 }

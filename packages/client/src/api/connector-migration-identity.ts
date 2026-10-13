@@ -3,7 +3,7 @@ import { baseFromSegment, builtInDaemon, currentServer, daemonBase, subscribeCur
 import { ForbiddenError } from './client.js';
 import { enrollmentRunning, enrollmentScopeIdentity, subscribeEnrollmentScope } from './enrollment-scope.js';
 
-export const MIGRATION_CHANGED = 'The account, agent or enrollment changed. Close this dialog and open it again. An in-flight change may have reached the agent; refresh its migration status before continuing.';
+export const MIGRATION_CHANGED = 'The account, agent or enrollment changed. Close this and open it again, then refresh: a change may have reached the agent.';
 
 export interface MigrationIdentity {
   base: string;

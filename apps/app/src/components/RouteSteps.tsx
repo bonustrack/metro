@@ -24,7 +24,7 @@ function Mark({ n, open, done }: { n: number; open: boolean; done: boolean }): R
   const style = { width: MARK, height: MARK, borderRadius: MARK / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: filled ? palette.text : palette.border, backgroundColor: filled ? palette.text : 'transparent' } as const;
   return (
     <View style={style}>
-      {done && !open ? <Icon name="check" size={14} color={palette.bg} /> : <Text size="4xs" weight="semibold" color={filled ? palette.bg : palette.sub}>{String(n)}</Text>}
+      {done && !open ? <Icon name="check" size={14} color={palette.bg} /> : <Text size="md" weight="semibold" color={filled ? palette.bg : palette.sub}>{String(n)}</Text>}
     </View>
   );
 }
@@ -55,9 +55,9 @@ export function Step({ n, title, value, open, done, last = false, locked = false
           <Row align="center" gap={8} minHeight={MARK}>
             <Col flex={1} minWidth={0} gap={2}>
               <Text size="xs" weight="medium">{title}</Text>
-              {open ? null : <Text size="2xs" role="secondary" numberOfLines={1}>{value}</Text>}
+              {open ? null : <Text size="md" role="secondary" numberOfLines={1}>{value}</Text>}
             </Col>
-            {open || locked ? null : <Text size="2xs" role="link">Change</Text>}
+            {open || locked ? null : <Text size="md" role="link">Change</Text>}
           </Row>
         </Pressable>
         {open ? children : null}
@@ -85,7 +85,7 @@ function ConnectionOption({ conn, settings, on, onPick }: { conn: ConnectionRow;
         <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn.provider)} size={LOGO} />
         <Col flex={1} minWidth={0} gap={2}>
           <Text size="xs" weight="medium" numberOfLines={1}>{conn.label}</Text>
-          {note === '' ? null : <Text size="2xs" role="secondary" numberOfLines={1}>{note}</Text>}
+          {note === '' ? null : <Text size="md" role="secondary" numberOfLines={1}>{note}</Text>}
         </Col>
         {compact ? <UsageShort used={mostUsed(settings, conn.id)} /> : <UsageBar used={mostUsed(settings, conn.id)} />}
       </Row>

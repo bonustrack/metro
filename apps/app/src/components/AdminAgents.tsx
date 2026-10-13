@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -22,7 +22,7 @@ import { DeleteDialog } from './DeleteServer.js';
 import { side } from './ui/edges.js';
 import { dateLabel } from './AdminLists.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
-import { Icon } from './Icon.js';
+import { RowDots } from './RowDots.js';
 import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
 import { RouteLink } from './RouteLink.js';
@@ -33,7 +33,7 @@ const MENU_SPACE = StyleSheet.create({ menu: { width: MENU_WIDTH, alignItems: 'f
 
 function Columns(): ReactNode {
   const palette = useKitPalette();
-  const head = (label: string, flex: number): ReactNode => <Col flex={flex} minWidth={0}><Text size="2xs" role="secondary">{label}</Text></Col>;
+  const head = (label: string, flex: number): ReactNode => <Col flex={flex} minWidth={0}><Text size="md" role="secondary">{label}</Text></Col>;
   return <Row gap={24} align="center" padding={{ bottom: 8 }} border={{ bottom: side(palette.border) }}>
     {head('Agent', AGENT_COLUMNS.agent)}
     {head('Status', AGENT_COLUMNS.status)}
@@ -50,23 +50,6 @@ function InventoryMessages({ state }: { state: DashboardState }): ReactNode {
     {loading && organizations === null ? <Loading /> : null}
     {organizations?.length === 0 ? <Text size="sm" role="secondary">No organizations yet.</Text> : null}
   </>;
-}
-
-function releaseText(release: ReturnType<typeof useMetroRelease>, now: number): string {
-  const data = release.data;
-  if (data === undefined) return release.isError ? 'Could not check the latest Metro release' : 'Checking the latest Metro release…';
-  const time = new Date(data.checkedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const stale = release.isError || now - data.checkedAt > 120_000 || data.checkedAt > now;
-  return `Latest Metro ${data.latest} · ${stale ? 'last checked' : 'checked'} ${time}`;
-}
-
-function ReleaseCheck({ release, now }: { release: ReturnType<typeof useMetroRelease>; now: number }): ReactNode {
-  return <Row gap={8} align="center" wrap>
-    <Text size="2xs" role="secondary">{releaseText(release, now)}</Text>
-    <Pressable accessibilityRole="button" disabled={release.isFetching} onPress={() => { release.refetch({ cancelRefetch: false }).catch(() => undefined); }}>
-      <Text size="2xs" role="link">{release.isFetching ? 'Checking…' : 'Check now'}</Text>
-    </Pressable>
-  </Row>;
 }
 
 function useOrganizationFilter({ organizations, rows }: DashboardState) {
@@ -94,11 +77,6 @@ const AGENTS_KEY = ['admin', 'agents'];
 interface Doomed {
   id: string;
   label: string;
-}
-
-function RowDots({ items, label }: { items: MenuItem[]; label: string }): ReactNode {
-  const palette = useKitPalette();
-  return <Dropdown items={items} label={label} button={{ color: 'secondary', size: 'md', icon: <Icon name="dotsHorizontal" size={18} color={palette.link} /> }} />;
 }
 
 function RowMenu({ label, onUpdate, onDelete }: { label: string; onUpdate?: () => void; onDelete: () => void }): ReactNode {
@@ -131,7 +109,7 @@ function OtherRow({ agent, onDelete }: { agent: AgentRow; onDelete: (doomed: Doo
     <AgentAvatar seed={agent.host} src={agent.avatar} size={OTHER_AVATAR} />
     <Col gap={2} flex={1} minWidth={0}>
       <Text size="sm" weight="semibold" numberOfLines={1} style={SHRINK}>{label}</Text>
-      <Text size="2xs" role="secondary" numberOfLines={1}>{`${agent.organizationName ?? agent.owner} · added ${dateLabel(agent.addedAt)}`}</Text>
+      <Text size="xs" role="secondary" numberOfLines={1}>{`${agent.organizationName ?? agent.owner} · added ${dateLabel(agent.addedAt)}`}</Text>
     </Col>
     <View style={MENU_SPACE}><RowMenu label={label} onDelete={() => { onDelete({ id: agent.id, label }); }} /></View>
   </Row>;
@@ -140,7 +118,7 @@ function OtherRow({ agent, onDelete }: { agent: AgentRow; onDelete: (doomed: Doo
 function OtherAgents({ agents, onDelete }: { agents: AgentRow[]; onDelete: (doomed: Doomed) => void }): ReactNode {
   if (agents.length === 0) return null;
   return <Col gap={4}>
-    <Text size="2xs" role="secondary">Other organizations</Text>
+    <Text size="md" role="secondary">Other organizations</Text>
     <Col>{agents.map((agent) => <OtherRow key={agent.id} agent={agent} onDelete={onDelete} />)}</Col>
   </Col>;
 }
@@ -169,8 +147,8 @@ function AgentTable({ rows, now, narrow, release, notes, onUpdate, onDelete }: T
 
 function EmptyOrganizations({ organizations }: { organizations: OrganizationRow[] }): ReactNode {
   return organizations.filter((organization) => organization.agents == null || organization.agents.length === 0).map((organization) => <Row key={organization.id} gap={4} align="center" wrap>
-    <RouteLink to={`#/${namedSegment(organization.id, organization.slug)}`}><Text size="2xs" role="link">{organization.name ?? organization.slug ?? organization.id}</Text></RouteLink>
-    <Text size="2xs" role="secondary">{organization.agents == null ? '· agent list unavailable' : '· no agents'}</Text>
+    <RouteLink to={`#/${namedSegment(organization.id, organization.slug)}`}><Text size="md" role="link">{organization.name ?? organization.slug ?? organization.id}</Text></RouteLink>
+    <Text size="md" role="secondary">{organization.agents == null ? '· agent list unavailable' : '· no agents'}</Text>
   </Row>);
 }
 
@@ -201,11 +179,10 @@ export function AdminAgents(): ReactNode {
   useDocumentTitle('Agents');
   const mine = new Set(rows.map((row) => row.agent.id));
   const others = filtered || organizations === null ? [] : (everyAgent.data ?? []).filter((a) => !mine.has(a.id));
-  return <Col gap={16} width="100%">
+  return <Col gap={12} width="100%">
     <ListHeader title="Agents" rule={false} count={organizations === null ? undefined : visibleRows.length + others.length} />
-    <ReleaseCheck release={release} now={now} />
     <InventoryMessages state={state} />
-    {everyAgent.error === null ? null : <Text size="2xs" role="danger">{queryError(everyAgent.error, 'Could not load the agents of other organizations.')}</Text>}
+    {everyAgent.error === null ? null : <Text size="md" role="danger">{queryError(everyAgent.error, 'Could not load the agents of other organizations.')}</Text>}
     <FilterLine count={organizations?.length ?? 0}>{filterControl}</FilterLine>
     <AgentTable rows={visibleRows} now={now} narrow={narrow} release={release} notes={notes} onUpdate={update} onDelete={setDeleting} />
     <EmptyOrganizations organizations={visibleOrgs} />

@@ -19,17 +19,15 @@ const SMALL = 720;
 const SMALL_TOP = 12;
 
 function SidebarBody({ sidebar, onLock, close }: { sidebar: (close: () => void) => ReactNode; onLock: () => void; close: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const line = side(palette.border);
   return (
     <>
-      <Col padding={{ x: 18, y: 12 }} border={{ bottom: line }}>
+      <Col padding={{ x: 18, top: 18, bottom: 12 }}>
         <OrganizationSwitcher onNavigate={close} />
       </Col>
       <Col flex={1} minHeight={0}>
         {sidebar(close)}
       </Col>
-      <Col padding={{ x: 18, top: 12, bottom: 16 }} border={{ top: line }}>
+      <Col padding={{ x: 18, top: 12, bottom: 16 }}>
         <AccountMenu onLock={onLock} onNavigate={close} />
       </Col>
     </>

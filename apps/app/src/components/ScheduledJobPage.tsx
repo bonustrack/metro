@@ -20,9 +20,9 @@ function Field({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <Row gap={12} align="start">
       <Row width={120}>
-        <Text size="2xs" role="secondary">{label}</Text>
+        <Text size="md" role="secondary">{label}</Text>
       </Row>
-      <Text size="2xs">{value}</Text>
+      <Text size="md">{value}</Text>
     </Row>
   );
 }
@@ -70,7 +70,7 @@ function Actions({ job }: { job: JobDetail }): ReactNode {
       <Row gap={10}>
         <Button size="md" color="secondary" dark={dark} label="Run now" disabled={busy} onPress={() => { run(() => runSchedule(job.id), 'Could not start that job.'); }} />
       </Row>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }
@@ -80,9 +80,9 @@ function Block({ title, note, text, empty }: { title: string; note: string | nul
     <Col gap={6}>
       <Row gap={10} align="center">
         <Text size="sm" weight="medium">{title}</Text>
-        {note === null ? null : <Text size="2xs" role="secondary">{note}</Text>}
+        {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
       </Row>
-      {text.trim() === '' ? <Text size="2xs" role="secondary">{empty}</Text> : <LogBlock text={text} />}
+      {text.trim() === '' ? <Text size="md" role="secondary">{empty}</Text> : <LogBlock text={text} />}
     </Col>
   );
 }
@@ -94,7 +94,7 @@ export function ScheduledJobPage({ project, id }: { project: string; id: string 
     <Col gap={16}>
       <BackLink label="Scheduled" href={routeHash({ kind: 'scheduled', project })} />
       {detail.error !== null ? (
-        <Text size="2xs" role="danger">{queryError(detail.error, 'Could not read that job.')}</Text>
+        <Text size="md" role="danger">{queryError(detail.error, 'Could not read that job.')}</Text>
       ) : detail.data === undefined ? (
         <Loading />
       ) : (

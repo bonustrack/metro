@@ -97,22 +97,22 @@ function LoginFlow({ connection, onDone, children }: { connection: string; onDon
     }).finally(() => { setCancelling(false); });
   };
   const message = signInError(error, pollingError, cancelError);
-  if (manual) return <Col gap={16}>{children}<TextLink size="2xs" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Col>;
+  if (manual) return <Col gap={16}>{children}<TextLink size="md" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Col>;
   return (
     <Col gap={10}>
       <SignInLink link={login === null ? null : link} label="Open the OpenRouter sign-in">
         <Button size="lg" dark={dark} label="Continue with OpenRouter" loading={starting} disabled={starting || login !== null} onPress={start} />
       </SignInLink>
-      <Text size="2xs" role="secondary">Authorize Metro in your browser. The generated API key stays on this box.</Text>
-      {connection === '' ? null : <Text size="2xs" role="secondary">Signing in again replaces this connection&apos;s key. Its model and fallbacks stay.</Text>}
+      <Text size="md" role="secondary">Authorize Metro in your browser. The generated API key stays on this box.</Text>
+      {connection === '' ? null : <Text size="md" role="secondary">Signing in again replaces this connection&apos;s key. Its model and fallbacks stay.</Text>}
       {login === null ? null : (
         <Col gap={8}>
-          <Text size="2xs" role="secondary">Waiting for OpenRouter. Return here after approval. If you declined, cancel below.</Text>
+          <Text size="md" role="secondary">Waiting for OpenRouter. Come back here after you approve, or cancel below.</Text>
           <Row><Button size="md" color="secondary" dark={dark} label="Cancel sign-in" loading={cancelling} disabled={cancelling} onPress={cancel} /></Row>
         </Col>
       )}
-      {message === null ? null : <Text size="2xs" role="danger">{message}</Text>}
-      {starting || login !== null ? null : <TextLink size="2xs" onPress={() => { setManual(true); }}>Use an API key</TextLink>}
+      {message === null ? null : <Text size="md" role="danger">{message}</Text>}
+      {starting || login !== null ? null : <TextLink size="md" onPress={() => { setManual(true); }}>Use an API key</TextLink>}
     </Col>
   );
 }
@@ -120,5 +120,5 @@ function LoginFlow({ connection, onDone, children }: { connection: string; onDon
 export function OpenRouterConnect({ connection, onDone, children }: { connection: string; onDone: () => void; children: ReactNode }): ReactNode {
   const version = useModeQuery().data?.version ?? null;
   if (!olderThan(version, OPENROUTER_LOGIN_SINCE)) return <LoginFlow connection={connection} onDone={onDone}>{children}</LoginFlow>;
-  return <Col gap={16}><Text size="2xs" role="secondary">Update Metro on this box to sign in with OpenRouter. You can still use an API key.</Text>{children}</Col>;
+  return <Col gap={16}><Text size="md" role="secondary">Update Metro on this box to sign in with OpenRouter. You can still use an API key.</Text>{children}</Col>;
 }

@@ -228,7 +228,7 @@ describe('the single and bulk connector copy client', () => {
       message = err instanceof Error ? err.message : '';
     }
     expect(message).toContain('Check the destination before retrying');
-    expect(message).toContain('another copy creates new instances without overwriting existing connectors');
+    expect(message).toContain('a retry adds new copies, it never overwrites');
     expect(message).not.toContain('do-not-reflect-fixture-secret');
   });
 
@@ -246,7 +246,7 @@ describe('the single and bulk connector copy client', () => {
       try { await copyConnectors(target, null, true); }
       catch (reason) { error = reason instanceof Error ? reason.message : ''; }
       expect(error).toContain('Check the destination before retrying');
-      expect(error).toContain('another copy creates new instances');
+      expect(error).toContain('a retry adds new copies');
       expect(error).not.toContain('private-fixture');
       expect(received).toBe(1);
     });

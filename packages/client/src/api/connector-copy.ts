@@ -18,7 +18,7 @@ export interface CopyResult {
   status: 'copied' | 'skipped' | 'invalid';
 }
 
-const unconfirmed = (): Error => new Error('Connector copy was not confirmed. Check the destination before retrying; another copy creates new instances without overwriting existing connectors.');
+const unconfirmed = (): Error => new Error('Connector copy was not confirmed. Check the destination before retrying: a retry adds new copies, it never overwrites.');
 
 export async function connectorTransfer(base: string, path: 'prepare' | 'export' | 'receive', token: string, body: unknown): Promise<unknown> {
   let res: Response;
@@ -36,7 +36,7 @@ export async function connectorTransfer(base: string, path: 'prepare' | 'export'
     if (res.status === 401 || res.status === 403) throw new Error('You must be signed in as an admin of both organizations.');
     if (res.status === 409) throw new Error('A selected connector no longer exists. Refresh the list and choose again.');
     if (res.status === 410) throw new Error('The copy expired. Start again.');
-    throw new Error(`Connector copy failed (${String(res.status)}). Check the destination before retrying; another copy creates new instances without overwriting existing connectors.`);
+    throw new Error(`Connector copy failed (${String(res.status)}). Check the destination before retrying: a retry adds new copies, it never overwrites.`);
   }
   try { return await res.json() as unknown; }
   catch { throw unconfirmed(); }

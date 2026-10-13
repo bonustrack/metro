@@ -11,7 +11,7 @@ import { queryError } from '../lib/queries.js';
 import { Modal } from './Modal.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 
-const NOTE = 'Enrollment links this agent to your organization. It does not enable delivery or tools, or move existing connectors.';
+const NOTE = 'Links this agent to your organization. It turns nothing on and moves no connectors.';
 
 function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollment: Enrollment; server: Server; onClose: () => void; onEnrolled: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -34,11 +34,11 @@ function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollm
   };
   return <Modal title="Enroll with organization?" open onClose={onClose}>
     <Col gap={16}>
-      <Text size="2xs">{`Enroll ${serverLabel(server)} with ${account?.organizationName ?? account?.organization ?? 'your organization'}?`}</Text>
-      <Text size="2xs" role="secondary">{`Agent: ${server.id} · ${server.host}`}</Text>
-      <Text size="2xs" role="secondary">{NOTE}</Text>
-      <Text size="2xs" role="secondary">If already enrolled, this replaces the agent’s organization identity and turns saved connector sync off, even if enrollment later fails. Check sync status and explicitly enable it again when ready. Closing while enrollment is running stops waiting, but cannot undo a request already received.</Text>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      <Text size="md">{`Enroll ${serverLabel(server)} with ${account?.organizationName ?? account?.organization ?? 'your organization'}?`}</Text>
+      <Text size="md" role="secondary">{`Agent: ${server.id} · ${server.host}`}</Text>
+      <Text size="md" role="secondary">{NOTE}</Text>
+      <Text size="md" role="secondary">If already enrolled, this replaces its identity and turns connector sync off, even if it fails. Turn sync back on when ready. Closing does not cancel it.</Text>
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       <Row justify="between" gap={12} wrap>
         <Button color="secondary" dark={dark} label={busy ? 'Close' : 'Cancel'} onPress={onClose} />
         <Button color="primary" dark={dark} label={error === null ? 'Enroll agent' : 'Retry enrollment'} accessibilityLabel={busy ? 'Enrolling agent' : error === null ? 'Enroll agent' : 'Retry enrollment'} loading={busy} disabled={busy} onPress={confirm} />
@@ -59,8 +59,8 @@ function EnrollmentSection({ server }: { server: Server }): ReactNode {
   };
   return <SettingsGroup title="Organization">
     <SettingsSection title={enrolled ? 'Enrolled with organization' : 'Organization enrollment'} note={NOTE}>
-      {enrolled ? <Text size="2xs">Enrollment confirmed.</Text> : <Button color="secondary" dark={dark} label="Enroll with organization" onPress={open} />}
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {enrolled ? <Text size="md">Enrollment confirmed.</Text> : <Button color="secondary" dark={dark} label="Enroll with organization" onPress={open} />}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </SettingsSection>
     {enrollment === null ? null : <EnrollmentDialog enrollment={enrollment} server={server} onClose={close} onEnrolled={() => { setEnrolled(true); close(); }} />}
   </SettingsGroup>;

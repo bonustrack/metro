@@ -13,9 +13,9 @@ import { serverLabel } from '@metro-labs/client/api/servers';
 import { gatherPayload } from '@metro-labs/client/export/transfer';
 import { saveText } from '../lib/files.js';
 
-const HOW = 'Sealed in the browser with a passphrase you choose. Only that passphrase opens the file.';
+const HOW = 'Locked in your browser with a passphrase you choose. Only it opens the file.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'new-password' } as const;
-const NOTE = 'The agent id and key stay behind, so an import adds to the agent there rather than cloning this one. Gmail credentials managed by Metro are not exported. Reconnect those mailboxes after import.';
+const NOTE = 'The agent id and key stay here: an import adds to the agent there. Gmail logins managed by Metro are skipped, so reconnect those mailboxes.';
 
 interface ExportAgentProps {
   open: boolean;
@@ -82,7 +82,7 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
   return (
     <Modal title="Export agent" open={open} onClose={close}>
       <Col gap={14}>
-        <Text size="2xs" role="secondary">{HOW}</Text>
+        <Text size="md" role="secondary">{HOW}</Text>
         <Row gap={8} wrap>
           {SECTIONS.map((section) => (
             <Button
@@ -99,9 +99,9 @@ export function ExportAgent({ open, onClose, agent }: ExportAgentProps): ReactNo
           ))}
         </Row>
         <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
-        <Text size="2xs" role="secondary">{NOTE}</Text>
+        <Text size="md" role="secondary">{NOTE}</Text>
         {done === null ? null : <Text size="xs">{`Saved: ${done}`}</Text>}
-        {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
         <Row justify="end" gap={8}>
           <Button color="secondary" dark={dark} disabled={busy} onPress={close} label={done === null ? 'Cancel' : 'Done'} />
           <Button size="lg"

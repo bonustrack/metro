@@ -12,11 +12,11 @@ import { queryError } from '../lib/queries.js';
 const SAVE_FAILED = 'Could not save the permissions.';
 const GROUPS: readonly ToolGroup[] = ['read', 'write'];
 const GROUP_NOTE: Record<ToolGroup, string> = {
-  read: 'Tools classified as read-only.',
-  write: 'Tools that send, change or delete, and tools without a read-only classification.',
+  read: 'Tools marked read-only.',
+  write: 'Tools that send, change or delete, and any tool not marked read-only.',
 };
-const ASK_NOTE = 'Ask first sends you a request in the chat or on the Home page, and waits for your answer.';
-const INHERITED_NOTE = 'The stricter organization or agent rule wins for each tool. Agent settings never weaken the organization’s Ask first or Block.';
+const ASK_NOTE = 'Ask first asks you in chat or on the Home page, then waits.';
+const INHERITED_NOTE = 'For each tool, the stricter of the organization and agent rule wins.';
 const OPTIONS = ACCESS_CHOICES.map((access) => ({ value: access, label: ACCESS_LABEL[access] }));
 const toolText = (values: Record<string, string> | undefined, name: string): string | undefined => values !== undefined && Object.hasOwn(values, name) ? values[name] : undefined;
 
@@ -73,10 +73,10 @@ export function Permissions({ title, policy, tools, store, onSaved, titles, desc
             <Choice<GroupChoice> label={`${title}: ${GROUP_LABEL[group]}`} value={value} options={options} disabled={busy || disabled}
               onChange={(access) => { save(withGroup(policy, group, access === 'inherit' ? undefined : access)); }} />
           </SettingsSection>,
-          ...inGroup.map((tool) => <PermissionTool key={tool.name} tool={tool} title={toolText(titles, tool.name)} description={toolText(descriptions, tool.name) ?? (tools.some((known) => known.name === tool.name) ? undefined : 'Saved rule. This tool is not in the current list; its group defaults to Write.')} policy={policy} organization={organization} disabled={busy || disabled} onSave={save} />),
+          ...inGroup.map((tool) => <PermissionTool key={tool.name} tool={tool} title={toolText(titles, tool.name)} description={toolText(descriptions, tool.name) ?? (tools.some((known) => known.name === tool.name) ? undefined : 'Saved rule for a tool not in the list now. It counts as Write.')} policy={policy} organization={organization} disabled={busy || disabled} onSave={save} />),
         ];
       })}
-      {error === null ? null : <SettingsPad><Text size="2xs" role="danger">{error}</Text></SettingsPad>}
+      {error === null ? null : <SettingsPad><Text size="md" role="danger">{error}</Text></SettingsPad>}
     </SettingsGroup>
   );
 }

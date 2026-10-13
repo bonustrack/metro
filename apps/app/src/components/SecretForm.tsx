@@ -75,7 +75,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
         <Button size="lg" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
         <Button size="md" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
       </Row>
-      {error === null ? null : <Text size="2xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
     </Col>
   );
 }
