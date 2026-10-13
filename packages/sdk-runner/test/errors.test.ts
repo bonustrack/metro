@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { parseRunnerActivity } from '@metro-labs/core/runner-activity';
 import { Activity } from '../src/activity.ts';
-import { failureSummary, sessionFailure, SessionError, StartupDiagnostics } from '../src/errors.ts';
+import { debugFailure, failureSummary, sessionFailure, SessionError, StartupDiagnostics } from '../src/errors.ts';
 import { Runner, type OpenSession } from '../src/runner.ts';
 import { SessionStore } from '../src/session-store.ts';
 
@@ -38,6 +38,30 @@ test('exceptions classify auth, config, process, module and transport without re
     for (const secret of ['secret-', 'private-owner', 'private.invalid', 'OWNER_MESSAGE', 'eyJsecret']) expect(output).not.toContain(secret);
   }
   expect(sessionFailure(new Error(privateText))).toEqual({ code: 'session_error' });
+});
+
+test('an unknown failure keeps only its error type, and the raw error reaches stderr only with METRO_RUNNER_DEBUG=1', () => {
+  const failure = sessionFailure(new TypeError(privateText));
+  expect(failure).toEqual({ code: 'session_error', diagnostic: { source: 'exception', errorName: 'TypeError' } });
+  expect(failureSummary(new TypeError(privateText))).toContain('TypeError');
+  class PrivatePromptError extends Error { override name = 'OWNER MESSAGE Error'; }
+  expect(sessionFailure(new PrivatePromptError(privateText))).toEqual({ code: 'session_error' });
+  expect(JSON.stringify(failure) + failureSummary(new TypeError(privateText))).not.toContain('secret-');
+  const written: string[] = [];
+  const write = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string) => { written.push(String(chunk)); return true; }) as typeof process.stderr.write;
+  const saved = process.env.METRO_RUNNER_DEBUG;
+  try {
+    delete process.env.METRO_RUNNER_DEBUG;
+    debugFailure('start', new TypeError('raw detail'));
+    expect(written).toEqual([]);
+    process.env.METRO_RUNNER_DEBUG = '1';
+    debugFailure('start', new TypeError('raw detail'));
+    expect(written.join('')).toContain('metro agent debug (start, this terminal only): TypeError: raw detail');
+  } finally {
+    process.stderr.write = write;
+    if (saved === undefined) delete process.env.METRO_RUNNER_DEBUG; else process.env.METRO_RUNNER_DEBUG = saved;
+  }
 });
 
 test('bounded nested causes are inspected without stringifying objects, traversing stacks or following cycles forever', () => {

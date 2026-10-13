@@ -72,13 +72,24 @@ function processFailure(diagnostic: RunnerDiagnostic | undefined): RunnerFailure
   return diagnostic?.exitCode !== undefined || diagnostic?.signal !== undefined ? 'process_exit' : null;
 }
 
+function namedFailure(value: unknown, source: RunnerDiagnostic['source']): SessionFailure {
+  const errorName = runnerDiagnostic({ source, errorName: isRecord(value) ? value.name : undefined })?.errorName;
+  return errorName === undefined ? { code: 'session_error' } : { code: 'session_error', diagnostic: { source, errorName } };
+}
+
+export function debugFailure(stage: string, err: unknown): void {
+  if (process.env.METRO_RUNNER_DEBUG !== '1') return;
+  const text = err instanceof Error ? err.stack ?? `${err.name}: ${err.message}` : String(err);
+  process.stderr.write(`metro agent debug (${stage}, this terminal only): ${text.slice(0, 4_000)}\n`);
+}
+
 function classify(value: unknown, source: RunnerDiagnostic['source']): SessionFailure {
   const message = errorText(value);
   const known = KNOWN.find((code) => message === runnerFailureSummary(code));
   if (known !== undefined) return { code: known };
   const diagnostic = evidence(isRecord(value) ? value : {}, message, source);
   const code = diagnosticCode(message, diagnostic) ?? TEXT_FAILURES.find(([, pattern]) => pattern.test(message))?.[0] ?? processFailure(diagnostic) ?? 'session_error';
-  return code === 'session_error' ? { code } : { code, ...(diagnostic === undefined ? {} : { diagnostic }) };
+  return code === 'session_error' ? namedFailure(value, source) : { code, ...(diagnostic === undefined ? {} : { diagnostic }) };
 }
 
 export function sessionFailure(err: unknown): SessionFailure {
@@ -88,7 +99,7 @@ export function sessionFailure(err: unknown): SessionFailure {
     let result: SessionFailure = { code: 'session_error' };
     for (let depth = 0; depth < 4; depth++) {
       const next = classify(current, 'exception');
-      if (next.code !== 'session_error') result = next;
+      if (next.code !== 'session_error' || (result.code === 'session_error' && result.diagnostic === undefined)) result = next;
       if (!isRecord(current) || current.cause === undefined) break;
       current = current.cause;
     }
