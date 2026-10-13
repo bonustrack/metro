@@ -55,15 +55,15 @@ function parseCheck(raw: string): UpdateCheck {
   return { current: body.current, latest: body.latest, newer: body.newer === true };
 }
 
-async function check(bin: string, now = Date.now()): Promise<UpdateCheck> {
-  if (cached !== null && now - cached.at < CHECK_TTL_MS) return cached.check;
+async function check(bin: string, fresh = false, now = Date.now()): Promise<UpdateCheck> {
+  if (!fresh && cached !== null && now - cached.at < CHECK_TTL_MS) return cached.check;
   const out = await runCli(bin, ['update', '--check'], CHECK_TIMEOUT_MS);
   cached = { at: now, check: parseCheck(out.stdout) };
   return cached.check;
 }
 
 async function apply(bin: string, deps: UpdateApiDeps): Promise<UpdateResult> {
-  const before = await check(bin);
+  const before = await check(bin, true);
   if (!before.newer) return { updated: false, version: before.current, restarting: false };
   const out = await runCli(bin, ['update'], UPDATE_TIMEOUT_MS);
   cached = null;
