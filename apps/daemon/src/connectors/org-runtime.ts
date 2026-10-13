@@ -60,6 +60,8 @@ const rowError = (row: DeliveredConnector | undefined): ApiError | null => {
 
 const targetOf = (row: DeliveredConnector): RelayTarget => ({ kind: 'ok', url: row.url, headers: { ...row.headers } });
 
+const MAX_SCANS = 4;
+
 export class OrgConnectorRuntime {
   private readonly entries = new Map<string, Entry>();
   private readonly sessions = new Set<Session>();
@@ -68,6 +70,7 @@ export class OrgConnectorRuntime {
   private published = '';
   private stopped = false;
   private scans = 0;
+  private readonly waiting: (() => void)[] = [];
 
   constructor(private readonly sync: OrgConnectorSync, private readonly deps: RuntimeDeps = {}) {
     this.unsubscribe = sync.onChange(() => { this.update(); });
@@ -248,21 +251,26 @@ export class OrgConnectorRuntime {
       }
       return null;
     }
-    if (this.scans >= 4) {
-      log.debug({ stage: 'discovery_capacity', active: this.scans }, 'organization connectors: request unavailable');
-      throw orgUnavailable();
-    }
-    this.scans += 1;
-    entry.scan = this.scan(entry).catch((error: unknown) => {
+    entry.scan = this.queued(entry).catch((error: unknown) => {
       entry.error = orgRuntimeError(error);
       entry.nextScan = performance.now() + 30_000;
       log.debug({ stage: 'tool_discovery', status: entry.error.status }, 'organization connectors: tool discovery failed');
       throw entry.error;
     }).finally(() => {
-      this.scans -= 1;
       entry.scan = null;
     });
     return entry.scan;
+  }
+
+  private async queued(entry: Entry): Promise<void> {
+    while (this.scans >= MAX_SCANS) await new Promise<void>((resolve) => { this.waiting.push(resolve); });
+    this.scans += 1;
+    try {
+      await this.scan(entry);
+    } finally {
+      this.scans -= 1;
+      this.waiting.shift()?.();
+    }
   }
 
   private async target(session: Session, force: boolean): Promise<RelayTarget> {
@@ -308,11 +316,12 @@ export class OrgConnectorRuntime {
     };
   }
 
-  stop(): void {
+  stop(keepPublished = false): void {
     if (this.stopped) return;
     this.stopped = true;
     this.unsubscribe();
     clearInterval(this.timer);
-    this.update();
+    if (keepPublished) this.invalidateEntries([], this.sync.epoch(), false);
+    else this.update();
   }
 }

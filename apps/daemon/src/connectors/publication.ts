@@ -5,7 +5,7 @@ import { isOrgRelayId } from './relay-id.js';
 import { migrationRecords } from './migration-state.js';
 
 let local: GateRow[] = [];
-let organization: GateRow[] = [];
+let organization: GateRow[] | null = null;
 
 function metadata(rows: readonly GateRow[]): GateRow[] {
   return rows.map((row) => structuredClone({
@@ -18,7 +18,7 @@ function metadata(rows: readonly GateRow[]): GateRow[] {
   }));
 }
 
-function publishedRows(records: ReturnType<typeof migrationRecords>): GateRow[] {
+function publishedRows(records: ReturnType<typeof migrationRecords>, organization: GateRow[]): GateRow[] {
   const retired = new Set(records.filter((record) => !['preparing', 'prepared'].includes(record.phase)).map((record) => record.sourceId));
   const aliases = new Map(organization.filter((row) => records.some((record) => record.phase === 'active' && record.sourceId === row.id && record.name === row.name)).map((row) => [row.id, row]));
   const rows = local.flatMap((row) => {
@@ -34,10 +34,12 @@ export function publishConnectors(): void {
   let keys: Map<string, string>;
   try {
     const records = migrationRecords().filter((record) => record.phase !== 'rolled_back');
-    rows = publishedRows(records);
+    if (organization === null && records.some((record) => record.phase === 'active')) return;
+    const org = organization ?? [];
+    rows = publishedRows(records, org);
     const active = new Set(records.filter((record) => record.phase === 'active').map((record) => record.sourceId));
     const reserved = [...rows, ...local.filter((row) => active.has(row.id))];
-    keys = persistentServerKeys([...local, ...organization.filter((row) => isOrgRelayId(row.id))], undefined, reserved);
+    keys = persistentServerKeys([...local, ...org.filter((row) => isOrgRelayId(row.id))], undefined, reserved);
   }
   catch (error) {
     registerConnectors([]);

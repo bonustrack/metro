@@ -43,15 +43,21 @@ export class OrgConnectorControl {
     return { owner, agentId, scope, enrolled: agentId !== null };
   }
 
-  private clear(): void {
+  private clear(keepPublished = false): void {
+    const runtime = this.runtime;
+    if (keepPublished) runtime?.stop(true);
     this.sync?.invalidate();
     this.sync = null;
-    const runtime = this.runtime;
     this.runtime = null;
+    this.retire(runtime);
+  }
+
+  private retire(runtime: OrgConnectorRuntime | null): void {
     for (const previous of this.draining) if (previous.idle()) this.draining.delete(previous);
-    if (runtime !== null && !runtime.idle()) this.draining.add(runtime);
+    if (runtime === null) return;
+    if (!runtime.idle()) this.draining.add(runtime);
     try {
-      runtime?.stop();
+      runtime.stop();
     } catch {
       log.warn('organization connectors: stopped runtime publication could not be cleared');
     }
@@ -158,10 +164,10 @@ export class OrgConnectorControl {
     disableSavedSync(this.dir);
   }
 
-  stop(): void {
+  stop(keepPublished = false): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
-    this.clear();
+    this.clear(keepPublished);
   }
 
   async open(id: string): Promise<RelaySession> {

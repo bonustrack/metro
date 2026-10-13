@@ -148,6 +148,18 @@ test('monotonic expiry and real expiry timer both abort requests but keep the pu
   expect(fixture.publications.slice(first).some((rows) => rows.length === 0)).toBe(false);
 });
 
+test('nothing is published before the first delivery, and a shutdown keeps the last list while sync off clears it', async () => {
+  expect(fixture.publications.map((rows) => rows.map((row) => row.id))).toEqual([[RELAY_ID]]);
+  const session = await readyTarget();
+  fixture.runtime.stop(true);
+  expect(session.signal.aborted).toBe(true);
+  expect(fixture.publications.at(-1)?.map((row) => row.id)).toEqual([RELAY_ID]);
+  fixture.close();
+  fixture = await runtimeFixture();
+  fixture.runtime.stop();
+  expect(fixture.publications.at(-1)).toEqual([]);
+});
+
 test('live and sync flags fail closed without changing local files', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'metro-org-runtime-'));
   const path = join(dir, 'connectors.json');

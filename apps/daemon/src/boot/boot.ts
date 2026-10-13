@@ -215,7 +215,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
-  stopOrgConnectorSync();
+  stopOrgConnectorSync(true);
   const leaving = leaveCallsForShutdown();
   unwatchSession();
   tunnel?.stop();
