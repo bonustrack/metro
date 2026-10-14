@@ -42,8 +42,6 @@ beforeEach(() => {
     mkdirSync(join(root, source, 'src'), { recursive: true });
     copyFileSync(join(REPO, source, 'package.json'), join(root, source, 'package.json'));
   }
-  put(join(root, '.claude-plugin', 'marketplace.json'), '{}');
-  put(join(root, 'plugin', '.claude-plugin', 'plugin.json'), '{}');
 });
 
 afterEach(() => {

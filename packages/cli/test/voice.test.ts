@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { voiceArgs, voiceEnv } from '../src/voice.ts';
 
-test('a voice call session gets the chat agent setup: plugin, connectors, metro tools and its approvals', () => {
+test('a voice call session gets the chat agent setup: hooks, connectors, metro tools and its approvals', () => {
   const args = voiceArgs('claude-sonnet-5-5', 'bypass', 'You are Emma.', '/tmp/x/mcp.json');
   expect(args).not.toContain('--strict-mcp-config');
   expect(args.join(' ')).not.toContain('enabledPlugins');

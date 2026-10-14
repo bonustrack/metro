@@ -21,12 +21,18 @@ import { inSessionScope } from './memory.js';
 import { channelState, forgetChannelState, noteChannelState, type ChannelState } from './channel-check.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
+import { mcpServerUrlOf } from '@metro-labs/core/mcp-server';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
   if (user === null) return {};
   const port = process.env.METRO_WEBHOOK_PORT?.trim() ?? '';
-  return { ...agentExtraEnv(), METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
+  return {
+    ...agentExtraEnv(),
+    METRO_AGENTS_DIR: agentViewDir(user),
+    METRO_MCP_SERVER_URL: mcpServerUrlOf() ?? '',
+    ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }),
+  };
 }
 
 const SESSION_NAME = 'metro';
@@ -352,7 +358,7 @@ export function ensureSession(deps: SessionDeps = {}): Ensured {
   const held = holdsBack(deps, r.now);
   if (held !== null) return held;
   if (found === 'stale') {
-    log.info({ was: startedVersion(r.agents), now: r.version }, 'claude-session: restarting the session an older metro started, so the new plugin and flags load');
+    log.info({ was: startedVersion(r.agents), now: r.version }, 'claude-session: restarting the session an older metro started, so the new hooks and flags load');
     stopSession(deps);
   }
   startSession(deps);

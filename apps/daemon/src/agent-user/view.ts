@@ -4,7 +4,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
 import { mcpServerUrl } from '../mcp-server/config.js';
-import { MCP_TOKEN_FILE } from '../mcp-server/token.js';
+import { MCP_TOKEN_FILE } from '@metro-labs/core/mcp-server';
 import { removeHome, writeHomeText } from './home-fs.js';
 import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';

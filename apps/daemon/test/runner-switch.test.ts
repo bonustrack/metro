@@ -48,7 +48,7 @@ beforeEach(async () => {
   session = { agents: agents(), home: home(), tmux, metro: ['metro', 'claude'], runner: ['metro', 'agent'], signedIn: () => true, prepare: async (runner) => { prepares.push(runner); await prepare(runner); } };
   server = createServer((req, res) => {
     request = req;
-    if (!handleClaudeRequest(req, res, { session, setup: { agents: agents(), dir: join(dir, 'claude'), plugin: join(import.meta.dir, '../../../plugin') } })) res.writeHead(404).end();
+    if (!handleClaudeRequest(req, res, { session, setup: { agents: agents(), dir: join(dir, 'claude'), cli: join(import.meta.dir, '../../../packages/cli') } })) res.writeHead(404).end();
   });
   const port = 10_000 + Math.floor(Math.random() * 20_000);
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });

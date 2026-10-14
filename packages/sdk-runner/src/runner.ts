@@ -1,6 +1,7 @@
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { errMsg, log } from '@metro-labs/core/log';
 import { skillSourceRoot } from '@metro-labs/core/skill-source';
+import { MCP_SERVER_KEY } from '@metro-labs/core/mcp-server';
 import { type SkillsRefresh } from './skills.js';
 import { SkillWork } from './skill-work.js';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -38,6 +39,12 @@ export type ModelSettings = Parameters<Query['applyFlagSettings']>[0];
 export const allowedOnly = (model: string | null): ModelSettings =>
   model === null ? { availableModels: null, enforceAvailableModels: null } : { availableModels: [model], enforceAvailableModels: true };
 
+function mcpServers(cfg: RunnerConfig, tools: MetroTools): Options['mcpServers'] {
+  const { connectors } = cfg;
+  if (connectors === null) return { [METRO_SERVER]: tools.config };
+  return { [METRO_SERVER]: tools.config, [MCP_SERVER_KEY]: { type: 'http', url: connectors.url, headers: { Authorization: `Bearer ${connectors.token}` } } };
+}
+
 export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: CanUseTool, resume: string | null, env = process.env): Options {
   return {
     ...(cfg.model === null ? {} : { model: cfg.model }),
@@ -47,7 +54,7 @@ export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: 
     settingSources: ['user', 'project', 'local'],
     additionalDirectories: [skillSourceRoot(cfg.claudeDir)],
     systemPrompt: { type: 'preset', preset: 'claude_code', append: cfg.prompt === null ? FRONT_RULES : `${cfg.prompt}\n\n${FRONT_RULES}` },
-    mcpServers: { [METRO_SERVER]: tools.config },
+    mcpServers: mcpServers(cfg, tools),
     permissionMode: cfg.permissionMode,
     allowDangerouslySkipPermissions: cfg.permissionMode === 'bypassPermissions',
     canUseTool,

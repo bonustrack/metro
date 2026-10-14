@@ -4,12 +4,10 @@ import { join } from 'node:path';
 import { chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { errMsg, log } from '@metro-labs/core/log';
-import { copyIntoHome } from './home-fs.js';
-import { AGENT_NAME, agentMarketplaceDir, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
+import { AGENT_NAME, agentUser, agentUserExpected, asUser, claudeBin, forgetAgentUser, type AgentUser } from './user.js';
 import { watchAgentView } from './view.js';
 import { closeMetroHome } from './metro-home.js';
 import { mustHelper } from '../metro-user/privilege.js';
-import { stagedPluginVersion } from '../claude/plugin-install.js';
 import { CLAUDE_CODE_VERSION } from '../claude/pinned.js';
 import { pinClaudeCode } from '../claude/version.js';
 
@@ -68,24 +66,13 @@ function pinCheckedClaude(): void {
   }
 }
 
-function copyMarketplace(user: AgentUser, env: NodeJS.ProcessEnv): void {
-  const store = env.METRO_RUNTIME_STORE?.trim() ?? '';
-  const from = join(store, 'marketplace');
-  if (store === '' || !existsSync(join(from, '.claude-plugin', 'marketplace.json'))) return;
-  const to = agentMarketplaceDir(user);
-  if (stagedPluginVersion(from) !== null && stagedPluginVersion(from) === stagedPluginVersion(to)) return;
-  const files = copyIntoHome(from, to, user);
-  log.info({ files, version: stagedPluginVersion(from) }, 'agent-user: copied the metro plugin where the agent user can load it');
-}
-
-export async function provisionAgentUser(env: NodeJS.ProcessEnv = process.env): Promise<Provisioned> {
+export async function provisionAgentUser(): Promise<Provisioned> {
   if (!agentUserExpected()) return 'off';
   try {
     const user = ensureUser();
     if (user === null) throw new Error(`the user ${AGENT_NAME} could not be found after creating it`);
     await installClaude(user);
     pinCheckedClaude();
-    copyMarketplace(user, env);
     watchAgentView();
     return 'ready';
   } catch (err) {

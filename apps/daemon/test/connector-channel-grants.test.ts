@@ -18,7 +18,7 @@ async function approve(tool: string): Promise<void> {
   await answerPrompt('grant000001', 'allow', 'chat');
 }
 
-for (const tool of ['mcp__metro_box_Same__send', 'mcp__plugin_metro_removed__send', 'mcp__plugin_metro_mcp__call_tool']) {
+for (const tool of ['mcp__metro_box_Same__send', 'mcp__plugin_metro_removed__send', 'mcp__mcp__call_tool']) {
   test(`a connector approval cannot authorize a channel send: ${tool}`, async () => {
     await approve(tool);
     expect(policyGate('send', args)).toMatchObject({ isError: true });

@@ -3,9 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
 import { writeSecure } from '@metro-labs/core/secure-fs';
-import { MCP_TOKEN_RE } from '@metro-labs/http/mcp-server-protocol';
+import { MCP_TOKEN_FILE, readMcpToken } from '@metro-labs/core/mcp-server';
 
-export const MCP_TOKEN_FILE = 'mcp-token';
 const BINDING_FILE = 'mcp-token.json';
 
 export interface McpToken {
@@ -23,11 +22,6 @@ const readText = (path: string): string | null => {
     return null;
   }
 };
-
-export function readMcpToken(dir: string): string | null {
-  const text = readText(join(dir, MCP_TOKEN_FILE))?.trim() ?? '';
-  return MCP_TOKEN_RE.test(text) ? text : null;
-}
 
 function boundKeyId(dir: string): string | null {
   const text = readText(join(dir, BINDING_FILE));

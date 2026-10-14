@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { policyVerdict } from './policy.mjs';
 
+if (process.env.METRO_SESSION === 'memory') process.exit(0);
+
 const BLOCKING = new Set(['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode']);
 const ORCHESTRATION = new Set([
   'Agent',
@@ -23,7 +25,7 @@ const ORCHESTRATION = new Set([
 const IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 const MCP = /^mcp__/;
 const METRO_MCP = /^mcp__metro__/;
-const FIND_TOOLS = 'mcp__plugin_metro_mcp__find_tools';
+const FIND_TOOLS = 'mcp__mcp__find_tools';
 const VOICE = process.env.METRO_SESSION === 'voice';
 
 function answer(decision, reason) {

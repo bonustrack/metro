@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { existsSync, readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { writeAtomic } from '@metro-labs/core/secure-fs';
@@ -10,7 +9,8 @@ import { agentsDir } from '../agents/files.js';
 import { moveHome, removeHome, writeHomeText } from '../agent-user/home-fs.js';
 import { claudeDir } from './files.js';
 import { memoryJobStatus, type MemoryJob } from './memory-routine.js';
-import { stagedMarketplaceDir } from './plugin-install.js';
+import { cliPackageDir, hooksDir, skillsDir } from './cli-files.js';
+import { hasMetroGuard, withMetroHooks } from './hooks.js';
 import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
 import { harnessRunner, runnerModel, sdkAllowed, sdkOnLogin, type HarnessRunner } from './runner.js';
 import { readSetupState, writeSetupState } from './setup-state.js';
@@ -49,7 +49,7 @@ Your final message is a report to the orchestrator, not a message to a human. It
 export interface SetupDeps {
   dir?: string;
   agents?: string;
-  plugin?: string;
+  cli?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -58,7 +58,7 @@ export type SettingsOutcome = 'written' | 'unchanged' | 'unreadable';
 
 export interface SetupReport {
   privacy: boolean;
-  guard: 'plugin';
+  guard: boolean;
   worker: Placed;
   skill: Placed;
   stage: Placed;
@@ -76,7 +76,7 @@ export interface SetupStatus {
   liveEvents: boolean;
   memoryRoutine: boolean;
   memoryJob: MemoryJob;
-  guard: 'plugin';
+  guard: boolean;
   worker: boolean;
   skill: boolean;
   stage: boolean;
@@ -134,15 +134,6 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
   writeAtomic(promptPath(agents), `${trimmed}\n`, 0o600);
 }
 
-function pluginDir(env: NodeJS.ProcessEnv = process.env): string {
-  const staged = stagedMarketplaceDir(env);
-  if (staged !== null) {
-    const dir = join(staged, 'plugin');
-    if (existsSync(join(dir, RULES_FILE))) return dir;
-  }
-  return fileURLToPath(new URL('../../../../plugin', import.meta.url));
-}
-
 const PRIOR_WORKER: ReadonlySet<string> = new Set(['08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef']);
 const PRIOR_METRO: ReadonlySet<string> = new Set([
   '0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad',
@@ -153,6 +144,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   'b910597d24f31fa479b130a2545f94dd23684d802d99e36b637fc57c818a33be',
   'd3f7ed0f5175b9a7a77f06f6204ae0020369d0c8f6e2724196bb3c5822d4d8ba',
   '587a1334f91a8b61541573cef16eaf44fbe63049a8d8b461fa9f5cc55bacbcb8',
+  '256c711a6175266c216e32c88b7190d0f98f5e6b702abe03220b422aba426574',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43',
@@ -220,15 +212,29 @@ function mergeSettings(dir: string, change: (settings: Record<string, unknown>) 
   return 'written';
 }
 
-function applyPrivacy(dir: string, enabled: boolean): SettingsOutcome {
-  return mergeSettings(dir, (current) => withPrivacy(current, enabled));
+interface SettingsApplied {
+  settings: SettingsOutcome;
+  guard: boolean;
+}
+
+function applySettings(dir: string, privacy: boolean, hooks: string | null): SettingsApplied {
+  let guard = false;
+  const settings = mergeSettings(dir, (current) => {
+    const next = withPrivacy(current, privacy);
+    const hooked = hooks === null ? null : withMetroHooks(next, hooks);
+    if (hooks !== null && hooked === null)
+      log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: the hooks in settings.json are not in the shape Claude Code reads, so metro did not add its own');
+    guard = hasMetroGuard(hooked ?? next);
+    return hooked ?? next;
+  });
+  return { settings, guard };
 }
 
 const skillPath = (dir: string, name: string): string => join(dir, 'skills', name, 'SKILL.md');
 const workerPath = (dir: string): string => join(dir, 'agents', 'worker.md');
 
-function placeSkill(dir: string, plugin: string, skill: ShippedSkill): Placed {
-  const source = join(plugin, skill.file);
+function placeSkill(dir: string, skills: string, skill: ShippedSkill): Placed {
+  const source = join(skills, skill.file);
   if (!existsSync(source)) return 'missing';
   return placeFile(skillPath(dir, skill.name), readFileSync(source, 'utf8'), skill.prior);
 }
@@ -265,21 +271,21 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const dir = deps.dir ?? claudeDir();
   const agents = deps.agents ?? agentsDir();
   const privacy = privacyEnabled(agents);
-  const plugin = deps.plugin ?? pluginDir(deps.env);
+  const cli = deps.cli ?? cliPackageDir(deps.env);
+  const hooks = hooksDir(cli);
   tryMoveRenamedSkill(dir);
-  const report: SetupReport = {
-    privacy,
-    guard: 'plugin',
-    worker: placeFile(workerPath(dir), WORKER_AGENT, PRIOR_WORKER),
-    skill: placeSkill(dir, plugin, METRO_SKILL),
-    stage: placeSkill(dir, plugin, STAGE_SKILL),
-    memory: placeSkill(dir, plugin, MEMORY_SKILL),
-    settings: applyPrivacy(dir, privacy),
-  };
+  const worker = placeFile(workerPath(dir), WORKER_AGENT, PRIOR_WORKER);
+  const skills = skillsDir(cli);
+  const skill = placeSkill(dir, skills, METRO_SKILL);
+  const stage = placeSkill(dir, skills, STAGE_SKILL);
+  const memory = placeSkill(dir, skills, MEMORY_SKILL);
+  const applied = applySettings(dir, privacy, hooks);
+  const report: SetupReport = { privacy, guard: applied.guard, worker, skill, stage, memory, settings: applied.settings };
   syncAvailableModelsQuietly({ ...deps, dir, agents });
   if ([report.worker, report.skill, report.stage, report.memory].some(written) || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
-  if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings were not written');
+  if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings and metro hooks were not written');
+  if (hooks === null) log.warn({ cli }, 'claude-setup: metro hooks were not found next to the CLI, so the guard and the standing rules are not in settings.json');
   return report;
 }
 
@@ -299,7 +305,7 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
     liveEvents: liveEvents(agents),
     memoryRoutine: memoryRoutine(agents),
     memoryJob: memoryJobStatus(),
-    guard: 'plugin',
+    guard: hasMetroGuard(settings),
     worker: existsSync(workerPath(dir)),
     skill: existsSync(skillPath(dir, METRO_SKILL.name)),
     stage: existsSync(skillPath(dir, STAGE_SKILL.name)),

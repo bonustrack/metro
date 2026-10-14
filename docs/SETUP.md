@@ -1,26 +1,28 @@
 # Setup
 
 What a Claude Code session on a metro box looks like, and how it gets that way. Since
-`0.1.0-beta.105` none of it is pasted or typed: the metro plugin and the daemon apply it,
-and this page explains what they apply, how to check it, and what it costs.
+`0.1.0-beta.105` none of it is pasted or typed: the daemon and `metro claude` apply it,
+and this page explains what they apply, how to check it, and what it costs. Until
+2026-10-14 a Claude Code plugin (`metro@metro`) carried the guard, the standing rules and the
+connectors server; it is gone, and the daemon removes it from a box once.
 
 ## What is applied, and by what
 
 | Piece | Applied by | Where it lands |
 | --- | --- | --- |
-| Orchestrator-only guard on the main thread | the metro plugin (`hooks/hooks.json`, `bin/guard.mjs`) | every session where the plugin is installed |
-| Standing rules loaded at session start | the metro plugin (`bin/session-start.mjs`) | read from the `metro` skill |
-| The `metro` skill | the daemon, at boot, from `plugin/METRO.md` | `~/.claude/skills/metro/SKILL.md`, editable on the Skills page |
-| The `stage` skill | the daemon, at boot, from `plugin/STAGE.md` | `~/.claude/skills/stage/SKILL.md`, editable on the Skills page |
-| The `memory` skill | the daemon, at boot, from `plugin/MEMORY.md` | `~/.claude/skills/memory/SKILL.md`, editable on the Skills page |
+| Orchestrator-only guard on the main thread | the daemon, at boot: a `PreToolUse` hook running the CLI's `hooks/guard.mjs` | `~/.claude/settings.json`, so every Claude Code session of the agent |
+| Standing rules loaded at session start | the daemon, at boot: a `SessionStart` hook running the CLI's `hooks/session-start.mjs` | `~/.claude/settings.json`; the text is read from the `metro` skill |
+| The `metro` skill | the daemon, at boot, from the CLI's `skills/METRO.md` | `~/.claude/skills/metro/SKILL.md`, editable on the Skills page |
+| The `stage` skill | the daemon, at boot, from the CLI's `skills/STAGE.md` | `~/.claude/skills/stage/SKILL.md`, editable on the Skills page |
+| The `memory` skill | the daemon, at boot, from the CLI's `skills/MEMORY.md` | `~/.claude/skills/memory/SKILL.md`, editable on the Skills page |
 | The daily memory routine | the daemon, at boot, switchable on the Harness page | the agent's crontab, shown as `memory-routine` on the Scheduled page |
 | The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
 | Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
-| The metro MCP server, Channels, the model route | `metro claude`, at every launch | the session only |
+| The metro MCP server, the connectors server `mcp`, Channels, the model route | `metro claude`, at every launch | the session only |
 | The session itself | the daemon, in a tmux session named `metro` | the Terminal tab |
 
-The daemon installs the plugin on the machine it runs on and updates it with `metro update`,
-so all of this moves with metro. A box needs nothing but `metro service install`, and a box
+The hooks and the skills ship inside the CLI package, and the hook entries point at the
+installed CLI, so all of this moves with `metro update`. A box needs nothing but `metro service install`, and a box
 launched from metro.box needs nothing at all.
 
 ## Orchestrator-only main thread
@@ -31,13 +33,13 @@ files is busy, and a busy one does not see a message for minutes. The guard enfo
 split in the harness: the main thread receives, acknowledges, delegates and relays;
 subagents do the work.
 
-The guard is a `PreToolUse` hook in the plugin, written in Node so it has no `jq` to fail
-open on. On the main thread it allows:
+The guard is a `PreToolUse` hook in `~/.claude/settings.json`, written in Node so it has no
+`jq` to fail open on. On the main thread it allows:
 
 | Tool | Why it stays |
 | --- | --- |
 | `Agent`, `Workflow` | Delegation. The whole point, and the only way back if you break something. |
-| `mcp__*` | Talking to the outside world: the metro tools and every connector the agent holds. |
+| `mcp__metro__*`, `mcp__mcp__find_tools` | Talking to the outside world through the metro tools, and finding a connector tool. A connector call (`mcp__mcp__call_tool`, or any other MCP tool) is work, so a worker runs it. |
 | `ToolSearch` | Loads schemas for deferred tools. Without it the metro tools cannot be called at all. |
 | `Skill`, `ScheduleWakeup`, `Monitor`, `Cron*`, `Task*` | Scheduling and tracking. They coordinate work rather than perform it. |
 | `Read`, raster images only | So a screenshot someone sends can be looked at directly. `.svg` and `.pdf` are text underneath, so they stay denied. |
@@ -54,9 +56,11 @@ indefinite stall. The rules tell the agent to ask over chat instead and keep wor
 Subagents are recognised by the `agent_id` their hook payloads carry; main-thread payloads
 omit it. A payload that does not parse is denied, never allowed.
 
-**The guard is on wherever the plugin is installed**, with no switch. A daemon on a personal
-machine installs the plugin there too, and its Claude Code sessions get the guard; that is the
-trade-off chosen for boxes never sitting half configured.
+**The guard is on for every Claude Code session of the user the daemon sets up**, with no
+switch. A daemon on a personal machine writes the hooks into that user's settings too, and its
+Claude Code sessions get the guard; that is the trade-off chosen for boxes never sitting half
+configured. The daily memory routine (`METRO_SESSION=memory`) is the one session the hooks
+stand aside for.
 
 ### The worker
 
@@ -70,10 +74,10 @@ copy edited on the box is never touched, so edits stick.
 
 `~/.claude/skills/metro/SKILL.md` holds the rules: read `addressed` before
 answering, react first, delegate everything that is work, never wait on the terminal, report
-like a relay, keep going. The daemon writes it from the copy the plugin carries, and the
-plugin's `SessionStart` hook loads its body into every session, so the agent does not have to
+like a relay, keep going. The daemon writes it from the copy the CLI carries, and the
+`SessionStart` hook loads its body into every session, so the agent does not have to
 invoke the skill. Edit it on the Skills page to change the rules on that box; an edited copy is
-never replaced by an update. The plugin's copy is only the fallback when the file is gone.
+never replaced by an update. The CLI's copy is only the fallback when the file is gone.
 Until 2026-10-01 the skill was called `metro-orchestrator`; the daemon moves that folder to
 `metro` at boot and keeps any edits.
 
@@ -105,7 +109,8 @@ last successful run, it stops and uses no tokens. Otherwise it creates the ten f
 they are missing and runs Claude Code once, headless (`claude -p`), on the box's model route,
 with the box's system prompt. Claude Code reads the skill and files the day into memory, then
 writes or adds to the daily note and, when it is missing, last week's weekly note. That run has no metro
-MCP server and no plugin, so it never takes the chat session's place. It saves no transcript.
+MCP server and runs with `METRO_SESSION=memory`, so metro's hooks stand aside and it never takes
+the chat session's place. It saves no transcript.
 Its tools are Read, Glob and Grep, plus Write and Edit inside the memory folder only
 (`--permission-mode dontAsk`): no shell, no network, no subagents. After a good run, the routine
 moves the workstream notes marked `completed`, `parked` or `abandoned` to

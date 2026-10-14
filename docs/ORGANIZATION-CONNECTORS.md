@@ -9,8 +9,10 @@ organization's Connectors page. An agent reaches only the connectors assigned to
 1. The agent is enrolled in its organization (Server page, Enroll). Enrolling gives it its
    own keys, kept in Metro's folder on the box.
 2. The daemon makes the agent an MCP token and registers its hash with mcp.metro.box.
-3. Claude Code reaches every assigned connector through the metro plugin's one server,
-   `mcp` (`https://mcp.metro.box`): `find_tools` to find a tool, `call_tool` to run it.
+3. Claude Code reaches every assigned connector through one server, `mcp`
+   (`https://mcp.metro.box`), which `metro claude` and the Agent SDK runner add at launch:
+   `find_tools` to find a tool, `call_tool` to run it (`mcp__mcp__find_tools`,
+   `mcp__mcp__call_tool` in Claude Code).
    Every call runs from mcp.metro.box, checked against the organization's and the agent's
    permissions (the stricter wins). Credentials never reach the box. Design:
    docs/MCP-SERVER.md.

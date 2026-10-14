@@ -51,9 +51,9 @@ function writePolicySnapshot(path = policySnapshotPath()): void {
   if (current(path) === text) return;
   try {
     writeSecure(path, text);
-    log.info({ path }, 'policy: snapshot for the plugin hook written');
+    log.info({ path }, 'policy: snapshot for the guard hook written');
   } catch (err) {
-    log.warn({ path, err: errMsg(err) }, 'policy: the snapshot for the plugin hook could not be written');
+    log.warn({ path, err: errMsg(err) }, 'policy: the snapshot for the guard hook could not be written');
   }
 }
 

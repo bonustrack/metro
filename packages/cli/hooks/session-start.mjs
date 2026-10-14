@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const given = (value) => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
 const claudeDir = given(process.env.CLAUDE_CONFIG_DIR) ?? join(given(process.env.HOME) ?? homedir(), '.claude');
 const SKILL = join(claudeDir, 'skills', 'metro', 'SKILL.md');
-const FALLBACK = join(dirname(dirname(fileURLToPath(import.meta.url))), 'METRO.md');
+const FALLBACK = join(dirname(dirname(fileURLToPath(import.meta.url))), 'skills', 'METRO.md');
 
 const body = (text) => text.replace(/^---[\s\S]*?\n---\n/, '').trim();
 
@@ -24,7 +24,7 @@ function guidance() {
   return '';
 }
 
-const text = process.env.METRO_SESSION === 'voice' ? '' : guidance();
+const text = ['voice', 'memory'].includes(process.env.METRO_SESSION) ? '' : guidance();
 if (text !== '')
   process.stdout.write(
     `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: `This machine runs as a metro agent. Standing rules, kept in the metro skill:\n\n${text}` } })}\n`,

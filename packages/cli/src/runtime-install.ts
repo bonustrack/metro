@@ -6,7 +6,7 @@ import { localStations } from './local.js';
 import { STORE_ENTRY, daemonEntry, findBun, runtimeDir } from './runtime.js';
 
 const MANIFEST_FILE = 'stations.json';
-const MARKETPLACE = 'marketplace';
+const OLD_MARKETPLACE = 'marketplace';
 const METRO_SOURCES = join('node_modules', '@metro-labs');
 const INSTALL_TIMEOUT_MS = 15 * 60_000;
 
@@ -84,23 +84,14 @@ export function readOrNull(path: string): string | null {
   }
 }
 
-function copyMarketplace(sources: string, store: string): boolean {
-  const staged = join(sources, MARKETPLACE);
-  if (!existsSync(staged)) return false;
-  cpSync(staged, join(store, MARKETPLACE), { recursive: true });
-  return true;
-}
-
 function syncSources(sources: string, store: string): boolean {
   const shim = join(sources, STORE_ENTRY);
   if (existsSync(shim)) copyFileSync(shim, join(store, STORE_ENTRY));
   const stamp = readOrNull(join(sources, 'runtime.json'));
-  if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp)
-    return existsSync(join(store, MARKETPLACE)) ? false : copyMarketplace(sources, store);
+  if (stamp !== null && readOrNull(join(store, 'runtime.json')) === stamp) return false;
   rmSync(join(store, METRO_SOURCES), { recursive: true, force: true });
   cpSync(join(sources, METRO_SOURCES), join(store, METRO_SOURCES), { recursive: true });
-  rmSync(join(store, MARKETPLACE), { recursive: true, force: true });
-  copyMarketplace(sources, store);
+  rmSync(join(store, OLD_MARKETPLACE), { recursive: true, force: true });
   if (stamp !== null) writeFileSync(join(store, 'runtime.json'), stamp);
   return true;
 }

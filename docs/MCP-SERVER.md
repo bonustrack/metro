@@ -21,7 +21,8 @@ Now:
 - Any MCP client can use it, not only Claude Code.
 
 Claude Code has two Metro servers: `metro` (the daemon on the box: chats, channels, sending
-messages) and `mcp` (this one: connectors).
+messages) and `mcp` (this one: connectors). Claude Code names this one's tools
+`mcp__mcp__find_tools` and `mcp__mcp__call_tool`.
 
 ## The agent's view
 
@@ -88,8 +89,17 @@ anything else is Write. mcp.metro.box reads the policies from the database on ev
   when it has none), sends only its SHA-256 to mcp.metro.box with a signed request, and
   keeps the token in the agent's own folder (`<agent home>/.metro/agents/mcp-token`, 0600,
   the agent user's).
-- The plugin's `.mcp.json` has one entry, `mcp`, pointing at `https://mcp.metro.box`, whose
-  `headersHelper` prints `Bearer <token>`. The token is never written into the file.
+- `metro claude` (and `metro voice`) adds the `mcp` server to the private `--mcp-config` file
+  it writes for each launch: `{type: 'http', url: 'https://mcp.metro.box', headersHelper:
+  'node "<CLI package>/hooks/mcp-headers.mjs"'}`. The helper prints
+  `{"Authorization": "Bearer <token>"}` from the agent's own folder each time Claude Code
+  connects, so the token is never written into that file or put on a command line, and a
+  token made after the launch is used at the next reconnect.
+- The Agent SDK runner adds the same server to its `mcpServers` with the token in `headers`,
+  read when the runner starts (the SDK has no `headersHelper`). The SDK hands its servers to
+  Claude Code as a `--mcp-config` argument, so the token is on that process's command line,
+  which the process list shows to the other users of the machine (on a box: metro and root,
+  which can read the token file anyway); a new token needs a runner restart.
 - Enrolling again replaces it. A token whose agent left its organization stops working at
   once.
 
@@ -147,3 +157,7 @@ url (https, or http on this machine only); an empty value turns the client off.
    (`POST /api/agents/connectors`), the daemon's sync, runtime, relay, discovery and server
    keys, the per-connector `.mcp.json` entries, the daemon's connector gates and the Sync
    switch. `METRO_MCP_SERVER_URL` defaults to `https://mcp.metro.box`.
+4. Done (2026-10-14): no Claude Code plugin. The `mcp` server moved from the plugin's
+   `.mcp.json` into `metro claude`'s `--mcp-config` and the SDK runner's `mcpServers`, so
+   its tools are `mcp__mcp__*` instead of `mcp__plugin_metro_mcp__*`; the guard and the
+   standing rules became hooks the daemon writes into `~/.claude/settings.json`.

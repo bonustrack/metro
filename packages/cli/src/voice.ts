@@ -1,4 +1,4 @@
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { headlessEnv, PERMISSION_MODE_FLAG, runClaude } from './claude.js';
 import { localAgent } from './local.js';
 import { VOICE_MCP_PATH, writeMcpConfig } from './mcp-config.js';
@@ -49,7 +49,7 @@ export async function voiceSession(argv: string[]): Promise<number> {
   if (model === '') throw new Error('metro voice needs --model <model>');
   process.chdir(homedir());
   const agent = localAgent();
-  const mcp = agent === null ? null : writeMcpConfig(agent.key, localPort(), tmpdir(), VOICE_MCP_PATH);
+  const mcp = agent === null ? null : writeMcpConfig({ key: agent.key, port: localPort(), path: VOICE_MCP_PATH });
   try {
     return await runClaude(voiceArgs(model, permissionMode(), systemPrompt(), mcp?.path), voiceEnv(await headlessEnv()));
   } finally {

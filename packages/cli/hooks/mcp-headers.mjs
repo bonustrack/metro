@@ -15,10 +15,5 @@ function readMcpToken() {
   }
 }
 
-if (process.argv[2] !== 'mcp-headers') {
-  process.stderr.write('usage: metro-plugin.mjs mcp-headers\n');
-  process.exit(1);
-}
-
 const token = readMcpToken();
 if (token !== null) process.stdout.write(`${JSON.stringify({ Authorization: `Bearer ${token}` })}\n`);

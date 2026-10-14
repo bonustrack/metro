@@ -1,5 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 
+export { MCP_TOKEN_RE } from '@metro-labs/core/mcp-server';
+
 export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer' } as const;
 export const MCP_FIND_DEFAULT = 5;
 export const MCP_FIND_MAX = 20;
@@ -7,7 +9,6 @@ export const MCP_CALLS_MAX = 10;
 export const MCP_QUERY_MAX = 500;
 export const MCP_APPROVAL_WAIT_MS = 25_000;
 export const MCP_APPROVAL_ID_RE = /^[a-km-z]{5}$/;
-export const MCP_TOKEN_RE = /^mcp_[A-Za-z0-9_-]{43}$/;
 
 export type McpErrorCode = 'blocked' | 'needs_approval' | 'denied' | 'not_found' | 'signin' | 'unavailable' | 'vendor_error' | 'invalid';
 

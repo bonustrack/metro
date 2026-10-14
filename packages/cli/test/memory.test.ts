@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
+import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routineEnv, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
 
 let dir = '';
 
@@ -87,6 +87,8 @@ describe('the run the routine starts', () => {
     expect(args).toContain('--strict-mcp-config');
     expect(args).toContain('--no-session-persistence');
     expect(args).not.toContain('--mcp-config');
+    expect(args).not.toContain('--settings');
+    expect(routineEnv({ HOME: '/home/agent', METRO_SESSION: 'voice' })).toEqual({ HOME: '/home/agent', METRO_SESSION: 'memory' });
     expect(args.join(' ')).not.toMatch(/WebFetch|WebSearch|Agent|curl/);
     expect(args.slice(-2)).toEqual(['--append-system-prompt', 'Be kind.']);
     expect(routineArgs('go', '/m', null)).not.toContain('--append-system-prompt');

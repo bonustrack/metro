@@ -46,7 +46,7 @@ const claudeDir = join(ROOT, 'claude');
 const home = join(ROOT, 'home');
 writeFileSync(join(agentDir, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
 writeFileSync(join(agentDir, 'agent.json'), JSON.stringify({ version: 1, id: AGENT, key: KEY, stations: [] }));
-const guard = fileURLToPath(new URL('../../plugin/bin/guard.mjs', import.meta.url));
+const guard = fileURLToPath(new URL('../../packages/cli/hooks/guard.mjs', import.meta.url));
 writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: `node ${JSON.stringify(guard)}` }] }] } }));
 mkdirSync(join(home, '.metro'), { recursive: true });
 setKeyMap([{ key: KEY, agentId: AGENT }, { key: OTHER_KEY, agentId: 'other000001' }]);

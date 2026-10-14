@@ -8,7 +8,7 @@ import { setPolicies } from '../src/policy/policy.ts';
 import { channelDecision } from '../src/mcp/policy-gate.ts';
 import { policySnapshotPath, watchPolicySnapshot } from '../src/mcp/policy-snapshot.ts';
 
-const GUARD = join(import.meta.dir, '..', '..', '..', 'plugin', 'bin', 'guard.mjs');
+const GUARD = join(import.meta.dir, '..', '..', '..', 'packages', 'cli', 'hooks', 'guard.mjs');
 const AGENT = 'agent000001';
 const TG = 'tg000000001';
 const XM = 'xm000000001';
@@ -50,7 +50,7 @@ afterAll(() => {
   delete process.env.METRO_AGENTS_DIR;
 });
 
-describe('the policy snapshot the plugin hook reads', () => {
+describe('the policy snapshot the guard hook reads', () => {
   test('is written at start and again whenever a policy changes, owner-only', () => {
     expect(read()).toMatchObject({ version: 1, accounts: {}, stations: { telegram: [TG], xmtp: [XM] } });
     expect(statSync(policySnapshotPath(dir)).mode & 0o777).toBe(0o600);

@@ -1,6 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { markOnboardingDone, seedChannels } from './onboarding.js';
-import { writeMcpConfig, type McpConfigFile } from './mcp-config.js';
+import { mcpServerSetting, mcpServerUrl, writeMcpConfig, type McpConfigFile } from './mcp-config.js';
 import { currentRoute, harnessRunner, permissionMode, routeModelEnv, systemPrompt, type PermissionMode } from './route.js';
 import { settingsConflicts, settingsFiles } from './claude-settings.js';
 import { localAgent, type LocalAgent } from './local.js';
@@ -153,9 +153,13 @@ async function servedKey(decision: Verdict): Promise<string | null> {
 }
 
 function mcpConfigFor(key: string | null, port: number): McpConfigFile | null {
-  if (key === null) return null;
-  const file = writeMcpConfig(key, port);
-  process.stderr.write(`metro claude: the metro MCP server is loaded for this session from the daemon at http://127.0.0.1:${String(port)}/mcp, nothing to add by hand\n`);
+  const connectors = mcpServerUrl();
+  const file = writeMcpConfig({ key, port, connectors });
+  if (key !== null)
+    process.stderr.write(`metro claude: the metro MCP server is loaded for this session from the daemon at http://127.0.0.1:${String(port)}/mcp, nothing to add by hand\n`);
+  if (file?.servers.includes('mcp') === true) process.stderr.write(`metro claude: the connectors are loaded for this session as the mcp server at ${connectors ?? ''}\n`);
+  else if (connectors === null && mcpServerSetting() !== '')
+    process.stderr.write('metro claude: METRO_MCP_SERVER_URL must be an https url (http only on this machine), so the connectors are not loaded\n');
   return file;
 }
 

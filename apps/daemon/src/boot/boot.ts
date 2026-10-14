@@ -21,11 +21,10 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
-import { ensureMetroPlugin } from '../claude/plugin-install.js';
+import { removeMetroPlugin } from '../claude/plugin-cleanup.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
 import { applyVault } from '../vault/index.js';
@@ -194,14 +193,11 @@ async function startClaude(): Promise<void> {
     const vault = (await applyVault()).status;
     if (vault.enabled) log.info({ running: vault.running, problem: vault.problem }, 'vault: the agent reaches the internet through the vault');
   }
-  ensureMetroPlugin()
-    .then((outcome) => {
-      log.info({ outcome }, 'plugin: metro plugin for Claude Code');
-      if (outcome !== 'skipped') syncPluginServers();
-    })
-    .catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
-    });
+  const plugin = await removeMetroPlugin().catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'claude-plugin: could not check for the old metro plugin');
+    return 'failed';
+  });
+  if (plugin !== 'done') log.info({ outcome: plugin }, 'claude-plugin: checked for the old metro Claude Code plugin');
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());

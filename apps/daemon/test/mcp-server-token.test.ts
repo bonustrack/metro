@@ -1,5 +1,4 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,12 +6,11 @@ import { MCP_TOKEN_RE } from '@metro-labs/http/mcp-server-protocol';
 import { newAgentKey, saveAgentKey, type AgentKey } from '../src/connectors/agent-key.ts';
 import { mcpServerUrl } from '../src/mcp-server/config.ts';
 import { stopMcpServer, watchMcpServer, type McpServerLink } from '../src/mcp-server/link.ts';
-import { mcpTokenHash, readMcpToken } from '../src/mcp-server/token.ts';
+import { readMcpToken } from '@metro-labs/core/mcp-server';
+import { mcpTokenHash } from '../src/mcp-server/token.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
 import { AGENT, fakeMcpServer, linkTo, OWNER, type FakeMcpServer } from './mcp-server-fixture.ts';
 import { settle, waitFor } from './wait.ts';
-
-const HELPER = join(import.meta.dir, '..', '..', '..', 'plugin', 'bin', 'metro-plugin.mjs');
 
 let fake: FakeMcpServer;
 let dir = '';
@@ -176,32 +174,5 @@ describe('METRO_MCP_SERVER_URL', () => {
       expect(mcpServerUrl({ METRO_MCP_SERVER_URL: bad })).toBeNull();
     expect(mcpServerUrl({ METRO_MCP_SERVER_URL: 'http://127.0.0.1:18080' })).toBe('http://127.0.0.1:18080');
     expect(mcpServerUrl({ METRO_MCP_SERVER_URL: ' ' })).toBeNull();
-  });
-});
-
-describe('the plugin helper mcp-headers', () => {
-  const run = (agentsDir: string): { status: number | null; stdout: string } => {
-    const out = spawnSync('node', [HELPER, 'mcp-headers'], { encoding: 'utf8', env: { ...process.env, METRO_AGENTS_DIR: agentsDir } });
-    return { status: out.status, stdout: out.stdout };
-  };
-
-  test('prints the bearer header from the agents folder', () => {
-    const token = `mcp_${'b'.repeat(43)}`;
-    writeFileSync(join(dir, 'mcp-token'), `${token}\n`);
-    expect(run(dir)).toEqual({ status: 0, stdout: `${JSON.stringify({ Authorization: `Bearer ${token}` })}\n` });
-  });
-
-  test('prints nothing and exits 0 when the token is missing or not a token', () => {
-    expect(run(dir)).toEqual({ status: 0, stdout: '' });
-    writeFileSync(join(dir, 'mcp-token'), 'not a token\n');
-    expect(run(dir)).toEqual({ status: 0, stdout: '' });
-  });
-
-  test('has no other command: the agent key helper of the old connector servers is gone', () => {
-    writeFileSync(join(dir, 'agent.json'), JSON.stringify({ version: 1, id: AGENT, key: 'mk_x' }));
-    const out = spawnSync('node', [HELPER, 'headers'], { encoding: 'utf8', env: { ...process.env, METRO_AGENTS_DIR: dir } });
-    expect(out.status).toBe(1);
-    expect(out.stdout).toBe('');
-    expect(out.stderr).toContain('usage: metro-plugin.mjs mcp-headers');
   });
 });

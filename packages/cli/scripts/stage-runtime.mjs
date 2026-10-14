@@ -42,15 +42,6 @@ writeFileSync(join(OUT, 'trains', '.keep'), '');
 writeFileSync(join(OUT, 'server.ts'), "import './node_modules/@metro-labs/daemon/src/server.ts';\n");
 
 const { version } = JSON.parse(readFileSync(join(CLI, 'package.json'), 'utf8'));
-const MARKET = join(OUT, 'marketplace');
-mkdirSync(join(MARKET, '.claude-plugin'), { recursive: true });
-cpSync(join(REPO, '.claude-plugin', 'marketplace.json'), join(MARKET, '.claude-plugin', 'marketplace.json'));
-cpSync(join(REPO, 'plugin'), join(MARKET, 'plugin'), { recursive: true });
-const pluginManifestPath = join(MARKET, 'plugin', '.claude-plugin', 'plugin.json');
-const pluginManifest = JSON.parse(readFileSync(pluginManifestPath, 'utf8'));
-pluginManifest.version = version;
-writeFileSync(pluginManifestPath, `${JSON.stringify(pluginManifest, null, 2)}\n`);
-writeFileSync(join(MARKET, 'plugin', '.mcp.json'), '{}\n');
 
 const vendor = (from) => {
   const { dependencies = {} } = JSON.parse(readFileSync(join(REPO, from, 'package.json'), 'utf8'));
