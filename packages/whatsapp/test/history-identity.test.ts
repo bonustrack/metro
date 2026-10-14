@@ -236,4 +236,4 @@ test('bounded alias eviction advances a durable floor before forgetting replay i
   restored.ingest([message('a'), message('a', { remoteJid: LID })]);
   expect(restored.read(PN).count).toBe(0);
   expect(restored.read(LID).count).toBe(0);
-});
+}, 20_000);

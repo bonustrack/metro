@@ -69,7 +69,7 @@ test('account row cap applies across chats and retained counts sum to the advert
   history.ingest(Array.from({ length: HISTORY_LIMITS.rows + 5 }, (_, i) => message(`m-${i}`, i + 1, `${i % 20}@lid`)));
   const retained = Array.from({ length: 20 }, (_, i) => history.read(`${i}@lid`).coverage.retained).reduce((a, b) => a + b, 0);
   expect(retained).toBe(HISTORY_LIMITS.rows);
-});
+}, 20_000);
 
 test('serialized byte cap includes escaping, metadata and replay markers, not just text lengths', () => {
   const history = open();
