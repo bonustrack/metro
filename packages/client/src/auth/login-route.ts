@@ -5,7 +5,6 @@ const LOGIN_HASH = '#/login';
 
 const LOGIN_ROUTE = '/login';
 const WAITLIST_ROUTE = '/waitlist';
-const LANDING_HASH = '#/';
 const STORE_KEY = 'metro.redirect';
 
 function hashParts(): { route: string; query: URLSearchParams } {
@@ -46,11 +45,6 @@ export function clearOutcome(): void {
   replaceHash(`#${route}${rest === '' ? '' : `?${rest}`}`);
 }
 
-export function atLanding(): boolean {
-  const { route } = hashParts();
-  return route === '' || route === '/';
-}
-
 function safeRedirect(raw: string | null): string | null {
   if (raw === null || raw === '' || raw === '/') return null;
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
@@ -68,9 +62,9 @@ function replaceHash(hash: string): void {
   location().replace(hash);
 }
 
-export function goToLanding(): void {
+export function goToFreshLogin(): void {
   writeStored(null);
-  replaceHash(LANDING_HASH);
+  replaceHash(LOGIN_HASH);
 }
 
 export function goToLogin(): void {
@@ -78,7 +72,6 @@ export function goToLogin(): void {
     writeStored(safeRedirect(hashParts().query.get('redirect')));
     return;
   }
-  if (atLanding()) return;
   const heading = routedDaemon();
   if (heading !== null) storeDaemon(heading);
   const from = safeRedirect(hashParts().route);

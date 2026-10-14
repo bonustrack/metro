@@ -27,7 +27,7 @@ mock.module('expo/fetch', () => ({ fetch: globalThis.fetch }));
 const { prepareLocation, noteRouteHash, takeInitialOrgConnectorReturn } = await import('./src/lib/location.js');
 const { useSelection } = await import('./src/lib/route-hash.js');
 const { location, configurePlatform, memoryKeyValue } = await import('@metro-labs/client/platform');
-const { atLanding, atLogin, atWaitlist, readOutcome, clearOutcome, goToLogin } = await import('@metro-labs/client/auth/login-route');
+const { atLogin, atWaitlist, readOutcome, clearOutcome, goToLogin } = await import('@metro-labs/client/auth/login-route');
 const { takeInvitationFromUrl, pendingInvitation } = await import('@metro-labs/client/auth/invitation');
 const storage = memoryKeyValue();
 configurePlatform({ kv: storage, tabKv: storage });
@@ -57,7 +57,6 @@ address.hash = '#/';
 router.push('/login');
 noteRouteHash('#/login');
 assert.equal(address.hash, '#/');
-assert.equal(atLanding(), false);
 assert.equal(atLogin(), true);
 goToLogin();
 assert.equal(location().hash(), '#/login');
@@ -66,7 +65,7 @@ address.hash = pending.at(-1);
 for (const hash of ['#/', '#/login', '#/', '#/waitlist', '#/', '#/login']) {
   noteRouteHash(hash);
   assert.equal(location().hash(), hash);
-  assert.equal(atLanding(), hash === '#/');
+  assert.equal(atLogin(), hash !== '#/');
   assert.equal(atWaitlist(), hash === '#/waitlist');
   address.hash = hash;
 }
@@ -94,8 +93,12 @@ location().push('#/waitlist');
 assert.equal(atWaitlist(), true);
 assert.equal(pending.at(-1), '/waitlist');
 location().replace('#/');
-assert.equal(atLanding(), true);
+assert.equal(atLogin(), false);
 assert.equal(pending.at(-1), '/');
+
+noteRouteHash('#/');
+goToLogin();
+assert.equal(location().hash(), '#/login');
 `;
 
 test.each(['web', 'android'])('%s auth routes follow the rendered route before history catches up', (platform) => {

@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth/account';
 import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
-import { atLanding, atLogin, atWaitlist, goToLanding, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
+import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
 import { clearInitialSignInReturn, initialSignInReturn } from '../lib/location.js';
 import { location } from '@metro-labs/client/platform';
@@ -11,7 +11,6 @@ import { type Selection } from '@metro-labs/client/selection';
 import { BootLoading } from './BootLoading.js';
 import { BuildDot } from './BuildDot.js';
 import { Login } from './Login.js';
-import { Landing } from './landing/Landing.js';
 import { LegalPage } from './legal/LegalPage.js';
 import { OrganizationSetup } from './OrganizationSetup.js';
 import { SignInReturn } from './SignInReturn.js';
@@ -42,10 +41,7 @@ async function boot(): Promise<Phase> {
   return account.organization === null ? 'organization' : 'unlocked';
 }
 
-function loginTitle(): string | null {
-  if (atLanding()) return null;
-  return atWaitlist() ? 'Waitlist' : 'Log in';
-}
+const loginTitle = (): string => (atWaitlist() ? 'Waitlist' : 'Log in');
 
 function usePhase(): [Phase, (next: Phase) => void] {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -77,7 +73,7 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
   };
   const signOut = (): void => {
     logoutAccount().catch(() => undefined);
-    goToLanding();
+    goToFreshLogin();
     setPhase('login');
   };
   const unlock = (): void => {
@@ -95,7 +91,7 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
   return (
     <QueryClientProvider client={client}>
       {phase === 'loading' ? <BootLoading /> : null}
-      {phase === 'login' ? atLanding() ? <Landing /> : <Login /> : null}
+      {phase === 'login' ? <Login /> : null}
       {phase === 'organization' ? <OrganizationSetup onDone={unlock} onLock={lock} /> : null}
       {phase === 'unlocked' ? (
         <OrganizationGate selection={selection} onLock={signOut}>
