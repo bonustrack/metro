@@ -8,7 +8,7 @@ import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
 import { accountStationNames, stationByName } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
-import { MCP_INSTRUCTIONS, VOICE_MCP_INSTRUCTIONS } from './instructions.js';
+import { MCP_INSTRUCTIONS } from './instructions.js';
 import { BoundedEventStore } from './event-store.js';
 import { registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
@@ -55,12 +55,7 @@ function makeTransport(
   return t;
 }
 
-export type SessionKind = 'chat' | 'voice';
-
-const CHANNEL_CAPABILITIES = { experimental: { 'claude/channel': {}, 'claude/channel/permission': {} } };
-
 export interface SessionInit {
-  kind?: SessionKind;
   id: string;
   scope: Set<string>;
   adopted: boolean;
@@ -84,7 +79,6 @@ export class McpSession {
   private issuedSchema: string | undefined;
   private announcing = false;
   private readonly onClosed: (session: McpSession) => void;
-  private readonly kind: SessionKind;
   private readonly openedAt = new Date().toISOString();
   private clientInitializedAt: string | null = null;
   private lastStreamAttachedAt: string | null = null;
@@ -92,20 +86,15 @@ export class McpSession {
 
   private constructor(init: SessionInit) {
     this.id = init.id;
-    this.kind = init.kind ?? 'chat';
     this.scope = init.scope;
     this.live = init.live;
     this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore();
     this.transport = makeTransport(init.id, this.eventStore, init.adopted);
-    const voice = init.kind === 'voice';
     this.server = new Server(
       { name: 'metro', version: '0.1.0' },
-      {
-        capabilities: { ...(voice ? {} : CHANNEL_CAPABILITIES), tools: { listChanged: true } },
-        instructions: voice ? VOICE_MCP_INSTRUCTIONS : MCP_INSTRUCTIONS,
-      },
+      { capabilities: { tools: { listChanged: true } }, instructions: MCP_INSTRUCTIONS },
     );
     this.server.oninitialized = (): void => {
       this.clientInitializedAt = new Date().toISOString();
@@ -130,16 +119,15 @@ export class McpSession {
       approves,
       noteDirect,
       answerPermission,
-      callMeta: (event) => voice ? () => ({}) : sharedCalls.bindChat(event, this.scope),
+      callMeta: (event) => sharedCalls.bindChat(event, this.scope),
     });
-    if (!voice)
-      registerPermissionRelay({
-        mcp: this.server,
-        relay: this.relay,
-        inScope: (line) => this.inScope(line),
-        live: this.live,
-        log: channelLog,
-      });
+    registerPermissionRelay({
+      mcp: this.server,
+      relay: this.relay,
+      inScope: (line) => this.inScope(line),
+      live: this.live,
+      log: channelLog,
+    });
     this.channel = new ChannelRelay({
       relay: this.relay,
       log: channelLog,
@@ -214,7 +202,7 @@ export class McpSession {
   }
 
   private announceCallState(): void {
-    if (this.kind !== 'chat' || !this.streamAttached || this.server.getClientVersion()?.name !== 'metro-sdk-runner') return;
+    if (!this.streamAttached || this.server.getClientVersion()?.name !== 'metro-sdk-runner') return;
     const active = sharedCalls.snapshot();
     const route = active !== null && this.scope.has(active.agentId) && eventInScope(this.scope, active.line) ? active : null;
     this.server.notification({ method: CALL_STATE, params: { route, ...(route === null ? {} : { meta: { line: route.line } }) } }).catch((err: unknown) => {
@@ -264,7 +252,7 @@ export class McpSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    if (this.kind === 'chat') sharedCalls.revoke();
+    sharedCalls.revoke();
     this.onClosed(this);
     forgetPromptsOf(this.server);
     this.dropStream();

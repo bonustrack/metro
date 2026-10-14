@@ -38,7 +38,6 @@ import { applyMcpCors, handleMcpPreflight } from '@metro-labs/http/cors';
 import { METRO_VERSION } from '@metro-labs/core/version';
 
 const LRU_CAP = 2_000;
-export const VOICE_MCP_PATH = '/mcp/voice';
 
 function dedupKey(
   e: Pick<MetroEvent, 'station' | 'line' | 'messageId'>,
@@ -214,7 +213,7 @@ export async function startWebhookServer(
 
 function isMcpPath(req: IncomingMessage): boolean {
   const path = (req.url ?? '').split('?')[0];
-  return path === '/' || path === '/mcp' || path === VOICE_MCP_PATH || path === MCP_STATUS_PATH;
+  return path === '/' || path === '/mcp' || path === MCP_STATUS_PATH;
 }
 
 function flatHeaders(req: IncomingMessage): Record<string, string> {

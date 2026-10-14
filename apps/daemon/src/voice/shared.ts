@@ -4,7 +4,6 @@ import { str } from '@metro-labs/core/str';
 import { log } from '@metro-labs/core/log';
 import { agentIdForLine, allowlistForLine, lineReceives, mayApprove, senderPermitted, accountFromLine } from '../agents/map.js';
 import { eventInScope } from '../agents/scope.js';
-import { harnessRunner } from '../claude/runner.js';
 import { policyFor, type Access } from '../policy/policy.js';
 
 export interface SharedSpeechAction {
@@ -194,7 +193,6 @@ export class SharedCalls {
 }
 
 export const sharedCalls = new SharedCalls();
-export const sharedCallsSelected = (): boolean => harnessRunner() === 'sdk';
 export const openSharedCall = (route: CallRoute, sourceId: string, transport: SharedCallTransport): boolean => sharedCalls.open(route, sourceId, transport);
 export const hearSharedCall = (route: CallRoute, text: string, sourceId: string): void => { sharedCalls.heard(route, text, sourceId); };
 export const endSharedCall = (route: CallRoute): void => { sharedCalls.end(route); };

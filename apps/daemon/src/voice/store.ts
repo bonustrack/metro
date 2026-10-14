@@ -3,7 +3,6 @@ import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { agentsDir } from '../agents/files.js';
-import { readModelConfig, type ModelConfig } from '../gateway/model-config.js';
 
 const VOICE_PROVIDERS = ['elevenlabs'] as const;
 type VoiceProvider = (typeof VOICE_PROVIDERS)[number];
@@ -12,7 +11,6 @@ export interface VoiceConfig {
   provider: VoiceProvider;
   apiKey: string;
   voiceId: string;
-  model: string;
   language: string;
   enabled: boolean;
 }
@@ -22,7 +20,6 @@ const AUTO_LANGUAGE = 'auto';
 const LANGUAGE_RE = /^(?:[a-z]{2,3}|auto)$/;
 
 const DEFAULT_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL';
-const DEFAULT_VOICE_MODEL = 'anthropic:claude-sonnet-5-5';
 
 const VOICE_FILE = 'voice.json';
 const MAX_FIELD = 512;
@@ -38,7 +35,6 @@ export function parseVoice(raw: unknown): VoiceConfig {
     provider: isProvider(r.provider) ? r.provider : 'elevenlabs',
     apiKey: text(r.apiKey),
     voiceId: text(r.voiceId),
-    model: text(r.model),
     language: LANGUAGE_RE.test(text(r.language)) ? text(r.language) : '',
     enabled: r.enabled !== false,
   };
@@ -52,13 +48,6 @@ export function writeVoice(cfg: VoiceConfig, dir = agentsDir()): void {
 }
 
 export const voiceIdOf = (cfg: VoiceConfig): string => (cfg.voiceId === '' ? DEFAULT_VOICE_ID : cfg.voiceId);
-const voiceModelOf = (cfg: VoiceConfig): string => (cfg.model === '' ? DEFAULT_VOICE_MODEL : cfg.model);
-export function brainModel(cfg: VoiceConfig, models: ModelConfig = readModelConfig()): string {
-  const model = voiceModelOf(cfg);
-  const anthropic = /^anthropic:(.+)$/.exec(model)?.[1];
-  if (anthropic === undefined) return model;
-  return models.connections.some((c) => c.provider === 'anthropic') ? model : anthropic;
-}
 
 export function languageOf(cfg: VoiceConfig): string | null {
   const language = cfg.language === '' ? DEFAULT_LANGUAGE : cfg.language;
@@ -73,10 +62,9 @@ export function publicVoice(cfg: VoiceConfig): Record<string, unknown> {
     providers: VOICE_PROVIDERS,
     hasKey: cfg.apiKey !== '',
     voiceId: cfg.voiceId,
-    model: cfg.model,
     language: cfg.language,
     enabled: cfg.enabled,
-    defaults: { voiceId: DEFAULT_VOICE_ID, model: DEFAULT_VOICE_MODEL, language: DEFAULT_LANGUAGE },
+    defaults: { voiceId: DEFAULT_VOICE_ID, language: DEFAULT_LANGUAGE },
   };
 }
 
@@ -109,7 +97,6 @@ export function patchVoice(cfg: VoiceConfig, body: unknown): VoiceConfig {
     provider: isProvider(body.provider) ? body.provider : cfg.provider,
     apiKey: keyOf(body, cfg.apiKey),
     voiceId: field(body, 'voiceId', cfg.voiceId),
-    model: field(body, 'model', cfg.model),
     language: languageField(body, cfg.language),
     enabled: typeof body.enabled === 'boolean' ? body.enabled : cfg.enabled,
   };
