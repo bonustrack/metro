@@ -8,6 +8,7 @@ import type { McpDeps } from './deps.js';
 import { argsDigest, previewOf } from './digest.js';
 import { CallError } from './errors.js';
 import { connectorTools, failureOf, groupsOf } from './listing.js';
+import { closestNames } from './search.js';
 import type { ToolGroup } from './policy.js';
 import { textBlock, type ToolResult } from './tool-result.js';
 import { callVendorTool } from './vendor.js';
@@ -31,13 +32,33 @@ interface CallContext {
 }
 
 export const needsApprovalText = (name: string, id: string): string =>
-  `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call call_tool again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
+  `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
 
-function targetOf(ctx: CallContext, call: McpCall): Target {
+const SUGGESTIONS = 3;
+
+async function usableNames(ctx: CallContext, within: AgentConnector | undefined): Promise<string[]> {
+  const pool = within === undefined ? ctx.connectors.filter((connector) => !connector.access.blocked) : [within];
+  const lists = await Promise.all(
+    pool.map(async (connector) => {
+      const tools = await connectorTools(ctx.deps, ctx.identity, connector).catch(() => []);
+      const groups = groupsOf(tools);
+      return tools.filter((tool) => connector.access.decide(tool.name, groups) !== 'deny').map((tool) => `${connector.key}.${tool.name}`);
+    }),
+  );
+  return lists.flat();
+}
+
+async function notFound(ctx: CallContext, wanted: string, reason: string, within?: AgentConnector): Promise<CallError> {
+  const closest = closestNames(wanted, await usableNames(ctx, within), SUGGESTIONS);
+  const hint = closest.length === 0 ? '' : ` Closest: ${closest.join(', ')}.`;
+  return new CallError('not_found', `${reason}${hint} Run tool_search first.`);
+}
+
+async function targetOf(ctx: CallContext, call: McpCall): Promise<Target> {
   const split = splitMcpTool(call.tool);
   const connector = ctx.connectors.find((candidate) => candidate.key === split?.connector);
-  if (split === null || connector === undefined) throw new CallError('not_found', `No connector named "${split?.connector ?? call.tool}" is assigned to this agent. ${connectorsSentence(ctx.connectors)}`);
-  if (!validConnectorToolName(split.tool)) throw new CallError('not_found', `${connector.key} has no tool named ${split.tool}. Use find_tools to see its tools.`);
+  if (split === null || connector === undefined) throw await notFound(ctx, call.tool, `No connector named "${split?.connector ?? call.tool}" is assigned to this agent. ${connectorsSentence(ctx.connectors)}`);
+  if (!validConnectorToolName(split.tool)) throw await notFound(ctx, call.tool, `${connector.key} has no tool named ${split.tool}.`, connector);
   return { connector, tool: split.tool, name: call.tool };
 }
 
@@ -51,7 +72,7 @@ async function groupsFor(ctx: CallContext, target: Target): Promise<Record<strin
     });
   }
   if (tools === undefined) return {};
-  if (!tools.some((tool) => tool.name === target.tool)) throw new CallError('not_found', `${target.connector.key} has no tool named ${target.tool}. Use find_tools to see its tools.`);
+  if (!tools.some((tool) => tool.name === target.tool)) throw await notFound(ctx, target.name, `${target.connector.key} has no tool named ${target.tool}.`, target.connector);
   return groupsOf(tools);
 }
 
@@ -89,7 +110,7 @@ async function runCall(ctx: CallContext, call: McpCall, index: number): Promise<
   let target: Target | undefined;
   let result: Outcome;
   try {
-    target = targetOf(ctx, call);
+    target = await targetOf(ctx, call);
     await gate(ctx, target, call);
     result = await run(ctx, target, call);
   } catch (err) {

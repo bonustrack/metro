@@ -21,6 +21,7 @@ import { SessionSlot } from './session-slot.js';
 import { connectCallBridge } from './call-bridge.js';
 import { connectServerApprovals } from './server-approvals.js';
 import { handleIncomingDiagnostic } from './diagnostics.js';
+import { onConnectorToolsChanged } from '../mcp-server/connector-tools.js';
 
 const isInitialize = (b: unknown): boolean =>
   !!b &&
@@ -99,6 +100,7 @@ async function serveGet(
 const isVoicePath = (req: IncomingMessage): boolean => (req.url ?? '').split('?')[0] === VOICE_MCP_PATH;
 
 let activeSlots: SessionSlot[] = [];
+let stopToolNotices: (() => void) | undefined;
 
 const MODEL_NOTICE = 'notifications/metro/model';
 
@@ -120,6 +122,10 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
   const slot = new SessionSlot(options.liveEvents);
   const voiceSlot = new SessionSlot(false, 'voice');
   activeSlots = [slot, voiceSlot];
+  stopToolNotices?.();
+  stopToolNotices = onConnectorToolsChanged(() => {
+    for (const each of [slot, voiceSlot]) each.current?.toolsChanged();
+  });
   connectCallBridge(() => slot.current);
   connectServerApprovals(() => slot.current);
 

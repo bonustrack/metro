@@ -59,7 +59,7 @@ describe('MCP over HTTP', () => {
     const body = await res.json() as { id: number; result: Record<string, unknown> };
     expect(body.id).toBe(1);
     expect(body.result).toMatchObject({ protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'metro' } });
-    expect(String(body.result.instructions)).toContain('find_tools');
+    expect(String(body.result.instructions)).toContain('tool_search then tool_call, from a worker');
     expect(MCP_INSTRUCTIONS.length).toBeLessThan(1500);
     const unknown = await (await rpc(app, agent.token, initialize('1999-01-01'))).json() as { result: { protocolVersion: string } };
     expect(unknown.result.protocolVersion).toBe('2025-11-25');
@@ -76,7 +76,7 @@ describe('MCP over HTTP', () => {
     expect(await res.text()).toBe('');
   });
 
-  test('tools/list has exactly find_tools and call_tool, and find_tools names the agent\'s connectors', async () => {
+  test('tools/list has exactly tool_search and tool_call, and tool_search names the agent\'s connectors', async () => {
     await addConnector(held.db, 'conn0000001', 'Notion', headerSecret());
     await addConnector(held.db, 'conn0000002', 'n8n Anderra', headerSecret());
     await addConnector(held.db, 'conn0000003', 'Hidden', headerSecret(), { policy: '{"read":"deny","write":"deny"}' });
@@ -84,22 +84,30 @@ describe('MCP over HTTP', () => {
     for (const id of ['conn0000001', 'conn0000002', 'conn0000003']) await assign(held.db, id, agent.row.agent);
     const body = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 3, method: 'tools/list' })).json() as { result: { tools: { name: string; description: string; inputSchema: { required: string[] }; annotations: Record<string, unknown> }[] } };
     const [find, call] = body.result.tools;
-    expect(body.result.tools.map((tool) => tool.name)).toEqual(['find_tools', 'call_tool']);
+    expect(body.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call']);
     expect(find?.description).toContain("This agent's connectors: n8n-anderra, notion.");
     expect(find?.description).not.toContain('hidden');
     expect(find?.inputSchema.required).toEqual(['query']);
     expect(find?.annotations).toMatchObject({ readOnlyHint: true });
     expect(call?.inputSchema.required).toEqual(['calls']);
     expect(call?.annotations).toMatchObject({ destructiveHint: true, openWorldHint: true });
+    for (const tool of body.result.tools) expect(tool.description.length).toBeLessThan(1800);
+    expect(find?.description).toContain("Claude Code's ToolSearch");
+    for (const example of ['"select:notion.search"', '"notion create page"', '"+linear issue"']) expect(find?.description).toContain(example);
+    expect(call?.description).toContain('Shape: {"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}');
+    for (const code of ['not_found', 'needs_approval', 'denied or blocked', 'signin', 'unavailable']) expect(call?.description).toContain(`- ${code}:`);
   });
 
   test('an unknown tool is a JSON-RPC error, bad arguments are a tool error', async () => {
     const unknown = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'notion.search', arguments: {} } })).json() as { error: { code: number } };
     expect(unknown.error.code).toBe(-32602);
-    const bad = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'call_tool', arguments: { calls: [] } } })).json() as { result: { isError: boolean; content: { text: string }[] } };
+    const bad = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'tool_call', arguments: { calls: [] } } })).json() as { result: { isError: boolean; content: { text: string }[] } };
     expect(bad.result.isError).toBe(true);
     expect(bad.result.content[0]?.text).toContain('1 to 10 calls');
-    const query = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'find_tools', arguments: { query: '' } } })).json() as { result: { isError: boolean } };
+    expect(bad.result.content[0]?.text).toContain('Expected: {"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}');
+    const shape = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'tool_call', arguments: { tool: 'notion.search' } } })).json() as { result: { isError: boolean; content: { text: string }[] } };
+    expect(shape.result.content[0]?.text).toContain('Expected: {"calls":[');
+    const query = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'tool_search', arguments: { query: '' } } })).json() as { result: { isError: boolean } };
     expect(query.result.isError).toBe(true);
   });
 

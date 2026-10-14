@@ -22,6 +22,7 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeMetroPlugin } from '../claude/plugin-cleanup.js';
@@ -164,7 +165,13 @@ installBearerSessions(agentsDir(), localOwner);
     hold: (approval, answer) => {
       holdServerApproval(approval, answer, emit);
     },
+    registered: () => {
+      refreshConnectorTools().catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'mcp-server: the connector tools could not be read after the token was registered');
+      });
+    },
   });
+  watchConnectorTools();
   startCloudWatchPublisher();
   watchFallbackUsage();
   announceLocalEndpoint();

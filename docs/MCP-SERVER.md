@@ -1,7 +1,7 @@
 # mcp.metro.box
 
 `apps/mcp` (package `@metro-labs/mcp`, Fly app `metro-mcp`, `https://mcp.metro.box`)
-is the one MCP endpoint every agent uses for its connectors. It is its own app with its own
+is the one MCP endpoint for every agent's connectors, reached through the agent's daemon. It is its own app with its own
 deploy, so a change to api.metro.box, the page or the daemon never redeploys it. Later it
 will also serve memory.
 
@@ -14,47 +14,60 @@ credentials travelled to every box.
 
 Now:
 
-- The agent connects to one MCP endpoint, `https://mcp.metro.box`, with its own token.
-- It finds tools with `find_tools` (the design of Claude Code's `ToolSearch`) and runs
-  them with `call_tool`. Definitions load only when asked for.
+- The agent reaches every connector through two tools of its daemon's `metro` MCP server:
+  `tool_search` (the design of Claude Code's `ToolSearch`) finds tools and loads their
+  definitions, and `tool_call` runs them. Definitions load only when asked for.
+- The daemon forwards both to `https://mcp.metro.box` with the agent's MCP token, which never
+  leaves Metro's folder on the box.
 - Every connector call runs from mcp.metro.box. Credentials never leave Metro's servers.
-- Any MCP client can use it, not only Claude Code.
+- The endpoint stays a plain MCP server: any MCP client holding a token can use it.
 
-Claude Code has two Metro servers: `metro` (the daemon on the box: chats, channels, sending
-messages) and `mcp` (this one: connectors). Claude Code names this one's tools
-`mcp__mcp__find_tools` and `mcp__mcp__call_tool`.
+Claude Code has one Metro server, `metro` (the daemon on the box: chats, channels, sending
+messages, and the two connector tools). Claude Code names the connector tools
+`mcp__metro__tool_search` and `mcp__metro__tool_call`.
 
 ## The agent's view
 
-The endpoint is Streamable HTTP at `/` (also `/mcp`), JSON answers, no session state. Every
-request carries `Authorization: Bearer <MCP token>`.
+mcp.metro.box is Streamable HTTP at `/` (also `/mcp`), JSON answers, no session state. Every
+request carries `Authorization: Bearer <MCP token>`. The daemon's `metro` server publishes
+the same two tools with the same schemas, descriptions and annotations (one source,
+`packages/http/src/mcp-server-tools.ts`), and passes each call and its result through.
 
-### `find_tools`
+### `tool_search`
 
 - Input: `{ query: string, max_results?: number }` (default 5, at most 20).
 - Query forms, as `ToolSearch`:
   - `select:notion.search,linear.create_issue` returns those exact tools.
-  - Keywords (`notion page update`) rank tools by how well their name and description match.
-  - `+slack send` requires `slack` in the tool name and ranks the rest by the other words.
-- Output: one text block in the `ToolSearch` encoding:
+  - Keywords (`notion create page`) rank tools by how well their name and description match.
+  - `+linear issue` requires `linear` in the tool name and ranks the rest by the other words.
+- Output: one text block in the `ToolSearch` encoding, then one line showing how to run
+  them:
 
   ```
   <functions>
   <function>{"name":"notion.search","description":"…","parameters":{…JSON schema…}}</function>
   </functions>
+  Call these with tool_call: {"calls":[{"tool":"notion.search","arguments":{…}}]}
   ```
 
-  No match answers `No tool matched "<query>".` and names the agent's connectors.
-- The tool's description (from `tools/list`) names the agent's connectors.
+  No match answers `No tool matched "<query>".`, names the agent's connectors and suggests a
+  broader query or `select:` with an exact name.
+- The tool's description (from `tools/list`) names the agent's connectors. The daemon reads
+  it at start, every 5 minutes and after it registers the token, and tells the session with
+  `notifications/tools/list_changed` when it changes.
 - Tools the owner blocked are never returned.
 
-### `call_tool`
+### `tool_call`
 
 - Input: `{ calls: [{ tool: "notion.search", arguments: { … }, approval?: "abcde" }] }`, 1 to
-  10 independent calls, run in parallel, answered in order.
+  10 independent calls, run in parallel, answered in order. A malformed input answers with
+  the expected shape: `{"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}`.
 - Output: for each call, a text header `[1] notion.search` followed by the vendor's content
-  blocks as they came (text, images, resources), or one line saying why it did not run. The
-  result is an error only when every call failed.
+  blocks as they came (text, images, resources), or one line saying why it did not run
+  (`not_found`, `needs_approval`, `denied`, `blocked`, `signin`, `unavailable`,
+  `vendor_error`). The result is an error only when every call failed.
+- An unknown connector or tool answers `not_found` with up to 3 of the closest tool names
+  and "Run tool_search first."
 - A tool name is `<connector key>.<tool>`. The key is the connector's name as a slug
   (`n8n-anderra`), with a short suffix only when two connectors assigned to the same agent
   share a slug. Keys are stable while the agent's assignments do not change.
@@ -64,8 +77,9 @@ request carries `Authorization: Bearer <MCP token>`.
 Allow / Ask / Block per connector, for Read, Write and each tool, at the organization and
 the agent level (the stricter wins). Read means the vendor marked the tool read-only;
 anything else is Write. mcp.metro.box reads the policies from the database on every call.
+The daemon applies no station policy to the two tools.
 
-- **Block**: hidden from `find_tools`; `call_tool` answers
+- **Block**: hidden from `tool_search`; `tool_call` answers
   `Blocked by the owner's policy for <connector> (<tool>).`
 - **Ask**: the first call answers `needs_approval` with a 5-letter id and a sentence for the
   agent. mcp.metro.box records the request (tool, a digest of the arguments, a short
@@ -74,32 +88,23 @@ anything else is Write. mcp.metro.box reads the policies from the database on ev
   `Reply "yes <id>" or "no <id>"`) on the agent's last chat line, and the page's
   approvals list. The owner's answer goes back to mcp.metro.box, and the daemon tells the
   agent in its channel (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent
-  then calls `call_tool` again with the same tool and arguments and `approval: "abcde"`.
+  then calls `tool_call` again with the same tool and arguments and `approval: "abcde"`.
   An approval works once, for exactly that tool and those arguments, within 10 minutes of
   the answer. Unanswered requests expire after 24 hours (denied).
 - The agent can never approve its own call: answers come only from the daemon's signed
   requests (the enrollment signing key lives in Metro's folder, which the agent user cannot
   read) after an allowlisted approver answered in chat, or from the page.
-- `call_tool` is a worker tool: the orchestrator guard denies it on the main thread, as it
-  denied every connector tool before. `find_tools` is allowed everywhere.
+- `tool_call` is a worker tool: the orchestrator guard denies it on the main thread, as it
+  denied every connector tool before. `tool_search` is allowed everywhere.
 
 ## The MCP token
 
 - 32 random bytes, `mcp_<base64url>`. The daemon creates it when the agent is enrolled (or
   when it has none), sends only its SHA-256 to mcp.metro.box with a signed request, and
-  keeps the token in the agent's own folder (`<agent home>/.metro/agents/mcp-token`, 0600,
-  the agent user's).
-- `metro claude` (and `metro voice`) adds the `mcp` server to the private `--mcp-config` file
-  it writes for each launch: `{type: 'http', url: 'https://mcp.metro.box', headersHelper:
-  'node "<CLI package>/hooks/mcp-headers.mjs"'}`. The helper prints
-  `{"Authorization": "Bearer <token>"}` from the agent's own folder each time Claude Code
-  connects, so the token is never written into that file or put on a command line, and a
-  token made after the launch is used at the next reconnect.
-- The Agent SDK runner adds the same server to its `mcpServers` with the token in `headers`,
-  read when the runner starts (the SDK has no `headersHelper`). The SDK hands its servers to
-  Claude Code as a `--mcp-config` argument, so the token is on that process's command line,
-  which the process list shows to the other users of the machine (on a box: metro and root,
-  which can read the token file anyway); a new token needs a runner restart.
+  keeps the token in Metro's own folder (`<agents dir>/mcp-token`, 0600, the metro user's).
+- The daemon sends it as `Authorization: Bearer <token>` on each forwarded `tools/call` and
+  `tools/list`. The agent user never sees it: the agent view does not carry it, and a copy
+  an older daemon put there is removed. A 401 makes the daemon register the token again.
 - Enrolling again replaces it. A token whose agent left its organization stops working at
   once.
 
@@ -120,6 +125,12 @@ its pending approvals (chat prompt, page list, 24 h expiry), and sends each answ
 The server sends a pending approval again every minute, so the daemon keeps the ids it
 already posted in chat (`<agents dir>/mcp-approvals.json`, a day at most): after a restart
 it holds such an approval again on the chat it was posted to, without posting it twice.
+
+The daemon also forwards the agent's `tool_search` and `tool_call` as JSON-RPC `tools/call`
+to `<url>/` with the MCP token (120 s per call), returns the server's `result` as it came,
+and answers a tool error itself when the agent is not enrolled ("Connectors are not set up
+on this agent") or the server cannot be reached ("mcp.metro.box is unavailable, try
+again."). It never logs arguments, results or the token.
 
 The daemon talks to `https://mcp.metro.box` unless `METRO_MCP_SERVER_URL` names another
 url (https, or http on this machine only); an empty value turns the client off.
@@ -157,7 +168,9 @@ url (https, or http on this machine only); an empty value turns the client off.
    (`POST /api/agents/connectors`), the daemon's sync, runtime, relay, discovery and server
    keys, the per-connector `.mcp.json` entries, the daemon's connector gates and the Sync
    switch. `METRO_MCP_SERVER_URL` defaults to `https://mcp.metro.box`.
-4. Done (2026-10-14): no Claude Code plugin. The `mcp` server moved from the plugin's
-   `.mcp.json` into `metro claude`'s `--mcp-config` and the SDK runner's `mcpServers`, so
-   its tools are `mcp__mcp__*` instead of `mcp__plugin_metro_mcp__*`; the guard and the
+4. Done (2026-10-14): no Claude Code plugin, and one MCP server. The plugin's `mcp` server
+   is gone: the daemon's `metro` server carries the two connector tools, renamed
+   `tool_search` and `tool_call` (Claude Code: `mcp__metro__tool_search`,
+   `mcp__metro__tool_call`, were `mcp__plugin_metro_mcp__find_tools` and `…call_tool`), and
+   forwards them with the token, which no longer reaches the agent. The guard and the
    standing rules became hooks the daemon writes into `~/.claude/settings.json`.

@@ -24,7 +24,8 @@
     "./connector-input": "./src/connector-input.ts",
     "./connector-policy": "./src/connector-policy.ts",
     "./connector-grant": "./src/connector-grant.ts",
-    "./mcp-server-protocol": "./src/mcp-server-protocol.ts"
+    "./mcp-server-protocol": "./src/mcp-server-protocol.ts",
+    "./mcp-server-tools": "./src/mcp-server-tools.ts"
   },
   "scripts": {
     "build": "tsc",

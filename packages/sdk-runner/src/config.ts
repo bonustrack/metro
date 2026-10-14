@@ -2,12 +2,6 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
-import { mcpServerUrlOf, readMcpToken } from '@metro-labs/core/mcp-server';
-
-export interface ConnectorsServer {
-  url: string;
-  token: string;
-}
 
 export interface RunnerConfig {
   mcpUrl: string;
@@ -19,7 +13,6 @@ export interface RunnerConfig {
   prompt: string | null;
   statePath: string;
   claudeDir: string;
-  connectors: ConnectorsServer | null;
 }
 
 const given = (value: string | undefined): string | null => {
@@ -41,12 +34,6 @@ function realDir(dir: string): string {
   }
 }
 
-function connectorsServer(env: NodeJS.ProcessEnv, home: string): ConnectorsServer | null {
-  const url = mcpServerUrlOf(env);
-  const token = url === null ? null : readMcpToken(given(env.METRO_AGENTS_DIR) ?? join(home, '.metro', 'agents'));
-  return url === null || token === null ? null : { url, token };
-}
-
 export function runnerConfig(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): RunnerConfig {
   const home = given(env.HOME) ?? homedir();
   return {
@@ -59,6 +46,5 @@ export function runnerConfig(env: NodeJS.ProcessEnv = process.env, cwd = process
     prompt: given(env.METRO_RUNNER_PROMPT),
     statePath: given(env.METRO_RUNNER_STATE) ?? join(home, '.metro', 'agent-session.json'),
     claudeDir: given(env.CLAUDE_CONFIG_DIR) ?? join(home, '.claude'),
-    connectors: connectorsServer(env, home),
   };
 }

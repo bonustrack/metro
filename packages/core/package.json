@@ -12,7 +12,6 @@
     "./automation-store": "./src/automation-store.ts",
     "./automation-types": "./src/automation-types.ts",
     "./call": "./src/call.ts",
-    "./mcp-server": "./src/mcp-server.ts",
     "./secure-fs": "./src/secure-fs.ts",
     "./skill-source": "./src/skill-source.ts",
     "./version": "./src/version.ts",

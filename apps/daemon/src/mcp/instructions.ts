@@ -16,7 +16,9 @@ export const MCP_INSTRUCTIONS =
   'it need approval (`list_accounts` shows each `policy`). A blocked call errors. A call ' +
   'needing approval must run in a background worker: on the main thread it is refused, so ' +
   'delegate that exact call and keep answering; the worker waits for the owner. Approval ' +
-  'prompts are relayed to the chat; the owner answers "yes <id>"/"no <id>".';
+  'prompts are relayed to the chat; the owner answers "yes <id>"/"no <id>". Connectors ' +
+  '(third-party tools like Notion, n8n, Gmail) are reached only through `tool_search` then ' +
+  '`tool_call`, from a worker.';
 
 export const VOICE_MCP_INSTRUCTIONS =
   "Metro's chat tools, opened for a live voice call. The caller hears what you say, so do not " +
@@ -27,4 +29,4 @@ export const VOICE_MCP_INSTRUCTIONS =
   '(`list_accounts` shows each `policy`). A blocked call errors. A call needing approval must ' +
   'run in a background worker: on the main thread it is refused, so delegate that exact call ' +
   'and keep talking; the worker waits while the owner is asked in the chat of the call, where ' +
-  'they answer "yes <id>"/"no <id>".';
+  'they answer "yes <id>"/"no <id>". Connectors are reached through `tool_search` then `tool_call`.';

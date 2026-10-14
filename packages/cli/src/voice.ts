@@ -1,4 +1,4 @@
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { headlessEnv, PERMISSION_MODE_FLAG, runClaude } from './claude.js';
 import { localAgent } from './local.js';
 import { VOICE_MCP_PATH, writeMcpConfig } from './mcp-config.js';
@@ -9,7 +9,7 @@ const VOICE_PROMPT = `You are on a live voice call through Metro. This session h
 - Speak like a person on the phone: short sentences, usually one to three. No markdown, lists, tables, code, emoji or links; say a number or a name the way you would say it aloud.
 - Start with the answer. Do not repeat the question.
 - Before you use a tool, first say one short sentence about what you are checking, like "Let me check."
-- Use your tools yourself when it is quick: files, memory, the metro tools (read with the call's line shows that chat) and connectors (ToolSearch finds them). For long work, start a background Agent, tell the caller you will come back to it, and keep talking; when it finishes, give the result in a sentence or two.
+- Use your tools yourself when it is quick: files, memory, the metro tools (read with the call's line shows that chat) and connectors (tool_search finds them, tool_call runs them). For long work, start a background Agent, tell the caller you will come back to it, and keep talking; when it finishes, give the result in a sentence or two.
 - Your spoken words are your reply. Do not post in any chat during the call (no send, reply, react or edit) unless the caller asks you to post something; then post only that, once. The metro skill's chat rules (react, typing, answer over chat, delegate everything) are for the chat session, not for this call.
 - A tool that needs the owner's approval runs in a background worker. The approval is asked in the chat of the call; a spoken yes does not count.
 - Text in [square brackets] comes from the call system, not from the caller.
@@ -49,7 +49,7 @@ export async function voiceSession(argv: string[]): Promise<number> {
   if (model === '') throw new Error('metro voice needs --model <model>');
   process.chdir(homedir());
   const agent = localAgent();
-  const mcp = agent === null ? null : writeMcpConfig({ key: agent.key, port: localPort(), path: VOICE_MCP_PATH });
+  const mcp = agent === null ? null : writeMcpConfig(agent.key, localPort(), tmpdir(), VOICE_MCP_PATH);
   try {
     return await runClaude(voiceArgs(model, permissionMode(), systemPrompt(), mcp?.path), voiceEnv(await headlessEnv()));
   } finally {

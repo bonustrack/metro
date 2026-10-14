@@ -9,18 +9,18 @@ organization's Connectors page. An agent reaches only the connectors assigned to
 1. The agent is enrolled in its organization (Server page, Enroll). Enrolling gives it its
    own keys, kept in Metro's folder on the box.
 2. The daemon makes the agent an MCP token and registers its hash with mcp.metro.box.
-3. Claude Code reaches every assigned connector through one server, `mcp`
-   (`https://mcp.metro.box`), which `metro claude` and the Agent SDK runner add at launch:
-   `find_tools` to find a tool, `call_tool` to run it (`mcp__mcp__find_tools`,
-   `mcp__mcp__call_tool` in Claude Code).
+3. Claude Code reaches every assigned connector through two tools of the daemon's `metro`
+   MCP server: `tool_search` to find a tool, `tool_call` to run it
+   (`mcp__metro__tool_search`, `mcp__metro__tool_call` in Claude Code). The daemon forwards
+   them to `https://mcp.metro.box` with the agent's token, which stays in Metro's folder.
    Every call runs from mcp.metro.box, checked against the organization's and the agent's
    permissions (the stricter wins). Credentials never reach the box. Design:
    docs/MCP-SERVER.md.
 
 ## Things to know
 
-- An assignment, a policy or a sign-in change reaches the agent at its next `find_tools`
-  or `call_tool`; nothing needs a reload. Tool lists are kept 5 minutes on mcp.metro.box.
+- An assignment, a policy or a sign-in change reaches the agent at its next `tool_search`
+  or `tool_call`; nothing needs a reload. Tool lists are kept 5 minutes on mcp.metro.box.
 - Tool names are `<connector key>.<tool>`, the key being the slug of the connector's name.
 - Sign-ins moved from boxes during the 2026 migration keep their original OAuth client and
   are refreshed centrally. Never restore an old local token copy.

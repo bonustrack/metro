@@ -211,33 +211,14 @@ describe('the runner starts the Claude Code that comes with the pinned SDK', () 
   });
 });
 
-describe('the session reaches the organization connectors through the mcp server', () => {
+describe('the session reaches connectors through the metro server only', () => {
   const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
   const allow = (): Promise<{ behavior: 'deny'; message: string }> => Promise.resolve({ behavior: 'deny', message: 'no' });
-  const token = `mcp_${'r'.repeat(43)}`;
 
-  test('mcp sits next to metro, at METRO_MCP_SERVER_URL, with the token the agent view holds read at start', () => {
-    const agents = mkdtempSync(join(tmpdir(), 'sdk-runner-mcp-'));
-    try {
-      writeFileSync(join(agents, 'mcp-token'), `${token}\n`);
-      const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent', METRO_AGENTS_DIR: agents };
-      const cfg = runnerConfig(base, '/tmp');
-      expect(cfg.connectors).toEqual({ url: 'https://mcp.metro.box', token });
-      expect(runnerOptions(cfg, tools, allow, null, {}).mcpServers).toEqual({
-        metro: tools.config,
-        mcp: { type: 'http', url: 'https://mcp.metro.box', headers: { Authorization: `Bearer ${token}` } },
-      });
-      expect(runnerConfig({ ...base, METRO_MCP_SERVER_URL: 'http://127.0.0.1:18430/' }, '/tmp').connectors?.url).toBe('http://127.0.0.1:18430');
-      for (const off of ['', 'http://mcp.metro.box']) {
-        const cfgOff = runnerConfig({ ...base, METRO_MCP_SERVER_URL: off }, '/tmp');
-        expect(cfgOff.connectors).toBeNull();
-        expect(runnerOptions(cfgOff, tools, allow, null, {}).mcpServers).toEqual({ metro: tools.config });
-      }
-      writeFileSync(join(agents, 'mcp-token'), 'not a token\n');
-      expect(runnerConfig(base, '/tmp').connectors).toBeNull();
-    } finally {
-      rmSync(agents, { recursive: true, force: true });
-    }
+  test('mcpServers holds metro alone, whatever METRO_MCP_SERVER_URL says', () => {
+    const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent' };
+    for (const env of [base, { ...base, METRO_MCP_SERVER_URL: 'https://mcp.metro.box' }])
+      expect(runnerOptions(runnerConfig(env, '/tmp'), tools, allow, null, {}).mcpServers).toEqual({ metro: tools.config });
   });
 });
 

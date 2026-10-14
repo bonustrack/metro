@@ -34,7 +34,7 @@ database.
 | `channels/` | Bus events turned into Claude Code channel notifications. |
 | `monitor/` | `GET /api/tail`, the live event stream `metro tail` reads. |
 | `connectors/` | Enrollment with the organization and its signed api.metro.box client. |
-| `mcp-server/` | The client of mcp.metro.box: the agent's MCP token and the approval relay. |
+| `mcp-server/` | The client of mcp.metro.box: the agent's MCP token, the approval relay and the forwarding of `tool_search` and `tool_call`. |
 | `gateway/` | The model gateway and the Model page API. |
 | `claude/` | Claude Code on the box: sessions, memory, settings, skills, login, setup and the hooks in its settings. |
 | `terminal/` | The Terminal tab's WebSocket and tmux. |

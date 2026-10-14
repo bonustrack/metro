@@ -160,7 +160,7 @@ describe('an approval asked by mcp.metro.box', () => {
     chat(LINE, OWNER_SENDER, 'yes abcde');
     await waitFor(() => raw().includes('Approved: notion.update_page (abcde)'));
     expect(fake.answers).toEqual([{ id: 'abcde', decision: 'allow' }]);
-    expect(raw()).toContain('Approved: notion.update_page (abcde). Call call_tool again with the same arguments and approval: \\"abcde\\".');
+    expect(raw()).toContain('Approved: notion.update_page (abcde). Call tool_call again with the same arguments and approval: \\"abcde\\".');
     expect(raw()).toContain('"from":"metro://metro"');
     expect(pendingPrompts()).toEqual([]);
     expect(sends()).toHaveLength(1);

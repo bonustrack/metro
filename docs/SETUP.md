@@ -3,8 +3,9 @@
 What a Claude Code session on a metro box looks like, and how it gets that way. Since
 `0.1.0-beta.105` none of it is pasted or typed: the daemon and `metro claude` apply it,
 and this page explains what they apply, how to check it, and what it costs. Until
-2026-10-14 a Claude Code plugin (`metro@metro`) carried the guard, the standing rules and the
-connectors server; it is gone, and the daemon removes it from a box once.
+2026-10-14 a Claude Code plugin (`metro@metro`) carried the guard, the standing rules and a
+connectors server; it is gone, and the daemon removes it from a box once. Connectors are now
+two tools of the metro MCP server.
 
 ## What is applied, and by what
 
@@ -18,7 +19,7 @@ connectors server; it is gone, and the daemon removes it from a box once.
 | The daily memory routine | the daemon, at boot, switchable on the Harness page | the agent's crontab, shown as `memory-routine` on the Scheduled page |
 | The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
 | Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
-| The metro MCP server, the connectors server `mcp`, Channels, the model route | `metro claude`, at every launch | the session only |
+| The metro MCP server (with the connector tools `tool_search` and `tool_call`), Channels, the model route | `metro claude`, at every launch | the session only |
 | The session itself | the daemon, in a tmux session named `metro` | the Terminal tab |
 
 The hooks and the skills ship inside the CLI package, and the hook entries point at the
@@ -39,7 +40,7 @@ The guard is a `PreToolUse` hook in `~/.claude/settings.json`, written in Node s
 | Tool | Why it stays |
 | --- | --- |
 | `Agent`, `Workflow` | Delegation. The whole point, and the only way back if you break something. |
-| `mcp__metro__*`, `mcp__mcp__find_tools` | Talking to the outside world through the metro tools, and finding a connector tool. A connector call (`mcp__mcp__call_tool`, or any other MCP tool) is work, so a worker runs it. |
+| `mcp__metro__*` except `mcp__metro__tool_call` | Talking to the outside world through the metro tools, and finding a connector tool (`mcp__metro__tool_search`). A connector call (`mcp__metro__tool_call`, or any other MCP tool) is work, so a worker runs it. |
 | `ToolSearch` | Loads schemas for deferred tools. Without it the metro tools cannot be called at all. |
 | `Skill`, `ScheduleWakeup`, `Monitor`, `Cron*`, `Task*` | Scheduling and tracking. They coordinate work rather than perform it. |
 | `Read`, raster images only | So a screenshot someone sends can be looked at directly. `.svg` and `.pdf` are text underneath, so they stay denied. |

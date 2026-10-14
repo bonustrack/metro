@@ -7,7 +7,6 @@ import { join } from 'node:path';
 const HOOKS = join(import.meta.dir, '..', 'hooks');
 const GUARD = join(HOOKS, 'guard.mjs');
 const START = join(HOOKS, 'session-start.mjs');
-const HEADERS = join(HOOKS, 'mcp-headers.mjs');
 
 const EMPTY = mkdtempSync(join(tmpdir(), 'metro-guard-empty-'));
 
@@ -52,19 +51,24 @@ describe('the orchestrator guard the CLI ships', () => {
     }
   });
 
-  test('the mcp server: find_tools runs on any thread, call_tool only in a worker, where the server enforces the policy itself; an old snapshot\'s connectors are ignored', () => {
+  test('connectors: tool_search runs on any thread, tool_call only in a worker, and neither meets a station policy; an old snapshot\'s connectors are ignored', () => {
     const policy = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-'));
     writeFileSync(join(policy, 'policy.json'), JSON.stringify({ version: 1, connectors: { notion: { id: 'org-notion00001', name: 'Notion', policy: { write: 'deny' }, tools: {} } } }));
-    for (const where of [EMPTY, policy]) {
-      expect(guard({ tool_name: 'mcp__mcp__find_tools', tool_input: { query: 'notion page' } }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__mcp__find_tools', tool_input: { query: 'notion page' }, agent_id: 'w1' }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__mcp__call_tool', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
-      expect(guard({ tool_name: 'mcp__mcp__call_tool', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
+    const strict = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-strict-'));
+    writeFileSync(join(strict, 'policy.json'), JSON.stringify({ ...SNAPSHOT, accounts: { [`telegram/${TG}`]: { read: 'deny', write: 'deny' } }, ungated: [...SNAPSHOT.ungated, 'tool_search', 'tool_call'] }));
+    for (const where of [EMPTY, policy, strict]) {
+      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' } }, where)).toBe('allow');
+      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' }, agent_id: 'w1' }, where)).toBe('allow');
+      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
+      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
     }
-    expect(guard({ tool_name: 'mcp__plugin_metro_mcp__find_tools', tool_input: { query: 'notion page' } })).toMatch(/^deny: A connector call is work, not orches/);
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, EMPTY, 'voice')).toBe('allow');
+    for (const old of ['mcp__mcp__find_tools', 'mcp__plugin_metro_mcp__find_tools'])
+      expect(guard({ tool_name: old, tool_input: { query: 'notion page' } })).toMatch(/^deny: A connector call is work, not orches/);
     expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
     expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {} }, policy)).toMatch(/^deny: A connector call is work, not orches/);
     rmSync(policy, { recursive: true, force: true });
+    rmSync(strict, { recursive: true, force: true });
   });
 
   test('a payload that does not parse is denied, never allowed', () => {
@@ -209,25 +213,3 @@ describe('the standing rules loaded at session start', () => {
   });
 });
 
-describe('the mcp-headers helper of the mcp server', () => {
-  const run = (agentsDir: string): { status: number | null; stdout: string } => {
-    const out = spawnSync('node', [HEADERS], { encoding: 'utf8', env: { ...process.env, METRO_AGENTS_DIR: agentsDir } });
-    return { status: out.status, stdout: out.stdout };
-  };
-
-  test('prints the bearer header from the agents folder', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-mcp-headers-'));
-    const token = `mcp_${'b'.repeat(43)}`;
-    writeFileSync(join(dir, 'mcp-token'), `${token}\n`);
-    expect(run(dir)).toEqual({ status: 0, stdout: `${JSON.stringify({ Authorization: `Bearer ${token}` })}\n` });
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test('prints nothing and exits 0 when the token is missing or not a token', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-mcp-headers-'));
-    expect(run(dir)).toEqual({ status: 0, stdout: '' });
-    writeFileSync(join(dir, 'mcp-token'), 'not a token\n');
-    expect(run(dir)).toEqual({ status: 0, stdout: '' });
-    rmSync(dir, { recursive: true, force: true });
-  });
-});

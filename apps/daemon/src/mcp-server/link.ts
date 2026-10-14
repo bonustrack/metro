@@ -24,6 +24,7 @@ export interface McpLinkDeps {
   key: () => AgentKey | null;
   dir: () => string;
   hold: HoldApproval;
+  registered?: () => void;
   fetch?: AgentFetch;
   timing?: Partial<McpTiming>;
 }
@@ -59,6 +60,10 @@ export class McpServerLink {
   async stop(): Promise<void> {
     this.abort.abort();
     await this.running;
+  }
+
+  reregister(): void {
+    this.registered = null;
   }
 
   async answer(id: string, decision: McpDecision): Promise<AnswerOutcome> {
@@ -124,6 +129,7 @@ export class McpServerLink {
     await agentCall(this.api, key, MCP_PATHS.token, { tokenHash: token.hash }, { signal: this.abort.signal });
     this.registered = binding;
     log.info({ server: this.deps.url, keyId: key.keyId }, 'mcp-server: the MCP token is registered');
+    this.deps.registered?.();
   }
 
   private async poll(key: AgentKey): Promise<void> {
@@ -168,15 +174,20 @@ let active: McpServerLink | null = null;
 export interface McpServerWatch {
   owner: () => string | null;
   hold: HoldApproval;
+  registered?: () => void;
 }
 
 export function watchMcpServer(watch: McpServerWatch, env: NodeJS.ProcessEnv = process.env): boolean {
   const url = mcpServerUrl(env);
   if (url === null || active !== null) return false;
-  active = new McpServerLink({ url, owner: watch.owner, key: () => readAgentKey(), dir: agentsDir, hold: watch.hold });
+  active = new McpServerLink({ url, owner: watch.owner, key: () => readAgentKey(), dir: agentsDir, hold: watch.hold, ...(watch.registered === undefined ? {} : { registered: watch.registered }) });
   active.start();
   log.info({ server: url }, 'mcp-server: connector approvals relay from this server once the agent is enrolled');
   return true;
+}
+
+export function reregisterMcpToken(): void {
+  active?.reregister();
 }
 
 export async function stopMcpServer(): Promise<void> {

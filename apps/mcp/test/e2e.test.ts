@@ -35,8 +35,8 @@ afterAll(async () => {
   await held.close();
 });
 
-const find = (query: string, max?: number) => callTool(app, agent.token, 'find_tools', { query, ...(max === undefined ? {} : { max_results: max }) });
-const run = (calls: unknown[]) => callTool(app, agent.token, 'call_tool', { calls });
+const find = (query: string, max?: number) => callTool(app, agent.token, 'tool_search', { query, ...(max === undefined ? {} : { max_results: max }) });
+const run = (calls: unknown[]) => callTool(app, agent.token, 'tool_call', { calls });
 
 async function answerAs(who: TestAgent, id: string, decision: 'allow' | 'deny'): Promise<number> {
   const request = signed(who, MCP_PATHS.answer, { id, decision });
@@ -52,7 +52,7 @@ function oauthSecret(expiresAt: number, refreshToken: string | undefined = 'REFR
   };
 }
 
-describe('find_tools against a real connector', () => {
+describe('tool_search against a real connector', () => {
   test('keywords return the <functions> encoding with the vendor schema, and no credential', async () => {
     const result = await find('notion page update');
     const [text] = texts(result);
@@ -61,6 +61,7 @@ describe('find_tools against a real connector', () => {
     expect(text).not.toContain('URL_SECRET');
     expect(text).not.toContain('VENDOR_KEY');
     expect(vendor.methods).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'DELETE']);
+    expect(text?.split('\n').at(-1)).toBe('Call these with tool_call: {"calls":[{"tool":"notion.update_page","arguments":{…}}]}');
   });
 
   test('select: loads exact tools, and the tool list is cached', async () => {
@@ -71,7 +72,7 @@ describe('find_tools against a real connector', () => {
   });
 
   test('no match names the agent\'s connectors', async () => {
-    expect(texts(await find('spreadsheet'))[0]).toBe('No tool matched "spreadsheet". This agent\'s connectors: notion.');
+    expect(texts(await find('spreadsheet'))[0]).toBe('No tool matched "spreadsheet". This agent\'s connectors: notion. Try a broader query with fewer words, or "select:<connector>.<tool>" with an exact name.');
   });
 
   test('blocked tools are never returned', async () => {
@@ -87,7 +88,7 @@ describe('find_tools against a real connector', () => {
   });
 });
 
-describe('call_tool against a real connector', () => {
+describe('tool_call against a real connector', () => {
   test('runs calls in parallel and answers each under its [n] header', async () => {
     const info = spyOn(log, 'info');
     const result = await run([{ tool: 'notion.search', arguments: { query: 'roadmap' } }, { tool: 'notion.update_page', arguments: { page_id: 'p1' } }]);
@@ -111,8 +112,8 @@ describe('call_tool against a real connector', () => {
     const mixed = await run([{ tool: 'notion.search', arguments: {} }, { tool: 'notion.nope', arguments: {} }, { tool: 'jira.search', arguments: {} }]);
     expect(mixed.isError).toBeUndefined();
     const lines = texts(mixed);
-    expect(lines[3]).toBe('not_found: notion has no tool named nope. Use find_tools to see its tools.');
-    expect(lines[5]).toBe('not_found: No connector named "jira" is assigned to this agent. This agent\'s connectors: notion.');
+    expect(lines[3]).toBe('not_found: notion has no tool named nope. Closest: notion.search, notion.delete_page, notion.update_page. Run tool_search first.');
+    expect(lines[5]).toBe('not_found: No connector named "jira" is assigned to this agent. This agent\'s connectors: notion. Closest: notion.search. Run tool_search first.');
     vendor.state.answer = () => ({ content: [{ type: 'text', text: 'boom' }], isError: true });
     const failed = await run([{ tool: 'notion.search', arguments: {} }]);
     expect(failed.isError).toBe(true);

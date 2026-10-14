@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
-import { mcpServerUrl } from '../mcp-server/config.js';
-import { MCP_TOKEN_FILE } from '@metro-labs/core/mcp-server';
+import { MCP_TOKEN_FILE } from '../mcp-server/token.js';
 import { removeHome, writeHomeText } from './home-fs.js';
 import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';
 
 const COPIED = ['policy.json', 'claude-setup.json', 'system-prompt.md'] as const;
+const NEVER_COPIED = [MCP_TOKEN_FILE] as const;
 const SYNC_MS = 5_000;
 
 const readText = (path: string): string | null => {
@@ -51,8 +51,8 @@ export function viewFiles(dir = agentsDir()): Map<string, string | null> {
     ['agent.json', agentFile(dir)],
     ['model.json', modelFile(dir)],
   ]);
-  const copied = mcpServerUrl() === null ? COPIED : [...COPIED, MCP_TOKEN_FILE];
-  for (const name of copied) files.set(name, existsSync(join(dir, name)) ? readText(join(dir, name)) : null);
+  for (const name of COPIED) files.set(name, existsSync(join(dir, name)) ? readText(join(dir, name)) : null);
+  for (const name of NEVER_COPIED) files.set(name, null);
   return files;
 }
 

@@ -110,9 +110,8 @@ all of this on its own.
 metro claude [args...]
 ```
 
-`metro claude` starts Claude Code with the metro channel, the metro MCP server and the
-connectors server `mcp` already loaded, using the agent's key. Nothing needs `claude mcp
-add`. Every argument is passed to `claude` as it is. It also routes inference through the
+`metro claude` starts Claude Code with the metro channel and the metro MCP server
+already loaded, using the agent's key. Nothing needs `claude mcp add`. Every argument is passed to `claude` as it is. It also routes inference through the
 daemon's model gateway, so the **Model** page decides where requests go: Anthropic, Amazon
 Bedrock, OpenRouter, Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the
 Codex app's code sign-in) or Gemini.
@@ -156,9 +155,9 @@ just one. Members can see them but not change them. An agent's own **Connectors*
 lists what is assigned to it.
 
 Each agent must be enrolled in its organization (Server page). It then reaches its
-assigned connectors through one MCP server, `mcp` (https://mcp.metro.box), which `metro
-claude` gives Claude Code: `find_tools` finds a tool and `call_tool` runs it. Every call runs
-from mcp.metro.box with the organization's and the agent's permissions, so no connector
+assigned connectors through two tools of the metro MCP server: `tool_search` finds a tool and
+`tool_call` runs it. The daemon forwards both to https://mcp.metro.box with the agent's
+token, which stays in Metro's folder. Every call runs from mcp.metro.box with the organization's and the agent's permissions, so no connector
 credential reaches the box, Claude Code's config, the browser or the agent. A change on the
 Connectors page reaches the agent at its next call. See
 [docs/MCP-SERVER.md](docs/MCP-SERVER.md).

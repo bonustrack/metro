@@ -61,7 +61,9 @@ describe('the policy snapshot the guard hook reads', () => {
     expect((snap.tools as Record<string, string>).read).toBe('read');
     expect((snap.tools as Record<string, string>).list_channels).toBe('read');
     expect((snap.owners as Record<string, string>).group_info).toBe('xmtp');
-    expect(snap.ungated).toEqual(['list_accounts', 'create_upload']);
+    expect(snap.ungated).toEqual(['list_accounts', 'create_upload', 'tool_search', 'tool_call']);
+    expect((snap.tools as Record<string, string>).tool_search).toBe('read');
+    expect((snap.tools as Record<string, string>).tool_call).toBe('write');
   });
 
   test('the hook and the daemon reach the same verdict from it', () => {
@@ -80,6 +82,18 @@ describe('the policy snapshot the guard hook reads', () => {
       ['list_accounts', {}],
     ];
     for (const [tool, input] of calls) expect(`${tool}: ${hook(tool, input)}`).toBe(`${tool}: ${channelDecision(tool, input).access}`);
+  });
+
+  test('the connector tools never meet a station policy, in the hook or the daemon', () => {
+    setPolicies('channel', [[{ kind: 'channel', station: 'telegram', account: TG }, { read: 'deny', write: 'deny' }]]);
+    const calls: [string, Record<string, unknown>][] = [
+      ['tool_search', { query: 'notion page', line: LINE }],
+      ['tool_call', { calls: [{ tool: 'notion.search', arguments: { line: LINE } }], account: TG }],
+    ];
+    for (const [tool, input] of calls) {
+      expect(channelDecision(tool, input).access).toBe('allow');
+      expect(hook(tool, input)).toBe('allow');
+    }
   });
 
   for (const access of ['deny', 'ask'] as const)
