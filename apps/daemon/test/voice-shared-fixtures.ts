@@ -6,12 +6,12 @@ import type { Voiced } from '../src/voice/speech.ts';
 import type { VoiceConfig } from '../src/voice/store.ts';
 
 export const voiceConfig: VoiceConfig = {
-  provider: 'elevenlabs', apiKey: 'fake-key', voiceId: 'fake-voice', model: 'fake-model', language: 'en', enabled: true,
+  provider: 'elevenlabs', apiKey: 'fake-key', voiceId: 'fake-voice', language: 'en', enabled: true,
 };
 
 export const callStart: CallStart = {
-  agentId: 'agent-a', sourceId: 'invite-a', line: 'metro://xmtp/account/chat', lineName: 'Group', direct: false,
-  from: 'metro://xmtp/account/user/owner', callerName: 'Owner', callId: 'call-a', callerPeer: 'peer-a',
+  agentId: 'agent-a', sourceId: 'invite-a', line: 'metro://xmtp/account/chat',
+  from: 'metro://xmtp/account/user/owner', callId: 'call-a', callerPeer: 'peer-a',
 };
 
 export const pause = (ms = 10): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,13 +48,11 @@ export class FakeCall {
   answer: () => Promise<string> = () => Promise.resolve('fake-answer');
   send: () => Promise<void> = () => Promise.resolve();
   available = true;
-  selected = true;
 
   audio = {
     connect: (): void => { this.events.push('connect'); },
     hear: (): void => { this.events.push('hear'); },
     finish: (): void => { this.events.push('finish'); },
-    prime: (): void => { this.events.push('prime'); },
     enqueue: (): boolean => true,
     terminate: (): void => { this.events.push('terminate'); },
   };
@@ -72,13 +70,11 @@ export class FakeCall {
         close: () => { this.events.push('peer-close'); },
       };
     },
-    cli: () => { this.events.push('cli'); return this.audio; },
     shared: (_cfg, _out, _ended, heard) => {
       this.heard = heard;
       this.events.push('shared');
       return this.audio;
     },
-    selected: () => this.selected,
     open: (route) => { this.routes.push(route); return this.available; },
     heard: (route, text, sourceId) => { this.inputs.push({ route, text, sourceId }); },
     ended: () => { this.events.push('ended'); },

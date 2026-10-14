@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { currentBusSeq } from '@metro-labs/core/events';
 import { errMsg } from '@metro-labs/core/log';
 import { newReplayLedger } from '../channels/relay.js';
-import { McpSession, channelLog, type SessionKind } from './session.js';
+import { McpSession, channelLog } from './session.js';
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
 import { diagnosticTag, type SessionDiagnostic, type SlotDiagnostic } from './diagnostics.js';
 
@@ -25,10 +25,7 @@ export class SessionSlot {
   private changing: Promise<void> = Promise.resolve();
   private readonly replacements: SlotReplacement[] = [];
 
-  constructor(
-    live = true,
-    private readonly kind: SessionKind = 'chat',
-  ) {
+  constructor(live = true) {
     this.live = live;
   }
 
@@ -111,7 +108,6 @@ export class SessionSlot {
     if (this.ledger.startAt < 0) this.ledger.startAt = currentBusSeq();
     const id = adoptId ?? randomUUID();
     const session = await McpSession.open({
-      kind: this.kind,
       id,
       scope: allowedAgents(identity),
       adopted: adoptId !== undefined,
@@ -129,7 +125,7 @@ export class SessionSlot {
     this.session = session;
     this.recordReplacement(session, adoptId, previous);
     if (this.started && this.live) session.startChannel();
-    channelLog('session: opened', 'id', id, 'kind', this.kind, 'adopted', adoptId !== undefined);
+    channelLog('session: opened', 'id', id, 'adopted', adoptId !== undefined);
     return session;
   }
 

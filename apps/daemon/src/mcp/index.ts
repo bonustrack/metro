@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   BodyTooLargeError,
   readBody as readBodyBuffer,
-  VOICE_MCP_PATH,
 } from '../routes/http.js';
 import {
   authenticate,
@@ -97,9 +96,7 @@ async function serveGet(
   if (served) session.replayMissed();
 }
 
-const isVoicePath = (req: IncomingMessage): boolean => (req.url ?? '').split('?')[0] === VOICE_MCP_PATH;
-
-let activeSlots: SessionSlot[] = [];
+let activeSlot: SessionSlot | undefined;
 let stopToolNotices: (() => void) | undefined;
 
 const MODEL_NOTICE = 'notifications/metro/model';
@@ -118,13 +115,12 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
   setLiveEvents: (on: boolean) => void;
   switchModel: (model: string | null) => boolean;
 }> {
-  await Promise.all(activeSlots.map((s) => s.close()));
+  await activeSlot?.close();
   const slot = new SessionSlot(options.liveEvents);
-  const voiceSlot = new SessionSlot(false, 'voice');
-  activeSlots = [slot, voiceSlot];
+  activeSlot = slot;
   stopToolNotices?.();
   stopToolNotices = onConnectorToolsChanged(() => {
-    for (const each of [slot, voiceSlot]) each.current?.toolsChanged();
+    slot.current?.toolsChanged();
   });
   connectCallBridge(() => slot.current);
   connectServerApprovals(() => slot.current);
@@ -142,13 +138,7 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
     const parsed = await readOrReject(req, res);
     if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {
-      const session = await resolveSession(
-        isVoicePath(req) ? voiceSlot : slot,
-        req,
-        parsed.body,
-        identity,
-        res,
-      );
+      const session = await resolveSession(slot, req, parsed.body, identity, res);
       if (!session) return;
       if (isStandaloneGet(req)) {
         await serveGet(session, req, res);
