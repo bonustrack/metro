@@ -24,7 +24,7 @@ type PermissionRequest = z.infer<typeof PermissionRequestSchema>;
 
 const trainOf = (line: string): string => line.split('/')[2] ?? '';
 
-async function metroSend(line: string, text: string): Promise<void> {
+export async function metroSend(line: string, text: string): Promise<void> {
   await metroCall(trainOf(line), 'send', { line, text });
 }
 
@@ -36,15 +36,17 @@ export interface PermissionRelayDeps {
   log: (...a: unknown[]) => void;
 }
 
-const callChat = (deps: PermissionRelayDeps): string | undefined => {
+export type PromptLineDeps = Pick<PermissionRelayDeps, 'relay' | 'inScope' | 'live' | 'log'>;
+
+const callChat = (deps: PromptLineDeps): string | undefined => {
   const route = sharedCalls.snapshot();
   return route !== null && deps.inScope(route.line) ? route.line : undefined;
 };
 
-const ownerChat = (deps: PermissionRelayDeps, owner: OwnerLine | undefined): string | undefined =>
+const ownerChat = (deps: PromptLineDeps, owner: OwnerLine | undefined): string | undefined =>
   owner !== undefined && mayApprove(owner.line, owner.from) && deps.inScope(owner.line) && lineReceives(owner.line) ? owner.line : undefined;
 
-function relayLine(deps: PermissionRelayDeps, requestId: string, callLine?: string): string | undefined {
+export function relayLine(deps: PromptLineDeps, requestId: string, callLine?: string): string | undefined {
   if (!deps.live()) {
     deps.log('permission_request: live events are off, so no chat answer can arrive; held for the page only', requestId);
     return undefined;

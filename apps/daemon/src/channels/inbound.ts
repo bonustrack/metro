@@ -7,6 +7,7 @@ import {
   type SavedMedia,
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
+import { isMetroNotice } from './notice.js';
 import { replyMeta } from './addressed.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
@@ -285,7 +286,9 @@ export class InboundRelay {
     capSet(this.allowedLines, ALLOWED_LINES_MAX);
   }
 
-  private droppedSender(from: string, line: string, verified: unknown): boolean {
+  private droppedSender(ev: Record<string, unknown>, from: string, line: string): boolean {
+    if (isMetroNotice(ev)) return false;
+    const verified = ev.senderVerified;
     if (
       from.startsWith('metro://claude') ||
       from === 'metro://user' ||
@@ -311,7 +314,7 @@ export class InboundRelay {
     if (!this.deps.getStations().has(station)) return null;
     const from = str(ev.from);
     const line = str(ev.line);
-    if (this.droppedSender(from, line, ev.senderVerified)) return null;
+    if (this.droppedSender(ev, from, line)) return null;
     const text = str(ev.text);
     if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
       this.deps.log(
@@ -337,7 +340,7 @@ export class InboundRelay {
     if (await this.handlePermissionReply(ev, base)) return;
     await this.notify('notifications/claude/channel', {
       content:
-        base.evType === 'system'
+        base.evType === 'system' && !isMetroNotice(ev)
           ? buildWebhookNote(base.text, str(ev.lineName), ev.payload)
           : base.text,
       meta: {

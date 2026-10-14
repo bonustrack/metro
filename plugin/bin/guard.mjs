@@ -23,6 +23,7 @@ const ORCHESTRATION = new Set([
 const IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 const MCP = /^mcp__/;
 const METRO_MCP = /^mcp__metro__/;
+const FIND_TOOLS = 'mcp__plugin_metro_mcp__find_tools';
 const VOICE = process.env.METRO_SESSION === 'voice';
 
 function answer(decision, reason) {
@@ -54,7 +55,7 @@ function verdict(payload, input) {
       : 'A foreground subagent blinds the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification.';
   if (VOICE) return null;
   if (ORCHESTRATION.has(tool)) return null;
-  if (METRO_MCP.test(tool)) return null;
+  if (METRO_MCP.test(tool) || tool === FIND_TOOLS) return null;
   if (MCP.test(tool))
     return `A connector call is work, not orchestration: ${tool} reads somebody's files, mail or records, and its answer can be long enough to crowd out the chat you are here to follow. Only metro's own tools run on this thread. Delegate it to a subagent with the Agent tool (run_in_background: true; the worker reaches every connector) and relay what it finds.`;
   if (tool === 'Read' && typeof input.file_path === 'string' && IMAGE.test(input.file_path)) return null;

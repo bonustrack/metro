@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const agentsDir = () => process.env.METRO_AGENTS_DIR || join(homedir(), '.metro', 'agents');
+const MCP_TOKEN = /^mcp_[A-Za-z0-9_-]{43}$/;
 
 function readAgent() {
   const path = join(agentsDir(), 'agent.json');
@@ -17,8 +18,25 @@ function readAgent() {
   return parsed;
 }
 
-if (process.argv[2] !== 'headers') {
-  process.stderr.write('usage: metro-plugin.mjs headers\n');
+function readMcpToken() {
+  try {
+    const token = readFileSync(join(agentsDir(), 'mcp-token'), 'utf8').trim();
+    return MCP_TOKEN.test(token) ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+const command = process.argv[2];
+
+if (command === 'mcp-headers') {
+  const token = readMcpToken();
+  if (token !== null) process.stdout.write(`${JSON.stringify({ Authorization: `Bearer ${token}` })}\n`);
+  process.exit(0);
+}
+
+if (command !== 'headers') {
+  process.stderr.write('usage: metro-plugin.mjs headers | mcp-headers\n');
   process.exit(1);
 }
 

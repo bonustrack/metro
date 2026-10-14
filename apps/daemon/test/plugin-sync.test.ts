@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { installedPluginFiles, pluginServers, serverKey, syncPluginServers, type PluginRow } from '../src/connectors/plugin-sync.ts';
+import { installedPluginFiles, pluginServers, serverKey, serverKeysOf, syncPluginServers, type PluginRow } from '../src/connectors/plugin-sync.ts';
 
 const BASE = 'http://127.0.0.1:8420';
 let dir = '';
@@ -93,5 +93,58 @@ describe('the server list the plugin registers', () => {
   test('a machine with no metro plugin installed is left alone', () => {
     expect(syncPluginServers([row('org-conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(0);
     expect(existsSync(join(dir, 'plugins'))).toBe(false);
+  });
+});
+
+describe('the mcp.metro.box server', () => {
+  const MCP = 'https://mcp.metro.box';
+  const withUrl = <T>(url: string | undefined, run: () => T): T => {
+    const saved = process.env.METRO_MCP_SERVER_URL;
+    if (url === undefined) delete process.env.METRO_MCP_SERVER_URL;
+    else process.env.METRO_MCP_SERVER_URL = url;
+    try {
+      return run();
+    } finally {
+      if (saved === undefined) delete process.env.METRO_MCP_SERVER_URL;
+      else process.env.METRO_MCP_SERVER_URL = saved;
+    }
+  };
+
+  test('is one more server, mcp, next to the connectors, only when METRO_MCP_SERVER_URL is set, with no credential in the file', () => {
+    const rows = [row('org-conn0000001', 'Snapshot Box')];
+    expect(Object.keys(withUrl(undefined, () => pluginServers(rows, BASE)))).toEqual(['snapshot-box']);
+    const servers = withUrl(`${MCP}/`, () => pluginServers(rows, BASE));
+    expect(Object.keys(servers)).toEqual(['snapshot-box', 'mcp']);
+    expect(servers.mcp).toEqual({ type: 'http', url: MCP, headersHelper: 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" mcp-headers' });
+    expect(JSON.stringify(servers)).not.toContain('Bearer');
+  });
+
+  test('keeps the key mcp for itself while set: a connector named MCP gets another key, a saved mcp key moves', () => {
+    const rows = [row('org-conn0000001', 'MCP')];
+    expect(withUrl(undefined, () => serverKeysOf(rows)).get('org-conn0000001')).toBe('mcp');
+    expect(withUrl(undefined, () => serverKeysOf(rows, new Map([['org-conn0000001', 'mcp']]))).get('org-conn0000001')).toBe('mcp');
+    expect(withUrl(MCP, () => serverKeysOf(rows)).get('org-conn0000001')).toBe('mcp-1');
+    expect(withUrl(MCP, () => serverKeysOf(rows, new Map([['org-conn0000001', 'mcp']]))).get('org-conn0000001')).toBe('mcp-1');
+    const servers = withUrl(MCP, () => pluginServers(rows, BASE));
+    expect(servers.mcp?.url).toBe(MCP);
+    expect(servers['mcp-1']?.url).toBe(`${BASE}/relay/org-conn0000001`);
+  });
+
+  test('is written into the installed plugin and the bundled marketplace alike', () => {
+    const cached = installPlugin('cache', 'metro', 'metro', '0.9.20');
+    const store = mkdtempSync(join(tmpdir(), 'metro-plugin-store-'));
+    const staged = join(store, 'marketplace', 'plugin');
+    mkdirSync(join(staged, 'bin'), { recursive: true });
+    writeFileSync(join(staged, 'bin', 'metro-plugin.mjs'), '// metro\n');
+    writeFileSync(join(staged, '.mcp.json'), '{}\n');
+    try {
+      expect(withUrl(MCP, () => syncPluginServers([], { dir, base: BASE, staged }))).toBe(2);
+      for (const file of [cached, join(staged, '.mcp.json')])
+        expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ mcp: { type: 'http', url: MCP, headersHelper: 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" mcp-headers' } });
+      expect(withUrl(undefined, () => syncPluginServers([], { dir, base: BASE, staged }))).toBe(2);
+      expect(readFileSync(cached, 'utf8').trim()).toBe('{}');
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
   });
 });

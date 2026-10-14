@@ -5,10 +5,12 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
 import { loopbackBase } from '../files/attach-serve.js';
+import { MCP_SERVER_KEY, mcpServerUrl } from '../mcp-server/config.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
 const FILE = '.mcp.json';
 const HELPER = 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" headers';
+const MCP_HELPER = 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" mcp-headers';
 const SLUG_MAX = 40;
 
 export interface PluginRow {
@@ -39,22 +41,25 @@ function availableKey(wanted: string, reserved: ReadonlySet<string>): string {
   return key;
 }
 
-export function serverKeysOf(rows: PluginRow[], saved?: ReadonlyMap<string, string>): Map<string, string> {
-  const keys = new Map(saved);
-  const reserved = new Set(keys.values());
+const reservedKeys = (): ReadonlySet<string> => new Set(mcpServerUrl() === null ? [] : [MCP_SERVER_KEY]);
+
+export function serverKeysOf(rows: PluginRow[], saved?: ReadonlyMap<string, string>, reserved: ReadonlySet<string> = reservedKeys()): Map<string, string> {
+  const keys = new Map([...(saved ?? [])].filter(([, key]) => !reserved.has(key)));
+  const used = new Set([...keys.values(), ...reserved]);
   for (const row of [...rows].sort((a, b) => a.id.localeCompare(b.id))) {
     if (keys.has(row.id)) continue;
-    const key = availableKey(serverKey(row.name), reserved);
-    reserved.add(key);
+    const key = availableKey(serverKey(row.name), used);
+    used.add(key);
     keys.set(row.id, key);
   }
   return keys;
 }
 
-export function pluginServers(rows: PluginRow[], base: string, keys: ReadonlyMap<string, string> = serverKeysOf(rows)): Record<string, PluginServer> {
+export function pluginServers(rows: PluginRow[], base: string, keys: ReadonlyMap<string, string> = serverKeysOf(rows), mcpUrl = mcpServerUrl()): Record<string, PluginServer> {
   const out: Record<string, PluginServer> = {};
   const visible = new Set(rows.map((row) => row.id));
   for (const [id, key] of keys) if (visible.has(id)) out[key] = { type: 'http', url: `${base}/relay/${id}`, headersHelper: HELPER };
+  if (mcpUrl !== null) out[MCP_SERVER_KEY] = { type: 'http', url: mcpUrl, headersHelper: MCP_HELPER };
   return out;
 }
 
