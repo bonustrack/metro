@@ -7,7 +7,7 @@ const OPTICAL_NUDGE = 2;
 export function CountBadge({ count, beside = 'heading' }: { count: number; beside?: 'title' | 'heading' }): ReactNode {
   return (
     <Row margin={{ top: beside === 'title' ? OPTICAL_NUDGE : 0 }}>
-      <Badge label={String(count)} color="secondary" variant="soft" pill />
+      <Badge label={String(count)} color="secondary" variant="soft" />
     </Row>
   );
 }

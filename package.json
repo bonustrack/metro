@@ -44,6 +44,7 @@
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
     "expo-dev-launcher@57.0.20": "patches/expo-dev-launcher@57.0.20.patch",
-    "baileys@7.0.0-rc14": "patches/baileys@7.0.0-rc14.patch"
+    "baileys@7.0.0-rc14": "patches/baileys@7.0.0-rc14.patch",
+    "@stage-labs/kit@0.1.0-beta.8": "patches/@stage-labs%2Fkit@0.1.0-beta.8.patch"
   }
 }
