@@ -10,7 +10,6 @@ import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.
 import { setLocalOwner, ensureLocalAgent } from '../src/agents/file-admin.ts';
 import { localSessionApis } from '../src/routes/local-mode.js';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.js';
-import { registerConnectors } from '../src/connectors/gates.js';
 
 const OWNER = TEST_OWNER;
 const saved = {
@@ -92,26 +91,16 @@ describe('a local daemon, end to end over http', () => {
     expect(existsSync(join(dir, 'agent.json'))).toBe(true);
     expect((await call('POST', `/api/agents`, session, { name: 'suzy' })).status).toBe(405);
     const list = (await (await call('GET', `/api/agents`, session)).json()) as {
-      agents: { id: string; connector_ids: string[] }[];
+      agents: { id: string }[];
     };
     const made = list.agents[0];
     if (made === undefined) throw new Error('expected the agent');
     agentId = made.id;
     key = (JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { key: string }).key;
     expect(agentIdForKey(key)).toBe(agentId);
-    expect(list.agents).toMatchObject([{ id: agentId, connector_ids: [] }]);
+    expect(list.agents).toEqual([{ id: agentId, name: null }]);
     expect(made).not.toHaveProperty('key');
     expect(made).not.toHaveProperty('endpoint');
-  });
-
-  test('the connector ids are the published organization relay ids', async () => {
-    registerConnectors([{ id: 'org-conn0000001', name: 'Linear', config: {} }, { id: 'org-conn0000002', name: 'Jira', config: {} }]);
-    try {
-      const list = (await (await call('GET', `/api/agents`, session)).json()) as { agents: { connector_ids: string[] }[] };
-      expect(list.agents[0]?.connector_ids).toEqual(['org-conn0000001', 'org-conn0000002']);
-    } finally {
-      registerConnectors([]);
-    }
   });
 
   test('attaching a station lands in the file and reloads that station', async () => {
@@ -138,7 +127,7 @@ describe('a local daemon, end to end over http', () => {
     expect(gone.status).toBe(200);
   });
 
-  test('what a local daemon refuses: the key, delete, code, connector, local connector and runtime routes are gone', async () => {
+  test('what a local daemon refuses: the key, delete, code, connector, local connector, connector sync and runtime routes are gone', async () => {
     for (const [method, path] of [
       ['POST', `/api/agents/${agentId}/key`],
       ['DELETE', `/api/agents/${agentId}`],
@@ -151,6 +140,8 @@ describe('a local daemon, end to end over http', () => {
       ['GET', '/api/connectors/migration-preview'],
       ['GET', '/api/connectors/migrations'],
       ['POST', '/api/connectors/transfer/prepare'],
+      ['GET', '/api/connectors/sync'],
+      ['PUT', '/api/connectors/sync'],
     ] as const)
       expect([path, (await call(method, path, session)).status]).toEqual([path, 404]);
     expect((await call('GET', '/api/connectors/callback?state=s&code=c')).status).toBe(404);

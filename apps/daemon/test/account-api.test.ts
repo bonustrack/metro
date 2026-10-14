@@ -137,7 +137,6 @@ const deps: AgentApiDeps = {
   listAgents: () => Promise.resolve([AGENT]),
   gatherAccounts: () => Promise.resolve({ accounts: {}, unavailable: [] }),
   capabilities: () => ({}),
-  connectorIds: () => Promise.resolve(new Map()),
   prepareAccount: fakePrepare,
   attachAccount: (agentId, station, config) => {
     agentOrThrow(agentId);

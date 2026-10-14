@@ -1,8 +1,6 @@
 import { and, eq, getTableColumns } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { SealedDelivery } from '@metro-labs/http/connector-delivery';
-import { notEnrolled } from '../agent-auth.js';
-import { agentKeyStore, type AgentKeyRow } from './agent-keys.js';
+import type { AgentKeyRow } from './agent-keys.js';
 import type { Database } from './database.js';
 import { editConnectorIn, type ConnectorEdit, type ConnectorRow } from './connectors.js';
 import { agents, agentKeys, connectorAgents, connectors } from './schema.js';
@@ -15,7 +13,6 @@ export interface AssignedConnector {
 export interface ConnectorDeliveryStore {
   assigned: (identity: AgentKeyRow) => Promise<AssignedConnector[]>;
   refresh: (identity: AgentKeyRow, id: string, at: string, edit: (row: AssignedConnector) => Promise<ConnectorEdit>) => Promise<void>;
-  seal: (identity: AgentKeyRow, seal: (rows: AssignedConnector[]) => SealedDelivery) => Promise<SealedDelivery>;
 }
 
 function assignedQuery(db: Database, identity: AgentKeyRow, id?: string) {
@@ -36,18 +33,6 @@ async function refreshIn(tx: Database, identity: AgentKeyRow, id: string, at: st
   });
 }
 
-async function sealIn(tx: Database, identity: AgentKeyRow, seal: (rows: AssignedConnector[]) => SealedDelivery): Promise<SealedDelivery> {
-  const locked = await assignedQuery(tx, identity).for('update', { of: connectors });
-  const agent = await tx.select({ id: agents.id }).from(agents).where(and(eq(agents.id, identity.agent), eq(agents.owner, identity.owner))).for('update');
-  if (agent.length !== 1) throw notEnrolled();
-  const current = await agentKeyStore(() => tx).find(identity.keyId);
-  if (current === null || current.agent !== identity.agent || current.owner !== identity.owner || current.signingKey !== identity.signingKey || current.sealingKey !== identity.sealingKey || current.enrolledAt !== identity.enrolledAt) throw notEnrolled();
-  const rows = await assignedQuery(tx, identity);
-  const ids = new Set(locked.map((row) => row.connector.id));
-  if (rows.some((row) => !ids.has(row.connector.id))) throw new ApiError('Connector assignments changed. Request a fresh snapshot.', 409);
-  return seal(rows);
-}
-
 export function connectorDeliveryStore(db: () => Database): ConnectorDeliveryStore {
   return {
     assigned: (identity) => assignedQuery(db(), identity),
@@ -58,6 +43,5 @@ export function connectorDeliveryStore(db: () => Database): ConnectorDeliverySto
         if (!(err instanceof ApiError) || err.status !== 404) throw err;
       }
     },
-    seal: (identity, seal) => db().transaction((tx) => sealIn(tx, identity, seal)),
   };
 }

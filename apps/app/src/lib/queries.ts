@@ -77,7 +77,6 @@ type BoxName =
   | 'mode'
   | 'session'
   | 'stations'
-  | 'connector-sync'
   | 'account-name'
   | 'schedules'
   | 'schedule'

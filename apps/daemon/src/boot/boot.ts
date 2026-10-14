@@ -21,11 +21,9 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { connectorsReady, publishConnectors } from '../connectors/publication.js';
-import { adoptOrgServerKeys } from '../connectors/org-adopt.js';
-import { readAgentKey } from '../connectors/agent-key.js';
-import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
+import { syncPluginServers } from '../connectors/plugin-sync.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
@@ -67,6 +65,7 @@ import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } f
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 setOwnerLineFile(join(STATE_DIR, 'approval-line.json'));
+setAnnouncedFile(join(agentsDir(), 'mcp-approvals.json'));
 
 log.info({ self: userSelf() }, 'user identity');
 
@@ -142,7 +141,6 @@ function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: 
 async function main(): Promise<void> {
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
-  adoptOrgServerKeys();
   watchPolicySnapshot();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
@@ -162,7 +160,6 @@ installBearerSessions(agentsDir(), localOwner);
   startPromptExpiry();
   startUploadReaper();
   startAttachReaper();
-  watchOrgConnectorSync({ owner: localOwner, key: readAgentKey });
   watchMcpServer({
     owner: localOwner,
     hold: (approval, answer) => {
@@ -200,7 +197,7 @@ async function startClaude(): Promise<void> {
   ensureMetroPlugin()
     .then((outcome) => {
       log.info({ outcome }, 'plugin: metro plugin for Claude Code');
-      if (outcome !== 'skipped') publishConnectors();
+      if (outcome !== 'skipped') syncPluginServers();
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
@@ -208,7 +205,7 @@ async function startClaude(): Promise<void> {
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());
-  watchSession({ connectorsReady: () => connectorsReady() });
+  watchSession();
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
@@ -220,7 +217,6 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log.info('dispatcher shutting down');
-  stopOrgConnectorSync(true);
   stopMcpServer().catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the approval relay');
   });

@@ -2,7 +2,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
-import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-delivery';
+import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import type { ConnectorEdit, ConnectorRow } from '@metro-labs/connectors/db/connectors';

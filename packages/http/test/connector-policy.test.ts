@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyOf, effectiveConnectorPolicy, type ConnectorPolicy } from '../src/connector-delivery.js';
+import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyLayersOf, connectorPolicyOf, effectiveConnectorPolicy, type ConnectorPolicy } from '../src/connector-policy.js';
 
 type Access = 'allow' | 'ask' | 'deny';
 const RULES: Access[] = ['allow', 'ask', 'deny'];
@@ -69,8 +69,33 @@ describe('organization and agent policy layers', () => {
   });
 
   test('invalid fields and prototype keys are refused rather than weakening permissions', () => {
-    for (const value of [null, { write: 'block' }, { delete: 'ask' }, { tools: { constructor: 'allow' } }, JSON.parse('{"tools":{"__proto__":"deny"}}') as unknown]) {
+    for (const value of [null, [], { write: 'block' }, { delete: 'ask' }, { tools: null }, { tools: { send: true } }, { tools: { constructor: 'allow' } }, JSON.parse('{"tools":{"__proto__":"deny"}}') as unknown, JSON.parse('{"tools":{"__proto__":"allow"}}') as unknown]) {
       expect(() => connectorPolicyOf(value)).toThrow();
+    }
+  });
+
+  test('the combined policy never weakens a group, and named overrides cannot bypass an assignment', () => {
+    expect(combineConnectorPolicies({}, {})).toEqual({});
+    expect(combineConnectorPolicies({ read: 'deny', write: 'ask' }, { read: 'allow', write: 'allow' })).toEqual({ read: 'deny', write: 'ask' });
+    expect(combineConnectorPolicies({ tools: { send: 'allow', list: 'ask' } }, { write: 'deny' })).toEqual({ read: 'allow', write: 'deny', tools: { send: 'deny', list: 'deny' } });
+    expect(combineConnectorPolicies({ tools: { send: 'deny' } }, { tools: { send: 'allow', list: 'ask' } })).toEqual({ read: 'allow', write: 'allow', tools: { send: 'deny', list: 'ask' } });
+  });
+
+  test('a neutral layer keeps every group and named rule of the other exactly', () => {
+    const policies: ConnectorPolicy[] = [{}, { write: 'deny', tools: { special: 'ask' } }, { read: 'deny', write: 'deny', tools: { special: 'allow' } }, { read: 'ask', tools: { fetch: 'deny', write: 'allow' } }];
+    for (const value of policies) {
+      expect(combineConnectorPolicies(value, {})).toEqual(value);
+      expect(combineConnectorPolicies({}, value)).toEqual(value);
+      expect(combineConnectorPolicies(value, { read: 'allow', write: 'allow' })).toEqual(value);
+    }
+    expect(combineConnectorPolicies({ write: 'deny', tools: { special: 'ask' } }, { tools: { special: 'deny' } }).tools?.special).toBe('deny');
+  });
+
+  test('policy layers are read strictly', () => {
+    const layers = { organization: { write: 'deny', tools: { find: 'allow' } }, agent: { read: 'ask' } };
+    expect(connectorPolicyLayersOf(layers)).toEqual(layers);
+    for (const invalid of [null, {}, { ...layers, extra: {} }, { organization: { read: 'unknown' }, agent: {} }, { organization: {}, agent: { tools: { constructor: 'allow' } } }]) {
+      expect(() => connectorPolicyLayersOf(invalid)).toThrow();
     }
   });
 });

@@ -57,12 +57,12 @@ paste it into metro's Client secret field along with the client ID.
    user and accept the consent prompt. Microsoft sends you back to metro with the connector
    connected.
 4. Repeat for each server the agent should hold. The same client ID serves all of them.
-5. In the agent's running Claude Code session run `/reload-plugins --force`, or wait for the
-   next restart. Each connector appears as its own MCP server.
+5. Assign the connectors to the agent. Its next `find_tools` call on mcp.metro.box finds
+   their tools; nothing needs a reload on the box.
 
 Signing a connector out keeps the client ID, so **Connect** signs in again without a new
-registration. Tokens are refreshed by the daemon; a sign-in Microsoft has revoked shows as a
-connector that needs signing in again.
+registration. Tokens are refreshed by Metro's servers; a sign-in Microsoft has revoked shows
+as a connector that needs signing in again.
 
 ## If something refuses
 

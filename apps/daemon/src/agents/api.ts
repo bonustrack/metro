@@ -26,7 +26,6 @@ export interface AgentApiDeps extends AccountApiDeps {
   toolGroups?: () => Record<string, { name: string; group: string }[]>;
   attachable?: string[];
   features?: string[];
-  connectorIds: (agentIds: string[]) => Promise<Map<string, string[]>>;
 }
 
 type Routable =
@@ -51,8 +50,8 @@ export function target(path: string): Target {
   return id === null ? { kind: 'unknown' } : subTarget(id, segments.slice(1));
 }
 
-function agentPayload(agent: AgentSummary, connectors: Map<string, string[]>): Record<string, unknown> {
-  return { id: agent.id, name: agent.name, connector_ids: connectors.get(agent.id) ?? [] };
+function agentPayload(agent: AgentSummary): Record<string, unknown> {
+  return { id: agent.id, name: agent.name };
 }
 
 function wantsAccounts(req: IncomingMessage): boolean {
@@ -66,9 +65,8 @@ async function handleList(
   deps: AgentApiDeps,
 ): Promise<void> {
   const list = await deps.listAgents();
-  const connectors = await deps.connectorIds(list.map((a) => a.id));
   const base = {
-    agents: list.map((a) => agentPayload(a, connectors)),
+    agents: list.map((a) => agentPayload(a)),
     capabilities: deps.capabilities(),
     features: deps.features ?? [],
     attachable: deps.attachable ?? ATTACHABLE,

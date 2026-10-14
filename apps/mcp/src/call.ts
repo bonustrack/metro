@@ -1,5 +1,5 @@
 import { errMsg, log } from '@metro-labs/core/log';
-import { validConnectorToolName } from '@metro-labs/http/connector-delivery';
+import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';

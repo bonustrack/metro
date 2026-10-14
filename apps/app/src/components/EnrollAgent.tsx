@@ -11,7 +11,7 @@ import { queryError } from '../lib/queries.js';
 import { Modal } from './Modal.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 
-const NOTE = 'Links this agent to your organization, so it can receive the connectors assigned to it. It turns nothing on by itself.';
+const NOTE = 'Links this agent to your organization, so it can use the connectors assigned to it through mcp.metro.box.';
 
 function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollment: Enrollment; server: Server; onClose: () => void; onEnrolled: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
@@ -37,7 +37,7 @@ function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollm
       <Text size="md">{`Enroll ${serverLabel(server)} with ${account?.organizationName ?? account?.organization ?? 'your organization'}?`}</Text>
       <Text size="md" role="secondary">{`Agent: ${server.id} · ${server.host}`}</Text>
       <Text size="md" role="secondary">{NOTE}</Text>
-      <Text size="md" role="secondary">If already enrolled, this replaces its identity and turns connector sync off, even if it fails. Turn sync back on when ready. Closing does not cancel it.</Text>
+      <Text size="md" role="secondary">If already enrolled, this replaces its identity, even if it fails. Closing does not cancel it.</Text>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       <Row justify="between" gap={12} wrap>
         <Button color="secondary" dark={dark} label={busy ? 'Close' : 'Cancel'} onPress={onClose} />

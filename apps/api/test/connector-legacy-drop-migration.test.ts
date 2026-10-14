@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import type { Database } from '../src/db/client.js';
 import * as schema from '../src/db/schema.js';
 import { awsConnections, awsExternalIds, organizations, users } from '../src/db/schema.js';
-import { assignConnector, enrollLegacyAgent, newDeliveryAgent, oauthSecret, seedConnector, seedLegacyMigration, startDeliveryApi } from './connector-delivery-fixture.js';
+import { assignConnector, enrollLegacyAgent, newEnrolledAgent, oauthSecret, opaque, seedConnector, seedLegacyMigration } from './connector-agent-fixture.js';
 import { TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS } from './pglite-db.js';
 
@@ -28,17 +29,14 @@ function through(dir: string, last: number): void {
 }
 
 async function seed(db: Database, execute: (statement: string) => Promise<unknown>): Promise<void> {
-  const agent = newDeliveryAgent();
+  const agent = newEnrolledAgent();
   await enrollLegacyAgent(db, agent);
   await seedConnector(db, oauthSecret(Date.now() + 3600_000));
   await assignConnector(db, agent);
   await seedConnector(db, { kind: 'header', targetUrl: 'https://vendor.example/keyed', name: 'Authorization', value: 'Bearer retained-key' }, { id: 'conn0000002', name: 'Migrated connector' });
   await assignConnector(db, agent, 'conn0000002');
   await seedLegacyMigration(db, agent, 'conn0000002');
-  const delivery = await startDeliveryApi(db);
-  try {
-    expect((await delivery.call(agent)).status).toBe(200);
-  } finally { await delivery.close(); }
+  await agentNonceStore(() => db, Date.now).consume({ keyId: agent.row.keyId, time: Date.now(), nonce: opaque(), signature: '' }, agent.row.owner);
   await db.insert(users).values({ id: 'user_fixture', updatedAt: AT, name: 'Retained user' });
   await db.insert(organizations).values({ id: TEST_OWNER, slug: 'retained-org', createdAt: AT, updatedAt: AT });
   await db.insert(awsConnections).values({ id: 'aws00000001', owner: TEST_OWNER, accountId: '123456789012', roleArn: 'arn:aws:iam::123456789012:role/fixture', addedAt: AT });

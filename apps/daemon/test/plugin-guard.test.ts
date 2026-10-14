@@ -51,7 +51,7 @@ describe('the orchestrator guard the plugin ships', () => {
     }
   });
 
-  test('the mcp server: find_tools runs on any thread, call_tool only in a worker, where the server enforces the policy itself', () => {
+  test('the mcp server: find_tools runs on any thread, call_tool only in a worker, where the server enforces the policy itself; an old snapshot\'s connectors are ignored', () => {
     const policy = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-'));
     writeFileSync(join(policy, 'policy.json'), JSON.stringify({ version: 1, connectors: { notion: { id: 'org-notion00001', name: 'Notion', policy: { write: 'deny' }, tools: {} } } }));
     for (const where of [EMPTY, policy]) {
@@ -60,7 +60,8 @@ describe('the orchestrator guard the plugin ships', () => {
       expect(guard({ tool_name: 'mcp__plugin_metro_mcp__call_tool', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
       expect(guard({ tool_name: 'mcp__plugin_metro_mcp__call_tool', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
     }
-    expect(guard({ tool_name: 'mcp__plugin_metro_notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toMatch(/^deny: Blocked by the owner's policy for Noti/);
+    expect(guard({ tool_name: 'mcp__plugin_metro_notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
+    expect(guard({ tool_name: 'mcp__plugin_metro_notion__update_page', tool_input: {} }, policy)).toMatch(/^deny: A connector call is work, not orches/);
     rmSync(policy, { recursive: true, force: true });
   });
 

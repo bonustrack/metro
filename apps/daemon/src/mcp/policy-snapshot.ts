@@ -7,7 +7,6 @@ import { agentsDir } from '../agents/files.js';
 import { knownAccounts } from '../agents/map.js';
 import { onPoliciesChanged, storedPolicies, type ToolPolicy } from '../policy/policy.js';
 import { UNGATED } from './policy-gate.js';
-import { connectorGates } from '../connectors/gates.js';
 import { stationToolOwners, TOOL_DEFS, toolGroupOf } from './tool-catalog.js';
 
 interface PolicySnapshot {
@@ -17,14 +16,6 @@ interface PolicySnapshot {
   ungated: string[];
   accounts: Record<string, ToolPolicy>;
   stations: Record<string, string[]>;
-  connectors: Record<string, SnapshotConnector>;
-}
-
-interface SnapshotConnector {
-  id: string;
-  name: string;
-  policy: ToolPolicy;
-  tools: Record<string, ToolGroup>;
 }
 
 const FILE = 'policy.json';
@@ -44,11 +35,6 @@ function policySnapshot(): PolicySnapshot {
     ungated: [...UNGATED],
     accounts,
     stations,
-    connectors: Object.fromEntries(
-      connectorGates()
-        .filter((gate) => gate.server !== '')
-        .map((gate) => [gate.server, { id: gate.id, name: gate.name, policy: gate.policy, tools: gate.tools }]),
-    ),
   };
 }
 

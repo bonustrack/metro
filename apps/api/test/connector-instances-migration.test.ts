@@ -9,7 +9,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { openConnectorSecret, sealConnectorSecret } from '@metro-labs/connectors/model';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import * as schema from '../src/db/schema.js';
-import { assignConnector, enrollLegacyAgent, MASTER, newDeliveryAgent, seedConnector, seedLegacyMigration } from './connector-delivery-fixture.js';
+import { assignConnector, enrollLegacyAgent, MASTER, newEnrolledAgent, seedConnector, seedLegacyMigration } from './connector-agent-fixture.js';
 import { TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS } from './pglite-db.js';
 
@@ -29,7 +29,7 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
   const nine = mkdtempSync(join(tmpdir(), 'metro-connector-instances-nine-'));
   const client = new PGlite();
   const db = drizzle(client, { schema });
-  const agent = newDeliveryAgent();
+  const agent = newEnrolledAgent();
   try {
     through(folder, 8);
     through(nine, 9);

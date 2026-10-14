@@ -1,6 +1,5 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
 import { handleGatewayRequest } from '../gateway/gateway.js';
-import { handleRelayRequest } from '../connectors/relay.js';
 import { handleThreemaCallback } from './threema-callback.js';
 import { BodyTooLargeError, readBody, WEBHOOK_BODY_MAX } from './body.js';
 
@@ -346,7 +345,6 @@ async function handlePreMcpRoutes(
   if (handleEarlyRoutes(req, res, apis)) return true;
   if (handleUploadRequest(req, res)) return true;
   if (handleAttachRequest(req, res)) return true;
-  if (apis.relayApi && handleRelayRequest(req, res, apis.relayApi)) return true;
   if (await handleWebhookRoute(req, res, emit)) return true;
   if (await handleThreemaCallback(req, res)) return true;
   return monitor && handleMonitorRequest(req, res);

@@ -14,7 +14,7 @@ export interface RefreshRequest {
 
 export interface RefreshDeps {
   key: Buffer;
-  store: Pick<ConnectorDeliveryStore, 'assigned' | 'refresh'>;
+  store: Pick<ConnectorDeliveryStore, 'refresh'>;
   fetch: FetchLike;
   now: () => number;
 }
@@ -73,9 +73,9 @@ async function refreshedEdit(deps: RefreshDeps, row: ConnectorRow, secret: OAuth
   }
 }
 
-function bounded(deps: RefreshDeps): { deps: RefreshDeps; deadline: AbortSignal } {
+function bounded(deps: RefreshDeps): RefreshDeps {
   const deadline = AbortSignal.timeout(REFRESH_DEADLINE_MS);
-  return { deadline, deps: { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) } };
+  return { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
 }
 
 async function refreshOne(deps: RefreshDeps, identity: AgentKeyRow, connectorId: string, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<void> {
@@ -91,19 +91,6 @@ async function refreshOne(deps: RefreshDeps, identity: AgentKeyRow, connectorId:
 
 export async function refreshConnector(deps: RefreshDeps, identity: AgentKeyRow, connectorId: string, forced?: RefreshRequest): Promise<Map<string, string>> {
   const failed = new Map<string, string>();
-  await refreshOne(bounded(deps).deps, identity, connectorId, forced?.connectorId === connectorId ? forced : undefined, failed);
-  return failed;
-}
-
-export async function refreshAssigned(deps: RefreshDeps, identity: AgentKeyRow, forced?: RefreshRequest): Promise<Map<string, string>> {
-  const rows = await deps.store.assigned(identity);
-  if (forced !== undefined) rows.sort((left, right) => Number(right.connector.id === forced.connectorId) - Number(left.connector.id === forced.connectorId));
-  const failed = new Map<string, string>();
-  const limited = bounded(deps);
-  for (const { connector } of rows) {
-    if (limited.deadline.aborted) break;
-    if (connector.auth !== 'oauth') continue;
-    await refreshOne(limited.deps, identity, connector.id, forced?.connectorId === connector.id ? forced : undefined, failed);
-  }
+  await refreshOne(bounded(deps), identity, connectorId, forced?.connectorId === connectorId ? forced : undefined, failed);
   return failed;
 }

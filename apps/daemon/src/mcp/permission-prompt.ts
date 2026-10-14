@@ -1,6 +1,5 @@
 import { str } from '@metro-labs/core/str';
 import { readPreview, shownValue } from '../approvals/preview.js';
-import { connectorGates, connectorToolOf } from '../connectors/gates.js';
 import { stationByName } from '../stations/registry.js';
 import { stationOfAccount } from './read-tool.js';
 
@@ -83,21 +82,11 @@ function argLines(input: Record<string, unknown> | undefined): string[] {
   return args.length > ARGS_MAX ? [...args.slice(0, ARGS_MAX), `(${String(args.length - ARGS_MAX)} more)`] : args;
 }
 
-function connectorLines(name: string, tool: string, input: Record<string, unknown> | undefined): string[] {
-  return [`Approval needed: ${tool}`, `Connector: ${name}`, ...argLines(input)];
-}
-
 function bodyLines(params: PermissionParams): string[] {
   const metro = METRO_TOOL.exec(params.tool_name)?.[1];
   const { input } = readPreview(params.input_preview);
   const raw = params.input_preview.trim() === '' ? [] : [shorten(params.input_preview, RAW_MAX)];
   if (metro !== undefined) return input === undefined ? [`Approval needed: ${metro}`, ...raw] : metroLines(metro, input);
-  const connector = connectorToolOf(params.tool_name);
-  if (connector !== undefined) {
-    const { gate, tool } = connector;
-    const duplicate = connectorGates().some((entry) => entry.id !== gate.id && entry.name === gate.name);
-    return connectorLines(duplicate ? `${gate.name} (${gate.id})` : gate.name, tool, input);
-  }
   return [`Claude wants to run ${params.tool_name}: ${shorten(params.description)}`, '', ...raw];
 }
 
@@ -115,7 +104,6 @@ export function promptBody(params: PermissionParams): string {
 export interface ServerPrompt {
   requestId: string;
   tool: string;
-  connector: string | undefined;
   preview: string;
 }
 
@@ -123,5 +111,5 @@ export function serverPromptBody(prompt: ServerPrompt): string {
   const { input } = readPreview(prompt.preview);
   const raw = prompt.preview.trim() === '' ? [] : [shorten(prompt.preview, RAW_MAX)];
   const args = input === undefined ? raw : argLines(input);
-  return withAnswer(prompt.requestId, [`Approval needed: ${prompt.tool}`, ...(prompt.connector === undefined ? [] : [`Connector: ${prompt.connector}`]), ...args]);
+  return withAnswer(prompt.requestId, [`Approval needed: ${prompt.tool}`, ...args]);
 }

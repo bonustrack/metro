@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-14: Connectors only through mcp.metro.box
+
+Every box ran beta.304 with `METRO_MCP_SERVER_URL=https://mcp.metro.box`, every enrolled agent had a registered MCP token, and every agent already reached all its connectors through mcp.metro.box (`find_tools`, `call_tool`). The old path was redundant, so step 3 of `docs/MCP-SERVER.md` removed it: api.metro.box's credential delivery (`POST /api/agents/connectors`, the sealed snapshot and its types), the daemon's sync (`/api/connectors/sync`, `org-connector-sync.json`, the Sync switch on the Server page), its runtime, discovery and relay (`/relay/org-<id>`), the per-connector servers in the plugin's `.mcp.json`, the server keys file (`connector-server-keys.json` and its marker), the one-time id switch, the daemon's connector gates and grants, the connectors in `policy.json`, the hook's connector verdicts and the plugin helper's `headers` command. Connector credentials never reach a box now. Old boxes keep their own code until they update; their per-connector servers stop working once api.metro.box answers 404 for the delivery, which was accepted since their agents already used mcp.metro.box.
+
+`METRO_MCP_SERVER_URL` now defaults to `https://mcp.metro.box`; an empty value turns the client off (dev and tests). The plugin's `.mcp.json` holds one server, `mcp`. Files an old daemon left in `<agents dir>` (`org-connector-sync.json`, `connector-server-keys.json`, `connector-server-keys.initialized`, `connectors.json`, `connector-migrations.json`) are no longer read; a later release may delete them.
+
+The same change fixed a step 1 issue: after a daemon restart, an approval still pending on mcp.metro.box was posted in chat a second time, because the server sends a pending approval again every minute and the daemon had forgotten it. The daemon now keeps the ids it posted, with the chat line, in `<agents dir>/mcp-approvals.json` (0600, 200 at most, a day at most). An id found there is held again (page list, chat answer, expiry) on the chat it was posted to, and not posted again.
+
 ## 2026-10-14: Organization connectors only
 
 Every live box was checked on 2026-10-14: each connector was a migrated alias (its relay id was the old local id, routed to the organization runtime because the local migration record said `active`), no box had a connector that existed only locally, and no move was still open. Less decided to switch every agent to organization ids and delete the local connectors and the move.

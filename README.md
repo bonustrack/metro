@@ -154,14 +154,13 @@ in or enter a key, assign them to agents, and set their permissions for every ag
 just one. Members can see them but not change them. An agent's own **Connectors** page
 lists what is assigned to it.
 
-Each agent must be enrolled in its organization and have **Sync** on (Server page). Its
-daemon then fetches only its assigned connectors from api.metro.box, keeps their
-credentials in memory, and relays each call itself at
-`http://127.0.0.1:8420/relay/org-<id>`, adding the credential on the way out. Each
-connector shows up in Claude Code as its own MCP server through the metro plugin; a
-running Claude Code session picks up a change with `/reload-plugins --force`, an Agent
-SDK session at its next start. No tool call passes through api.metro.box, and no
-credential reaches Claude Code's config, the browser or the agent.
+Each agent must be enrolled in its organization (Server page). It then reaches its
+assigned connectors through one MCP server, `mcp` (https://mcp.metro.box), which the metro
+plugin gives Claude Code: `find_tools` finds a tool and `call_tool` runs it. Every call runs
+from mcp.metro.box with the organization's and the agent's permissions, so no connector
+credential reaches the box, Claude Code's config, the browser or the agent. A change on the
+Connectors page reaches the agent at its next call. See
+[docs/MCP-SERVER.md](docs/MCP-SERVER.md).
 
 api.metro.box verifies servers and handles OAuth itself. Its outbound connections use
 HTTPS, reject redirects and private addresses, and connect only to the DNS addresses it
