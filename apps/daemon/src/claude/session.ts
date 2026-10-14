@@ -49,6 +49,7 @@ export interface SessionDeps {
   now?: () => number;
   version?: string;
   prepare?: (runner: HarnessRunner) => Promise<void>;
+  connectorsReady?: () => boolean;
 }
 
 export interface SessionStatus {
@@ -316,9 +317,10 @@ function strike(now: number): boolean {
   return true;
 }
 
-export type Ensured = 'started' | 'restarted' | 'running' | 'blocked' | 'off' | 'paused';
+export type Ensured = 'started' | 'restarted' | 'running' | 'blocked' | 'off' | 'paused' | 'waiting';
 
 function holdsBack(deps: SessionDeps, now: number): Ensured | null {
+  if (deps.connectorsReady?.() === false) return 'waiting';
   if (now < memory.pausedUntil) return 'paused';
   if (sessionBlocked(deps) !== null) return 'blocked';
   return strike(now) ? 'paused' : null;

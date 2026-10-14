@@ -10,13 +10,15 @@ One Bun process that:
   between them and Claude Code through an in-memory bus,
 - serves the APIs the page at https://metro.box uses, checked against a WorkOS token whose
   organization must match the box's owner (`~/.metro/agents/.owner`),
-- relays connector traffic at `/relay/<id>`,
+- relays the traffic of the organization's connectors at `/relay/org-<id>`, with credentials
+  it keeps in memory only,
 - serves the model gateway at `/gateway`, which sends Claude Code's inference to the
   provider chosen on the Model page,
 - keeps a Claude Code session running in tmux, and serves the Terminal tab.
 
-The agent, its channels and its connectors are plain files under `~/.metro/agents`
-(`METRO_AGENTS_DIR` overrides). There is no database.
+The agent and its channels are plain files under `~/.metro/agents` (`METRO_AGENTS_DIR`
+overrides). Connectors belong to the organization and come from api.metro.box. There is no
+database.
 
 ## Layout
 
@@ -31,7 +33,7 @@ The agent, its channels and its connectors are plain files under `~/.metro/agent
 | `mcp/` | The MCP server and its tools, one session per identity. |
 | `channels/` | Bus events turned into Claude Code channel notifications. |
 | `monitor/` | `GET /api/tail`, the live event stream `metro tail` reads. |
-| `connectors/` | Connectors, their OAuth sign-in, the relay, the plugin's server list. |
+| `connectors/` | Organization connectors: enrollment, sync, the runtime, the relay, the plugin's server list. |
 | `gateway/` | The model gateway and the Model page API. |
 | `claude/` | Claude Code on the box: sessions, memory, settings, skills, login, setup. |
 | `terminal/` | The Terminal tab's WebSocket and tmux. |

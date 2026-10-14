@@ -11,7 +11,7 @@ import { queryError } from '../lib/queries.js';
 import { Modal } from './Modal.js';
 import { SettingsGroup, SettingsSection } from './SettingsSection.js';
 
-const NOTE = 'Links this agent to your organization. It turns nothing on and moves no connectors.';
+const NOTE = 'Links this agent to your organization, so it can receive the connectors assigned to it. It turns nothing on by itself.';
 
 function EnrollmentDialog({ enrollment, server, onClose, onEnrolled }: { enrollment: Enrollment; server: Server; onClose: () => void; onEnrolled: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';

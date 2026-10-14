@@ -52,7 +52,6 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   now += 60_000;
-  api.setEnabled(true);
   await held.reset();
   await addAgent(held.db, OURS, TEST_OWNER);
   await addAgent(held.db, SECOND, TEST_OWNER);
@@ -66,16 +65,7 @@ afterAll(async () => {
   await held.close();
 });
 
-describe('the switch and who may do what', () => {
-  test('every route answers 503 while organization connectors are off', async () => {
-    api.setEnabled(false);
-    for (const [method, path] of [['GET', '/api/connectors'], ['POST', '/api/connectors'], ['GET', '/api/connectors/callback?state=x&code=y']] as const) {
-      const res = await call(method, path, method === 'POST' ? {} : undefined);
-      expect(res.status).toBe(503);
-      expect((await data<{ error: string }>(res)).error).toBe('Organization connectors are not switched on yet.');
-    }
-  });
-
+describe('the key and who may do what', () => {
   test('a member reads the list, only an admin changes it, nobody signed out gets in', async () => {
     const member = await auth(TEST_OWNER, 'member');
     expect((await fetch(`${api.base}/api/connectors`)).status).toBe(401);

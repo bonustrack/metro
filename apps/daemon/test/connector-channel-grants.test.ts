@@ -11,7 +11,7 @@ beforeEach(() => {
   forgetAllPrompts();
   setAgentMap({ [`telegram/${ACCOUNT}`]: 'agent000001' }, { agent000001: 'Fixture' });
   setPolicies('channel', [[{ kind: 'channel', station: 'telegram', account: ACCOUNT }, { write: 'ask' }]]);
-  registerConnectors(['conn0000001', 'conn0000002'].map((id) => ({ id, name: 'Same', config: { policy: { write: 'ask' } } })));
+  registerConnectors(['org-conn0000001', 'org-conn0000002'].map((id) => ({ id, name: 'Same', config: { policy: { write: 'ask' } } })));
 });
 afterEach(() => { forgetAllPrompts(); registerConnectors([]); setPolicies('channel', []); setAgentMap({}, {}); });
 

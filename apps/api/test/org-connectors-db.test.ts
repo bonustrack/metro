@@ -19,7 +19,7 @@ const connector = (id: string, owner: string, name: string, secret: string | nul
 
 const settled = (query: PromiseLike<unknown>): Promise<unknown> => Promise.resolve(query);
 
-const assignment = (connectorId: string, agent: string): typeof connectorAgents.$inferInsert => ({ connector: connectorId, agent, policy: '{"write":"deny"}', migrationOperation: null, createdBy: 'user_01TEST', createdAt: AT });
+const assignment = (connectorId: string, agent: string): typeof connectorAgents.$inferInsert => ({ connector: connectorId, agent, policy: '{"write":"deny"}', createdBy: 'user_01TEST', createdAt: AT });
 
 beforeAll(async () => {
   held = await testDb();

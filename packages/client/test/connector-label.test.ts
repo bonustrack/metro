@@ -20,6 +20,12 @@ describe('connector instance labels', () => {
     expect(connectorLabel({ ...first, name: 'Renamed' })).toBe('Renamed (instance001)');
   });
 
+  test('the host keeps its port, and an invalid address never exposes a path or query', () => {
+    expect(connectorHost('https://mcp.linear.app:8443/mcp')).toBe('mcp.linear.app:8443');
+    expect(connectorHost('private-path?token=fixture-secret')).toBe('Address withheld');
+    expect(connectorHost('')).toBe('Address withheld');
+  });
+
   test('case and whitespace do not hide ambiguity, repeated snapshots of one ID do not create it', () => {
     expect(connectorLabel(first, [first, { ...second, name: ' calendar ' }])).toBe('Calendar (instance001)');
     expect(connectorLabel(first, [first, first])).toBe('Calendar');

@@ -17,8 +17,6 @@ const PATH = '/api/agents/connectors';
 const BODY_MAX = 4096;
 
 export interface AgentConnectorsDeps {
-  enabled: () => boolean;
-  deliveryEnabled: () => boolean;
   key: () => Buffer | null;
   keys: AgentKeyStore;
   nonces: AgentNonceStore;
@@ -53,7 +51,6 @@ function inputOf(bytes: Buffer): DeliveryRequest {
 }
 
 async function answer(req: IncomingMessage, deps: AgentConnectorsDeps): Promise<{ sealed: SealedDelivery }> {
-  if (!deps.enabled() || !deps.deliveryEnabled()) throw new ApiError('Organization connector delivery is not switched on yet.', 503);
   refuseBrowser(req);
   const bytes = await readBodyBytes(req, BODY_MAX);
   const input = inputOf(bytes);

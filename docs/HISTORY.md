@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-14: Organization connectors only
+
+Every live box was checked on 2026-10-14: each connector was a migrated alias (its relay id was the old local id, routed to the organization runtime because the local migration record said `active`), no box had a connector that existed only locally, and no move was still open. Less decided to switch every agent to organization ids and delete the local connectors and the move.
+
+The daemon now publishes every delivered connector as `org-<id>` and the relay accepts nothing else. Gone: the `connectors.json` store, the daemon's OAuth and its callback, the local `/api/connectors` API, health notes, copy to another agent, Move to organization with its records, previews, aliases, operation journal and passive listener, and the `METRO_CONNECTORS_LIVE_ENABLED` switch (the runtime runs whenever sync is on and the agent is enrolled). The bundle carries no connector, and a restore ignores an old bundle's connectors.
+
+Tool names had to stay the same, because a running session, Claude Code's own permission settings and any pending approval name a connector tool as `mcp__plugin_metro_<server key>__<tool>`. The server key is saved per relay id in `connector-server-keys.json`, so a one-time step at boot (`connectors/org-adopt.ts`) moves each active alias's key from the old local id to `org-<destinationId>`. New connectors get the plain slug of their name. `connectors.json` and the `connector-migrations` files are left on disk; a later release may delete them.
+
 ## 2026-10-13: Claude Code is pinned, and a refused channel is reported
 
 Emma got no chat message for about ten hours. The Harness page's Update ran `claude install latest` at 08:17 UTC and moved her Claude Code from 2.1.289 to 2.1.296. The daemon kept delivering (`relay: notify` for every event, `/mcp/status` showed the stream attached), but Claude Code's own MCP log for the metro server said `Channel notifications skipped: channels feature is not currently available` at every start after the update, and `Channel notifications registered` at every start before it. In 2.1.296 the channel check also asks a new compliance verdict (`allow_channels`, which denies when the verdict is missing), so the `tengu_harbor` seed alone no longer turns channels on. Emma's own debugging looked at the daemon's replay code, which was not at fault. Moving the box back to 2.1.289 (`claude install 2.1.289` as the agent, then a session restart) brought `Channel notifications registered` back.

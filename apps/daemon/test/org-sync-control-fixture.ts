@@ -8,6 +8,7 @@ import { agentSignatureValid, readAgentProof } from '@metro-labs/http/agent-sign
 import { sealConnectorDelivery, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import { newAgentKey, saveAgentKey, type AgentKey } from '../src/connectors/agent-key.ts';
 import { OrgConnectorControl } from '../src/connectors/org-sync-control.ts';
+import type { GateRow } from '../src/connectors/gates.ts';
 
 export const OWNER = 'org_01AGENTOWNER00000';
 export const OTHER = 'org_01SOMEONEELSE00';
@@ -15,7 +16,7 @@ export const AGENT = 'agent000001';
 export const SECRET = 'fixture-org-access-secret';
 export const URL_SECRET = 'fixture-org-url-secret';
 export const REVISION = Buffer.alloc(32, 17).toString('base64url');
-const ENV = ['METRO_CONNECTORS_SYNC_ENABLED', 'METRO_CONNECTORS_LIVE_ENABLED', 'METRO_CONNECTORS_ENABLED'] as const;
+const ENV = ['METRO_CONNECTORS_SYNC_ENABLED', 'METRO_CONNECTORS_ENABLED'] as const;
 
 export async function listen(server: Server): Promise<string> {
   const port = randomInt(10000, 30000);
@@ -56,6 +57,7 @@ export class SyncControlFixture {
     { id: 'conn0000002', name: 'Signed out MCP', url: 'https://offline.example/mcp', auth: 'oauth', headers: {}, policy: {}, revision: REVISION, state: 'signin' },
   ];
   calls: { path: string; body: Record<string, unknown>; signatureValid: boolean }[] = [];
+  publications: GateRow[][] = [];
   signals: (AbortSignal | null | undefined)[] = [];
   responseStatus = 200;
   invalidSeal = false;
@@ -71,9 +73,7 @@ export class SyncControlFixture {
   constructor() {
     for (const name of ENV) delete process.env[name];
     if (this.key?.enrollment !== null && this.key?.enrollment !== undefined) saveAgentKey(this.key, this.key.enrollment, this.dir);
-    writeFileSync(join(this.dir, 'connectors.json'), JSON.stringify({ connectors: [{ id: 'local000001', name: 'Local MCP', config: { value: 'local-only-secret' } }] }));
     writeFileSync(join(this.dir, 'policy.json'), '{"version":1,"connectors":{}}');
-    writeFileSync(join(this.dir, '.mcp.json'), '{"mcpServers":{"local":{"url":"http://127.0.0.1/relay/local000001"}}}');
   }
 
   static async create(): Promise<SyncControlFixture> {
@@ -87,6 +87,7 @@ export class SyncControlFixture {
     this.control?.stop();
     this.control = new OrgConnectorControl({
       owner: () => this.owner, key: () => this.key, dir: this.dir, monotonic: () => this.clock,
+      publish: (rows) => { this.publications.push(structuredClone([...rows])); },
       api: {
         base: this.base, now: () => this.now,
         fetch: async (url, init) => {

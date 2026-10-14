@@ -14,7 +14,7 @@ import {
 } from '../api/claude.js';
 import { fetchBundle, restoreBundle } from '../api/bundle.js';
 import { fetchModel, fetchModelBundle, restoreModelBundle } from '../api/model.js';
-import type { PackedChannel, PackedConnector, PackedMemory, PackedModel, PackedSession, PackedSkill, Payload, Section } from './pack.js';
+import type { PackedChannel, PackedMemory, PackedModel, PackedSession, PackedSkill, Payload, Section } from './pack.js';
 
 export type Mode = 'append' | 'overwrite';
 
@@ -35,19 +35,6 @@ function channelsOf(stations: unknown[]): PackedChannel[] {
       ...(s.enabled === false ? { enabled: false } : {}),
       ...(isRecord(s.policy) ? { policy: s.policy } : {}),
       config: recordOf(s.config),
-    };
-  });
-}
-
-function connectorsOf(rows: unknown[]): PackedConnector[] {
-  return rows.map((raw) => {
-    const c = recordOf(raw);
-    return {
-      id: typeof c.id === 'string' ? c.id : '',
-      name: typeof c.name === 'string' ? c.name : '',
-      url: typeof c.url === 'string' ? c.url : '',
-      transport: 'http',
-      config: recordOf(c.config),
     };
   });
 }
@@ -113,18 +100,14 @@ export interface Gathered {
 }
 
 export async function gatherPayload(agent: LocalAgent, sections: Set<Section>, now: string): Promise<Gathered> {
-  const wants = (section: Section): boolean => sections.has(section);
-  const bundle = wants('channels') || wants('connectors') ? await fetchBundle(agent.id) : null;
   const payload: Payload = { version: 1, exportedAt: now, agent: { id: agent.id, name: agent.name } };
-  if (wants('channels')) payload.channels = channelsOf(bundle === null ? [] : bundle.agent.stations);
-  if (wants('connectors')) payload.connectors = connectorsOf(bundle === null ? [] : bundle.connectors);
+  if (sections.has('channels')) payload.channels = channelsOf((await fetchBundle(agent.id)).agent.stations);
   const leftOut: string[] = [];
   return { payload: { ...payload, ...(await gatherClaude(sections, leftOut)) }, leftOut };
 }
 
 export interface Applied {
   channels: number;
-  connectors: number;
   skills: number;
   memory: number;
   sessions: number;
@@ -137,17 +120,15 @@ async function applyStations(
   sections: Set<Section>,
   mode: Mode,
   agent: LocalAgent,
-): Promise<{ channels: number; connectors: number }> {
-  const channels = sections.has('channels') ? (payload.channels ?? []) : [];
-  const connectors = sections.has('connectors') ? (payload.connectors ?? []) : [];
-  if (channels.length === 0 && connectors.length === 0) return { channels: 0, connectors: 0 };
+): Promise<{ channels: number }> {
+  const channels = picked(sections, 'channels', payload.channels);
+  if (channels.length === 0) return { channels: 0 };
   await restoreBundle({
     version: 1,
     mode,
     agent: { id: agent.id, name: agent.name, stations: channels },
-    connectors,
   });
-  return { channels: channels.length, connectors: connectors.length };
+  return { channels: channels.length };
 }
 
 async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written: number; skipped: number }> {

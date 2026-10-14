@@ -204,14 +204,16 @@ test('overlapping polls share one request and force refresh carries only an opaq
   expect(JSON.stringify(calls)).not.toContain('org-access-secret');
 });
 
-test('boot leaves organization sync off by default', () => {
+test('boot leaves organization sync off by default and publishes an empty connector list', () => {
   const previous = process.env.METRO_CONNECTORS_SYNC_ENABLED;
   delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
   let reads = 0;
+  const published: unknown[][] = [];
   try {
-    watchOrgConnectorSync({ owner: () => { reads += 1; return OWNER; }, key: () => key, api: { base: BASE, now: () => now, fetch: fetchApi } });
+    watchOrgConnectorSync({ owner: () => { reads += 1; return OWNER; }, key: () => key, dir, publish: (list) => { published.push([...list]); }, api: { base: BASE, now: () => now, fetch: fetchApi } });
     expect(reads).toBe(0);
     expect(calls).toEqual([]);
+    expect(published).toEqual([[]]);
   } finally {
     if (previous === undefined) delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
     else process.env.METRO_CONNECTORS_SYNC_ENABLED = previous;

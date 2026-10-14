@@ -21,10 +21,10 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { publishLocalConnectors } from '../connectors/publication.js';
+import { connectorsReady, publishConnectors } from '../connectors/publication.js';
+import { adoptOrgServerKeys } from '../connectors/org-adopt.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
-import { loadConnectorPolicies, readLocalConnectors } from '../connectors/store.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
@@ -140,10 +140,8 @@ function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: 
 async function main(): Promise<void> {
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
+  adoptOrgServerKeys();
   watchPolicySnapshot();
-  loadConnectorPolicies().catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'connector policy: loading the policies failed');
-  });
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   ensureStationDeps();
@@ -160,7 +158,6 @@ installBearerSessions(agentsDir(), localOwner);
   );
   metroMcp.startInbound();
   startPromptExpiry();
-  publishLocalConnectors(readLocalConnectors());
   startUploadReaper();
   startAttachReaper();
   watchOrgConnectorSync({ owner: localOwner, key: readAgentKey });
@@ -195,7 +192,7 @@ async function startClaude(): Promise<void> {
   ensureMetroPlugin()
     .then((outcome) => {
       log.info({ outcome }, 'plugin: metro plugin for Claude Code');
-      if (outcome !== 'skipped') publishLocalConnectors(readLocalConnectors());
+      if (outcome !== 'skipped') publishConnectors();
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'plugin: could not ensure the Claude Code plugin');
@@ -203,7 +200,7 @@ async function startClaude(): Promise<void> {
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());
-  watchSession();
+  watchSession({ connectorsReady: () => connectorsReady() });
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;

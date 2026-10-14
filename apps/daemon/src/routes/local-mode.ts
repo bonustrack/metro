@@ -6,7 +6,6 @@ import { assertAttachOwner, finishGmailUpgrade, startGmailAttach } from './gmail
 import { detachWithGmailRevocation } from './gmail-detach.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
-import { publishLocalConnectors } from '../connectors/publication.js';
 import { invalidateOrgConnectorSync, orgConnectorRelaySession, orgConnectorSyncStatus, setOrgConnectorSync } from '../connectors/org-sync-watch.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
@@ -14,32 +13,9 @@ import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/bundle.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
-import type { ConnectorApiDeps } from '../connectors/api.js';
-import { connectorMigrationPreview } from '../connectors/migration-preview.js';
-import { ConnectorMigrations } from '../connectors/migration-control.js';
-import { migrationExportableRows } from '../connectors/migration-guard.js';
-import { ConnectorTransfers } from '../connectors/transfer-api.js';
-import { copyConnectorRows } from '../connectors/transfer-store.js';
 import { authenticate } from '../mcp/request-identity.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
-import {
-  readLocalConnectors,
-  localImportConnectors,
-  localCreateConnector,
-  localCreatePendingConnector,
-  localDeleteConnector,
-  localDisconnectConnector,
-  localGetConnector,
-  localListConnectors,
-  localReconnectConnector,
-  localRelayTarget,
-  localRenameConnector,
-  localVerifyConnector,
-  localMarkSignedOut,
-  localConnectorTools,
-  localSetConnectorPolicy,
-} from '../connectors/store.js';
-import { blockedReason } from '../connectors/gates.js';
+import { connectorGates } from '../connectors/gates.js';
 import {
   setLocalOwner,
   localAttachAccount,
@@ -117,43 +93,17 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
   };
 }
 
-const allConnectorIds = (): string[] => readLocalConnectors().map((c) => c.id);
-
 function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
-  const all = allConnectorIds();
+  const all = connectorGates().map((gate) => gate.id);
   return Promise.resolve(new Map(ids.map((id) => [id, all] as const)));
 }
 
-const connectorApi: ConnectorApiDeps = {
-  migrationPreview: () => connectorMigrationPreview(localOwner()),
-  listConnectors: async () => {
-    const rows = await localListConnectors();
-    publishLocalConnectors(readLocalConnectors());
-    return rows;
-  },
-  createConnector: localCreateConnector,
-  verifyConnector: localVerifyConnector,
-  connectorTools: localConnectorTools,
-  disconnectConnector: localDisconnectConnector,
-  renameConnector: localRenameConnector,
-  deleteConnector: localDeleteConnector,
-  setConnectorPolicy: (id, policy) => localSetConnectorPolicy(id, policy),
-  createPendingConnector: localCreatePendingConnector,
-  reconnectConnector: localReconnectConnector,
-  getConnector: localGetConnector,
-};
-
 const relayApi: RelayApiDeps = {
-  target: (connectorId, force) => localRelayTarget(connectorId, force),
   open: orgConnectorRelaySession,
   identify: (req) => {
     const who = authenticate(req);
     return who?.kind === 'agent' ? { subject: 'agent-key', agentId: who.agentId } : null;
   },
-  signedOut: (id) => {
-    localMarkSignedOut(id);
-  },
-  blocked: blockedReason,
 };
 
 
@@ -164,18 +114,17 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
       const bundle: AgentBundle = {
         version: 1,
         agent: { id: file.id, name: file.name ?? '', stations: file.stations.filter((a) => a.station !== 'gmail' || a.config.managed !== true) },
-        connectors: migrationExportableRows(readLocalConnectors()).map((c) => ({ id: c.id, name: c.name, url: c.url, config: { ...c.config } })),
+        connectors: [],
       };
       return Promise.resolve(bundle);
     },
     restore: async (bundle, mode) => {
       const made = await localImportAgent(loadedAgentOf(bundle), undefined, mode);
-      const connectors = localImportConnectors(bundle.connectors, undefined, mode);
       for (const station of new Set(bundle.agent.stations.map((a) => a.station)))
         await deps.syncStations(station).catch((err: unknown) => {
           log.warn({ station, err: errMsg(err) }, 'restore: station reload failed, the change lands at the next boot');
         });
-      return { id: made.id, name: made.name, stations: made.stations, connectors };
+      return { id: made.id, name: made.name, stations: made.stations, connectors: 0 };
     },
   };
 }
@@ -206,10 +155,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
   return {
     agentApi: agentApi(deps),
     bundleApi: bundleApi(deps),
-    connectorApi,
     connectorSyncApi: { status: orgConnectorSyncStatus, set: setOrgConnectorSync },
-    connectorMigrationApi: new ConnectorMigrations(),
-    connectorTransfers: new ConnectorTransfers({ read: () => migrationExportableRows(readLocalConnectors()), copy: copyConnectorRows }),
     enrollApi: { owner: () => localOwner(), invalidate: invalidateOrgConnectorSync },
     relayApi,
     claudeApi: { liveEvents: deps.liveEvents },

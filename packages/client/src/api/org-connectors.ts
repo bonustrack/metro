@@ -107,13 +107,11 @@ function authorizeOf(body: Record<string, unknown>): string {
   return url;
 }
 
-export async function readOrgConnectors(checkAccount?: () => void, signal?: AbortSignal): Promise<OrgConnectors> {
-  const body = await orgCall({ method: 'GET', base: base(), checkAccount, signal });
+export async function fetchOrgConnectors(): Promise<OrgConnectors> {
+  const body = await orgCall({ method: 'GET', base: base() });
   if (!isRecord(body) || !Array.isArray(body.connectors)) throw unexpected();
   return { connectors: body.connectors.map(toOrgConnector), admin: body.admin === true };
 }
-
-export const fetchOrgConnectors = (): Promise<OrgConnectors> => readOrgConnectors();
 
 export async function fetchOrgConnectorTools(id: string, signal?: AbortSignal): Promise<ConnectorTool[]> {
   return connectorToolsOf(await orgCall({ method: 'GET', base: base(), path: `/${id}/tools`, signal }));

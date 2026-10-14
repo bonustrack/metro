@@ -131,6 +131,18 @@ describe('starting the session', () => {
     expect(config.projects[realpathSync(join(dir, 'home'))]).toEqual({ hasTrustDialogAccepted: true });
   });
 
+  test('a session waits for the connector list, then starts; a running session is not held', () => {
+    agent();
+    let ready = false;
+    const held = { ...deps({ version: '0.1.0-beta.105' }), connectorsReady: () => ready };
+    expect(ensureSession(held)).toBe('waiting');
+    expect(recorded().filter((c) => c.startsWith('new-session'))).toHaveLength(0);
+    ready = true;
+    expect(ensureSession(held)).toBe('started');
+    ready = false;
+    expect(ensureSession(held)).toBe('running');
+  });
+
   test('a session an older metro started is restarted once after an update, then left alone', () => {
     agent();
     expect(ensureSession(deps({ version: '0.1.0-beta.105' }))).toBe('started');

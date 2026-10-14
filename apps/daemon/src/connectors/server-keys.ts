@@ -33,14 +33,27 @@ function parseKeys(text: string): Map<string, string> {
   return keys;
 }
 
-export function persistentServerKeys(rows: PluginRow[], dir = agentsDir(), published: PluginRow[] = rows): Map<string, string> {
-  const path = join(dir, 'connector-server-keys.json');
-  const marker = join(dir, 'connector-server-keys.initialized');
-  const saved = readKeys(path, marker);
-  const keys = serverKeysOf(rows, saved, published);
-  if (keys.size > 0 && keys.size !== saved?.size) {
-    if (saved === undefined) writeSecure(marker, '1\n');
-    writeSecure(path, `${JSON.stringify({ version: 1, keys: Object.fromEntries(keys) }, null, 2)}\n`);
-  }
+const sameKeys = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
+  a.size === b.size && [...a].every(([id, key]) => b.get(id) === key);
+
+function serverKeyFiles(dir = agentsDir()): { path: string; marker: string } {
+  return { path: join(dir, 'connector-server-keys.json'), marker: join(dir, 'connector-server-keys.initialized') };
+}
+
+export function readServerKeys(dir = agentsDir()): Map<string, string> | undefined {
+  const { path, marker } = serverKeyFiles(dir);
+  return readKeys(path, marker);
+}
+
+export function writeServerKeys(keys: ReadonlyMap<string, string>, dir = agentsDir()): void {
+  const { path, marker } = serverKeyFiles(dir);
+  if (!existsSync(marker)) writeSecure(marker, '1\n');
+  writeSecure(path, `${JSON.stringify({ version: 1, keys: Object.fromEntries(keys) }, null, 2)}\n`);
+}
+
+export function persistentServerKeys(rows: PluginRow[], dir = agentsDir()): Map<string, string> {
+  const saved = readServerKeys(dir);
+  const keys = serverKeysOf(rows, saved);
+  if (saved === undefined ? keys.size > 0 : !sameKeys(saved, keys)) writeServerKeys(keys, dir);
   return keys;
 }

@@ -5,7 +5,7 @@ import { apiFailure, apiSession, cors, readJsonBody, requireAdmin, sendJson } fr
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
-import type { LoadedAccount, LoadedAgent, LoadedConnector } from '../stations/materialize.js';
+import type { LoadedAccount, LoadedAgent } from '../stations/materialize.js';
 import { STATIONS } from '@metro-labs/core/station-names';
 import { approversOf } from './files.js';
 
@@ -17,7 +17,7 @@ const STATION_NAMES = new Set<string>(STATIONS);
 export interface AgentBundle {
   version: 1;
   agent: { id: string; name: string; stations: LoadedAccount[] };
-  connectors: LoadedConnector[];
+  connectors: [];
 }
 
 export const loadedAgentOf = (bundle: AgentBundle): LoadedAgent => ({
@@ -68,13 +68,6 @@ function stationOf(raw: unknown): LoadedAccount {
   };
 }
 
-function connectorOf(raw: unknown): LoadedConnector {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string' || typeof raw.url !== 'string')
-    throw bad('a connector is missing its id, name or url');
-  if (!isRecord(raw.config)) throw bad('a connector has no config');
-  return { id: raw.id, name: raw.name, url: raw.url, config: raw.config };
-}
-
 function agentOf(raw: unknown): AgentBundle['agent'] {
   if (!isRecord(raw)) throw bad('not a v1 agent bundle');
   const { id, name, stations } = raw;
@@ -85,8 +78,7 @@ function agentOf(raw: unknown): AgentBundle['agent'] {
 
 export function parseBundle(raw: unknown): AgentBundle {
   if (!isRecord(raw) || raw.version !== 1) throw bad('not a v1 agent bundle');
-  const connectors = Array.isArray(raw.connectors) ? raw.connectors : [];
-  return { version: 1, agent: agentOf(raw.agent), connectors: connectors.map(connectorOf) };
+  return { version: 1, agent: agentOf(raw.agent), connectors: [] };
 }
 
 async function answer(req: IncomingMessage, deps: BundleApiDeps, path: string): Promise<unknown> {

@@ -12,7 +12,6 @@ import { daemonBase } from '@metro-labs/client/auth/daemon';
 import { carryForward, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { AuthError, StoppedError, fetchSession, fetchStations, type StationsView } from '@metro-labs/client/api/client';
 import { fetchApprovals, type Approval } from '@metro-labs/client/api/approvals';
-import { fetchConnector, fetchConnectors, type Connector, type ConnectorsView } from '@metro-labs/client/api/connectors';
 import {
   fetchClaudeProjects,
   fetchClaudeSessions,
@@ -78,9 +77,6 @@ type BoxName =
   | 'mode'
   | 'session'
   | 'stations'
-  | 'connectors'
-  | 'connector'
-  | 'connector-tools'
   | 'connector-sync'
   | 'account-name'
   | 'schedules'
@@ -358,23 +354,8 @@ export const useMemoryQuery = (project: string): UseQueryResult<MemoryListing> =
 export const useMemoryFileQuery = (project: string, name: string): UseQueryResult<string> =>
   useBoxQuery(['memory', project, name], () => fetchMemoryFile(project, name), { refetchInterval: LIVE_MS });
 
-export const useConnectorsQuery = (): UseQueryResult<ConnectorsView> => useBoxQuery('connectors', fetchConnectors);
-
-export const useConnectorQuery = (id: string): UseQueryResult<Connector> => useBoxQuery(['connector', id], () => fetchConnector(id));
-
 export function refreshAgents(client: QueryClient): void {
   refreshQuietly(client, ['stations']);
-}
-
-export function refreshConnectors(client: QueryClient, id?: string): void {
-  refreshQuietly(client, id === undefined ? ['connectors', 'stations'] : ['connectors', 'stations', ['connector', id]]);
-}
-
-export function resetDestinationConnectors(client: QueryClient, base: string): void {
-  for (const key of ['connectors', 'stations']) {
-    client.removeQueries({ queryKey: [key, base], type: 'inactive' });
-    client.invalidateQueries({ queryKey: [key, base], refetchType: 'active' }).catch(() => undefined);
-  }
 }
 
 function withoutAccount(groups: AccountGroup[], station: string, accountId: string): AccountGroup[] {

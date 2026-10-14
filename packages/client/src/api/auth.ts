@@ -252,27 +252,23 @@ async function restoredDestination(scope: number, current: Account, organization
   return destination;
 }
 
-async function organizationAccount(scope: number, organization: string, admin: boolean, check?: () => void): Promise<unknown> {
+async function organizationAccount(scope: number, organization: string, check?: () => void): Promise<unknown> {
   check?.();
   const current = await freshAccount(scope);
   check?.();
   currentAccount(scope);
-  if (admin && current.role !== 'admin') throw new Error('You must be an admin of the source organization.');
   return current.organization === organization ? current : restoredDestination(scope, current, organization);
 }
 
-function organizationToken(scope: number, organization: string, admin: boolean, check?: () => void): Promise<string> {
-  return serialize(scope, () => organizationAccount(scope, organization, admin, check)).then((body) => {
+function organizationToken(scope: number, organization: string, check?: () => void): Promise<string> {
+  return serialize(scope, () => organizationAccount(scope, organization, check)).then((body) => {
     const current = currentAccount(scope);
     const next = accountFrom(body);
     if (!tokenMatchesAccount(next) || next.user.id !== current.user.id || next.organization !== organization) throw unexpected();
-    if (admin && next.role !== 'admin') throw new Error('You must be an admin of the destination organization.');
     if (tokenExpiring(next.accessToken)) throw new Error('The organization access token has expired. Try again.');
     return next.accessToken;
   });
 }
-
-export const organizationAccessToken = (organization: string): Promise<string> => organizationToken(accountScopeIdentity(), organization, true);
 
 const scopedTokens = new Map<string, { pending: Promise<string>; signals: (AbortSignal | undefined)[] }>();
 const cancelled = (): Error => Object.assign(new Error('The request was cancelled.'), { name: 'AbortError' });
@@ -300,7 +296,7 @@ export async function scopedOrganizationAccessToken(organization: string, option
   let flight = scopedTokens.get(key);
   if (flight === undefined) {
     const signals: (AbortSignal | undefined)[] = [];
-    const pending = organizationToken(scope, organization, false, () => {
+    const pending = organizationToken(scope, organization, () => {
       if (signals.every((signal) => signal?.aborted)) throw cancelled();
     }).finally(() => { scopedTokens.delete(key); });
     flight = { pending, signals };

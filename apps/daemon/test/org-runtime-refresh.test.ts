@@ -103,8 +103,8 @@ test.each(['header', 'none'] as const)('%s discovery credentials never request a
 });
 
 test.each([
-  ['lease', false], ['owner', false], ['key', false], ['live', false], ['sync', false],
-  ['lease', true], ['owner', true], ['key', true], ['live', true], ['sync', true],
+  ['lease', false], ['owner', false], ['key', false], ['sync', false],
+  ['lease', true], ['owner', true], ['key', true], ['sync', true],
 ] as const)('%s change in the fresh-check async gap prevents discovery dispatch (retry %s)', async (change, retry) => {
   if (retry) fixture.state.vendor = async () => new Response(null, { status: 401 });
   const original = fixture.sync.read.bind(fixture.sync);
@@ -117,7 +117,6 @@ test.each([
       if (change === 'lease') fixture.state.monotonic += 90_001;
       else if (change === 'owner') fixture.state.owner = 'org_01OTHEROWNER000';
       else if (change === 'key') fixture.state.key = enrolledKey();
-      else if (change === 'live') fixture.state.live = false;
       else fixture.state.syncEnabled = false;
     });
     return snapshot;

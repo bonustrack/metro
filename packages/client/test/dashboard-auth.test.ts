@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { accessToken, exchangeHandoff, fetchOrganizations, logoutAccount, organizationAccessToken, refreshAccount, scopedOrganizationAccessToken, switchOrganization } from '../src/api/auth.js';
+import { accessToken, exchangeHandoff, fetchOrganizations, logoutAccount, refreshAccount, scopedOrganizationAccessToken, switchOrganization } from '../src/api/auth.js';
 import { accountScopeIdentity, activeAccount, clearAccount, loadAccount, storeAccount, subscribeAccountScope, tokenExpiring, tokenExpiry, type Account } from '../src/auth/account.js';
 import { currentServer, setCurrentServer } from '../src/auth/daemon.js';
 import { AuthError, call } from '../src/api/client.js';
@@ -95,7 +95,6 @@ describe('source-preserving organization access for the dashboard', () => {
   test('current-organization members use their existing token without rotation', async () => {
     expect(await scopedOrganizationAccessToken(SOURCE)).toBe(activeAccount()?.accessToken ?? '');
     expect(calls).toHaveLength(0);
-    await expect(organizationAccessToken(SOURCE)).rejects.toThrow('admin');
   });
 
   test('singleflight shares simultaneous reads but retains no completed token cache', async () => {
@@ -105,17 +104,6 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1', 'rt_2', 'rt_3']);
     await scopedOrganizationAccessToken(TARGET);
     expect(switches()).toEqual([TARGET, SOURCE, OTHER, SOURCE, TARGET, SOURCE]);
-  });
-
-  test('copy still requires both admin roles while sharing the rotation queue with member reads', async () => {
-    installTestAccount({ org_id: SOURCE });
-    roles.set(SOURCE, 'admin');
-    await expect(organizationAccessToken(TARGET)).rejects.toThrow('admin of the destination');
-    roles.set(TARGET, 'admin');
-    const results = await Promise.all([scopedOrganizationAccessToken(OTHER), organizationAccessToken(TARGET)]);
-    expect(results).toHaveLength(2);
-    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1', 'rt_2', 'rt_3', 'rt_4', 'rt_5']);
-    expect(activeAccount()?.organization).toBe(SOURCE);
   });
 
   test('expired sources refresh once, with no fallback or repeated refresh for unusable tokens', async () => {

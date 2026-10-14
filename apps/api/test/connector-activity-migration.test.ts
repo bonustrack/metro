@@ -6,8 +6,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import type { Database } from '../src/db/client.js';
 import { awsConnections, awsExternalIds, organizations, users } from '../src/db/schema.js';
-import { assignConnector, enrollDeliveryAgent, newDeliveryAgent, oauthSecret, seedConnector } from './connector-delivery-fixture.js';
-import { answer, input, payload, prepared, startMigrationApi } from './connector-migration-fixture.js';
+import { assignConnector, enrollDeliveryAgent, newDeliveryAgent, oauthSecret, seedConnector, seedLegacyMigration, startDeliveryApi } from './connector-delivery-fixture.js';
 import { postgresFixture, TEST_DATABASE_URL } from './connector-postgres-fixture.js';
 import { TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS, testDb } from './pglite-db.js';
@@ -24,11 +23,13 @@ async function seed(db: Database): Promise<void> {
   await enrollDeliveryAgent(db, agent);
   await seedConnector(db, oauthSecret(Date.now() + 3600_000));
   await assignConnector(db, agent);
-  const api = await startMigrationApi(db);
+  await seedConnector(db, { kind: 'header', targetUrl: 'https://vendor.example/keyed', name: 'Authorization', value: 'Bearer retained-key' }, { id: 'conn0000002', name: 'Retained migration' });
+  await assignConnector(db, agent, 'conn0000002');
+  await seedLegacyMigration(db, agent, 'conn0000002');
+  const delivery = await startDeliveryApi(db);
   try {
-    await prepared(api, agent, payload({ name: 'Retained migration' }));
-    await answer(await api.call(agent, input('activate')));
-  } finally { await api.close(); }
+    expect((await delivery.call(agent)).status).toBe(200);
+  } finally { await delivery.close(); }
   await db.insert(users).values({ id: 'user_fixture', updatedAt: AT, name: 'Retained user' });
   await db.insert(organizations).values({ id: TEST_OWNER, slug: 'retained-org', createdAt: AT, updatedAt: AT });
   await db.insert(awsConnections).values({ id: 'aws00000001', owner: TEST_OWNER, accountId: '123456789012', roleArn: 'arn:aws:iam::123456789012:role/fixture', addedAt: AT });

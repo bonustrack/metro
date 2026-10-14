@@ -7,12 +7,10 @@ import {
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/connectors/relay.ts';
-import { forgetHealth, healthOf } from '../src/connectors/health.ts';
-import type { RelayTarget } from '../src/connectors/store.ts';
+import type { RelayTarget } from '../src/connectors/relay-target.ts';
 
-const EMAIL = 'less@bonustrack.co';
 const AGENT = 'agent000001';
-const CONN = 'conn0000001';
+const CONN = 'org-conn0000001';
 
 interface Seen {
   method: string;
@@ -22,7 +20,6 @@ interface Seen {
 }
 
 const seen: Seen[] = [];
-let vendorAccepts = 'v-live';
 let upstreamAborted = false;
 
 let upstream: Server;
@@ -30,30 +27,26 @@ let upBase = '';
 let relay: Server;
 let base = '';
 
-type Mode = 'ok' | 'signin' | 'flip' | 'dead' | 'redirect' | 'down';
+type Mode = 'ok' | 'redirect' | 'down';
 let mode: Mode = 'ok';
-let forceCalls = 0;
+let opened: string[] = [];
 
-let signedOut: string[] = [];
+function targetOf(): RelayTarget {
+  if (mode === 'redirect') return { kind: 'ok', url: `${upBase}/redirect`, headers: {} };
+  if (mode === 'down') return { kind: 'ok', url: 'http://127.0.0.1:9/mcp', headers: {} };
+  return { kind: 'ok', url: `${upBase}/mcp`, headers: { 'x-vendor': 'v-live' } };
+}
 
 const deps: RelayApiDeps = {
-  signedOut: (id) => {
-    signedOut.push(id);
-  },
-  target: (connectorId, force): Promise<RelayTarget> => {
-    if (connectorId !== CONN) return Promise.resolve({ kind: 'missing' });
-    if (force) forceCalls += 1;
-    if (mode === 'signin') return Promise.resolve({ kind: 'signin' });
-    if (mode === 'redirect')
-      return Promise.resolve({ kind: 'ok', url: `${upBase}/redirect`, headers: {} });
-    if (mode === 'down') return Promise.resolve({ kind: 'ok', url: 'http://127.0.0.1:9/mcp', headers: {} });
-    const stale = mode === 'flip' || mode === 'dead';
-    const vendor = stale && !(mode === 'flip' && force) ? 'v-old' : 'v-live';
-    return Promise.resolve({
-      kind: 'ok',
-      url: `${upBase}/mcp`,
-      headers: { 'x-vendor': vendor },
-    });
+  open: (connectorId) => {
+    opened.push(connectorId);
+    return {
+      target: () => Promise.resolve(targetOf()),
+      current: targetOf,
+      blocker: () => () => null,
+      signal: new AbortController().signal,
+      close: () => undefined,
+    };
   },
   identify: (req) => {
     const header = req.headers.authorization ?? '';
@@ -70,11 +63,6 @@ async function bodyOf(req: IncomingMessage): Promise<string> {
 }
 
 function serveMcp(req: IncomingMessage, res: ServerResponse, body: string): void {
-  if (req.headers['x-vendor'] !== vendorAccepts) {
-    res.writeHead(401, { 'content-type': 'application/json' });
-    res.end('{"error":"upstream says no"}');
-    return;
-  }
   if (req.method === 'DELETE') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end('{"closed":true}');
@@ -151,11 +139,9 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  signedOut = [];
   seen.length = 0;
   mode = 'ok';
-  forceCalls = 0;
-  vendorAccepts = 'v-live';
+  opened = [];
   upstreamAborted = false;
 });
 
@@ -192,12 +178,13 @@ describe('who may speak to a relay', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('an unknown connector id is a flat 404, whoever asks', async () => {
+  test('a local connector id is a flat 404, whoever asks, and no session opens', async () => {
     const other = cliToken('agent000002');
     const res = await call('/relay/conn0000009', { method: 'POST' }, other);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'no such connector' });
     expect(seen).toHaveLength(0);
+    expect(opened).toEqual([]);
   });
 
 
@@ -238,48 +225,12 @@ describe('what the upstream sees', () => {
   });
 });
 
-describe('upstream auth failures', () => {
-  test('a 401 forces one refresh and the retry succeeds invisibly, and the health reads ok', async () => {
-    mode = 'flip';
-    const res = await post(INIT);
-    expect(res.status).toBe(200);
-    expect(healthOf(CONN)).toMatchObject({ ok: true, reason: null });
-    expect(forceCalls).toBe(1);
-    expect(seen).toHaveLength(2);
-    expect(seen[0]?.headers['x-vendor']).toBe('v-old');
-    expect(seen[1]?.headers['x-vendor']).toBe('v-live');
-  });
-
-  test('a 401 that survives the refresh is 424 with the fix named, and the health says so', async () => {
-    mode = 'dead';
-    const res = await post(INIT);
-    expect(res.status).toBe(424);
-    expect(healthOf(CONN)).toMatchObject({ ok: false, reason: 'the sign-in has expired, connect it again' });
-    expect(signedOut).toEqual([CONN]);
-    const body = (await res.json()) as { error: string; reconnect: string };
-    expect(body.error).toContain('signing in');
-    expect(body.reconnect).toContain(CONN);
-    expect(forceCalls).toBe(1);
-  });
-
-  test('a signed-out connector is 424 before any upstream contact', async () => {
-    mode = 'signin';
-    const res = await post(INIT);
-    expect(res.status).toBe(424);
-    expect(seen).toHaveLength(0);
-  });
-});
-
 describe('hostile or oversized traffic', () => {
-  test('an upstream nobody answers is a 502 that says why, the way a direct connection would', async () => {
+  test('an upstream nobody answers is a 503 that names no address', async () => {
     mode = 'down';
     const res = await post(INIT);
-    expect(res.status).toBe(502);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toMatch(/^metro could not reach the connector: .*\(nothing is listening there\)$/);
-    expect(healthOf(CONN)).toMatchObject({ ok: false, reason: body.error });
-    forgetHealth(CONN);
-    expect(healthOf(CONN)).toBeNull();
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'The organization connector is unavailable. Try again.' });
   });
 
   test('an upstream redirect is refused, never followed', async () => {
@@ -328,7 +279,5 @@ describe('the standalone GET stream', () => {
     while (!upstreamAborted && Date.now() < until)
       await new Promise((r) => setTimeout(r, 20));
     expect(upstreamAborted).toBe(true);
-    await new Promise((r) => setTimeout(r, 100));
-    expect(healthOf(CONN)?.ok).toBe(true);
   });
 });

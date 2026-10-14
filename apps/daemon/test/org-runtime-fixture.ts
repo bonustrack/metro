@@ -6,7 +6,6 @@ import { newAgentKey } from '../src/connectors/agent-key.ts';
 import { registerConnectors, type GateRow } from '../src/connectors/gates.ts';
 import { OrgConnectorRuntime } from '../src/connectors/org-runtime.ts';
 import { OrgConnectorSync } from '../src/connectors/org-sync.ts';
-import type { MigrationRuntimeMapping } from '../src/connectors/migration-guard.ts';
 
 export const OWNER = 'org_01AGENTOWNER00000';
 export const ID = 'conn0000001';
@@ -31,7 +30,6 @@ export interface RuntimeFixture {
   state: {
     owner: string | null;
     key: ReturnType<typeof enrolledKey>;
-    live: boolean;
     syncEnabled: boolean;
     now: number;
     monotonic: number;
@@ -56,9 +54,9 @@ function answer(call: VendorCall): Response {
   return Response.json({ result: cursor === 'second' ? { tools: [{ name: 'write_item' }] } : { tools: [{ name: 'read_item', annotations: { readOnlyHint: true } }], nextCursor: 'second' } });
 }
 
-export async function runtimeFixture(mapping?: () => MigrationRuntimeMapping): Promise<RuntimeFixture> {
+export async function runtimeFixture(): Promise<RuntimeFixture> {
   const state: RuntimeFixture['state'] = {
-    owner: OWNER, key: enrolledKey(), live: true, syncEnabled: true, now: 1_800_000_000_000, monotonic: 1000, lease: 90_000,
+    owner: OWNER, key: enrolledKey(), syncEnabled: true, now: 1_800_000_000_000, monotonic: 1000, lease: 90_000,
     rows: [{ id: ID, name: 'Org MCP', url: 'https://vendor.example/mcp?private=org-url-secret', auth: 'oauth', headers: { Authorization: 'Bearer org-access-secret' }, policy: { write: 'deny' }, revision: revision(1), state: 'ready' }],
     deliver: null, vendor: null,
   };
@@ -79,7 +77,7 @@ export async function runtimeFixture(mapping?: () => MigrationRuntimeMapping): P
       return state.deliver === null ? Response.json({ sealed: sealConnectorDelivery(state.key.sealingKey, context, snapshot) }) : state.deliver(context, snapshot);
     } },
   });
-  const runtime = new OrgConnectorRuntime(sync, { enabled: () => state.live, mapping, publish: (rows) => {
+  const runtime = new OrgConnectorRuntime(sync, { publish: (rows) => {
     publications.push(structuredClone([...rows]));
     registerConnectors(rows);
   }, fetch: async (_url, init) => {

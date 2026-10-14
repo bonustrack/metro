@@ -4,14 +4,12 @@ import { isRecord } from '../read.js';
 export interface AgentBundle {
   version: 1;
   agent: { id: string; name: string; stations: { station: string }[] };
-  connectors: unknown[];
 }
 
 export interface RestoredAgent {
   id: string;
   name: string;
   stations: number;
-  connectors: number;
 }
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
@@ -27,7 +25,6 @@ export async function fetchBundle(agentId: string): Promise<AgentBundle> {
   return {
     version: 1,
     agent: { ...agent, id: agent.id, name: typeof agent.name === 'string' ? agent.name : '', stations },
-    connectors: Array.isArray(body.connectors) ? body.connectors : [],
   };
 }
 
@@ -43,6 +40,5 @@ export async function restoreBundle(bundle: unknown): Promise<RestoredAgent> {
     id: body.id,
     name: body.name,
     stations: typeof body.stations === 'number' ? body.stations : 0,
-    connectors: typeof body.connectors === 'number' ? body.connectors : 0,
   };
 }

@@ -27,11 +27,11 @@ afterEach(() => {
 
 describe('the server list the plugin registers', () => {
   test('a connector becomes one MCP server at its own relay url, with no credential in the file', () => {
-    const servers = pluginServers([row('conn0000001', 'Snapshot Box')], BASE);
+    const servers = pluginServers([row('org-conn0000001', 'Snapshot Box')], BASE);
     expect(servers).toEqual({
       'snapshot-box': {
         type: 'http',
-        url: `${BASE}/relay/conn0000001`,
+        url: `${BASE}/relay/org-conn0000001`,
         headersHelper: 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" headers',
       },
     });
@@ -42,8 +42,9 @@ describe('the server list the plugin registers', () => {
     expect(serverKey('Snapshot Box')).toBe('snapshot-box');
     expect(serverKey('  ***  ')).toBe('connector');
     expect(serverKey('a'.repeat(60))).toHaveLength(40);
-    const both = pluginServers([row('conn0000001', 'Linear'), row('conn0000002', 'linear!')], BASE);
-    expect(Object.keys(both)).toEqual(['linear', 'linear-conn']);
+    const both = pluginServers([row('org-conn0000002', 'linear!'), row('org-conn0000001', 'Linear')], BASE);
+    expect(Object.keys(both)).toEqual(['linear', 'linear-1']);
+    expect(both.linear?.url).toBe(`${BASE}/relay/org-conn0000001`);
   });
 
   test('the plugin is found whatever layout Claude Code used to install it', () => {
@@ -62,9 +63,9 @@ describe('the server list the plugin registers', () => {
     expect(installedPluginFiles(dir, staged).sort()).toEqual([cached, join(staged, '.mcp.json')].sort());
     expect(installedPluginFiles(dir, join(store, 'nowhere', 'plugin'))).toEqual([cached]);
 
-    expect(syncPluginServers([row('conn0000001', 'Piston Vault')], { dir, base: BASE, staged })).toBe(2);
+    expect(syncPluginServers([row('org-conn0000001', 'Piston Vault')], { dir, base: BASE, staged })).toBe(2);
     const written = JSON.parse(readFileSync(join(staged, '.mcp.json'), 'utf8')) as Record<string, { url: string }>;
-    expect(written['piston-vault']?.url).toBe(`${BASE}/relay/conn0000001`);
+    expect(written['piston-vault']?.url).toBe(`${BASE}/relay/org-conn0000001`);
     rmSync(store, { recursive: true, force: true });
   });
 
@@ -76,13 +77,13 @@ describe('the server list the plugin registers', () => {
     writeFileSync(join(other, '.mcp.json'), '{}\n');
     expect(installedPluginFiles(dir)).toEqual([mine]);
 
-    expect(syncPluginServers([row('conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(1);
+    expect(syncPluginServers([row('org-conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(1);
     const written = JSON.parse(readFileSync(mine, 'utf8')) as Record<string, { url: string }>;
-    expect(written['snapshot-box']?.url).toBe(`${BASE}/relay/conn0000001`);
+    expect(written['snapshot-box']?.url).toBe(`${BASE}/relay/org-conn0000001`);
     expect(readFileSync(join(other, '.mcp.json'), 'utf8')).toBe('{}\n');
 
-    expect(syncPluginServers([row('conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(0);
-    expect(syncPluginServers([row('conn0000001', 'Snapshot Box'), row('conn0000002', 'Jira')], { dir, base: BASE })).toBe(1);
+    expect(syncPluginServers([row('org-conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(0);
+    expect(syncPluginServers([row('org-conn0000001', 'Snapshot Box'), row('org-conn0000002', 'Jira')], { dir, base: BASE })).toBe(1);
     expect(Object.keys(JSON.parse(readFileSync(mine, 'utf8')) as Record<string, unknown>)).toEqual(['snapshot-box', 'jira']);
 
     expect(syncPluginServers([], { dir, base: BASE })).toBe(1);
@@ -90,7 +91,7 @@ describe('the server list the plugin registers', () => {
   });
 
   test('a machine with no metro plugin installed is left alone', () => {
-    expect(syncPluginServers([row('conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(0);
+    expect(syncPluginServers([row('org-conn0000001', 'Snapshot Box')], { dir, base: BASE })).toBe(0);
     expect(existsSync(join(dir, 'plugins'))).toBe(false);
   });
 });

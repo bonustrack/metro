@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,6 @@ import { localSessionApis } from '../src/routes/local-mode.ts';
 import { handleSessionApis, type SessionApis } from '../src/routes/session-apis.ts';
 import { agentIdForKey, setKeyMap } from '../src/agents/keys.ts';
 import { localAttachAccount, localCreateAgent, setLocalOwner } from '../src/agents/file-admin.ts';
-import { localImportConnectors, readLocalConnectors } from '../src/connectors/store.ts';
 import { parseBundle } from '../src/agents/bundle.ts';
 import { auth, type Who } from './identity-helper.ts';
 
@@ -19,6 +18,8 @@ let server: Server;
 let base = '';
 const synced: string[] = [];
 let tony = { id: '', key: '' };
+const LEGACY = `${JSON.stringify({ version: 1, connectors: [{ id: 'conn0000001', name: 'linear', url: 'https://mcp.linear.app/mcp', config: { auth: { kind: 'header', name: 'Authorization', value: 'Bearer vendor' } } }] })}\n`;
+const legacyFile = (): string => readFileSync(join(dir, 'connectors.json'), 'utf8');
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-bundle-'));
@@ -28,10 +29,7 @@ beforeAll(async () => {
   const made = await localCreateAgent('Tony', dir);
   tony = { id: made.id, key: made.key };
   await localAttachAccount(tony.id, 'telegram-bot', { token: 'bot-token' }, dir);
-  localImportConnectors(
-    [{ id: 'conn0000001', name: 'linear', url: 'https://mcp.linear.app/mcp', transport: 'http', config: { auth: { kind: 'header', name: 'Authorization', value: 'Bearer vendor' }, createdAt: '2026-09-01T00:00:00.000Z', verified: { at: '2026-09-01T00:00:00.000Z', server: 'linear', tools: [] } } }],
-    dir,
-  );
+  writeFileSync(join(dir, 'connectors.json'), LEGACY);
   const apis: SessionApis = localSessionApis({
     syncStations: (station) => {
       synced.push(station);
@@ -71,15 +69,17 @@ const call = async (method: string, path: string, body?: unknown, token: Who = O
   });
 
 describe('an agent bundle on a local daemon', () => {
-  test('the owner reads the whole agent as one plaintext bundle: file, stations, connectors and credentials', async () => {
+  test('the owner reads the whole agent as one plaintext bundle: file and stations, never an old local connector', async () => {
     const res = await call('GET', `/api/agents/${tony.id}/bundle`);
     expect(res.status).toBe(200);
-    const bundle = (await res.json()) as { version: number; agent: { id: string; name: string; key: string; stations: { station: string; config: { token: string } }[] }; connectors: { id: string; config: { auth: { value: string } } }[] };
+    const text = await res.text();
+    expect(text).not.toContain('Bearer vendor');
+    const bundle = JSON.parse(text) as { version: number; agent: { id: string; name: string; key: string; stations: { station: string; config: { token: string } }[] }; connectors: unknown[] };
     expect(bundle.version).toBe(1);
     expect(bundle.agent).toMatchObject({ id: tony.id, name: 'Tony' });
     expect(bundle.agent).not.toHaveProperty('key');
     expect(bundle.agent.stations.map((a) => [a.station, a.config.token])).toEqual([['telegram-bot', 'bot-token']]);
-    expect(bundle.connectors.map((c) => [c.id, c.config.auth.value])).toEqual([['conn0000001', 'Bearer vendor']]);
+    expect(bundle.connectors).toEqual([]);
     expect((await fetch(`${base}/api/agents/${tony.id}/bundle`)).status).toBe(401);
     expect((await call('POST', `/api/agents/${tony.id}/bundle`, {})).status).toBe(405);
     const member = await auth(OWNER, 'member');
@@ -99,17 +99,16 @@ describe('an agent bundle on a local daemon', () => {
     expect(agentIdForKey(tony.key)).toBe(tony.id);
   });
 
-  test('restoring that bundle on an empty daemon brings the agent back with its id, stations and connectors, and a key minted here', async () => {
+  test('restoring that bundle on an empty daemon brings the agent back with its id and stations, and a key minted here', async () => {
     const bundle = (await (await call('GET', `/api/agents/${tony.id}/bundle`)).json()) as { agent: { stations: { station: string }[] } };
     const restored = parseBundle(bundle);
     expect(restored.agent.stations.map((a) => a.station)).toEqual(['telegram-bot']);
     rmSync(join(dir, 'agent.json'), { force: true });
-    rmSync(join(dir, 'connectors.json'), { force: true });
     setKeyMap([]);
     expect(agentIdForKey(tony.key)).toBeUndefined();
     const res = await call('POST', '/api/agents/restore', bundle);
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: tony.id, name: 'Tony', stations: 1, connectors: 1 });
+    expect(await res.json()).toEqual({ id: tony.id, name: 'Tony', stations: 1, connectors: 0 });
     const file = JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { id: string; key: string; stations: { config: { token: string } }[] };
     expect(file).toMatchObject({ id: tony.id });
     expect(file).not.toHaveProperty('connectors');
@@ -118,7 +117,7 @@ describe('an agent bundle on a local daemon', () => {
     expect(agentIdForKey(file.key)).toBe(tony.id);
     tony = { id: tony.id, key: file.key };
     expect(file.stations[0]?.config.token).toBe('bot-token');
-    expect(existsSync(join(dir, 'connectors.json'))).toBe(true);
+    expect(legacyFile()).toBe(LEGACY);
     expect(synced).toContain('telegram-bot');
     expect((await call('POST', '/api/agents/restore', { version: 2 })).status).toBe(400);
   });
@@ -173,18 +172,13 @@ describe('an agent bundle on a local daemon', () => {
     expect(await restore.text()).toContain('cannot be imported');
   });
 
-  test('same-name and same-endpoint bundle instances append separately and overwrite only the matching id', async () => {
-    const before = readLocalConnectors(dir).find((c) => c.name === 'linear');
-    if (before === undefined) throw new Error('expected the linear connector to be here');
-    const twin = { id: 'conn0000002', name: 'linear', url: before.url, transport: 'http', config: { auth: { kind: 'header', name: 'Authorization', value: 'twin-fixture' } } };
-    const body = { version: 1, agent: { id: tony.id, name: 'Tony', stations: [] }, connectors: [twin] };
-    expect((await call('POST', '/api/agents/restore', { ...body, mode: 'append' })).status).toBe(201);
-    expect(readLocalConnectors(dir).filter((c) => c.name === 'linear').map((c) => c.id)).toEqual([before.id, twin.id]);
-    const changed = { ...twin, config: { ...twin.config, policy: { write: 'deny' } } };
-    expect((await call('POST', '/api/agents/restore', { ...body, connectors: [changed], mode: 'overwrite' })).status).toBe(201);
-    const after = readLocalConnectors(dir).filter((c) => c.name === 'linear');
-    expect(after.map((c) => c.id)).toEqual([before.id, twin.id]);
-    expect(after.find((row) => row.id === before.id)).toEqual(before);
-    expect(after.find((row) => row.id === twin.id)?.config).toMatchObject(changed.config);
+  test('an old bundle with connectors still restores, and its connectors are ignored', async () => {
+    const legacy = { id: 'conn0000002', name: 'linear', url: 'https://mcp.linear.app/mcp', config: { auth: { kind: 'header', name: 'Authorization', value: 'twin-fixture' } } };
+    for (const connectors of [[legacy], [{ id: 'conn0000003' }], 'not a list']) {
+      const res = await call('POST', '/api/agents/restore', { version: 1, mode: 'append', agent: { id: tony.id, name: 'Tony', stations: [] }, connectors });
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ connectors: 0 });
+    }
+    expect(legacyFile()).toBe(LEGACY);
   });
 });

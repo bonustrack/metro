@@ -39,13 +39,6 @@ export interface LoadedAccount {
   config: Record<string, unknown>;
 }
 
-export interface LoadedConnector {
-  id: string;
-  name: string;
-  url: string;
-  config: Record<string, unknown>;
-}
-
 export interface LoadedAgent {
   id: string;
   name: string;

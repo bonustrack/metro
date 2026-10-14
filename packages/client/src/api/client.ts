@@ -24,7 +24,6 @@ export class NotFoundError extends Error {}
 export interface AgentSummary {
   id: string;
   name: string;
-  connectorIds: string[];
 }
 
 export interface StationsView {
@@ -118,7 +117,6 @@ function toAgent(value: unknown): AgentSummary | undefined {
   return {
     id: typeof first.id === 'string' ? first.id : '',
     name: typeof first.name === 'string' ? first.name : '',
-    connectorIds: toStationList(first.connector_ids),
   };
 }
 

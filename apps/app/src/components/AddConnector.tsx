@@ -5,12 +5,6 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import {
-  connectorCallbackUrl,
-  createConnector,
-  type NewConnector,
-} from '@metro-labs/client/api/connectors';
-import { useMachineQuery } from '../lib/queries.js';
 import { Modal } from './Modal.js';
 import { goExternal } from '../lib/open.js';
 import type { NewOrgConnector } from '@metro-labs/client/api/org-connectors';
@@ -18,9 +12,10 @@ import { PublicOAuthResource } from './PublicOAuthResource.js';
 import { inNewTab } from './sign-in-tab.js';
 import { TextLink } from './TextLink.js';
 
-type FieldKey = keyof NewConnector;
+type FormValues = Omit<NewOrgConnector, 'oauthResource'>;
+type FieldKey = keyof FormValues;
 
-const EMPTY: NewConnector = {
+const EMPTY: FormValues = {
   name: '',
   url: '',
   header: '',
@@ -28,8 +23,6 @@ const EMPTY: NewConnector = {
   clientId: '',
   clientSecret: '',
 };
-
-const HINT = 'Metro calls it from its own machine, so your own localhost will not work. Leave the header empty for an OAuth server.';
 
 export interface AddedConnector {
   id: string;
@@ -64,7 +57,7 @@ const APP_FIELDS: FieldSpec[] = [
   { key: 'clientSecret', label: 'Client secret (optional)', placeholder: '', secret: true },
 ];
 
-function trimmed(values: NewConnector): NewConnector {
+function trimmed(values: FormValues): FormValues {
   return {
     name: values.name.trim(),
     url: values.url.trim(),
@@ -77,7 +70,7 @@ function trimmed(values: NewConnector): NewConnector {
 
 interface FieldsProps {
   specs: FieldSpec[];
-  values: NewConnector;
+  values: FormValues;
   busy: boolean;
   onChange: (key: FieldKey) => (value: string) => void;
   onSubmit: () => void;
@@ -146,7 +139,7 @@ function ConnectorForm({
   onCancel,
 }: ConnectorFormProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const [values, setValues] = useState<NewConnector>(EMPTY);
+  const [values, setValues] = useState<FormValues>(EMPTY);
   const [oauthResource, setOAuthResource] = useState('');
   const [link, setLink] = useState<string | null>(null);
   const publicOAuth = allowPublicOAuthResource && values.header.trim() === '' && values.value.trim() === '';
@@ -239,31 +232,5 @@ export function ConnectorModal({ title, hint, callbackUrl, allowPublicOAuthResou
         }}
       />
     </Modal>
-  );
-}
-
-const createOnBox = async (values: NewConnector): Promise<AddedConnector> => {
-  const result = await createConnector(values);
-  return { id: result.connector.id, authorizeUrl: result.kind === 'oauth' ? result.authorizeUrl : null };
-};
-
-interface AddConnectorProps {
-  open: boolean;
-  onClose: () => void;
-  onAdded: (id: string) => void;
-}
-
-export function AddConnector({ open, onClose, onAdded }: AddConnectorProps): ReactNode {
-  const machine = useMachineQuery().data;
-  return (
-    <ConnectorModal
-      title="Add connector"
-      hint={HINT}
-      callbackUrl={machine === undefined ? null : connectorCallbackUrl(machine)}
-      create={createOnBox}
-      open={open}
-      onClose={onClose}
-      onAdded={onAdded}
-    />
   );
 }

@@ -43,7 +43,6 @@ export interface Vendor {
 export interface Api {
   base: string;
   deps: ConnectorsApiDeps;
-  setEnabled: (on: boolean) => void;
   setKey: (key: Buffer | null) => void;
   close: () => Promise<void>;
 }
@@ -153,10 +152,8 @@ export async function startVendor(): Promise<Vendor> {
 }
 
 export async function startApi(db: () => TestDb['db'], now: () => number, send: FetchLike): Promise<Api> {
-  let enabled = true;
   let key: Buffer | null = randomBytes(32);
   const deps: ConnectorsApiDeps = {
-    enabled: () => enabled,
     key: () => key,
     keys: await testKeys(),
     store: orgConnectorStore(db),
@@ -174,9 +171,6 @@ export async function startApi(db: () => TestDb['db'], now: () => number, send: 
   return {
     base,
     deps,
-    setEnabled: (on) => {
-      enabled = on;
-    },
     setKey: (next) => {
       key = next;
     },

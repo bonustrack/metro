@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { generateKeyPairSync, randomBytes, randomInt, type KeyObject } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { agentKeyId, rawPublicKey, signAgentRequest } from '@metro-labs/http/agent-signature';
 import { openConnectorDelivery, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
 import { AgentAuth } from '../src/agents/auth.js';
@@ -64,13 +65,20 @@ export async function assignConnector(db: Database, agent: DeliveryAgent, connec
   await db.insert(connectorAgents).values({ connector, agent: agent.row.agent, policy, createdBy: 'user_01TEST', createdAt: new Date().toISOString() });
 }
 
+export async function seedLegacyMigration(db: Database, agent: DeliveryAgent, destination: string, operation = 'oper0000001'): Promise<void> {
+  const at = new Date().toISOString();
+  const { owner, agent: id, keyId, signingKey, sealingKey, enrolledAt } = agent.row;
+  await db.execute(sql`INSERT INTO connector_migrations (id, owner, agent, source_id, operation_id, destination_id, key_id, signing_key, sealing_key, enrolled_at, phase, receiving_key, receiving_secret, snapshot, config_stamp, retired_operations, created_at, updated_at) VALUES ('migr0000001', ${owner}, ${id}, 'local000001', ${operation}, ${destination}, ${keyId}, ${signingKey}, ${sealingKey}, ${enrolledAt}, 'active', 'receiving-public-key', 'receiving-sealed-secret', null, null, '[]', ${at}, ${at})`);
+  await db.execute(sql`UPDATE connector_agents SET migration_operation = ${operation} WHERE connector = ${destination} AND agent = ${id}`);
+}
+
 export function signedDelivery(agent: DeliveryAgent, input: unknown, now = Date.now(), path = PATH, host = HOST): { body: string; headers: Record<string, string> } {
   const body = JSON.stringify(input);
   return { body, headers: { 'content-type': 'application/json', authorization: signAgentRequest({ method: 'POST', host, path, body: Buffer.from(body) }, agent.signing, agent.row.keyId, now) } };
 }
 
 export async function startDeliveryApi(db: Database, overrides: Partial<AgentConnectorsDeps> = {}) {
-  const deps: AgentConnectorsDeps = { enabled: () => true, deliveryEnabled: () => true, key: () => MASTER, keys: agentKeyStore(() => db), nonces: agentNonceStore(() => db, Date.now), store: connectorDeliveryStore(() => db), auth: new AgentAuth(HOST, Date.now), fetch: () => Promise.resolve(Response.json({ access_token: 'ACCESS_NEW', refresh_token: 'REFRESH_NEW', expires_in: 3600 })), now: Date.now, ...overrides };
+  const deps: AgentConnectorsDeps = { key: () => MASTER, keys: agentKeyStore(() => db), nonces: agentNonceStore(() => db, Date.now), store: connectorDeliveryStore(() => db), auth: new AgentAuth(HOST, Date.now), fetch: () => Promise.resolve(Response.json({ access_token: 'ACCESS_NEW', refresh_token: 'REFRESH_NEW', expires_in: 3600 })), now: Date.now, ...overrides };
   const server = createServer((req, res) => {
     if (!handleAgentConnectorsRequest(req, res, deps)) res.writeHead(404).end();
   });

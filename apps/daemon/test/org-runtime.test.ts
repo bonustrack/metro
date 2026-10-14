@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sealConnectorDelivery } from '@metro-labs/http/connector-delivery';
@@ -17,7 +17,7 @@ const readyTarget = async () => {
   return session;
 };
 
-test('publication carries only source-qualified metadata and unknown tools stay write', async () => {
+test('publication carries only organization metadata and unknown tools stay write', async () => {
   const { runtime, publications } = fixture;
   expect(publications.at(-1)).toEqual([{ id: RELAY_ID, name: 'Org MCP', config: { policy: { write: 'deny' }, toolGroups: {} } }]);
   const session = runtime.open(RELAY_ID);
@@ -160,48 +160,34 @@ test('nothing is published before the first delivery, and a shutdown keeps the l
   expect(fixture.publications.at(-1)).toEqual([]);
 });
 
-test('live and sync flags fail closed without changing local files', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'metro-org-runtime-'));
-  const path = join(dir, 'connectors.json');
-  const original = '{"connectors":[{"id":"local000001","name":"Local","config":{"value":"local-secret"}}]}';
-  writeFileSync(path, original);
-  try {
-    const session = await readyTarget();
-    fixture.state.live = false;
-    await expectStatus(() => session.current(), 503);
-    expect(session.signal.aborted).toBe(true);
-    fixture.state.live = true;
-    fixture.state.syncEnabled = false;
-    await expectStatus(() => fixture.runtime.open(RELAY_ID), 503);
-    expect(readFileSync(path, 'utf8')).toBe(original);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test('sync off fails closed and aborts an active request', async () => {
+  const session = await readyTarget();
+  fixture.state.syncEnabled = false;
+  await expectStatus(() => session.current(), 503);
+  expect(session.signal.aborted).toBe(true);
+  await expectStatus(() => fixture.runtime.open(RELAY_ID), 503);
 });
 
-test('watcher flags default off independently and organization references never fall back to local', async () => {
-  const previous = [process.env.METRO_CONNECTORS_SYNC_ENABLED, process.env.METRO_CONNECTORS_LIVE_ENABLED];
+test('the watcher refuses organization requests while sync is off or the agent has no owner', async () => {
+  const previous = process.env.METRO_CONNECTORS_SYNC_ENABLED;
+  const dir = mkdtempSync(join(tmpdir(), 'metro-org-watch-'));
+  const published: string[][] = [];
+  const publish = (rows: readonly { id: string }[]): void => { published.push(rows.map((row) => row.id)); };
   let checks = 0;
   try {
-    for (const live of [undefined, 'true']) {
-      delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
-      if (live === undefined) delete process.env.METRO_CONNECTORS_LIVE_ENABLED;
-      else process.env.METRO_CONNECTORS_LIVE_ENABLED = live;
-      watchOrgConnectorSync({ owner: () => { checks += 1; return OWNER; }, key: () => fixture.state.key });
-      expect(checks).toBe(0);
-      expect(orgConnectorRelaySession('local000001')).toBeNull();
-      await expectStatus(() => orgConnectorRelaySession(RELAY_ID), 503);
-    }
+    delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
+    watchOrgConnectorSync({ owner: () => { checks += 1; return OWNER; }, key: () => fixture.state.key, dir, publish });
+    expect(checks).toBe(0);
+    expect(published).toEqual([[]]);
+    await expectStatus(() => orgConnectorRelaySession(RELAY_ID), 503);
     process.env.METRO_CONNECTORS_SYNC_ENABLED = 'true';
-    delete process.env.METRO_CONNECTORS_LIVE_ENABLED;
-    watchOrgConnectorSync({ owner: () => null, key: () => fixture.state.key });
+    watchOrgConnectorSync({ owner: () => null, key: () => fixture.state.key, dir, publish });
     await expectStatus(() => orgConnectorRelaySession(RELAY_ID), 503);
   } finally {
     stopOrgConnectorSync();
-    for (const [i, name] of ['METRO_CONNECTORS_SYNC_ENABLED', 'METRO_CONNECTORS_LIVE_ENABLED'].entries()) {
-      if (previous[i] === undefined) delete process.env[name];
-      else process.env[name] = previous[i];
-    }
+    if (previous === undefined) delete process.env.METRO_CONNECTORS_SYNC_ENABLED;
+    else process.env.METRO_CONNECTORS_SYNC_ENABLED = previous;
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

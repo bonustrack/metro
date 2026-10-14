@@ -2,7 +2,7 @@ import { and, eq, type SQL } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './client.js';
 import { isUniqueViolation } from './errors.js';
-import { agents, connectorAgents, connectorMigrations, connectors } from './schema.js';
+import { agents, connectorAgents, connectors } from './schema.js';
 
 export type ConnectorRow = typeof connectors.$inferSelect;
 export type AssignmentRow = typeof connectorAgents.$inferSelect;
@@ -55,27 +55,20 @@ export async function editConnectorIn(tx: Database, owner: string, id: string, a
   const row = await lockConnector(tx, owner, id);
   const { change } = await edit(row);
   if (Object.keys(change).length === 0) return row;
-  if (Object.keys(change).some((key) => ['name', 'auth', 'policy'].includes(key)) || (change.secret !== undefined && row.auth !== 'oauth')) await refusePreparing(tx, id);
   const saved = await tx.update(connectors).set({ ...change, updatedAt: at }).where(owned(owner, id)).returning();
   return saved[0] ?? row;
 }
 
-async function refusePreparing(tx: Database, id: string): Promise<void> {
-  const held = (await tx.select({ phase: connectorMigrations.phase }).from(connectorMigrations).where(eq(connectorMigrations.destinationId, id)))[0];
-  if (held?.phase === 'preparing' || held?.phase === 'prepared') throw new ApiError('Finish or roll back this connector migration before changing, assigning, or deleting its destination.', 409);
-}
-
 async function assignIn(tx: Database, input: AssignInput): Promise<AssignmentRow> {
   const connector = await lockConnector(tx, input.owner, input.connector);
-  await refusePreparing(tx, connector.id);
   const agent = await tx.select({ id: agents.id }).from(agents).where(and(eq(agents.id, input.agent), eq(agents.owner, input.owner))).for('update');
   if (agent.length === 0) throw new ApiError('no such agent in this organization', 404);
   const held = await tx.select().from(connectorAgents).where(and(eq(connectorAgents.connector, connector.id), eq(connectorAgents.agent, input.agent)));
   const before = held[0];
   const policy = typeof input.policy === 'function' ? input.policy(before?.policy ?? null) : input.policy;
-  if (before !== undefined && before.policy === policy && before.migrationOperation === null) return before;
-  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, migrationOperation: null, createdBy: input.actor, createdAt: input.at };
-  const saved = await tx.insert(connectorAgents).values(row).onConflictDoUpdate({ target: [connectorAgents.connector, connectorAgents.agent], set: { policy, migrationOperation: null } }).returning();
+  if (before !== undefined && before.policy === policy) return before;
+  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, createdBy: input.actor, createdAt: input.at };
+  const saved = await tx.insert(connectorAgents).values(row).onConflictDoUpdate({ target: [connectorAgents.connector, connectorAgents.agent], set: { policy } }).returning();
   return saved[0] ?? row;
 }
 
@@ -88,7 +81,7 @@ async function unassignIn(tx: Database, input: Pick<AssignInput, 'owner' | 'conn
 async function listFor(db: Database, owner: string): Promise<{ connectors: ConnectorRow[]; assignments: AssignmentRow[] }> {
   const rows = await db.select().from(connectors).where(eq(connectors.owner, owner)).orderBy(connectors.name);
   const assignments = await db
-    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, migrationOperation: connectorAgents.migrationOperation, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt })
+    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt })
     .from(connectorAgents)
     .innerJoin(connectors, and(eq(connectors.id, connectorAgents.connector), eq(connectors.owner, owner)))
     .innerJoin(agents, and(eq(agents.id, connectorAgents.agent), eq(agents.owner, owner)));
@@ -114,7 +107,6 @@ export function orgConnectorStore(db: () => Database): OrgConnectorStore {
     remove: (owner, id) =>
       db().transaction(async (tx) => {
         const row = await lockConnector(tx, owner, id);
-        await refusePreparing(tx, id);
         await tx.delete(connectors).where(owned(owner, id));
         return row;
       }),
