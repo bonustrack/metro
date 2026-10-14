@@ -88,7 +88,7 @@ function TransferSection({ agent, name }: { agent: AgentSummary; name: string })
   const portable = { id: agent.id, name };
   return (
     <>
-    <SettingsSection title="Download a backup" note="Channels, connectors, skills, memory and model, in one file locked with a passphrase.">
+    <SettingsSection title="Download a backup" note="Channels, skills, memory and model, in one file locked with a passphrase.">
         <Button
           size="md"
           color="secondary"

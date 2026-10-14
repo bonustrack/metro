@@ -7,7 +7,7 @@ import { gunzipBytes, gzipBytes, sha256Hex } from './primitives.js';
 const FILE_VERSION = 1;
 const FILE_KIND = 'agent-export';
 const FILE_EXTENSION = '.metro';
-export const SECTIONS = ['channels', 'connectors', 'skills', 'memory', 'sessions', 'model'] as const;
+export const SECTIONS = ['channels', 'skills', 'memory', 'sessions', 'model'] as const;
 export type Section = (typeof SECTIONS)[number];
 
 const PAYLOAD_MAX = 1024 * 1024 * 1024;
@@ -19,14 +19,6 @@ export interface PackedChannel {
   approvers?: string[];
   enabled?: boolean;
   policy?: Record<string, unknown>;
-  config: Record<string, unknown>;
-}
-
-export interface PackedConnector {
-  id: string;
-  name: string;
-  url: string;
-  transport: string;
   config: Record<string, unknown>;
 }
 
@@ -56,7 +48,6 @@ export interface Payload {
   exportedAt: string;
   agent: { id: string; name: string };
   channels?: PackedChannel[];
-  connectors?: PackedConnector[];
   skills?: PackedSkill[];
   memory?: PackedMemory[];
   sessions?: PackedSession[];
@@ -71,7 +62,6 @@ export interface MetroFile {
 
 export const SECTION_LABELS: Record<Section, string> = {
   channels: 'Channels',
-  connectors: 'Connectors',
   skills: 'Skills',
   memory: 'Memory',
   sessions: 'Sessions',
@@ -146,12 +136,6 @@ function channelOf(raw: unknown): PackedChannel {
   };
 }
 
-function connectorOf(raw: unknown): PackedConnector {
-  if (!isRecord(raw) || str(raw.id) === '' || str(raw.url) === '')
-    throw new Error('That export file has a connector metro cannot read.');
-  return { id: str(raw.id), name: str(raw.name), url: str(raw.url), transport: 'http', config: recordOf(raw.config) };
-}
-
 function skillOf(raw: unknown): PackedSkill {
   if (!isRecord(raw) || str(raw.name) === '') throw new Error('That export file has a skill metro cannot read.');
   return { place: str(raw.place), name: str(raw.name), text: str(raw.text) };
@@ -183,7 +167,6 @@ export function parsePayload(raw: unknown): Payload {
     exportedAt: str(raw.exportedAt),
     agent: { id: str(agent.id), name: str(agent.name) },
     channels: listOf(raw.channels, channelOf),
-    connectors: listOf(raw.connectors, connectorOf),
     skills: listOf(raw.skills, skillOf),
     memory: listOf(raw.memory, memoryOf),
     sessions: listOf(raw.sessions, sessionOf),

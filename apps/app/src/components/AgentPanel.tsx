@@ -1,7 +1,5 @@
 import { type ReactNode } from 'react';
-import { deleteConnector } from '@metro-labs/client/api/connectors';
 import { type Selection } from '@metro-labs/client/selection';
-import { ConnectorPage } from './ConnectorPage.js';
 import { Connectors } from './Connectors.js';
 import { Home } from './Home.js';
 import { RunPage } from './RunPage.js';
@@ -24,23 +22,8 @@ import { VoicePage } from './VoicePage.js';
 import { SectionTabs } from './SectionTabs.js';
 import { sectionOf } from './sections.js';
 import { Tabbed } from './tabbed.js';
-import { go } from '../lib/nav.js';
 
-function connectorRoutes(project: string, selection: Selection): ReactNode {
-  if (selection.kind === 'connectors') return <Connectors project={project} />;
-  if (selection.kind === 'connector')
-    return (
-      <ConnectorPage
-        project={project}
-        id={selection.id}
-        onDelete={async (id) => {
-          await deleteConnector(id);
-          go({ kind: 'connectors', project });
-        }}
-      />
-    );
-  return null;
-}
+const CONNECTOR_PAGES: ReadonlySet<Selection['kind']> = new Set(['connectors', 'connector']);
 
 function claudeRoutes(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'sessions') return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} />;
@@ -56,8 +39,7 @@ function claudeRoutes(project: string, selection: Selection): ReactNode {
 }
 
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
-  const connector = connectorRoutes(project, selection);
-  if (connector !== null) return connector;
+  if (CONNECTOR_PAGES.has(selection.kind)) return <Connectors />;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
   if (selection.kind === 'run') return <RunPage key={project} />;

@@ -9,7 +9,7 @@ import { ChatIcon } from './ChatIcon.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { flattenAccounts, stationFields, type AccountGroup } from '@metro-labs/client/api/accounts';
-import { type Connector } from '@metro-labs/client/api/connectors';
+import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { type Server } from '@metro-labs/client/api/servers';
 import { useClaudeSessionQuery, useServerStatus } from '../lib/queries.js';
 import { type ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
@@ -105,7 +105,7 @@ export function ChannelCards({ groups, project }: { groups: AccountGroup[]; proj
   );
 }
 
-export function ConnectorIcons({ connectors, project }: { connectors: Connector[]; project: string }): ReactNode {
+export function ConnectorIcons({ connectors }: { connectors: OrgConnector[] }): ReactNode {
   const palette = useKitPalette();
   const chip = [CHIP, { borderColor: palette.border }];
   const hover = { backgroundColor: palette.inputBg };
@@ -118,7 +118,7 @@ export function ConnectorIcons({ connectors, project }: { connectors: Connector[
   return (
     <Row gap={8} wrap>
       {connectors.map((c) => {
-        const target: Selection = { kind: 'connector', project, id: c.id };
+        const target: Selection = { kind: 'org-connector', id: c.id };
         return (
           <RouteLink key={c.id} to={routeHash(target)} label={c.name} style={chip} hoverStyle={hover}>
             <ConnectorFavicon name={c.name} url={c.url} size={CONNECTOR_ICON} />

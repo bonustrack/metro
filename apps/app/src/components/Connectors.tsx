@@ -1,143 +1,43 @@
-import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { type ReactNode } from 'react';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { EmptyCard, SettingsGroup } from './SettingsSection.js';
+import { currentServer } from '@metro-labs/client/auth/daemon';
+import { routeHash } from '@metro-labs/client/route';
+import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
+import { EmptyCard } from './SettingsSection.js';
 import { ListHeader } from './ListHeader.js';
-import {
-  connectorLabel,
-  connectorsInOrder,
-  deleteConnector,
-  takeConnectorError,
-  type ConnectorsView,
-} from '@metro-labs/client/api/connectors';
-import { AddConnector } from './AddConnector.js';
-import { ConnectorRow } from './ConnectorRow.js';
 import { Loading } from './Loading.js';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  queryError,
-  refreshConnectors,
-  useConnectorsQuery,
-} from '../lib/queries.js';
+import { TextLink } from './TextLink.js';
+import { AgentOrgConnectors, useAssignedConnectors } from './AgentOrgConnectors.js';
+import { queryError } from '../lib/queries.js';
+import { useConnectorScope } from '../lib/org-connector-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
-import { CopyAllConnectors } from './CopyConnectors.js';
-import { MoveConnectors } from './MoveConnectors.js';
-import { go } from '../lib/nav.js';
-import { AgentOrgConnectors } from './AgentOrgConnectors.js';
 
+const EMPTY = 'No connector is assigned to this agent yet. A connector gives it tools, like a calendar, Notion or GitHub.';
 
-const ACTIONS = { flexShrink: 1, maxWidth: '100%' } as const;
-const FALLBACK = 'Could not load your connectors.';
-const EMPTY = 'No connector yet. A connector gives your agent tools, like a calendar, Notion or GitHub.';
-
-interface ConnectorsBodyProps {
-  project: string;
-  onChanged: () => void;
-  data: ConnectorsView;
-  onDelete: (id: string) => Promise<void>;
-  onError: (message: string) => void;
-}
-
-function ConnectorsBody({
-  project,
-  onChanged,
-  data,
-  onDelete,
-  onError,
-}: ConnectorsBodyProps): ReactNode {
-  const rows = connectorsInOrder(data.connectors);
-  if (rows.length === 0) return <EmptyCard text={EMPTY} />;
+function Assigned({ connectors, admin }: { connectors: OrgConnector[]; admin: boolean }): ReactNode {
   return (
-    <SettingsGroup>
-      {rows.map((row) => (
-        <ConnectorRow
-          key={row.id}
-          project={project}
-          onChanged={onChanged}
-          row={row}
-          label={connectorLabel(row, rows)}
-          onDelete={onDelete}
-          onError={onError}
-        />
-      ))}
-    </SettingsGroup>
+    <>
+      {connectors.length === 0 ? <EmptyCard text={EMPTY} /> : <AgentOrgConnectors assigned={connectors} admin={admin} />}
+      <TextLink to={routeHash({ kind: 'org-connectors' })}>Add or assign connectors on the organization’s Connectors page</TextLink>
+    </>
   );
 }
 
-export function Connectors({
-  project,
-}: {
-  project: string;
-}): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const client = useQueryClient();
-  const { data, error } = useConnectorsQuery();
-  const reload = (): void => {
-    refreshConnectors(client);
-  };
-  const remove = (id: string): Promise<void> =>
-    deleteConnector(id).then(() => {
-      refreshConnectors(client);
-    });
-  useDocumentTitle('Connectors');
-  const [adding, setAdding] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [returned] = useState(takeConnectorError);
-
+function Body(): ReactNode {
+  const { connectors, admin, error } = useAssignedConnectors();
   return (
     <Col gap={16}>
-      <ListHeader
-        title="Connectors"
-        count={data?.connectors.length}
-        action={
-          <Row gap={8} wrap style={ACTIONS}>
-          <MoveConnectors />
-          <CopyAllConnectors data={data} />
-          <Button
-            color="primary"
-            dark={dark}
-            label="Add connector"
-            onPress={() => {
-              setAdding(true);
-            }}
-          />
-          </Row>
-        }
-      />
-
-      {returned === null ? null : (
-        <Text size="md" role="danger">{`Sign-in did not finish: ${returned}`}</Text>
-      )}
-      {error === null ? null : (
-        <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>
-      )}
-      {failed === null ? null : (
-        <Text size="md" role="danger">{failed}</Text>
-      )}
-      {data === undefined && error === null ? <Loading /> : null}
-      {data === undefined ? null : (
-        <ConnectorsBody
-          project={project}
-          onChanged={reload}
-          data={data}
-          onDelete={remove}
-          onError={setFailed}
-        />
-      )}
-
-      <AgentOrgConnectors />
-      <AddConnector
-        open={adding}
-        onClose={() => {
-          setAdding(false);
-        }}
-        onAdded={(id) => {
-          reload();
-          go({ kind: 'connector', project, id });
-        }}
-      />
+      <ListHeader title="Connectors" count={connectors?.length} />
+      {error === null ? null : <Text size="md" role="danger">{queryError(error, 'Could not load the organization’s connectors.')}</Text>}
+      {connectors === undefined && error === null ? <Loading /> : null}
+      {connectors === undefined ? null : <Assigned connectors={connectors} admin={admin} />}
     </Col>
   );
+}
+
+export function Connectors(): ReactNode {
+  const scope = useConnectorScope();
+  useDocumentTitle('Connectors');
+  return <Body key={`${String(scope)}:${currentServer()?.id ?? ''}`} />;
 }

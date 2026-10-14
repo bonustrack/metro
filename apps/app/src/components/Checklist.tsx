@@ -21,7 +21,7 @@ interface ChecklistProps {
   name: string;
   project: string;
   channels: number;
-  connectors: number;
+  connectors: number | undefined;
 }
 
 const STEP = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16 } as const;
@@ -69,8 +69,8 @@ export function Checklist({ name, project, channels, connectors }: ChecklistProp
     {
       title: 'Add a connector',
       hint: `Give ${name} the tools it may use, like Microsoft 365 or GitHub.`,
-      done: connectors > 0,
-      target: { kind: 'connectors', project },
+      done: connectors !== 0,
+      target: { kind: 'org-connectors' },
     },
   ];
   const left = steps.filter((step) => !step.done).length;

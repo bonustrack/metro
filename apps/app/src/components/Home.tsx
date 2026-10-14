@@ -11,10 +11,12 @@ import { AgentRoute } from './AgentModel.js';
 import { Approvals } from './Approvals.js';
 import { LatestUsageLine } from './LatestUsage.js';
 import { flattenAccounts, type AccountGroup } from '@metro-labs/client/api/accounts';
-import { queryError, useConnectorsQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
+import { queryError, useServersQuery, useStationsQuery } from '../lib/queries.js';
+import { useAssignedConnectors } from './AgentOrgConnectors.js';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import { type AgentSummary } from '@metro-labs/client/api/client';
+import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { useDocumentTitle } from '../lib/title.js';
 
 const FALLBACK = 'Could not read this machine.';
@@ -48,13 +50,12 @@ function useBoxName(agent: AgentSummary | undefined): string {
 }
 
 interface SectionsProps {
-  agent: AgentSummary;
   groups: AccountGroup[];
   project: string;
+  connectors: OrgConnector[] | undefined;
 }
 
-function Sections({ agent, groups, project }: SectionsProps): ReactNode {
-  const connectors = useConnectorsQuery();
+function Sections({ groups, project, connectors }: SectionsProps): ReactNode {
   const channels = flattenAccounts(groups).length;
   return (
     <>
@@ -64,10 +65,10 @@ function Sections({ agent, groups, project }: SectionsProps): ReactNode {
           <ChannelCards groups={groups} project={project} />
         </Col>
       )}
-      {agent.connectorIds.length === 0 ? null : (
+      {connectors === undefined || connectors.length === 0 ? null : (
         <Col gap={12}>
-          <SectionHead label="Connectors" count={agent.connectorIds.length} />
-          {connectors.data === undefined ? null : <ConnectorIcons connectors={connectors.data.connectors} project={project} />}
+          <SectionHead label="Connectors" count={connectors.length} />
+          <ConnectorIcons connectors={connectors} />
         </Col>
       )}
     </>
@@ -81,6 +82,7 @@ export function Home({ project }: { project: string }): ReactNode {
   const server = servers.data?.find((s) => s.id === here?.id);
   const agent = data?.agent;
   const name = useBoxName(agent);
+  const connectors = useAssignedConnectors().connectors;
   useDocumentTitle(name);
   if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
   if (data === undefined) return <Loading />;
@@ -102,11 +104,11 @@ export function Home({ project }: { project: string }): ReactNode {
         name={name}
         project={project}
         channels={flattenAccounts(data.groups).length}
-        connectors={agent.connectorIds.length}
+        connectors={connectors?.length}
       />
       <Approvals />
       <AgentRoute project={project} />
-      <Sections agent={agent} groups={data.groups} project={project} />
+      <Sections groups={data.groups} project={project} connectors={connectors} />
     </Col>
   );
 }

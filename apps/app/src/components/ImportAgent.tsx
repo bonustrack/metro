@@ -24,7 +24,6 @@ interface ImportAgentProps {
 function landed(result: Applied): string {
   const parts = [
     `${String(result.channels)} channels`,
-    `${String(result.connectors)} connectors`,
     `${String(result.skills)} skills`,
     `${String(result.memory)} memory files`,
     `${String(result.sessions)} sessions`,

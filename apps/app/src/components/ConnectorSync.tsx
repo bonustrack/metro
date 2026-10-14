@@ -12,7 +12,7 @@ import { useConnectorScope } from '../lib/org-connector-queries.js';
 import { useConnectorSync } from '../lib/connector-sync-query.js';
 import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
 
-const NOTE = 'Keeps this agent’s organization connectors in memory. It does not turn on live tools or move local ones.';
+const NOTE = 'Keeps the organization connectors assigned to this agent in memory. It does not turn on live tools.';
 const sourceNote = {
   saved: 'Saved on this server. It overrides the environment flag.',
   environment: 'Set by this server’s environment flag. Changing it saves an override.',
