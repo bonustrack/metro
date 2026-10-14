@@ -13,8 +13,13 @@ test('older daemons have no source capability and remote rows cannot become edit
     expect(listing.skillSource).toBeUndefined();
     expect(listing.skills[0]?.editable).toBe(false);
     expect(listing.skills[0]?.managed).toBe(true);
-    expect(githubSkillSource({})).toBeUndefined();
+    expect(githubSkillSource(undefined)).toBeUndefined();
   } finally { fetch.mockRestore(); clearAccount(); }
+});
+
+test('a daemon that no longer reports support is supported, and only an explicit false is not', () => {
+  expect(githubSkillSource({})?.supported).toBe(true);
+  expect(githubSkillSource({ supported: false })?.supported).toBe(false);
 });
 
 test('source parsing retains revision status but drops unexpected credentials', () => {

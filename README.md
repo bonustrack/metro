@@ -106,20 +106,20 @@ all of this on its own.
 
 ## Claude Code on the box
 
-```sh
-metro claude [args...]
-```
+The agent runs as one Agent SDK session: `metro agent` starts Claude Code through the
+Claude Agent SDK, with the metro MCP server loaded and the agent's key. Chat messages,
+voice calls and background workers share that one conversation. Inference goes through
+the daemon's model gateway, so the **Model** page decides where requests go: Anthropic,
+Amazon Bedrock, OpenRouter, Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT
+or the Codex app's code sign-in) or Gemini, and a model change applies at once, with no
+restart.
 
-`metro claude` starts Claude Code with the metro channel and the metro MCP server
-already loaded, using the agent's key. Nothing needs `claude mcp add`. Every argument is passed to `claude` as it is. It also routes inference through the
-daemon's model gateway, so the **Model** page decides where requests go: Anthropic, Amazon
-Bedrock, OpenRouter, Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the
-Codex app's code sign-in) or Gemini.
-
-You rarely type it yourself. Once the box has an agent and a model it can use, the daemon
-starts the session in a tmux session named `metro`, answers Claude Code's first-run
-prompts, and restarts it when it exits, continuing the last conversation. The Terminal tab
-on the page opens that tmux session.
+You do not type it yourself. Once the box has an agent and a model it can use, the daemon
+starts `metro agent` in a tmux session named `metro`, and starts it again when it exits,
+resuming the same conversation. The Terminal tab on the page opens that tmux session. The Claude Code it
+runs is the one bundled with the Agent SDK, installed by `metro agent` into
+`~/.metro/sdk-runner`; the box installs no Claude Code of its own. The Claude sign-in on
+the Model page and its usage check use that same Claude Code.
 
 The session follows [docs/SETUP.md](docs/SETUP.md): an orchestrator-only main thread, a
 `worker` subagent, standing rules as a skill, and privacy settings. The daemon applies all
@@ -134,7 +134,8 @@ of it; the guard and the standing rules are hooks it writes into `~/.claude/sett
 | `metro stop` | Stop metro on this machine. |
 | `metro tail [agent-id]` | Follow this machine's inbound events, one JSON line each. |
 | `metro whoami` | Print the agent this machine runs. |
-| `metro claude [args...]` | Open Claude Code with the metro channel, the metro MCP server and the model gateway. |
+| `metro agent` | Run the agent's Agent SDK session. The daemon starts it in tmux session `metro`. |
+| `metro memory [skill file]` | Run the memory routine once. A daily job runs it for you. |
 | `metro update` | Update to the newest published version. `--check` only reports. |
 | `metro version` | Print the CLI's version. |
 
@@ -184,10 +185,10 @@ connector secret unreadable.
 
 ## GitHub skills
 
-With the **Agent SDK** runner selected, a box administrator can connect one private
-GitHub repository on **Skills**. Enter `owner/repository`, a branch, tag or full commit
-SHA, and the folder containing the skills. Use a fine-grained token restricted to that
-repository with **Contents: read-only** and an expiry. The organization may need to
+A box administrator can connect one private GitHub repository on **Skills**. Enter
+`owner/repository`, a branch, tag or full commit SHA, and the folder containing the
+skills. Use a fine-grained token restricted to that repository with **Contents:
+read-only** and an expiry. The organization may need to
 approve it. Metro cannot enforce how broadly a token was issued; restrict it at GitHub.
 The daemon keeps it in its private `github-skills.json`, never in the agent's files,
 API responses or `.metro` exports. Removing the source forgets it, but does not revoke it
@@ -218,9 +219,8 @@ to the agent's OS user, so they are not an OS sandbox or tamper-proof storage.
 Repository writers control agent instructions, and an agent can run supporting scripts
 later under its normal permissions. Connect only a trusted repository.
 
-The Claude Code runner and separate CLI jobs do not load this source. An older or
-stopped Agent SDK runner must be started on a version supporting the feature. Sync
-never changes plugin enablement or connector configuration.
+Separate CLI jobs do not load this source. A stopped agent loads it when it starts.
+Sync never changes plugin enablement or connector configuration.
 
 ## Export and import
 

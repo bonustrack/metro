@@ -57,7 +57,7 @@ describe('Run session semantics', () => {
   test('old and stopped daemons do not acquire a live SDK claim', () => {
     expect(freshness(status({ runner: 'cli' }), now, false)).toBe('Unsupported');
     expect(freshness(status({ running: false }), now, false)).toBe('Stopped');
-    expect(freshness(toClaudeSession({ running: true }), now, false)).toBe('Unsupported');
+    expect(freshness(toClaudeSession({ running: true }), now, false)).toBe('Waiting for status');
     expect(freshness(status({ activity: null }), now, false)).toBe('Waiting for status');
     expect(freshness(undefined, now, false)).toBe('Loading');
   });

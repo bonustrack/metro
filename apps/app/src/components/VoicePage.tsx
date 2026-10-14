@@ -1,16 +1,13 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
-import { ModelPickerModal } from './ModelPickerModal.js';
 import { PageTitle } from './PageTitle.js';
 import { SaveField, useSave } from './SaveField.js';
 import { EmptyCard, SettingsGroup, SettingsSection } from './SettingsSection.js';
-import { queryError, useBoxQuery, useModeQuery, useModelQuery } from '../lib/queries.js';
+import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
 import { olderThan } from '@metro-labs/client/api/version';
 import {
   ELEVENLABS_KEYS_URL,
@@ -20,7 +17,6 @@ import {
   saveVoice,
   VOICE_LANGUAGES,
   VOICE_SINCE,
-  voiceModelLabel,
   type VoicePatch,
   type VoiceSettings,
 } from '@metro-labs/client/api/voice';
@@ -28,12 +24,11 @@ import { useDocumentTitle } from '../lib/title.js';
 import { TextLink } from './TextLink.js';
 
 const INTRO =
-  'Call your agent from Stage and talk live, with voice by ElevenLabs. It has all its tools and knows the chat you call from. It answers only people who can approve there.';
+  'Call your agent from Stage and talk live, with voice by ElevenLabs. The call goes into the agent’s own conversation, on the model of the Model page, with all its tools, and it knows the chat you call from. It answers only people who can approve there.';
 const PORTS_NOTE = 'The server needs inbound UDP ports 40000 to 40100 open for the call audio.';
 const KEY_NOTE = 'Give the key Speech to Text and Text to Speech access. Create one in ElevenLabs:';
 const VOICE_NOTE = 'Empty means Sarah, the default. Paste any voice ID from the ElevenLabs library:';
 const LANGUAGE_NOTE = 'The language you speak on calls. Detect lets ElevenLabs guess each time.';
-const MODEL_NOTE = 'The model used on calls, through your Model page connections, at low effort for speed.';
 
 type Set = (next: VoiceSettings) => void;
 
@@ -143,32 +138,6 @@ function VoiceId({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode 
   );
 }
 
-function VoiceModel({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const model = useModelQuery();
-  const [open, setOpen] = useState(false);
-  const current = voice.model === '' ? voice.defaults.model : voice.model;
-  const settings = model.data;
-  return (
-    <SettingsSection title="Model" note={MODEL_NOTE}>
-      <Text size="md">{voiceModelLabel(current)}</Text>
-      {settings === undefined || settings.connections.length === 0 ? null : (
-        <>
-          <Button size="md" color="secondary" dark={dark} label="Change" onPress={() => { setOpen(true); }} />
-          <ModelPickerModal
-            open={open}
-            settings={settings}
-            title="Model for calls"
-            isCurrent={(row) => `${row.provider}:${row.id}` === current}
-            onPick={(row) => saver(set)({ model: `${row.provider}:${row.id}` })}
-            onClose={() => { setOpen(false); }}
-          />
-        </>
-      )}
-    </SettingsSection>
-  );
-}
-
 function VoiceBody(): ReactNode {
   const { voice, error, set } = useVoice();
   if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
@@ -185,7 +154,6 @@ function VoiceBody(): ReactNode {
       <SettingsGroup>
         <VoiceId voice={voice} set={set} />
         {voice.language === null ? null : <VoiceLanguage voice={voice} set={set} />}
-        <VoiceModel voice={voice} set={set} />
       </SettingsGroup>
     </Col>
   );

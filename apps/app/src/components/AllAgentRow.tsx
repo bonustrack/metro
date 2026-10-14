@@ -64,7 +64,6 @@ function StatusCell({ row, now }: { row: DashboardRow; now: number }): ReactNode
           <Text size="sm" numberOfLines={1} style={SHRINK}>{session.status}</Text>
         </>}
       </Row>
-      {session.harness === 'Unknown' ? null : <Text size="xs" role="secondary" numberOfLines={1}>{session.harness}</Text>}
     </Col>
   );
 }

@@ -17,10 +17,10 @@ import type { MenuItem } from './Dropdown.js';
 import { dropConnection, saveFallbacks, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
 import { usesKey } from '@metro-labs/client/api/providers';
 import { movedFallbacks, promoteFallback, type Slot } from '@metro-labs/client/api/route-edit';
-import { modelNote } from '@metro-labs/client/api/runner';
-import { queryError, refresh, useClaudeSetupQuery, useModelQuery } from '../lib/queries.js';
+import { queryError, refresh, useModelQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
+const MODEL_NOTE = 'The models your agent uses, in order, and the connections they run on. The agent cannot pick another model, and changing the first one applies at once, with no restart.';
 const NONE_YET = 'No connection yet. Your agent uses the Claude login of its server until you add one.';
 const CONNECTIONS = 'The accounts and keys the list above can use. Each one shows its own usage.';
 
@@ -88,14 +88,13 @@ function Body({ settings }: { settings: ModelSettings }): ReactNode {
 
 export function ModelPage(): ReactNode {
   const model = useModelQuery();
-  const setup = useClaudeSetupQuery();
   useDocumentTitle('Model');
   return (
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
         <Text size="md" role="secondary">
-          {modelNote(setup.data)}
+          {MODEL_NOTE}
         </Text>
       </Col>
       <ModelReadError error={model.error} cached={model.data !== undefined} />

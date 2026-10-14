@@ -11,7 +11,7 @@ export function freshness(status: ClaudeSessionStatus | undefined, now: number, 
   if (disconnected) return 'Disconnected';
   if (status === undefined) return 'Loading';
   if (!status.running || status.activity?.phase === 'stopped') return 'Stopped';
-  if (status.runner !== 'sdk') return 'Unsupported';
+  if (status.legacyRunner) return 'Unsupported';
   if (status.activity === null) return 'Waiting for status';
   return activityIsStale(status.activity.updatedAt, now) ? 'Stale' : 'Fresh';
 }

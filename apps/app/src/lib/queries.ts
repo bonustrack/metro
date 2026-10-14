@@ -30,7 +30,7 @@ import {
 } from '@metro-labs/client/api/claude';
 import { fetchClaudeAccount } from '@metro-labs/client/api/claude';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
-import { fetchClaudeSession, fetchClaudeSetup, fetchClaudeVersion, type ClaudeSessionStatus, type ClaudeSetup, type ClaudeVersion } from '@metro-labs/client/api/claude-box';
+import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type ClaudeSetup } from '@metro-labs/client/api/claude-box';
 import { fetchMode, type ModeInfo } from '@metro-labs/client/api/mode';
 import { sessionPollMs } from '@metro-labs/client/api/runner-activity';
 import { fetchUpdate, type UpdateCheck } from '@metro-labs/client/api/update';
@@ -54,8 +54,6 @@ const LONG_MS = 10 * 60_000;
 const STATUS_POLL_MS = 15_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
-export const CLAUDE_SETUP_QUERY = { staleTime: 10_000, refetchOnMount: 'always' } as const;
-
 type BoxName =
   | 'update'
   | 'approvals'
@@ -64,7 +62,6 @@ type BoxName =
   | 'claude-session'
   | 'claude-setup'
   | 'claude-account'
-  | 'claude-version'
   | 'claude-projects'
   | 'claude-sessions'
   | 'claude-settings'
@@ -275,12 +272,9 @@ export function useAccountOf(conn: ConnectionRow | undefined): string | null {
   return login ?? conn?.account ?? null;
 }
 
-export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, CLAUDE_SETUP_QUERY);
+export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000, refetchOnMount: 'always' });
 
 export const useSchedulesQuery = (): UseQueryResult<Schedules> => useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, retry: false });
-
-export const useClaudeVersionQuery = (): UseQueryResult<ClaudeVersion> =>
-  useBoxQuery('claude-version', fetchClaudeVersion, { staleTime: LONG_MS, retry: false });
 
 export const useModelQuery = (): UseQueryResult<ModelSettings> =>
   useBoxQuery('model', fetchModel, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS });

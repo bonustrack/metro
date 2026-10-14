@@ -57,11 +57,6 @@ function Rows({ status, project, live }: { status: ClaudeSessionStatus; project:
         )}
         {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </SettingsSection>
-      {status.running && status.runner !== null ? (
-        <SettingsSection title="Running runner">
-          <Text size="md" role="secondary">{status.runner === 'sdk' ? 'Agent SDK' : 'Claude Code'}</Text>
-        </SettingsSection>
-      ) : null}
       <RunnerActivity status={status} now={now} live={live} />
       <SettingsSection title="Start by itself" note={AUTOSTART}>
         <Choice
@@ -74,7 +69,7 @@ function Rows({ status, project, live }: { status: ClaudeSessionStatus; project:
           }}
         />
       </SettingsSection>
-      <SettingsSection title="Conversations" note="Read saved turns and tool results. Each runner keeps its own conversation.">
+      <SettingsSection title="Conversations" note="Read saved turns and tool results.">
         <TextLink to={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })}>Open Conversations</TextLink>
       </SettingsSection>
       {status.running ? (
