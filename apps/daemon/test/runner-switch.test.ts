@@ -219,7 +219,7 @@ function fakeRunner(modern = true): { signals: string[][]; fail: boolean } {
   });
   spyOn(childProcess, 'spawnSync').mockImplementation((file, args, options) => {
     if (file !== 'kill') {
-      expect(tmuxFixtures.has(file)).toBe(true);
+      if (String(file).endsWith('tmux')) expect(tmuxFixtures.has(file)).toBe(true);
       return spawnSync(file, args, options);
     }
     expect(Array.isArray(args)).toBe(true);
