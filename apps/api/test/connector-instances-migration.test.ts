@@ -16,21 +16,23 @@ import { PGLITE_START_MS } from './pglite-db.js';
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
 const rows = async (client: PGlite, table: string): Promise<Record<string, unknown>[]> => (await client.query<Record<string, unknown>>(`SELECT * FROM ${table} ORDER BY 1`)).rows;
 
-function throughEight(dir: string): void {
+function through(dir: string, last: number): void {
   cpSync(DIR, dir, { recursive: true });
   const path = join(dir, 'meta', '_journal.json');
   const journal = JSON.parse(readFileSync(path, 'utf8')) as { entries: { idx: number }[] };
-  journal.entries = journal.entries.filter((entry) => entry.idx <= 8);
+  journal.entries = journal.entries.filter((entry) => entry.idx <= last);
   writeFileSync(path, JSON.stringify(journal));
 }
 
 test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignments or source mappings, and the migrator can run again', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'metro-connector-instances-migration-'));
+  const nine = mkdtempSync(join(tmpdir(), 'metro-connector-instances-nine-'));
   const client = new PGlite();
   const db = drizzle(client, { schema });
   const agent = newDeliveryAgent();
   try {
-    throughEight(folder);
+    through(folder, 8);
+    through(nine, 9);
     await migrate(db, { migrationsFolder: folder });
     await enrollDeliveryAgent(db, agent);
     const legacy = await seedConnector(db, { kind: 'header', targetUrl: 'https://vendor.example/mcp', name: 'Authorization', value: 'Bearer legacy-key-fixture' }, { policy: '{"write":"deny"}' });
@@ -45,7 +47,7 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
     const tables = ['agents', 'agent_keys', 'connectors', 'connector_agents', 'connector_migrations', 'connector_events'];
     const before = await Promise.all(tables.map((table) => rows(client, table)));
     const journal = await rows(client, 'drizzle.__drizzle_migrations');
-    await migrate(db, { migrationsFolder: DIR });
+    await migrate(db, { migrationsFolder: nine });
     expect(await Promise.all(tables.map((table) => rows(client, table)))).toEqual(before);
     const applied = await rows(client, 'drizzle.__drizzle_migrations');
     expect(applied.slice(0, journal.length)).toEqual(journal);
@@ -55,7 +57,7 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
     await store.create(duplicate);
     await store.edit(TEST_OWNER, duplicate.id, new Date().toISOString(), () => ({ change: { name: 'Migrated Calendar' } }));
     const after = await Promise.all(tables.map((table) => rows(client, table)));
-    await migrate(db, { migrationsFolder: DIR });
+    await migrate(db, { migrationsFolder: nine });
     expect(await rows(client, 'drizzle.__drizzle_migrations')).toEqual(applied);
     expect(await Promise.all(tables.map((table) => rows(client, table)))).toEqual(after);
     expect(await store.find(TEST_OWNER, legacy.id)).toEqual(legacy);
@@ -64,5 +66,6 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
   } finally {
     await client.close();
     rmSync(folder, { recursive: true, force: true });
+    rmSync(nine, { recursive: true, force: true });
   }
 }, PGLITE_START_MS);

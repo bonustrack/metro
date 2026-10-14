@@ -65,7 +65,6 @@ async function oldMoveAndCascade(client: PGlite): Promise<void> {
   await client.query("DELETE FROM agents WHERE id = 'agent000001'");
   expect(await rows(client, 'agent_keys')).toEqual([]);
   expect(await rows(client, 'connector_agents')).toEqual([]);
-  expect((await rows(client, 'connector_events')).length).toBe(1);
   expect((await rows(client, 'connectors')).length).toBe(1);
 }
 
@@ -85,8 +84,9 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     await migrate(db, { migrationsFolder: DIR });
     expect(await rows(client, 'agent_keys')).toEqual(keys);
     expect(await rows(client, 'box_keys')).toEqual(keys);
-    expect(await rows(client, 'connector_agents')).toEqual(assignments.map((row) => ({ ...row, migration_operation: null })));
-    expect(await rows(client, 'connector_events')).toEqual(events);
+    expect(await rows(client, 'connector_agents')).toEqual(assignments);
+    expect(events).toHaveLength(1);
+    expect((await client.query("SELECT to_regclass('connector_events') AS t")).rows).toEqual([{ t: null }]);
     expect(await rows(client, 'connectors')).toEqual(connectors.map((row) => ({ ...row, detail: null, auth_generation: null })));
     expect((await rows(client, 'drizzle.__drizzle_migrations')).slice(0, journal.length)).toEqual(journal);
     const relations = await client.query<{ relname: string; relkind: string }>("SELECT relname, relkind FROM pg_class WHERE relname IN ('agent_keys', 'box_keys') ORDER BY relname");
