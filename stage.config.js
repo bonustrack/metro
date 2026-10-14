@@ -52,7 +52,7 @@ export default defineConfig({
       knip: {
         project: ['src/**/*.ts'],
         entry: ['scripts/*.mjs', 'test/**/*.ts'],
-        ignoreBinaries: ['ps', 'claude', 'getent'],
+        ignoreBinaries: ['ps', 'getent'],
       },
     },
     'apps/daemon': {

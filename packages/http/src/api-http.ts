@@ -11,7 +11,6 @@ export interface ApiSession {
   userId?: string;
   sessionId?: string;
   role: Role;
-  operator?: true;
 }
 
 export type BearerSessions = (req: IncomingMessage) => Promise<ApiSession | null>;
