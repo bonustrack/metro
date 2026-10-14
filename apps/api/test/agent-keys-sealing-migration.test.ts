@@ -16,6 +16,7 @@ import { TEST_OWNER } from './identity-helper.ts';
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
 const TAG = '0012_agent_keys_sealing_nullable';
+const DROP_TAG = '0013_drop_agent_keys_sealing';
 
 function through(dir: string, last: number): void {
   cpSync(DIR, dir, { recursive: true });
@@ -36,6 +37,7 @@ test('0012 is journaled after 0011 and only lets agent_keys.sealing_key be empty
 
 test('after 0012 an enrollment without a sealing key is stored, and a key enrolled before keeps its row', async () => {
   const eleven = mkdtempSync(join(tmpdir(), 'metro-sealing-eleven-'));
+  const twelve = mkdtempSync(join(tmpdir(), 'metro-sealing-twelve-'));
   const client = new PGlite();
   const db = drizzle(client, { schema });
   const store = agentKeyStore(() => db);
@@ -43,6 +45,7 @@ test('after 0012 an enrollment without a sealing key is stored, and a key enroll
     (await client.query<{ agent: string; sealing_key: string | null }>('SELECT agent, sealing_key FROM agent_keys ORDER BY agent')).rows;
   try {
     through(eleven, 11);
+    through(twelve, 12);
     await migrate(db, { migrationsFolder: eleven });
     const legacy = newEnrolledAgent('agent000001');
     await enrollLegacyAgent(db, legacy);
@@ -52,7 +55,7 @@ test('after 0012 an enrollment without a sealing key is stored, and a key enroll
     await addAgent(db, fresh.row.agent, TEST_OWNER);
     await expect(store.enroll(fresh.row)).rejects.toThrow();
 
-    await migrate(db, { migrationsFolder: DIR });
+    await migrate(db, { migrationsFolder: twelve });
     const nullable = await client.query<{ is_nullable: string }>("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'agent_keys' AND column_name = 'sealing_key'");
     expect(nullable.rows).toEqual([{ is_nullable: 'YES' }]);
     expect(await sealing()).toEqual([{ agent: 'agent000001', sealing_key: before?.sealing_key ?? '' }]);
@@ -75,5 +78,48 @@ test('after 0012 an enrollment without a sealing key is stored, and a key enroll
   } finally {
     await client.close();
     rmSync(eleven, { recursive: true, force: true });
+    rmSync(twelve, { recursive: true, force: true });
+  }
+}, PGLITE_START_MS);
+
+test('0013 is journaled after 0012 and drops the box_keys view, then the sealing_key column', () => {
+  const journal = JSON.parse(readFileSync(join(DIR, 'meta', '_journal.json'), 'utf8')) as { entries: { idx: number; when: number; tag: string }[] };
+  const twelve = journal.entries.find((entry) => entry.idx === 12);
+  const thirteen = journal.entries.find((entry) => entry.idx === 13);
+  expect(thirteen).toMatchObject({ tag: DROP_TAG });
+  expect(thirteen?.when ?? 0).toBeGreaterThan(twelve?.when ?? Number.MAX_SAFE_INTEGER);
+  expect(readFileSync(join(DIR, `${DROP_TAG}.sql`), 'utf8')).toBe('DROP VIEW IF EXISTS "box_keys";\n--> statement-breakpoint\nALTER TABLE "agent_keys" DROP COLUMN IF EXISTS "sealing_key";\n');
+});
+
+test('after 0013 the column and the view are gone, every key keeps its row and enrollment still works', async () => {
+  const twelve = mkdtempSync(join(tmpdir(), 'metro-sealing-twelve-'));
+  const client = new PGlite();
+  const db = drizzle(client, { schema });
+  const store = agentKeyStore(() => db);
+  try {
+    through(twelve, 12);
+    await migrate(db, { migrationsFolder: twelve });
+    const legacy = newEnrolledAgent('agent000001');
+    await enrollLegacyAgent(db, legacy);
+    const fresh = newEnrolledAgent('agent000002');
+    await addAgent(db, fresh.row.agent, TEST_OWNER);
+    await store.enroll(fresh.row);
+
+    await migrate(db, { migrationsFolder: DIR });
+    const columns = await client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_keys' AND column_name = 'sealing_key'");
+    expect(columns.rows).toEqual([]);
+    const views = await client.query<{ table_name: string }>("SELECT table_name FROM information_schema.views WHERE table_name = 'box_keys'");
+    expect(views.rows).toEqual([]);
+    expect(await store.find(legacy.row.keyId)).toEqual(legacy.row);
+    expect(await store.find(fresh.row.keyId)).toEqual(fresh.row);
+
+    const later = newEnrolledAgent('agent000003');
+    await addAgent(db, later.row.agent, TEST_OWNER);
+    await store.enroll(later.row);
+    expect(await store.find(later.row.keyId)).toEqual(later.row);
+    await migrate(db, { migrationsFolder: DIR });
+  } finally {
+    await client.close();
+    rmSync(twelve, { recursive: true, force: true });
   }
 }, PGLITE_START_MS);
