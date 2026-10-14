@@ -30,9 +30,9 @@ describe('tool groups', () => {
     expect(byName.get('tool_call')).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: true });
   });
 
-  test('the tools the orchestrator uses on every message stay loaded when Claude Code defers MCP tools', () => {
+  test('the tools the orchestrator uses on every message, and the connector tools, stay loaded when Claude Code defers MCP tools', () => {
     const loaded = toolList().tools.filter((t) => t._meta?.['anthropic/alwaysLoad'] === true).map((t) => t.name).sort();
-    expect(loaded).toEqual(['react', 'reply', 'send', 'typing']);
+    expect(loaded).toEqual(['react', 'reply', 'send', 'tool_call', 'tool_search', 'typing']);
   });
 
   test('a channel lists the tools its station can run, each with its group', () => {

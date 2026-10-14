@@ -68,7 +68,7 @@ export const listedTools = (): PublishedTool[] => [
     annotations: annotationsOf(def),
     ...(ALWAYS_LOADED.has(def.name) ? { _meta: ALWAYS_LOAD } : {}),
   })),
-  ...connectorTools(),
+  ...connectorTools().map((tool) => ({ ...tool, _meta: ALWAYS_LOAD })),
 ];
 
 const STATION_OF_TOOL = new Map(STATIONS.flatMap((s) => s.tools.map((t) => [t.name, s.name] as const)));
