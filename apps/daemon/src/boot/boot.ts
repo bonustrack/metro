@@ -25,6 +25,7 @@ import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
+import { removeConnectorLeftovers } from '../connectors/leftovers.js';
 import { removeMetroPlugin } from '../claude/plugin-cleanup.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
@@ -139,6 +140,7 @@ function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: 
 
 
 async function main(): Promise<void> {
+  removeConnectorLeftovers();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   watchPolicySnapshot();

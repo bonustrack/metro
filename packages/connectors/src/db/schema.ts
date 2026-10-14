@@ -57,7 +57,6 @@ export const agentKeys = pgTable(
     owner: text('owner').notNull(),
     keyId: text('key_id').notNull(),
     signingKey: text('signing_key').notNull(),
-    sealingKey: text('sealing_key').notNull(),
     enrolledBy: text('enrolled_by').notNull(),
     enrolledAt: text('enrolled_at').notNull(),
     mcpTokenHash: text('mcp_token_hash'),

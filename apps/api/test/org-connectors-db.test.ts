@@ -72,7 +72,7 @@ describe('the organization connector tables', () => {
   });
 
   test('an agent key belongs to one agent, goes with it, and a key id is used once', async () => {
-    const row = { agent: 'agent000001', owner: OWNER, keyId: 'k'.repeat(43), signingKey: 's'.repeat(43), sealingKey: 'x'.repeat(43), enrolledBy: 'user_01TEST', enrolledAt: AT };
+    const row = { agent: 'agent000001', owner: OWNER, keyId: 'k'.repeat(43), signingKey: 's'.repeat(43), enrolledBy: 'user_01TEST', enrolledAt: AT };
     await held.db.insert(agentKeys).values(row);
     await expect(settled(held.db.insert(agentKeys).values({ ...row, agent: 'agent000002' }))).rejects.toThrow();
     await held.db.delete(agents).where(eq(agents.id, 'agent000001'));

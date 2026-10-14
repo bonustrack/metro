@@ -59,9 +59,8 @@ export const newToken = (): string => `mcp_${randomBytes(32).toString('base64url
 
 export async function enrollAgent(db: Database, agent: string, owner = OWNER): Promise<TestAgent> {
   const signing = generateKeyPairSync('ed25519');
-  const sealing = generateKeyPairSync('x25519');
   const signingKey = rawPublicKey(signing.publicKey);
-  const row: AgentKeyRow = { agent, owner, keyId: agentKeyId(signingKey), signingKey, sealingKey: rawPublicKey(sealing.publicKey), enrolledBy: 'user_01TEST', enrolledAt: new Date().toISOString() };
+  const row: AgentKeyRow = { agent, owner, keyId: agentKeyId(signingKey), signingKey, enrolledBy: 'user_01TEST', enrolledAt: new Date().toISOString() };
   await db.insert(schema.agents).values({ id: agent, owner, host: `${agent.toLowerCase()}.tail0000.ts.net`, addedAt: '2026-10-14T00:00:00.000Z', slug: agent.toLowerCase() });
   await agentKeyStore(() => db).enroll(row);
   const token = newToken();

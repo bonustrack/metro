@@ -1,12 +1,13 @@
 import { expect, test } from 'bun:test';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { generateKeyPairSync } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { agentSignatureValid, readAgentProof, signAgentRequest } from '@metro-labs/http/agent-signature';
+import { agentSignatureValid, rawPublicKey, readAgentProof, signAgentRequest } from '@metro-labs/http/agent-signature';
 import { newAgentKey } from '../../daemon/src/connectors/agent-key.ts';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import type { Database } from '../src/db/client.ts';
@@ -18,6 +19,7 @@ const OWNER = 'org_01MIGRATIONTEST';
 const AT = '2026-10-09T00:00:00.000Z';
 const FIRST = newAgentKey();
 const SECOND = newAgentKey();
+const sealingKeyOf = (): string => rawPublicKey(generateKeyPairSync('x25519').publicKey);
 
 function phaseOne(dir: string): void {
   cpSync(DIR, dir, { recursive: true });
@@ -30,7 +32,7 @@ function phaseOne(dir: string): void {
 async function seed(client: PGlite): Promise<void> {
   for (const [id, key] of [['agent000001', FIRST], ['agent000002', SECOND]] as const) {
     await client.query('INSERT INTO agents (id, owner, host, added_at, slug) VALUES ($1, $2, $3, $4, $1)', [id, OWNER, `${id}.example`, AT]);
-    await client.query('INSERT INTO box_keys VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, OWNER, key.keyId, key.signingKey, key.sealingKey, 'user_01TEST', AT]);
+    await client.query('INSERT INTO box_keys VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, OWNER, key.keyId, key.signingKey, sealingKeyOf(), 'user_01TEST', AT]);
   }
   await client.query("INSERT INTO connectors (id, owner, name, url, auth, policy, secret, created_by, created_at, updated_at) VALUES ('conn0000001', $1, 'Existing connector', 'https://vendor.example', 'header', $2, 'sealed-fixture-unchanged', 'user_01TEST', $3, $3)", [OWNER, '{"write":"deny"}', AT]);
   await client.query("INSERT INTO connector_agents VALUES ('conn0000001', 'agent000001', $1, 'user_01TEST', $2)", ['{"write":"deny"}', AT]);
@@ -51,7 +53,7 @@ async function constraints(client: PGlite): Promise<void> {
 
 async function signingStillWorks(db: Database): Promise<void> {
   const row = await agentKeyStore(() => db).find(FIRST.keyId);
-  expect(row).toMatchObject({ agent: 'agent000001', owner: OWNER, keyId: FIRST.keyId, signingKey: FIRST.signingKey, sealingKey: FIRST.sealingKey, enrolledBy: 'user_01TEST', enrolledAt: AT });
+  expect(row).toMatchObject({ agent: 'agent000001', owner: OWNER, keyId: FIRST.keyId, signingKey: FIRST.signingKey, enrolledBy: 'user_01TEST', enrolledAt: AT });
   const request = { method: 'GET', host: 'api.metro.box', path: '/api/agents/session', body: Buffer.alloc(0) };
   const proof = readAgentProof(signAgentRequest(request, FIRST.signing, FIRST.keyId, Date.now()));
   if (proof === null || row === null) throw new Error('migrated key missing');
