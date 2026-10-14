@@ -1,10 +1,7 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ConnectorSyncStatus } from '@metro-labs/core/connector-sync';
 import { OrgConnectorControl } from './org-sync-control.js';
-import { isOrgRelayId } from './relay-id.js';
 import type { RelaySession } from './relay-session.js';
-import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
-import { migrationSource } from './migration-guard.js';
 
 let active: OrgConnectorControl | null = null;
 
@@ -13,20 +10,8 @@ function control(): OrgConnectorControl {
   return active;
 }
 
-export function orgConnectorRelaySession(id: string): Promise<RelaySession> | null {
-  return isOrgRelayId(id) || migrationSource(id)?.phase === 'active' ? control().open(id) : null;
-}
-
-export function freshOrgConnectors(): Promise<DeliverySnapshot> {
-  return control().fresh();
-}
-
-export function refreshOrgConnectorRuntime(): void {
-  control().refreshRuntime();
-}
-
-export function orgConnectorMigrationIdle(id: string): boolean {
-  return control().migrationIdle(id);
+export function orgConnectorRelaySession(id: string): Promise<RelaySession> {
+  return control().open(id);
 }
 
 export function orgConnectorSyncStatus(): ConnectorSyncStatus {

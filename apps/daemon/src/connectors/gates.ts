@@ -2,7 +2,6 @@ import type { ToolGroup } from '@metro-labs/core/stations/types';
 import { decide, policyFor, setPolicies, type PolicyTarget, type ToolPolicy } from '../policy/policy.js';
 import { serverKeysOf } from './plugin-sync.js';
 import { NEEDS_APPROVAL, revokeToolPrompts, settlePrompts, takeGrant } from '../approvals/pending.js';
-import { isOrgRelayId } from './relay-id.js';
 import type { BlockedReason } from './relay-policy.js';
 
 export interface GateRow {
@@ -101,14 +100,5 @@ export function connectorToolOf(toolName: string, entries: readonly ConnectorGat
   for (const gate of entries)
     for (const prefix of [`mcp__plugin_metro_${gate.server}__`, `mcp__${gate.server}__`])
       if (toolName.startsWith(prefix) && toolName.length > prefix.length) return resolvedTool(gate, toolName.slice(prefix.length));
-  return legacyToolOf(toolName, entries);
-}
-
-function legacyToolOf(toolName: string, entries: readonly ConnectorGate[]): { gate: ConnectorGate; tool: string } | undefined {
-  if (!toolName.startsWith('mcp__metro_box_')) return undefined;
-  const legacy = entries.filter((gate) => !isOrgRelayId(gate.id) && toolName.startsWith(`mcp__${normalized(`metro.box ${gate.name}`)}__`));
-  const gate = legacy.length === 1 ? legacy[0] : undefined;
-  if (gate === undefined) return undefined;
-  const called = toolName.slice(`mcp__${normalized(`metro.box ${gate.name}`)}__`.length);
-  return called === '' ? undefined : resolvedTool(gate, called);
+  return undefined;
 }

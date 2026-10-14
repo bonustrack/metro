@@ -7,7 +7,6 @@ let fixture: SyncControlFixture;
 beforeEach(async () => {
   fixture = await SyncControlFixture.create();
   process.env.METRO_CONNECTORS_SYNC_ENABLED = 'true';
-  process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
   const first = fixture.rows[0]!;
   fixture.rows = [first, ...['conn0000002', 'conn0000003'].map((id) => ({ id, name: first.name, url: first.url, auth: 'none' as const, headers: {}, policy: first.policy, revision: first.revision, state: 'ready' as const }))];
 });
@@ -109,12 +108,9 @@ test.each(['off', 'owner', 'stop'] as const)('%s while recovery waits cannot rev
   await expectStatus(() => within(pending), 503);
 });
 
-test('sync and LIVE disabled do not fetch a receipt just because a request arrived', async () => {
-  for (const flag of ['METRO_CONNECTORS_SYNC_ENABLED', 'METRO_CONNECTORS_LIVE_ENABLED']) {
-    process.env[flag] = 'false';
-    fixture.restart();
-    await expectStatus(() => open(), 503);
-    process.env[flag] = 'true';
-  }
+test('sync disabled does not fetch a receipt just because a request arrived', async () => {
+  process.env.METRO_CONNECTORS_SYNC_ENABLED = 'false';
+  fixture.restart();
+  await expectStatus(() => open(), 503);
   expect(fixture.calls).toHaveLength(0);
 });

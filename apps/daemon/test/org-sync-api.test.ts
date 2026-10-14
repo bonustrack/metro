@@ -7,20 +7,12 @@ import { SigningKeys } from '@metro-labs/http/workos-token';
 import { signAgentRequest } from '@metro-labs/http/agent-signature';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import type { ConnectorApiDeps } from '../src/connectors/api.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
 import { AGENT, OTHER, OWNER, REVISION, SECRET, SyncControlFixture, URL_SECRET, close, listen, within } from './org-sync-control-fixture.ts';
 
 const PATH = '/api/connectors/sync';
 const LOCAL_KEY = 'fixture-local-agent-monitor-key';
-const unrelatedConnectorCall = async (): Promise<never> => { throw new Error('sync must not call the local connector API'); };
-const connectorApi: ConnectorApiDeps = {
-  listConnectors: unrelatedConnectorCall, createConnector: unrelatedConnectorCall, verifyConnector: unrelatedConnectorCall,
-  connectorTools: unrelatedConnectorCall, disconnectConnector: unrelatedConnectorCall, renameConnector: unrelatedConnectorCall,
-  deleteConnector: unrelatedConnectorCall, setConnectorPolicy: unrelatedConnectorCall, createPendingConnector: unrelatedConnectorCall,
-  reconnectConnector: unrelatedConnectorCall, getConnector: unrelatedConnectorCall,
-};
 let issuer: FakeIssuer;
 let keys: SigningKeys;
 let f: SyncControlFixture;
@@ -44,7 +36,7 @@ beforeEach(async () => {
     return session;
   });
   server = createServer((req, res) => {
-    if (!handleSessionApis(req, res, { connectorApi, connectorSyncApi: { status: () => f.control.status(), set: (enabled, scope) => f.control.set(enabled, scope) } })) res.writeHead(404).end();
+    if (!handleSessionApis(req, res, { connectorSyncApi: { status: () => f.control.status(), set: (enabled, scope) => f.control.set(enabled, scope) } })) res.writeHead(404).end();
   });
   base = await listen(server);
 });
@@ -69,7 +61,7 @@ const status = async (): Promise<ConnectorSyncStatus> => {
 
 function safe(value: unknown): void {
   const text = JSON.stringify(value);
-  for (const secret of [SECRET, URL_SECRET, REVISION, 'Private organization MCP', 'local-only-secret', LOCAL_KEY, f.key?.keyId, f.key?.signingKey, f.key?.sealingKey]) {
+  for (const secret of [SECRET, URL_SECRET, REVISION, 'Private organization MCP', LOCAL_KEY, f.key?.keyId, f.key?.signingKey, f.key?.sealingKey]) {
     if (secret !== undefined) expect(text).not.toContain(secret);
   }
 }
@@ -165,19 +157,13 @@ test('PUT accepts exactly boolean enabled and the current scope, not missing or 
   expect(f.calls).toEqual([]);
 });
 
-test('unenrolled and live-enabled requests refuse ON with 409 but still permit OFF', async () => {
-  const enrolled = f.key;
+test('unenrolled requests refuse ON with 409 but still permit OFF', async () => {
   f.key = null;
   const unenrolled = await status();
   expect((await put({ enabled: true, scope: unenrolled.scope })).status).toBe(409);
   expect((await put({ enabled: false, scope: unenrolled.scope })).status).toBe(200);
   expect(f.calls).toEqual([]);
-  f.key = enrolled;
-  process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
-  const live = await status();
-  expect((await put({ enabled: true, scope: live.scope })).status).toBe(409);
-  expect((await put({ enabled: false, scope: live.scope })).status).toBe(200);
-  expect(await status()).toMatchObject({ enabled: false, state: 'off', liveEnabled: true });
+  expect(await status()).toMatchObject({ enabled: false, state: 'off', liveEnabled: false });
 });
 
 test('a failed setting write returns a sanitized 503 without enabling or polling', async () => {

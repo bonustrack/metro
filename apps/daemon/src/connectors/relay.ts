@@ -1,28 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { whyUnreachable } from '@metro-labs/http/connector-reach';
-import { noteHealth } from './health.js';
-import type { RelayTarget } from './relay-target.js';
 import type { RelaySession } from './relay-session.js';
-import { isRelaySse, passiveRelayListener, type PassiveSseListener } from './relay-passive.js';
-import { isOrgRelayId } from './relay-id.js';
 import { exchangeOrg } from './org-relay.js';
-import { assertLocalMigrationUse, migrationSource, withLocalMigrationOperation } from './migration-guard.js';
-import { agentsDir } from '../agents/files.js';
-import { migrationRequestEffectful, type MigrationOperation } from './migration-operations.js';
 import { ApiError } from '@metro-labs/http/api-error';
-import { errMsg, log } from '@metro-labs/core/log';
-import { answerBlocked, mergeBlocked, screenCalls, type BlockedReason } from './relay-policy.js';
+import { log } from '@metro-labs/core/log';
+import { answerBlocked, mergeBlocked } from './relay-policy.js';
 
 export interface RelayApiDeps {
-  migrationDir?: string;
-  target: (connectorId: string, force: boolean) => Promise<RelayTarget>;
   identify: (req: IncomingMessage) => { subject: string; agentId: string } | null;
-  signedOut: (connectorId: string) => void;
-  blocked?: BlockedReason;
-  open?: (connectorId: string) => RelaySession | Promise<RelaySession> | null;
+  open: (connectorId: string) => RelaySession | Promise<RelaySession>;
 }
 
-const ID_PATH_RE = /^\/relay\/((?:org-)?[A-Za-z0-9][A-Za-z0-9_-]{10})$/;
+const ID_PATH_RE = /^\/relay\/(org-[A-Za-z0-9][A-Za-z0-9_-]{10})$/;
 const METHODS = new Set(['POST', 'GET', 'DELETE']);
 const RELAY_BODY_MAX = 8 * 1024 * 1024;
 const FIRST_BYTE_MS = 120_000;
@@ -43,8 +31,7 @@ const PASS_RES = [
 const keepaliveMs = (): number =>
   Number(process.env.METRO_RELAY_KEEPALIVE_MS) || 25_000;
 
-const reconnectUrl = (id: string): string =>
-  `https://metro.box/#/connector/${id}`;
+const isRelaySse = (contentType: string | undefined): boolean => /^text\/event-stream\s*(?:;|$)/i.test(contentType ?? '');
 
 function answer(
   res: ServerResponse,
@@ -55,13 +42,6 @@ function answer(
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify(body));
 }
-
-const signinAnswer = (res: ServerResponse, id: string): void => {
-  answer(res, 424, {
-    error: 'this connector needs signing in again',
-    reconnect: reconnectUrl(id),
-  });
-};
 
 function closeIfBodyUnread(req: IncomingMessage, res: ServerResponse): void {
   if (req.readableEnded) return;
@@ -108,10 +88,9 @@ async function forward(
   target: { url: string; headers: Record<string, string> },
   body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
-  sensitive = false,
 ): Promise<Response> {
   const firstByte = setTimeout(() => {
-    log.warn(sensitive ? {} : { url: target.url }, 'relay: upstream sent no response in time');
+    log.warn('relay: upstream sent no response in time');
   }, FIRST_BYTE_MS);
   firstByte.unref?.();
   try {
@@ -132,12 +111,12 @@ interface Keepalive {
   stop: () => void;
 }
 
-function startKeepalive(res: ServerResponse, listener?: PassiveSseListener): Keepalive {
+function startKeepalive(res: ServerResponse): Keepalive {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = (): void => {
     timer = setTimeout(() => {
       try {
-        if (listener?.keepaliveAllowed() !== false) res.write(': keepalive\n\n');
+        res.write(': keepalive\n\n');
       } catch {
         log.debug('relay: keepalive write failed');
       }
@@ -173,17 +152,13 @@ async function pumpBody(
   res: ServerResponse,
   body: ReadableStream<Uint8Array>,
   touch: () => void,
-  listener?: PassiveSseListener,
 ): Promise<void> {
   const reader = body.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) return;
-    listener?.observe(value);
     touch();
-    if (listener !== undefined) listener.forwarding = true;
     if (!res.write(value)) await drainedOrClosed(res);
-    if (listener !== undefined) listener.forwarding = false;
   }
 }
 
@@ -196,7 +171,7 @@ function passedHeaders(upstream: Response): Record<string, string> {
   return headers;
 }
 
-async function pipe(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[], listener?: PassiveSseListener): Promise<void> {
+async function pipe(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[]): Promise<void> {
   const headers = passedHeaders(upstream);
   if (answers.length > 0 && (upstream.status === 200 || upstream.status === 202)) {
     await mergeBlocked(res, upstream, headers, answers);
@@ -210,46 +185,38 @@ async function pipe(res: ServerResponse, upstream: Response, answers: Record<str
     res.end();
     return;
   }
-  const keepalive = sse ? startKeepalive(res, listener) : null;
+  const keepalive = sse ? startKeepalive(res) : null;
   try {
-    await pumpBody(res, upstream.body, () => keepalive?.touch(), listener);
+    await pumpBody(res, upstream.body, () => keepalive?.touch());
   } finally {
     keepalive?.stop();
   }
   res.end();
 }
 
-const authFailed = (status: number): boolean =>
-  status === 401 || status === 403;
+async function deliver(res: ServerResponse, upstream: Response, answers: Record<string, unknown>[]): Promise<void> {
+  if (upstream.status >= 300 && upstream.status < 400) {
+    await upstream.body?.cancel();
+    answer(res, 502, { error: 'the connector redirected; metro does not follow' });
+    return;
+  }
+  await pipe(res, upstream, answers);
+}
 
-type Exchanged =
-  | { kind: 'response'; upstream: Response }
-  | { kind: 'missing' }
-  | { kind: 'signin' };
-
-async function exchange(
+async function relayOnce(
   req: IncomingMessage,
+  res: ServerResponse,
   connectorId: string,
   deps: RelayApiDeps,
-  body: Uint8Array<ArrayBuffer> | null,
   signal: AbortSignal,
-  dispatch: MigrationOperation['dispatch'],
-): Promise<Exchanged> {
-  assertLocalMigrationUse(connectorId, deps.migrationDir);
-  const target = await deps.target(connectorId, false);
-  assertLocalMigrationUse(connectorId, deps.migrationDir);
-  if (target.kind !== 'ok') return { kind: target.kind };
-  let upstream = await dispatch(() => forward(req, target, body, signal), { effectful: migrationRequestEffectful(req.method, body) });
-  if (!authFailed(upstream.status)) return { kind: 'response', upstream };
-  await upstream.body?.cancel();
-  assertLocalMigrationUse(connectorId, deps.migrationDir);
-  const fresh = await deps.target(connectorId, true);
-  assertLocalMigrationUse(connectorId, deps.migrationDir);
-  if (fresh.kind !== 'ok') return { kind: 'signin' };
-  upstream = await dispatch(() => forward(req, fresh, body, signal), { effectful: migrationRequestEffectful(req.method, body) });
-  if (!authFailed(upstream.status)) return { kind: 'response', upstream };
-  await upstream.body?.cancel();
-  return { kind: 'signin' };
+): Promise<void> {
+  const read = req.method === 'POST' ? await readCapped(req) : null;
+  const session = await deps.open(connectorId);
+  try {
+    const out = await exchangeOrg(connectorId, session, read, signal, (target, body, guard) => forward(req, target, body, guard));
+    if (out.kind === 'blocked') answerBlocked(res, out.screened);
+    else await deliver(res, out.upstream, out.answers);
+  } finally { session.close(); }
 }
 
 async function relayExchange(
@@ -268,77 +235,12 @@ async function relayExchange(
     res.socket?.removeListener('close', bail);
   });
   try {
-    await relayOnce(req, res, connectorId, deps, control);
+    await relayOnce(req, res, connectorId, deps, control.signal);
   } catch (err) {
     if (!control.signal.aborted) throw err;
     log.debug({ connector: connectorId }, 'relay: the client left before the answer ended');
     if (!res.writableEnded) res.end();
   }
-}
-
-async function deliver(
-  res: ServerResponse,
-  connectorId: string,
-  deps: RelayApiDeps,
-  out: Exchanged,
-  answers: Record<string, unknown>[],
-  listener?: PassiveSseListener,
-): Promise<void> {
-  if (out.kind === 'missing') {
-    answer(res, 404, { error: 'no such connector' });
-    return;
-  }
-  if (out.kind === 'signin') {
-    noteHealth(connectorId, false, 'the sign-in has expired, connect it again');
-    deps.signedOut(connectorId);
-    signinAnswer(res, connectorId);
-    return;
-  }
-  if (out.upstream.status >= 300 && out.upstream.status < 400) {
-    await out.upstream.body?.cancel();
-    noteHealth(connectorId, false, 'the connector redirected; metro does not follow');
-    answer(res, 502, { error: 'the connector redirected; metro does not follow' });
-    return;
-  }
-  const { status } = out.upstream;
-  noteHealth(connectorId, status < 400, status < 400 ? null : `the connector answered ${String(status)}`);
-  await pipe(res, out.upstream, answers, listener);
-}
-
-async function relayOrg(req: IncomingMessage, res: ServerResponse, id: string, deps: RelayApiDeps, read: Uint8Array<ArrayBuffer> | null, signal: AbortSignal): Promise<void> {
-  const session = await deps.open?.(id);
-  if (session === undefined || session === null) throw new ApiError('Organization connector tools are not switched on yet.', 503);
-  try {
-    const out = await exchangeOrg(id, session, read, signal, (target, body, guard) => {
-      const send = () => forward(req, target, body, guard, true);
-      return session.dispatch?.(send, migrationRequestEffectful(req.method, body)) ?? send();
-    });
-    if (out.kind === 'blocked') answerBlocked(res, out.screened);
-    else await deliver(res, id, deps, out, out.answers);
-  } finally { session.close(); }
-}
-
-async function relayOnce(
-  req: IncomingMessage,
-  res: ServerResponse,
-  connectorId: string,
-  deps: RelayApiDeps,
-  control: AbortController,
-): Promise<void> {
-  const { signal } = control;
-  const read = req.method === 'POST' ? await readCapped(req) : null;
-  const dir = deps.migrationDir ?? agentsDir();
-  if (isOrgRelayId(connectorId) || migrationSource(connectorId, dir)?.phase === 'active') return relayOrg(req, res, connectorId, deps, read, signal);
-  await withLocalMigrationOperation(connectorId, dir, async (operation) => {
-    const screened = read === null || deps.blocked === undefined ? null : screenCalls(read, connectorId, deps.blocked);
-    if (screened?.forward === null) {
-      answerBlocked(res, screened);
-      return;
-    }
-    const out = await exchange(req, connectorId, deps, screened === null ? read : screened.forward, signal, operation.dispatch);
-    const listener = out.kind === 'response' ? passiveRelayListener(req, res, out.upstream, operation, () => { control.abort(); }) : undefined;
-    await deliver(res, connectorId, deps, out, screened?.answers ?? [], listener);
-  });
 }
 
 function dispatch(
@@ -354,19 +256,12 @@ function dispatch(
   }
   relayExchange(req, res, connectorId, deps)
     .catch((err: unknown) => {
-      if (err instanceof ApiError) {
-        answer(res, err.status, { error: err.message });
-        if (!res.writableEnded) res.end();
-      } else if (isOrgRelayId(connectorId)) {
+      if (err instanceof ApiError) answer(res, err.status, { error: err.message });
+      else {
         log.warn({ connector: connectorId }, 'organization relay: request failed');
         answer(res, 503, { error: 'The organization connector is unavailable. Try again.' });
-        if (!res.writableEnded) res.end();
-      } else {
-        log.warn({ err: errMsg(err), connector: connectorId }, 'relay: failed');
-        noteHealth(connectorId, false, `metro could not reach the connector: ${whyUnreachable(err)}`);
-        answer(res, 502, { error: `metro could not reach the connector: ${whyUnreachable(err)}` });
-        if (!res.writableEnded) res.end();
       }
+      if (!res.writableEnded) res.end();
       closeIfBodyUnread(req, res);
     });
 }

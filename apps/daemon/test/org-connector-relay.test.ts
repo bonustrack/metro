@@ -15,8 +15,6 @@ let calls: { body: unknown; headers: IncomingMessage['headers'] }[] = [];
 let refusals = 0;
 let sse = false;
 let targetCalls: boolean[] = [];
-let localCalls = 0;
-let signedOut = 0;
 let closed = 0;
 let beforeTarget: (force: boolean) => Promise<void> = () => Promise.resolve();
 let currentError: ApiError | null = null;
@@ -36,10 +34,8 @@ const target = () => {
 
 const deps: RelayApiDeps = {
   identify: (req) => req.headers.authorization === `Bearer ${KEY}` ? { subject: 'agent-key', agentId: 'agent000001' } : null,
-  target: () => { localCalls += 1; return Promise.resolve({ kind: 'missing' }); },
-  signedOut: () => { signedOut += 1; },
   open: () => {
-    if (!enabled) return null;
+    if (!enabled) throw new ApiError('Organization connectors are not available on this agent.', 503);
     return {
       target: async (force) => {
         targetCalls.push(force);
@@ -79,7 +75,7 @@ beforeAll(async () => {
 
 afterAll(() => { upstream.close(); relay.close(); registerConnectors([]); forgetAllPrompts(); });
 beforeEach(() => {
-  calls = []; refusals = 0; sse = false; targetCalls = []; localCalls = 0; signedOut = 0; closed = 0;
+  calls = []; refusals = 0; sse = false; targetCalls = []; closed = 0;
   beforeTarget = () => Promise.resolve(); currentError = null; targetError = null; enabled = true;
   forgetAllPrompts(); policy({});
 });
@@ -95,13 +91,13 @@ async function grant(): Promise<void> {
   await answerPrompt('orgqa', 'allow', 'chat');
 }
 
-test('org forwarding uses source-qualified routing, strips caller headers, and never invokes local target or sign-out', async () => {
+test('org forwarding injects the vendor credential, strips caller headers, and closes the session', async () => {
   const response = await post(call(1));
   expect(response.status).toBe(200);
   expect(calls[0]?.headers.authorization).toBe(`Bearer ${VENDOR}`);
   expect(calls[0]?.headers['x-private']).toBeUndefined();
   expect(targetCalls).toEqual([false]);
-  expect([localCalls, signedOut, closed]).toEqual([0, 0, 1]);
+  expect(closed).toBe(1);
 });
 
 test('a stricter policy installed during initial resolution is checked before vendor dispatch', async () => {
@@ -118,7 +114,6 @@ test('assignment loss and typed unavailability during resolution preserve their 
     expect((await post(call(status))).status).toBe(status);
   }
   expect(calls).toEqual([]);
-  expect(localCalls).toBe(0);
 });
 
 test('forced refresh rechecks policy, and does not retry a newly denied call', async () => {
@@ -127,17 +122,15 @@ test('forced refresh rechecks policy, and does not retry a newly denied call', a
   expect((await post(call(1))).text).toContain('Blocked by');
   expect(targetCalls).toEqual([false, true]);
   expect(calls).toHaveLength(1);
-  expect(signedOut).toBe(0);
 });
 
-test('forced refresh never turns missing or unavailable into sign-in or local sign-out', async () => {
+test('forced refresh never turns missing or unavailable into sign-in', async () => {
   for (const status of [404, 503]) {
     currentError = null; refusals = 1;
     beforeTarget = async (force) => { await Promise.resolve(); if (force) currentError = new ApiError('Not available.', status); };
     expect((await post(call(status))).status).toBe(status);
   }
   expect(calls).toHaveLength(2);
-  expect(signedOut).toBe(0);
 });
 
 test('one ask grant authorizes the one bounded credential retry, never the next request', async () => {
@@ -166,18 +159,16 @@ test('mixed SSE batches retain blocked answers without forwarding them on retry'
   expect(response.text).toContain('"isError":true');
 });
 
-test('upstream refusal is at most two attempts and 424 without local mutation', async () => {
+test('upstream refusal is at most two attempts and 424', async () => {
   refusals = 3;
   expect((await post(call(1))).status).toBe(424);
   expect(calls).toHaveLength(2);
   expect(targetCalls).toEqual([false, true]);
-  expect(signedOut).toBe(0);
 });
 
-test('disabled org routing cannot fall back to an identically named local connector', async () => {
+test('organization connectors switched off answer 503 and nothing reaches the vendor', async () => {
   enabled = false;
   expect((await post(call(1))).status).toBe(503);
-  expect(localCalls).toBe(0);
   expect(calls).toEqual([]);
 });
 

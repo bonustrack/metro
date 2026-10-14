@@ -2,14 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleSessionApiRequest } from './session.js';
 import { handleApprovalsRequest } from '../approvals/api.js';
 import { handleAgentApiRequest, type AgentApiDeps } from '../agents/api.js';
-import {
-  handleConnectorApiRequest,
-  type ConnectorApiDeps,
-} from '../connectors/api.js';
 import type { RelayApiDeps } from '../connectors/relay.js';
-import type { ConnectorTransfers } from '../connectors/transfer-api.js';
 import { handleConnectorSyncRequest, type ConnectorSyncApiDeps } from '../connectors/org-sync-api.js';
-import { handleMigrationRequest, type MigrationApiDeps } from '../connectors/migration-api.js';
 import { handleEnrollRequest, type EnrollApiDeps } from '../connectors/enroll-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
@@ -38,11 +32,8 @@ export interface SessionApis {
   gateway?: GatewayDeps;
   terminalApi?: TerminalApiDeps;
   claudeApi?: ClaudeApiDeps;
-  connectorApi?: ConnectorApiDeps;
-  connectorTransfers?: ConnectorTransfers;
   enrollApi?: EnrollApiDeps;
   connectorSyncApi?: ConnectorSyncApiDeps;
-  connectorMigrationApi?: MigrationApiDeps;
   relayApi?: RelayApiDeps;
   mode?: () => ModeInfo;
 }
@@ -59,11 +50,8 @@ export function handleSessionApis(
     () => handleSessionApiRequest(req, res),
     () => handleRunEventsRequest(req, res),
     () => handleApprovalsRequest(req, res),
-    ...when(apis.connectorTransfers, (d) => d.handle(req, res)),
     ...when(apis.enrollApi, (d) => handleEnrollRequest(req, res, d)),
     ...when(apis.connectorSyncApi, (d) => handleConnectorSyncRequest(req, res, d)),
-    ...when(apis.connectorMigrationApi, (d) => handleMigrationRequest(req, res, d)),
-    ...when(apis.connectorApi, (d) => handleConnectorApiRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),

@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
 import { loopbackBase } from '../files/attach-serve.js';
-import { isOrgRelayId } from './relay-id.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
 const FILE = '.mcp.json';
@@ -33,29 +32,6 @@ export function serverKey(name: string): string {
   return slug === '' ? 'connector' : slug;
 }
 
-function legacyOwners(rows: PluginRow[], published: PluginRow[]): Map<string, string> {
-  const visible = new Set(published.map((row) => row.id));
-  const taken = new Map<string, number>();
-  const owners = new Map<string, string>();
-  const reserved = new Set<string>();
-  for (const row of rows.filter((entry) => !isOrgRelayId(entry.id))) {
-    const slug = serverKey(row.name);
-    const seen = taken.get(slug) ?? 0;
-    taken.set(slug, seen + 1);
-    const key = seen === 0 ? slug : `${slug}-${row.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4)}`;
-    reserved.add(key);
-    if (visible.has(row.id)) owners.set(key, row.id);
-  }
-  for (const row of rows.filter((entry) => isOrgRelayId(entry.id) && visible.has(entry.id)).sort((a, b) => a.id.localeCompare(b.id))) {
-    const key = availableKey(orgKey(row), reserved);
-    reserved.add(key);
-    owners.set(key, row.id);
-  }
-  return new Map([...owners].map(([key, id]) => [id, key]));
-}
-
-const orgKey = (row: PluginRow): string => `org-${serverKey(row.name).slice(0, 35)}-${Buffer.from(row.id.slice(4)).toString('hex')}`;
-
 function availableKey(wanted: string, reserved: ReadonlySet<string>): string {
   let key = wanted;
   let suffix = 1;
@@ -63,18 +39,12 @@ function availableKey(wanted: string, reserved: ReadonlySet<string>): string {
   return key;
 }
 
-export function serverKeysOf(rows: PluginRow[], saved?: ReadonlyMap<string, string>, published: PluginRow[] = rows): Map<string, string> {
-  const keys = new Map(saved ?? legacyOwners(rows, published));
+export function serverKeysOf(rows: PluginRow[], saved?: ReadonlyMap<string, string>): Map<string, string> {
+  const keys = new Map(saved);
   const reserved = new Set(keys.values());
-  const local = rows.filter((row) => !isOrgRelayId(row.id));
-  const organization = rows.filter((row) => isOrgRelayId(row.id)).sort((a, b) => a.id.localeCompare(b.id));
-  for (const row of [...local, ...organization]) {
+  for (const row of [...rows].sort((a, b) => a.id.localeCompare(b.id))) {
     if (keys.has(row.id)) continue;
-    const slug = serverKey(row.name);
-    const wanted = isOrgRelayId(row.id)
-      ? orgKey(row)
-      : reserved.has(slug) ? `${slug}-${row.id.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4)}` : slug;
-    const key = availableKey(wanted, reserved);
+    const key = availableKey(serverKey(row.name), reserved);
     reserved.add(key);
     keys.set(row.id, key);
   }

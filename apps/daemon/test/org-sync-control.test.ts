@@ -13,23 +13,21 @@ const disable = (): void => { f.control.set(false, f.control.status().scope); };
 
 function noSecrets(value: unknown): void {
   const text = JSON.stringify(value);
-  for (const secret of [SECRET, URL_SECRET, REVISION, 'Private organization MCP', 'local-only-secret', f.key?.keyId, f.key?.signingKey, f.key?.sealingKey, f.key?.signing.export({ type: 'pkcs8', format: 'der' }).toString('base64')]) {
+  for (const secret of [SECRET, URL_SECRET, REVISION, 'Private organization MCP', f.key?.keyId, f.key?.signingKey, f.key?.sealingKey, f.key?.signing.export({ type: 'pkcs8', format: 'der' }).toString('base64')]) {
     if (secret !== undefined) expect(text).not.toContain(secret);
   }
 }
 
-test('default OFF and only exact SYNC=true enables the environment fallback; LIVE and central flags do not', async () => {
+test('default OFF and only exact SYNC=true enables the environment fallback; the central flag does not', async () => {
   expect(f.control.status()).toMatchObject({ enabled: false, source: 'default', state: 'off', enrolled: true, owner: OWNER, agentId: AGENT, liveEnabled: false, counts: null, lastReceivedAt: null, leaseExpiresAt: null });
   for (const value of ['', 'false', 'TRUE', '1', ' true ']) {
     process.env.METRO_CONNECTORS_SYNC_ENABLED = value;
     process.env.METRO_CONNECTORS_ENABLED = 'true';
-    process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
     f.restart().start();
     await f.control.poll();
-    expect(f.control.status()).toMatchObject({ enabled: false, source: 'default', state: 'off', liveEnabled: true });
+    expect(f.control.status()).toMatchObject({ enabled: false, source: 'default', state: 'off', liveEnabled: false });
   }
   expect(f.calls).toEqual([]);
-  delete process.env.METRO_CONNECTORS_LIVE_ENABLED;
   process.env.METRO_CONNECTORS_SYNC_ENABLED = 'true';
   f.restart().start();
   await f.control.poll();
@@ -105,19 +103,25 @@ test('an unenrolled or mismatched agent never fetches and cannot be enabled', as
   expect(f.calls).toEqual([]);
 });
 
-test('LIVE blocks enabling through the control but never blocks saving OFF', async () => {
-  process.env.METRO_CONNECTORS_LIVE_ENABLED = 'true';
-  expect(enable).toThrow('Live');
-  expect(existsSync(f.setting)).toBe(false);
-  expect(f.calls).toEqual([]);
-  disable();
-  expect(f.control.status()).toMatchObject({ enabled: false, source: 'saved', liveEnabled: true, state: 'off' });
-  process.env.METRO_CONNECTORS_LIVE_ENABLED = 'TRUE';
+test('sync off publishes an empty list, sync on holds it until the first delivery, then publishes organization ids', async () => {
+  const held = f.hold();
+  f.control.status();
+  expect(f.publications).toEqual([[]]);
   enable();
-  await f.control.poll();
-  expect(f.control.status()).toMatchObject({ enabled: true, liveEnabled: false, state: 'received' });
-  await expect(f.control.open('conn0000001')).rejects.toThrow('not available');
-  expect(process.env.METRO_CONNECTORS_LIVE_ENABLED).toBe('TRUE');
+  const pending = f.control.poll();
+  await within(held.reached);
+  expect(f.publications).toEqual([[]]);
+  held.release();
+  await pending;
+  expect(f.publications.at(-1)?.map((row) => [row.id, row.name])).toEqual([['org-conn0000001', 'Private organization MCP'], ['org-conn0000002', 'Signed out MCP']]);
+  const session = await f.control.open('org-conn0000001');
+  expect(session.signal.aborted).toBe(false);
+  session.close();
+  await expect(f.control.open('org-conn0000002')).rejects.toThrow('sign-in');
+  await expect(f.control.open('conn0000001')).rejects.toThrow('No such organization connector');
+  disable();
+  expect(f.publications.at(-1)).toEqual([]);
+  await expect(f.control.open('org-conn0000001')).rejects.toThrow('not available');
 });
 
 test('signed and sealed receipt is real, counts only validated delivery, and empty delivery is distinct from waiting', async () => {
@@ -179,7 +183,7 @@ test('a corrupt sealed response and an upstream refusal clear counts and never l
   }
 });
 
-test('memory-only control never modifies local connectors, policy, enrollment keys or plugin publication', async () => {
+test('the control writes only its own setting and publishes metadata without credentials', async () => {
   const before = f.files();
   enable();
   await f.control.poll();
@@ -188,7 +192,8 @@ test('memory-only control never modifies local connectors, policy, enrollment ke
   const after = f.files();
   delete after['org-connector-sync.json'];
   expect(after).toEqual(before);
-  await expect(f.control.open('conn0000001')).rejects.toThrow('not available');
+  const published = JSON.stringify(f.publications);
+  for (const secret of [SECRET, URL_SECRET, REVISION, 'https:', 'headers']) expect(published).not.toContain(secret);
   disable();
   const disabled = f.files();
   delete disabled['org-connector-sync.json'];

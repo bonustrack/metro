@@ -1,22 +1,19 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { ConnectorSyncStatus } from '@metro-labs/core/connector-sync';
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { agentsDir } from '../agents/files.js';
 import { METRO_API, type MetroApi } from './metro-api.js';
 import { OrgConnectorSync, type OrgSyncDeps } from './org-sync.js';
-import { OrgConnectorRuntime } from './org-runtime.js';
+import { OrgConnectorRuntime, type RuntimeDeps } from './org-runtime.js';
 import { connectorSyncScope, disableSavedSync, saveSyncSetting, syncOptedIn, syncSetting } from './org-sync-setting.js';
 import type { RelaySession } from './relay-session.js';
-import type { DeliverySnapshot } from '@metro-labs/http/connector-delivery';
-import { localMigrationIdle, migrationRuntimeMapping } from './migration-guard.js';
-import { publishConnectors } from './publication.js';
+import { publishOrgConnectors } from './publication.js';
 import { orgRuntimeError, orgUnavailable } from './org-runtime-discovery.js';
 
-type ControlDeps = Pick<OrgSyncDeps, 'owner' | 'key' | 'monotonic'> & { api?: MetroApi; dir?: string };
+type ControlDeps = Pick<OrgSyncDeps, 'owner' | 'key' | 'monotonic'> & RuntimeDeps & { api?: MetroApi; dir?: string };
 type Context = Pick<ConnectorSyncStatus, 'owner' | 'agentId' | 'scope' | 'enrolled'>;
 const POLL_MS = 60_000;
-const liveEnabled = (): boolean => process.env.METRO_CONNECTORS_LIVE_ENABLED === 'true';
 const emptyReceipt = { lastReceivedAt: null, leaseExpiresAt: null, counts: null };
 
 export class OrgConnectorControl {
@@ -24,7 +21,7 @@ export class OrgConnectorControl {
   private readonly api: MetroApi;
   private sync: OrgConnectorSync | null = null;
   private runtime: OrgConnectorRuntime | null = null;
-  private readonly draining = new Set<OrgConnectorRuntime>();
+  private unpublished = false;
   private scope: string | null = null;
   private operation = randomBytes(16).toString('hex');
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -49,17 +46,20 @@ export class OrgConnectorControl {
     this.sync?.invalidate();
     this.sync = null;
     this.runtime = null;
-    this.retire(runtime);
-  }
-
-  private retire(runtime: OrgConnectorRuntime | null): void {
-    for (const previous of this.draining) if (previous.idle()) this.draining.delete(previous);
-    if (runtime === null) return;
-    if (!runtime.idle()) this.draining.add(runtime);
     try {
-      runtime.stop();
+      runtime?.stop();
     } catch {
       log.warn('organization connectors: stopped runtime publication could not be cleared');
+    }
+  }
+
+  private unpublish(): void {
+    if (this.runtime !== null || this.unpublished) return;
+    try {
+      (this.deps.publish ?? publishOrgConnectors)([]);
+      this.unpublished = true;
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'organization connectors: the connector list could not be cleared');
     }
   }
 
@@ -73,8 +73,10 @@ export class OrgConnectorControl {
     this.scope = context.scope;
     const setting = syncSetting(this.dir, context.scope);
     if (setting.source === 'scope_changed') disableSavedSync(this.dir);
-    if (!setting.enabled || !context.enrolled) this.clear();
-    else if (start && this.sync === null) {
+    if (!setting.enabled || !context.enrolled) {
+      this.clear();
+      this.unpublish();
+    } else if (start && this.sync === null) {
       const scope = context.scope;
       this.sync = new OrgConnectorSync({ ...this.deps, api: this.api, enabled: () => this.context().scope === scope && syncSetting(this.dir, scope).enabled });
     }
@@ -84,8 +86,8 @@ export class OrgConnectorControl {
 
   private startRuntime(): void {
     if (this.sync === null || this.runtime !== null) return;
-    const mapping = () => migrationRuntimeMapping(this.deps.owner(), this.deps.key(), this.dir);
-    if (liveEnabled() || mapping().aliases.length > 0) this.runtime = new OrgConnectorRuntime(this.sync, { enabled: liveEnabled, mapping, migrationDir: this.dir });
+    this.unpublished = false;
+    this.runtime = new OrgConnectorRuntime(this.sync, this.deps);
   }
 
   status(): ConnectorSyncStatus {
@@ -94,7 +96,7 @@ export class OrgConnectorControl {
       const receipt = this.sync?.status() ?? { state: 'waiting' as const, ...emptyReceipt };
       const state = !setting.enabled ? 'off' : !context.enrolled ? 'not_enrolled' : receipt.state;
       const scope = createHash('sha256').update(`${context.scope}:${this.operation}`).digest('hex');
-      return { ...context, ...setting, ...receipt, scope, state, liveEnabled: liveEnabled() };
+      return { ...context, ...setting, ...receipt, scope, state, liveEnabled: false };
     } catch {
       this.clear();
       throw new ApiError('Metro could not read the connector sync status.', 503);
@@ -105,7 +107,6 @@ export class OrgConnectorControl {
     const current = this.status();
     if (scope !== current.scope) throw new ApiError('The organization or enrollment changed. Refresh the sync status before trying again.', 409);
     if (enabled && !current.enrolled) throw new ApiError('Enroll this agent with its organization before enabling sync.', 409);
-    if (enabled && liveEnabled()) throw new ApiError('Live organization tools are enabled separately on this server. Disable that setting before enabling memory-only sync here.', 409);
     saveSyncSetting(this.dir, enabled, this.context().scope);
     if (!enabled) this.clear();
     else this.tick();
@@ -113,7 +114,10 @@ export class OrgConnectorControl {
   }
 
   async poll(): Promise<void> {
-    if (this.sync === null && !syncOptedIn(this.dir)) return;
+    if (this.sync === null && !syncOptedIn(this.dir)) {
+      this.unpublish();
+      return;
+    }
     try {
       this.reconcile(true);
     } catch (err) {
@@ -121,28 +125,6 @@ export class OrgConnectorControl {
       throw err;
     }
     await this.sync?.sync();
-  }
-
-  async fresh(): Promise<DeliverySnapshot> {
-    this.reconcile(true);
-    const sync = this.sync;
-    if (sync === null) throw new ApiError('Enable organization connector sync before moving this connector.', 409);
-    await sync.syncFresh();
-    this.reconcile(false);
-    const snapshot = this.sync === sync ? sync.read() : null;
-    if (snapshot === null) throw new ApiError('A fresh organization connector snapshot is unavailable.', 503);
-    return snapshot;
-  }
-
-  refreshRuntime(): void {
-    this.reconcile(true);
-    this.runtime?.refresh();
-    publishConnectors();
-  }
-
-  migrationIdle(id: string): boolean {
-    for (const runtime of this.draining) if (runtime.idle()) this.draining.delete(runtime);
-    return localMigrationIdle(id, this.dir) && (this.runtime?.idle(id) ?? true) && [...this.draining].every((runtime) => runtime.idle(id));
   }
 
   private tick(): void {

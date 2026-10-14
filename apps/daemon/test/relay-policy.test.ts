@@ -3,9 +3,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleRelayRequest, type RelayApiDeps } from '../src/connectors/relay.ts';
-import { blockedReason, registerConnectors } from '../src/connectors/gates.ts';
+import { registerConnectors, requestConnectorBlocker } from '../src/connectors/gates.ts';
 
-const CONN = 'conn0000001';
+const CONN = 'org-conn0000001';
 const KEY = 'key-agent000001';
 
 let seen: unknown[] = [];
@@ -15,11 +15,17 @@ let relay: Server;
 let upBase = '';
 let base = '';
 
+const target = () => ({ kind: 'ok' as const, url: `${upBase}/mcp`, headers: {} });
+
 const deps: RelayApiDeps = {
-  signedOut: () => undefined,
-  target: () => Promise.resolve({ kind: 'ok', url: `${upBase}/mcp`, headers: {} }),
+  open: () => ({
+    target: () => Promise.resolve(target()),
+    current: target,
+    blocker: requestConnectorBlocker(),
+    signal: new AbortController().signal,
+    close: () => undefined,
+  }),
   identify: (req) => (req.headers.authorization === `Bearer ${KEY}` ? { subject: 'agent-key', agentId: 'agent000001' } : null),
-  blocked: blockedReason,
 };
 
 async function bodyOf(req: IncomingMessage): Promise<string> {
