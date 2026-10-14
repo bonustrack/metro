@@ -9,8 +9,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { openConnectorSecret, sealConnectorSecret } from '../src/connectors/model.js';
 import { orgConnectorStore } from '../src/db/connectors.js';
 import * as schema from '../src/db/schema.js';
-import { assignConnector, enrollDeliveryAgent, MASTER, newDeliveryAgent, seedConnector } from './connector-delivery-fixture.js';
-import { answer, input, payload, prepared, startMigrationApi } from './connector-migration-fixture.js';
+import { assignConnector, enrollDeliveryAgent, MASTER, newDeliveryAgent, seedConnector, seedLegacyMigration } from './connector-delivery-fixture.js';
 import { TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS } from './pglite-db.js';
 
@@ -36,11 +35,9 @@ test('0009 drops name uniqueness without rewriting legacy IDs, secrets, assignme
     await enrollDeliveryAgent(db, agent);
     const legacy = await seedConnector(db, { kind: 'header', targetUrl: 'https://vendor.example/mcp', name: 'Authorization', value: 'Bearer legacy-key-fixture' }, { policy: '{"write":"deny"}' });
     await assignConnector(db, agent);
-    const api = await startMigrationApi(db);
-    try {
-      await prepared(api, agent, payload({ name: 'Migrated Calendar' }));
-      await answer(await api.call(agent, input('activate')));
-    } finally { await api.close(); }
+    await seedConnector(db, { kind: 'header', targetUrl: 'https://vendor.example/keyed', name: 'Authorization', value: 'Bearer migrated-key-fixture' }, { id: 'conn0000003', name: 'Migrated Calendar' });
+    await assignConnector(db, agent, 'conn0000003');
+    await seedLegacyMigration(db, agent, 'conn0000003');
     const store = orgConnectorStore(() => db);
     const duplicate = { ...legacy, id: 'conn0000002' };
     duplicate.secret = sealConnectorSecret(MASTER, duplicate, { kind: 'header', targetUrl: 'https://vendor.example/mcp', name: 'Authorization', value: 'Bearer duplicate-key-fixture' });

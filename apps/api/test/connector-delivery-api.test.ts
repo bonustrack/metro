@@ -4,7 +4,6 @@ import { CONNECTOR_DELIVERY_LEASE_MS } from '@metro-labs/http/connector-delivery
 import { AgentAuth } from '../src/agents/auth.js';
 import { credentialRevision } from '../src/connectors/delivery-model.js';
 import { openConnectorSecret } from '../src/connectors/model.js';
-import { readConnectorsSetup } from '../src/connectors/setup.js';
 import { agents, agentNonces, connectorAgents, connectors } from '../src/db/schema.js';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';
@@ -53,16 +52,16 @@ describe('signed connector delivery boundary', () => {
     expect((await openResponse(await api.call(stranger, { requestId: strangerId }), stranger, strangerId)).connectors).toEqual([]);
   }));
 
-  test('both independent switches are required, off requests spend nothing', () => done(async () => {
-    for (const [enabled, deliveryEnabled] of [[false, false], [false, true], [true, false]]) {
-      api.deps.enabled = () => enabled ?? false;
-      api.deps.deliveryEnabled = () => deliveryEnabled ?? false;
-      expect((await api.call(agent)).status).toBe(503);
-    }
-    expect(await held.db.select().from(agentNonces)).toEqual([]);
-    expect(readConnectorsSetup({ METRO_CONNECTORS_DELIVERY_ENABLED: 'true' }).deliveryEnabled).toBe(false);
-    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true' }).deliveryEnabled).toBe(false);
-    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true', METRO_CONNECTORS_DELIVERY_ENABLED: 'true' }).deliveryEnabled).toBe(true);
+  test('without METRO_CONNECTORS_KEY delivery answers 503 and neither refreshes nor seals', () => done(async () => {
+    await seedConnector(held.db, oauthSecret());
+    await assignConnector(held.db, agent);
+    let calls = 0;
+    api.deps.fetch = () => { calls += 1; return Promise.resolve(Response.json({ access_token: 'bad' })); };
+    api.deps.key = () => null;
+    const res = await api.call(agent);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'Metro cannot open connector secrets yet.' });
+    expect(calls).toBe(0);
   }));
 
   test('browser, bearer, unsigned, stale and forged requests cannot deliver or refresh', () => done(async () => {

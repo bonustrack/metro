@@ -31,7 +31,6 @@ let held: TestDb;
 let server: Server;
 let base = '';
 let host = '';
-let enabled = true;
 let now = Date.now();
 let deps: EnrollmentDeps;
 
@@ -70,7 +69,6 @@ const errorOf = async (res: Response): Promise<string> => ((await res.json()) as
 beforeAll(async () => {
   held = await testDb();
   deps = {
-    enabled: () => enabled,
     keys: await testKeys(),
     tickets: new EnrollTickets(),
     store: agentKeyStore(() => held.db),
@@ -88,7 +86,6 @@ beforeAll(async () => {
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
-  enabled = true;
   now = Date.now();
   deps.tickets = new EnrollTickets();
   deps.auth = new AgentAuth(host, () => now);
@@ -131,14 +128,6 @@ describe('enrollment tickets', () => {
     expect((await mint(THEIRS, await auth(TEST_STRANGER))).status).toBe(200);
   }, PGLITE_STEP_MS);
 
-  test('everything answers 503 while organization connectors are off', async () => {
-    enabled = false;
-    const agent = newAgent();
-    expect((await mint(OURS)).status).toBe(503);
-    expect((await enroll(agent, enrollBody(agent, 'x'.repeat(43)))).status).toBe(503);
-    expect((await session(agent)).status).toBe(503);
-    expect(await held.db.select().from(agentKeys)).toEqual([]);
-  });
 });
 
 describe('an agent enrolling', () => {

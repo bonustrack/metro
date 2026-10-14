@@ -33,23 +33,19 @@ describe('connector secrets', () => {
   });
 });
 
-describe('the switch and the key', () => {
-  test('off unless METRO_CONNECTORS_ENABLED is true, and then the key is not read', () => {
-    expect(readConnectorsSetup({})).toMatchObject({ enabled: false, key: null });
-    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: '1', METRO_CONNECTORS_KEY: KEY })).toMatchObject({ enabled: false, key: null });
-  });
-
-  test('METRO_CONNECTORS_KEY is 32 bytes in base64, as openssl rand -base64 32 prints them', () => {
-    const setup = readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true', METRO_CONNECTORS_KEY: `${KEY}\n` });
-    expect(setup.enabled).toBe(true);
+describe('the key', () => {
+  test('METRO_CONNECTORS_KEY is 32 bytes in base64, as openssl rand -base64 32 prints them, and no other variable is read', () => {
+    const setup = readConnectorsSetup({ METRO_CONNECTORS_KEY: `${KEY}\n` });
     expect(setup.key?.equals(Buffer.from(KEY, 'base64'))).toBe(true);
+    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'false', METRO_CONNECTORS_DELIVERY_ENABLED: 'false', METRO_CONNECTORS_KEY: KEY }).key?.equals(Buffer.from(KEY, 'base64'))).toBe(true);
   });
 
   test('no key or a malformed one means no connector secret, with a reason', () => {
-    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true' })).toMatchObject({ enabled: true, key: null });
+    expect(readConnectorsSetup({})).toMatchObject({ key: null, note: expect.stringContaining('METRO_CONNECTORS_KEY is unset') as unknown });
+    expect(readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true', METRO_CONNECTORS_DELIVERY_ENABLED: 'true' }).key).toBeNull();
     for (const bad of [randomBytes(16).toString('base64'), randomBytes(32).toString('hex'), KEY.slice(0, -2), `${KEY}AAAA`]) {
-      const setup = readConnectorsSetup({ METRO_CONNECTORS_ENABLED: 'true', METRO_CONNECTORS_KEY: bad });
-      expect(setup).toMatchObject({ enabled: true, key: null });
+      const setup = readConnectorsSetup({ METRO_CONNECTORS_KEY: bad });
+      expect(setup.key).toBeNull();
       expect(setup.note).toContain('openssl rand -base64 32');
     }
   });

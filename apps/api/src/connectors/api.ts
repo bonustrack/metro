@@ -13,7 +13,6 @@ const PREFIX = '/api/connectors';
 const BODY_MAX = 1024 * 1024;
 
 export interface ConnectorsApiDeps extends ActionDeps {
-  enabled: () => boolean;
   keys: SigningKeys;
 }
 
@@ -63,8 +62,6 @@ function targetOf(path: string): Target | 'unknown' | null {
   return id === null ? 'unknown' : byId(id, rest);
 }
 
-const notEnabled = (): ApiError => new ApiError('Organization connectors are not switched on yet.', 503);
-
 function admin(caller: Caller): void {
   if (caller.session.role !== 'admin') throw new ApiError('managing connectors needs the admin role in your organization', 403);
 }
@@ -113,7 +110,6 @@ async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exc
 
 function callback(req: IncomingMessage, res: ServerResponse, deps: ConnectorsApiDeps): void {
   try {
-    if (!deps.enabled()) throw notEnabled();
     const location = callbackLocation(deps, new URLSearchParams((req.url ?? '').split('?')[1] ?? ''));
     res.writeHead(302, { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).end();
   } catch (err) {
@@ -141,7 +137,7 @@ export function handleConnectorsApiRequest(req: IncomingMessage, res: ServerResp
     callback(req, res, deps);
     return true;
   }
-  (deps.enabled() ? answer(req, deps, target) : Promise.reject(notEnabled()))
+  answer(req, deps, target)
     .then((body) => {
       sendJson(req, res, target.kind === 'collection' && req.method === 'POST' ? 201 : 200, body);
     })

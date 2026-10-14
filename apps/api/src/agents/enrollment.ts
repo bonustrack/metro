@@ -18,7 +18,6 @@ const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
 
 export interface EnrollmentDeps {
-  enabled: () => boolean;
   keys: SigningKeys;
   tickets: EnrollTickets;
   store: AgentKeyStore;
@@ -107,7 +106,6 @@ async function session(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkn
 }
 
 function answer(req: IncomingMessage, deps: EnrollmentDeps, path: string, minted: string | null): Promise<unknown> {
-  if (!deps.enabled()) return Promise.reject(new ApiError('Organization connectors are not switched on yet.', 503));
   if (minted !== null) return mint(req, deps, minted);
   return path === ENROLL ? enroll(req, deps) : session(req, deps);
 }
