@@ -309,41 +309,14 @@ Always commit `bun.lock`: CI and Docker install with `--frozen-lockfile`.
   @stage-labs/metro" workflow in the GitHub Actions tab. It always publishes under the
   `beta` tag. Boxes pick it up with `metro update` or the Update button on the page.
 
-### Removing connector Activity storage in two releases
+### Dropping a table or a column
 
-The first release removes connector Activity readers, writers and UI, but retains
-`connector_events` and its existing rows. The drop is prepared only in
-`apps/api/drizzle/pending/0010_drop_connector_events.sql`, outside the migration
-journal. Fly's release command does not run pending SQL.
-
-1. Deploy the code removal with the active journal unchanged. Verify every API
-   machine is running that release, all old API workers and in-flight requests have
-   stopped, and connector enrollment, refresh, delivery and migration still work.
-   Do not drop the table during this release: Fly applies migrations before old
-   API machines stop. An old Activity insert can otherwise fail after a vendor has
-   rotated its refresh token, rolling back the only saved copy of the new token.
-2. Only after that verification and separate deployment approval, move the SQL
-   into `apps/api/drizzle/` and append one entry to `meta/_journal.json`. Use the
-   next contiguous `idx` and filename prefix (currently 10 and `0010`), journal
-   version `7`, `breakpoints: true`, and a `when` strictly greater than every
-   existing entry. If another migration lands first, renumber the pending file
-   rather than reusing its index. Update the test fixtures and staged-migration
-   regression for the now-active path, run the gates, and deploy separately.
-
-The second release permanently deletes only the connector Activity history. The
-SQL has no `CASCADE`; `connector_events` has no foreign keys. Keep `connectors`,
-`connector_agents`, `agent_keys`, `connector_migrations`, `agent_nonces` and
-`agent_nonce_guard`, including their data. Local migration journals, maps and
-receipts, encrypted refresh intents, the namespace ledger, sync receipt, and
-unrelated local, account or runner history are not Activity storage and are not
-removed. There is no local connector Activity table.
-
-After the drop, do not roll back to API code that reads or writes Activity. The
-first code-removal release remains compatible. Restoring old Activity data would
-require a database backup; this change does not create one. Historical migrations
-stay unchanged. Disposable test fixtures apply the pending SQL explicitly so the
-safety suites also exercise the future table-free schema; that does not activate
-it for deployment.
+Drop in two deploys: the first removes every reader and writer and keeps the data; the
+second, once every api.metro.box machine runs the first, adds a journaled migration that
+drops it. Fly applies migrations before old machines stop, so a single deploy can fail a
+write that an old machine still makes. After the drop, never roll back to code that used
+it. Connector Activity (`connector_events`), `connector_migrations` and
+`connector_agents.migration_operation` went this way in `0010` (2026-10-14).
 
 ## License
 

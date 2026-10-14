@@ -71,6 +71,13 @@
       "when": 1791828840000,
       "tag": "0009_connector_instances",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791967332716,
+      "tag": "0010_drop_connector_legacy",
+      "breakpoints": true
     }
   ]
 }
