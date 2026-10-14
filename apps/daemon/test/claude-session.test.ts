@@ -54,7 +54,7 @@ const deps = (over: Partial<SessionDeps> = {}): SessionDeps => ({
 });
 
 function activity(pid: number): void {
-  const stat = process.platform === 'linux' ? readFileSync(`/proc/${String(pid)}/stat`, 'utf8') : '';
+  const stat = process.platform === 'linux' && existsSync(`/proc/${String(pid)}/stat`) ? readFileSync(`/proc/${String(pid)}/stat`, 'utf8') : '';
   const procStart = stat === '' ? undefined : stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
   mkdirSync(join(dir, 'home', '.metro'), { recursive: true });
   writeFileSync(join(dir, 'home', '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, procStart, updatedAt: Date.now(), phase: 'working' }));
