@@ -20,7 +20,7 @@ export interface EnrolledAgent {
 export function newEnrolledAgent(agent = 'agent000001', owner = TEST_OWNER): EnrolledAgent {
   const signingKey = rawPublicKey(generateKeyPairSync('ed25519').publicKey);
   return {
-    row: { agent, owner, keyId: agentKeyId(signingKey), signingKey, sealingKey: rawPublicKey(generateKeyPairSync('x25519').publicKey), enrolledBy: 'user_01TEST', enrolledAt: new Date().toISOString() },
+    row: { agent, owner, keyId: agentKeyId(signingKey), signingKey, enrolledBy: 'user_01TEST', enrolledAt: new Date().toISOString() },
   };
 }
 
@@ -29,8 +29,11 @@ export async function enrollAgent(db: Database, agent: EnrolledAgent): Promise<v
   await agentKeyStore(() => db).enroll(agent.row);
 }
 
+const legacySealingKey = (): string => rawPublicKey(generateKeyPairSync('x25519').publicKey);
+
 export async function enrollLegacyAgent(db: Database, agent: EnrolledAgent): Promise<void> {
-  const { agent: id, owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } = agent.row;
+  const { agent: id, owner, keyId, signingKey, enrolledBy, enrolledAt } = agent.row;
+  const sealingKey = legacySealingKey();
   await addAgent(db, id, owner);
   await db.execute(sql`INSERT INTO agent_keys (agent, owner, key_id, signing_key, sealing_key, enrolled_by, enrolled_at) VALUES (${id}, ${owner}, ${keyId}, ${signingKey}, ${sealingKey}, ${enrolledBy}, ${enrolledAt})`);
 }
@@ -59,7 +62,8 @@ export async function assignConnector(db: Database, agent: EnrolledAgent, connec
 
 export async function seedLegacyMigration(db: Database, agent: EnrolledAgent, destination: string, operation = 'oper0000001'): Promise<void> {
   const at = new Date().toISOString();
-  const { owner, agent: id, keyId, signingKey, sealingKey, enrolledAt } = agent.row;
+  const { owner, agent: id, keyId, signingKey, enrolledAt } = agent.row;
+  const sealingKey = legacySealingKey();
   await db.execute(sql`INSERT INTO connector_migrations (id, owner, agent, source_id, operation_id, destination_id, key_id, signing_key, sealing_key, enrolled_at, phase, receiving_key, receiving_secret, snapshot, config_stamp, retired_operations, created_at, updated_at) VALUES ('migr0000001', ${owner}, ${id}, 'local000001', ${operation}, ${destination}, ${keyId}, ${signingKey}, ${sealingKey}, ${enrolledAt}, 'active', 'receiving-public-key', 'receiving-sealed-secret', null, null, '[]', ${at}, ${at})`);
   await db.execute(sql`UPDATE connector_agents SET migration_operation = ${operation} WHERE connector = ${destination} AND agent = ${id}`);
 }

@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { approvalId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { McpDecision } from '@metro-labs/http/mcp-server-protocol';
@@ -10,6 +10,7 @@ export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
 export const GRANT_WINDOW_MS = 10 * 60_000;
 export const REDELIVER_MS = 60_000;
 export const PENDING_MAX = 50;
+export const APPROVAL_KEEP_MS = 7 * 24 * 60 * 60_000;
 
 const ID_TRIES = 8;
 
@@ -94,6 +95,17 @@ async function answer(db: Database, identity: AgentKeyRow, id: string, decision:
     .where(and(eq(mcpApprovals.id, id), mine(identity), eq(mcpApprovals.state, 'pending')))
     .returning({ id: mcpApprovals.id });
   return rows.length > 0;
+}
+
+const SETTLED = ['allow', 'deny', 'used', 'expired'];
+
+export async function pruneApprovals(db: Database, now: number): Promise<number> {
+  const lastChange = sql<number>`coalesce(${mcpApprovals.answeredAt}, ${mcpApprovals.requestedAt})`;
+  const removed = await db
+    .delete(mcpApprovals)
+    .where(and(inArray(mcpApprovals.state, SETTLED), lt(lastChange, now - APPROVAL_KEEP_MS)))
+    .returning({ id: mcpApprovals.id });
+  return removed.length;
 }
 
 export function approvalStore(db: () => Database): ApprovalStore {

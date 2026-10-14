@@ -85,6 +85,13 @@
       "when": 1791972000000,
       "tag": "0011_mcp_server",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792022400000,
+      "tag": "0012_agent_keys_sealing_nullable",
+      "breakpoints": true
     }
   ]
 }

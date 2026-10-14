@@ -6,6 +6,7 @@ import { handleRequest, mcpDeps } from './app.js';
 import { readMcpConfig, type McpConfig } from './config.js';
 import { connectDb } from './db.js';
 import { MCP_BODY_MAX } from './mcp-http.js';
+import { startApprovalPruning } from './prune.js';
 import { VENDOR_CALL_MS } from './vendor.js';
 
 function configOrExit(): McpConfig {
@@ -39,3 +40,5 @@ const server = createServer((req, res) => {
 server.listen(config.port, config.host, () => {
   log.info({ host: config.host, port: config.port, publicHost: config.publicHost, version: METRO_VERSION }, 'mcp ready');
 });
+
+startApprovalPruning(() => db);

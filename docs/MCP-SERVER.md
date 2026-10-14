@@ -90,7 +90,9 @@ The daemon applies no station policy to the two tools.
   agent in its channel (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent
   then calls `tool_call` again with the same tool and arguments and `approval: "abcde"`.
   An approval works once, for exactly that tool and those arguments, within 10 minutes of
-  the answer. Unanswered requests expire after 24 hours (denied).
+  the answer. Unanswered requests expire after 24 hours (denied). Answered, used and
+  expired requests are deleted 7 days after their last change (the answer, else the
+  request); a pending one is never deleted before it expired.
 - The agent can never approve its own call: answers come only from the daemon's signed
   requests (the enrollment signing key lives in Metro's folder, which the agent user cannot
   read) after an allowlisted approver answered in chat, or from the page.
@@ -144,6 +146,10 @@ url (https, or http on this machine only); an empty value turns the client off.
   flight, the same rules and uncertainty records as api.metro.box), and calls the vendor
   through the same safe egress (HTTPS only, no redirects, no private addresses, pinned DNS).
 - Keeps each connector's tool list in memory for 5 minutes.
+- Deletes the approval requests that are settled (`allow`, `deny`, `used`, `expired`) and
+  older than 7 days, counted from the answer (else the request), at start and every hour on
+  each machine, with one log line giving the count (`prune.ts`). Two machines running it at
+  once is fine.
 - Logs one line per call (agent, connector, tool, outcome, duration), never arguments or
   results.
 - Code shared with api.metro.box lives in `packages/connectors`.

@@ -28,7 +28,6 @@ const identityColumns = {
   owner: agentKeys.owner,
   keyId: agentKeys.keyId,
   signingKey: agentKeys.signingKey,
-  sealingKey: agentKeys.sealingKey,
   enrolledBy: agentKeys.enrolledBy,
   enrolledAt: agentKeys.enrolledAt,
 };

@@ -23,7 +23,6 @@ const MINUTE = 60_000;
 interface Agent {
   signing: KeyObject;
   signingKey: string;
-  sealingKey: string;
   keyId: string;
 }
 
@@ -37,7 +36,7 @@ let deps: EnrollmentDeps;
 function newAgent(): Agent {
   const signing = generateKeyPairSync('ed25519');
   const signingKey = rawPublicKey(signing.publicKey);
-  return { signing: signing.privateKey, signingKey, sealingKey: rawPublicKey(generateKeyPairSync('x25519').publicKey), keyId: agentKeyId(signingKey) };
+  return { signing: signing.privateKey, signingKey, keyId: agentKeyId(signingKey) };
 }
 
 const signedHeaders = (agent: Agent, method: string, path: string, text: string, at = now): Record<string, string> => ({
@@ -60,7 +59,11 @@ function enroll(agent: Agent, body: Record<string, unknown>, headers: Record<str
   return fetch(`${base}/api/agents/enroll`, { method: 'POST', headers: { ...signedHeaders(agent, 'POST', '/api/agents/enroll', text), ...headers }, body: text });
 }
 
-const enrollBody = (agent: Agent, ticket: string, organization = TEST_OWNER): Record<string, unknown> => ({ ticket, organization, signingKey: agent.signingKey, sealingKey: agent.sealingKey });
+const enrollBody = (agent: Agent, ticket: string, organization = TEST_OWNER): Record<string, unknown> => ({ ticket, organization, signingKey: agent.signingKey });
+
+const oldSealingKey = (): string => rawPublicKey(generateKeyPairSync('x25519').publicKey);
+
+const storedSealingKeys = async (): Promise<unknown[]> => (await held.client.query<{ sealing_key: string | null }>('SELECT sealing_key FROM agent_keys ORDER BY agent')).rows.map((row) => row.sealing_key);
 
 const session = (agent: Agent, at = now): Promise<Response> => fetch(`${base}/api/agents/session`, { headers: signedHeaders(agent, 'GET', '/api/agents/session', '', at) });
 
@@ -136,10 +139,25 @@ describe('an agent enrolling', () => {
     const res = await enroll(agent, enrollBody(agent, await ticketFor()));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
-    expect(await held.db.select().from(agentKeys)).toEqual([{ agent: OURS, owner: TEST_OWNER, keyId: agent.keyId, signingKey: agent.signingKey, sealingKey: agent.sealingKey, enrolledBy: 'user_01ABC', enrolledAt: new Date(now).toISOString(), mcpTokenHash: null }]);
+    expect(await held.db.select().from(agentKeys)).toEqual([{ agent: OURS, owner: TEST_OWNER, keyId: agent.keyId, signingKey: agent.signingKey, enrolledBy: 'user_01ABC', enrolledAt: new Date(now).toISOString(), mcpTokenHash: null }]);
+    expect(await storedSealingKeys()).toEqual([null]);
     const who = await session(agent);
     expect(who.status).toBe(200);
     expect(await who.json()).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
+  });
+
+  test('an older daemon that still sends a sealing key enrolls, and the key is ignored', async () => {
+    const agent = newAgent();
+    const res = await enroll(agent, { ...enrollBody(agent, await ticketFor()), sealingKey: oldSealingKey() });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
+    expect(await storedSealingKeys()).toEqual([null]);
+    for (const sealingKey of ['A'.repeat(43), '', 42, null]) {
+      const next = newAgent();
+      expect((await enroll(next, { ...enrollBody(next, await ticketFor(SECOND)), sealingKey })).status).toBe(200);
+      expect((await session(next)).status).toBe(200);
+    }
+    expect(await storedSealingKeys()).toEqual([null, null]);
   });
 
   test('a ticket works once', async () => {
@@ -166,7 +184,6 @@ describe('an agent enrolling', () => {
     const agent = newAgent();
     const ticket = await ticketFor();
     expect((await enroll(agent, { ...enrollBody(agent, ticket), extra: true })).status).toBe(400);
-    expect((await enroll(agent, { ...enrollBody(agent, ticket), sealingKey: 'A'.repeat(43) })).status).toBe(400);
     expect((await enroll(agent, { ...enrollBody(agent, ticket), signingKey: 'short' })).status).toBe(400);
     expect((await enroll(agent, { ...enrollBody(agent, ticket), signingKey: newAgent().signingKey })).status).toBe(401);
     expect((await enroll(agent, enrollBody(agent, ticket))).status).toBe(200);
@@ -247,7 +264,7 @@ describe('signed agent requests', () => {
   test('a small-order signing key is refused, with the signature it can forge', async () => {
     const weak = Buffer.from('0100000000000000000000000000000000000000000000000000000000000000', 'hex').toString('base64url');
     const ticket = await ticketFor();
-    const text = JSON.stringify({ ticket, organization: TEST_OWNER, signingKey: weak, sealingKey: newAgent().sealingKey });
+    const text = JSON.stringify({ ticket, organization: TEST_OWNER, signingKey: weak });
     const forged = `MetroAgent ${agentKeyId(weak)}.${String(now)}.${'A'.repeat(22)}.${Buffer.concat([Buffer.from(weak, 'base64url'), Buffer.alloc(32)]).toString('base64url')}`;
     const res = await fetch(`${base}/api/agents/enroll`, { method: 'POST', headers: { authorization: forged, 'content-type': 'application/json' }, body: text });
     expect(res.status).toBe(400);
@@ -290,7 +307,7 @@ describe('the daemon agent client against this api', () => {
   test('a key from newAgentKey enrolls through agentCall and then opens a session', async () => {
     const key = newAgentKey();
     const api = { base, fetch: (url: string, init: RequestInit) => fetch(url, init), now: () => now };
-    const enrolled = await agentCall(api, key, '/api/agents/enroll', { ticket: await ticketFor(), organization: TEST_OWNER, signingKey: key.signingKey, sealingKey: key.sealingKey });
+    const enrolled = await agentCall(api, key, '/api/agents/enroll', { ticket: await ticketFor(), organization: TEST_OWNER, signingKey: key.signingKey });
     expect(enrolled).toEqual({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
     expect(await agentCall(api, key, '/api/agents/session')).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: key.keyId });
     await expect(agentCall(api, newAgentKey(), '/api/agents/session')).rejects.toThrow('not enrolled');

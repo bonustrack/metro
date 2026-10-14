@@ -21,19 +21,17 @@ export interface Enrollment {
 export interface AgentKey {
   keyId: string;
   signingKey: string;
-  sealingKey: string;
   signing: KeyObject;
-  sealing: KeyObject;
   enrollment: Enrollment | null;
 }
 
 const pathOf = (dir: string): string => join(dir, FILE);
 
-function privateKeyOf(raw: unknown, type: 'ed25519' | 'x25519'): KeyObject | null {
+function privateSigningKey(raw: unknown): KeyObject | null {
   if (typeof raw !== 'string' || raw === '') return null;
   try {
     const key = createPrivateKey({ key: Buffer.from(raw, 'base64'), format: 'der', type: 'pkcs8' });
-    return key.asymmetricKeyType === type ? key : null;
+    return key.asymmetricKeyType === 'ed25519' ? key : null;
   } catch {
     return null;
   }
@@ -45,9 +43,9 @@ function enrollmentOf(raw: unknown): Enrollment | null {
   return server !== null && isOrganizationId(raw.organization) ? { server, organization: raw.organization, at: raw.at } : null;
 }
 
-function agentKeyOf(signing: KeyObject, sealing: KeyObject, enrollment: Enrollment | null): AgentKey {
+function agentKeyOf(signing: KeyObject, enrollment: Enrollment | null): AgentKey {
   const signingKey = rawPublicKey(createPublicKey(signing));
-  return { keyId: agentKeyId(signingKey), signingKey, sealingKey: rawPublicKey(createPublicKey(sealing)), signing, sealing, enrollment };
+  return { keyId: agentKeyId(signingKey), signingKey, signing, enrollment };
 }
 
 const unreadable = (): null => {
@@ -67,10 +65,9 @@ function storedOf(path: string): Record<string, unknown> | null {
 
 function keyOf(stored: Record<string, unknown> | null): AgentKey | null {
   if (stored === null) return null;
-  const signing = privateKeyOf(stored.signing, 'ed25519');
-  const sealing = privateKeyOf(stored.sealing, 'x25519');
-  if (stored.version !== 1 || signing === null || sealing === null) return unreadable();
-  return agentKeyOf(signing, sealing, enrollmentOf(stored.enrollment));
+  const signing = privateSigningKey(stored.signing);
+  if (stored.version !== 1 || signing === null) return unreadable();
+  return agentKeyOf(signing, enrollmentOf(stored.enrollment));
 }
 
 export function readAgentKey(dir = agentsDir()): AgentKey | null {
@@ -132,12 +129,12 @@ export function clearPendingAgentKey(dir: string): void {
 }
 
 export function newAgentKey(): AgentKey {
-  return agentKeyOf(generateKeyPairSync('ed25519').privateKey, generateKeyPairSync('x25519').privateKey, null);
+  return agentKeyOf(generateKeyPairSync('ed25519').privateKey, null);
 }
 
 const exported = (key: KeyObject): string => key.export({ format: 'der', type: 'pkcs8' }).toString('base64');
 
-const privateKeys = (key: AgentKey): Record<string, unknown> => ({ version: 1, signing: exported(key.signing), sealing: exported(key.sealing) });
+const privateKeys = (key: AgentKey): Record<string, unknown> => ({ version: 1, signing: exported(key.signing) });
 
 export function savePendingAgentKey(key: AgentKey, owner: string, ticketHash: string, dir: string, expectedServer?: string): void {
   writeKey(pendingPath(dir), { ...privateKeys(key), owner, ticketHash, ...(expectedServer === undefined ? {} : { expectedServer }) });

@@ -6,7 +6,6 @@ import {
   agentSignatureValid,
   rawPublicKey,
   readAgentProof,
-  sealingKeyOf,
   signAgentRequest,
   signingKeyOf,
   withinSkew,
@@ -90,13 +89,10 @@ describe('agent request signatures', () => {
     ]) expect(readAgentProof(header)).toBeNull();
   });
 
-  test('raw public keys are checked per curve', () => {
-    const sealing = rawPublicKey(generateKeyPairSync('x25519').publicKey);
+  test('raw signing keys are checked', () => {
     expect(signingKeyOf(signingKey)).not.toBeNull();
-    expect(sealingKeyOf(sealing)).not.toBeNull();
     expect(signingKeyOf('short')).toBeNull();
     expect(signingKeyOf(`${signingKey.slice(0, 42)}=`)).toBeNull();
-    expect(sealingKeyOf('A'.repeat(43))).toBeNull();
     expect(agentSignatureValid(request(), { keyId, time: NOW, nonce: 'A'.repeat(22), signature: 'A'.repeat(86) }, 'not-a-key')).toBe(false);
   });
 

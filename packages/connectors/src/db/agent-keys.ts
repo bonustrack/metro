@@ -9,7 +9,6 @@ export interface AgentKeyRow {
   owner: string;
   keyId: string;
   signingKey: string;
-  sealingKey: string;
   enrolledBy: string;
   enrolledAt: string;
 }
@@ -25,7 +24,6 @@ const columns = {
   owner: agentKeys.owner,
   keyId: agentKeys.keyId,
   signingKey: agentKeys.signingKey,
-  sealingKey: agentKeys.sealingKey,
   enrolledBy: agentKeys.enrolledBy,
   enrolledAt: agentKeys.enrolledAt,
 };
@@ -39,8 +37,8 @@ async function enrollIn(tx: Database, row: AgentKeyRow): Promise<void> {
   if (listed.length === 0) throw new ApiError('This agent is no longer in this organization. Enroll it again from its page.', 404);
   const elsewhere = await tx.select({ agent: agentKeys.agent }).from(agentKeys).where(and(eq(agentKeys.keyId, row.keyId), ne(agentKeys.agent, row.agent)));
   if (elsewhere.length > 0) throw keyInUse();
-  const { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } = row;
-  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt, mcpTokenHash: null } });
+  const { owner, keyId, signingKey, enrolledBy, enrolledAt } = row;
+  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: { owner, keyId, signingKey, enrolledBy, enrolledAt, mcpTokenHash: null } });
 }
 
 export async function leaveOrganization(tx: Database, agent: string): Promise<void> {

@@ -66,7 +66,7 @@ async function exchange(ticket: string, owner: string, dir: string, deps: Enroll
   if (finished !== null) return finished;
   const key = pending?.ticketHash === ticketHash ? pending : newAgentKey();
   if (key !== pending) savePendingAgentKey(key, owner, ticketHash, dir);
-  const enrolled = enrolledOf(await agentCall(api, key, '/api/agents/enroll', { ticket, organization: owner, signingKey: key.signingKey, sealingKey: key.sealingKey }), key, owner);
+  const enrolled = enrolledOf(await agentCall(api, key, '/api/agents/enroll', { ticket, organization: owner, signingKey: key.signingKey }), key, owner);
   sameOwner(deps, owner);
   savePendingAgentKey(key, owner, ticketHash, dir, enrolled.server);
   const confirmed = enrolledOf(await agentCall(api, key, '/api/agents/session'), key, owner);

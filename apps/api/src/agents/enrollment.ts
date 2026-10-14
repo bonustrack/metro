@@ -4,7 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
-import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/agent-signature';
+import { signingKeyOf } from '@metro-labs/http/agent-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
@@ -29,7 +29,6 @@ interface EnrollInput {
   ticket: string;
   organization: string;
   signingKey: string;
-  sealingKey: string;
 }
 
 const staleTicket = (): ApiError => new ApiError('This enrollment ticket is stale or belongs to another organization. Start again from the agent page.', 400);
@@ -68,7 +67,6 @@ function enrollInput(bytes: Buffer): EnrollInput {
     ticket: textOf(body.ticket, (text) => TICKET_RE.test(text), staleTicket),
     organization: textOf(body.organization, isOrganizationId, () => new ApiError('Invalid enrollment request.', 400)),
     signingKey: textOf(body.signingKey, (text) => signingKeyOf(text) !== null, () => new ApiError('Invalid agent signing key.', 400)),
-    sealingKey: textOf(body.sealingKey, (text) => sealingKeyOf(text) !== null, () => new ApiError('Invalid agent sealing key.', 400)),
   };
 }
 
@@ -87,7 +85,6 @@ async function enroll(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkno
     owner: ticket.owner,
     keyId: proof.keyId,
     signingKey: input.signingKey,
-    sealingKey: input.sealingKey,
     enrolledBy: ticket.userId,
     enrolledAt: new Date(now).toISOString(),
   });

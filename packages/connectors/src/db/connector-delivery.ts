@@ -21,7 +21,7 @@ function assignedQuery(db: Database, identity: AgentKeyRow, id?: string) {
     .innerJoin(connectors, and(eq(connectors.id, connectorAgents.connector), eq(connectors.owner, identity.owner)))
     .innerJoin(agents, and(eq(agents.id, connectorAgents.agent), eq(agents.owner, identity.owner)))
     .innerJoin(agentKeys, and(eq(agentKeys.agent, agents.id), eq(agentKeys.owner, agents.owner)))
-    .where(and(eq(agents.id, identity.agent), eq(agentKeys.keyId, identity.keyId), eq(agentKeys.signingKey, identity.signingKey), eq(agentKeys.sealingKey, identity.sealingKey), eq(agentKeys.enrolledAt, identity.enrolledAt), id === undefined ? undefined : eq(connectors.id, id)))
+    .where(and(eq(agents.id, identity.agent), eq(agentKeys.keyId, identity.keyId), eq(agentKeys.signingKey, identity.signingKey), eq(agentKeys.enrolledAt, identity.enrolledAt), id === undefined ? undefined : eq(connectors.id, id)))
     .orderBy(connectors.id);
 }
 

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { randomBytes, randomInt } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomInt, type KeyObject } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { log } from '@metro-labs/core/log';
 import { readBodyBytes, setBearerSessions } from '@metro-labs/http/api-http';
-import { agentKeyId, agentSignatureValid, readAgentProof } from '@metro-labs/http/agent-signature';
+import { agentKeyId, agentSignatureValid, rawPublicKey, readAgentProof } from '@metro-labs/http/agent-signature';
 import { SigningKeys } from '@metro-labs/http/workos-token';
 import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
@@ -146,21 +146,19 @@ describe('the agent key', () => {
     expect(statSync(join(dir, 'agent-key.json')).mode & 0o777).toBe(0o600);
     const back = readAgentKey(dir);
     expect(back?.keyId).toBe(made.keyId);
-    expect(back?.sealingKey).toBe(made.sealingKey);
     expect(back?.enrollment).toEqual(ENROLLED);
+    expect(Object.keys(JSON.parse(readFileSync(join(dir, 'agent-key.json'), 'utf8')) as Record<string, unknown>).sort()).toEqual(['enrollment', 'signing', 'version']);
     expect(newAgentKey().keyId).not.toBe(made.keyId);
   });
 
-  test('a legacy key keeps both private keys and enrollment, and a new file takes precedence', () => {
+  test('a legacy key keeps its private key and enrollment, and a new file takes precedence', () => {
     const old = newAgentKey();
     saveAgentKey(old, ENROLLED, dir);
     renameSync(join(dir, 'agent-key.json'), join(dir, 'box-key.json'));
     const bytes = readFileSync(join(dir, 'box-key.json'), 'utf8');
     const kept = readAgentKey(dir);
     expect(kept?.keyId).toBe(old.keyId);
-    expect(kept?.sealingKey).toBe(old.sealingKey);
     expect(kept?.signing.export({ type: 'pkcs8', format: 'der' })).toEqual(old.signing.export({ type: 'pkcs8', format: 'der' }));
-    expect(kept?.sealing.export({ type: 'pkcs8', format: 'der' })).toEqual(old.sealing.export({ type: 'pkcs8', format: 'der' }));
     expect(kept?.enrollment).toEqual(ENROLLED);
     expect(readFileSync(join(dir, 'box-key.json'), 'utf8')).toBe(bytes);
     const next = newAgentKey();
@@ -183,6 +181,27 @@ describe('the agent key', () => {
     warnings.mockRestore();
   });
 
+  test('a file an older daemon wrote with a sealing key still loads, and the next save drops that key', () => {
+    const signing = generateKeyPairSync('ed25519');
+    const der = (key: KeyObject): string => key.export({ format: 'der', type: 'pkcs8' }).toString('base64');
+    const keyId = agentKeyId(rawPublicKey(signing.publicKey));
+    for (const sealing of [der(generateKeyPairSync('x25519').privateKey), 'bm90IGEga2V5', 42]) {
+      writeFileSync(join(dir, 'agent-key.json'), JSON.stringify({ version: 1, signing: der(signing.privateKey), sealing, enrollment: ENROLLED }));
+      const read = readAgentKey(dir);
+      expect(read?.keyId).toBe(keyId);
+      expect(read?.enrollment).toEqual(ENROLLED);
+      writeFileSync(join(dir, 'agent-key.pending.json'), JSON.stringify({ version: 1, signing: der(signing.privateKey), sealing, owner: OWNER, ticketHash: 'h'.repeat(43) }));
+      expect(readPendingAgentKey(OWNER, dir)?.keyId).toBe(keyId);
+    }
+    const kept = readAgentKey(dir);
+    if (kept === null) throw new Error('the old key did not load');
+    saveAgentKey(kept, ENROLLED, dir);
+    const saved = JSON.parse(readFileSync(join(dir, 'agent-key.json'), 'utf8')) as Record<string, unknown>;
+    expect(saved.sealing).toBeUndefined();
+    expect(saved.signing).toBe(der(signing.privateKey));
+    expect(readAgentKey(dir)?.keyId).toBe(keyId);
+  });
+
   test('never reaches the agent view', () => {
     saveAgentKey(newAgentKey(), ENROLLED, dir);
     const files = viewFiles(dir);
@@ -198,7 +217,7 @@ describe('POST /api/enrollment', () => {
     const key = readAgentKey(dir);
     expect(await res.json()).toEqual({ server: SERVER, organization: OWNER, keyId: key?.keyId });
     expect(seen.map((s) => s.path)).toEqual(['/api/agents/enroll', '/api/agents/session']);
-    expect(seen[0]?.body).toEqual({ ticket: TICKET, organization: OWNER, signingKey: key?.signingKey, sealingKey: key?.sealingKey });
+    expect(seen[0]?.body).toEqual({ ticket: TICKET, organization: OWNER, signingKey: key?.signingKey });
     expect(storedEnrollment()).toMatchObject({ server: SERVER, organization: OWNER });
     expect(readAgentKey(dir)?.enrollment?.server).toBe(SERVER);
   });
