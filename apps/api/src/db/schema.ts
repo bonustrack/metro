@@ -1,22 +1,6 @@
-import { bigint, index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-export const agents = pgTable(
-  'agents',
-  {
-    id: text('id').primaryKey(),
-    owner: text('owner').notNull(),
-    host: text('host').notNull(),
-    name: text('name'),
-    addedAt: text('added_at').notNull(),
-    instanceId: text('instance_id'),
-    launchRegion: text('launch_region'),
-    launchedAt: text('launched_at'),
-    avatar: text('avatar'),
-    slug: text('slug'),
-    awsConnection: text('aws_connection'),
-  },
-  (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), uniqueIndex('agents_owner_slug_idx').on(t.owner, t.slug), index('agents_owner_idx').on(t.owner)],
-);
+export * from '@metro-labs/connectors/db/schema';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -58,61 +42,3 @@ export const awsExternalIds = pgTable('aws_external_ids', {
   externalId: text('external_id').notNull(),
   createdAt: text('created_at').notNull(),
 });
-
-export const connectors = pgTable(
-  'connectors',
-  {
-    id: text('id').primaryKey(),
-    owner: text('owner').notNull(),
-    name: text('name').notNull(),
-    url: text('url').notNull(),
-    auth: text('auth').notNull(),
-    policy: text('policy'),
-    secret: text('secret'),
-    createdBy: text('created_by').notNull(),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-    detail: text('detail'),
-    authGeneration: text('auth_generation'),
-  },
-  (t) => [index('connectors_owner_idx').on(t.owner)],
-);
-
-export const connectorAgents = pgTable(
-  'connector_agents',
-  {
-    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
-    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
-    policy: text('policy'),
-    createdBy: text('created_by').notNull(),
-    createdAt: text('created_at').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.connector, t.agent] }), index('connector_agents_agent_idx').on(t.agent)],
-);
-
-export const agentKeys = pgTable(
-  'agent_keys',
-  {
-    agent: text('agent').primaryKey().references(() => agents.id, { onDelete: 'cascade' }),
-    owner: text('owner').notNull(),
-    keyId: text('key_id').notNull(),
-    signingKey: text('signing_key').notNull(),
-    sealingKey: text('sealing_key').notNull(),
-    enrolledBy: text('enrolled_by').notNull(),
-    enrolledAt: text('enrolled_at').notNull(),
-  },
-  (t) => [uniqueIndex('agent_keys_key_id_idx').on(t.keyId)],
-);
-
-export const agentNonces = pgTable(
-  'agent_nonces',
-  {
-    keyId: text('key_id').notNull(),
-    nonce: text('nonce').notNull(),
-    owner: text('owner').notNull(),
-    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.keyId, t.nonce] }), index('agent_nonces_owner_idx').on(t.owner), index('agent_nonces_expiry_idx').on(t.expiresAt)],
-);
-
-export const agentNonceGuard = pgTable('agent_nonce_guard', { id: text('id').primaryKey() });

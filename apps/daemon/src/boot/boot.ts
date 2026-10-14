@@ -25,6 +25,8 @@ import { connectorsReady, publishConnectors } from '../connectors/publication.js
 import { adoptOrgServerKeys } from '../connectors/org-adopt.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
+import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { holdServerApproval } from '../mcp/server-approvals.js';
 import { ensureMetroPlugin } from '../claude/plugin-install.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { provisionAgentUser } from '../agent-user/provision.js';
@@ -161,6 +163,12 @@ installBearerSessions(agentsDir(), localOwner);
   startUploadReaper();
   startAttachReaper();
   watchOrgConnectorSync({ owner: localOwner, key: readAgentKey });
+  watchMcpServer({
+    owner: localOwner,
+    hold: (approval, answer) => {
+      holdServerApproval(approval, answer, emit);
+    },
+  });
   startCloudWatchPublisher();
   watchFallbackUsage();
   announceLocalEndpoint();
@@ -213,6 +221,9 @@ async function shutdown(): Promise<void> {
   shuttingDown = true;
   log.info('dispatcher shutting down');
   stopOrgConnectorSync(true);
+  stopMcpServer().catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the approval relay');
+  });
   const leaving = leaveCallsForShutdown();
   unwatchSession();
   tunnel?.stop();

@@ -33,6 +33,20 @@ export default defineConfig({
         project: ['src/**/*.ts'],
       },
     },
+    'apps/mcp': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
+      },
+    },
+    'packages/connectors': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
+      },
+    },
     'packages/cli': {
       type: 'library',
       knip: {

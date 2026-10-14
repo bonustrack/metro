@@ -1,22 +1,8 @@
-import { createHmac } from 'node:crypto';
-import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyOf, type ConnectorPolicy, type ConnectorPolicyLayers, type DeliveredConnector } from '@metro-labs/http/connector-delivery';
-import type { AssignedConnector } from '../db/connector-delivery.js';
-import type { ConnectorRow } from '../db/connectors.js';
-import { openConnectorSecret, type ConnectorSecret } from './model.js';
-
-export const credentialRevision = (key: Buffer, row: ConnectorRow): string => createHmac('sha256', key).update(JSON.stringify(['metro-connector-credential/v1', row.owner, row.id, row.auth, row.authGeneration, row.secret])).digest('base64url');
-
-export function deliveryPolicy(row: AssignedConnector): { policy: ConnectorPolicy; policyLayers: ConnectorPolicyLayers; valid: boolean; blocked: boolean } {
-  try {
-    const global: unknown = row.connector.policy === null ? {} : JSON.parse(row.connector.policy);
-    const assignment: unknown = row.assignmentPolicy === null ? {} : JSON.parse(row.assignmentPolicy);
-    const policyLayers = { organization: connectorPolicyOf(global), agent: connectorPolicyOf(assignment) };
-    return { policy: combineConnectorPolicies(policyLayers.organization, policyLayers.agent), policyLayers, valid: true, blocked: connectorPoliciesBlocked(policyLayers) };
-  } catch {
-    const policy = { read: 'deny', write: 'deny' } as const;
-    return { policy, policyLayers: { organization: policy, agent: policy }, valid: false, blocked: true };
-  }
-}
+import { connectorPoliciesBlocked, type DeliveredConnector } from '@metro-labs/http/connector-delivery';
+import type { AssignedConnector } from '@metro-labs/connectors/db/connector-delivery';
+import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
+import { openConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
+import { credentialRevision, deliveryPolicy } from '@metro-labs/connectors/revision';
 
 function deliveredOAuth(base: DeliveredConnector, secret: Extract<ConnectorSecret, { kind: 'oauth' }>, now: number): DeliveredConnector {
   if (secret.imported !== undefined && secret.imported.state !== 'owned') return { ...base, state: secret.imported.state === 'signin' ? 'signin' : 'unavailable' };

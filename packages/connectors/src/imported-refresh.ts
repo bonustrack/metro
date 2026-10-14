@@ -1,8 +1,8 @@
 import { newId } from '@metro-labs/core/ids';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oauth';
-import type { ConnectorEdit, ConnectorRow } from '../db/connectors.js';
-import { credentialRevision } from './delivery-model.js';
+import type { ConnectorEdit, ConnectorRow } from './db/connectors.js';
+import { credentialRevision } from './revision.js';
 import { openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from './model.js';
 
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { agents, agentKeys, connectorAgents, connectors } from '../src/db/schema.ts';
-import { openSecret, sealSecret } from '../src/connectors/secrets.ts';
+import { openSecret, sealSecret } from '@metro-labs/connectors/secrets';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 
 const OWNER = 'org_01TESTOWNER000000';
@@ -44,7 +44,7 @@ describe('the organization connector tables', () => {
     const columns: Record<string, string[]> = {};
     for (const row of result.rows) (columns[row.table_name] ??= []).push(row.column_name);
     expect(columns).toEqual({
-      agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at'],
+      agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'sealing_key', 'enrolled_by', 'enrolled_at', 'mcp_token_hash'],
       connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at'],
       connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
     });

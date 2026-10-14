@@ -5,7 +5,7 @@ import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { OwnerTickets } from '../src/agents/tickets.ts';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from '../src/connectors/api.ts';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.ts';
-import { orgConnectorStore } from '../src/db/connectors.ts';
+import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { users } from '../src/db/schema.ts';
 import { testKeys } from './identity-helper.ts';
 import type { TestDb } from './pglite-db.ts';

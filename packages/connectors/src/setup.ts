@@ -1,4 +1,5 @@
 import { log } from '@metro-labs/core/log';
+import { ApiError } from '@metro-labs/http/api-error';
 import { connectorsKeyOf } from './secrets.js';
 
 export interface ConnectorsSetup {
@@ -18,4 +19,10 @@ export function announceConnectorsSetup(setup: ConnectorsSetup): void {
   const fields = { sealing: setup.key !== null };
   if (setup.key === null) log.warn(fields, `connectors: ${setup.note}`);
   else log.info(fields, `connectors: ${setup.note}`);
+}
+
+export function sealingKey(deps: { key: () => Buffer | null }): Buffer {
+  const key = deps.key();
+  if (key === null) throw new ApiError('Metro cannot keep connector secrets yet: METRO_CONNECTORS_KEY is not set.', 503);
+  return key;
 }

@@ -8,8 +8,10 @@ import { boundOAuthResource, optionalOAuthResource, parsePublicConnectorUrl } fr
 import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
 import { ConnectorUnauthorized, parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { Session } from '@metro-labs/http/workos-token';
-import type { ConnectorRow, OrgConnectorStore } from '../db/connectors.js';
-import { connectorView, detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail, type ConnectorView } from './model.js';
+import type { ConnectorRow, OrgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail } from '@metro-labs/connectors/model';
+import { sealingKey } from '@metro-labs/connectors/setup';
+import { connectorView, type ConnectorView } from './model.js';
 import { beginSignIn, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
 
 const CONNECTORS_MAX = 100;
@@ -31,12 +33,6 @@ export interface Created {
 }
 
 const at = (deps: ActionDeps): string => new Date(deps.now()).toISOString();
-
-export function sealingKey(deps: ActionDeps): Buffer {
-  const key = deps.key();
-  if (key === null) throw new ApiError('Metro cannot keep connector secrets yet: METRO_CONNECTORS_KEY is not set.', 503);
-  return key;
-}
 
 function connectorUrl(deps: ActionDeps, raw: unknown): URL {
   const url = deps.httpsOnly ? parsePublicConnectorUrl(raw) : parseConnectorUrl(raw);

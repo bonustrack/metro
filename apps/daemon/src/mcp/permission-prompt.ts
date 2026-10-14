@@ -75,15 +75,16 @@ function metroLines(tool: string, input: Record<string, unknown>): string[] {
 
 const ARGS_MAX = 8;
 
-function connectorLines(name: string, tool: string, input: Record<string, unknown> | undefined): string[] {
-  const lines = [`Approval needed: ${tool}`, `Connector: ${name}`];
+function argLines(input: Record<string, unknown> | undefined): string[] {
   const args = Object.entries(input ?? {}).flatMap(([key, value]) => {
     const text = argText(value);
     return text === undefined ? [] : [`${key}: ${shorten(text)}`];
   });
-  lines.push(...args.slice(0, ARGS_MAX));
-  if (args.length > ARGS_MAX) lines.push(`(${String(args.length - ARGS_MAX)} more)`);
-  return lines;
+  return args.length > ARGS_MAX ? [...args.slice(0, ARGS_MAX), `(${String(args.length - ARGS_MAX)} more)`] : args;
+}
+
+function connectorLines(name: string, tool: string, input: Record<string, unknown> | undefined): string[] {
+  return [`Approval needed: ${tool}`, `Connector: ${name}`, ...argLines(input)];
 }
 
 function bodyLines(params: PermissionParams): string[] {
@@ -100,9 +101,27 @@ function bodyLines(params: PermissionParams): string[] {
   return [`Claude wants to run ${params.tool_name}: ${shorten(params.description)}`, '', ...raw];
 }
 
-export function promptBody(params: PermissionParams): string {
-  const answer = `Reply "yes ${params.request_id}" or "no ${params.request_id}"`;
-  const body = bodyLines(params).join('\n');
+function withAnswer(requestId: string, lines: string[]): string {
+  const answer = `Reply "yes ${requestId}" or "no ${requestId}"`;
+  const body = lines.join('\n');
   const room = PROMPT_MAX - answer.length - 3;
   return `${body.length > room ? `${body.slice(0, room)}…` : body}\n\n${answer}`;
+}
+
+export function promptBody(params: PermissionParams): string {
+  return withAnswer(params.request_id, bodyLines(params));
+}
+
+export interface ServerPrompt {
+  requestId: string;
+  tool: string;
+  connector: string | undefined;
+  preview: string;
+}
+
+export function serverPromptBody(prompt: ServerPrompt): string {
+  const { input } = readPreview(prompt.preview);
+  const raw = prompt.preview.trim() === '' ? [] : [shorten(prompt.preview, RAW_MAX)];
+  const args = input === undefined ? raw : argLines(input);
+  return withAnswer(prompt.requestId, [`Approval needed: ${prompt.tool}`, ...(prompt.connector === undefined ? [] : [`Connector: ${prompt.connector}`]), ...args]);
 }

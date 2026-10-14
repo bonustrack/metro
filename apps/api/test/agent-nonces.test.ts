@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { AGENT_CLOCK_SKEW_MS, type AgentProof } from '@metro-labs/http/agent-signature';
-import { agentNonceStore } from '../src/db/agent-nonces.js';
+import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { agentNonces } from '../src/db/schema.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';
 

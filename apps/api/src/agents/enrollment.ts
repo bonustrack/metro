@@ -6,8 +6,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { sealingKeyOf, signingKeyOf } from '@metro-labs/http/agent-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
-import type { AgentKeyStore } from '../db/agent-keys.js';
-import { AgentKeyMissing, refuseBrowser, type AgentAuth } from './auth.js';
+import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
 import type { EnrollTickets } from './tickets.js';
 
 const MINT_RE = /^\/api\/servers\/([^/]+)\/enrollment$/;

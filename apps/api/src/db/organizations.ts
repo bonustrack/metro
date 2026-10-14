@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { getDb } from './client.js';
-import { isUniqueViolation } from './errors.js';
+import { isUniqueViolation } from '@metro-labs/connectors/db/errors';
 import { organizations } from './schema.js';
 import { parseSlug, slugify, withSuffix, type SlugStore } from '../slug.js';
 

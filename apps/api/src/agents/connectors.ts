@@ -7,11 +7,11 @@ import { apiFailure, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { CONNECTOR_DELIVERY_LEASE_MS, sealConnectorDelivery, type SealedDelivery } from '@metro-labs/http/connector-delivery';
 import { deliveredConnector } from '../connectors/delivery-model.js';
 import { boundedDeliverySnapshot } from '../connectors/delivery-snapshot.js';
-import { refreshAssigned, type RefreshRequest } from '../connectors/refresh.js';
-import type { AgentKeyStore } from '../db/agent-keys.js';
-import type { AgentNonceStore } from '../db/agent-nonces.js';
-import type { ConnectorDeliveryStore } from '../db/connector-delivery.js';
-import { AgentKeyMissing, refuseBrowser, type AgentAuth } from './auth.js';
+import { refreshAssigned, type RefreshRequest } from '@metro-labs/connectors/refresh';
+import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import type { AgentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
+import type { ConnectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
+import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
 
 const PATH = '/api/agents/connectors';
 const BODY_MAX = 4096;

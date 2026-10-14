@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
-import { openSecret, sealSecret } from '../src/connectors/secrets.ts';
-import { readConnectorsSetup } from '../src/connectors/setup.ts';
+import { openSecret, sealSecret } from '../src/secrets.ts';
+import { readConnectorsSetup } from '../src/setup.ts';
 
 const OWNER = 'org_01TESTOWNER000000';
 const STRANGER = 'org_01TESTSTRANGER00';

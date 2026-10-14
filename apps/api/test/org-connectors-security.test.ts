@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '../src/connectors/model.js';
+import { openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { connectors } from '../src/db/schema.js';
 import { auth, TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS, testDb, type TestDb } from './pglite-db.js';

@@ -4,9 +4,14 @@ import type { IncomingMessage } from 'node:http';
 import { parsePublicConnectorUrl, publicConnectorAddress } from '@metro-labs/http/connector-public-url';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 
-const BODY_MAX = 1024 * 1024;
-const IDLE_MS = 20_000;
 const NO_BODY = new Set([101, 103, 204, 205, 304]);
+
+export interface EgressLimits {
+  bodyMax: number;
+  idleMs: number;
+}
+
+const DEFAULT_LIMITS: EgressLimits = { bodyMax: 1024 * 1024, idleMs: 20_000 };
 
 export class EgressRefused extends Error {}
 
@@ -60,10 +65,10 @@ function headersOf(init: RequestInit, body: string | undefined): Record<string, 
   return out;
 }
 
-function bodyOf(init: RequestInit): string | undefined {
+function bodyOf(init: RequestInit, limits: EgressLimits): string | undefined {
   if (init.body === undefined || init.body === null) return undefined;
   if (typeof init.body !== 'string') throw new EgressRefused('an egress request body must be text');
-  if (Buffer.byteLength(init.body) > BODY_MAX) throw new EgressRefused('the request was larger than Metro sends');
+  if (Buffer.byteLength(init.body) > limits.bodyMax) throw new EgressRefused('the request was larger than Metro sends');
   return init.body;
 }
 
@@ -77,12 +82,12 @@ function answerOf(res: IncomingMessage, chunks: Buffer[]): Response {
   return new Response(NO_BODY.has(status) ? null : Buffer.concat(chunks), { status, statusText: res.statusMessage ?? '', headers });
 }
 
-function collect(res: IncomingMessage, settle: (err: Error | null, answer?: Response) => void): void {
+function collect(res: IncomingMessage, limits: EgressLimits, settle: (err: Error | null, answer?: Response) => void): void {
   const chunks: Buffer[] = [];
   let size = 0;
   res.on('data', (chunk: Buffer) => {
     size += chunk.length;
-    if (size > BODY_MAX) res.destroy(new EgressRefused('the answer was larger than Metro reads'));
+    if (size > limits.bodyMax) res.destroy(new EgressRefused('the answer was larger than Metro reads'));
     else chunks.push(chunk);
   });
   res.on('error', (err) => {
@@ -93,8 +98,8 @@ function collect(res: IncomingMessage, settle: (err: Error | null, answer?: Resp
   });
 }
 
-function send(url: URL, init: RequestInit, resolve: Resolve): Promise<Response> {
-  const body = bodyOf(init);
+function send(url: URL, init: RequestInit, resolve: Resolve, limits: EgressLimits): Promise<Response> {
+  const body = bodyOf(init, limits);
   const options: RequestOptions = {
     protocol: 'https:',
     hostname: url.hostname.replace(/^\[|\]$/g, ''),
@@ -107,7 +112,7 @@ function send(url: URL, init: RequestInit, resolve: Resolve): Promise<Response> 
   return new Promise((done, fail) => {
     let settled = false;
     const req = request(options, (res) => {
-      collect(res, settle);
+      collect(res, limits, settle);
     });
     const abort = (): void => {
       req.destroy(init.signal?.reason instanceof Error ? init.signal.reason : new EgressRefused('the request was stopped'));
@@ -121,7 +126,7 @@ function send(url: URL, init: RequestInit, resolve: Resolve): Promise<Response> 
     }
     if (init.signal?.aborted === true) abort();
     init.signal?.addEventListener('abort', abort, { once: true });
-    req.setTimeout(IDLE_MS, () => {
+    req.setTimeout(limits.idleMs, () => {
       req.destroy(new EgressRefused('the server did not answer in time'));
     });
     req.on('error', (err) => {
@@ -131,6 +136,6 @@ function send(url: URL, init: RequestInit, resolve: Resolve): Promise<Response> 
   });
 }
 
-export function egressFetch(resolve: Resolve = systemResolve): FetchLike {
-  return (input, init = {}) => Promise.resolve(input).then((target) => send(targetOf(target), init, resolve));
+export function egressFetch(resolve: Resolve = systemResolve, limits: EgressLimits = DEFAULT_LIMITS): FetchLike {
+  return (input, init = {}) => Promise.resolve(input).then((target) => send(targetOf(target), init, resolve, limits));
 }

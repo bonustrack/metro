@@ -1,6 +1,6 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Database } from './client.js';
+import type { Database } from './database.js';
 import { isUniqueViolation } from './errors.js';
 import { agents, agentKeys, connectorAgents } from './schema.js';
 
@@ -40,7 +40,7 @@ async function enrollIn(tx: Database, row: AgentKeyRow): Promise<void> {
   const elsewhere = await tx.select({ agent: agentKeys.agent }).from(agentKeys).where(and(eq(agentKeys.keyId, row.keyId), ne(agentKeys.agent, row.agent)));
   if (elsewhere.length > 0) throw keyInUse();
   const { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } = row;
-  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } });
+  await tx.insert(agentKeys).values(row).onConflictDoUpdate({ target: agentKeys.agent, set: { owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt, mcpTokenHash: null } });
 }
 
 export async function leaveOrganization(tx: Database, agent: string): Promise<void> {

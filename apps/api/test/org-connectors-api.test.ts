@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { openSecret } from '../src/connectors/secrets.ts';
+import { openSecret } from '@metro-labs/connectors/secrets';
 import { connectorAgents, connectors } from '../src/db/schema.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';

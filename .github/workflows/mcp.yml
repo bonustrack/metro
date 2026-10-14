@@ -1,0 +1,40 @@
+name: Deploy mcp.metro.box
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mcp/**'
+      - 'packages/connectors/**'
+      - 'packages/http/**'
+      - 'packages/core/**'
+      - 'bun.lock'
+      - '.github/workflows/mcp.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-mcp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: Test
+        run: bun --filter @metro-labs/connectors --filter @metro-labs/mcp test
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        run: flyctl deploy . --config apps/mcp/fly.toml --dockerfile apps/mcp/Dockerfile --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

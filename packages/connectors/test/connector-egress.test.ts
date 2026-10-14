@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { LookupAddress } from 'node:dns';
-import { egressFetch, publicAddress, type Resolve } from '../src/connectors/egress.ts';
+import { egressFetch, publicAddress, type Resolve } from '../src/egress.ts';
 
 const resolving = (addresses: LookupAddress[]): Resolve => () => Promise.resolve(addresses);
 

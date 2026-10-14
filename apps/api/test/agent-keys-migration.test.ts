@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { agentSignatureValid, readAgentProof, signAgentRequest } from '@metro-labs/http/agent-signature';
 import { newAgentKey } from '../../daemon/src/connectors/agent-key.ts';
-import { agentKeyStore } from '../src/db/agent-keys.ts';
+import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import type { Database } from '../src/db/client.ts';
 import * as schema from '../src/db/schema.ts';
 import { PGLITE_START_MS } from './pglite-db.ts';
@@ -43,7 +43,7 @@ async function constraints(client: PGlite): Promise<void> {
   const renamed = await client.query<{ conname: string }>("SELECT conname FROM pg_constraint WHERE conrelid = 'agent_keys'::regclass AND contype IN ('p', 'f') ORDER BY conname");
   expect(renamed.rows.map((row) => row.conname)).toEqual(['agent_keys_agent_agents_id_fk', 'agent_keys_pkey']);
   const index = await client.query<{ indexname: string }>("SELECT indexname FROM pg_indexes WHERE tablename = 'agent_keys' ORDER BY indexname");
-  expect(index.rows.map((row) => row.indexname)).toEqual(['agent_keys_key_id_idx', 'agent_keys_pkey']);
+  expect(index.rows.map((row) => row.indexname)).toEqual(['agent_keys_key_id_idx', 'agent_keys_mcp_token_hash_idx', 'agent_keys_pkey']);
   await expect(client.query("INSERT INTO agent_keys SELECT 'missing0001', owner, 'fresh-key-id', signing_key, sealing_key, enrolled_by, enrolled_at FROM agent_keys LIMIT 1")).rejects.toThrow();
   await expect(client.query("UPDATE agent_keys SET key_id = $1 WHERE agent = 'agent000002'", [FIRST.keyId])).rejects.toThrow();
   await expect(client.query('INSERT INTO agent_keys SELECT * FROM agent_keys LIMIT 1')).rejects.toThrow();
@@ -82,7 +82,8 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     const connectors = await rows(client, 'connectors');
     const journal = await rows(client, 'drizzle.__drizzle_migrations');
     await migrate(db, { migrationsFolder: DIR });
-    expect(await rows(client, 'agent_keys')).toEqual(keys);
+    const upgraded = keys.map((row) => ({ ...row, mcp_token_hash: null }));
+    expect(await rows(client, 'agent_keys')).toEqual(upgraded);
     expect(await rows(client, 'box_keys')).toEqual(keys);
     expect(await rows(client, 'connector_agents')).toEqual(assignments);
     expect(events).toHaveLength(1);
@@ -94,7 +95,7 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     const applied = await rows(client, 'drizzle.__drizzle_migrations');
     await migrate(db, { migrationsFolder: DIR });
     expect(await rows(client, 'drizzle.__drizzle_migrations')).toEqual(applied);
-    expect(await rows(client, 'agent_keys')).toEqual(keys);
+    expect(await rows(client, 'agent_keys')).toEqual(upgraded);
     await constraints(client);
     await signingStillWorks(db);
     await oldMoveAndCascade(client);

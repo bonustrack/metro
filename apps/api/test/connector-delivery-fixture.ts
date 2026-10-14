@@ -4,14 +4,14 @@ import { generateKeyPairSync, randomBytes, randomInt, type KeyObject } from 'nod
 import { sql } from 'drizzle-orm';
 import { agentKeyId, rawPublicKey, signAgentRequest } from '@metro-labs/http/agent-signature';
 import { openConnectorDelivery, type DeliverySnapshot } from '@metro-labs/http/connector-delivery';
-import { AgentAuth } from '../src/agents/auth.js';
+import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleAgentConnectorsRequest, type AgentConnectorsDeps } from '../src/agents/connectors.js';
-import { sealConnectorSecret, type ConnectorSecret } from '../src/connectors/model.js';
-import { agentKeyStore, type AgentKeyRow } from '../src/db/agent-keys.js';
-import { agentNonceStore } from '../src/db/agent-nonces.js';
+import { sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
+import { agentKeyStore, type AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import type { Database } from '../src/db/client.js';
-import { connectorDeliveryStore } from '../src/db/connector-delivery.js';
-import type { ConnectorRow } from '../src/db/connectors.js';
+import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
+import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { connectorAgents, connectors } from '../src/db/schema.js';
 import { addAgent } from './pglite-db.js';
 import { TEST_OWNER } from './identity-helper.js';
@@ -41,6 +41,12 @@ export function newDeliveryAgent(agent = 'agent000001', owner = TEST_OWNER): Del
 export async function enrollDeliveryAgent(db: Database, agent: DeliveryAgent): Promise<void> {
   await addAgent(db, agent.row.agent, agent.row.owner);
   await agentKeyStore(() => db).enroll(agent.row);
+}
+
+export async function enrollLegacyAgent(db: Database, agent: DeliveryAgent): Promise<void> {
+  const { agent: id, owner, keyId, signingKey, sealingKey, enrolledBy, enrolledAt } = agent.row;
+  await addAgent(db, id, owner);
+  await db.execute(sql`INSERT INTO agent_keys (agent, owner, key_id, signing_key, sealing_key, enrolled_by, enrolled_at) VALUES (${id}, ${owner}, ${keyId}, ${signingKey}, ${sealingKey}, ${enrolledBy}, ${enrolledAt})`);
 }
 
 export function oauthSecret(expiresAt = Date.now() - 1): Extract<ConnectorSecret, { kind: 'oauth' }> {

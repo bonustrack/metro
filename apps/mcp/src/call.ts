@@ -1,0 +1,108 @@
+import { errMsg, log } from '@metro-labs/core/log';
+import { validConnectorToolName } from '@metro-labs/http/connector-delivery';
+import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
+import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
+import { withCredential } from './credential.js';
+import type { McpDeps } from './deps.js';
+import { argsDigest, previewOf } from './digest.js';
+import { CallError } from './errors.js';
+import { connectorTools, failureOf, groupsOf } from './listing.js';
+import type { ToolGroup } from './policy.js';
+import { textBlock, type ToolResult } from './tool-result.js';
+import { callVendorTool } from './vendor.js';
+
+interface Outcome {
+  blocks: Record<string, unknown>[];
+  failed: boolean;
+  outcome: string;
+}
+
+interface Target {
+  connector: AgentConnector;
+  tool: string;
+  name: string;
+}
+
+interface CallContext {
+  deps: McpDeps;
+  identity: AgentKeyRow;
+  connectors: AgentConnector[];
+}
+
+export const needsApprovalText = (name: string, id: string): string =>
+  `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call call_tool again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
+
+function targetOf(ctx: CallContext, call: McpCall): Target {
+  const split = splitMcpTool(call.tool);
+  const connector = ctx.connectors.find((candidate) => candidate.key === split?.connector);
+  if (split === null || connector === undefined) throw new CallError('not_found', `No connector named "${split?.connector ?? call.tool}" is assigned to this agent. ${connectorsSentence(ctx.connectors)}`);
+  if (!validConnectorToolName(split.tool)) throw new CallError('not_found', `${connector.key} has no tool named ${split.tool}. Use find_tools to see its tools.`);
+  return { connector, tool: split.tool, name: call.tool };
+}
+
+async function groupsFor(ctx: CallContext, target: Target): Promise<Record<string, ToolGroup>> {
+  const { deps, identity } = ctx;
+  let tools = deps.tools.get(target.connector.id);
+  if (tools === undefined && target.connector.access.needsGroup(target.tool)) {
+    tools = await connectorTools(deps, identity, target.connector).catch((err: unknown) => {
+      log.debug({ connector: target.connector.id, err: errMsg(err) }, 'mcp: no tool list, so the tool counts as write');
+      return undefined;
+    });
+  }
+  if (tools === undefined) return {};
+  if (!tools.some((tool) => tool.name === target.tool)) throw new CallError('not_found', `${target.connector.key} has no tool named ${target.tool}. Use find_tools to see its tools.`);
+  return groupsOf(tools);
+}
+
+async function approved(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
+  const { deps, identity } = ctx;
+  const request = { connector: target.connector.id, tool: target.tool, digest: argsDigest(call.arguments), preview: previewOf(call.arguments) };
+  const now = deps.now();
+  if (call.approval !== undefined) {
+    const redeemed = await deps.approvals.redeem(identity, call.approval, request, now);
+    if (redeemed === 'used') return;
+    if (redeemed === 'denied') throw new CallError('denied', `The owner denied this call (approval ${call.approval}). Do not repeat it.`);
+  }
+  const id = await deps.approvals.request(identity, request, now);
+  deps.waiters.notify(identity.agent);
+  throw new CallError('needs_approval', needsApprovalText(target.name, id));
+}
+
+async function gate(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
+  const blocked = (): CallError => new CallError('blocked', `Blocked by the owner's policy for ${target.connector.key} (${target.tool}).`);
+  if (target.connector.access.blocked) throw blocked();
+  const decision = target.connector.access.decide(target.tool, await groupsFor(ctx, target));
+  if (decision === 'deny') throw blocked();
+  if (decision === 'ask') await approved(ctx, target, call);
+}
+
+async function run(ctx: CallContext, target: Target, call: McpCall): Promise<Outcome> {
+  const answer = await withCredential(ctx.deps, ctx.identity, target.connector.id, (vendor) => callVendorTool(vendor, target.tool, call.arguments, ctx.deps.callFetch));
+  const blocks = answer.content.length > 0 || answer.structuredContent === undefined ? answer.content : [textBlock(JSON.stringify(answer.structuredContent))];
+  return { blocks, failed: answer.isError, outcome: answer.isError ? 'vendor_error' : 'ok' };
+}
+
+async function runCall(ctx: CallContext, call: McpCall, index: number): Promise<Outcome> {
+  const started = ctx.deps.now();
+  const header = textBlock(`[${String(index)}] ${call.tool}`);
+  let target: Target | undefined;
+  let result: Outcome;
+  try {
+    target = targetOf(ctx, call);
+    await gate(ctx, target, call);
+    result = await run(ctx, target, call);
+  } catch (err) {
+    const failure = failureOf(err, target?.connector.name ?? call.tool);
+    result = { blocks: [textBlock(`${failure.code}: ${failure.message}`)], failed: true, outcome: failure.code };
+  }
+  log.info({ agent: ctx.identity.agent, connector: target?.connector.id ?? null, tool: target?.tool ?? call.tool, outcome: result.outcome, ms: ctx.deps.now() - started }, 'mcp: call');
+  return { ...result, blocks: [header, ...result.blocks] };
+}
+
+export async function callTools(deps: McpDeps, identity: AgentKeyRow, calls: McpCall[]): Promise<ToolResult> {
+  const ctx: CallContext = { deps, identity, connectors: await agentConnectors(deps, identity) };
+  const outcomes = await Promise.all(calls.map((call, i) => runCall(ctx, call, i + 1)));
+  const content = outcomes.flatMap((outcome) => outcome.blocks);
+  return outcomes.every((outcome) => outcome.failed) ? { content, isError: true } : { content };
+}

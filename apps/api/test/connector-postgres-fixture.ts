@@ -30,7 +30,7 @@ export async function postgresFixture(url: string) {
   }
   return {
     db1, db2, one, two,
-    reset: () => one`truncate agent_nonces, agent_keys, connector_agents, connectors, agents cascade`,
+    reset: () => one`truncate mcp_approvals, agent_nonces, agent_keys, connector_agents, connectors, agents cascade`,
     waiting: async (pool: 'one' | 'two') => {
       for (let attempt = 0; attempt < 100; attempt += 1) {
         const rows = await admin<{ wait_event_type: string | null }[]>`select wait_event_type from pg_stat_activity where application_name = ${`${name}_${pool}`} and datname = current_database()`;

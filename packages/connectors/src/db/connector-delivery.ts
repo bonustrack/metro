@@ -1,9 +1,9 @@
 import { and, eq, getTableColumns } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { SealedDelivery } from '@metro-labs/http/connector-delivery';
-import { notEnrolled } from '../agents/auth.js';
+import { notEnrolled } from '../agent-auth.js';
 import { agentKeyStore, type AgentKeyRow } from './agent-keys.js';
-import type { Database } from './client.js';
+import type { Database } from './database.js';
 import { editConnectorIn, type ConnectorEdit, type ConnectorRow } from './connectors.js';
 import { agents, agentKeys, connectorAgents, connectors } from './schema.js';
 

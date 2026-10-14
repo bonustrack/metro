@@ -1,12 +1,20 @@
+import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oauth';
-import type { ConnectorChange, ConnectorRow } from '../db/connectors.js';
-import { sealingKey, type ActionDeps } from './actions.js';
-import { credentialRevision } from './delivery-model.js';
+import type { ConnectorChange, ConnectorRow, OrgConnectorStore } from './db/connectors.js';
+import { credentialRevision } from './revision.js';
 import { refreshImported } from './imported-refresh.js';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from './model.js';
+import { sealingKey } from './setup.js';
 
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;
+
+export interface CatalogueDeps {
+  key: () => Buffer | null;
+  store: Pick<OrgConnectorStore, 'find' | 'edit'>;
+  fetch: FetchLike;
+  now: () => number;
+}
 
 export const catalogueSignin = (): ApiError => new ApiError('Sign in to this connector again to load its tools.', 424);
 export const catalogueUnavailable = (): ApiError => new ApiError('The provider could not return its tool list. Try again.', 503);
@@ -37,7 +45,7 @@ function nativeRefresh(secret: OAuthSecret, revision: string, now: number, force
   return forced === undefined ? secret.tokens.expiresAt !== undefined && secret.tokens.expiresAt <= now : revision === forced;
 }
 
-async function refreshedGrant(deps: ActionDeps, key: Buffer, row: ConnectorRow, secret: OAuthSecret): Promise<ConnectorChange> {
+async function refreshedGrant(deps: CatalogueDeps, key: Buffer, row: ConnectorRow, secret: OAuthSecret): Promise<ConnectorChange> {
   const tokens = secret.tokens;
   if (tokens?.resource === undefined || tokens.refreshToken === undefined) throw catalogueSignin();
   const scope = secret.server.scopes.length === 0 ? undefined : secret.server.scopes.join(' ');
@@ -46,7 +54,7 @@ async function refreshedGrant(deps: ActionDeps, key: Buffer, row: ConnectorRow, 
   return { secret: sealConnectorSecret(key, row, { ...secret, tokens: next }) };
 }
 
-export async function catalogueCredential(deps: ActionDeps, owner: string, id: string, forced?: string): Promise<ConnectorRow> {
+export async function catalogueCredential(deps: CatalogueDeps, owner: string, id: string, forced?: string): Promise<ConnectorRow> {
   const key = sealingKey(deps);
   const at = (): string => new Date(deps.now()).toISOString();
   await refreshImported({ key, fetch: deps.fetch, now: deps.now }, async (edit) => {

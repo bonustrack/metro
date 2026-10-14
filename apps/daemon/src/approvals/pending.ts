@@ -17,6 +17,7 @@ export interface PendingPrompt {
   line: string | undefined;
   at: number;
   call?: CallSource;
+  origin?: 'mcp-server';
 }
 
 interface Held extends PendingPrompt {
@@ -93,6 +94,8 @@ export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(show
 
 export const promptLine = (requestId: string): string | undefined => held.get(requestId)?.line;
 
+export const isPromptHeld = (requestId: string): boolean => held.has(requestId);
+
 function chatNotice(via: AnsweredVia, behavior: Behavior): string | undefined {
   if (via === 'expiry') return 'Expired, denied.';
   if (via === 'page') return behavior === 'allow' ? 'Approved on the page.' : 'Denied on the page.';
@@ -116,8 +119,12 @@ export async function answerPrompt(
   const entry = held.get(requestId);
   if (entry === undefined) return undefined;
   held.delete(requestId);
-  if (behavior === 'allow' && via !== 'expiry') grant(entry);
-  log.info({ requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` }, 'approvals: a Claude Code permission prompt answered');
+  const server = entry.origin === 'mcp-server';
+  if (behavior === 'allow' && via !== 'expiry' && !server) grant(entry);
+  log.info(
+    { requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` },
+    server ? 'approvals: an mcp.metro.box approval answered' : 'approvals: a Claude Code permission prompt answered',
+  );
   await entry.send(behavior);
   await tellChat(entry, via, behavior);
   return shown(entry);
@@ -152,7 +159,7 @@ export function revokeCallPrompts(route: CallRoute): void {
 
 export function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
   for (const [id, entry] of held)
-    if (toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
+    if (entry.origin !== 'mcp-server' && toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
       held.delete(id);
       log.info({ requestId: id, tool: entry.tool }, 'approvals: the call reached metro, so Claude Code already closed the prompt');
     }

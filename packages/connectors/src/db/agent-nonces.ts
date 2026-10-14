@@ -1,7 +1,7 @@
 import { and, eq, lt } from 'drizzle-orm';
 import { AGENT_CLOCK_SKEW_MS, withinSkew, type AgentProof } from '@metro-labs/http/agent-signature';
-import { AGENT_NONCE_LIMITS, AgentAuthError, notEnrolled, type NonceLimits } from '../agents/auth.js';
-import type { Database } from './client.js';
+import { AGENT_NONCE_LIMITS, AgentAuthError, notEnrolled, type NonceLimits } from '../agent-auth.js';
+import type { Database } from './database.js';
 import { agentNonceGuard, agentNonces } from './schema.js';
 
 export interface AgentNonceStore {
