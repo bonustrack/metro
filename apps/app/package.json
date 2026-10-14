@@ -9,7 +9,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "web": "expo start --web --port 8081",
-    "build": "expo export --platform web --output-dir dist",
+    "build": "expo export --platform web --output-dir dist && bun scripts/publish-package-assets.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test test/"
   },

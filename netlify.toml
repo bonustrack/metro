@@ -9,6 +9,11 @@
   BUN_VERSION = "1.4.0"
   NODE_VERSION = "22"
 
+[[redirects]]
+  from = "/assets/__node_modules/.bun/*"
+  to = "/assets/__node_modules/_bun/:splat"
+  status = 200
+
 [[headers]]
   for = "/_expo/static/*"
   [headers.values]
