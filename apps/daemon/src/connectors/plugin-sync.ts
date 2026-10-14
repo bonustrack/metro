@@ -4,64 +4,20 @@ import { agentMarketplaceDir, agentUser } from '../agent-user/user.js';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { claudeDir } from '../claude/files.js';
-import { loopbackBase } from '../files/attach-serve.js';
 import { MCP_SERVER_KEY, mcpServerUrl } from '../mcp-server/config.js';
 
 const MARKER = join('bin', 'metro-plugin.mjs');
 const FILE = '.mcp.json';
-const HELPER = 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" headers';
 const MCP_HELPER = 'node "${CLAUDE_PLUGIN_ROOT}/bin/metro-plugin.mjs" mcp-headers';
-const SLUG_MAX = 40;
 
-export interface PluginRow {
-  id: string;
-  name: string;
-}
-
-export interface PluginServer {
+interface PluginServer {
   type: 'http';
   url: string;
   headersHelper: string;
 }
 
-export function serverKey(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, SLUG_MAX)
-    .replace(/-+$/, '');
-  return slug === '' ? 'connector' : slug;
-}
-
-function availableKey(wanted: string, reserved: ReadonlySet<string>): string {
-  let key = wanted;
-  let suffix = 1;
-  while (reserved.has(key)) key = `${wanted}-${String(suffix++)}`;
-  return key;
-}
-
-const reservedKeys = (): ReadonlySet<string> => new Set(mcpServerUrl() === null ? [] : [MCP_SERVER_KEY]);
-
-export function serverKeysOf(rows: PluginRow[], saved?: ReadonlyMap<string, string>, reserved: ReadonlySet<string> = reservedKeys()): Map<string, string> {
-  const keys = new Map([...(saved ?? [])].filter(([, key]) => !reserved.has(key)));
-  const used = new Set([...keys.values(), ...reserved]);
-  for (const row of [...rows].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (keys.has(row.id)) continue;
-    const key = availableKey(serverKey(row.name), used);
-    used.add(key);
-    keys.set(row.id, key);
-  }
-  return keys;
-}
-
-export function pluginServers(rows: PluginRow[], base: string, keys: ReadonlyMap<string, string> = serverKeysOf(rows), mcpUrl = mcpServerUrl()): Record<string, PluginServer> {
-  const out: Record<string, PluginServer> = {};
-  const visible = new Set(rows.map((row) => row.id));
-  for (const [id, key] of keys) if (visible.has(id)) out[key] = { type: 'http', url: `${base}/relay/${id}`, headersHelper: HELPER };
-  if (mcpUrl !== null) out[MCP_SERVER_KEY] = { type: 'http', url: mcpUrl, headersHelper: MCP_HELPER };
-  return out;
-}
+const pluginServers = (url: string | null): Record<string, PluginServer> =>
+  url === null ? {} : { [MCP_SERVER_KEY]: { type: 'http', url, headersHelper: MCP_HELPER } };
 
 const SEARCH_DEPTH = 5;
 
@@ -113,9 +69,8 @@ function writeIfChanged(path: string, text: string): boolean {
 
 export interface PluginSyncOptions {
   dir?: string;
-  base?: string;
   staged?: string | null;
-  keys?: ReadonlyMap<string, string>;
+  url?: string | null;
 }
 
 function filesFor(opts: PluginSyncOptions): string[] {
@@ -123,23 +78,23 @@ function filesFor(opts: PluginSyncOptions): string[] {
   return installedPluginFiles(opts.dir ?? claudeDir(), staged);
 }
 
-export function syncPluginServers(rows: PluginRow[], opts: PluginSyncOptions = {}): number {
+export function syncPluginServers(opts: PluginSyncOptions = {}): number {
   const files = filesFor(opts);
   if (files.length === 0) return 0;
-  const servers = pluginServers(rows, opts.base ?? loopbackBase(), opts.keys);
+  const servers = pluginServers(opts.url === undefined ? mcpServerUrl() : opts.url);
   const text = `${JSON.stringify(servers, null, 2)}\n`;
   let written = 0;
   for (const file of files) {
     try {
       if (writeIfChanged(file, text)) written += 1;
     } catch (err) {
-      log.warn({ file, err: errMsg(err) }, 'plugin: could not write the connector servers');
+      log.warn({ file, err: errMsg(err) }, 'plugin: could not write the MCP servers');
     }
   }
   if (written > 0)
     log.info(
-      { files: written, servers: Object.keys(servers).length },
-      'plugin: connector servers written; run /reload-plugins --force to pick them up in a running session',
+      { files: written, servers: Object.keys(servers) },
+      'plugin: MCP servers written; run /reload-plugins --force to pick them up in a running session',
     );
   return written;
 }

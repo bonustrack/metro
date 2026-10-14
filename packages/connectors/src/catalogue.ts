@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { validConnectorToolName } from '@metro-labs/http/connector-delivery';
+import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';

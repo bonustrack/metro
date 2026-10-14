@@ -29,7 +29,6 @@ let dir = '';
 let agentBase = '';
 let apiBase = '';
 let deviceOwner: string | null = OWNER;
-let invalidations = 0;
 let seen: Seen[] = [];
 let enrolledKey: string | null = null;
 let enrolledServer = SERVER;
@@ -112,14 +111,13 @@ beforeAll(async () => {
   agentBase = await listen((req, res) => {
     setBearerSessions(bearerSessionsFor(() => OWNER, keys));
     const api = { base: apiBase, fetch: (url: string, init: RequestInit) => fetch(url, init), now: () => Date.now() };
-    if (!handleSessionApis(req, res, { enrollApi: { owner: () => deviceOwner, dir: () => dir, api, invalidate: () => { invalidations += 1; } } })) res.writeHead(404).end();
+    if (!handleSessionApis(req, res, { enrollApi: { owner: () => deviceOwner, dir: () => dir, api } })) res.writeHead(404).end();
   });
 });
 
 beforeEach(() => {
   dir = mkdtempSync(join(root, 'agents-'));
   deviceOwner = OWNER;
-  invalidations = 0;
   seen = [];
   enrolledKey = null;
   enrolledServer = SERVER;
@@ -203,7 +201,6 @@ describe('POST /api/enrollment', () => {
     expect(seen[0]?.body).toEqual({ ticket: TICKET, organization: OWNER, signingKey: key?.signingKey, sealingKey: key?.sealingKey });
     expect(storedEnrollment()).toMatchObject({ server: SERVER, organization: OWNER });
     expect(readAgentKey(dir)?.enrollment?.server).toBe(SERVER);
-    expect(invalidations).toBe(1);
   });
 
   test('enrolling again gives the agent a new key', async () => {
@@ -222,7 +219,6 @@ describe('POST /api/enrollment', () => {
     deviceOwner = null;
     expect((await enroll({ ticket: TICKET })).status).toBe(409);
     expect(seen).toEqual([]);
-    expect(invalidations).toBe(0);
   });
 
   test('a refusal from api.metro.box is passed on and nothing is saved', async () => {

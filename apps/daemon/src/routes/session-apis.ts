@@ -2,8 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleSessionApiRequest } from './session.js';
 import { handleApprovalsRequest } from '../approvals/api.js';
 import { handleAgentApiRequest, type AgentApiDeps } from '../agents/api.js';
-import type { RelayApiDeps } from '../connectors/relay.js';
-import { handleConnectorSyncRequest, type ConnectorSyncApiDeps } from '../connectors/org-sync-api.js';
 import { handleEnrollRequest, type EnrollApiDeps } from '../connectors/enroll-api.js';
 import { handleClaudeRequest, type ClaudeApiDeps } from '../claude/api.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
@@ -33,8 +31,6 @@ export interface SessionApis {
   terminalApi?: TerminalApiDeps;
   claudeApi?: ClaudeApiDeps;
   enrollApi?: EnrollApiDeps;
-  connectorSyncApi?: ConnectorSyncApiDeps;
-  relayApi?: RelayApiDeps;
   mode?: () => ModeInfo;
 }
 
@@ -51,7 +47,6 @@ export function handleSessionApis(
     () => handleRunEventsRequest(req, res),
     () => handleApprovalsRequest(req, res),
     ...when(apis.enrollApi, (d) => handleEnrollRequest(req, res, d)),
-    ...when(apis.connectorSyncApi, (d) => handleConnectorSyncRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),

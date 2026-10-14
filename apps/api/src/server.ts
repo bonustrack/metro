@@ -51,9 +51,6 @@ import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
-import { handleAgentConnectorsRequest, type AgentConnectorsDeps } from './agents/connectors.js';
-import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
-import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connectors/setup';
@@ -160,16 +157,6 @@ const connectorsApi: ConnectorsApiDeps = {
   now: () => Date.now(),
 };
 
-const agentConnectorsApi: AgentConnectorsDeps = {
-  key: connectorsApi.key,
-  keys: enrollmentApi.store,
-  auth: enrollmentApi.auth,
-  nonces: agentNonceStore(getDb, () => Date.now()),
-  store: connectorDeliveryStore(getDb),
-  fetch: connectorsApi.fetch,
-  now: () => Date.now(),
-};
-
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -203,7 +190,6 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
-  (req, res) => handleAgentConnectorsRequest(req, res, agentConnectorsApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),

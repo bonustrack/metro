@@ -4,8 +4,7 @@ import type { McpApproval, McpDecision } from '@metro-labs/http/mcp-server-proto
 import { holdPrompt, isPromptHeld, type Behavior } from '../approvals/pending.js';
 import { ownerLine } from '../approvals/owner-line.js';
 import { metroNotice } from '../channels/notice.js';
-import { connectorGates } from '../connectors/gates.js';
-import { serverKey } from '../connectors/plugin-sync.js';
+import { announcedLine, noteAnnounced } from '../mcp-server/announced.js';
 import type { AnswerOutcome } from '../mcp-server/link.js';
 import { serverPromptBody } from './permission-prompt.js';
 import { metroSend, relayLine } from './permission-relay.js';
@@ -41,11 +40,6 @@ function remember(id: string, now = Date.now()): void {
 }
 
 const answeredRecently = (id: string, now = Date.now()): boolean => now - (recent.get(id) ?? -Infinity) < RECENT_MS;
-
-function connectorName(key: string): string | undefined {
-  const names = new Set(connectorGates().filter((gate) => gate.server === key || serverKey(gate.name) === key).map((gate) => gate.name));
-  return names.size === 1 ? [...names][0] : undefined;
-}
 
 const noticeText = (tool: string, id: string, behavior: Behavior): string =>
   behavior === 'allow' ? `Approved: ${tool} (${id}). Call call_tool again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
@@ -84,23 +78,28 @@ function sender(held: Held): (behavior: Behavior) => Promise<void> {
   };
 }
 
+function announce(id: string, line: string, text: string): void {
+  metroSend(line, text).then(() => {
+    noteAnnounced(id, line);
+  }).catch((err: unknown) => {
+    log.warn({ id, err: errMsg(err) }, 'mcp-server: the approval prompt could not be posted');
+  });
+}
+
 export function holdServerApproval(approval: McpApproval, answer: Held['answer'], publish: Held['publish']): boolean {
   if (isPromptHeld(approval.id) || answeredRecently(approval.id)) return false;
   const tool = `${approval.connector}.${approval.tool}`;
-  const name = connectorName(approval.connector);
-  const line = promptLineFor(approval.id);
+  const announced = announcedLine(approval.id);
+  const line = announced ?? promptLineFor(approval.id);
   const held: Held = { id: approval.id, tool, line, answer, publish };
   holdPrompt(
-    { requestId: approval.id, tool, description: name ?? approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server' },
+    { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server' },
     owner,
     sender(held),
     line === undefined ? undefined : async (text) => metroSend(line, text),
   );
-  log.info({ id: approval.id, tool, inChat: line !== undefined }, 'mcp-server: an approval is waiting for the owner');
-  if (line !== undefined)
-    metroSend(line, serverPromptBody({ requestId: approval.id, tool, connector: name, preview: approval.preview })).catch((err: unknown) => {
-      log.warn({ id: approval.id, err: errMsg(err) }, 'mcp-server: the approval prompt could not be posted');
-    });
+  log.info({ id: approval.id, tool, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
+  if (line !== undefined && announced === undefined) announce(approval.id, line, serverPromptBody({ requestId: approval.id, tool, preview: approval.preview }));
   return true;
 }
 

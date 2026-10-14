@@ -7,9 +7,10 @@ will also serve memory.
 
 ## Why
 
-Before, each box received its connectors' credentials from api.metro.box, kept them in
-memory, and published every connector to Claude Code as its own MCP server: ten connectors
-meant ten servers and hundreds of tool definitions, and credentials travelled to every box.
+Before (until 2026-10-14), each box received its connectors' credentials from
+api.metro.box, kept them in memory, and published every connector to Claude Code as its own
+MCP server: ten connectors meant ten servers and hundreds of tool definitions, and
+credentials travelled to every box.
 
 Now:
 
@@ -95,8 +96,8 @@ anything else is Write. mcp.metro.box reads the policies from the database on ev
 ## The daemon's view
 
 Requests are signed with the agent's enrollment key (`MetroAgent` scheme,
-`packages/http/agent-signature`), like `POST /api/agents/connectors`. Shapes, limits and
-validators live in `packages/http/src/mcp-server-protocol.ts`.
+`packages/http/agent-signature`), like its enrollment requests to api.metro.box. Shapes,
+limits and validators live in `packages/http/src/mcp-server-protocol.ts`.
 
 | Request | Body | Answer |
 | --- | --- | --- |
@@ -106,6 +107,12 @@ validators live in `packages/http/src/mcp-server-protocol.ts`.
 
 The daemon keeps one `/v1/approvals` request open at a time, merges what it receives into
 its pending approvals (chat prompt, page list, 24 h expiry), and sends each answer back.
+The server sends a pending approval again every minute, so the daemon keeps the ids it
+already posted in chat (`<agents dir>/mcp-approvals.json`, a day at most): after a restart
+it holds such an approval again on the chat it was posted to, without posting it twice.
+
+The daemon talks to `https://mcp.metro.box` unless `METRO_MCP_SERVER_URL` names another
+url (https, or http on this machine only); an empty value turns the client off.
 
 ## Inside mcp.metro.box
 
@@ -130,9 +137,13 @@ its pending approvals (chat prompt, page list, 24 h expiry), and sends each answ
 
 ## Rollout
 
-1. mcp.metro.box, `packages/connectors`, the token and the approval relay in the daemon, next
-   to today's per-connector servers. A box gets the `mcp` entry only when its daemon has
-   `METRO_MCP_SERVER_URL` set, so nothing changes for agents until a box is switched.
-2. Switch one box (per-connector servers off, `mcp` on), check, then every box.
-3. Remove the old path: credential delivery to boxes, the daemon's sync memory, runtime,
-   relay, discovery and per-connector `.mcp.json` entries, and the Sync switch.
+1. Done (beta.304): mcp.metro.box, `packages/connectors`, the token and the approval relay
+   in the daemon, next to the per-connector servers. A box got the `mcp` entry only when its
+   daemon had `METRO_MCP_SERVER_URL` set.
+2. Done (2026-10-14): every box switched (`METRO_MCP_SERVER_URL=https://mcp.metro.box`),
+   every enrolled agent registered its token and reached its connectors through
+   mcp.metro.box.
+3. Done (2026-10-14): the old path is gone: credential delivery to boxes
+   (`POST /api/agents/connectors`), the daemon's sync, runtime, relay, discovery and server
+   keys, the per-connector `.mcp.json` entries, the daemon's connector gates and the Sync
+   switch. `METRO_MCP_SERVER_URL` defaults to `https://mcp.metro.box`.

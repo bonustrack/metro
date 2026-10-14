@@ -3,7 +3,6 @@ import { configurePlatform, memoryKeyValue } from '../../packages/client/src/pla
 import { dashboardSource, DASHBOARD_SINCE } from '../../packages/client/src/api/dashboard-source.ts';
 import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/client/src/api/dashboard.ts';
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
-import { createConnectorSync, CONNECTOR_SYNC_UPDATE } from '../../packages/client/src/api/connector-sync.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
 import * as session from '../../packages/client/src/api/attach-session.ts';
 import * as bundle from '../../packages/client/src/api/bundle.ts';
@@ -205,21 +204,6 @@ const everything = new Set<Section>(['channels', 'skills', 'memory', 'sessions',
 const gathered = await ok('gatherPayload', () => transfer.gatherPayload({ id: agent, name: '' }, everything, new Date().toISOString()));
 if (gathered !== undefined)
   await ok('applyPayload', () => transfer.applyPayload(gathered.payload, everything, 'overwrite', { id: agent, name: '' }));
-
-await ok('connector sync off or explicit upgrade notice', async () => {
-  const sync = createConnectorSync({ id: 'compat00001', host });
-  try {
-    const status = await sync.read();
-    if (status.enabled || status.counts !== null || status.lastReceivedAt !== null) throw new Error('connector sync must be off without a receipt');
-    const saved = await sync.save(false);
-    if (saved.enabled || saved.source !== 'saved') throw new Error('connector sync disable was not saved');
-  } catch (err) {
-    if (message(err) === CONNECTOR_SYNC_UPDATE) return;
-    throw err;
-  } finally {
-    sync.dispose();
-  }
-});
 
 await ok('dropConnection', () => model.dropConnection(cid));
 if (skill !== undefined) await ok('deleteClaudeSkill', () => claude.deleteClaudeSkill(skill.id));

@@ -1,5 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
-import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-delivery';
+import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import type { AssignmentRow, ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { detailOf, parsedJson, type ConnectorDetail } from '@metro-labs/connectors/model';
 

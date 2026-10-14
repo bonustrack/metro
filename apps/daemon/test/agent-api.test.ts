@@ -11,7 +11,6 @@ const ACCOUNT = { id: 'ada-tg', agentId: 'agent000001' };
 let daemon: Daemon;
 let base: string;
 let scopes: Set<string>[] = [];
-let connectorMap = new Map<string, string[]>();
 
 const deps: AgentApiDeps = {
   listAgents: () => Promise.resolve([AGENT]),
@@ -20,7 +19,6 @@ const deps: AgentApiDeps = {
     return Promise.resolve({ accounts: { 'telegram-bot': allowed.has(AGENT.id) ? [ACCOUNT] : [], 'discord-bot': [] }, unavailable: [] });
   },
   capabilities: () => ({ 'telegram-bot': ['send'], 'discord-bot': ['send', 'read'] }),
-  connectorIds: () => Promise.resolve(connectorMap),
   attachSessions: {
     start: () => Promise.reject(new AgentAdminError('not exercised here', 400)),
     view: () => {
@@ -57,7 +55,6 @@ afterAll(async () => {
 
 afterEach(() => {
   scopes = [];
-  connectorMap = new Map();
 });
 
 describe('/api/agents authentication', () => {
@@ -88,13 +85,12 @@ describe('/api/agents authentication', () => {
 });
 
 describe('GET /api/agents', () => {
-  test('lists the one agent with its connectors, never its key', async () => {
-    connectorMap = new Map([['agent000001', ['conn0000001', 'conn0000002']]]);
+  test('lists the one agent, never its key', async () => {
     const res = await get('', OWNER);
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body.agents).toEqual([{ id: 'agent000001', name: 'ada-bot', connector_ids: ['conn0000001', 'conn0000002'] }]);
+    expect(body.agents).toEqual([{ id: 'agent000001', name: 'ada-bot' }]);
     expect(body.capabilities).toBeDefined();
     expect(body.attachable).toBeDefined();
     expect(body.accounts).toBeUndefined();

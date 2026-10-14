@@ -2,6 +2,8 @@ import { log } from '@metro-labs/core/log';
 
 export const MCP_SERVER_KEY = 'mcp';
 
+const DEFAULT_URL = 'https://mcp.metro.box';
+
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 let refused: string | undefined;
@@ -18,7 +20,7 @@ function usable(raw: string): boolean {
 }
 
 export function mcpServerUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = env.METRO_MCP_SERVER_URL?.trim() ?? '';
+  const raw = env.METRO_MCP_SERVER_URL?.trim() ?? DEFAULT_URL;
   if (raw === '') return null;
   if (usable(raw)) return raw.replace(/\/+$/, '');
   if (refused !== raw) {

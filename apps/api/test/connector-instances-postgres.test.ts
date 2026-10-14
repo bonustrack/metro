@@ -3,7 +3,7 @@ import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { openConnectorSecret } from '@metro-labs/connectors/model';
 import { fullPolicy, type ConnectorView } from '../src/connectors/model.js';
 import { connectorAgents, connectors } from '../src/db/schema.js';
-import { enrollDeliveryAgent, MASTER, newDeliveryAgent, type DeliveryAgent } from './connector-delivery-fixture.js';
+import { enrollAgent, MASTER, newEnrolledAgent, type EnrolledAgent } from './connector-agent-fixture.js';
 import { postgresFixture, TEST_DATABASE_URL } from './connector-postgres-fixture.js';
 import { auth, TEST_OWNER } from './identity-helper.js';
 import { startApi, type Api } from './org-connectors-fixture.js';
@@ -14,7 +14,7 @@ const SECOND_KEY = 'Bearer second-fixture-key';
 const verifiedFetch: FetchLike = () => Promise.resolve(Response.json({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', serverInfo: { name: 'Fixture MCP' } } }));
 let held: Awaited<ReturnType<typeof postgresFixture>>;
 let org: Api;
-let agent: DeliveryAgent;
+let agent: EnrolledAgent;
 
 async function orgCall<T>(method: string, path: string, body?: unknown, status = 200): Promise<T> {
   const response = await fetch(`${org.base}/api/connectors${path}`, { method, headers: { authorization: await auth(TEST_OWNER), 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -38,8 +38,8 @@ describe.skipIf(TEST_DATABASE_URL === undefined)('independent connector instance
   }, 30_000);
   beforeEach(async () => {
     await held.reset();
-    agent = newDeliveryAgent();
-    await enrollDeliveryAgent(held.db1, agent);
+    agent = newEnrolledAgent();
+    await enrollAgent(held.db1, agent);
   });
   afterAll(async () => { await org?.close(); await held?.close(); });
 

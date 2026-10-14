@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import { randomInt, randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
@@ -13,7 +13,7 @@ import { setAgentMap, setAllowlistMap, setApproversMap } from '../src/agents/map
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { forgetOwnerLine } from '../src/approvals/owner-line.ts';
-import { registerConnectors } from '../src/connectors/gates.ts';
+import { announcedLine, forgetAnnounced, setAnnouncedFile } from '../src/mcp-server/announced.ts';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { makeEmit } from '../src/routes/http.ts';
 import type { McpServerLink } from '../src/mcp-server/link.ts';
@@ -109,9 +109,9 @@ afterAll(async () => {
   setAgentMap({}, {});
   setAllowlistMap({});
   setApproversMap({});
-  registerConnectors([]);
   forgetAllPrompts();
   forgetOwnerLine();
+  forgetAnnounced();
 });
 
 beforeEach(() => {
@@ -129,6 +129,7 @@ beforeEach(() => {
   fake.answers = [];
   fake.reply = null;
   forgetServerApprovals();
+  setAnnouncedFile(join(dir, 'mcp-approvals.json'));
   startLink();
 });
 
@@ -136,37 +137,92 @@ afterEach(async () => {
   await link?.stop();
   link = undefined;
   forgetAllPrompts();
+  forgetAnnounced();
   rmSync(dir, { recursive: true, force: true });
 });
 
 describe('an approval asked by mcp.metro.box', () => {
   test('is posted to the chat, listed on the page, answered by an approver in chat, sent back, and told to the agent', async () => {
-    registerConnectors([{ id: 'org-notion00001', name: 'Notion', config: {} }]);
+    await arrives('abcde');
+    const polls = approvalsSeen();
+    await waitFor(() => approvalsSeen() >= polls + 3);
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
+    expect(sends()).toEqual([
+      [LINE, 'Approval needed: notion.update_page\npage_id: p1\ntitle: Weekly notes\n\nReply "yes abcde" or "no abcde"'],
+    ]);
+    const listed = await pageCall('GET', '');
+    expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE })]);
+
+    chat(LINE, MEMBER, 'yes abcde');
+    await waitFor(() => raw().includes('yes abcde'));
+    expect(fake.answers).toEqual([]);
+
+    chat(LINE, OWNER_SENDER, 'yes abcde');
+    await waitFor(() => raw().includes('Approved: notion.update_page (abcde)'));
+    expect(fake.answers).toEqual([{ id: 'abcde', decision: 'allow' }]);
+    expect(raw()).toContain('Approved: notion.update_page (abcde). Call call_tool again with the same arguments and approval: \\"abcde\\".');
+    expect(raw()).toContain('"from":"metro://metro"');
+    expect(pendingPrompts()).toEqual([]);
+    expect(sends()).toHaveLength(1);
+  });
+
+  test('announced once survives a restart: the server sends it again, it is held again on its first chat, and never posted twice', async () => {
+    const file = join(dir, 'mcp-approvals.json');
+    await arrives('kmnpq');
+    await waitFor(() => announcedLine('kmnpq') === LINE);
+    expect(sends()).toHaveLength(1);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, announced: { kmnpq: { line: LINE, at: expect.any(Number) } } });
+
+    await link?.stop();
+    forgetAllPrompts();
+    forgetServerApprovals();
+    forgetAnnounced();
+    setAnnouncedFile(file);
+    calls = [];
+    startLink();
+    await waitFor(() => pendingPrompts().some((p) => p.requestId === 'kmnpq'));
+    const polls = approvalsSeen();
+    await waitFor(() => approvalsSeen() >= polls + 3);
+    expect(sends()).toEqual([]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'kmnpq', line: LINE })]);
+
+    chat(LINE, OWNER_SENDER, 'yes kmnpq');
+    await waitFor(() => raw().includes('Approved: notion.update_page (kmnpq)'));
+    expect(fake.answers).toEqual([{ id: 'kmnpq', decision: 'allow' }]);
+    expect(sends()).toEqual([]);
+  });
+
+  test('held again on the chat it was announced in, where the answer still counts, even when the last chat moved', async () => {
+    const other = `metro://telegram-bot/${TG}/-100888`;
+    const file = join(dir, 'mcp-approvals.json');
+    writeFileSync(file, JSON.stringify({ version: 1, announced: { mnpqr: { line: other, at: Date.now() - 60_000 } } }));
+    forgetAnnounced();
+    setAnnouncedFile(file);
+    await arrives('mnpqr');
+    expect(sends()).toEqual([]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'mnpqr', line: other })]);
+    chat(LINE, OWNER_SENDER, 'yes mnpqr');
+    await waitFor(() => raw().includes('yes mnpqr'));
+    expect(fake.answers).toEqual([]);
     try {
-      await arrives('abcde');
-      const polls = approvalsSeen();
-      await waitFor(() => approvalsSeen() >= polls + 3);
-      expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
-      expect(sends()).toEqual([
-        [LINE, 'Approval needed: notion.update_page\nConnector: Notion\npage_id: p1\ntitle: Weekly notes\n\nReply "yes abcde" or "no abcde"'],
-      ]);
-      const listed = await pageCall('GET', '');
-      expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE })]);
-
-      chat(LINE, MEMBER, 'yes abcde');
-      await waitFor(() => raw().includes('yes abcde'));
-      expect(fake.answers).toEqual([]);
-
-      chat(LINE, OWNER_SENDER, 'yes abcde');
-      await waitFor(() => raw().includes('Approved: notion.update_page (abcde)'));
-      expect(fake.answers).toEqual([{ id: 'abcde', decision: 'allow' }]);
-      expect(raw()).toContain('Approved: notion.update_page (abcde). Call call_tool again with the same arguments and approval: \\"abcde\\".');
-      expect(raw()).toContain('"from":"metro://metro"');
-      expect(pendingPrompts()).toEqual([]);
-      expect(sends()).toHaveLength(1);
+      chat(other, OWNER_SENDER, 'yes mnpqr');
+      await waitFor(() => fake.answers.length === 1);
+      expect(fake.answers).toEqual([{ id: 'mnpqr', decision: 'allow' }]);
     } finally {
-      registerConnectors([]);
+      chat(LINE, OWNER_SENDER, 'back on the first chat');
+      await waitFor(() => raw().includes('back on the first chat'));
     }
+  });
+
+  test('an announcement older than a day is forgotten, so the approval is posted again', async () => {
+    const file = join(dir, 'mcp-approvals.json');
+    writeFileSync(file, JSON.stringify({ version: 1, announced: { npqrs: { line: LINE, at: Date.now() - 25 * 3_600_000 } } }));
+    forgetAnnounced();
+    setAnnouncedFile(file);
+    expect(announcedLine('npqrs')).toBeUndefined();
+    await arrives('npqrs');
+    expect(sends()).toEqual([[LINE, expect.stringContaining('Reply "yes npqrs" or "no npqrs"')]]);
   });
 
   test('answered on the page is sent back, confirmed in the chat, and told to the agent', async () => {

@@ -1,4 +1,4 @@
-import { effectiveConnectorPolicy, type ConnectorPolicy } from '@metro-labs/http/connector-delivery';
+import { effectiveConnectorPolicy, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import type { AssignedConnector } from '@metro-labs/connectors/db/connector-delivery';
 import { deliveryPolicy } from '@metro-labs/connectors/revision';
 

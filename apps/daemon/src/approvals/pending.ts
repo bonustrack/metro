@@ -145,19 +145,13 @@ export function cancelPrompt(requestId: string, owner: object): void {
   });
 }
 
-export function revokeToolPrompts(matches: (tool: string) => boolean): void {
-  grants = grants.filter((entry) => !matches(entry.tool));
-  for (const entry of held.values())
-    if (matches(entry.tool)) cancelPrompt(entry.requestId, entry.owner);
-}
-
 export function revokeCallPrompts(route: CallRoute): void {
   grants = grants.filter((entry) => entry.call === undefined || !sameCall(entry.call.route, route));
   for (const entry of held.values())
     if (entry.call !== undefined && sameCall(entry.call.route, route)) cancelPrompt(entry.requestId, entry.owner);
 }
 
-export function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
+function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
   for (const [id, entry] of held)
     if (entry.origin !== 'mcp-server' && toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
       held.delete(id);

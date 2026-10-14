@@ -13,9 +13,11 @@ export interface ToolPolicy {
   tools?: Record<string, Access>;
 }
 
-export type PolicyTarget =
-  | { kind: 'channel'; station: string; account: string }
-  | { kind: 'connector'; id: string };
+export interface PolicyTarget {
+  kind: 'channel';
+  station: string;
+  account: string;
+}
 
 export interface PolicyTool {
   name: string;
@@ -28,8 +30,7 @@ const RANK: Record<Access, number> = { allow: 0, ask: 1, deny: 2 };
 
 const isAccess = (value: unknown): value is Access => typeof value === 'string' && (ACCESS as readonly string[]).includes(value);
 
-export const targetKey = (target: PolicyTarget): string =>
-  target.kind === 'channel' ? `channel:${target.station}/${target.account}` : `connector:${target.id}`;
+export const targetKey = (target: PolicyTarget): string => `channel:${target.station}/${target.account}`;
 
 export function decide(policy: ToolPolicy | undefined, tool: PolicyTool): Access {
   const byTool = policy?.tools !== undefined && Object.hasOwn(policy.tools, tool.name) ? policy.tools[tool.name] : undefined;

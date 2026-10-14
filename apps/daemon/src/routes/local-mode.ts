@@ -6,16 +6,12 @@ import { assertAttachOwner, finishGmailUpgrade, startGmailAttach } from './gmail
 import { detachWithGmailRevocation } from './gmail-detach.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
-import { invalidateOrgConnectorSync, orgConnectorRelaySession, orgConnectorSyncStatus, setOrgConnectorSync } from '../connectors/org-sync-watch.js';
 import type { AgentApiDeps } from '../agents/api.js';
 import { ATTACHABLE, type AccountApiDeps } from '../agents/accounts-api.js';
 import type { SessionApis } from './session-apis.js';
 import type { ModeInfo } from '@metro-labs/http/mode-api';
 import { loadedAgentOf, type AgentBundle, type BundleApiDeps } from '../agents/bundle.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
-import { authenticate } from '../mcp/request-identity.js';
-import type { RelayApiDeps } from '../connectors/relay.js';
-import { connectorGates } from '../connectors/gates.js';
 import {
   setLocalOwner,
   localAttachAccount,
@@ -78,7 +74,6 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     ...(deps.toolGroups === undefined ? {} : { toolGroups: deps.toolGroups }),
     attachable: ATTACHABLE.filter((s) => s !== 'webhook'),
     features: ['gmail-managed'],
-    connectorIds: connectorIdsOfLocalAgents,
     prepareAccount: deps.prepareAccount,
     attachAccount: localAttachAccount,
     detachAccount: detachWithGmailRevocation,
@@ -92,20 +87,6 @@ function agentApi(deps: LocalModeDeps): AgentApiDeps {
     reloadAgents: deps.reloadAgents,
   };
 }
-
-function connectorIdsOfLocalAgents(ids: string[]): Promise<Map<string, string[]>> {
-  const all = connectorGates().map((gate) => gate.id);
-  return Promise.resolve(new Map(ids.map((id) => [id, all] as const)));
-}
-
-const relayApi: RelayApiDeps = {
-  open: orgConnectorRelaySession,
-  identify: (req) => {
-    const who = authenticate(req);
-    return who?.kind === 'agent' ? { subject: 'agent-key', agentId: who.agentId } : null;
-  },
-};
-
 
 function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   return {
@@ -155,17 +136,11 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
   return {
     agentApi: agentApi(deps),
     bundleApi: bundleApi(deps),
-    connectorSyncApi: { status: orgConnectorSyncStatus, set: setOrgConnectorSync },
-    enrollApi: { owner: () => localOwner(), invalidate: invalidateOrgConnectorSync },
-    relayApi,
+    enrollApi: { owner: () => localOwner() },
     claudeApi: { liveEvents: deps.liveEvents },
     updateApi: { restart: deps.restart },
     controlApi: { restart: deps.restart, stop: deps.stop },
-    ownerApi: { setOwner: (owner) => {
-      const saved = setLocalOwner(owner);
-      invalidateOrgConnectorSync();
-      return saved;
-    } },
+    ownerApi: { setOwner: setLocalOwner },
     machineApi: {},
     modelApi: { switchModel: deps.switchModel, owner: localOwner },
     gateway: { config: readModelConfig },

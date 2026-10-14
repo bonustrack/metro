@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyOf, type ConnectorPolicy, type ConnectorPolicyLayers } from '@metro-labs/http/connector-delivery';
+import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyOf, type ConnectorPolicy, type ConnectorPolicyLayers } from '@metro-labs/http/connector-policy';
 import type { AssignedConnector } from './db/connector-delivery.js';
 import type { ConnectorRow } from './db/connectors.js';
 

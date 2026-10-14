@@ -139,13 +139,25 @@ describe('the MCP token', () => {
 });
 
 describe('METRO_MCP_SERVER_URL', () => {
-  test('unset, nothing runs and the agent view is what it was', async () => {
+  test('unset, it is mcp.metro.box', () => {
     delete process.env.METRO_MCP_SERVER_URL;
-    expect(mcpServerUrl()).toBeNull();
-    expect(watchMcpServer({ owner: () => OWNER, hold: () => undefined })).toBe(false);
+    expect(mcpServerUrl()).toBe('https://mcp.metro.box');
+    expect(mcpServerUrl({})).toBe('https://mcp.metro.box');
     writeFileSync(join(dir, 'mcp-token'), `mcp_${'A'.repeat(43)}\n`);
-    expect([...viewFiles(dir).keys()]).not.toContain('mcp-token');
-    await stopMcpServer();
+    expect(viewFiles(dir).get('mcp-token')).toBe(`mcp_${'A'.repeat(43)}\n`);
+  });
+
+  test('set empty, nothing runs and the agent view leaves the token out', async () => {
+    process.env.METRO_MCP_SERVER_URL = '';
+    try {
+      expect(mcpServerUrl()).toBeNull();
+      expect(watchMcpServer({ owner: () => OWNER, hold: () => undefined })).toBe(false);
+      writeFileSync(join(dir, 'mcp-token'), `mcp_${'A'.repeat(43)}\n`);
+      expect([...viewFiles(dir).keys()]).not.toContain('mcp-token');
+      await stopMcpServer();
+    } finally {
+      delete process.env.METRO_MCP_SERVER_URL;
+    }
   });
 
   test('set, the token is copied into the agent view as it is', () => {
@@ -185,10 +197,11 @@ describe('the plugin helper mcp-headers', () => {
     expect(run(dir)).toEqual({ status: 0, stdout: '' });
   });
 
-  test('leaves the agent key helper as it was', () => {
+  test('has no other command: the agent key helper of the old connector servers is gone', () => {
     writeFileSync(join(dir, 'agent.json'), JSON.stringify({ version: 1, id: AGENT, key: 'mk_x' }));
     const out = spawnSync('node', [HELPER, 'headers'], { encoding: 'utf8', env: { ...process.env, METRO_AGENTS_DIR: dir } });
-    expect(out.stdout).toBe(`${JSON.stringify({ Authorization: 'Bearer mk_x' })}\n`);
-    expect(readFileSync(HELPER, 'utf8')).toContain('mcp-headers');
+    expect(out.status).toBe(1);
+    expect(out.stdout).toBe('');
+    expect(out.stderr).toContain('usage: metro-plugin.mjs mcp-headers');
   });
 });

@@ -7,7 +7,6 @@ import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
 import { DaemonControls } from './DaemonControls.js';
 import { EnrollAgent } from './EnrollAgent.js';
-import { ConnectorSync } from './ConnectorSync.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { ServerSizeSection } from './ServerSize.js';
 import { ServerStorageSection } from './ServerStorage.js';
@@ -76,7 +75,7 @@ export function ServerPage({ project }: { project: string }): ReactNode {
       <SettingsGroup title="Agent">
         <ClaudeSession project={project} />
       </SettingsGroup>
-      {server === undefined ? null : <><EnrollAgent server={server} /><ConnectorSync server={server} /></>}
+      {server === undefined ? null : <EnrollAgent server={server} />}
       {machine.error !== null ? (
         <Text size="md" role="danger">
           {queryError(machine.error, FALLBACK)}

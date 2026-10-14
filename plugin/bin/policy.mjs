@@ -56,42 +56,11 @@ function decide(policy, name, group) {
   return access in RANK ? access : 'allow';
 }
 
-const normalized = (name) => name.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-function connectorCall(snap, toolName) {
-  const entries = Object.entries(isRecord(snap.connectors) ? snap.connectors : {});
-  const legacy = entries.filter(([, entry]) => isRecord(entry) && !/^org-[A-Za-z0-9][A-Za-z0-9_-]{10}$/.test(text(entry.id)) && toolName.startsWith(`mcp__${normalized(`metro.box ${text(entry.name)}`)}__`));
-  if (legacy.length > 1) return { name: 'ambiguous connector name; use its instance server key', tool: toolName, group: 'write', policy: { write: 'deny' } };
-  for (const [server, entry] of entries) {
-    if (!isRecord(entry)) continue;
-    const name = text(entry.name);
-    const prefixes = [`mcp__plugin_metro_${server}__`, `mcp__${server}__`];
-    if (!/^org-[A-Za-z0-9][A-Za-z0-9_-]{10}$/.test(text(entry.id))) prefixes.push(`mcp__${normalized(`metro.box ${name}`)}__`);
-    const prefix = prefixes.find((p) => toolName.startsWith(p) && toolName.length > p.length);
-    if (prefix === undefined) continue;
-    const called = toolName.slice(prefix.length);
-    const tools = isRecord(entry.tools) ? entry.tools : {};
-    const policy = isRecord(entry.policy) ? entry.policy : {};
-    const known = [...Object.keys(tools), ...Object.keys(isRecord(policy.tools) ? policy.tools : {})];
-    const tool = known.find((k) => k === called) ?? known.find((k) => normalized(k) === called) ?? called;
-    return { name: name || server, tool, group: tools[tool] === 'read' ? 'read' : 'write', policy };
-  }
-  return null;
-}
-
-function connectorVerdict(snap, toolName) {
-  const call = connectorCall(snap, toolName);
-  if (call === null) return null;
-  const access = decide(call.policy, call.tool, call.group);
-  return access === 'allow' ? null : { access, tool: call.tool, owner: call.name, where: `${call.tool} on ${call.name}` };
-}
-
 export function policyVerdict(toolName, input) {
   const name = METRO_TOOL.exec(toolName)?.[1];
-  if (name === undefined && !toolName.startsWith('mcp__')) return null;
+  if (name === undefined) return null;
   const snap = readSnapshot();
   if (snap === null) return null;
-  if (name === undefined) return connectorVerdict(snap, toolName);
   const tools = isRecord(snap.tools) ? snap.tools : {};
   const group = tools[name] === 'read' ? 'read' : 'write';
   const accounts = isRecord(snap.accounts) ? snap.accounts : {};

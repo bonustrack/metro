@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomInt } from 'node:crypto';
-import { listRemoteTools } from '../src/connectors/tools.ts';
+import { listRemoteTools } from '@metro-labs/http/connector-tools';
 import { ConnectorVerifyError } from '@metro-labs/http/connector-url';
 
 interface Seen {

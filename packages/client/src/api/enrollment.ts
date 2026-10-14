@@ -5,7 +5,6 @@ import { AuthError, call, ForbiddenError, NotFoundError } from './client.js';
 import type { Server } from './servers.js';
 import { toMode } from './mode.js';
 import { olderThan } from './version.js';
-import { beginEnrollment } from './enrollment-scope.js';
 
 export interface EnrollmentResult {
   server: string;
@@ -23,7 +22,7 @@ interface Ticket {
 }
 
 const CHANGED = 'The account or agent changed. Close this dialog and start again.';
-const UNCONFIRMED = 'Enrollment could not be confirmed and may have reached the agent. Try again. Saved connector sync may now be off, so check it before turning it back on.';
+const UNCONFIRMED = 'Enrollment could not be confirmed and may have reached the agent. Try again.';
 const DISABLED = 'Organization connectors are not switched on yet.';
 const STALE = 'This enrollment ticket is stale or belongs to another organization. Start again from the agent page.';
 const UPDATE = 'Update this agent to the latest Metro, then try again.';
@@ -43,7 +42,7 @@ function resultOf(value: unknown, server: string, organization: string): Enrollm
 
 function stageError(error: unknown, stage: 'ticket' | 'agent'): string {
   if (stage === 'agent') {
-    if (error instanceof Error && error.message === STALE) return 'The ticket expired or was used. Retry to request a new ticket, which can replace an enrollment the agent already got. Saved connector sync may now be off.';
+    if (error instanceof Error && error.message === STALE) return 'The ticket expired or was used. Retry to request a new ticket, which can replace an enrollment the agent already got.';
     return UNCONFIRMED;
   }
   if (error instanceof Error && error.message === DISABLED) return `${DISABLED} Enrollment did not start. No settings were changed.`;
@@ -101,14 +100,12 @@ export function createEnrollment(server: Pick<Server, 'id' | 'host'>): Enrollmen
   const run = async (): Promise<EnrollmentResult> => {
     let stage: 'ticket' | 'agent' = 'ticket';
     let locked = false;
-    let finish = (): void => undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       check();
       if (finished || running.has(key)) throw new EnrollmentError('Enrollment is already running or complete.');
       running.add(key);
       locked = true;
-      finish = beginEnrollment();
       request = new AbortController();
       timer = setTimeout(() => { request?.abort(); }, 45_000);
       const init = { method: 'POST', checkAccount: check, signal: request.signal, redirect: 'error' } as const;
@@ -128,7 +125,6 @@ export function createEnrollment(server: Pick<Server, 'id' | 'host'>): Enrollmen
     } finally {
       if (timer !== undefined) clearTimeout(timer);
       if (locked) { running.delete(key); request = null; }
-      finish();
     }
   };
   return { run, dispose: () => { dispose(); unsubscribeAccount(); unsubscribeServer(); } };
