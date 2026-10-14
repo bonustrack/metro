@@ -2,7 +2,7 @@
   "name": "@metro-labs/mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "mcp.metro.box: the one MCP endpoint every agent uses for its organization connectors (find_tools and call_tool), with the approvals its daemon relays.",
+  "description": "mcp.metro.box: the one MCP endpoint every agent uses for its organization connectors (tool_search and tool_call), with the approvals its daemon relays.",
   "license": "MIT",
   "type": "module",
   "engines": {

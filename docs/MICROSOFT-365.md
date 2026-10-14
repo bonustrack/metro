@@ -57,7 +57,7 @@ paste it into metro's Client secret field along with the client ID.
    user and accept the consent prompt. Microsoft sends you back to metro with the connector
    connected.
 4. Repeat for each server the agent should hold. The same client ID serves all of them.
-5. Assign the connectors to the agent. Its next `find_tools` call on mcp.metro.box finds
+5. Assign the connectors to the agent. Its next `tool_search` call on mcp.metro.box finds
    their tools; nothing needs a reload on the box.
 
 Signing a connector out keeps the client ID, so **Connect** signs in again without a new

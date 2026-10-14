@@ -14,11 +14,16 @@ import { auth, operatorAuth } from './identity-helper.ts';
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const CHATGPT = { method: 'chatgpt' as const, clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
 const CODE = { method: 'code' as const, accountId: 'acct_1', email: 'less@example.com', plan: 'plus', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
-const PLUGIN = join(import.meta.dir, '..', '..', '..', 'plugin');
+const CLI = join(import.meta.dir, '..', '..', '..', 'packages', 'cli');
+const SKILLS = join(CLI, 'skills');
+const METRO_HOOKS = {
+  PreToolUse: [{ hooks: [{ type: 'command', command: `node "${join(CLI, 'hooks', 'guard.mjs')}"`, statusMessage: 'Checking the orchestrator boundary' }] }],
+  SessionStart: [{ hooks: [{ type: 'command', command: `node "${join(CLI, 'hooks', 'session-start.mjs')}"` }] }],
+};
 const SHIPPED_BEFORE = readFileSync(join(import.meta.dir, 'metro-orchestrator-shipped.md'), 'utf8');
 
 let dir = '';
-const deps = (): SetupDeps => ({ dir: join(dir, 'claude'), agents: join(dir, 'agents'), plugin: PLUGIN });
+const deps = (): SetupDeps => ({ dir: join(dir, 'claude'), agents: join(dir, 'agents'), cli: CLI });
 const skill = (name: string): string => join(dir, 'claude', 'skills', name, 'SKILL.md');
 const placeSkill = (name: string, text: string): void => {
   mkdirSync(join(dir, 'claude', 'skills', name), { recursive: true });
@@ -37,21 +42,21 @@ afterEach(() => {
 });
 
 describe('the Claude Code setup a metro box gets', () => {
-  test('writes the worker agent, the metro, stage and memory skills and the privacy settings once, and leaves them alone after', () => {
+  test('writes the worker agent, the metro, stage and memory skills, the privacy settings and metro hooks once, and leaves them alone after', () => {
     const first = ensureClaudeSetup(deps());
-    expect(first).toEqual({ privacy: true, guard: 'plugin', worker: 'written', skill: 'written', stage: 'written', memory: 'written', settings: 'written' });
+    expect(first).toEqual({ privacy: true, guard: true, worker: 'written', skill: 'written', stage: 'written', memory: 'written', settings: 'written' });
     expect(readFileSync(join(dir, 'claude', 'agents', 'worker.md'), 'utf8')).toContain('name: worker');
-    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
+    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(SKILLS, 'METRO.md'), 'utf8'));
     expect(readFileSync(skill('metro'), 'utf8')).toContain('name: metro\n');
-    expect(readFileSync(skill('stage'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'STAGE.md'), 'utf8'));
+    expect(readFileSync(skill('stage'), 'utf8')).toBe(readFileSync(join(SKILLS, 'STAGE.md'), 'utf8'));
     expect(readFileSync(skill('stage'), 'utf8')).toContain('name: stage\n');
-    expect(readFileSync(skill('memory'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'MEMORY.md'), 'utf8'));
+    expect(readFileSync(skill('memory'), 'utf8')).toBe(readFileSync(join(SKILLS, 'MEMORY.md'), 'utf8'));
     expect(readFileSync(skill('memory'), 'utf8')).toContain('name: memory\n');
-    expect(settings()).toEqual({ env: PRIVACY_ENV, cleanupPeriodDays: RETENTION_DAYS });
+    expect(settings()).toEqual({ env: PRIVACY_ENV, cleanupPeriodDays: RETENTION_DAYS, hooks: METRO_HOOKS });
     writeFileSync(skill('metro'), 'edited by hand');
     writeFileSync(skill('stage'), 'stage edited by hand');
     writeFileSync(skill('memory'), 'memory edited by hand');
-    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: 'plugin', worker: 'present', skill: 'present', stage: 'present', memory: 'present', settings: 'unchanged' });
+    expect(ensureClaudeSetup(deps())).toEqual({ privacy: true, guard: true, worker: 'present', skill: 'present', stage: 'present', memory: 'present', settings: 'unchanged' });
     expect(readFileSync(skill('metro'), 'utf8')).toBe('edited by hand');
     expect(readFileSync(skill('stage'), 'utf8')).toBe('stage edited by hand');
     expect(readFileSync(skill('memory'), 'utf8')).toBe('memory edited by hand');
@@ -60,7 +65,7 @@ describe('the Claude Code setup a metro box gets', () => {
   test('the old metro-orchestrator skill becomes metro: a copy metro shipped gets the new rules, an edited one keeps its edits', () => {
     placeSkill('metro-orchestrator', SHIPPED_BEFORE);
     expect(ensureClaudeSetup(deps())).toMatchObject({ skill: 'updated', stage: 'written' });
-    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(PLUGIN, 'METRO.md'), 'utf8'));
+    expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(SKILLS, 'METRO.md'), 'utf8'));
     expect(existsSync(join(dir, 'claude', 'skills', 'metro-orchestrator'))).toBe(false);
     rmSync(join(dir, 'claude', 'skills', 'metro'), { recursive: true });
     placeSkill('metro-orchestrator', '---\nname: metro-orchestrator\ndescription: mine\n---\nAnswer in French.\n');
@@ -97,7 +102,7 @@ describe('the Claude Code setup a metro box gets', () => {
   test('merges into settings the user already has, keeps their retention, and never touches a broken file', () => {
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 30, hooks: { PreToolUse: [] } }));
     expect(ensureClaudeSetup(deps()).settings).toBe('written');
-    expect(settings()).toEqual({ env: { MY_VAR: 'x', ...PRIVACY_ENV }, cleanupPeriodDays: 30, hooks: { PreToolUse: [] } });
+    expect(settings()).toEqual({ env: { MY_VAR: 'x', ...PRIVACY_ENV }, cleanupPeriodDays: 30, hooks: METRO_HOOKS });
     writeFileSync(join(dir, 'claude', 'settings.json'), '{broken');
     expect(ensureClaudeSetup(deps()).settings).toBe('unreadable');
     expect(readFileSync(join(dir, 'claude', 'settings.json'), 'utf8')).toBe('{broken');
@@ -108,7 +113,7 @@ describe('the Claude Code setup a metro box gets', () => {
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ env: { ...PRIVACY_ENV, MY_VAR: 'x' }, cleanupPeriodDays: 7 }));
     setPrivacy(false, join(dir, 'agents'));
     expect(ensureClaudeSetup(deps())).toMatchObject({ privacy: false, settings: 'written' });
-    expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7 });
+    expect(settings()).toEqual({ env: { MY_VAR: 'x' }, cleanupPeriodDays: 7, hooks: METRO_HOOKS });
     expect(claudeSetupStatus(deps())).toEqual({
       privacy: false,
       permissionMode: 'auto',
@@ -119,7 +124,7 @@ describe('the Claude Code setup a metro box gets', () => {
       liveEvents: true,
       memoryRoutine: true,
       memoryJob: expect.any(Object),
-      guard: 'plugin',
+      guard: true,
       worker: true,
       skill: true,
       stage: true,
@@ -129,10 +134,11 @@ describe('the Claude Code setup a metro box gets', () => {
     });
   });
 
-  test('missing skill sources are reported, not thrown', () => {
-    const report = ensureClaudeSetup({ ...deps(), plugin: join(dir, 'nowhere') });
-    expect(report).toMatchObject({ skill: 'missing', stage: 'missing', memory: 'missing' });
+  test('missing skill and hook sources are reported, not thrown', () => {
+    const report = ensureClaudeSetup({ ...deps(), cli: join(dir, 'nowhere') });
+    expect(report).toMatchObject({ guard: false, skill: 'missing', stage: 'missing', memory: 'missing' });
     expect(existsSync(join(dir, 'claude', 'skills'))).toBe(false);
+    expect(settings()).toEqual({ env: PRIVACY_ENV, cleanupPeriodDays: RETENTION_DAYS });
   });
 });
 

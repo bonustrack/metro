@@ -2,7 +2,7 @@ import { defineConfig } from '@stage-labs/config';
 
 export default defineConfig({
   knip: {
-    ignore: ['stage.config.js', 'plugin/**', 'scripts/compat/**', 'scripts/metro-user/**', 'scripts/app/**', 'scripts/sdk-runner/**'],
+    ignore: ['stage.config.js', 'scripts/compat/**', 'scripts/metro-user/**', 'scripts/app/**', 'scripts/sdk-runner/**'],
   },
   workspaces: {
     'apps/app': {

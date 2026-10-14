@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { functionsText, nameTokens, requiredTerms, searchTools, selectedNames, type SearchTool } from '../src/search.ts';
+import { closestNames, functionsText, nameTokens, requiredTerms, searchTools, selectedNames, type SearchTool } from '../src/search.ts';
 
 const tool = (name: string, description = '', title = name): SearchTool => ({ name, title, description, parameters: { type: 'object', properties: {} } });
 
@@ -15,7 +15,7 @@ const TOOLS = [
 
 const names = (found: SearchTool[]): string[] => found.map((t) => t.name);
 
-describe('find_tools search', () => {
+describe('tool_search search', () => {
   test('select: returns exactly the named tools, in the order asked, ignoring unknown names', () => {
     expect(names(searchTools(TOOLS, 'select:linear.create_issue,notion.search', 5))).toEqual(['linear.create_issue', 'notion.search']);
     expect(names(searchTools(TOOLS, 'select: notion.search , missing.tool, notion.search', 5))).toEqual(['notion.search']);
@@ -56,6 +56,13 @@ describe('find_tools search', () => {
   test('name tokens split dots, dashes, underscores and camelCase', () => {
     expect(nameTokens('n8n-anderra.getWorkflowDetails')).toEqual(['n8n', 'anderra', 'get', 'workflow', 'details']);
     expect(nameTokens('notion.update_page')).toEqual(['notion', 'update', 'page']);
+  });
+
+  test('the closest names to a wrong one come first, three at most, and nothing unrelated', () => {
+    const all = names(TOOLS);
+    expect(closestNames('notion.serch', all, 3)).toEqual(['notion.search', 'notion.create_page', 'notion.update_page']);
+    expect(closestNames('jira.create_issue', all, 3)[0]).toBe('linear.create_issue');
+    expect(closestNames('zz', all, 3)).toEqual([]);
   });
 
   test('the output is the ToolSearch <functions> encoding, one function per line', () => {

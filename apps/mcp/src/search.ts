@@ -74,6 +74,35 @@ export function searchTools(tools: SearchTool[], query: string, max: number): Se
   return names === null ? rank(tools, query, max) : select(tools, names);
 }
 
+function bigrams(text: string): string[] {
+  const lower = text.toLowerCase();
+  return Array.from({ length: Math.max(lower.length - 1, 0) }, (_, at) => lower.slice(at, at + 2));
+}
+
+function similarity(a: string, b: string): number {
+  const left = bigrams(a);
+  const pool = bigrams(b);
+  if (left.length === 0 || pool.length === 0) return a.toLowerCase() === b.toLowerCase() ? 1 : 0;
+  const total = left.length + pool.length;
+  let shared = 0;
+  for (const gram of left) {
+    const at = pool.indexOf(gram);
+    if (at < 0) continue;
+    shared += 1;
+    pool.splice(at, 1);
+  }
+  return (2 * shared) / total;
+}
+
+export function closestNames(wanted: string, names: string[], max: number): string[] {
+  return [...new Set(names)]
+    .map((name) => ({ name, score: similarity(wanted, name) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || (a.name < b.name ? -1 : 1))
+    .slice(0, max)
+    .map(({ name }) => name);
+}
+
 export function functionsText(tools: SearchTool[]): string {
   const lines = tools.map((tool) => `<function>${JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters })}</function>`);
   return ['<functions>', ...lines, '</functions>'].join('\n');

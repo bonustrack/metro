@@ -42,7 +42,7 @@ function remember(id: string, now = Date.now()): void {
 const answeredRecently = (id: string, now = Date.now()): boolean => now - (recent.get(id) ?? -Infinity) < RECENT_MS;
 
 const noticeText = (tool: string, id: string, behavior: Behavior): string =>
-  behavior === 'allow' ? `Approved: ${tool} (${id}). Call call_tool again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
+  behavior === 'allow' ? `Approved: ${tool} (${id}). Call tool_call again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
 
 const requestedAt = (at: number, now = Date.now()): number => (Number.isFinite(at) && at > 0 ? Math.min(at, now) : now);
 

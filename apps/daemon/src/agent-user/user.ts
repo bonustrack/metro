@@ -87,5 +87,4 @@ export function claudeBin(user = agentUser()): string {
 
 export const claudeHome = (user = agentUser()): string | null => (user === null ? null : user.home);
 
-export const agentMarketplaceDir = (user: AgentUser): string => join(user.home, '.metro', 'marketplace');
 export const agentViewDir = (user: AgentUser): string => join(user.home, '.metro', 'agents');

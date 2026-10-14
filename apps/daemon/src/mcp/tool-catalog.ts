@@ -1,4 +1,6 @@
 import type { GroupOp, Station, StationTool, ToolGroup } from '@metro-labs/core/stations/types';
+import { TOOL_CALL, TOOL_SEARCH } from '@metro-labs/http/mcp-server-protocol';
+import { connectorTools } from '../mcp-server/connector-tools.js';
 import { STATIONS } from '../stations/registry.js';
 import { COMMON_TOOLS, LIST_ACCOUNTS_TOOL } from './tool-schemas.js';
 import { SET_PROFILE_TOOL } from './profile-tool.js';
@@ -14,7 +16,7 @@ const defOf = (tool: StationTool): ToolDef => ({
   ...(tool.destructive === true ? { destructive: true } : {}),
 });
 
-export const TOOL_DEFS: ToolDef[] = [
+const LOCAL_DEFS: ToolDef[] = [
   ...COMMON_TOOLS,
   ...STATIONS.flatMap((s) => s.tools.map(defOf)),
   LIST_ACCOUNTS_TOOL,
@@ -23,19 +25,27 @@ export const TOOL_DEFS: ToolDef[] = [
   GET_PROFILE_TOOL,
 ];
 
+const CONNECTOR_GROUPS: Record<string, Pick<ToolDef, 'group' | 'destructive'>> = {
+  [TOOL_SEARCH]: { group: 'read' },
+  [TOOL_CALL]: { group: 'write', destructive: true },
+};
+
+export const TOOL_DEFS: ToolDef[] = [
+  ...LOCAL_DEFS,
+  ...connectorTools().map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, ...CONNECTOR_GROUPS[tool.name] })),
+];
+
 const BY_NAME = new Map(TOOL_DEFS.map((d) => [d.name, d] as const));
 
 export const declaredGroup = (name: string): ToolGroup | undefined => BY_NAME.get(name)?.group;
 
 export const toolGroupOf = (name: string): ToolGroup => declaredGroup(name) ?? 'write';
 
-export interface ToolAnnotations {
-  readOnlyHint: boolean;
-  destructiveHint?: boolean;
-}
+export type ToolAnnotations = Record<string, unknown>;
 
 export interface PublishedTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
   annotations: ToolAnnotations;
@@ -50,14 +60,16 @@ const annotationsOf = (def: ToolDef): ToolAnnotations =>
     ? { readOnlyHint: true }
     : { readOnlyHint: false, destructiveHint: def.destructive === true };
 
-export const listedTools = (): PublishedTool[] =>
-  TOOL_DEFS.map((def) => ({
+export const listedTools = (): PublishedTool[] => [
+  ...LOCAL_DEFS.map((def) => ({
     name: def.name,
     description: def.description,
     inputSchema: def.inputSchema,
     annotations: annotationsOf(def),
     ...(ALWAYS_LOADED.has(def.name) ? { _meta: ALWAYS_LOAD } : {}),
-  }));
+  })),
+  ...connectorTools().map((tool) => ({ ...tool, _meta: ALWAYS_LOAD })),
+];
 
 const STATION_OF_TOOL = new Map(STATIONS.flatMap((s) => s.tools.map((t) => [t.name, s.name] as const)));
 

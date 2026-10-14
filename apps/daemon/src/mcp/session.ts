@@ -227,6 +227,10 @@ export class McpSession {
     return this.issuedSchema !== toolSchemaSignature();
   }
 
+  toolsChanged(): void {
+    this.announceToolSchema();
+  }
+
   private announceToolSchema(): void {
     if (!this.streamAttached) return;
     this.deliverSchemaNotice(

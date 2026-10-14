@@ -137,13 +137,13 @@ export function routineArgs(prompt: string, memory: string, appended: string | n
     'Glob',
     'Grep',
     `Edit(/${memory}/**)`,
-    '--settings',
-    JSON.stringify({ enabledPlugins: { 'metro@metro': false } }),
     '--strict-mcp-config',
     '--no-session-persistence',
     ...(appended === null ? [] : ['--append-system-prompt', appended]),
   ];
 }
+
+export const routineEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...env, METRO_SESSION: 'memory' });
 
 function lockHeld(path: string, now: number): boolean {
   const pid = Number(readFileSync(path, 'utf8').trim());
@@ -216,7 +216,7 @@ async function digest(paths: MemoryPaths, now: Date): Promise<number> {
   say(`${String(files.length)} transcripts changed since ${since.toISOString()}, memory in ${paths.memory}`);
   for (const folder of MEMORY_FOLDERS) mkdirSync(join(paths.memory, folder), { recursive: true });
   const prompt = routinePrompt(now, since, paths, files);
-  const code = await runClaude(routineArgs(prompt, paths.memory, systemPrompt()), await headlessEnv(), { timeoutMs: TIMEOUT_MS });
+  const code = await runClaude(routineArgs(prompt, paths.memory, systemPrompt()), routineEnv(await headlessEnv()), { timeoutMs: TIMEOUT_MS });
   if (code === 0) {
     writeFileSync(paths.state, `${JSON.stringify({ lastRun: now.toISOString() })}\n`);
     const moved = settleWorkstreams(paths.memory);

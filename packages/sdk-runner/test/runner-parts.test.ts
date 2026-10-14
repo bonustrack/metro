@@ -211,6 +211,17 @@ describe('the runner starts the Claude Code that comes with the pinned SDK', () 
   });
 });
 
+describe('the session reaches connectors through the metro server only', () => {
+  const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
+  const allow = (): Promise<{ behavior: 'deny'; message: string }> => Promise.resolve({ behavior: 'deny', message: 'no' });
+
+  test('mcpServers holds metro alone, whatever METRO_MCP_SERVER_URL says', () => {
+    const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent' };
+    for (const env of [base, { ...base, METRO_MCP_SERVER_URL: 'https://mcp.metro.box' }])
+      expect(runnerOptions(runnerConfig(env, '/tmp'), tools, allow, null, {}).mcpServers).toEqual({ metro: tools.config });
+  });
+});
+
 describe('the session thinks with the one model the Model page picked', () => {
   const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
   const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent', PATH: '/usr/bin' };

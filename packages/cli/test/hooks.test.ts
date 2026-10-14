@@ -4,9 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PLUGIN = join(import.meta.dir, '..', '..', '..', 'plugin');
-const GUARD = join(PLUGIN, 'bin', 'guard.mjs');
-const START = join(PLUGIN, 'bin', 'session-start.mjs');
+const HOOKS = join(import.meta.dir, '..', 'hooks');
+const GUARD = join(HOOKS, 'guard.mjs');
+const START = join(HOOKS, 'session-start.mjs');
 
 const EMPTY = mkdtempSync(join(tmpdir(), 'metro-guard-empty-'));
 
@@ -21,13 +21,13 @@ function guard(payload: unknown, agentsDir = EMPTY, session?: string): string {
   return `${out.hookSpecificOutput.permissionDecision}: ${out.hookSpecificOutput.permissionDecisionReason.slice(0, 40)}`;
 }
 
-describe('the orchestrator guard the plugin ships', () => {
+describe('the orchestrator guard the CLI ships', () => {
   test('the main thread may delegate, talk over metro, schedule, and look at images; nothing else', () => {
     expect(guard({ tool_name: 'Agent', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'Workflow', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'mcp__metro__send', tool_input: {} })).toBe('allow');
-    expect(guard({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {} })).toContain('connector');
-    expect(guard({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {}, agent_id: 'sub' })).toBe('allow');
+    expect(guard({ tool_name: 'mcp__zapier__run', tool_input: {} })).toContain('connector');
+    expect(guard({ tool_name: 'mcp__zapier__run', tool_input: {}, agent_id: 'sub' })).toBe('allow');
     expect(guard({ tool_name: 'ToolSearch', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'ScheduleWakeup', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'Read', tool_input: { file_path: '/x/shot.PNG' } })).toBe('allow');
@@ -51,18 +51,24 @@ describe('the orchestrator guard the plugin ships', () => {
     }
   });
 
-  test('the mcp server: find_tools runs on any thread, call_tool only in a worker, where the server enforces the policy itself; an old snapshot\'s connectors are ignored', () => {
+  test('connectors: tool_search runs on any thread, tool_call only in a worker, and neither meets a station policy; an old snapshot\'s connectors are ignored', () => {
     const policy = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-'));
     writeFileSync(join(policy, 'policy.json'), JSON.stringify({ version: 1, connectors: { notion: { id: 'org-notion00001', name: 'Notion', policy: { write: 'deny' }, tools: {} } } }));
-    for (const where of [EMPTY, policy]) {
-      expect(guard({ tool_name: 'mcp__plugin_metro_mcp__find_tools', tool_input: { query: 'notion page' } }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__plugin_metro_mcp__find_tools', tool_input: { query: 'notion page' }, agent_id: 'w1' }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__plugin_metro_mcp__call_tool', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
-      expect(guard({ tool_name: 'mcp__plugin_metro_mcp__call_tool', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
+    const strict = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-strict-'));
+    writeFileSync(join(strict, 'policy.json'), JSON.stringify({ ...SNAPSHOT, accounts: { [`telegram/${TG}`]: { read: 'deny', write: 'deny' } }, ungated: [...SNAPSHOT.ungated, 'tool_search', 'tool_call'] }));
+    for (const where of [EMPTY, policy, strict]) {
+      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' } }, where)).toBe('allow');
+      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' }, agent_id: 'w1' }, where)).toBe('allow');
+      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
+      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
     }
-    expect(guard({ tool_name: 'mcp__plugin_metro_notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
-    expect(guard({ tool_name: 'mcp__plugin_metro_notion__update_page', tool_input: {} }, policy)).toMatch(/^deny: A connector call is work, not orches/);
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, EMPTY, 'voice')).toBe('allow');
+    for (const old of ['mcp__mcp__find_tools', 'mcp__plugin_metro_mcp__find_tools'])
+      expect(guard({ tool_name: old, tool_input: { query: 'notion page' } })).toMatch(/^deny: A connector call is work, not orches/);
+    expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
+    expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {} }, policy)).toMatch(/^deny: A connector call is work, not orches/);
     rmSync(policy, { recursive: true, force: true });
+    rmSync(strict, { recursive: true, force: true });
   });
 
   test('a payload that does not parse is denied, never allowed', () => {
@@ -149,7 +155,7 @@ describe('the guard in a voice call session (METRO_SESSION=voice)', () => {
   test('the main thread works itself: files, shell and connectors are not delegated', () => {
     expect(voice({ tool_name: 'Read', tool_input: { file_path: '/x/notes.md' } })).toBe('allow');
     expect(voice({ tool_name: 'Bash', tool_input: { command: 'ls' } })).toBe('allow');
-    expect(voice({ tool_name: 'mcp__plugin_metro_zapier__run', tool_input: {} })).toBe('allow');
+    expect(voice({ tool_name: 'mcp__zapier__run', tool_input: {} })).toBe('allow');
     expect(voice({ tool_name: 'mcp__metro__read', tool_input: { line: LINE } })).toBe('allow');
   });
 
@@ -172,8 +178,21 @@ describe('the guard in a voice call session (METRO_SESSION=voice)', () => {
   });
 });
 
-describe('the standing rules the plugin loads at session start', () => {
-  test('come from the metro skill on the machine, else from the copy the plugin carries', () => {
+describe('the guard and the standing rules in the memory routine (METRO_SESSION=memory)', () => {
+  test('stand aside: the routine reads and edits memory files on its own main thread, as it did with the plugin off', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'metro-guard-memory-'));
+    writeFileSync(join(dir, 'policy.json'), JSON.stringify(SNAPSHOT));
+    for (const payload of [{ tool_name: 'Read', tool_input: { file_path: '/x/notes.md' } }, { tool_name: 'Edit', tool_input: {} }, { tool_name: 'mcp__metro__delete', tool_input: { line: LINE } }])
+      expect(guard(payload, dir, 'memory')).toBe('allow');
+    const run = spawnSync('node', [START], { encoding: 'utf8', env: { ...process.env, METRO_SESSION: 'memory' } });
+    expect(run.status).toBe(0);
+    expect(run.stdout.trim()).toBe('');
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('the standing rules loaded at session start', () => {
+  test('come from the metro skill on the machine, else from the copy the CLI carries', () => {
     const dir = mkdtempSync(join(tmpdir(), 'metro-guard-'));
     try {
       const env = { ...process.env, CLAUDE_CONFIG_DIR: dir };
@@ -193,3 +212,4 @@ describe('the standing rules the plugin loads at session start', () => {
     }
   });
 });
+

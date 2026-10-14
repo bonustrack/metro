@@ -21,8 +21,6 @@ function stageSources(version: string): string {
   mkdirSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src'), { recursive: true });
   writeFileSync(join(sources, 'node_modules', '@metro-labs', 'daemon', 'src', 'server.ts'), `export const v = '${version}';\n`);
   writeFileSync(join(sources, 'server.ts'), "import './node_modules/@metro-labs/daemon/src/server.ts';\n");
-  mkdirSync(join(sources, 'marketplace', 'plugin', '.claude-plugin'), { recursive: true });
-  writeFileSync(join(sources, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'metro', version }));
   writeFileSync(join(sources, 'runtime.json'), JSON.stringify({ version }));
   writeFileSync(join(sources, 'stations.json'), JSON.stringify(MANIFEST));
   return sources;
@@ -72,7 +70,6 @@ describe('the per-channel runtime store', () => {
     expect(first).toEqual({ dir: store, entry: join(store, 'server.ts'), trains: join(store, 'trains'), manifest: join(sources, 'stations.json') });
     expect(readFileSync(join(store, PACKAGE_ENTRY), 'utf8')).toContain("'1'");
     expect(readFileSync(first.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
-    expect(readFileSync(join(store, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).toContain("'1'".replace(/'/g, '"'));
     const pkg = JSON.parse(readFileSync(join(store, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
     expect(Object.keys(pkg.dependencies)).toEqual(['@xmtp/node-sdk', 'pino', 'viem', 'zod']);
     expect(installs()).toBe(1);
@@ -119,15 +116,17 @@ describe('the per-channel runtime store', () => {
     expect(readFileSync(again.entry, 'utf8')).toContain('@metro-labs/daemon/src/server.ts');
   });
 
-  test('a store synced by a serve from before the plugin shipped gets the marketplace on the next serve, stamp or no stamp', () => {
-    const sources = stageSources('1');
+  test('the plugin marketplace an older metro staged in the store goes with the next new version', () => {
     const store = join(root, 'store');
     const agents = agentWith(['webhook']);
-    prepareRuntime({ sources, store, agents, bun, log: () => undefined });
-    rmSync(join(store, 'marketplace'), { recursive: true, force: true });
-    prepareRuntime({ sources, store, agents, bun, log: () => undefined });
-    expect(readFileSync(join(store, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).toContain('"1"');
-    expect(readFileSync(join(store, 'runtime.json'), 'utf8')).toBe(JSON.stringify({ version: '1' }));
+    prepareRuntime({ sources: stageSources('1'), store, agents, bun, log: () => undefined });
+    mkdirSync(join(store, 'marketplace', 'plugin', '.claude-plugin'), { recursive: true });
+    writeFileSync(join(store, 'marketplace', 'plugin', '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'metro', version: '1' }));
+    prepareRuntime({ sources: stageSources('1'), store, agents, bun, log: () => undefined });
+    expect(existsSync(join(store, 'marketplace'))).toBe(true);
+    prepareRuntime({ sources: stageSources('2'), store, agents, bun, log: () => undefined });
+    expect(existsSync(join(store, 'marketplace'))).toBe(false);
+    expect(readFileSync(join(store, 'runtime.json'), 'utf8')).toBe(JSON.stringify({ version: '2' }));
     expect(installs()).toBe(1);
   });
 });

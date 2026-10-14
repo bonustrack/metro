@@ -7,10 +7,11 @@ import { NEEDS_APPROVAL, takeGrant } from '../approvals/pending.js';
 import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
 import { stationForTool, toolGroupOf } from './tool-catalog.js';
+import { CONNECTOR_TOOLS } from '../mcp-server/connector-tools.js';
 
 type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
 
-export const UNGATED = new Set<string>(['list_accounts', 'create_upload']);
+export const UNGATED = new Set<string>(['list_accounts', 'create_upload', ...CONNECTOR_TOOLS]);
 
 function fromLine(line: string, override = ''): ChannelTarget[] {
   const acct = accountFromLine(line);

@@ -8,7 +8,7 @@ import { agentConnectors, visibleKeys } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { findTools } from './find.js';
 import { errorResult, type ToolResult } from './tool-result.js';
-import { CALL_TOOL, FIND_TOOLS, MCP_INSTRUCTIONS, toolList } from './tools.js';
+import { MCP_INSTRUCTIONS, TOOL_CALL, TOOL_SEARCH, toolList } from './tools.js';
 
 export const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
@@ -42,7 +42,7 @@ function initialize(params: Record<string, unknown>): Reply {
 }
 
 async function runTool(ctx: RpcContext, name: string, args: unknown): Promise<ToolResult> {
-  if (name === FIND_TOOLS) {
+  if (name === TOOL_SEARCH) {
     let request;
     try { request = mcpFindRequestOf(args); } catch (err) { return errorResult(errMsg(err)); }
     return findTools(ctx.deps, ctx.identity, request);
@@ -54,7 +54,7 @@ async function runTool(ctx: RpcContext, name: string, args: unknown): Promise<To
 
 async function toolCall(ctx: RpcContext, params: Record<string, unknown>): Promise<ToolResult> {
   const name = typeof params.name === 'string' ? params.name : '';
-  if (name !== FIND_TOOLS && name !== CALL_TOOL) throw new RpcError(-32602, `Unknown tool: ${name.slice(0, 64)}. This server has find_tools and call_tool.`);
+  if (name !== TOOL_SEARCH && name !== TOOL_CALL) throw new RpcError(-32602, `Unknown tool: ${name.slice(0, 64)}. This server has tool_search and tool_call.`);
   try {
     return await runTool(ctx, name, params.arguments ?? {});
   } catch (err) {

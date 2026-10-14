@@ -352,7 +352,7 @@ export function ensureSession(deps: SessionDeps = {}): Ensured {
   const held = holdsBack(deps, r.now);
   if (held !== null) return held;
   if (found === 'stale') {
-    log.info({ was: startedVersion(r.agents), now: r.version }, 'claude-session: restarting the session an older metro started, so the new plugin and flags load');
+    log.info({ was: startedVersion(r.agents), now: r.version }, 'claude-session: restarting the session an older metro started, so the new hooks and flags load');
     stopSession(deps);
   }
   startSession(deps);

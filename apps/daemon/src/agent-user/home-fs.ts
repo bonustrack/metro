@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { createWriteStream, mkdirSync, renameSync, rmSync, utimesSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { writeAtomic } from '@metro-labs/core/secure-fs';
@@ -35,33 +35,6 @@ export function writeHomeText(path: string, text: string, mode = 0o644, mtime?: 
   }
   writeAtomic(path, text, mode);
   if (mtime !== undefined) utimesSync(path, mtime, mtime);
-}
-
-export function writeHomeInPlace(path: string, text: string, mode = 0o644, user = agentUser()): void {
-  if (user !== null) {
-    runAs(user, 'mkdir -p -- "$(dirname -- "$1")"; cat > "$1"; chmod -- "$2" "$1"', [path, octal(mode)], text);
-    return;
-  }
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, text, { mode });
-}
-
-function filesUnder(root: string, rel = ''): string[] {
-  return readdirSync(join(root, rel), { withFileTypes: true }).flatMap((entry) => {
-    const inner = rel === '' ? entry.name : `${rel}/${entry.name}`;
-    if (entry.isDirectory()) return filesUnder(root, inner);
-    return entry.isFile() ? [inner] : [];
-  });
-}
-
-export function copyIntoHome(from: string, to: string, user = agentUser()): number {
-  removeHome(to, true, user);
-  const files = filesUnder(from);
-  for (const rel of files) {
-    const source = join(from, rel);
-    writeHomeText(join(to, rel), readFileSync(source, 'utf8'), statSync(source).mode & 0o777, undefined, user);
-  }
-  return files.length;
 }
 
 export function removeHome(path: string, recursive = false, user = agentUser()): void {

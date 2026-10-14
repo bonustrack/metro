@@ -1,7 +1,7 @@
 import { splitMcpTool, type McpFindRequest } from '@metro-labs/http/mcp-server-protocol';
 import type { RemoteTool } from '@metro-labs/http/connector-tools';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
-import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
+import { agentConnectors, connectorsSentence, visibleKeys, type AgentConnector } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { connectorTools, failureOf, groupsOf } from './listing.js';
 import { functionsText, searchTools, selectedNames, type SearchTool } from './search.js';
@@ -38,15 +38,20 @@ function searchable(listing: Listing): SearchTool[] {
     .filter((tool) => splitMcpTool(tool.name) !== null);
 }
 
+const BROADER = ' Try a broader query with fewer words, or "select:<connector>.<tool>" with an exact name.';
+
 function noMatch(query: string, connectors: AgentConnector[], listings: Listing[]): string {
   const failures = listings.filter((listing) => listing.failure !== undefined).map((listing) => `${listing.connector.key}: ${listing.failure ?? ''}`);
-  return [`No tool matched "${query}". ${connectorsSentence(connectors)}`, ...failures].join('\n');
+  const hint = visibleKeys(connectors).length === 0 ? '' : BROADER;
+  return [`No tool matched "${query}". ${connectorsSentence(connectors)}${hint}`, ...failures].join('\n');
 }
+
+const callFooter = (found: SearchTool[]): string => `Call these with tool_call: {"calls":[{"tool":"${found[0]?.name ?? '<name>'}","arguments":{…}}]}`;
 
 export async function findTools(deps: McpDeps, identity: AgentKeyRow, request: McpFindRequest): Promise<ToolResult> {
   const connectors = (await agentConnectors(deps, identity)).filter((connector) => !connector.access.blocked);
   const listings = await Promise.all(wanted(connectors, request.query).map((connector) => listingOf(deps, identity, connector)));
   const found = searchTools(listings.flatMap(searchable), request.query, request.max_results);
-  const text = found.length === 0 ? noMatch(request.query, connectors, listings) : functionsText(found);
+  const text = found.length === 0 ? noMatch(request.query, connectors, listings) : `${functionsText(found)}\n${callFooter(found)}`;
   return { content: [textBlock(text)] };
 }

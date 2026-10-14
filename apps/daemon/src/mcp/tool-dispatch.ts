@@ -38,6 +38,7 @@ import {
 import { str } from '@metro-labs/core/str';
 import { linelessRead, stationOfAccount } from './read-tool.js';
 import { channelArgsError, channelScopeDenied, dispatchListChannels } from './channel-tool.js';
+import { callConnectorTool, CONNECTOR_TOOLS, connectorToolsVersion, type ConnectorResult } from '../mcp-server/connector-tools.js';
 
 const STATION_TOOLS = new Map<
   string,
@@ -63,14 +64,13 @@ const CORE_DISPATCH: Record<
 
 export const toolList = (): { tools: PublishedTool[] } => ({ tools: listedTools() });
 
-let schemaSignature: string | undefined;
+let schemaSignature: { version: number; value: string } | undefined;
 
 export const toolSchemaSignature = (): string => {
-  schemaSignature ??= createHash('sha256')
-    .update(JSON.stringify(toolList()))
-    .digest('hex')
-    .slice(0, 16);
-  return schemaSignature;
+  const version = connectorToolsVersion();
+  if (schemaSignature?.version !== version)
+    schemaSignature = { version, value: createHash('sha256').update(JSON.stringify(toolList())).digest('hex').slice(0, 16) };
+  return schemaSignature.value;
 };
 
 async function handleListAccounts(
@@ -197,6 +197,12 @@ export async function callToolHandler(
   return result;
 }
 
+function connectorToolHandler(req: { params: { name: string; arguments?: Record<string, unknown> } }): Promise<ConnectorResult> {
+  const args = req.params.arguments ?? {};
+  settlePromptsFor(req.params.name, args);
+  return callConnectorTool(req.params.name, args);
+}
+
 const TOOL_LIST_CHANGED = 'notifications/tools/list_changed';
 
 export interface SchemaNotice {
@@ -222,11 +228,11 @@ export function registerToolHandlers(
     ((
       req: { params: { name: string; arguments?: Record<string, unknown> } },
       extra: NotifyingExtra,
-    ): Promise<ToolResult> => {
+    ): Promise<ToolResult | ConnectorResult> => {
       notice?.deliver(() =>
         extra.sendNotification({ method: TOOL_LIST_CHANGED }),
       );
-      return callToolHandler(req, hooks);
+      return CONNECTOR_TOOLS.has(req.params.name) ? connectorToolHandler(req) : callToolHandler(req, hooks);
     }) as Parameters<typeof server.setRequestHandler>[1],
   );
 }

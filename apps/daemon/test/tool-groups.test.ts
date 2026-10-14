@@ -3,7 +3,7 @@ import { toolList } from '../src/mcp/tool-dispatch.ts';
 import { channelToolsOf, declaredGroup, toolGroupOf } from '../src/mcp/tool-catalog.ts';
 import { stationByName } from '../src/stations/registry.ts';
 
-const READ_TOOLS = ['get_profile', 'group_info', 'list_accounts', 'list_channels', 'list_members', 'read'];
+const READ_TOOLS = ['get_profile', 'group_info', 'list_accounts', 'list_channels', 'list_members', 'read', 'tool_search'];
 
 describe('tool groups', () => {
   test('every listed tool declares its group next to its definition', () => {
@@ -26,11 +26,13 @@ describe('tool groups', () => {
     expect(byName.get('send')).toEqual({ readOnlyHint: false, destructiveHint: false });
     for (const name of ['delete', 'remove_members', 'close_channel'])
       expect(byName.get(name)).toEqual({ readOnlyHint: false, destructiveHint: true });
+    expect(byName.get('tool_search')).toMatchObject({ readOnlyHint: true, openWorldHint: false });
+    expect(byName.get('tool_call')).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: true });
   });
 
-  test('the tools the orchestrator uses on every message stay loaded when Claude Code defers MCP tools', () => {
+  test('the tools the orchestrator uses on every message, and the connector tools, stay loaded when Claude Code defers MCP tools', () => {
     const loaded = toolList().tools.filter((t) => t._meta?.['anthropic/alwaysLoad'] === true).map((t) => t.name).sort();
-    expect(loaded).toEqual(['react', 'reply', 'send', 'typing']);
+    expect(loaded).toEqual(['react', 'reply', 'send', 'tool_call', 'tool_search', 'typing']);
   });
 
   test('a channel lists the tools its station can run, each with its group', () => {

@@ -1,7 +1,5 @@
 import { log } from '@metro-labs/core/log';
 
-export const MCP_SERVER_KEY = 'mcp';
-
 const DEFAULT_URL = 'https://mcp.metro.box';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);

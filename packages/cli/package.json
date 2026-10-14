@@ -18,7 +18,9 @@
   },
   "files": [
     "dist",
-    "runtime"
+    "hooks",
+    "runtime",
+    "skills"
   ],
   "publishConfig": {
     "access": "public",

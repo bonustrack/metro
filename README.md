@@ -89,7 +89,8 @@ On start the daemon:
 - names the machine `metro-xxxxxx` on your tailnet and publishes it at
   `https://metro-xxxxxx.<tailnet>.ts.net`, an address that survives restarts,
 - installs the SDKs of the channels the agent uses into `~/.metro/runtime`,
-- installs the metro Claude Code plugin, if `claude` is on the machine,
+- sets up Claude Code: the `worker` subagent, the metro skills, privacy settings and
+  metro hooks in `~/.claude/settings.json`,
 - prints the link to open it on metro.box.
 
 To keep it running across reboots and crashes, install it as a service (systemd on Linux,
@@ -110,11 +111,10 @@ metro claude [args...]
 ```
 
 `metro claude` starts Claude Code with the metro channel and the metro MCP server
-already loaded, using the agent's key. Nothing needs `claude mcp add`. Every argument is
-passed to `claude` as it is. It also routes inference through the daemon's model gateway,
-so the **Model** page decides where requests go: Anthropic, Amazon Bedrock, OpenRouter,
-Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the Codex app's code
-sign-in) or Gemini.
+already loaded, using the agent's key. Nothing needs `claude mcp add`. Every argument is passed to `claude` as it is. It also routes inference through the
+daemon's model gateway, so the **Model** page decides where requests go: Anthropic, Amazon
+Bedrock, OpenRouter, Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the
+Codex app's code sign-in) or Gemini.
 
 You rarely type it yourself. Once the box has an agent and a model it can use, the daemon
 starts the session in a tmux session named `metro`, answers Claude Code's first-run
@@ -122,8 +122,8 @@ prompts, and restarts it when it exits, continuing the last conversation. The Te
 on the page opens that tmux session.
 
 The session follows [docs/SETUP.md](docs/SETUP.md): an orchestrator-only main thread, a
-`worker` subagent, standing rules as a skill, and privacy settings. The plugin and the
-daemon apply all of it.
+`worker` subagent, standing rules as a skill, and privacy settings. The daemon applies all
+of it; the guard and the standing rules are hooks it writes into `~/.claude/settings.json`.
 
 ## CLI commands
 
@@ -155,9 +155,9 @@ just one. Members can see them but not change them. An agent's own **Connectors*
 lists what is assigned to it.
 
 Each agent must be enrolled in its organization (Server page). It then reaches its
-assigned connectors through one MCP server, `mcp` (https://mcp.metro.box), which the metro
-plugin gives Claude Code: `find_tools` finds a tool and `call_tool` runs it. Every call runs
-from mcp.metro.box with the organization's and the agent's permissions, so no connector
+assigned connectors through two tools of the metro MCP server: `tool_search` finds a tool and
+`tool_call` runs it. The daemon forwards both to https://mcp.metro.box with the agent's
+token, which stays in Metro's folder. Every call runs from mcp.metro.box with the organization's and the agent's permissions, so no connector
 credential reaches the box, Claude Code's config, the browser or the agent. A change on the
 Connectors page reaches the agent at its next call. See
 [docs/MCP-SERVER.md](docs/MCP-SERVER.md).
@@ -255,10 +255,10 @@ apps/
 packages/
   core/       @metro-labs/core    the kernel every process shares; the only import a station may use
   http/       @metro-labs/http    how a metro server authenticates and answers a request
-  cli/        @stage-labs/metro   the CLI, the only published package
+  cli/        @stage-labs/metro   the CLI, the only published package, with the Claude Code
+                                  hooks (hooks/) and the metro skills (skills/)
   xmtp/ telegram-bot/ telegram/ discord-bot/ whatsapp/ threema/ outlook/ gmail/ webhook/
               one package per chat network
-plugin/       the Claude Code plugin, shipped inside the CLI package
 docs/         SETUP.md, ISSUING-SERVERS.md, MICROSOFT-365.md, GMAIL.md
 ```
 

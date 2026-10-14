@@ -7,6 +7,11 @@ export const MCP_CALLS_MAX = 10;
 export const MCP_QUERY_MAX = 500;
 export const MCP_APPROVAL_WAIT_MS = 25_000;
 export const MCP_APPROVAL_ID_RE = /^[a-km-z]{5}$/;
+export const TOOL_SEARCH = 'tool_search';
+export const TOOL_CALL = 'tool_call';
+export const TOOL_CALL_EXAMPLE = '{"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}';
+
+const EXPECTED = ` Expected: ${TOOL_CALL_EXAMPLE}, with names as tool_search returns them.`;
 export const MCP_TOKEN_RE = /^mcp_[A-Za-z0-9_-]{43}$/;
 
 export type McpErrorCode = 'blocked' | 'needs_approval' | 'denied' | 'not_found' | 'signin' | 'unavailable' | 'vendor_error' | 'invalid';
@@ -40,23 +45,23 @@ export function splitMcpTool(name: string): { connector: string; tool: string } 
 }
 
 export function mcpFindRequestOf(raw: unknown): McpFindRequest {
-  if (!isRecord(raw) || typeof raw.query !== 'string' || raw.query.trim() === '' || raw.query.length > MCP_QUERY_MAX) throw new Error('find_tools needs a query of 1 to 500 characters.');
+  if (!isRecord(raw) || typeof raw.query !== 'string' || raw.query.trim() === '' || raw.query.length > MCP_QUERY_MAX) throw new Error('tool_search needs a query of 1 to 500 characters.');
   const wanted = raw.max_results ?? MCP_FIND_DEFAULT;
   if (typeof wanted !== 'number' || !Number.isInteger(wanted) || wanted < 1) throw new Error('max_results must be a whole number from 1.');
   return { query: raw.query.trim(), max_results: Math.min(wanted, MCP_FIND_MAX) };
 }
 
 function callOf(raw: unknown): McpCall {
-  if (!isRecord(raw) || typeof raw.tool !== 'string' || splitMcpTool(raw.tool) === null) throw new Error('Each call needs a tool named <connector>.<tool>, as find_tools returns it.');
+  if (!isRecord(raw) || typeof raw.tool !== 'string' || splitMcpTool(raw.tool) === null) throw new Error(`Each call needs a tool named <connector>.<tool>, as tool_search returns it.${EXPECTED}`);
   const args = raw.arguments ?? {};
-  if (!isRecord(args)) throw new Error(`The arguments of ${raw.tool} must be an object.`);
+  if (!isRecord(args)) throw new Error(`The arguments of ${raw.tool} must be an object.${EXPECTED}`);
   if (raw.approval !== undefined && (typeof raw.approval !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.approval))) throw new Error('approval must be the 5-letter id the approval request gave.');
   return { tool: raw.tool, arguments: args, ...(typeof raw.approval === 'string' ? { approval: raw.approval } : {}) };
 }
 
 export function mcpCallsOf(raw: unknown): McpCall[] {
   const calls = isRecord(raw) ? raw.calls : undefined;
-  if (!Array.isArray(calls) || calls.length === 0 || calls.length > MCP_CALLS_MAX) throw new Error(`call_tool needs 1 to ${String(MCP_CALLS_MAX)} calls.`);
+  if (!Array.isArray(calls) || calls.length === 0 || calls.length > MCP_CALLS_MAX) throw new Error(`tool_call needs 1 to ${String(MCP_CALLS_MAX)} calls in "calls".${EXPECTED}`);
   return calls.map(callOf);
 }
 
