@@ -5,9 +5,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
-import { routeOf, syncAvailableModelsQuietly } from '../claude/setup.js';
-import { harnessRunner, runnerModel, sdkAllowed } from '../claude/runner.js';
-import { sessionLive, sessionRunning, stopSession } from '../claude/session.js';
+import { sessionLive } from '../claude/session.js';
 import { forgetOne, forgetReported } from './usage.js';
 import {
   addConnection,
@@ -16,6 +14,7 @@ import {
   readModelConfig,
   readModelSnapshot,
   removeConnection,
+  routedConnection,
   setFallbacks,
   setRoute,
   updateConnection,
@@ -45,10 +44,10 @@ const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
 export type { ModelApiDeps } from './model-store.js';
 
-function restartRunningSession(): boolean {
-  if (!sessionRunning()) return false;
-  stopSession();
-  return true;
+function runnerModel(cfg: ModelConfig): string | null {
+  const conn = routedConnection(cfg);
+  if (conn === null || conn.model === '') return null;
+  return conn.provider === 'anthropic' ? conn.model : `${conn.provider}:${conn.model}`;
 }
 
 function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
@@ -58,27 +57,15 @@ function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps):
   else if (runnerIsLive(deps)) throw new ApiError('The running Agent SDK could not be told about this model change. Nothing was saved. Let its work finish, stop it, then save and start it again.', 409);
 }
 
-function followModel(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
-  const restart = deps.restartSession ?? restartRunningSession;
-  const agents = deps.setup?.agents;
-  if (harnessRunner(agents) === 'sdk') {
-    if (sdkAllowed(agents, next)) switchLive(before, next, deps);
-    return;
-  }
-  if (routeOf(next) !== routeOf(before) && restart())
-    log.info({ was: routeOf(before), now: routeOf(next) }, 'model-api: the model changed, so the Claude session restarts on it');
-}
-
 function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
   const before = store.read();
   store.write(next);
   try {
-    followModel(before, next, deps);
+    switchLive(before, next, deps);
   } catch (err) {
     store.write(before);
     throw err;
   }
-  syncAvailableModelsQuietly(deps.setup ?? {}, next);
   log.info(fields, note);
   return settingsBody(next);
 }
@@ -220,12 +207,10 @@ function routeFor(path: string, method: string | undefined): Route | number {
 
 const runnerIsLive = (deps: ModelApiDeps): boolean => (deps.sessionRunning ?? (() => sessionLive({ agents: deps.setup?.agents })))();
 
-function checkRunnerRoute(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
-  const agents = deps.setup?.agents;
-  if (harnessRunner(agents) !== 'sdk' || !sdkAllowed(agents, before) || sdkAllowed(agents, next)) return;
-  if (runnerIsLive(deps))
-    throw new ApiError('The Agent SDK session is running, and this change would leave a model or fallback it may not use. Let it finish its work, stop it, then save the change.', 409);
-}
+const storeFor = (path: string, deps: ModelApiDeps): Store => ({
+  read: deps.read ?? (path === SNAPSHOT ? readModelSnapshot : readModelConfig),
+  write: deps.write ?? writeModelConfig,
+});
 
 export function handleModelRequest(req: IncomingMessage, res: ServerResponse, deps: ModelApiDeps): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
@@ -234,13 +219,7 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  const store: Store = {
-    read: deps.read ?? (path === SNAPSHOT ? readModelSnapshot : readModelConfig),
-    write: (cfg) => {
-      checkRunnerRoute(store.read(), cfg, deps);
-      (deps.write ?? writeModelConfig)(cfg);
-    },
-  };
+  const store = storeFor(path, deps);
   if (handleOpenRouterSignIn(req, res, deps, store)) return true;
   const route = routeFor(path, req.method);
   if (typeof route === 'number') {

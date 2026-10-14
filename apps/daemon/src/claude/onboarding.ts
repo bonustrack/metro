@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync } from '../agent-user/agent-fs.js';
+import { existsSync, readFileSync } from '../agent-user/agent-fs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -34,27 +34,5 @@ export function markOnboardingDone(path = claudeConfigPath()): OnboardingMark {
   if (config === null) return 'unreadable';
   if (config[FLAG] === true) return 'already';
   writeHomeText(path, `${JSON.stringify({ ...config, [FLAG]: true }, null, 2)}\n`, 0o600);
-  return 'marked';
-}
-
-const TRUST = 'hasTrustDialogAccepted';
-
-function realDir(dir: string): string {
-  try {
-    return realpathSync(dir);
-  } catch {
-    return dir;
-  }
-}
-
-export function trustFolder(dir: string, path = claudeConfigPath()): OnboardingMark {
-  const config = readConfig(path);
-  if (config === null) return 'unreadable';
-  const key = realDir(dir);
-  const projects = isRecord(config.projects) ? config.projects : {};
-  const project = isRecord(projects[key]) ? projects[key] : {};
-  if (project[TRUST] === true) return 'already';
-  const next = { ...config, projects: { ...projects, [key]: { ...project, [TRUST]: true } } };
-  writeHomeText(path, `${JSON.stringify(next, null, 2)}\n`, 0o600);
   return 'marked';
 }

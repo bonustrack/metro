@@ -4,7 +4,7 @@ import { markOnboardingDone } from './onboarding.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import { agentCommand, asAgent, claudeBin } from '../agent-user/user.js';
+import { agentCommand, asAgent, CLAUDE_ENV, claudeBin } from '../agent-user/user.js';
 
 const LOGIN_ARGS = ['auth', 'login', '--claudeai'];
 const STATUS_COMMAND = ['auth', 'status', '--json'];
@@ -102,7 +102,7 @@ function forgetClaudeChecks(): void {
 
 export function claudeInstalled(): boolean {
   return remembered(checks.installed, () => {
-    const run = spawnSync(...asAgent(claudeBin(), ['--version']), { stdio: 'ignore' });
+    const run = spawnSync(...asAgent(claudeBin(), ['--version'], CLAUDE_ENV), { stdio: 'ignore', env: { ...process.env, ...CLAUDE_ENV } });
     return run.error === undefined && run.status === 0;
   }, (c) => {
     checks.installed = c;
@@ -125,7 +125,8 @@ export function claudeAccount(): ClaudeAccount {
 
 const textOf = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
-export function claudeAccountIn(env: Record<string, string>): ClaudeAccount {
+export function claudeAccountIn(extra: Record<string, string>): ClaudeAccount {
+  const env = { ...CLAUDE_ENV, ...extra };
   const run = spawnSync(...asAgent(claudeBin(), STATUS_COMMAND, env), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, ...env } });
   if (run.error !== undefined || typeof run.stdout !== 'string') return SIGNED_OUT;
   try {
@@ -165,7 +166,7 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now(), target:
   sweep(now);
   const running = runningFor(target);
   if (running !== null) return view(running);
-  const env = { TERM: 'xterm-256color', ...target?.env };
+  const env = { TERM: 'xterm-256color', ...CLAUDE_ENV, ...target?.env };
   const command = deps.command ?? agentCommand([claudeBin(), ...LOGIN_ARGS], env);
   const session: Live = {
     id: randomBytes(9).toString('base64url'),

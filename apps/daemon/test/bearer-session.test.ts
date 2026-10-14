@@ -71,12 +71,11 @@ describe('a box owned by an organization', () => {
     expect(readFileSync(join(dir, '.jwks'), 'utf8')).toContain('"keys"');
   });
 
-  test('the Metro operator is marked by the WorkOS user id the token is signed for, never by role', async () => {
+  test('a session carries the WorkOS user, its session and the role, and no user id is singled out', async () => {
     setLocalOwner(ORG, dir);
     const sessions = bearerSessionsFor(() => localOwner(dir), new SigningKeys(issuer.url, jwksStore(dir)));
     const as = (claims: Record<string, unknown>): Promise<unknown> => sessions({ headers: bearer(claims) } as unknown as IncomingMessage);
-    expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, userId: 'user_01M2TN3K6NRVX675M617GR4WVE', sessionId: 'session_01XYZ', role: 'admin', operator: true });
-    expect(await as({ org_id: ORG, role: 'member', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, userId: 'user_01M2TN3K6NRVX675M617GR4WVE', sessionId: 'session_01XYZ', role: 'member', operator: true });
+    expect(await as({ org_id: ORG, role: 'member', sub: 'user_01M2TN3K6NRVX675M617GR4WVE' })).toEqual({ subject: ORG, userId: 'user_01M2TN3K6NRVX675M617GR4WVE', sessionId: 'session_01XYZ', role: 'member' });
     expect(await as({ org_id: ORG, role: 'admin', sub: 'user_01SOMEADMIN0000000000000' })).toEqual({ subject: ORG, userId: 'user_01SOMEADMIN0000000000000', sessionId: 'session_01XYZ', role: 'admin' });
   });
 
@@ -91,12 +90,14 @@ describe('a box owned by an organization', () => {
     expect(stopped).toBe(before + 1);
   });
 
-  test('the Claude login, session, version and setup writes need the admin role; reading them does not', async () => {
+  test('the Claude login, session and setup writes need the admin role; reading them does not; there is no version route', async () => {
     setLocalOwner(ORG, dir);
-    for (const path of ['/api/claude/login', '/api/claude/session', '/api/claude/version', '/api/claude/setup']) {
+    for (const path of ['/api/claude/login', '/api/claude/session', '/api/claude/setup']) {
       expect((await post(path, bearer({ org_id: ORG, role: 'member' }), {})).status).toBe(403);
     }
     expect((await post('/api/claude/setup', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(400);
+    expect((await get('/api/claude/version', bearer({ org_id: ORG, role: 'admin' }))).status).toBe(404);
+    expect((await post('/api/claude/version', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(405);
     expect((await get('/api/claude/skills', bearer({ org_id: ORG, role: 'member' }))).status).toBe(200);
   });
 

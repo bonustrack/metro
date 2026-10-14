@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import { agentCommand, agentUser, agentUserExpected, claudeBin } from '../agent-user/user.js';
+import { agentCommand, agentUser, agentUserExpected, CLAUDE_ENV, claudeBin } from '../agent-user/user.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { PRIVACY_ENV } from './setup.js';
 
@@ -24,7 +24,7 @@ const ARGS = [
 const BLOCKS_USAGE = 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC';
 const PROBE_ENV: Record<string, string> = {
   ...Object.fromEntries(Object.entries(PRIVACY_ENV).filter(([name]) => name !== BLOCKS_USAGE)),
-  DISABLE_AUTOUPDATER: '1',
+  ...CLAUDE_ENV,
   DISABLE_BUG_COMMAND: '1',
   ENABLE_CLAUDEAI_MCP_SERVERS: 'false',
 };

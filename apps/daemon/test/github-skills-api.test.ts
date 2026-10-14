@@ -50,7 +50,7 @@ test('corrupt optional source state does not prevent local skill CRUD or erase t
   const path = join(f.dir, 'daemon/github-skills.json');
   const broken = `{bad:${SOURCE.token}`;
   writeFileSync(path, broken);
-  f.source = new GitHubSkills({ agents: join(f.dir, 'daemon'), claude: join(f.dir, 'claude'), sdk: () => true, request: f.github.fetch });
+  f.source = new GitHubSkills({ agents: join(f.dir, 'daemon'), claude: join(f.dir, 'claude'), request: f.github.fetch });
   expect((await request('POST', 'skills', 'member', { name: 'local', text: 'local instructions' })).status).toBe(200);
   const listing = await request('GET', 'skills', 'member');
   expect(listing.status).toBe(200);
