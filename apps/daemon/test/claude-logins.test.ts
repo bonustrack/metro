@@ -101,7 +101,7 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (handleClaudeRequest(req, res, { login: { command: ['sh', '-c', LOGIN] }, claudeLogins: { root: logins, account, probe, ...store } })) return;
     const model = { ...store, claudeUsage: probe, claudeLoginsRoot: logins, anthropicBase: upstreamBase, openrouterBase: upstreamBase, usageWaitMs: 2_000 };
-    if (handleModelRequest(req, res, { ...model, setup: { dir: join(root, 'machine'), agents: join(root, 'agents') }, restartSession: () => false })) return;
+    if (handleModelRequest(req, res, { ...model, setup: { dir: join(root, 'machine'), agents: join(root, 'agents') }, sessionRunning: () => false })) return;
     if (handleGatewayRequest(req, res, { config: () => stored, identify: (key) => key === 'mk_ok', anthropicBase: upstreamBase, openrouterBase: upstreamBase, claudeLogins: { root: logins, probe } })) return;
     res.writeHead(404).end();
   });

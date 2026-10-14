@@ -6,14 +6,10 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { configOf, makeConnection } from './model-fixture.ts';
-import { claudeSetupStatus, ensureClaudeSetup, placeFile, PRIVACY_ENV, RETENTION_DAYS, routeOf, setPrivacy, syncAvailableModels, type SetupDeps } from '../src/claude/setup.js';
-import { readModelConfig } from '../src/gateway/model-config.js';
-import { auth, operatorAuth } from './identity-helper.ts';
+import { claudeSetupStatus, ensureClaudeSetup, placeFile, PRIVACY_ENV, RETENTION_DAYS, setPrivacy, type SetupDeps } from '../src/claude/setup.js';
+import { auth } from './identity-helper.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
-const CHATGPT = { method: 'chatgpt' as const, clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
-const CODE = { method: 'code' as const, accountId: 'acct_1', email: 'less@example.com', plan: 'plus', accessToken: 'at', refreshToken: 'rt', expiresAt: 1_800_000_000_000, savedAt: '2026-10-04T00:00:00.000Z' };
 const CLI = join(import.meta.dir, '..', '..', '..', 'packages', 'cli');
 const SKILLS = join(CLI, 'skills');
 const METRO_HOOKS = {
@@ -117,9 +113,6 @@ describe('the Claude Code setup a metro box gets', () => {
     expect(claudeSetupStatus(deps())).toEqual({
       privacy: false,
       permissionMode: 'auto',
-      runner: 'cli',
-      runnerAllowed: false,
-      sdkOnLogin: false,
       systemPrompt: '',
       liveEvents: true,
       memoryRoutine: true,
@@ -150,7 +143,7 @@ describe('the setup over the API', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents') },
       });
       if (!ok) res.writeHead(404).end();
     });
@@ -170,19 +163,6 @@ describe('the setup over the API', () => {
       headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const route = (connection: ReturnType<typeof makeConnection>): void => {
-    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
-  };
-  interface Runner {
-    runner: string;
-    runnerAllowed: boolean;
-    sdkOnLogin: boolean;
-  }
-  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
-  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
-    const done = await res;
-    return { status: done.status, error: ((await done.json()) as { error: string }).error };
-  };
 
   test('the owner reads the status and flips privacy, which rewrites the settings at once', async () => {
     expect((await (await call('GET')).json()) as unknown).toMatchObject({ privacy: true, worker: false, skill: false, stage: false, privacyApplied: false });
@@ -194,25 +174,16 @@ describe('the setup over the API', () => {
   });
 });
 
-describe("Claude Code's model allowlist follows the Model page", () => {
-  const cfg = (provider: 'anthropic' | 'openrouter', over: Record<string, unknown> = {}): ReturnType<typeof readModelConfig> =>
-    configOf(provider, [makeConnection(provider, over)]) as ReturnType<typeof readModelConfig>;
-
-  test('a non-Anthropic route becomes the only model Claude Code offers, and Anthropic clears it again', () => {
-    const openrouter = cfg('openrouter', { apiKey: 'k', model: 'anthropic/claude-sonnet-5', zdr: true });
-    expect(routeOf(openrouter)).toBe('openrouter:anthropic/claude-sonnet-5');
-    writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ env: { MY_VAR: 'x' } }));
-    expect(syncAvailableModels(openrouter, deps())).toBe('written');
-    expect(settings()).toEqual({ env: { MY_VAR: 'x' }, availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true });
-    expect(syncAvailableModels(openrouter, deps())).toBe('unchanged');
-    expect(syncAvailableModels(cfg('anthropic'), deps())).toBe('written');
-    expect(settings()).toEqual({ env: { MY_VAR: 'x' } });
-  });
-
-  test('an allowlist the user wrote themselves is left alone when the route is Anthropic', () => {
+describe('the model allowlist metro used to write into settings.json', () => {
+  test('is removed once when metro wrote it, and an allowlist the user wrote is left alone', () => {
+    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ modelsByMetro: true }));
+    writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ env: { MY_VAR: 'x' }, availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true }));
+    ensureClaudeSetup(deps());
+    expect(settings()).toEqual({ env: { MY_VAR: 'x', ...PRIVACY_ENV }, cleanupPeriodDays: RETENTION_DAYS, hooks: METRO_HOOKS });
+    expect(JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8'))).toEqual({ modelsByMetro: false });
     writeFileSync(join(dir, 'claude', 'settings.json'), JSON.stringify({ availableModels: ['claude-opus-5'] }));
-    expect(syncAvailableModels(cfg('anthropic'), deps())).toBe('unchanged');
-    expect(settings()).toEqual({ availableModels: ['claude-opus-5'] });
+    ensureClaudeSetup(deps());
+    expect(settings()).toMatchObject({ availableModels: ['claude-opus-5'] });
   });
 });
 
@@ -221,7 +192,7 @@ describe('the permission mode of the session', () => {
   let base = '';
   beforeEach(async () => {
     server = createServer((req, res) => {
-      const ok = handleClaudeRequest(req, res, { setup: deps(), session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() } });
+      const ok = handleClaudeRequest(req, res, { setup: deps(), session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents') } });
       if (!ok) res.writeHead(404).end();
     });
     await new Promise<void>((done) => {
@@ -238,19 +209,6 @@ describe('the permission mode of the session', () => {
       headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const route = (connection: ReturnType<typeof makeConnection>): void => {
-    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
-  };
-  interface Runner {
-    runner: string;
-    runnerAllowed: boolean;
-    sdkOnLogin: boolean;
-  }
-  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
-  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
-    const done = await res;
-    return { status: done.status, error: ((await done.json()) as { error: string }).error };
-  };
 
   test('is auto until flipped, keeps the other setup state, and is refused when not a mode', async () => {
     const before = (await (await call('GET')).json()) as { permissionMode: string };
@@ -264,61 +222,12 @@ describe('the permission mode of the session', () => {
     expect((await call('POST', {})).status).toBe(400);
   });
 
-  test('the runner is the Claude Code session until switched to the Agent SDK on an API-key route, is kept with the setup, and anything else is refused', async () => {
-    route(makeConnection('anthropic', { apiKey: 'sk-ant-test' }));
-    expect(await runnerOf(call('GET'))).toMatchObject({ runner: 'cli', runnerAllowed: true, sdkOnLogin: false });
-    expect((await runnerOf(call('POST', { runner: 'sdk' }))).runner).toBe('sdk');
-    expect((JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as { runner: string }).runner).toBe('sdk');
-    expect((await call('POST', { runner: 'codex' })).status).toBe(400);
-    expect((await runnerOf(call('POST', { runner: 'cli' }))).runner).toBe('cli');
-  });
-
-  test('the Agent SDK runner is refused on a Claude login, a keyless Anthropic connection, Gemini and a Codex connection not signed in, and taken with Bedrock or OpenRouter keys or either Codex sign-in', async () => {
-    const refused = await refusal(call('POST', { runner: 'sdk' }));
-    expect(refused.status).toBe(403);
-    expect(refused.error).toContain('needs an API key');
-    expect((await runnerOf(call('GET'))).runnerAllowed).toBe(false);
-    for (const login of [makeConnection('anthropic'), makeConnection('codex', { model: 'gpt-6' }), makeConnection('gemini', { model: 'gemini-3' })]) {
-      route(login);
-      expect((await call('POST', { runner: 'sdk' })).status).toBe(403);
-    }
-    expect((await runnerOf(call('GET'))).runner).toBe('cli');
-    for (const keyed of [makeConnection('bedrock', { apiKey: 'br-key', region: 'us-east-1' }), makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT }), makeConnection('codex', { model: 'gpt-6', codex: CODE })]) {
-      route(keyed);
-      expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
-      await call('POST', { runner: 'cli' });
-    }
-  });
-
-  test('every fallback model needs an API key or a Codex sign-in too: one on a Claude login, Gemini or a Codex connection not signed in keeps the Agent SDK runner off', async () => {
-    const first = makeConnection('openrouter', { apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
-    const fallingBackTo = (fallback: ReturnType<typeof makeConnection>): void => {
-      const cfg = configOf('openrouter', [first, fallback]);
-      writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify({ ...cfg, fallbacks: [{ connection: fallback.id, model: fallback.model === '' ? 'claude-opus-5-5' : fallback.model }] }));
-    };
-    for (const allowed of [makeConnection('anthropic', { apiKey: 'sk-ant-test', model: 'claude-opus-5-5' }), makeConnection('codex', { model: 'gpt-6', codex: CHATGPT }), makeConnection('codex', { model: 'gpt-6', codex: CODE })]) {
-      fallingBackTo(allowed);
-      expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
-      await call('POST', { runner: 'cli' });
-    }
-    for (const login of [makeConnection('anthropic'), makeConnection('codex', { model: 'gpt-6' }), makeConnection('gemini', { model: 'gemini-3' })]) {
-      fallingBackTo(login);
-      const refused = await refusal(call('POST', { runner: 'sdk' }));
-      expect(refused.status).toBe(403);
-      expect(refused.error).toContain('each fallback');
-      expect(await runnerOf(call('GET'))).toMatchObject({ runner: 'cli', runnerAllowed: false });
-    }
-  });
-
-  test('only the Metro operator allows the Agent SDK on the Claude login, and taking it back puts the agent on Claude Code', async () => {
-    const admin = await refusal(call('POST', { sdkOnLogin: true }));
-    expect(admin).toEqual({ status: 403, error: 'only the Metro operator can allow the Agent SDK on a Claude login' });
-    const operator = await operatorAuth(OWNER);
-    expect(await runnerOf(call('POST', { sdkOnLogin: true }, operator))).toMatchObject({ sdkOnLogin: true, runnerAllowed: true, runner: 'cli' });
-    expect(await runnerOf(call('POST', { runner: 'sdk' }))).toMatchObject({ runner: 'sdk', runnerAllowed: true });
-    expect((await call('POST', { sdkOnLogin: false })).status).toBe(403);
-    expect(await runnerOf(call('POST', { sdkOnLogin: false }, operator))).toEqual(expect.objectContaining({ sdkOnLogin: false, runnerAllowed: false, runner: 'cli' }));
-    expect(await runnerOf(call('POST', { sdkOnLogin: true, runner: 'sdk' }, operator))).toMatchObject({ sdkOnLogin: true, runner: 'sdk' });
+  test('an old runner field in the setup file is not answered, and a runner or operator switch is not a change', async () => {
+    writeFileSync(join(dir, 'agents', 'claude-setup.json'), JSON.stringify({ runner: 'cli', sdkOnLogin: true }));
+    const status = (await (await call('GET')).json()) as Record<string, unknown>;
+    for (const field of ['runner', 'runnerAllowed', 'sdkOnLogin']) expect(status).not.toHaveProperty(field);
+    expect((await call('POST', { runner: 'sdk' })).status).toBe(400);
+    expect((await call('POST', { sdkOnLogin: true })).status).toBe(400);
   });
 
   test('a system prompt is kept as a file the CLI appends, empty removes it, and a non-text or huge one is refused', async () => {
@@ -344,7 +253,7 @@ describe('live messages to the session', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents') },
         liveEvents: (on) => {
           told.push(on);
         },
@@ -365,19 +274,6 @@ describe('live messages to the session', () => {
       headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const route = (connection: ReturnType<typeof makeConnection>): void => {
-    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
-  };
-  interface Runner {
-    runner: string;
-    runnerAllowed: boolean;
-    sdkOnLogin: boolean;
-  }
-  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
-  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
-    const done = await res;
-    return { status: done.status, error: ((await done.json()) as { error: string }).error };
-  };
   const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
 
   test('are on until switched off, the switch is kept with the setup and reaches the daemon at once, and a non-boolean is refused', async () => {
@@ -405,7 +301,7 @@ describe('the daily memory routine switch', () => {
     server = createServer((req, res) => {
       const ok = handleClaudeRequest(req, res, {
         setup: deps(),
-        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents'), prepare: () => Promise.resolve() },
+        session: { tmux: join(dir, 'no-tmux-here'), home: join(dir, 'home'), agents: join(dir, 'agents') },
         memoryJob: (on) => {
           told.push(on);
         },
@@ -426,19 +322,6 @@ describe('the daily memory routine switch', () => {
       headers: { authorization: authorization ?? (await auth(OWNER)), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const route = (connection: ReturnType<typeof makeConnection>): void => {
-    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf(connection.provider, [connection])));
-  };
-  interface Runner {
-    runner: string;
-    runnerAllowed: boolean;
-    sdkOnLogin: boolean;
-  }
-  const runnerOf = async (res: Response | Promise<Response>): Promise<Runner> => (await (await res).json()) as Runner;
-  const refusal = async (res: Response | Promise<Response>): Promise<{ status: number; error: string }> => {
-    const done = await res;
-    return { status: done.status, error: ((await done.json()) as { error: string }).error };
-  };
   const state = (): Record<string, unknown> => JSON.parse(readFileSync(join(dir, 'agents', 'claude-setup.json'), 'utf8')) as Record<string, unknown>;
 
   test('is on until switched off, is kept with the setup, sets the job up again at once, and a non-boolean is refused', async () => {

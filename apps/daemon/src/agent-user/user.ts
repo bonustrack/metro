@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { runningAsMetro } from '../metro-user/privilege.js';
 
@@ -81,8 +83,26 @@ export const agentCommand = (command: readonly string[], extra: Record<string, s
   return [bin, ...argv];
 };
 
+const SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk';
+
+export const CLAUDE_ENV: Readonly<Record<string, string>> = { DISABLE_AUTOUPDATER: '1' };
+
+let musl: boolean | null = null;
+
+function muslFirst(): boolean {
+  if (process.platform !== 'linux') return false;
+  if (musl === null) {
+    const report = process.report.getReport() as { header?: { glibcVersionRuntime?: string } };
+    musl = report.header?.glibcVersionRuntime === undefined;
+  }
+  return musl;
+}
+
 export function claudeBin(user = agentUser()): string {
-  return user === null ? 'claude' : join(user.home, '.local', 'bin', 'claude');
+  const name = `${SDK_PACKAGE}-${process.platform}-${process.arch}`;
+  const packages = muslFirst() ? [`${name}-musl`, name] : [name, `${name}-musl`];
+  const [first = '', other = ''] = packages.map((pkg) => join(user?.home ?? homedir(), '.metro', 'sdk-runner', 'node_modules', pkg, 'claude'));
+  return existsSync(first) || !existsSync(other) ? first : other;
 }
 
 export const claudeHome = (user = agentUser()): string | null => (user === null ? null : user.home);

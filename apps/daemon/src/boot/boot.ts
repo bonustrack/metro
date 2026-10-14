@@ -26,9 +26,8 @@ import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connec
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeConnectorLeftovers } from '../connectors/leftovers.js';
-import { removeMetroPlugin } from '../claude/plugin-cleanup.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
-import { provisionAgentUser } from '../agent-user/provision.js';
+import { prepareAgentRunner, provisionAgentUser } from '../agent-user/provision.js';
 import { applyVault } from '../vault/index.js';
 import { blockImds } from '../metro-user/imds.js';
 import { followRelease } from '../metro-user/root-follow.js';
@@ -193,7 +192,7 @@ async function startClaude(): Promise<void> {
     log.error('claude: Metro runs as root, so Claude Code never starts here; reinstall Metro as the metro user');
     return;
   }
-  const agentUser = await provisionAgentUser();
+  const agentUser = provisionAgentUser();
   if (agentUser !== 'off') log.info({ agentUser }, 'agent-user: Claude Code runs as its own user');
   if (agentUser === 'failed') return;
   if (agentUser === 'ready') {
@@ -202,14 +201,10 @@ async function startClaude(): Promise<void> {
     const vault = (await applyVault()).status;
     if (vault.enabled) log.info({ running: vault.running, problem: vault.problem }, 'vault: the agent reaches the internet through the vault');
   }
-  const plugin = await removeMetroPlugin().catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'claude-plugin: could not check for the old metro plugin');
-    return 'failed';
-  });
-  if (plugin !== 'done') log.info({ outcome: plugin }, 'claude-plugin: checked for the old metro Claude Code plugin');
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());
+  if (agentUser === 'ready') await prepareAgentRunner();
   watchSession();
 }
 
