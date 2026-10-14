@@ -12,7 +12,7 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
-import { claudeAccount, claudeInstalled } from './login.js';
+import { claudeAccount, claudeInstalled, forgetClaudeChecks } from './login.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
@@ -120,16 +120,22 @@ export function prepareRunnerStore(): Promise<void> {
     child.stderr.on('data', (chunk: Buffer) => {
       said = (said + chunk.toString('utf8')).slice(-2000);
     });
-    child.on('error', reject);
+    child.on('error', (err) => {
+      forgetClaudeChecks();
+      reject(err);
+    });
     child.on('close', (code) => {
+      forgetClaudeChecks();
       if (code === 0) resolve();
       else reject(new Error(`metro agent --prepare failed: ${said.trim() || `exit ${String(code)}`}`));
     });
   });
 }
 
+const loginNotRuledOut = (): boolean => claudeAccount().signedIn || !claudeInstalled();
+
 function credentialReady(deps: SessionDeps): string | null {
-  const signedIn = deps.signedIn ?? (() => claudeAccount().signedIn);
+  const signedIn = deps.signedIn ?? loginNotRuledOut;
   if (signedIn()) return null;
   try {
     const cfg = readModelConfig(deps.agents ?? agentsDir());
@@ -155,7 +161,6 @@ export function sessionBlocked(deps: SessionDeps = {}): string | null {
 function launchBlocked(deps: SessionDeps): string | null {
   if (agentUserMissing(deps))
     return 'Claude Code runs as the user agent here, and that user is not ready yet; see the log';
-  if (deps.metro === undefined && !claudeInstalled()) return 'the Agent SDK runner is not prepared on this machine yet; see the log';
   if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
   return credentialReady(deps);
 }
@@ -199,8 +204,9 @@ export function stopSession(deps: SessionDeps = {}, cancelActive = false): Sessi
   return sessionStatus(deps);
 }
 
-export const sessionLive = (deps: SessionDeps = {}): boolean =>
-  sessionRunning(deps.tmux ?? 'tmux') || sdkAlive(readAgentActivity(sessionHome(deps)));
+export const runnerAlive = (deps: SessionDeps = {}): boolean => sdkAlive(readAgentActivity(sessionHome(deps)));
+
+export const sessionLive = (deps: SessionDeps = {}): boolean => sessionRunning(deps.tmux ?? 'tmux') || runnerAlive(deps);
 
 export function sessionSnapshot(deps: SessionDeps = {}): SessionSnapshot {
   const activity = readAgentActivity(sessionHome(deps));

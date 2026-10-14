@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { runChild } from './child.js';
 import { headlessEnv, NO_UPDATES } from './claude-env.js';
 import { localAgent } from './local.js';
+import { withLock } from './lock.js';
 import { currentModel, permissionMode, systemPrompt, type PermissionMode } from './route.js';
 import { installDependencies, ranges, readOrNull } from './runtime-install.js';
 import { findBun, localPort, runtimeDir } from './runtime.js';
@@ -15,6 +16,8 @@ const ENTRY = join('src', 'main.ts');
 const METRO_MODULES = join('node_modules', '@metro-labs');
 const BUNFIG = '[install]\noptional = false\npeer = false\n';
 const SDK = '@anthropic-ai/claude-agent-sdk';
+const PREPARE_LOCK = '.prepare.lock';
+const PREPARE_WAIT = { staleMs: 20 * 60_000, waitMs: 20 * 60_000, pollMs: 250 };
 
 export interface RunnerManifest {
   version: string;
@@ -79,15 +82,22 @@ function stageSources(sources: string, store: string, stamp: string): void {
 }
 
 export function prepareRunner(opts: RunnerPrepare = {}): PreparedRunner {
-  const sources = opts.sources ?? join(runtimeDir(), RUNNER_SOURCES);
-  const stamp = readFileSync(join(sources, STAMP), 'utf8');
   const store = opts.store ?? runnerStore();
-  stageSources(sources, store, stamp);
   const log =
     opts.log ??
     ((line: string): void => {
       process.stderr.write(`metro agent: ${line}\n`);
     });
+  const waiting = (): void => {
+    log(`waiting for another preparation of ${store} to finish`);
+  };
+  return withLock(join(store, PREPARE_LOCK), { ...PREPARE_WAIT, waiting }, () => prepareIn(store, opts, log));
+}
+
+function prepareIn(store: string, opts: RunnerPrepare, log: (line: string) => void): PreparedRunner {
+  const sources = opts.sources ?? join(runtimeDir(), RUNNER_SOURCES);
+  const stamp = readFileSync(join(sources, STAMP), 'utf8');
+  stageSources(sources, store, stamp);
   const pkg = opts.claude ?? claudePackage();
   const claude = join(store, 'node_modules', ...pkg.name.split('/'), pkg.binary);
   const marker = join(store, 'node_modules', '.metro-installed');

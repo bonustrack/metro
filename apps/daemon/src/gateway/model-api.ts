@@ -5,7 +5,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { openrouterModels, openrouterZdrModels } from './openrouter.js';
 import { anthropicModels, bedrockModels } from './provider-models.js';
-import { sessionLive } from '../claude/session.js';
+import { runnerAlive } from '../claude/session.js';
 import { forgetOne, forgetReported } from './usage.js';
 import {
   addConnection,
@@ -54,7 +54,8 @@ function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps):
   const [was, now] = [runnerModel(before), runnerModel(next)];
   if (was === now) return;
   if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
-  else if (runnerIsLive(deps)) throw new ApiError('The running Agent SDK could not be told about this model change. Nothing was saved. Let its work finish, stop it, then save and start it again.', 409);
+  else if (runnerIsUp(deps)) throw new ApiError('The running Agent SDK could not be told about this model change. Nothing was saved. Let its work finish, stop it, then save and start it again.', 409);
+  else log.info({ was, now }, 'model-api: the model changed while no Agent SDK runner is up; its next start loads it');
 }
 
 function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
@@ -205,7 +206,7 @@ function routeFor(path: string, method: string | undefined): Route | number {
   return codexRoute(path.slice(CODEX.length), method);
 }
 
-const runnerIsLive = (deps: ModelApiDeps): boolean => (deps.sessionRunning ?? (() => sessionLive({ agents: deps.setup?.agents })))();
+const runnerIsUp = (deps: ModelApiDeps): boolean => (deps.runnerAlive ?? (() => runnerAlive()))();
 
 const storeFor = (path: string, deps: ModelApiDeps): Store => ({
   read: deps.read ?? (path === SNAPSHOT ? readModelSnapshot : readModelConfig),

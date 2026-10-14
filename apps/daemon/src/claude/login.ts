@@ -95,7 +95,7 @@ function remembered<T>(slot: Checked<T> | undefined, read: () => T, keep: (c: Ch
   return value;
 }
 
-function forgetClaudeChecks(): void {
+export function forgetClaudeChecks(): void {
   delete checks.installed;
   delete checks.account;
 }

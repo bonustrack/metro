@@ -1,9 +1,10 @@
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { prepareRunner } from './agent.js';
 import { runChild } from './child.js';
 import { headlessEnv } from './claude-env.js';
+import { takeLock } from './lock.js';
 import { systemPrompt } from './route.js';
 
 export const MEMORY_FOLDERS = [
@@ -150,35 +151,6 @@ export function routineArgs(prompt: string, memory: string, appended: string | n
 
 export const routineEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...env, METRO_SESSION: 'memory' });
 
-export function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-function lockHeld(path: string, now: number): boolean {
-  const pid = Number(readFileSync(path, 'utf8').trim());
-  return now - statSync(path).mtimeMs < LOCK_STALE_MS && Number.isInteger(pid) && pid > 0 && processAlive(pid);
-}
-
-export function takeLock(path: string, now = Date.now(), retry = true): boolean {
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    const fd = openSync(path, 'wx');
-    writeSync(fd, String(process.pid));
-    closeSync(fd);
-    return true;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-    if (!retry || lockHeld(path, now)) return false;
-    rmSync(path, { force: true });
-    return takeLock(path, now, false);
-  }
-}
-
 const frontmatter = (text: string): string => (text.startsWith('---\n') ? text.slice(4, text.indexOf('\n---', 4)) : '');
 
 export function settleWorkstreams(memory: string): string[] {
@@ -247,7 +219,7 @@ export async function memoryRoutine(paths = memoryPaths(), now = new Date()): Pr
     say(`skipped: no memory skill at ${paths.skill}`);
     return 0;
   }
-  if (!takeLock(paths.lock)) {
+  if (!takeLock(paths.lock, LOCK_STALE_MS)) {
     say('skipped: the previous run is still going');
     return 0;
   }

@@ -196,7 +196,7 @@ beforeAll(async () => {
     geminiUserBase: backendBase,
     geminiBase: backendBase,
     setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
-    sessionRunning: () => false,
+    runnerAlive: () => false,
     claudeUsage: () => {
       login.asked += 1;
       return login.answer();
@@ -777,14 +777,14 @@ describe('the Agent SDK session follows the Model page live', () => {
       await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5.5' });
       const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-5-5' });
       const login = await add({ provider: 'anthropic' });
-      modelDeps.sessionRunning = () => true;
+      modelDeps.runnerAlive = () => true;
       const list = [{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }];
       expect(await fallbacks(list)).toBe(200);
       expect(stored.fallbacks).toEqual(list);
       expect(told).toEqual(['openrouter:anthropic/claude-sonnet-5.5']);
     } finally {
       modelDeps.switchModel = undefined;
-      modelDeps.sessionRunning = () => false;
+      modelDeps.runnerAlive = () => false;
     }
   });
 
@@ -792,7 +792,7 @@ describe('the Agent SDK session follows the Model page live', () => {
     modelDeps.switchModel = () => false;
     try {
       const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
-      modelDeps.sessionRunning = () => true;
+      modelDeps.runnerAlive = () => true;
       const before = structuredClone(stored);
       const refused = await conns('PUT', `/${one}`, { model: 'c/d' });
       expect(refused.status).toBe(409);
@@ -802,12 +802,29 @@ describe('the Agent SDK session follows the Model page live', () => {
       expect((await call('PUT', OWNER, { route: login })).status).toBe(409);
       expect(stored.route).toBe(one);
       expect((await conns('PUT', `/${one}`, { label: 'Work' })).status).toBe(200);
-      modelDeps.sessionRunning = () => false;
+      modelDeps.runnerAlive = () => false;
       expect((await call('PUT', OWNER, { route: login })).status).toBe(200);
       expect(stored.route).toBe(login);
     } finally {
       modelDeps.switchModel = undefined;
-      modelDeps.sessionRunning = () => false;
+      modelDeps.runnerAlive = () => false;
+    }
+  });
+
+  test('while no runner process is up (its tmux session still preparing, or gone), a model change is saved for the next start', async () => {
+    const told: (string | null)[] = [];
+    modelDeps.switchModel = (model) => {
+      told.push(model);
+      return false;
+    };
+    try {
+      const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
+      const saved = await conns('PUT', `/${one}`, { model: 'c/d' });
+      expect(saved.status).toBe(200);
+      expect(stored.connections.find((c) => c.id === one)?.model).toBe('c/d');
+      expect(told).toEqual(['openrouter:a/b', 'openrouter:c/d']);
+    } finally {
+      modelDeps.switchModel = undefined;
     }
   });
 });

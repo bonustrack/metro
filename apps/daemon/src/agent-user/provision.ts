@@ -52,6 +52,6 @@ export async function prepareAgentRunner(): Promise<void> {
     await prepareRunnerStore();
     log.info('agent-user: the Agent SDK runner and the Claude Code it bundles are ready for the agent user');
   } catch (err) {
-    log.error({ err: errMsg(err) }, 'agent-user: could not prepare the Agent SDK runner; a session start or a daemon restart tries again');
+    log.error({ err: errMsg(err) }, 'agent-user: could not prepare the Agent SDK runner; the session start runs metro agent, which prepares it again');
   }
 }
