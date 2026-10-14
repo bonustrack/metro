@@ -32,7 +32,7 @@ function Themed(): ReactNode {
 }
 
 export default function RootLayout(): ReactNode {
-  const [fonts] = useFonts(FONTS);
+  const [fonts, fontError] = useFonts(FONTS);
   const [stored, setStored] = useState(false);
   useEffect(() => {
     prepareStorage()
@@ -41,7 +41,7 @@ export default function RootLayout(): ReactNode {
         setStored(true);
       });
   }, []);
-  const ready = fonts && stored;
+  const ready = (fonts || fontError !== null) && stored;
   useEffect(() => {
     if (ready) hideAsync().catch(logError('splash'));
   }, [ready]);
