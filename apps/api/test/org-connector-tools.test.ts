@@ -2,8 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { connectors, connectorAgents } from '../src/db/schema.ts';
-import { orgConnectorStore } from '../src/db/connectors.ts';
-import { sealConnectorSecret, type ConnectorSecret, type ConnectorView } from '../src/connectors/model.ts';
+import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
+import { type ConnectorView } from '../src/connectors/model.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { ACCESS, GOOD_KEY, REFRESH, startApi, startVendor, type Api, type Vendor } from './org-connectors-fixture.ts';

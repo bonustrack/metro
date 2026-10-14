@@ -2,12 +2,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import { OwnerTickets } from '../src/agents/tickets.js';
 import { completeSignIn, type ActionDeps } from '../src/connectors/actions.js';
-import { credentialRevision } from '../src/connectors/delivery-model.js';
-import { openConnectorSecret } from '../src/connectors/model.js';
+import { credentialRevision } from '@metro-labs/connectors/revision';
+import { openConnectorSecret } from '@metro-labs/connectors/model';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.js';
-import { agentKeyStore, leaveOrganization } from '../src/db/agent-keys.js';
-import { agentNonceStore } from '../src/db/agent-nonces.js';
-import { orgConnectorStore, type ConnectorRow } from '../src/db/connectors.js';
+import { agentKeyStore, leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
+import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
+import { orgConnectorStore, type ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { agents, agentNonces, connectors } from '../src/db/schema.js';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.js';
 import { TEST_DATABASE_URL, postgresFixture } from './connector-postgres-fixture.js';

@@ -15,6 +15,7 @@
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
+    "@metro-labs/connectors": "workspace:*",
     "@metro-labs/core": "workspace:*",
     "@metro-labs/http": "workspace:*",
     "drizzle-kit": "^0.31.0",

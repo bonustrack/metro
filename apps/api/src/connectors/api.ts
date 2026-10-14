@@ -6,7 +6,7 @@ import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-h
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
 import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
-import { listConnectorTools } from './catalogue.js';
+import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import { callbackLocation } from './sign-in.js';
 
 const PREFIX = '/api/connectors';

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
-import { openConnectorSecret, type ConnectorSecret } from '../src/connectors/model.js';
+import { openConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { connectors } from '../src/db/schema.js';
 import { assignConnector, enrollDeliveryAgent, latch, MASTER, newDeliveryAgent, opaque, openResponse, seedConnector, startDeliveryApi } from './connector-delivery-fixture.js';
 import { postgresFixture, TEST_DATABASE_URL } from './connector-postgres-fixture.js';

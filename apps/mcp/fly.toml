@@ -1,0 +1,42 @@
+# Fly.io deployment for mcp.metro.box (apps/mcp), deployed by .github/workflows/mcp.yml from
+# the repository root:
+#   flyctl deploy . --config apps/mcp/fly.toml --dockerfile apps/mcp/Dockerfile --remote-only
+#
+# Two always-on machines and nothing on disk: every agent's connector calls go through this
+# app, so one machine restarting must not stop them. It reads api.metro.box's Postgres and runs
+# no migration (they run from apps/api's release_command only), so there is no release_command.
+
+app = "metro-mcp"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  METRO_HTTP_HOST = "0.0.0.0"
+  METRO_HTTP_PORT = "8430"
+  METRO_LOG_LEVEL = "info"
+
+# Secrets are NOT stored here. Set them with `fly secrets set -a metro-mcp`, with the same
+# values as api.metro.box:
+#   DATABASE_URL          the Postgres api.metro.box uses
+#   METRO_CONNECTORS_KEY  the key that seals connector secrets
+# Without either, the server refuses to start.
+
+[http_service]
+  internal_port = 8430
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 2
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

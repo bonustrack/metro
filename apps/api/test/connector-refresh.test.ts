@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { credentialRevision } from '../src/connectors/delivery-model.js';
-import { openConnectorSecret, sealConnectorSecret } from '../src/connectors/model.js';
+import { credentialRevision } from '@metro-labs/connectors/revision';
+import { openConnectorSecret, sealConnectorSecret } from '@metro-labs/connectors/model';
 import { connectors } from '../src/db/schema.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';
 import { CONN, MASTER, assignConnector, enrollDeliveryAgent, newDeliveryAgent, oauthSecret, opaque, openResponse, seedConnector, startDeliveryApi, type DeliveryAgent } from './connector-delivery-fixture.js';

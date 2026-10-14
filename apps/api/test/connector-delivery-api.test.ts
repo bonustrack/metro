@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { CONNECTOR_DELIVERY_LEASE_MS } from '@metro-labs/http/connector-delivery';
-import { AgentAuth } from '../src/agents/auth.js';
-import { credentialRevision } from '../src/connectors/delivery-model.js';
-import { openConnectorSecret } from '../src/connectors/model.js';
+import { AgentAuth } from '@metro-labs/connectors/agent-auth';
+import { credentialRevision } from '@metro-labs/connectors/revision';
+import { openConnectorSecret } from '@metro-labs/connectors/model';
 import { agents, agentNonces, connectorAgents, connectors } from '../src/db/schema.js';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.js';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.js';

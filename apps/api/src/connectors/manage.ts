@@ -5,9 +5,11 @@ import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-delivery';
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
-import type { ConnectorEdit, ConnectorRow } from '../db/connectors.js';
-import { connectorView, detailOf, detailText, isReadOnly, openConnectorSecret, readOnlyPolicy, sealConnectorSecret, simplePolicy, type ConnectorView } from './model.js';
-import { sealingKey, viewOf, type ActionDeps, type Caller } from './actions.js';
+import type { ConnectorEdit, ConnectorRow } from '@metro-labs/connectors/db/connectors';
+import { detailOf, detailText, openConnectorSecret, sealConnectorSecret } from '@metro-labs/connectors/model';
+import { sealingKey } from '@metro-labs/connectors/setup';
+import { connectorView, isReadOnly, readOnlyPolicy, simplePolicy, type ConnectorView } from './model.js';
+import { viewOf, type ActionDeps, type Caller } from './actions.js';
 
 type Change = { kind: 'name'; name: string } | { kind: 'readOnly'; readOnly: boolean } | { kind: 'policy'; policy: ConnectorPolicy } | { kind: 'key'; header: unknown; value: unknown };
 

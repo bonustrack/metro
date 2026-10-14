@@ -1,0 +1,42 @@
+{
+  "name": "@metro-labs/connectors",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The organization connector runtime shared by api.metro.box and mcp.metro.box: sealed secrets, OAuth refresh with its uncertainty records, the safe egress, tool listing, the connector and agent key tables with their store functions, and agent request authentication. No HTTP routing.",
+  "type": "module",
+  "exports": {
+    "./model": "./src/model.ts",
+    "./secrets": "./src/secrets.ts",
+    "./setup": "./src/setup.ts",
+    "./revision": "./src/revision.ts",
+    "./refresh": "./src/refresh.ts",
+    "./imported-refresh": "./src/imported-refresh.ts",
+    "./catalogue": "./src/catalogue.ts",
+    "./catalogue-auth": "./src/catalogue-auth.ts",
+    "./egress": "./src/egress.ts",
+    "./agent-auth": "./src/agent-auth.ts",
+    "./db/schema": "./src/db/schema.ts",
+    "./db/database": "./src/db/database.ts",
+    "./db/errors": "./src/db/errors.ts",
+    "./db/connectors": "./src/db/connectors.ts",
+    "./db/connector-delivery": "./src/db/connector-delivery.ts",
+    "./db/agent-keys": "./src/db/agent-keys.ts",
+    "./db/agent-nonces": "./src/db/agent-nonces.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/core": "workspace:*",
+    "@metro-labs/http": "workspace:*",
+    "drizzle-orm": "^0.44.0"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.3",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

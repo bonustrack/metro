@@ -1,14 +1,15 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { validConnectorToolName } from '@metro-labs/http/connector-delivery';
 import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
-import type { ConnectorRow } from '../db/connectors.js';
-import { sealingKey, type ActionDeps } from './actions.js';
-import { catalogueCredential, catalogueSecret, catalogueSignin, catalogueUnavailable } from './catalogue-auth.js';
-import { credentialRevision } from './delivery-model.js';
+import type { ConnectorRow } from './db/connectors.js';
+import { catalogueCredential, catalogueSecret, catalogueSignin, catalogueUnavailable, type CatalogueDeps } from './catalogue-auth.js';
+import { credentialRevision } from './revision.js';
 import type { ConnectorSecret } from './model.js';
+import { sealingKey } from './setup.js';
 
 function decodedForms(value: string): string[] {
   const forms = new Set<string>();
@@ -51,7 +52,17 @@ function credentials(secret: ConnectorSecret): string[] {
 
 const redactionKeys = (values: string[]): string[] => [...new Set(values.filter((value) => value !== '').flatMap(credentialForms))].sort((a, b) => b.length - a.length);
 
-function publicTools(tools: RemoteTool[], secret: ConnectorSecret): RemoteTool[] {
+function redactedValue(value: unknown, redact: (text: string) => string): unknown {
+  if (typeof value === 'string') return redact(value);
+  if (Array.isArray(value)) return value.map((item) => redactedValue(item, redact));
+  return isRecord(value) ? redactedRecord(value, redact) : value;
+}
+
+function redactedRecord(value: Record<string, unknown>, redact: (text: string) => string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactedValue(item, redact)]));
+}
+
+export function publicTools(tools: RemoteTool[], secret: ConnectorSecret, withSchemas = false): RemoteTool[] {
   const known = credentials(secret);
   const paths = pathCredentials(new URL(secret.targetUrl).pathname);
   const hidden = redactionKeys([...known, ...paths.metadata]);
@@ -59,29 +70,30 @@ function publicTools(tools: RemoteTool[], secret: ConnectorSecret): RemoteTool[]
   const redact = (value: string): string => hidden.reduce((text, key) => text.replaceAll(key, '[redacted]'), value.replace(/https?:\/\/[^\s<>"']+/gi, '[address withheld]'));
   return tools.map((tool) => {
     if (!validConnectorToolName(tool.name) || /https?:\/\//i.test(tool.name) || names.some((key) => tool.name.includes(key))) throw catalogueUnavailable();
-    return { name: tool.name, title: redact(tool.title).slice(0, 256), description: redact(tool.description).slice(0, 4096), readOnly: tool.readOnly };
+    const schema = withSchemas && tool.inputSchema !== undefined ? { inputSchema: redactedRecord(tool.inputSchema, redact) } : {};
+    return { name: tool.name, title: redact(tool.title).slice(0, 256), description: redact(tool.description).slice(0, 4096), readOnly: tool.readOnly, ...schema };
   });
 }
 
-function authentication(secret: ConnectorSecret): ConnectorAuth {
+export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {
   if (secret.kind === 'header') return { kind: 'header', name: secret.name, value: secret.value };
   if (secret.kind === 'oauth') return { kind: 'header', name: 'Authorization', value: `Bearer ${secret.tokens?.accessToken ?? ''}` };
   return { kind: 'none' };
 }
 
-async function discover(deps: ActionDeps, owner: string, row: ConnectorRow): Promise<RemoteTool[]> {
+async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<RemoteTool[]> {
   const key = sealingKey(deps);
   const secret = catalogueSecret(key, row, deps.now());
-  const tools = await listRemoteTools(parsePublicConnectorUrl(secret.targetUrl), authentication(secret), deps.fetch);
+  const tools = await listRemoteTools(parsePublicConnectorUrl(secret.targetUrl), connectorAuthOf(secret), deps.fetch);
   const current = await deps.store.find(owner, row.id);
   if (current === null) throw new ApiError('no such connector', 404);
   if (credentialRevision(key, current) !== credentialRevision(key, row)) throw new ApiError('This connector changed. Refresh its tool list.', 409);
   return publicTools(tools, secret);
 }
 
-export async function listConnectorTools(deps: ActionDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {
+export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {
   const deadline = AbortSignal.timeout(45_000);
-  const bounded: ActionDeps = { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
+  const bounded: CatalogueDeps = { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
   try {
     let row = await catalogueCredential(bounded, owner, id);
     try { return { tools: await discover(bounded, owner, row) }; } catch (err) {

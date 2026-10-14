@@ -1,6 +1,6 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Database } from './client.js';
+import type { Database } from './database.js';
 import { isUniqueViolation } from './errors.js';
 import { agents, agentKeys, connectorAgents } from './schema.js';
 
