@@ -3,6 +3,10 @@ import { syncPluginServers } from './plugin-sync.js';
 import { persistentServerKeys } from './server-keys.js';
 
 let organization: GateRow[] | null = null;
+const BOOT = Date.now();
+const READY_WAIT_MS = 30_000;
+
+export const connectorsReady = (now = Date.now()): boolean => organization !== null || now - BOOT >= READY_WAIT_MS;
 
 function metadata(rows: readonly GateRow[]): GateRow[] {
   return rows.map((row) => structuredClone({

@@ -147,54 +147,41 @@ command line.
 
 ## Connectors
 
-A connector is a remote MCP server (Linear, Microsoft 365, and so on) that the agent can
-use. Add it on the page's **Connectors** tab. The daemon checks that it answers, keeps its
-credential (a header or OAuth tokens), and relays the traffic at
-`http://127.0.0.1:8420/relay/<id>`, adding the credential on each request. Each connector
-shows up in Claude Code as its own MCP server through the metro plugin; a running session
-picks up a change with `/reload-plugins --force`. No connector credential reaches Claude
-Code's config, the browser or metro.box. For Microsoft 365, see
+A connector is a remote MCP server (Linear, Notion, Microsoft 365, and so on) that agents
+can use. Connectors belong to the organization: admins add them on the organization's
+**Connectors** page (`https://metro.box/#/<organization>/organization/connectors`), sign
+in or enter a key, assign them to agents, and set their permissions for every agent or
+just one. Members can see them but not change them. An agent's own **Connectors** page
+lists what is assigned to it.
+
+Each agent must be enrolled in its organization and have **Sync** on (Server page). Its
+daemon then fetches only its assigned connectors from api.metro.box, keeps their
+credentials in memory, and relays each call itself at
+`http://127.0.0.1:8420/relay/org-<id>`, adding the credential on the way out. Each
+connector shows up in Claude Code as its own MCP server through the metro plugin; a
+running Claude Code session picks up a change with `/reload-plugins --force`, an Agent
+SDK session at its next start. No tool call passes through api.metro.box, and no
+credential reaches Claude Code's config, the browser or the agent.
+
+api.metro.box verifies servers and handles OAuth itself. Its outbound connections use
+HTTPS, reject redirects and private addresses, and connect only to the DNS addresses it
+checked. OAuth returns to `https://api.metro.box/api/connectors/callback`, then hands the
+page a one-use code. Secrets and the full connection URL are sealed in Postgres with
+`METRO_CONNECTORS_KEY` and never returned to the page; only the server origin is shown,
+since paths and query strings can contain credentials. For Microsoft 365, see
 [docs/MICROSOFT-365.md](docs/MICROSOFT-365.md).
 
-### Organization connectors (preview, off by default)
-
-The organization sidebar has a **Connectors** page when api.metro.box has
-`METRO_CONNECTORS_ENABLED=true`. Admins can add a public HTTPS MCP server with a key
-or an OAuth sign-in, rename or remove it, replace its key, assign it to agents,
-set its permissions for all agents or just one. Members can see the connectors
-and assignments but cannot change them. Connector Activity is no longer collected
-or shown.
-The URL is `https://metro.box/#/<organization>/organization/connectors`.
-
-**This is setup only for now.** Boxes still use their own connectors. Assignment
-and read-only settings are saved for the later box integration; they do not change
-the existing per-box connectors. Automatic OAuth refresh and the migration of
-existing connectors are later phases too. No tool calls pass through api.metro.box.
-
-The API verifies servers and handles OAuth itself. Its outbound connections use
-HTTPS, reject redirects and private addresses, and connect only to the DNS addresses
-it checked. OAuth returns to `https://api.metro.box/api/connectors/callback`, then
-hands the Metro page a one-use code. Only the admin who started the sign-in can
-finish it. A provider that cannot register Metro itself needs an app registered
-with that callback URL, with its client ID and optional client secret entered on Add.
-Secrets and the full connection URL are sealed in Postgres using `METRO_CONNECTORS_KEY`
-and never returned to the page. Only the server origin
-is displayed, since paths and query strings can contain credentials. A newer sign-in
-invalidates an older attempt, including one whose token exchange is still running.
-
-For the first setup only, generate the key on your own computer, save a private
-backup, and import it into Fly without printing it or placing it in the command arguments:
+`METRO_CONNECTORS_KEY` is set once on Fly. For a first setup only, generate it on your
+own computer, save a private backup, and import it without printing it or placing it in
+the command arguments:
 
 ```sh
 (umask 077; set -C; key="$(openssl rand -base64 32)" && printf 'METRO_CONNECTORS_KEY=%s\n' "$key" > "$HOME/metro-connectors-key.env" && fly secrets import -a metro < "$HOME/metro-connectors-key.env")
 ```
 
-Keep that file in a safe place, or copy its value into your password manager and
-remove the file. **Do not generate a new key if one is already set:** changing it
-makes existing connector secrets unreadable. Once the preview is deployed and you
-are ready to test, `fly secrets set -a metro METRO_CONNECTORS_ENABLED=true` opens
-this setup page. It does not activate connectors on boxes. Unset the switch to
-hide the page again without removing the saved rows.
+Keep that file in a safe place, or copy its value into your password manager and remove
+the file. **Never generate a new key once one is set:** changing it makes every saved
+connector secret unreadable.
 
 ## GitHub skills
 

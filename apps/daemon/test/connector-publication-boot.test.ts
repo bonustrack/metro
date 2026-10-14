@@ -13,11 +13,13 @@ let saved: Record<string, string | undefined> = {};
 
 const SCRIPT = `
 import { adoptOrgServerKeys } from '${join(import.meta.dir, '../src/connectors/org-adopt.ts')}';
-import { publishConnectors, publishOrgConnectors } from '${join(import.meta.dir, '../src/connectors/publication.ts')}';
+import { connectorsReady, publishConnectors, publishOrgConnectors } from '${join(import.meta.dir, '../src/connectors/publication.ts')}';
 const step = process.argv.at(-1);
 adoptOrgServerKeys();
 publishConnectors();
+process.stdout.write(\`ready before delivery: \${String(connectorsReady())}, after 30 s: \${String(connectorsReady(Date.now() + 30_000))}\\n\`);
 if (step === 'delivered') publishOrgConnectors([{ id: 'org-${DESTINATION}', name: 'Renamed in the organization', config: {} }]);
+process.stdout.write(\`ready at the end: \${String(connectorsReady())}\\n\`);
 `;
 
 const run = (step: string) => spawnSync(process.execPath, ['-e', SCRIPT, step], { env: process.env, encoding: 'utf8' });
@@ -48,9 +50,14 @@ afterEach(() => {
 });
 
 test('a fresh daemon keeps the last list until its first organization delivery, then serves the same server key at the organization id', () => {
-  expect(run('boot').status).toBe(0);
+  const boot = run('boot');
+  expect(boot.status).toBe(0);
+  expect(boot.stdout).toContain('ready before delivery: false, after 30 s: true');
+  expect(boot.stdout).toContain('ready at the end: false');
   expect(servers()).toEqual({ 'local-mcp': { type: 'http', url: `http://127.0.0.1:8420/relay/${SOURCE}` } });
-  expect(run('delivered').status).toBe(0);
+  const delivered = run('delivered');
+  expect(delivered.status).toBe(0);
+  expect(delivered.stdout).toContain('ready at the end: true');
   expect(Object.keys(servers())).toEqual(['local-mcp']);
   expect(servers()['local-mcp']?.url).toEndWith(`/relay/org-${DESTINATION}`);
 });

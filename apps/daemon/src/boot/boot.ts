@@ -21,7 +21,7 @@ import {
   trainEventToMetroEvent,
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
-import { publishConnectors } from '../connectors/publication.js';
+import { connectorsReady, publishConnectors } from '../connectors/publication.js';
 import { adoptOrgServerKeys } from '../connectors/org-adopt.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { stopOrgConnectorSync, watchOrgConnectorSync } from '../connectors/org-sync-watch.js';
@@ -200,7 +200,7 @@ async function startClaude(): Promise<void> {
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }
   tryMemoryJob(memoryRoutine());
-  watchSession();
+  watchSession({ connectorsReady: () => connectorsReady() });
 }
 
 const SHUTDOWN_TIMEOUT_MS = 3_000;
