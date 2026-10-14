@@ -4,6 +4,8 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
+import { Title } from '@stage-labs/kit/react-native/title';
+import { fontName } from '@stage-labs/kit/tokens';
 import { daemonHost, routedDaemon } from '@metro-labs/client/auth/daemon';
 import { atWaitlist, clearOutcome, readOutcome } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation } from '@metro-labs/client/auth/invitation';
@@ -25,6 +27,7 @@ const CARD_PAD = 24;
 const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
 const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
 const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
+const HEADING = { fontSize: 36, fontFamily: fontName.sans } as const;
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. Once we let you in, log in with the same account.';
@@ -63,7 +66,7 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
 
 function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const onButton = useKitPalette().text;
+  const onButton = useKitPalette().link;
   const [failed, setFailed] = useState<string | null>(null);
   return (
     <Col gap={10}>
@@ -128,11 +131,11 @@ function Frame({ title, children }: { title: string; children: ReactNode }): Rea
         <Col gap={32} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
           <Col gap={14}>
             <Row justify="center">
-              <Text size="3xl" weight="medium">
+              <Title style={HEADING} accessibilityRole="header">
                 {title}
-              </Text>
+              </Title>
             </Row>
-            <Text size="md" style={CENTER_TEXT}>
+            <Text size="xl" style={CENTER_TEXT}>
               {ABOUT}
             </Text>
           </Col>

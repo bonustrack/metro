@@ -1,11 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { FONT_SIZE, semanticPalette } from '@stage-labs/kit/tokens';
+import { semanticPalette } from '@stage-labs/kit/tokens';
 import { resolveBadgeStyle, withAlpha } from '@stage-labs/kit/badge';
 import { DROPDOWN_MENU } from '@stage-labs/kit/react-native/menu';
 import { readItem, writeItem } from '@metro-labs/client/platform';
-import { FONT_HEAD, FONT_SANS } from './style.js';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type Scheme = 'light' | 'dark';
@@ -46,22 +45,7 @@ export const statusColor = (color: 'info' | 'success' | 'danger', scheme: Scheme
 export const hoverColor = (palette: KitPalette): string => withAlpha(palette.link, DROPDOWN_MENU.hoverAlpha);
 
 function cssVars(palette: KitPalette): Record<string, string> {
-  const vars: Record<string, string> = {
-    '--metro-bg': palette.bg,
-    '--metro-text': palette.text,
-    '--metro-sub': palette.sub,
-    '--metro-heading': palette.link,
-    '--metro-border': palette.border,
-    '--metro-hover': hoverColor(palette),
-    '--metro-surface': palette.inputBg,
-    '--metro-toolbar': palette.toolbarBg,
-    '--metro-danger': palette.danger,
-    '--metro-success': palette.success,
-    '--metro-font-sans': FONT_SANS,
-    '--metro-font-head': FONT_HEAD,
-  };
-  for (const [name, size] of Object.entries(FONT_SIZE)) vars[`--kit-font-${name}`] = `${String(size)}px`;
-  return vars;
+  return { '--metro-bg': palette.bg, '--metro-border': palette.border };
 }
 
 function paintDocument(scheme: Scheme, palette: KitPalette): void {
