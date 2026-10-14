@@ -28,7 +28,7 @@ interface StationRowProps {
 function Extra({ enabled, stale }: { enabled: boolean; stale: boolean }): ReactNode {
   return (
     <>
-      {enabled ? null : <Badge label="Not receiving" color="secondary" variant="soft" pill />}
+      {enabled ? null : <Badge label="Not receiving" color="secondary" variant="soft" />}
       {stale && enabled ? (
         <Text size="md" role="danger" numberOfLines={1}>
           not responding

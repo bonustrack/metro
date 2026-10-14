@@ -30,7 +30,7 @@ function UserItem({ user, busy, onSet }: { user: UserRow; busy: boolean; onSet: 
       title={user.name ?? user.email ?? user.id}
       detail={detail}
       avatar={<AgentAvatar seed={user.id} src={user.picture} size={AVATAR} />}
-      badge={user.status === null ? <Badge label="Not on the waitlist" color="secondary" variant="soft" pill /> : <Badge label={STATUS_LABEL[user.status]} color={user.status === 'approved' ? 'success' : 'secondary'} variant="soft" pill />}
+      badge={user.status === null ? <Badge label="Not on the waitlist" color="secondary" variant="soft" /> : <Badge label={STATUS_LABEL[user.status]} color={user.status === 'approved' ? 'success' : 'secondary'} variant="soft" />}
       trailing={<Actions user={user} busy={busy} onSet={onSet} />}
     />
   );

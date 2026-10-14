@@ -64,7 +64,7 @@ function MemberRow({ member, org, last, onError }: { member: Member; org: Organi
           </Text>
         )}
       </Col>
-      <Badge label={member.role === 'admin' ? 'Admin' : 'Member'} color={member.role === 'admin' ? 'info' : 'secondary'} variant="soft" pill />
+      <Badge label={member.role === 'admin' ? 'Admin' : 'Member'} color={member.role === 'admin' ? 'info' : 'secondary'} variant="soft" />
       {org.role === 'admin' ? <KebabMenu label={`Actions for ${member.email ?? member.userId}`} items={memberActions(member, self, run)} /> : null}
     </Row>
   );

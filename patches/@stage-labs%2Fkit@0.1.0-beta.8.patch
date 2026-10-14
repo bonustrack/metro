@@ -1,0 +1,15 @@
+diff --git a/src/react-native/title.tsx b/src/react-native/title.tsx
+index 297c858ac2bfb2be86d84558957c126158186f41..b46c4618ff2f8d15a9343677b57cc4a21987ee7d 100644
+--- a/src/react-native/title.tsx
++++ b/src/react-native/title.tsx
+@@ -29,9 +29,7 @@ export function Title(props: TitleProps): React.ReactElement {
+ 
+   const base: TextStyle = {
+     color: color != null ? resolveColorToken(color, scheme) : palette.link,
+-    fontSize: LEVEL_SIZE[lvl],
+-    fontFamily: fontName.head,
+-    ...(hero === undefined ? {} : HERO_TITLE_STYLE[hero]),
++    ...(hero === undefined ? { fontSize: LEVEL_SIZE[lvl], fontFamily: fontName.head } : HERO_TITLE_STYLE[hero]),
+   };
+ 
+   return (
