@@ -1,8 +1,9 @@
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { claudeDir, processAlive, projectDir } from './background.js';
-import { headlessEnv, runClaude } from './claude.js';
+import { prepareRunner } from './agent.js';
+import { runChild } from './child.js';
+import { headlessEnv } from './claude-env.js';
 import { systemPrompt } from './route.js';
 
 export const MEMORY_FOLDERS = [
@@ -41,6 +42,10 @@ export interface Transcript {
 }
 
 const given = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined);
+
+const claudeDir = (env: NodeJS.ProcessEnv): string => given(env.CLAUDE_CONFIG_DIR) ?? join(given(env.HOME) ?? homedir(), '.claude');
+
+export const projectDir = (dir: string, cwd: string): string => join(dir, 'projects', cwd.replace(/[^A-Za-z0-9]/g, '-'));
 
 function realHome(home: string): string {
   try {
@@ -145,6 +150,15 @@ export function routineArgs(prompt: string, memory: string, appended: string | n
 
 export const routineEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...env, METRO_SESSION: 'memory' });
 
+export function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 function lockHeld(path: string, now: number): boolean {
   const pid = Number(readFileSync(path, 'utf8').trim());
   return now - statSync(path).mtimeMs < LOCK_STALE_MS && Number.isInteger(pid) && pid > 0 && processAlive(pid);
@@ -216,7 +230,9 @@ async function digest(paths: MemoryPaths, now: Date): Promise<number> {
   say(`${String(files.length)} transcripts changed since ${since.toISOString()}, memory in ${paths.memory}`);
   for (const folder of MEMORY_FOLDERS) mkdirSync(join(paths.memory, folder), { recursive: true });
   const prompt = routinePrompt(now, since, paths, files);
-  const code = await runClaude(routineArgs(prompt, paths.memory, systemPrompt()), routineEnv(await headlessEnv()), { timeoutMs: TIMEOUT_MS });
+  const { claude } = prepareRunner({ log: say });
+  const env = routineEnv(await headlessEnv(claude, 'metro memory'));
+  const code = await runChild(claude, routineArgs(prompt, paths.memory, systemPrompt()), env, { timeoutMs: TIMEOUT_MS });
   if (code === 0) {
     writeFileSync(paths.state, `${JSON.stringify({ lastRun: now.toISOString() })}\n`);
     const moved = settleWorkstreams(paths.memory);

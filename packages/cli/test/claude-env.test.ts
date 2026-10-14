@@ -1,61 +1,8 @@
-import { describe, expect, test } from 'bun:test';
-import { agentKey, channelEnv, claudeArgs, credentialEnv, gatewayEnv, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude.ts';
-
-describe('metro claude hands everything to claude untouched', () => {
-  test('the channel and permission flags come first, then the user arguments verbatim, so a user flag wins', () => {
-    expect(claudeArgs(['-r', 'abc'])).toEqual([
-      '--dangerously-load-development-channels',
-      'server:metro',
-      '--permission-mode',
-      'auto',
-      '--system-prompt-snapshot',
-      'off',
-      '-r',
-      'abc',
-    ]);
-  });
-
-  test('unknown, future or odd flags pass through unparsed', () => {
-    const odd = ['--dangerously-something-new=yes', '--', '-c', 'a b', '--flag-with=equals'];
-    expect(claudeArgs(odd).slice(6)).toEqual(odd);
-  });
-
-  test('no arguments means only the channel flag', () => {
-    expect(claudeArgs([])).toEqual([
-      '--dangerously-load-development-channels',
-      'server:metro',
-      '--permission-mode',
-      'auto',
-      '--system-prompt-snapshot',
-      'off',
-    ]);
-  });
-
-  test('the system prompt from the Harness page is appended before the user arguments, and none means no flag', () => {
-    expect(claudeArgs(['-c'], undefined, 'auto', 'You are Lisa.\nBe brief.').slice(6)).toEqual(['--append-system-prompt', 'You are Lisa.\nBe brief.', '-c']);
-    expect(claudeArgs(['-c'], '/tmp/mcp.json', 'auto', null).slice(6)).toEqual(['--mcp-config', '/tmp/mcp.json', '-c']);
-  });
-
-  test('the permission mode the box chose is passed, bypass as bypassPermissions', () => {
-    expect(claudeArgs([], undefined, 'bypass').slice(2, 4)).toEqual(['--permission-mode', 'bypassPermissions']);
-    expect(claudeArgs([], undefined, 'auto').slice(2, 4)).toEqual(['--permission-mode', 'auto']);
-  });
-
-  test('the metro MCP server rides along as an --mcp-config file, before the user arguments', () => {
-    expect(claudeArgs(['-r', 'abc'], '/tmp/metro-claude-x/mcp.json')).toEqual([
-      '--dangerously-load-development-channels',
-      'server:metro',
-      '--permission-mode',
-      'auto',
-      '--system-prompt-snapshot',
-      'off',
-      '--mcp-config',
-      '/tmp/metro-claude-x/mcp.json',
-      '-r',
-      'abc',
-    ]);
-  });
-});
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { AGENT_VIEW_OFF, agentKey, claudeSignedIn, credentialEnv, gatewayEnv, keepInSession, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude-env.ts';
 
 describe('inference goes through the daemon gateway', () => {
   const base = { PATH: '/usr/bin', HOME: '/home/less' };
@@ -83,7 +30,7 @@ describe('inference goes through the daemon gateway', () => {
   });
 });
 
-describe('when metro claude leaves Claude Code alone', () => {
+describe('when metro leaves Claude Code alone', () => {
   test('a base url or provider flag in the environment pins Claude Code, and is named', () => {
     expect(pinnedBy({})).toBeNull();
     expect(pinnedBy({ ANTHROPIC_BASE_URL: 'https://gw' })).toBe('ANTHROPIC_BASE_URL');
@@ -120,13 +67,6 @@ describe('a box with no Anthropic account at all', () => {
   });
 });
 
-describe('the MCP protocol metro claude asks for', () => {
-  test('keeps the earlier handshake so the metro channel registers, unless the user chose one', () => {
-    expect(channelEnv({ HOME: '/h' })).toEqual({ HOME: '/h', MCP_PROTOCOL_NEGOTIATION: 'legacy' });
-    expect(channelEnv({ MCP_PROTOCOL_NEGOTIATION: 'auto' })).toEqual({ MCP_PROTOCOL_NEGOTIATION: 'auto' });
-  });
-});
-
 describe('MCP tool search', () => {
   test('is switched on for every route, since the gateway does the API part of the search for all of them, unless the user chose a value', () => {
     expect(toolSearchEnv({ HOME: '/h' })).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
@@ -140,5 +80,42 @@ describe("Claude Code's prompt for a shell -c script that runs rm", () => {
     expect(rmPromptEnv({ HOME: '/h' })).toEqual({ HOME: '/h', CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '1' });
     const chosen = { CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '0' };
     expect(rmPromptEnv(chosen)).toBe(chosen);
+  });
+});
+
+describe('Claude Code background sessions', () => {
+  test('are switched off unless the user chose otherwise', () => {
+    expect(keepInSession({ HOME: '/h' })).toEqual({ HOME: '/h', [AGENT_VIEW_OFF]: '1' });
+    expect(keepInSession({ [AGENT_VIEW_OFF]: '0' })).toEqual({ [AGENT_VIEW_OFF]: '0' });
+  });
+});
+
+describe('whether Claude Code has a login of its own', () => {
+  let dir = '';
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'metro-claude-env-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const binary = (script: string): string => {
+    const path = join(dir, 'claude');
+    writeFileSync(path, `#!/bin/sh\n${script}\n`);
+    chmodSync(path, 0o755);
+    return path;
+  };
+
+  test('asks the Claude Code it is given, never the one on PATH, with its updater off', () => {
+    const signedIn = binary('[ "$DISABLE_AUTOUPDATER" = 1 ] && [ "$*" = "auth status --json" ] && echo \'{"loggedIn":true}\'');
+    expect(claudeSignedIn(signedIn, { PATH: '/nowhere' })).toBe(true);
+  });
+
+  test('an answer that is not a login, a broken one or a missing binary count as signed out', () => {
+    expect(claudeSignedIn(binary('echo \'{"loggedIn":false}\''), {})).toBe(false);
+    expect(claudeSignedIn(binary('echo nope'), {})).toBe(false);
+    expect(claudeSignedIn(join(dir, 'missing'), {})).toBe(false);
   });
 });

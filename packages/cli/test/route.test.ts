@@ -14,7 +14,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe('the model route metro claude tells Claude Code about', () => {
+describe('the model route metro tells Claude Code about', () => {
   test('is provider:model of the connection the Model page routes to, for a non-Anthropic provider, and nothing otherwise', () => {
     const write = (route: string, connections: unknown[]): void => {
       writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));

@@ -2,9 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentSession, claudePackage, prepareAgentRunner, prepareRunner, readRunnerManifest, runnerDependencies, runnerEnv, runnerStore, sdkGatewayEnv } from '../src/agent.js';
-import { launchClaude } from '../src/claude.js';
-import { harnessRunner } from '../src/route.js';
+import { agentSession, claudePackage, prepareAgentRunner, prepareRunner, readRunnerManifest, runnerDependencies, runnerEnv, runnerStore } from '../src/agent.js';
 
 let root = '';
 let bun = '';
@@ -55,9 +53,9 @@ test('the runner store gets the staged sources, its SDKs and only the Claude Cod
 
 test('preparation checks the bundled executable without starting the runner, and missing Bun leaves it uninstalled', () => {
   const options = { sources: stage('1'), store: join(root, 'store'), bun, log: (): undefined => undefined, claude: { name: '@anthropic-ai/claude-agent-sdk-linux-arm64', binary: 'claude' } };
-  prepareAgentRunner('sdk', options);
+  prepareAgentRunner(options);
   expect(readFileSync(calls, 'utf8')).toContain('install --no-summary --no-progress');
-  expect(() => prepareAgentRunner('sdk', { ...options, store: join(root, 'missing'), bun: join(root, 'not-bun') })).toThrow('bun install failed');
+  expect(() => prepareAgentRunner({ ...options, store: join(root, 'missing'), bun: join(root, 'not-bun') })).toThrow('bun install failed');
   expect(existsSync(join(root, 'missing', 'node_modules', '.metro-installed'))).toBe(false);
 });
 
@@ -82,9 +80,9 @@ test('a bundled executable that cannot run clears the install marker and is repa
   const options = { sources: stage('1'), store: join(root, 'store'), bun, log: (): undefined => undefined, claude: { name: '@anthropic-ai/claude-agent-sdk-linux-arm64', binary: 'claude' } };
   const prepared = prepareRunner(options);
   writeFileSync(prepared.claude, '#!/bin/sh\nexit 9\n');
-  expect(() => prepareAgentRunner('sdk', options)).toThrow('Runner preflight failed');
+  expect(() => prepareAgentRunner(options)).toThrow('Runner preflight failed');
   expect(existsSync(join(options.store, 'node_modules', '.metro-installed'))).toBe(false);
-  prepareAgentRunner('sdk', options);
+  prepareAgentRunner(options);
   expect(readFileSync(calls, 'utf8').trim().split('\n')).toHaveLength(2);
 });
 
@@ -112,47 +110,25 @@ test('the runner is told where metro is, its key, the permission mode, the Harne
   expect(readRunnerManifest('{"version":"1","dependencies":{"a":"1","b":2}}')).toEqual({ version: '1', dependencies: { a: '1' } });
 });
 
-test('the SDK marks its gateway requests without losing credentials, headers or model settings', () => {
-  const env = { ANTHROPIC_CUSTOM_HEADERS: 'x-metro-key: mk_test\nx-own: value', ANTHROPIC_AUTH_TOKEN: 'login', METRO_RUNNER_MODEL: 'one' };
-  expect(sdkGatewayEnv(env)).toEqual({ ...env, ANTHROPIC_CUSTOM_HEADERS: `${env.ANTHROPIC_CUSTOM_HEADERS}\nx-metro-runner: sdk` });
-  expect(sdkGatewayEnv({}).ANTHROPIC_CUSTOM_HEADERS).toBe('x-metro-runner: sdk');
-});
-
-test('metro agent does not start while the Harness runs the agent as a Claude Code session', async () => {
+test('metro agent ignores a Harness runner left on the Claude Code session, and accepts only --prepare', async () => {
   const agents = join(root, 'agents');
   mkdirSync(agents);
   writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'cli' }));
   const prior = process.env.METRO_AGENTS_DIR;
   const cwd = process.cwd();
   process.env.METRO_AGENTS_DIR = agents;
+  const refusal = async (args: string[]): Promise<string> =>
+    agentSession(args).then(
+      () => '',
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    );
   try {
-    let refused = '';
-    await agentSession().catch((err: unknown) => {
-      refused = err instanceof Error ? err.message : String(err);
-    });
-    expect(refused).toContain('Claude Code session');
+    expect(await refusal([])).toContain('needs the agent of this machine');
+    expect(await refusal(['--prepare', 'cli'])).toBe('metro agent accepts only --prepare');
+    expect(await refusal(['--prepare', 'sdk', 'x'])).toBe('metro agent accepts only --prepare');
+    expect(await refusal(['--resume'])).toBe('metro agent accepts only --prepare');
   } finally {
     process.chdir(cwd);
-    if (prior === undefined) delete process.env.METRO_AGENTS_DIR;
-    else process.env.METRO_AGENTS_DIR = prior;
-  }
-});
-
-test('metro claude refuses to take the chat while the Harness runs the agent on the Agent SDK', async () => {
-  const agents = join(root, 'agents');
-  mkdirSync(agents);
-  expect(harnessRunner(agents)).toBe('cli');
-  writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
-  expect(harnessRunner(agents)).toBe('sdk');
-  const prior = process.env.METRO_AGENTS_DIR;
-  process.env.METRO_AGENTS_DIR = agents;
-  try {
-    let refused = '';
-    await launchClaude([]).catch((err: unknown) => {
-      refused = err instanceof Error ? err.message : String(err);
-    });
-    expect(refused).toContain('Agent SDK session');
-  } finally {
     if (prior === undefined) delete process.env.METRO_AGENTS_DIR;
     else process.env.METRO_AGENTS_DIR = prior;
   }

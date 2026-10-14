@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routineEnv, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
+import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, processAlive, projectDir, routineArgs, routineEnv, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
 
 let dir = '';
 
@@ -92,6 +92,15 @@ describe('the run the routine starts', () => {
     expect(args.join(' ')).not.toMatch(/WebFetch|WebSearch|Agent|curl/);
     expect(args.slice(-2)).toEqual(['--append-system-prompt', 'Be kind.']);
     expect(routineArgs('go', '/m', null)).not.toContain('--append-system-prompt');
+  });
+
+  test('the project folder is named the way Claude Code names it', () => {
+    expect(projectDir('/h/.claude', '/home/agent')).toBe('/h/.claude/projects/-home-agent');
+  });
+
+  test('this process is alive and a pid that cannot exist is not', () => {
+    expect(processAlive(process.pid)).toBe(true);
+    expect(processAlive(2 ** 22 + 7)).toBe(false);
   });
 
   test('runs one at a time, and a lock left by a dead run or older than two hours is taken over', () => {

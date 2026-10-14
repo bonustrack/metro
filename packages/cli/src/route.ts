@@ -61,8 +61,6 @@ function setupField(dir: string, field: string): unknown {
   }
 }
 
-export const harnessRunner = (dir = agentsDir()): 'cli' | 'sdk' => (setupField(dir, 'runner') === 'sdk' ? 'sdk' : 'cli');
-
 export function systemPrompt(dir = agentsDir()): string | null {
   const path = join(dir, 'system-prompt.md');
   if (!existsSync(path)) return null;
