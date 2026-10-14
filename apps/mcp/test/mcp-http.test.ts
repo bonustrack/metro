@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { agents } from '@metro-labs/connectors/db/schema';
+import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { MCP_INSTRUCTIONS } from '../src/tools.ts';
 import { addConnector, assign, enrollAgent, headerSecret, newToken, PGLITE_START_MS, rpc, startApp, STRANGER, testDb, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 
@@ -35,6 +36,12 @@ describe('the MCP token', () => {
   test('a token whose agent left its organization stops working at once', async () => {
     expect((await rpc(app, agent.token, initialize())).status).toBe(200);
     await held.db.update(agents).set({ owner: STRANGER }).where(eq(agents.id, agent.row.agent));
+    expect((await rpc(app, agent.token, initialize())).status).toBe(401);
+  });
+
+  test('enrolling the agent again cancels its token until the daemon registers a new one', async () => {
+    expect((await rpc(app, agent.token, initialize())).status).toBe(200);
+    await agentKeyStore(() => held.db).enroll({ ...agent.row, enrolledAt: new Date().toISOString() });
     expect((await rpc(app, agent.token, initialize())).status).toBe(401);
   });
 
