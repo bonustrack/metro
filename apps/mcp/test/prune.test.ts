@@ -31,7 +31,7 @@ beforeEach(async () => {
 afterAll(async () => { await held.close(); });
 
 describe('pruning answered approvals', () => {
-  test('a settled row whose last change is older than 7 days goes; pending and recent rows stay', async () => {
+  test('a settled row older than 7 days goes, a pending row never answered goes 8 days after its request, recent rows stay', async () => {
     await held.db.insert(mcpApprovals).values([
       row('aaaaa', 'allow', NOW - 9 * DAY, NOW - 8 * DAY),
       row('bbbbb', 'deny', NOW - 9 * DAY, NOW - 8 * DAY),
@@ -43,9 +43,10 @@ describe('pruning answered approvals', () => {
       row('hhhhh', 'used', NOW - 8 * DAY, NOW - APPROVAL_KEEP_MS),
       row('iiiii', 'pending', NOW - 30 * DAY, null),
       row('jjjjj', 'deny', NOW - 6 * DAY, null),
+      row('kkkkk', 'pending', NOW - 7 * DAY, null),
     ]);
-    expect(await pruneApprovals(held.db, NOW)).toBe(5);
-    expect(await ids()).toEqual(['fffff', 'ggggg', 'hhhhh', 'iiiii', 'jjjjj']);
+    expect(await pruneApprovals(held.db, NOW)).toBe(6);
+    expect(await ids()).toEqual(['fffff', 'ggggg', 'hhhhh', 'jjjjj', 'kkkkk']);
     expect(await pruneApprovals(held.db, NOW)).toBe(0);
   });
 

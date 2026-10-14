@@ -103,7 +103,10 @@ export async function pruneApprovals(db: Database, now: number): Promise<number>
   const lastChange = sql<number>`coalesce(${mcpApprovals.answeredAt}, ${mcpApprovals.requestedAt})`;
   const removed = await db
     .delete(mcpApprovals)
-    .where(and(inArray(mcpApprovals.state, SETTLED), lt(lastChange, now - APPROVAL_KEEP_MS)))
+    .where(or(
+      and(inArray(mcpApprovals.state, SETTLED), lt(lastChange, now - APPROVAL_KEEP_MS)),
+      and(eq(mcpApprovals.state, 'pending'), lt(mcpApprovals.requestedAt, now - APPROVAL_TTL_MS - APPROVAL_KEEP_MS)),
+    ))
     .returning({ id: mcpApprovals.id });
   return removed.length;
 }
