@@ -63,7 +63,7 @@ const enrollBody = (agent: Agent, ticket: string, organization = TEST_OWNER): Re
 
 const oldSealingKey = (): string => rawPublicKey(generateKeyPairSync('x25519').publicKey);
 
-const storedSealingKeys = async (): Promise<unknown[]> => (await held.client.query<{ sealing_key: string | null }>('SELECT sealing_key FROM agent_keys ORDER BY agent')).rows.map((row) => row.sealing_key);
+const storedColumns = async (): Promise<string[]> => (await held.client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_keys' ORDER BY column_name")).rows.map((row) => row.column_name);
 
 const session = (agent: Agent, at = now): Promise<Response> => fetch(`${base}/api/agents/session`, { headers: signedHeaders(agent, 'GET', '/api/agents/session', '', at) });
 
@@ -140,7 +140,7 @@ describe('an agent enrolling', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
     expect(await held.db.select().from(agentKeys)).toEqual([{ agent: OURS, owner: TEST_OWNER, keyId: agent.keyId, signingKey: agent.signingKey, enrolledBy: 'user_01ABC', enrolledAt: new Date(now).toISOString(), mcpTokenHash: null }]);
-    expect(await storedSealingKeys()).toEqual([null]);
+    expect(await storedColumns()).not.toContain('sealing_key');
     const who = await session(agent);
     expect(who.status).toBe(200);
     expect(await who.json()).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
@@ -151,13 +151,14 @@ describe('an agent enrolling', () => {
     const res = await enroll(agent, { ...enrollBody(agent, await ticketFor()), sealingKey: oldSealingKey() });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
-    expect(await storedSealingKeys()).toEqual([null]);
+    expect(await held.db.select().from(agentKeys)).toHaveLength(1);
     for (const sealingKey of ['A'.repeat(43), '', 42, null]) {
       const next = newAgent();
       expect((await enroll(next, { ...enrollBody(next, await ticketFor(SECOND)), sealingKey })).status).toBe(200);
       expect((await session(next)).status).toBe(200);
     }
-    expect(await storedSealingKeys()).toEqual([null, null]);
+    expect(await held.db.select().from(agentKeys)).toHaveLength(2);
+    expect(await storedColumns()).not.toContain('sealing_key');
   });
 
   test('a ticket works once', async () => {
