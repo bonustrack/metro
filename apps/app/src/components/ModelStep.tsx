@@ -6,7 +6,7 @@ import { Switch } from '@stage-labs/kit/react-native/switch';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from './Icon.js';
 import { FormField } from './FormField.js';
-import { RowButton } from './ModelPickerModal.js';
+import { RowButton } from './ModelRowButton.js';
 import { type ConnectionRow, type ModelOption } from '@metro-labs/client/api/model';
 import { pickRows, typedRow, type PickInput, type PickRow } from '@metro-labs/client/api/providers';
 import type { RouteDraft, Slot } from '@metro-labs/client/api/route-edit';

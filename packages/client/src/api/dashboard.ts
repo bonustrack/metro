@@ -82,7 +82,7 @@ function missingStatus(reading: DashboardReading<RuntimeSnapshot>): string {
 function sessionState(data: RuntimeSnapshot, now: number): string {
   if (!data.running) return 'Stopped';
   const activity = data.activity;
-  if (data.runner !== 'sdk' || activity === null) return 'Running';
+  if (data.legacyRunner || activity === null) return 'Running';
   if (activityIsStale(activity.updatedAt, now)) return 'Running · activity stale';
   const phases = { starting: 'Starting', idle: 'Idle', working: 'Working', approval: 'Waiting for approval', compacting: 'Compacting', stopped: 'Running', error: 'Error' };
   return phases[activity.phase];
@@ -93,21 +93,15 @@ function observation(reading: DashboardReading<RuntimeSnapshot>, stale: boolean,
   return `${stale ? `Last seen ${status.toLowerCase()}` : 'Checked'} ${stamp(reading.at)}${reading.error === null ? '' : '. Agent did not answer.'}`;
 }
 
-const harnessName = (data: RuntimeSnapshot): string => data.runner === 'sdk' ? 'Agent SDK' : data.runner === 'cli' ? 'Claude Code' : 'Unknown';
 export const dashboardReadingStale = <T>(reading: DashboardReading<T>, now: number): boolean => reading.error !== null || reading.at === null || now - reading.at > 60_000 || reading.at > now;
 
-export function dashboardSession(reading: DashboardReading<RuntimeSnapshot>, now = Date.now()): { status: string; harness: string; observed: string | null } {
+export function dashboardSession(reading: DashboardReading<RuntimeSnapshot>, now = Date.now()): { status: string; observed: string | null } {
   const { data } = reading;
   if (data === null) return {
-    status: missingStatus(reading), harness: 'Unknown',
+    status: missingStatus(reading),
     observed: reading.unavailable ? 'Update Metro to see runtime status.' : reading.error,
   };
   const stale = dashboardReadingStale(reading, now);
-  const harness = harnessName(data);
   const status = sessionState(data, now);
-  return {
-    status: stale ? 'Status unknown' : status,
-    harness: stale && harness !== 'Unknown' ? `${harness} (last seen)` : harness,
-    observed: observation(reading, stale, status),
-  };
+  return { status: stale ? 'Status unknown' : status, observed: observation(reading, stale, status) };
 }

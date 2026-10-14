@@ -24,11 +24,11 @@ function revisionOf(value: unknown): Revision | null {
 }
 
 export function githubSkillSource(raw: unknown): GitHubSkillSource | undefined {
-  if (!isRecord(raw) || typeof raw.supported !== 'boolean') return undefined;
+  if (!isRecord(raw)) return undefined;
   const prepared = isRecord(raw.prepared) ? raw.prepared : null;
   const activation = isRecord(raw.activation) ? raw.activation : {};
   return {
-    supported: raw.supported, source: sourceOf(raw.source), checking: raw.checking === true, checkedAt: nullable(raw.checkedAt), problem: nullable(raw.problem),
+    supported: raw.supported !== false, source: sourceOf(raw.source), checking: raw.checking === true, checkedAt: nullable(raw.checkedAt), problem: nullable(raw.problem),
     prepared: prepared === null ? null : { generation: str(prepared.generation), source: revisionOf(prepared.source), skillCount: typeof prepared.skillCount === 'number' ? prepared.skillCount : 0 },
     loaded: revisionOf(raw.loaded), pending: raw.pending === true,
     activation: { generation: nullable(activation.generation), appliedAt: nullable(activation.appliedAt), problem: nullable(activation.problem), shadowed: Array.isArray(activation.shadowed) ? activation.shadowed.filter((name): name is string => typeof name === 'string') : [] },

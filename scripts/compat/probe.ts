@@ -126,8 +126,6 @@ if (typeof setup?.memoryRoutine === 'boolean') {
   await ok('setClaudeMemoryRoutine off', () => box.setClaudeMemoryRoutine(false));
   await ok('setClaudeMemoryRoutine on', () => box.setClaudeMemoryRoutine(true));
 }
-if (setup?.runner === 'cli') await ok('setHarnessRunner cli', () => box.setHarnessRunner('cli'));
-await ok('fetchClaudeVersion', () => box.fetchClaudeVersion());
 await ok('fetchSchedules', () => schedules.fetchSchedules());
 await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());
 const settings = await ok('fetchClaudeSettings', () => claude.fetchClaudeSettings());
@@ -214,7 +212,7 @@ await ok('detachAccount', () => attach.detachAccount(agent, 'threema', account))
 const hasVoice = (await fetch(`http://${host}/api/voice`, { method: 'DELETE' })).status === 405;
 if (hasVoice) {
   await ok('fetchVoice', () => voice.fetchVoice());
-  await ok('saveVoice', () => voice.saveVoice({ apiKey: 'compat-key', voiceId: 'compat', model: 'anthropic:claude-sonnet-5-5', language: 'en', enabled: false }));
+  await ok('saveVoice', () => voice.saveVoice({ apiKey: 'compat-key', voiceId: 'compat', language: 'en', enabled: false }));
 }
 
 console.log(failed === 0 ? 'compat: every call passed' : `compat: ${String(failed)} call(s) failed`);

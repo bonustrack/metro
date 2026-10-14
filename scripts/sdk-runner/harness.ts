@@ -125,7 +125,7 @@ export function chat(from: string, text: string, line = LINE, extra: Record<stri
 
 const DROP = /^(CLAUDECODE|CLAUDE_CODE_CHILD_SESSION|CLAUDE_CODE_MESSAGING_SOCKET|CLAUDE_CODE_MESSAGING_TOKEN|CLAUDE_CODE_SESSION_ID|CLAUDE_PID|CLAUDE_CODE_SESSION_ATTENDED|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_EXECPATH|CLAUDE_EFFORT)$/;
 const inherited: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
-const throughGateway: NodeJS.ProcessEnv = gatewayOn ? { ...inherited, ANTHROPIC_BASE_URL: `${BASE}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}\nx-metro-runner: sdk` } : inherited;
+const throughGateway: NodeJS.ProcessEnv = gatewayOn ? { ...inherited, ANTHROPIC_BASE_URL: `${BASE}/gateway`, ANTHROPIC_CUSTOM_HEADERS: `x-metro-key: ${KEY}` } : inherited;
 const childEnv: NodeJS.ProcessEnv = scriptedRoute ? { ...throughGateway, CLAUDE_CONFIG_DIR: CLAUDE_DIR, ANTHROPIC_AUTH_TOKEN: KEY } : throughGateway;
 
 const cfg = runnerConfig(

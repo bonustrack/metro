@@ -16,8 +16,8 @@ import { TextLink } from './TextLink.js';
 function PendingSource({ view }: { view: GitHubSkillSource }): ReactNode {
   if (!view.pending) return null;
   const staged = view.prepared?.source;
-  const note = staged == null ? 'Removal is waiting for the Agent SDK.' : `Staged ${staged.commit.slice(0, 12)}.`;
-  return <Text size="md">{note} Changes load at a safe turn, after calls, tools and workers finish. A stopped or older runner needs to be started on the new version.</Text>;
+  const note = staged == null ? 'Removal is waiting for the agent.' : `Staged ${staged.commit.slice(0, 12)}.`;
+  return <Text size="md">{note} Changes load at a safe turn, after calls, tools and workers finish. A stopped agent loads them when it starts.</Text>;
 }
 
 function SourceStatus({ view }: { view: GitHubSkillSource }): ReactNode {
@@ -72,7 +72,7 @@ export function GitHubSkills({ view }: { view: GitHubSkillSource | undefined }):
     <SettingsSection title="GitHub skills" note={view === undefined ? 'Update Metro on this box to connect a private skills repository.' : 'One source, checked about once a minute. Local skills stay editable and win.'}>
       {view === undefined ? null : (
         <Col gap={16}>
-          {!view.supported ? <Text size="md">GitHub sync needs the Agent SDK runner. Claude Code and CLI jobs do not load it.</Text> : null}
+          {!view.supported ? <Text size="md">Update Metro on this server to use GitHub sync.</Text> : null}
           <SourceStatus view={view} />
           {view.supported ? <Row><Button dark={dark} label={view.source === null ? 'Add GitHub sync' : 'Edit GitHub sync'} disabled={view.checking} onPress={() => { setEditing(true); }} /></Row> : null}
           {removableSource(view) ? <SourceActions view={view} /> : null}

@@ -5,7 +5,6 @@ import { activityView, sessionPollMs } from '@metro-labs/client/api/runner-activ
 import { SettingsPad, SettingsSection } from './SettingsSection.js';
 import { Disclosure } from './ui/Disclosure.js';
 
-const SUPPORT = 'Only the Agent SDK runner reports activity, calls included.';
 const WORKERS = 'Workers and background tasks, active ones first. The last 30 only.';
 const STOP = 'Stop cancels the session and its workers without waiting.';
 
@@ -22,7 +21,7 @@ function RecentInputs({ inputs }: { inputs: ReturnType<typeof activityView>['inp
 
 export function RunnerActivity({ status, now, live }: { status: ClaudeSessionStatus; now: number; live: boolean }): ReactNode {
   const activity = status.activity;
-  if (activity === null) return <SettingsSection title="Agent SDK activity" note={`No activity reported. ${SUPPORT}`}>{null}</SettingsSection>;
+  if (activity === null) return <SettingsSection title="Agent SDK activity" note="No activity reported.">{null}</SettingsSection>;
   const view = activityView(status, activity, now);
   const polling = `Checked every ${sessionPollMs(status, live) / 1_000} s while this page is open.`;
   return (
@@ -38,7 +37,7 @@ export function RunnerActivity({ status, now, live }: { status: ClaudeSessionSta
       <SettingsPad>
         <Text size="xs" weight="medium">Workers</Text>
         <Text size="md" role="secondary">{WORKERS} Active includes running, waiting and paused workers.</Text>
-        {status.running && status.runner !== 'cli' ? <Text size="md" role="secondary">{STOP}</Text> : null}
+        {status.running && !status.legacyRunner ? <Text size="md" role="secondary">{STOP}</Text> : null}
         {view.workers.length === 0 ? <Text size="md" role="secondary">None reported.</Text> : view.workers.map((worker) => (
           <Disclosure key={worker.id} summary={worker.summary} body={worker.details} danger={worker.danger} />
         ))}
@@ -46,7 +45,7 @@ export function RunnerActivity({ status, now, live }: { status: ClaudeSessionSta
       <RecentInputs inputs={activity.inputs === undefined ? undefined : view.inputs} />
       <SettingsPad>
         <Text size="xs" weight="medium">Recent activity</Text>
-        <Text size="md" role="secondary">Up to 40 recent events, newest first. {SUPPORT}</Text>
+        <Text size="md" role="secondary">Up to 40 recent events, newest first, calls included.</Text>
         <Text size="md" role="secondary">Names, states and times only, no prompts or tool data. A restart clears this list.</Text>
         {view.events.length === 0 ? <Text size="md" role="secondary">None reported.</Text> : (
           <Disclosure summary={`Show ${view.events.length} recent events`} body={view.events.join('\n')} />

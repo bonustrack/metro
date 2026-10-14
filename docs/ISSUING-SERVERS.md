@@ -372,9 +372,10 @@ arm64 image, runs one `t4g.medium` with an 8 GiB gp3 root, and retries every
 availability zone in the region when AWS answers `InsufficientInstanceCapacity`,
 which is what a region running short of that instance type looks like. The
 machine joins the tailnet under a random `metro-xxxxxx` name that cannot clash
-with another box, installs Node, bun, Claude Code, Tailscale and Metro on first
-boot, and runs `metro service install --owner <the organization that asked>`, so the
-box belongs to that organization and not to the deployment. Only members of that
+with another box, installs Node, bun, Tailscale and Metro on first boot (the
+agent's Claude Code comes with Metro's Agent SDK runner), and runs
+`metro service install --owner <the organization that asked>`, so the box belongs
+to that organization and not to the deployment. Only members of that
 organization can sign in to it.
 
 Two launches at once from one organization are refused with a 409 rather than starting

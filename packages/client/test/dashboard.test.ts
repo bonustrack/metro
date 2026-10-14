@@ -125,38 +125,39 @@ describe('dashboard observed runtime status', () => {
     ['starting', 'Starting'], ['idle', 'Idle'], ['working', 'Working'], ['approval', 'Waiting for approval'],
     ['compacting', 'Compacting'], ['error', 'Error'], ['stopped', 'Running'],
   ])('fresh SDK phase %s is %s', (phase, status) => {
-    expect(dashboardSession(reading(runtime('sdk', true, phase)), NOW)).toMatchObject({ status, harness: 'Agent SDK', observed: expect.stringContaining('Checked') });
+    expect(dashboardSession(reading(runtime('sdk', true, phase)), NOW)).toEqual({ status, observed: expect.stringContaining('Checked') });
   });
 
   test('stale, future and absent SDK activity cannot pretend the process is working', () => {
     for (const at of [NOW - 30_001, NOW + 30_001]) {
-      expect(dashboardSession(reading(runtime('sdk', true, 'working', at)), NOW)).toMatchObject({ status: 'Running · activity stale', harness: 'Agent SDK' });
+      expect(dashboardSession(reading(runtime('sdk', true, 'working', at)), NOW).status).toBe('Running · activity stale');
     }
     expect(dashboardSession(reading({ ...runtime(), activity: null }), NOW).status).toBe('Running');
+    expect(dashboardSession(reading(runtime(null)), NOW).status).toBe('Working');
   });
 
-  test('CLI and unknown runners never inherit SDK activity', () => {
-    expect(dashboardSession(reading(runtime('cli')), NOW)).toMatchObject({ status: 'Running', harness: 'Claude Code' });
-    expect(dashboardSession(reading(runtime('future-runner')), NOW)).toMatchObject({ status: 'Running', harness: 'Unknown' });
+  test('an old daemon that still runs Claude Code never inherits SDK activity', () => {
+    expect(dashboardSession(reading(runtime('cli')), NOW).status).toBe('Running');
   });
 
-  test('a stopped runtime does not present the configured SDK as observed running', () => {
-    expect(dashboardSession(reading(runtime('sdk', false)), NOW)).toMatchObject({ status: 'Stopped', harness: 'Unknown' });
+  test('a stopped runtime does not present the agent as observed running', () => {
+    expect(dashboardSession(reading(runtime('sdk', false)), NOW).status).toBe('Stopped');
+    expect(runtime('cli', false).legacyRunner).toBe(false);
   });
 
   test('checking, unreachable and unsupported do not masquerade as stopped', () => {
     const empty = emptyReading<RuntimeSnapshot>();
-    expect(dashboardSession(empty, NOW)).toEqual({ status: 'Checking…', harness: 'Unknown', observed: null });
-    expect(dashboardSession({ ...empty, error: 'offline' }, NOW)).toEqual({ status: 'Unreachable', harness: 'Unknown', observed: 'offline' });
+    expect(dashboardSession(empty, NOW)).toEqual({ status: 'Checking…', observed: null });
+    expect(dashboardSession({ ...empty, error: 'offline' }, NOW)).toEqual({ status: 'Unreachable', observed: 'offline' });
     expect(dashboardSession({ ...empty, unavailable: true, error: '404' }, NOW)).toMatchObject({ status: 'Status unavailable', observed: 'Update Metro to see runtime status.' });
   });
 
   test('old, future, undated or failed observations show unknown and preserve last-seen context', () => {
     for (const at of [NOW - 60_001, NOW + 1, null]) {
-      expect(dashboardSession(reading(runtime('cli'), at), NOW)).toMatchObject({ status: 'Status unknown', harness: 'Claude Code (last seen)' });
+      expect(dashboardSession(reading(runtime('cli'), at), NOW).status).toBe('Status unknown');
     }
     expect(dashboardSession({ ...reading(runtime('sdk')), error: 'offline' }, NOW)).toMatchObject({
-      status: 'Status unknown', harness: 'Agent SDK (last seen)', observed: expect.stringContaining('Agent did not answer'),
+      status: 'Status unknown', observed: expect.stringContaining('Agent did not answer'),
     });
     expect(dashboardSession(reading(runtime('cli'), NOW - 60_000), NOW).status).toBe('Running');
   });
