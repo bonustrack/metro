@@ -10,7 +10,7 @@ import { connectionArg } from './input.js';
 import type { ConnectionView } from './view.js';
 
 export const CODEX_REDIRECT = 'http://127.0.0.1:1455/auth/callback';
-export const NEW_CLIENT = 'dynamic_agent_client';
+const NEW_CLIENT = 'dynamic_agent_client';
 const APP_NAME = 'Metro';
 const PLAN_SCOPE = 'chatgpt.tokens.use.direct';
 const SCOPE = `openid profile email offline_access resource.invoke ${PLAN_SCOPE}`;

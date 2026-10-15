@@ -59,12 +59,27 @@ describe('the order of the models', () => {
     expect(models(chainOf(haiku, cfg, 'claude-haiku-4-5'))).toEqual(['anthropic:claude-haiku-4-5']);
   });
 
-  test('the list comes as the organization delivered it: an unknown connection is left out, and a fallback with no model is dropped on arrival', () => {
+  test('the list comes as the organization delivered it: an unknown connection is left out, and a fallback with no model is dropped on arrival unless it is local', () => {
     const cfg = setup();
     cfg.fallbacks = [...cfg.fallbacks, { connection: 'gone', model: 'x' }];
     expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-fable-5-1', 'openrouter:anthropic/claude-opus-5-5']);
-    const delivered = deliveredOf({ route: { primary: { connection: 'a', model: 'm' }, fallbacks: [{ connection: 'b', model: '' }, { connection: 'c', model: 'n' }, 7] }, source: 'organization', connections: [] });
-    expect(delivered?.route?.fallbacks).toEqual([{ connection: 'c', model: 'n' }]);
+    const fallbacks = [{ connection: 'b', model: '' }, { connection: 'c', model: 'n' }, 7, { connection: LOGIN, model: '' }, { connection: 'local:Login123456', model: ' ' }];
+    const delivered = deliveredOf({ route: { primary: { connection: 'a', model: 'm' }, fallbacks }, source: 'organization', connections: [] });
+    expect(delivered?.route?.fallbacks).toEqual([{ connection: 'c', model: 'n' }, { connection: LOGIN, model: '' }, { connection: 'local:Login123456', model: '' }]);
+  });
+
+  test('a local fallback with no model answers with the model the request asked for', () => {
+    const cfg = setup();
+    cfg.fallbacks = [{ connection: connectionId('openrouter'), model: 'anthropic/claude-opus-5-5' }, { connection: LOGIN, model: '' }];
+    expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'openrouter:anthropic/claude-opus-5-5']);
+    const first: Route = { connection: conn(cfg, 'openrouter'), model: 'openai/gpt-6' };
+    expect(models(chainOf(first, cfg, 'claude-fable-5-1'))).toEqual(['openrouter:openai/gpt-6', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-fable-5-1']);
+    expect(models(chainOf(first, cfg, 'anthropic:claude-haiku-4-5'))).toEqual(['openrouter:openai/gpt-6', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-haiku-4-5']);
+    expect(chainStatus({ ...cfg, primary: { connection: connectionId('openrouter'), model: 'openai/gpt-6' } }, NOW).map((row) => [row.connection, row.model])).toEqual([
+      [connectionId('openrouter'), 'openai/gpt-6'],
+      [connectionId('openrouter'), 'anthropic/claude-opus-5-5'],
+      [LOGIN, ''],
+    ]);
   });
 });
 
@@ -236,6 +251,16 @@ describe('a real limit answer moves the request to the next model', () => {
     expect(await res.text()).toContain('rate_limit_error');
     expect(anthropic.models).toEqual(['claude-opus-5-5']);
     expect(openrouter.models).toEqual(['anthropic/claude-opus-5-5']);
+  });
+
+  test('a local fallback with no model answers the request with the model it asked for', async () => {
+    openrouterDown = true;
+    cfg = { ...setup(), primary: { connection: connectionId('openrouter'), model: 'openai/gpt-6' }, fallbacks: [{ connection: LOGIN, model: '' }] };
+    const res = await ask('claude-fable-5-1');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('"from":"anthropic"');
+    expect(openrouter.models).toEqual(['openai/gpt-6']);
+    expect(anthropic.models).toEqual(['claude-fable-5-1']);
   });
 
   test('a model that answers is used as it is, and nothing else is asked', async () => {

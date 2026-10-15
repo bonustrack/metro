@@ -74,7 +74,7 @@ beforeEach(() => {
     deliveredRow('or000000001', 'openrouter', { label: 'OpenRouter', zdr: true, credential: keyCredential('sk-or-secret') }),
     deliveredRow('cx000000001', 'codex', { label: 'Codex', account: { email: 'l@x', plan: 'pro', method: 'code' }, credential: { accessToken: 'at-secret', expiresAt: 1, method: 'code', accountId: 'acct' } }),
   ], [{ connection: `local:${LOGIN.id}`, model: 'claude-opus-5' }, { connection: 'cx000000001', model: 'gpt-5.4' }], 'agent');
-  models = orgModelsFor(api, key, dir);
+  models = orgModelsFor(api, key);
   deps = {
     dir: () => dir,
     setup: () => setupOf(models.current(), [LOGIN]),

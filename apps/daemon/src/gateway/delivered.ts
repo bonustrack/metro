@@ -27,7 +27,7 @@ function refOf(raw: unknown): Fallback | null {
 function routeOf(raw: unknown): DeliveredRoute | null {
   if (!isRecord(raw)) return null;
   const fallbacks = Array.isArray(raw.fallbacks) ? raw.fallbacks.flatMap((f: unknown) => refOf(f) ?? []) : [];
-  return { primary: refOf(raw.primary), fallbacks: fallbacks.filter((f) => f.model !== '').slice(0, MAX_FALLBACKS) };
+  return { primary: refOf(raw.primary), fallbacks: fallbacks.filter((f) => f.model !== '' || f.connection.startsWith(LOCAL_PREFIX)).slice(0, MAX_FALLBACKS) };
 }
 
 function accountOf(raw: unknown): Account {

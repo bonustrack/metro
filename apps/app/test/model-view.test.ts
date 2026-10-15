@@ -14,7 +14,7 @@ const list = toOrgModels({
   default: ROUTE,
   agents: { agentA00001: { primary: { connection: 'bed00000001', model: 'x' }, fallbacks: [] } },
 });
-const box = toModelSettings({ route: ROUTE, source: 'organization', connections: [], claude: [{ id: 'login0000001', email: 'own@claude' }] });
+const box = toModelSettings({ route: ROUTE.primary.connection, model: ROUTE.primary.model, fallbacks: ROUTE.fallbacks, source: 'organization', connections: [], claude: [{ id: 'login0000001', email: 'own@claude' }] });
 
 describe('the organization Models page', () => {
   test('each connection says what it is, what it holds and how many model orders use it', () => {

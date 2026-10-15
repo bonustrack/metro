@@ -6,9 +6,7 @@ import { missingUsage } from '@metro-labs/client/api/model-usage';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useIsFetching } from '@tanstack/react-query';
-import { boxKey, queryError, useModeQuery } from '../lib/queries.js';
-import { USAGE_SINCE } from '@metro-labs/client/api/usage';
-import { olderThan } from '@metro-labs/client/api/version';
+import { boxKey, queryError } from '../lib/queries.js';
 
 
 function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
@@ -42,12 +40,10 @@ export function ModelReadError({ error, cached }: { error: Error | null; cached:
 }
 
 export function UsageUnavailable({ provider }: { provider: Provider }): ReactNode {
-  const mode = useModeQuery();
   const fetching = useIsFetching({ queryKey: boxKey('model'), exact: true }) > 0;
-  const old = olderThan(mode.data?.version ?? null, USAGE_SINCE);
   return (
     <Text size="md" role="secondary">
-      {old ? 'Update Metro to see the usage.' : fetching ? 'Checking usage...' : missingUsage(provider)}
+      {fetching ? 'Checking usage...' : missingUsage(provider)}
     </Text>
   );
 }

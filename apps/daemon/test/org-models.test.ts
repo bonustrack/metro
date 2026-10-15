@@ -1,11 +1,12 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setupOf, watchModelChanges } from '../src/gateway/effective.ts';
+import { log } from '@metro-labs/core/log';
+import { effectiveSetup, setupOf, watchModelChanges } from '../src/gateway/effective.ts';
 import { primaryRoute } from '../src/gateway/model-config.ts';
 import { OrgModels } from '../src/gateway/org-models.ts';
-import { writeClaudeLogins } from '../src/gateway/claude-store.ts';
+import { readClaudeLogins, retireV2ModelFile, writeClaudeLogins } from '../src/gateway/claude-store.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, metroApi, orgModelsFor, OWNER, type FakeApi } from './org-models-fixture.ts';
 import { waitFor } from './wait.ts';
 
@@ -25,7 +26,6 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'metro-org-models-'));
   api.asked.length = 0;
   api.answer = null;
-  api.imported.clear();
   api.delivery = delivery({ connection: 'or000000001', model: 'openai/gpt-5.2' }, [deliveredRow('or000000001', 'openrouter', { label: 'OpenRouter', zdr: true, credential: keyCredential('sk-or-secret') })]);
 });
 
@@ -37,7 +37,7 @@ const modelFile = (): unknown => JSON.parse(readFileSync(join(dir, 'model.json')
 
 describe('the delivered model setup', () => {
   test('nothing is asked and nothing is served while the agent is not enrolled with the box owner', async () => {
-    for (const models of [orgModelsFor(api, null, dir), orgModelsFor(api, key, dir, null), orgModelsFor(api, key, dir, 'org_01SOMEONEELSE0000')]) {
+    for (const models of [orgModelsFor(api, null), orgModelsFor(api, key, null), orgModelsFor(api, key, 'org_01SOMEONEELSE0000')]) {
       await models.sync();
       expect(models.current()).toBeNull();
       expect(models.syncStatus()).toEqual({ enrolled: false, at: null, error: null });
@@ -46,18 +46,17 @@ describe('the delivered model setup', () => {
   });
 
   test('is fetched signed, held in memory with its credentials, and never written to disk', async () => {
-    const models = orgModelsFor(api, key, dir);
+    const models = orgModelsFor(api, key);
     await models.sync();
     expect(api.asked.map((a) => a.path)).toEqual(['/api/agents/models']);
     const held = models.current();
     expect(held?.route?.primary).toEqual({ connection: 'or000000001', model: 'openai/gpt-5.2' });
     expect(held?.connections[0]).toMatchObject({ id: 'or000000001', provider: 'openrouter', apiKey: 'sk-or-secret', zdr: true, revision: 1, signedOut: false });
     expect(models.syncStatus()).toMatchObject({ enrolled: true, error: null });
-    expect(() => readFileSync(join(dir, 'model.json'), 'utf8')).toThrow();
   });
 
   test('only api.metro.box saying it no longer knows the agent key clears the setup; every other failure keeps the last good copy', async () => {
-    const models = orgModelsFor(api, key, dir);
+    const models = orgModelsFor(api, key);
     await models.sync();
     const kept = [
       { status: 503, body: { error: 'down' } },
@@ -83,7 +82,7 @@ describe('the delivered model setup', () => {
   });
 
   test('the page asks at most once per window; a call inside it answers what is held, and one trailing fetch follows', async () => {
-    const models = new OrgModels({ owner: () => OWNER, key: () => key, api: metroApi(api.base), dir: () => dir, pageSyncMs: 300 });
+    const models = new OrgModels({ owner: () => OWNER, key: () => key, api: metroApi(api.base), pageSyncMs: 300 });
     const fetches = (): number => api.asked.filter((a) => a.path === '/api/agents/models').length;
     await models.requested();
     expect(fetches()).toBe(1);
@@ -98,7 +97,7 @@ describe('the delivered model setup', () => {
 
   test('a connection delivered without a credential is signed out, and a route with no primary serves nothing', async () => {
     api.delivery = delivery({ connection: 'cx000000001', model: 'gpt-5.4' }, [deliveredRow('cx000000001', 'codex', { account: { email: 'l@x', plan: 'pro', method: 'code' } })]);
-    const models = orgModelsFor(api, key, dir);
+    const models = orgModelsFor(api, key);
     await models.sync();
     expect(models.current()?.connections[0]).toMatchObject({ codex: null, signedOut: true, account: { email: 'l@x', plan: 'pro', method: 'code' } });
     api.delivery = { route: { primary: null, fallbacks: [] }, source: 'organization', connections: [] };
@@ -111,7 +110,7 @@ describe('the delivered model setup', () => {
       deliveredRow('cx000000001', 'codex', { revision, model: 'gpt-5.4', credential: { accessToken: token, expiresAt: 1, method: 'chatgpt', accountId: null } });
     api.delivery = delivery({ connection: 'cx000000001', model: 'gpt-5.4' }, [codex('at-old', 3)]);
     api.answer = (path) => (path === '/api/agents/models/refresh' ? { status: 200, body: codex('at-new', 4) } : null);
-    const models = orgModelsFor(api, key, dir);
+    const models = orgModelsFor(api, key);
     await models.sync();
     const held = models.current()?.connections[0];
     if (held === undefined) throw new Error('nothing delivered');
@@ -123,15 +122,12 @@ describe('the delivered model setup', () => {
     expect((await models.refresh(held))?.revision).toBe(4);
     api.answer = () => ({ status: 404, body: { error: 'not in the route' } });
     expect(await models.refresh({ ...held, id: 'cx000000002' })).toBeNull();
-    const asked = api.asked.length;
-    expect(await models.refresh({ ...held, id: 'oldCodex001', revision: 0 })).toBeNull();
-    expect(api.asked).toHaveLength(asked);
   });
 });
 
 describe('the live switch', () => {
   test('a new primary model goes to the running session once; the same model sends nothing', async () => {
-    const models = orgModelsFor(api, key, dir);
+    const models = orgModelsFor(api, key);
     const told: (string | null)[] = [];
     watchModelChanges(models, (model) => {
       told.push(model);
@@ -149,118 +145,59 @@ describe('the live switch', () => {
   });
 });
 
+const LOGIN = { id: 'Login123456', email: 'less@example.com', plan: 'max', savedAt: '2026-10-01T00:00:00.000Z' };
+
 const V2 = {
   version: 2,
   route: 'old-login',
   connections: [
     { id: 'old-or', provider: 'openrouter', label: 'OpenRouter', model: 'openai/gpt-5.2', apiKey: 'sk-or-v2', region: '', zdr: true },
-    { id: 'old-cx', provider: 'codex', label: 'Codex', model: 'gpt-5.4', codex: { clientId: 'oaiapp_1', subject: 'u1', email: 'l@x', accessToken: 'at', refreshToken: 'rt', expiresAt: 5, savedAt: 'x' } },
-    { id: 'old-login', provider: 'anthropic', label: 'Max', model: 'claude-opus-5', claude: { id: 'Login123456', email: 'less@example.com', plan: 'max', savedAt: '2026-10-01T00:00:00.000Z' } },
-    { id: 'old-session', provider: 'anthropic', label: 'Anthropic', model: '' },
+    { id: 'old-cx', provider: 'codex', label: 'Codex', model: 'gpt-5.4', codex: { clientId: 'oaiapp_1', accessToken: 'at-v2', refreshToken: 'rt-v2', expiresAt: 5 } },
+    { id: 'old-login', provider: 'anthropic', label: 'Max', model: 'claude-opus-5', claude: LOGIN },
     { id: 'old-gem', provider: 'gemini', label: 'Gemini', model: 'gemini-3', gemini: { accessToken: 'g' } },
   ],
-  fallbacks: [
-    { connection: 'old-or', model: 'openai/gpt-5.2' },
-    { connection: 'old-gem', model: 'gemini-3' },
-    { connection: 'old-session', model: 'claude-sonnet-5' },
-  ],
+  fallbacks: [{ connection: 'old-or', model: 'openai/gpt-5.2' }],
 };
 
-describe('the one-time move of model.json to the organization', () => {
-  test('without an enrolled key the v2 file stays as it is, and only its Claude logins are seen', async () => {
+describe('a model.json still in the old version 2', () => {
+  test('is never served: only its Claude logins are seen, and the organization setup is what runs', () => {
     writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
-    await orgModelsFor(api, null, dir).sync();
-    expect(modelFile()).toEqual(V2);
-    const { readClaudeLogins } = await import('../src/gateway/claude-store.ts');
-    expect(readClaudeLogins(dir).map((l) => l.id)).toEqual(['Login123456']);
+    expect(readClaudeLogins(dir)).toEqual([LOGIN]);
+    expect(effectiveSetup(dir, null)).toEqual({ primary: null, fallbacks: [], connections: [], source: null });
+    const delivered = { route: { primary: { connection: 'or000000001', model: 'openai/gpt-5.2' }, fallbacks: [] }, source: 'organization' as const, connections: [] };
+    expect(effectiveSetup(dir, delivered).primary).toEqual({ connection: 'or000000001', model: 'openai/gpt-5.2' });
   });
 
-  test('an enrolled agent sends its keys, sign-ins and route once, then keeps only its Claude logins in a v3 file', async () => {
+  test('is rewritten at start as version 3 with only its Claude logins, with one warning, and a second start changes nothing', () => {
     writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
-    const models = orgModelsFor(api, key, dir);
-    await models.sync();
-    const sent = api.asked.find((a) => a.path === '/api/agents/models/import')?.body;
-    expect(sent).toEqual({
-      connections: [
-        { id: 'old-or', provider: 'openrouter', label: 'OpenRouter', model: 'openai/gpt-5.2', region: '', zdr: true, apiKey: 'sk-or-v2' },
-        { id: 'old-cx', provider: 'codex', label: 'Codex', model: 'gpt-5.4', region: '', zdr: false, codex: { method: 'chatgpt', clientId: 'oaiapp_1', subject: 'u1', email: 'l@x', accessToken: 'at', refreshToken: 'rt', expiresAt: 5, savedAt: 'x' } },
-        { id: 'old-login', provider: 'anthropic', label: 'Max', model: 'claude-opus-5', region: '', zdr: false, claude: { id: 'Login123456' } },
-        { id: 'old-session', provider: 'anthropic', label: 'Anthropic', model: '', region: '', zdr: false },
-      ],
-      route: { connection: 'old-login', model: 'claude-opus-5' },
-      fallbacks: [
-        { connection: 'old-or', model: 'openai/gpt-5.2' },
-        { connection: 'old-session', model: 'claude-sonnet-5' },
-      ],
-    });
-    expect(JSON.stringify(sent)).not.toContain('gemini');
-    expect(api.asked.map((a) => a.path)).toEqual(['/api/agents/models/import', '/api/agents/models']);
-    expect(modelFile()).toEqual({ version: 3, claude: [{ id: 'Login123456', email: 'less@example.com', plan: 'max', savedAt: '2026-10-01T00:00:00.000Z' }] });
+    const warn = spyOn(log, 'warn');
+    try {
+      expect(retireV2ModelFile(dir)).toBe(true);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(retireV2ModelFile(dir)).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(modelFile()).toEqual({ version: 3, claude: [LOGIN] });
     expect(statSync(join(dir, 'model.json')).mode & 0o777).toBe(0o600);
-    expect(readFileSync(join(dir, 'model.json'), 'utf8')).not.toContain('sk-or-v2');
-    await models.sync();
-    expect(api.asked.filter((a) => a.path === '/api/agents/models/import')).toHaveLength(1);
+    for (const secret of ['sk-or-v2', 'at-v2', 'rt-v2', 'gemini']) expect(readFileSync(join(dir, 'model.json'), 'utf8')).not.toContain(secret);
   });
 
-  test('a refused or lost import leaves the v2 file untouched and is sent again; the same ids come back', async () => {
-    writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
-    const models = orgModelsFor(api, key, dir);
-    api.answer = (path) => (path === '/api/agents/models/import' ? 'drop' : null);
-    await models.sync();
-    expect(modelFile()).toEqual(V2);
-    expect(models.current()?.route?.primary?.connection).toBe('or000000001');
-    api.answer = null;
-    await models.sync();
-    expect(api.asked.filter((a) => a.path === '/api/agents/models/import')).toHaveLength(2);
-    expect(modelFile()).toMatchObject({ version: 3 });
-    expect([...api.imported.keys()]).toEqual(['old-or', 'old-cx']);
+  test('a version 3 file, a missing one or an unreadable one is left as it is', () => {
+    expect(retireV2ModelFile(dir)).toBe(false);
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 3, claude: [LOGIN] }));
+    expect(retireV2ModelFile(dir)).toBe(false);
+    expect(modelFile()).toEqual({ version: 3, claude: [LOGIN] });
+    writeFileSync(join(dir, 'model.json'), '{not json');
+    expect(retireV2ModelFile(dir)).toBe(false);
+    expect(readFileSync(join(dir, 'model.json'), 'utf8')).toBe('{not json');
   });
 
-  test('a Claude login saved or removed while the import is on its way is what the v3 file keeps', async () => {
+  test('a Claude login saved over it writes version 3', () => {
     writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
     const added = { id: 'Login999999', email: 'new@example.com', plan: 'pro', savedAt: '2026-10-15T00:00:00.000Z' };
-    api.answer = (path) => {
-      if (path === '/api/agents/models/import') writeClaudeLogins([added], dir);
-      return null;
-    };
-    await orgModelsFor(api, key, dir).sync();
-    expect(modelFile()).toEqual({ version: 3, claude: [added] });
-  });
-
-  test('the v2 file is served and kept until the setup after the import is delivered', async () => {
-    writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
-    const { effectiveSetup } = await import('../src/gateway/effective.ts');
-    const models = orgModelsFor(api, key, dir);
-    api.answer = (path) => (path === '/api/agents/models' ? { status: 503, body: { error: 'down' } } : null);
-    await models.sync();
-    expect(modelFile()).toEqual(V2);
-    const local = effectiveSetup(dir, models.current());
-    expect(local).toMatchObject({ primary: { connection: 'local:Login123456', model: 'claude-opus-5' }, source: null });
-    expect(local.fallbacks).toEqual([{ connection: 'old-or', model: 'openai/gpt-5.2' }, { connection: 'local:session', model: 'claude-sonnet-5' }]);
-    expect(local.connections.find((c) => c.id === 'old-or')).toMatchObject({ apiKey: 'sk-or-v2', revision: 0 });
-    expect(local.connections.find((c) => c.id === 'old-cx')?.codex).toEqual({ method: 'chatgpt', accessToken: 'at', expiresAt: 5, accountId: null });
-    expect(local.connections.map((c) => c.id)).not.toContain('old-gem');
-    api.answer = null;
-    await models.sync();
-    expect(modelFile()).toMatchObject({ version: 3 });
-    expect(effectiveSetup(dir, models.current()).primary).toEqual({ connection: 'or000000001', model: 'openai/gpt-5.2' });
-  });
-
-  test('a connection holding an API key and a Claude login moves as a key connection', async () => {
-    const both = { id: 'old-both', provider: 'anthropic', label: 'Both', model: 'claude-opus-5', apiKey: 'sk-ant-both', claude: { id: 'Login123456', email: 'less@example.com', plan: 'max', savedAt: 'x' } };
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'old-both', connections: [both] }));
-    const { effectiveSetup } = await import('../src/gateway/effective.ts');
-    expect(effectiveSetup(dir, null).connections).toEqual([expect.objectContaining({ id: 'old-both', apiKey: 'sk-ant-both', claude: null })]);
-    api.answer = (path) => (path === '/api/agents/models/import' ? { status: 200, body: { ids: { 'old-both': 'new00000000' }, skipped: [{ id: 'x', reason: 'it has no 11-character id' }] } } : null);
-    await orgModelsFor(api, key, dir).sync();
-    expect(api.asked.find((a) => a.path === '/api/agents/models/import')?.body.connections).toEqual([{ id: 'old-both', provider: 'anthropic', label: 'Both', model: 'claude-opus-5', region: '', zdr: false, apiKey: 'sk-ant-both' }]);
-    expect(modelFile()).toEqual({ version: 3, claude: [both.claude] });
-  });
-
-  test('a box that only rode the session login sends nothing and pins no override', async () => {
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'k', connections: [{ id: 'k', provider: 'anthropic', model: '' }] }));
-    await orgModelsFor(api, key, dir).sync();
-    expect(api.asked.map((a) => a.path)).toEqual(['/api/agents/models']);
-    expect(modelFile()).toEqual({ version: 3, claude: [] });
+    writeClaudeLogins([...readClaudeLogins(dir), added], dir);
+    expect(modelFile()).toEqual({ version: 3, claude: [LOGIN, added] });
   });
 });

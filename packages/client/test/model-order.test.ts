@@ -6,7 +6,7 @@ import { LOCAL_SESSION } from '../src/api/model-route.js';
 const connection = (id: string, email: string | null) => ({ id, provider: 'codex', label: `Connection ${id}`, model: 'gpt-6-astra', account: { email, plan: null, method: 'chatgpt' } });
 const reading = (used: number) => ({ at: '2026-10-06T10:00:00Z', windows: [{ label: 'Weekly', used, resetAt: null }] });
 const settings = () => toModelSettings({
-  route: { primary: { connection: 'a', model: 'gpt-6-astra' }, fallbacks: [{ connection: 'b', model: 'gpt-6-astra' }] },
+  route: 'a', model: 'gpt-6-astra', fallbacks: [{ connection: 'b', model: 'gpt-6-astra' }],
   source: 'organization',
   connections: [connection('a', 'alice@example.invalid'), connection('b', 'bob@example.invalid')],
   chain: [{ connection: 'a', model: 'gpt-6-astra', active: true }, { connection: 'b', model: 'gpt-6-astra', active: false }],
@@ -43,7 +43,7 @@ describe('ranked model accounts and usage', () => {
   });
 
   test('no route means the session login of the server, with its reading and account', () => {
-    const value = toModelSettings({ route: null, source: null, connections: [], usage: { passthrough: reading(0.3) } });
+    const value = toModelSettings({ route: '', source: null, connections: [], usage: { 'local:session': reading(0.3) } });
     expect(effectiveRoute(value).primary.connection).toBe(LOCAL_SESSION);
     const row = modelOrder(value)[0];
     expect(row?.usage?.windows[0]?.used).toBe(0.3);
@@ -54,11 +54,11 @@ describe('ranked model accounts and usage', () => {
   });
 
   test('a Claude login of the box names its own account, never the session login', () => {
-    const value = toModelSettings({ route: { primary: { connection: 'local:login0000001', model: 'claude-sonnet-5-5' }, fallbacks: [] }, connections: [], claude: [{ id: 'login0000001', email: 'own@example.invalid' }] });
+    const value = toModelSettings({ route: 'local:login0000001', model: 'claude-sonnet-5-5', fallbacks: [], connections: [], claude: [{ id: 'login0000001', email: 'own@example.invalid' }] });
     const row = modelOrder(value)[0];
     if (row === undefined) throw new Error('missing primary row');
     expect(modelAccount(row, 'server@example.invalid')).toBe('own@example.invalid');
-    const keyed = toModelSettings({ route: { primary: { connection: 'k', model: 'claude-x' }, fallbacks: [] }, connections: [{ id: 'k', provider: 'anthropic', label: 'Key' }] });
+    const keyed = toModelSettings({ route: 'k', model: 'claude-x', fallbacks: [], connections: [{ id: 'k', provider: 'anthropic', label: 'Key' }] });
     const first = modelOrder(keyed)[0];
     if (first === undefined) throw new Error('missing primary row');
     expect(modelAccount(first, 'server@example.invalid')).toBe('API key');

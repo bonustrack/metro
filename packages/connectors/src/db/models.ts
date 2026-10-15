@@ -89,7 +89,7 @@ async function removeIn(tx: Database, owner: string, id: string): Promise<ModelC
   return row;
 }
 
-export async function upsertRoute(tx: Database, write: RouteWrite): Promise<void> {
+async function upsertRoute(tx: Database, write: RouteWrite): Promise<void> {
   const route = routeText(write.route);
   const set = { owner: write.owner, route, updatedBy: write.actor, updatedAt: write.at };
   const values = { id: newId(), agent: write.agent, ...set };

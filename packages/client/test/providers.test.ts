@@ -16,18 +16,18 @@ const row = (over: Partial<ConnectionRow> & { id: string; provider: ConnectionRo
 });
 
 const window = { label: 'Weekly', used: 0.03, resetAt: null, detail: null };
-const usage = { 'cn-or': { windows: [window], note: null, at: '2026-09-29T13:00:00Z' }, passthrough: { windows: [{ ...window, used: 0.7 }], note: null, at: '2026-09-29T13:00:00Z' } };
+const usage = { 'cn-or': { windows: [window], note: null, at: '2026-09-29T13:00:00Z' }, 'local:session': { windows: [{ ...window, used: 0.7 }], note: null, at: '2026-09-29T13:00:00Z' } };
 
 describe('the usage shown for the model in use', () => {
   test('a routed connection shows its own usage, and no route shows the session login of the server', () => {
-    const routed = toModelSettings({ route: { primary: { connection: 'cn-or', model: 'x' }, fallbacks: [] }, connections: [{ id: 'cn-or', provider: 'openrouter', label: 'Work' }], usage });
+    const routed = toModelSettings({ route: 'cn-or', model: 'x', fallbacks: [], connections: [{ id: 'cn-or', provider: 'openrouter', label: 'Work' }], usage });
     expect(routedConnection(routed)?.label).toBe('Work');
     expect(routedUsage(routed)?.windows[0]?.used).toBe(0.03);
-    const bare = toModelSettings({ route: null, connections: [], usage });
+    const bare = toModelSettings({ route: '', connections: [], usage });
     expect(routedConnection(bare)?.id).toBe('local:session');
     expect(routedUsage(bare)?.windows[0]?.used).toBe(0.7);
-    expect(routedUsage(toModelSettings({ route: null, connections: [] }))).toBeUndefined();
-    expect(routedConnection(toModelSettings({ route: { primary: { connection: 'gone', model: 'x' }, fallbacks: [] }, connections: [] }))).toBeUndefined();
+    expect(routedUsage(toModelSettings({ route: '', connections: [] }))).toBeUndefined();
+    expect(routedConnection(toModelSettings({ route: 'gone', model: 'x', fallbacks: [], connections: [] }))).toBeUndefined();
   });
 });
 
@@ -47,11 +47,10 @@ describe('what a connection card says', () => {
     expect(usesKey('codex')).toBe(false);
   });
 
-  test('only the session login, or an old keyless Anthropic connection, uses the server login', () => {
+  test('only the session login uses the server login, never a keyless organization connection', () => {
     expect(usesSessionLogin(row({ id: 'local:session', provider: 'anthropic' }))).toBe(true);
-    expect(usesSessionLogin(row({ id: 'old', provider: 'anthropic' }))).toBe(true);
+    expect(usesSessionLogin(row({ id: 'keyless0001', provider: 'anthropic' }))).toBe(false);
     expect(usesSessionLogin(row({ id: 'local:abc', provider: 'anthropic' }))).toBe(false);
-    expect(usesSessionLogin(row({ id: 'old', provider: 'anthropic', account: 'a@b' }))).toBe(false);
     expect(usesSessionLogin(row({ id: 'k', provider: 'anthropic', hasKey: true }))).toBe(false);
   });
 });

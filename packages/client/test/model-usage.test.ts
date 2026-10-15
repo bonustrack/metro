@@ -65,7 +65,7 @@ describe('usage for the selected model', () => {
 
   test('a step with no model uses its resolved chain model, then the last request on it, never another connection', () => {
     const settings = toModelSettings({
-      route: { primary: { connection: 'c1', model: '' }, fallbacks: [] },
+      route: 'c1', model: '', fallbacks: [],
       connections: [{ id: 'c1', provider: 'anthropic', label: 'Claude' }],
       chain: [{ connection: 'c1', model: 'claude-opus-5-5', used: 0.4, hold: null, active: true }],
       lastServed: { connection: 'c2', provider: 'anthropic', model: 'claude-other', at: new Date(NOW).toISOString() },

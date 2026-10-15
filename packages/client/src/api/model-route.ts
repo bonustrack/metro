@@ -18,7 +18,6 @@ const LOCAL_PREFIX = 'local:';
 
 export const isLocal = (connection: string): boolean => connection.startsWith(LOCAL_PREFIX);
 export const localLogin = (id: string): string => `${LOCAL_PREFIX}${id}`;
-export const loginOfLocal = (connection: string): string | null => (isLocal(connection) && connection !== LOCAL_SESSION ? connection.slice(LOCAL_PREFIX.length) : null);
 
 export const sameStep = (a: RouteStep, b: RouteStep): boolean => a.connection === b.connection && a.model === b.model;
 

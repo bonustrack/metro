@@ -12,15 +12,12 @@ import type { ModelDeliveryStore, RouteSource } from '@metro-labs/connectors/db/
 import type { OrgModelStore } from '@metro-labs/connectors/db/models';
 import { codexStale, refreshModelConnection } from '@metro-labs/connectors/model-refresh';
 import type { ModelRoute } from '@metro-labs/connectors/model-route';
-import { MODELS_MAX, modelKey, refreshDeps } from './deps.js';
-import { importPlan, type Skipped } from './import.js';
+import { modelKey, refreshDeps } from './deps.js';
 import { agentConnection, type AgentConnection } from './view.js';
 
 const MODELS = '/api/agents/models';
 const REFRESH = '/api/agents/models/refresh';
-const IMPORT = '/api/agents/models/import';
 const BODY_MAX = 4096;
-const IMPORT_MAX = 256 * 1024;
 
 export interface AgentModelsDeps {
   key: () => Buffer | null;
@@ -55,9 +52,9 @@ function bodyOf(bytes: Buffer): unknown {
   }
 }
 
-async function signed(req: IncomingMessage, deps: AgentModelsDeps, max: number): Promise<Signed> {
+async function signed(req: IncomingMessage, deps: AgentModelsDeps): Promise<Signed> {
   refuseBrowser(req);
-  const bytes = await readBodyBytes(req, max);
+  const bytes = await readBodyBytes(req, BODY_MAX);
   const proof = deps.auth.proofOf(req);
   const identity = await deps.identities.find(proof.keyId);
   if (identity === null) throw new AgentKeyMissing();
@@ -94,23 +91,14 @@ async function refreshed(deps: AgentModelsDeps, identity: AgentKeyRow, body: unk
   return agentConnection(key, current);
 }
 
-async function imported(deps: AgentModelsDeps, identity: AgentKeyRow, body: unknown): Promise<{ ids: Record<string, string>; skipped: Skipped[] }> {
-  const plan = importPlan(modelKey(deps), body);
-  const ids = await deps.delivery.import(identity, { rows: plan.rows, route: plan.route, at: new Date(deps.now()).toISOString(), limit: MODELS_MAX });
-  log.info({ agent: identity.agent, owner: identity.owner, connections: plan.rows.length, local: plan.local.size, skipped: plan.skipped.length }, 'models: an agent imported its model setup');
-  return { ids: Object.fromEntries([...ids, ...plan.local]), skipped: plan.skipped };
-}
-
 async function route(path: string, req: IncomingMessage, deps: AgentModelsDeps): Promise<unknown> {
-  const { identity, body } = await signed(req, deps, path === IMPORT ? IMPORT_MAX : BODY_MAX);
-  if (path === MODELS) return delivered(deps, identity);
-  if (path === REFRESH) return refreshed(deps, identity, body);
-  return imported(deps, identity, body);
+  const { identity, body } = await signed(req, deps);
+  return path === MODELS ? delivered(deps, identity) : refreshed(deps, identity, body);
 }
 
 export function handleAgentModelsRequest(req: IncomingMessage, res: ServerResponse, deps: AgentModelsDeps): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
-  if (path !== MODELS && path !== REFRESH && path !== IMPORT) return false;
+  if (path !== MODELS && path !== REFRESH) return false;
   if (req.method !== 'POST') {
     res.setHeader('allow', 'POST');
     sendJson(req, res, 405, { error: 'method not allowed' });
