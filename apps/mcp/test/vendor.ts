@@ -17,6 +17,7 @@ export interface FakeVendor {
     tools: Record<string, unknown>[];
     sse: boolean;
     refreshTo: string | null;
+    answerOrder: string[];
     answer: (tool: string, args: unknown) => Record<string, unknown>;
   };
   close: () => Promise<void>;
@@ -49,7 +50,18 @@ export async function startVendor(): Promise<FakeVendor> {
     calls: [],
     methods: [],
     tokenForms: [],
-    state: { accepted: 'Bearer VENDOR_KEY', tools: TOOLS, sse: false, refreshTo: null, answer: (tool, args) => ({ content: [{ type: 'text', text: `${tool} ran with ${JSON.stringify(args)}` }] }) },
+    state: { accepted: 'Bearer VENDOR_KEY', tools: TOOLS, sse: false, refreshTo: null, answerOrder: [], answer: (tool, args) => ({ content: [{ type: 'text', text: `${tool} ran with ${JSON.stringify(args)}` }] }) },
+  };
+  const held = new Map<string, () => void>();
+  const turn = (tool: string): Promise<void> => {
+    const order = vendor.state.answerOrder;
+    if (!order.includes(tool)) return Promise.resolve();
+    return new Promise((resolve) => {
+      held.set(tool, resolve);
+      if (!order.every((name) => held.has(name))) return;
+      for (const name of order) held.get(name)?.();
+      held.clear();
+    });
   };
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const text = await bodyOf(req);
@@ -80,6 +92,7 @@ export async function startVendor(): Promise<FakeVendor> {
     else if (message.method === 'tools/call') {
       const tool = message.params?.name ?? '';
       vendor.calls.push({ tool, arguments: message.params?.arguments, authorization: req.headers.authorization });
+      await turn(tool);
       reply(res, vendor.state.sse, { jsonrpc: '2.0', id: message.id, result: vendor.state.answer(tool, message.params?.arguments) });
     } else res.writeHead(404).end();
   };

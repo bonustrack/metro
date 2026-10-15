@@ -24,6 +24,7 @@ beforeEach(async () => {
   vendor.state.accepted = 'Bearer VENDOR_KEY';
   vendor.state.sse = false;
   vendor.state.refreshTo = null;
+  vendor.state.answerOrder = [];
   agent = await enrollAgent(held.db, 'agent000001');
   await addConnector(held.db, 'conn0000001', 'Notion', headerSecret('/mcp?key=URL_SECRET'));
   await assign(held.db, 'conn0000001', agent.row.agent);
@@ -91,13 +92,14 @@ describe('tool_search against a real connector', () => {
 describe('tool_call against a real connector', () => {
   test('runs calls in parallel and answers each under its [n] header', async () => {
     const info = spyOn(log, 'info');
+    vendor.state.answerOrder = ['update_page', 'search'];
     const result = await run([{ tool: 'notion.search', arguments: { query: 'roadmap' } }, { tool: 'notion.update_page', arguments: { page_id: 'p1' } }]);
     expect(result.isError).toBeUndefined();
     expect(texts(result)).toEqual(['[1] notion.search', 'search ran with {"query":"roadmap"}', '[2] notion.update_page', 'update_page ran with {"page_id":"p1"}']);
     expect(vendor.calls.map((call) => call.authorization)).toEqual(['Bearer VENDOR_KEY', 'Bearer VENDOR_KEY']);
     const lines = info.mock.calls.filter((call) => call[1] === 'mcp: call').map((call) => call[0]);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ agent: 'agent000001', connector: 'conn0000001', tool: 'search', outcome: 'ok' });
+    expect(lines).toEqual(expect.arrayContaining(['search', 'update_page'].map((tool) => expect.objectContaining({ agent: 'agent000001', connector: 'conn0000001', tool, outcome: 'ok' }))));
     expect(JSON.stringify(lines)).not.toContain('roadmap');
     info.mockRestore();
   });
