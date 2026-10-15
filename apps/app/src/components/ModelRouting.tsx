@@ -7,18 +7,16 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { CardUsage, useModelName } from './AgentModel.js';
-import { useAccountOf } from '../lib/queries.js';
-import { modelAccount, modelOrder, type ModelOrderItem } from '@metro-labs/client/api/model-order';
-import { SettingsGroup, SettingsPad } from './SettingsSection.js';
+import { useAccountOf } from '../lib/model-queries.js';
+import { modelAccount, type ModelOrderItem } from '@metro-labs/client/api/model-order';
+import { SettingsGroup } from './SettingsSection.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import { Tag } from './Tag.js';
 import type { MenuItem } from './Dropdown.js';
-import { holdLine, PROVIDERS, type ModelSettings } from '@metro-labs/client/api/model';
+import { holdLine } from '@metro-labs/client/api/model';
+import { providerInfo } from '@metro-labs/client/api/providers';
 import type { Slot } from '@metro-labs/client/api/route-edit';
 
-const NOTE = 'Uses the first model under 95% usage, and goes back when limits reset. Tap a model to edit.';
-const OLD = 'Update Metro to add fallback models.';
-const NONE = 'No fallback yet. Add one so the agent keeps working when its model runs out.';
 const MARK = 24;
 
 export interface RouteActions {
@@ -52,66 +50,80 @@ function menuOf(item: ModelOrderItem, last: boolean, actions: RouteActions): Men
 }
 
 function noteOf(item: ModelOrderItem): string {
-  const where = item.connection?.label ?? 'Claude Code login of the server';
+  const where = item.connection?.label ?? 'Connection removed';
   const hold = item.row?.hold;
   const reason = hold == null ? '' : holdLine(hold);
   const clarified = item.connection?.provider === 'anthropic' ? reason.replace(/^Weekly (\d)/, 'Weekly, all models $1') : reason;
   return [where, hold == null ? '' : `Skipped: ${clarified}`].filter((part) => part !== '').join(' · ');
 }
 
-function RouteRow({ item, n, last, busy, actions }: { item: ModelOrderItem; n: number; last: boolean; busy: boolean; actions: RouteActions }): ReactNode {
-  const name = useModelName(item.connection, item.model);
-  const account = modelAccount(item, useAccountOf(item.connection));
-  const menu = menuOf(item, last, actions);
-  const icon = (
+interface RowProps {
+  item: ModelOrderItem;
+  n: number;
+  last: boolean;
+  busy: boolean;
+  withUsage: boolean;
+  actions?: RouteActions;
+}
+
+const mutedRow = (item: ModelOrderItem): boolean => item.row?.hold != null || item.connection === undefined || item.connection.signedOut;
+
+function RowIcon({ item, n }: { item: ModelOrderItem; n: number }): ReactNode {
+  return (
     <Row align="center" gap={12}>
       <Mark n={n} active={item.row?.active === true} />
-      <ProviderLogo provider={PROVIDERS.find((p) => p.id === item.connection?.provider)} size={LIST_ICON_SIZE} />
+      <ProviderLogo provider={providerInfo(item.connection?.provider)} size={LIST_ICON_SIZE} />
     </Row>
   );
+}
+
+function RowBelow({ item, withUsage }: { item: ModelOrderItem; withUsage: boolean }): ReactNode {
+  const account = modelAccount(item, useAccountOf(item.connection));
+  return (
+    <Col gap={4}>
+      <Text size="md" role="secondary" numberOfLines={1}>{account}</Text>
+      {withUsage ? <CardUsage usage={item.usage} provider={item.connection?.provider ?? 'anthropic'} model={item.model} /> : null}
+    </Col>
+  );
+}
+
+function RouteRow({ item, n, last, busy, withUsage, actions }: RowProps): ReactNode {
+  const name = useModelName(item.connection, item.model);
+  const edit = busy || actions === undefined ? undefined : (): void => { actions.edit(item.slot); };
   return (
     <ListRow
       title={name}
       detail={noteOf(item)}
-      below={(
-        <Col gap={4}>
-          <Text size="md" role="secondary" numberOfLines={1}>{account}</Text>
-          <CardUsage usage={item.usage} provider={item.connection?.provider ?? 'anthropic'} model={item.model} />
-        </Col>
-      )}
-      muted={item.row?.hold != null}
-      icon={icon}
+      below={<RowBelow item={item} withUsage={withUsage} />}
+      muted={mutedRow(item)}
+      icon={<RowIcon item={item} n={n} />}
       extra={item.row?.active === true ? <Tag label="In use" /> : undefined}
-      onPress={busy ? undefined : () => { actions.edit(item.slot); }}
-      trailing={<KebabMenu label={`${name} menu`} items={menu} />}
+      onPress={edit}
+      trailing={actions === undefined ? undefined : <KebabMenu label={`${name} menu`} items={menuOf(item, last, actions)} />}
     />
   );
 }
 
-export function ModelRouting({ settings, busy, actions }: { settings: ModelSettings; busy: boolean; actions: RouteActions }): ReactNode {
+interface ModelRoutingProps {
+  title: string;
+  note: string;
+  items: ModelOrderItem[];
+  busy: boolean;
+  canAdd: boolean;
+  withUsage: boolean;
+  actions?: RouteActions;
+  children?: ReactNode;
+}
+
+export function ModelRouting({ title, note, items, busy, canAdd, withUsage, actions, children }: ModelRoutingProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const items = modelOrder(settings);
-  const canAdd = settings.fallbacks !== null && settings.connections.length > 0;
-  const add = <Button size="md" dark={dark} label="Add fallback" disabled={busy || !canAdd} onPress={() => { actions.edit({ kind: 'new' }); }} />;
+  const add = actions === undefined ? undefined : <Button size="md" dark={dark} label="Add fallback" disabled={busy || !canAdd} onPress={() => { actions.edit({ kind: 'new' }); }} />;
   return (
-    <SettingsGroup title="Model order" note={NOTE} action={add}>
+    <SettingsGroup title={title} note={note} action={add}>
       {items.map((item, at) => (
-        <RouteRow key={item.slot.kind === 'fallback' ? `${String(item.slot.at)}:${item.model}` : 'primary'} item={item} n={at + 1} last={at === items.length - 1} busy={busy} actions={actions} />
+        <RouteRow key={item.slot.kind === 'fallback' ? `${String(item.slot.at)}:${item.model}` : 'primary'} item={item} n={at + 1} last={at === items.length - 1} busy={busy} withUsage={withUsage} actions={actions} />
       ))}
-      {settings.reason === null ? null : (
-        <SettingsPad>
-          <Text size="md" role="danger">{settings.reason}</Text>
-        </SettingsPad>
-      )}
-      {settings.fallbacks === null ? (
-        <SettingsPad>
-          <Text size="md" role="secondary">{OLD}</Text>
-        </SettingsPad>
-      ) : settings.fallbacks.length === 0 && settings.connections.length > 0 ? (
-        <SettingsPad>
-          <Text size="md" role="secondary">{NONE}</Text>
-        </SettingsPad>
-      ) : null}
+      {children}
     </SettingsGroup>
   );
 }

@@ -9,7 +9,7 @@ import * as secureFs from '@metro-labs/core/secure-fs';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { sessionSnapshot, type SessionDeps } from '../src/claude/session.js';
 import * as login from '../src/claude/login.js';
-import * as model from '../src/gateway/model-config.js';
+import * as effective from '../src/gateway/effective.js';
 
 const SNAPSHOT = '/api/claude/session/snapshot';
 const AUTH = 'Bearer snapshot-member';
@@ -38,7 +38,7 @@ beforeEach(() => {
   setBearerSessions((req) => Promise.resolve(req.headers.authorization === AUTH ? { subject: 'snapshot-owner', role: 'member' } : null));
   spyOn(login, 'claudeAccount').mockImplementation(unexpected);
   spyOn(login, 'claudeInstalled').mockImplementation(unexpected);
-  spyOn(model, 'readModelConfig').mockImplementation(unexpected);
+  spyOn(effective, 'effectiveSetup').mockImplementation(unexpected);
   spyOn(secureFs, 'writeJson').mockImplementation(unexpected);
   spyOn(globalThis, 'fetch').mockImplementation(unexpected);
   spyOn(process, 'kill').mockImplementation((pid, signal) => {
@@ -69,7 +69,7 @@ function expectPassive(): void {
   expect(signedIn).not.toHaveBeenCalled();
   expect(login.claudeAccount).not.toHaveBeenCalled();
   expect(login.claudeInstalled).not.toHaveBeenCalled();
-  expect(model.readModelConfig).not.toHaveBeenCalled();
+  expect(effective.effectiveSetup).not.toHaveBeenCalled();
   expect(secureFs.writeJson).not.toHaveBeenCalled();
   expect(globalThis.fetch).not.toHaveBeenCalled();
   if (existsSync(calls)) expect(readFileSync(calls, 'utf8').trim().split('\n').every((call) => call === 'has-session -t metro')).toBe(true);

@@ -6,17 +6,16 @@ import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { GROW } from '../lib/style.js';
-import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, OWN_LOGINS_SINCE, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '@metro-labs/client/api/claude';
-import { queryError, useModeQuery } from '../lib/queries.js';
-import { olderThan } from '@metro-labs/client/api/version';
-import type { ConnectionRow } from '@metro-labs/client/api/model';
+import { answerClaudeLogin, cancelClaudeLogin, fetchClaudeAccount, pollClaudeLogin, startClaudeLogin, type ClaudeAccount, type ClaudeLogin } from '@metro-labs/client/api/claude';
+import { queryError } from '../lib/queries.js';
+import type { ClaudeLoginRow } from '@metro-labs/client/api/model';
 import { TextLink } from './TextLink.js';
 import { LogBlock } from './ui/LogBlock.js';
 
 const FIELD_WIDTH = 420;
 const POLL_MS = 1_500;
-const WHAT = 'Uses Claude Code’s own sign-in. Add as many accounts as you like.';
-const NEW_LOGIN = 'Each Claude account you sign in with becomes its own provider.';
+const WHAT = 'Uses Claude Code’s own sign-in. The login stays on this server, and only this agent can use it.';
+const NEW_LOGIN = 'Sign in with a Claude account to add it to this agent’s choices.';
 
 function useLoginPolling(login: ClaudeLogin | null, onUpdate: (next: ClaudeLogin) => void, onError: (message: string) => void): void {
   useEffect(() => {
@@ -92,20 +91,17 @@ function Note({ text }: { text: string }): ReactNode {
   );
 }
 
-function statusLine(connection: ConnectionRow | null, account: ClaudeAccount | null): string {
-  if (connection === null) return NEW_LOGIN;
-  if (connection.signedIn) return `Signed in${connection.account === null ? '' : ` as ${connection.account}`}${connection.plan === null ? '' : ` (${connection.plan})`}`;
-  const machine = account?.signedIn === true && account.account !== null ? ` (${account.account})` : '';
-  return `Uses this machine’s Claude Code login${machine}. Sign in to give it its own.`;
+function statusLine(login: ClaudeLoginRow | null): string {
+  if (login === null) return NEW_LOGIN;
+  return `Signed in${login.email === null ? '' : ` as ${login.email}`}${login.plan === null ? '' : ` (${login.plan})`}`;
 }
 
-export function ClaudeLoginCard({ connection, onDone }: { connection: ConnectionRow | null; onDone: () => void }): ReactNode {
+export function ClaudeLoginCard({ login: saved, onDone }: { login: ClaudeLoginRow | null; onDone: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [account, setAccount] = useState<ClaudeAccount | null>(null);
   const [login, setLogin] = useState<ClaudeLogin | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mode = useModeQuery();
   useEffect(() => {
     fetchClaudeAccount()
       .then(setAccount)
@@ -119,7 +115,7 @@ export function ClaudeLoginCard({ connection, onDone }: { connection: Connection
   const begin = (): void => {
     setBusy(true);
     setError(null);
-    startClaudeLogin(connection?.id ?? 'new')
+    startClaudeLogin(saved?.id ?? 'new')
       .then(setLogin)
       .catch((err: unknown) => {
         setError(queryError(err, 'Could not start the sign-in.'));
@@ -142,12 +138,11 @@ export function ClaudeLoginCard({ connection, onDone }: { connection: Connection
     setLogin(null);
     cancelClaudeLogin(id).catch(() => undefined);
   };
-  if (olderThan(mode.data?.version ?? null, OWN_LOGINS_SINCE)) return <Note text={`Needs metro ${OWN_LOGINS_SINCE}. Update first, from the Server page.`} />;
   if (account !== null && !account.available) return <Note text="Claude Code is not installed on this machine, so there is nothing to sign in." />;
   return (
     <Col gap={8}>
       <FieldLabel>Claude subscription</FieldLabel>
-      <Text size="md">{statusLine(connection, account)}</Text>
+      <Text size="md">{statusLine(saved)}</Text>
       <Text size="md" role="secondary">
         {WHAT}
       </Text>
@@ -157,7 +152,7 @@ export function ClaudeLoginCard({ connection, onDone }: { connection: Connection
             size="md"
             color="secondary"
             dark={dark}
-            label={connection?.signedIn === true ? 'Sign in again' : 'Sign in with a Claude subscription'}
+            label={saved === null ? 'Sign in with a Claude subscription' : 'Sign in again'}
             loading={busy}
             disabled={busy}
             onPress={begin}

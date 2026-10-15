@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { connectionWindow, limitNote, limitingWindow, missingUsage, modelWindows, usageDetail, usageLabel, usageModel, usageReported, USAGE_LIMIT } from '../src/api/model-usage.js';
+import { limitNote, limitingWindow, missingUsage, modelWindows, usageDetail, usageLabel, usageModel, usageReported, USAGE_LIMIT } from '../src/api/model-usage.js';
 import type { UsageWindow } from '../src/api/usage.js';
 import { toModelSettings } from '../src/api/model.js';
 
@@ -48,7 +48,7 @@ describe('usage for the selected model', () => {
     const resetWithTally = usageDetail(withTally, 'codex', 'gpt-6-astra', NOW);
     expect(resetWithTally).toContain('2 requests');
     expect(resetWithTally).toContain('Usage window reset. Waiting for a new reading.');
-    expect(usageDetail(usage, 'gemini', 'gemini-other', NOW)).toContain('Usage unavailable');
+    expect(usageDetail(usage, 'openrouter', 'openai/gpt-other', NOW)).toContain('Usage window reset');
   });
 
   test('reports carry their age without dating a tally as a provider reading', () => {
@@ -63,17 +63,16 @@ describe('usage for the selected model', () => {
     expect(usageDetail({ ...usage, windows: [{ ...window('Credits', null), detail: '$4 remaining' }] }, 'openrouter', '', NOW)).toBe('$4 remaining');
   });
 
-  test('Gemini quotas belong to exact model ids', () => {
-    const windows = [window('gemini-pro', 0.1), window('gemini-flash', 1)];
-    expect(limitingWindow(modelWindows(windows, 'gemini', 'gemini-pro', NOW))?.used).toBe(0.1);
-    expect(modelWindows(windows, 'gemini', '', NOW)).toEqual([]);
-  });
-
-  test('an unspecified connection uses its resolved chain model, not another connection', () => {
-    const settings = toModelSettings({ route: 'c1', connections: [{ id: 'c1', provider: 'anthropic', model: '', label: 'Claude' }], chain: [{ connection: 'c1', model: 'claude-opus-5-5', used: 0.4, hold: null, active: true }], usage: { c1: { at: new Date(NOW).toISOString(), windows: [window('Weekly', 0.4, null), window('Weekly, Fable', 1, null)] } } });
-    const conn = settings.connections[0];
-    expect(usageModel(settings, conn)).toBe('claude-opus-5-5');
-    expect(connectionWindow(settings, conn)?.used).toBe(0.4);
-    if (conn !== undefined) expect(usageModel(settings, { ...conn, model: 'claude-fable-5-1' })).toBe('claude-fable-5-1');
+  test('a step with no model uses its resolved chain model, then the last request on it, never another connection', () => {
+    const settings = toModelSettings({
+      route: { primary: { connection: 'c1', model: '' }, fallbacks: [] },
+      connections: [{ id: 'c1', provider: 'anthropic', label: 'Claude' }],
+      chain: [{ connection: 'c1', model: 'claude-opus-5-5', used: 0.4, hold: null, active: true }],
+      lastServed: { connection: 'c2', provider: 'anthropic', model: 'claude-other', at: new Date(NOW).toISOString() },
+    });
+    expect(usageModel(settings, { connection: 'c1', model: '' })).toBe('claude-opus-5-5');
+    expect(usageModel(settings, { connection: 'c1', model: 'claude-fable-5-1' })).toBe('claude-fable-5-1');
+    expect(usageModel(settings, { connection: 'c3', model: '' })).toBe('');
+    expect(usageModel(settings, { connection: 'c2', model: '' })).toBe('claude-other');
   });
 });

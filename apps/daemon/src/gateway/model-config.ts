@@ -1,19 +1,19 @@
-import { join } from 'node:path';
-import { ID_RE, newId } from '@metro-labs/core/ids';
-import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
-import { agentsDir } from '../agents/files.js';
-import { isRecord } from '@metro-labs/core/is-record';
-import { CODEX_SIGN_IN, NEW_CLIENT, type CodexCredential, type CodexMethod, type CodexTokens } from './codex-auth.js';
-import { tokensFromDisk as geminiTokensFromDisk, type GeminiTokens } from './gemini-auth.js';
-
-export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'gemini'] as const;
+export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex'] as const;
 export type Provider = (typeof PROVIDERS)[number];
+export type CodexMethod = 'chatgpt' | 'code';
+export type RouteSource = 'agent' | 'organization';
 
-export interface ClaudeLogin {
-  id: string;
+export interface CodexAccess {
+  method: CodexMethod;
+  accessToken: string;
+  expiresAt: number;
+  accountId: string | null;
+}
+
+export interface Account {
   email: string | null;
   plan: string | null;
-  savedAt: string;
+  method: CodexMethod | null;
 }
 
 export interface Connection {
@@ -24,9 +24,11 @@ export interface Connection {
   apiKey: string;
   region: string;
   zdr: boolean;
-  codex: CodexTokens | null;
-  gemini: GeminiTokens | null;
-  claude: ClaudeLogin | null;
+  revision: number;
+  codex: CodexAccess | null;
+  claude: string | null;
+  account: Account;
+  signedOut: boolean;
 }
 
 export interface Fallback {
@@ -34,11 +36,11 @@ export interface Fallback {
   model: string;
 }
 
-export interface ModelConfig {
-  version: 2;
-  route: string;
+export interface ModelSetup {
+  primary: Fallback | null;
+  fallbacks: Fallback[];
   connections: Connection[];
-  fallbacks?: Fallback[];
+  source: RouteSource | null;
 }
 
 export interface Route {
@@ -46,317 +48,112 @@ export interface Route {
   model: string;
 }
 
-export class ModelConfigError extends Error {}
+export const LOCAL_PREFIX = 'local:';
+export const SESSION_LOGIN = `${LOCAL_PREFIX}session`;
+export const CODEX_SIGN_IN = "Codex is not signed in: sign in again on the organization's Models page.";
 
-const MODEL_FILE = 'model.json';
-const MAX_FIELD = 512;
-const MAX_LABEL = 60;
-const MAX_CONNECTIONS = 20;
-const MAX_FALLBACKS = 8;
-const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|gemini):(.+)$/;
+const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex):(.+)$/;
 const SMALL_RE = /haiku/i;
+const NO_ACCOUNT: Account = { email: null, plan: null, method: null };
 
-const LABELS: Record<Provider, string> = {
-  anthropic: 'Anthropic',
-  bedrock: 'Amazon Bedrock',
-  openrouter: 'OpenRouter',
-  codex: 'Codex (ChatGPT)',
-  gemini: 'Gemini (Google)',
-};
+export const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
 
-const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
+export const emptySetup = (): ModelSetup => ({ primary: null, fallbacks: [], connections: [], source: null });
 
-const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
-const maybe = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+export const loginRef = (login: string): string => `${LOCAL_PREFIX}${login}`;
 
-export const empty = (): ModelConfig => ({ version: 2, route: '', connections: [] });
-
-const newConnection = (provider: Provider, label: string): Connection => ({
-  id: newId(),
-  provider,
+const localConnection = (id: string, label: string, claude: string | null, account: Account, missing: boolean): Connection => ({
+  id,
+  provider: 'anthropic',
   label,
   model: '',
   apiKey: '',
   region: '',
   zdr: false,
+  revision: 0,
   codex: null,
-  gemini: null,
-  claude: null,
+  claude,
+  account,
+  signedOut: missing,
 });
 
-function claudeFromDisk(raw: unknown): ClaudeLogin | null {
-  if (!isRecord(raw) || !ID_RE.test(text(raw.id))) return null;
-  return { id: text(raw.id), email: maybe(raw.email), plan: maybe(raw.plan), savedAt: text(raw.savedAt) };
+export const sessionConnection = (): Connection => localConnection(SESSION_LOGIN, 'Claude Code login', null, NO_ACCOUNT, false);
+
+export interface LocalLogin {
+  id: string;
+  email: string | null;
+  plan: string | null;
 }
 
-function credentialFromDisk(raw: Record<string, unknown>): CodexCredential | null {
-  const accessToken = text(raw.accessToken);
-  const refreshToken = text(raw.refreshToken);
-  if (accessToken === '' || refreshToken === '') return null;
-  return {
-    email: maybe(raw.email),
-    accessToken,
-    refreshToken,
-    expiresAt: typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt) ? raw.expiresAt : 0,
-    savedAt: text(raw.savedAt) === '' ? new Date(0).toISOString() : text(raw.savedAt),
-  };
+export function loginConnection(login: string, known: LocalLogin | undefined): Connection {
+  const account = known === undefined ? NO_ACCOUNT : { email: known.email, plan: known.plan, method: null };
+  return localConnection(loginRef(login), known?.email ?? 'Claude login', login, account, known === undefined);
 }
 
-function codexFromDisk(raw: unknown): CodexTokens | null {
-  if (!isRecord(raw)) return null;
-  const held = credentialFromDisk(raw);
-  if (held === null) return null;
-  const accountId = text(raw.accountId);
-  if (accountId !== '') return { method: 'code', accountId, plan: maybe(raw.plan), ...held };
-  const clientId = text(raw.clientId);
-  return clientId === '' || clientId === NEW_CLIENT ? null : { method: 'chatgpt', clientId, subject: text(raw.subject), ...held };
+export const connectionOf = (setup: ModelSetup, id: string): Connection | null => setup.connections.find((c) => c.id === id) ?? null;
+
+export function primaryRoute(setup: ModelSetup): Route | null {
+  const primary = setup.primary;
+  const conn = primary === null ? null : connectionOf(setup, primary.connection);
+  if (primary === null || conn === null) return null;
+  return { connection: conn, model: primary.model === '' ? conn.model : primary.model };
 }
 
-function connectionFromDisk(raw: unknown): Connection | null {
-  if (!isRecord(raw) || !isProvider(raw.provider)) return null;
-  const id = text(raw.id);
-  const provider = raw.provider;
-  return {
-    id: id === '' ? newId() : id,
-    provider,
-    label: text(raw.label) === '' ? LABELS[provider] : text(raw.label).slice(0, MAX_LABEL),
-    model: text(raw.model),
-    apiKey: text(raw.apiKey),
-    region: text(raw.region),
-    zdr: raw.zdr === true,
-    codex: codexFromDisk(raw.codex),
-    gemini: geminiTokensFromDisk(raw.gemini),
-    claude: provider === 'anthropic' ? claudeFromDisk(raw.claude) : null,
-  };
-}
+const MISSING_LOGIN = 'This Claude login is not on this box: sign in again on the Model page.';
 
-function fallbacksOf(raw: unknown, connections: Connection[]): Fallback[] {
-  if (!Array.isArray(raw)) return [];
-  const known = raw.flatMap((f: unknown) => {
-    if (!isRecord(f)) return [];
-    const entry = { connection: text(f.connection), model: text(f.model).slice(0, MAX_FIELD) };
-    return entry.model !== '' && connections.some((c) => c.id === entry.connection) ? [entry] : [];
-  });
-  return known.filter((f, at) => known.findIndex((o) => o.connection === f.connection && o.model === f.model) === at).slice(0, MAX_FALLBACKS);
-}
-
-const withFallbacks = (cfg: ModelConfig, fallbacks: Fallback[]): ModelConfig => ({
-  version: 2,
-  route: cfg.route,
-  connections: cfg.connections,
-  ...(fallbacks.length === 0 ? {} : { fallbacks }),
-});
-
-export function parseModelConfig(raw: unknown): ModelConfig {
-  if (!isRecord(raw) || !Array.isArray(raw.connections)) return empty();
-  const connections = raw.connections.flatMap((c: unknown) => connectionFromDisk(c) ?? []).slice(0, MAX_CONNECTIONS);
-  const route = text(raw.route);
-  const cfg: ModelConfig = { version: 2, route: connections.some((c) => c.id === route) ? route : (connections[0]?.id ?? ''), connections };
-  return withFallbacks(cfg, fallbacksOf(raw.fallbacks, connections));
-}
-
-const needsIds = (raw: unknown): boolean =>
-  isRecord(raw) && Array.isArray(raw.connections) && raw.connections.some((c: unknown) => isRecord(c) && text(c.id) === '');
-
-const readStoredModel = (dir: string): unknown =>
-  readJson<unknown>(join(dir, MODEL_FILE), null, { warn: 'model-config: model.json is unreadable, so every request goes to Anthropic until it is fixed' });
-
-export function readModelConfig(dir = agentsDir()): ModelConfig {
-  const raw = readStoredModel(dir);
-  const cfg = parseModelConfig(raw);
-  if (needsIds(raw)) writeModelConfig(cfg, dir);
-  return cfg;
-}
-
-export function readModelSnapshot(dir = agentsDir()): ModelConfig {
-  const raw = readStoredModel(dir);
-  if (needsIds(raw)) throw new ModelConfigError('model snapshot is unavailable until every connection has a saved id');
-  return parseModelConfig(raw);
-}
-
-export function writeModelConfig(cfg: ModelConfig, dir = agentsDir()): void {
-  writeSecure(join(dir, MODEL_FILE), JSON.stringify(cfg, null, 2));
-}
-
-export const connectionOf = (cfg: ModelConfig, id: string): Connection | null => cfg.connections.find((c) => c.id === id) ?? null;
-
-export const routedConnection = (cfg: ModelConfig): Connection | null => connectionOf(cfg, cfg.route);
-
-function requireConnection(cfg: ModelConfig, id: string): Connection {
-  const found = connectionOf(cfg, id);
-  if (found === null) throw new ModelConfigError('no such connection');
-  return found;
-}
-
-const PASSTHROUGH = 'Nothing is connected: the request carries the Claude Code login of the session that sent it.';
-
-const CHECKS: Record<Provider, [(c: Connection) => boolean, string][]> = {
-  anthropic: [],
+const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {
+  anthropic: [
+    [(r) => r.connection.claude !== null && r.connection.signedOut, MISSING_LOGIN],
+    [(r) => !r.connection.id.startsWith(LOCAL_PREFIX) && r.connection.apiKey === '', "Anthropic has no API key: add it on the organization's Models page."],
+  ],
   bedrock: [
-    [(c) => c.apiKey === '', 'Bedrock needs an API key: add it on the Model page.'],
-    [(c) => c.region === '', 'Bedrock needs a region: add it on the Model page.'],
+    [(r) => r.connection.apiKey === '', "Bedrock has no API key: add it on the organization's Models page."],
+    [(r) => r.connection.region === '', "Bedrock needs a region: add it on the organization's Models page."],
   ],
   openrouter: [
-    [(c) => c.apiKey === '', 'OpenRouter needs an API key: add it on the Model page.'],
-    [(c) => c.model === '', 'OpenRouter needs a model id: choose one on the Model page.'],
+    [(r) => r.connection.apiKey === '', "OpenRouter has no API key: add it on the organization's Models page."],
+    [(r) => r.model === '', "OpenRouter needs a model id: choose one on the organization's Models page."],
   ],
   codex: [
-    [(c) => c.codex === null, CODEX_SIGN_IN],
-    [(c) => c.model === '', 'Codex needs a model id: choose one on the Model page.'],
-  ],
-  gemini: [
-    [(c) => c.gemini === null, 'Gemini is not connected: sign in with Google on the Model page.'],
-    [(c) => c.model === '', 'Gemini needs a model id: choose one on the Model page.'],
+    [(r) => r.connection.codex === null, CODEX_SIGN_IN],
+    [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Models page."],
   ],
 };
 
-export function notReady(cfg: ModelConfig, conn = routedConnection(cfg)): string | null {
-  if (conn === null) return cfg.connections.length === 0 ? null : PASSTHROUGH;
-  return CHECKS[conn.provider].find(([missing]) => missing(conn))?.[1] ?? null;
-}
+export const notReady = (route: Route): string | null => CHECKS[route.connection.provider].find(([missing]) => missing(route))?.[1] ?? null;
 
 export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
 
-const DEFAULTS: Record<Provider, (requested: string, c: Connection) => string> = {
-  openrouter: (requested, c) => (requested.includes('/') ? requested : c.model),
-  bedrock: (requested, c) => (c.model === '' ? requested : c.model),
-  codex: (requested, c) => (requested.startsWith('gpt-') ? requested : c.model),
-  gemini: (requested, c) => (requested.startsWith('gemini-') ? requested : c.model),
-  anthropic: (requested, c) => (c.model === '' || isSmallModel(requested) ? requested : c.model),
+const DEFAULTS: Record<Provider, (requested: string, model: string) => string> = {
+  openrouter: (requested, model) => (requested.includes('/') ? requested : model),
+  bedrock: (requested, model) => (model === '' ? requested : model),
+  codex: (requested, model) => (requested.startsWith('gpt-') ? requested : model),
+  anthropic: (requested, model) => (model === '' || isSmallModel(requested) ? requested : model),
 };
 
-function forProvider(cfg: ModelConfig, provider: Provider): Connection | null {
-  const routed = routedConnection(cfg);
+function forProvider(setup: ModelSetup, provider: Provider): Connection | null {
+  const routed = primaryRoute(setup)?.connection ?? null;
   if (routed?.provider === provider) return routed;
-  return cfg.connections.find((c) => c.provider === provider) ?? null;
+  return setup.connections.find((c) => c.provider === provider) ?? null;
 }
 
 export const bareModel = (requested: string): string => PREFIX_RE.exec(requested)?.[2]?.trim() ?? requested;
 
-export function resolveRoute(requested: string, cfg: ModelConfig): Route | null {
+export function resolveRoute(requested: string, setup: ModelSetup): Route | null {
   const explicit = PREFIX_RE.exec(requested);
   if (explicit !== null && isProvider(explicit[1])) {
-    const conn = forProvider(cfg, explicit[1]);
-    return conn === null ? null : { connection: conn, model: (explicit[2] ?? '').trim() };
+    const conn = forProvider(setup, explicit[1]);
+    if (conn !== null) return { connection: conn, model: (explicit[2] ?? '').trim() };
   }
-  const routed = routedConnection(cfg);
-  return routed === null ? null : { connection: routed, model: DEFAULTS[routed.provider](requested, routed) };
+  const primary = primaryRoute(setup);
+  if (primary === null) return null;
+  return { connection: primary.connection, model: DEFAULTS[primary.connection.provider](bareModel(requested), primary.model) };
 }
 
 export const routeLabel = (route: Route): string =>
   route.connection.provider === 'anthropic' ? route.model : `${route.connection.provider}:${route.model}`;
 
-export const PASSTHROUGH_ID = 'passthrough';
-
-function signedInAs(c: Connection): { account: string | null; plan: string | null; method?: CodexMethod } {
-  if (c.claude !== null) return { account: c.claude.email, plan: c.claude.plan };
-  if (c.codex !== null) return { account: c.codex.email, plan: c.codex.method === 'code' ? c.codex.plan : null, method: c.codex.method };
-  return { account: c.gemini?.email ?? null, plan: c.gemini?.tier ?? null };
-}
-
-function publicConnection(c: Connection): Record<string, unknown> {
-  return {
-    id: c.id,
-    provider: c.provider,
-    label: c.label,
-    model: c.model,
-    hasKey: c.apiKey !== '',
-    region: c.region,
-    zdr: c.zdr,
-    signedIn: c.codex !== null || c.gemini !== null || c.claude !== null,
-    ...signedInAs(c),
-  };
-}
-
-export function publicModelConfig(cfg: ModelConfig): Record<string, unknown> {
-  const reason = notReady(cfg);
-  return { route: cfg.route, ready: reason === null, reason, connections: cfg.connections.map(publicConnection) };
-}
-
-const withConnection = (cfg: ModelConfig, id: string, change: (c: Connection) => Connection): ModelConfig => ({
-  ...cfg,
-  connections: cfg.connections.map((c) => (c.id === id ? change(c) : c)),
-});
-
-export const setCodexAuth = (cfg: ModelConfig, id: string, auth: CodexTokens | null): ModelConfig =>
-  withConnection(cfg, id, (c) => ({ ...c, codex: auth }));
-
-export const setGeminiAuth = (cfg: ModelConfig, id: string, auth: GeminiTokens | null): ModelConfig =>
-  withConnection(cfg, id, (c) => ({ ...c, gemini: auth }));
-
-export const setClaudeLogin = (cfg: ModelConfig, id: string, login: ClaudeLogin | null): ModelConfig =>
-  withConnection(cfg, id, (c) => ({ ...c, claude: login }));
-
-function field(patch: Record<string, unknown>, key: string, current: string, what: string, max = MAX_FIELD): string {
-  if (!(key in patch)) return current;
-  const value = patch[key];
-  if (typeof value !== 'string') throw new ModelConfigError(`${what} must be a string`);
-  if (value.length > max) throw new ModelConfigError(`${what} is too long`);
-  return value.trim();
-}
-
-function flag(patch: Record<string, unknown>, key: string, current: boolean, what: string): boolean {
-  if (!(key in patch)) return current;
-  const value = patch[key];
-  if (typeof value !== 'boolean') throw new ModelConfigError(`${what} must be true or false`);
-  return value;
-}
-
-function labelFor(cfg: ModelConfig, provider: Provider, given: string): string {
-  if (given !== '') return given.slice(0, MAX_LABEL);
-  const taken = cfg.connections.filter((c) => c.provider === provider).length;
-  return taken === 0 ? LABELS[provider] : `${LABELS[provider]} ${String(taken + 1)}`;
-}
-
-export function addConnection(cfg: ModelConfig, patch: unknown): ModelConfig {
-  if (!isRecord(patch) || !isProvider(patch.provider)) throw new ModelConfigError(`provider must be one of ${PROVIDERS.join(', ')}`);
-  if (cfg.connections.length >= MAX_CONNECTIONS) throw new ModelConfigError(`a box keeps at most ${String(MAX_CONNECTIONS)} connections`);
-  const made = newConnection(patch.provider, labelFor(cfg, patch.provider, field(patch, 'label', '', 'label', MAX_LABEL)));
-  const filled = applyToConnection(made, patch);
-  return { ...cfg, route: cfg.route === '' ? filled.id : cfg.route, connections: [...cfg.connections, filled] };
-}
-
-function applyToConnection(c: Connection, patch: Record<string, unknown>): Connection {
-  return {
-    ...c,
-    label: field(patch, 'label', c.label, 'label', MAX_LABEL),
-    model: field(patch, 'model', c.model, 'model'),
-    apiKey: field(patch, 'apiKey', c.apiKey, 'API key'),
-    region: field(patch, 'region', c.region, 'region'),
-    zdr: flag(patch, 'zdr', c.zdr, 'zero data retention'),
-  };
-}
-
-export function updateConnection(cfg: ModelConfig, id: string, patch: unknown): ModelConfig {
-  if (!isRecord(patch)) throw new ModelConfigError('body must be a JSON object');
-  requireConnection(cfg, id);
-  return withConnection(cfg, id, (c) => applyToConnection(c, patch));
-}
-
-export function removeConnection(cfg: ModelConfig, id: string): ModelConfig {
-  requireConnection(cfg, id);
-  const connections = cfg.connections.filter((c) => c.id !== id);
-  const next = { ...cfg, route: cfg.route === id ? (connections[0]?.id ?? '') : cfg.route, connections };
-  return withFallbacks(next, (cfg.fallbacks ?? []).filter((f) => f.connection !== id));
-}
-
-function fallbackEntry(cfg: ModelConfig, raw: unknown): Fallback {
-  if (!isRecord(raw)) throw new ModelConfigError('each fallback must be an object with a connection and a model');
-  const connection = field(raw, 'connection', '', 'connection');
-  const model = field(raw, 'model', '', 'model');
-  requireConnection(cfg, connection);
-  if (model === '') throw new ModelConfigError('each fallback needs a model');
-  return { connection, model };
-}
-
-export function setFallbacks(cfg: ModelConfig, raw: unknown): ModelConfig {
-  if (!Array.isArray(raw)) throw new ModelConfigError('fallbacks must be a list');
-  if (raw.length > MAX_FALLBACKS) throw new ModelConfigError(`a box keeps at most ${String(MAX_FALLBACKS)} fallbacks`);
-  const entries = raw.map((f: unknown) => fallbackEntry(cfg, f));
-  return withFallbacks(cfg, fallbacksOf(entries, cfg.connections));
-}
-
-export function setRoute(cfg: ModelConfig, id: string): ModelConfig {
-  requireConnection(cfg, id);
-  return { ...cfg, route: id };
+export function runnerModel(setup: ModelSetup): string | null {
+  const primary = primaryRoute(setup);
+  return primary === null || primary.model === '' ? null : routeLabel(primary);
 }

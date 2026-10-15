@@ -2,7 +2,7 @@
   "name": "@metro-labs/connectors",
   "version": "0.1.0",
   "private": true,
-  "description": "The organization connector runtime shared by api.metro.box and mcp.metro.box: sealed secrets, OAuth refresh with its uncertainty records, the safe egress, tool listing, the connector and agent key tables with their store functions, and agent request authentication. No HTTP routing.",
+  "description": "The organization connector runtime shared by api.metro.box and mcp.metro.box: sealed secrets, OAuth refresh with its uncertainty records, the safe egress, tool listing, the connector and agent key tables with their store functions, the organization model connections and routes with their sealed secrets and Codex refresh, and agent request authentication. No HTTP routing.",
   "type": "module",
   "exports": {
     "./model": "./src/model.ts",
@@ -21,7 +21,13 @@
     "./db/connectors": "./src/db/connectors.ts",
     "./db/connector-delivery": "./src/db/connector-delivery.ts",
     "./db/agent-keys": "./src/db/agent-keys.ts",
-    "./db/agent-nonces": "./src/db/agent-nonces.ts"
+    "./db/agent-nonces": "./src/db/agent-nonces.ts",
+    "./model-secret": "./src/model-secret.ts",
+    "./model-route": "./src/model-route.ts",
+    "./model-refresh": "./src/model-refresh.ts",
+    "./codex-tokens": "./src/codex-tokens.ts",
+    "./db/models": "./src/db/models.ts",
+    "./db/model-delivery": "./src/db/model-delivery.ts"
   },
   "scripts": {
     "build": "tsc",

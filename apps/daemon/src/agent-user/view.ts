@@ -4,6 +4,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
 import { MCP_TOKEN_FILE } from '../mcp-server/token.js';
+import { effectiveSetup, modelViewText } from '../gateway/effective.js';
 import { removeHome, writeHomeText } from './home-fs.js';
 import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';
@@ -39,17 +40,10 @@ function agentFile(dir: string): string | null {
   return json({ version: 1, id: file.id, key: file.key });
 }
 
-function modelFile(dir: string): string | null {
-  const cfg = readRecord(join(dir, 'model.json'));
-  if (cfg === null || !Array.isArray(cfg.connections)) return null;
-  const connections = cfg.connections.filter(isRecord).map((c) => ({ id: c.id, provider: c.provider, model: c.model }));
-  return json({ version: 2, route: cfg.route, connections });
-}
-
-export function viewFiles(dir = agentsDir()): Map<string, string | null> {
+export function viewFiles(dir = agentsDir(), model: () => string | null = () => modelViewText(effectiveSetup(dir))): Map<string, string | null> {
   const files = new Map<string, string | null>([
     ['agent.json', agentFile(dir)],
-    ['model.json', modelFile(dir)],
+    ['model.json', model()],
   ]);
   for (const name of COPIED) files.set(name, existsSync(join(dir, name)) ? readText(join(dir, name)) : null);
   for (const name of NEVER_COPIED) files.set(name, null);

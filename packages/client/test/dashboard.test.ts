@@ -8,11 +8,11 @@ const report = (used: number | null, label = 'Weekly', at = NOW, resetAt: string
   at: new Date(at).toISOString(), windows: [{ label, used, resetAt, detail: null }], note: null, tally: null,
 });
 const connection = (id: string, account: string | null = `${id}@example.invalid`) => ({
-  id, provider: 'codex', model: 'gpt-test', label: `Connection ${id}`, account, signedIn: true,
+  id, provider: 'codex', model: 'gpt-test', label: `Connection ${id}`, account: { email: account, plan: null, method: 'chatgpt' },
 });
 const settings = () => toModelSettings({
-  route: 'a', connections: [connection('a'), connection('b')],
-  fallbacks: [{ connection: 'b', model: 'gpt-test' }],
+  route: { primary: { connection: 'a', model: 'gpt-test' }, fallbacks: [{ connection: 'b', model: 'gpt-test' }] },
+  source: 'organization', connections: [connection('a'), connection('b')],
   chain: [{ connection: 'a', model: 'gpt-test', active: true }, { connection: 'b', model: 'gpt-test', active: false }],
   usage: { a: report(0.47), b: report(0), passthrough: report(1) },
 });
@@ -46,14 +46,14 @@ describe('dashboard identity and model selection', () => {
 
   test('an active fallback uses its chosen model, not the primary or connection default', () => {
     const value = toModelSettings({
-      route: 'a', connections: [connection('a'), { ...connection('b'), provider: 'gemini', model: 'gemini-default' }],
-      fallbacks: [{ connection: 'b', model: 'gemini-flash' }],
-      chain: [{ connection: 'a', model: 'gpt-test', active: false }, { connection: 'b', model: 'gemini-flash', active: true }],
+      route: { primary: { connection: 'a', model: 'gpt-test' }, fallbacks: [{ connection: 'b', model: 'claude-sonnet-test' }] },
+      connections: [connection('a'), { ...connection('b'), provider: 'anthropic', model: 'claude-opus-test' }],
+      chain: [{ connection: 'a', model: 'gpt-test', active: false }, { connection: 'b', model: 'claude-sonnet-test', active: true }],
       usage: { a: report(0.98), b: { at: new Date(NOW).toISOString(), windows: [
-        { label: 'gemini-default', used: 1 }, { label: 'gemini-flash', used: 0.12 }, { label: 'gemini-flash-plus', used: 0.99 },
+        { label: 'Weekly, Opus', used: 1 }, { label: 'Weekly, Sonnet', used: 0.12 },
       ] } },
     });
-    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'gemini-flash', usage: 'gemini-flash · 12% used', used: 0.12, note: 'Current fallback route' });
+    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'claude-sonnet-test', usage: 'Weekly, Sonnet · 12% used', used: 0.12, note: 'Current fallback route' });
   });
 
   test('a current held route reports the hold rather than silently presenting an inactive fallback', () => {
@@ -86,16 +86,16 @@ describe('dashboard identity and model selection', () => {
   });
 
   test('only an explicit passthrough route uses the passthrough reading and served model', () => {
-    const value = toModelSettings({ route: '', connections: [], usage: { passthrough: report(0.2) },
+    const value = toModelSettings({ route: null, connections: [], usage: { passthrough: report(0.2) },
       lastServed: { connection: 'passthrough', provider: 'anthropic', model: 'claude-sonnet-test', at: new Date(NOW).toISOString() },
     });
-    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'claude-sonnet-test', connection: 'Claude Code login', usage: 'Weekly, all models · 20% used' });
+    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'claude-sonnet-test', connection: 'Claude Code login of the server', usage: 'Weekly, all models · 20% used' });
     if (value.lastServed !== null) value.lastServed.connection = 'other-account';
     expect(dashboardModel(value, NOW).model).toBe('Model not reported');
   });
 
   test('model-scoped, expired and per-minute windows cannot inflate the selected model', () => {
-    const value = toModelSettings({ route: 'a', connections: [{ ...connection('a'), provider: 'anthropic', model: 'claude-sonnet-test' }],
+    const value = toModelSettings({ route: { primary: { connection: 'a', model: 'claude-sonnet-test' }, fallbacks: [] }, connections: [{ ...connection('a'), provider: 'anthropic' }],
       usage: { a: { at: new Date(NOW).toISOString(), windows: [
         { label: 'Weekly, Opus', used: 1 }, { label: 'Weekly, Sonnet', used: 0.12 },
         { label: 'Weekly', used: 0.4 }, { label: 'Tokens per minute', used: 1 },

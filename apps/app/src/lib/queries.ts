@@ -28,8 +28,6 @@ import {
   type SkillListing,
   type MemoryListing,
 } from '@metro-labs/client/api/claude';
-import { fetchClaudeAccount } from '@metro-labs/client/api/claude';
-import type { ConnectionRow } from '@metro-labs/client/api/model';
 import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type ClaudeSetup } from '@metro-labs/client/api/claude-box';
 import { fetchMode, type ModeInfo } from '@metro-labs/client/api/mode';
 import { sessionPollMs } from '@metro-labs/client/api/runner-activity';
@@ -41,7 +39,6 @@ import { fetchLatestUsage, type LatestUsage } from '@metro-labs/client/api/lates
 import { fetchLaunchOverview, type LaunchOverview } from '@metro-labs/client/api/launch';
 import { fetchSize, jobRunning, type SizeView } from '@metro-labs/client/api/size';
 import { applying, fetchStorage, growRunning, type StorageView } from '@metro-labs/client/api/storage';
-import { anthropicModels, bedrockModels, codexModels, fetchModel, geminiModels, openrouterModels, openrouterZdrModels, type ModelOption, type ModelSettings } from '@metro-labs/client/api/model';
 import { fetchSchedules, type Schedules } from '@metro-labs/client/api/schedules';
 import { currentOrganization } from '@metro-labs/client/auth/org-route';
 import { readItem, writeItem } from '@metro-labs/client/platform';
@@ -50,7 +47,6 @@ import { clearDeniedRunCache } from './run-cache.js';
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
 const LIVE_MS = 5_000;
-const LONG_MS = 10 * 60_000;
 const STATUS_POLL_MS = 15_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
@@ -69,7 +65,6 @@ type BoxName =
   | 'claude-skill'
   | 'memory'
   | 'model'
-  | 'openrouter-zdr'
   | 'connection-models'
   | 'mode'
   | 'session'
@@ -261,40 +256,9 @@ export const useLatestUsageQuery = (): UseQueryResult<Record<string, LatestUsage
 export const useClaudeSessionQuery = ({ live = false }: { live?: boolean } = {}): UseQueryResult<ClaudeSessionStatus> =>
   useBoxQuery('claude-session', fetchClaudeSession, { staleTime: 3_000, refetchInterval: (query) => sessionPollMs(query.state.data, live) });
 
-function useClaudeLoginOf(conn: ConnectionRow | undefined): string | null {
-  const own = conn === undefined || (conn.provider === 'anthropic' && !conn.hasKey && !conn.signedIn);
-  const account = useBoxQuery('claude-account', fetchClaudeAccount, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS, enabled: own });
-  return own && account.error === null ? (account.data?.account ?? null) : null;
-}
-
-export function useAccountOf(conn: ConnectionRow | undefined): string | null {
-  const login = useClaudeLoginOf(conn);
-  return login ?? conn?.account ?? null;
-}
-
 export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuery('claude-setup', fetchClaudeSetup, { staleTime: 10_000, refetchOnMount: 'always' });
 
 export const useSchedulesQuery = (): UseQueryResult<Schedules> => useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, retry: false });
-
-export const useModelQuery = (): UseQueryResult<ModelSettings> =>
-  useBoxQuery('model', fetchModel, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS });
-
-export const useOpenRouterZdrQuery = (enabled: boolean): UseQueryResult<Set<string>> =>
-  useBoxQuery('openrouter-zdr', openrouterZdrModels, { enabled, staleTime: LONG_MS });
-
-async function connectionModels(provider: string, id: string): Promise<ModelOption[]> {
-  if (provider === 'anthropic') return anthropicModels(id);
-  if (provider === 'bedrock') return bedrockModels(id);
-  if (provider === 'openrouter') return openrouterModels();
-  const ids = provider === 'gemini' ? await geminiModels(id) : await codexModels(id);
-  return ids.map((each) => ({ id: each, name: each }));
-}
-
-export function useConnectionModelsQuery(connection: { id: string; provider: string } | undefined): UseQueryResult<ModelOption[]> {
-  const id = connection?.id ?? '';
-  const provider = connection?.provider ?? '';
-  return useBoxQuery(['connection-models', provider, id], () => connectionModels(provider, id), { enabled: id !== '', staleTime: LONG_MS });
-}
 
 export const useApprovalsQuery = (): UseQueryResult<Approval[]> =>
   useBoxQuery('approvals', fetchApprovals, { staleTime: 5_000, refetchInterval: 15_000 });

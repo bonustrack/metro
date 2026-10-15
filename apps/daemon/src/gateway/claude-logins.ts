@@ -5,13 +5,14 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readFileSync } from '../agent-user/agent-fs.js';
-import { removeHome } from '../agent-user/home-fs.js';
+import { moveHome, removeHome } from '../agent-user/home-fs.js';
 import { claudeHome } from '../agent-user/user.js';
 import { claudeAccountIn, type ClaudeAccount, type LoginTarget } from '../claude/login.js';
 import { readClaudeUsage } from '../claude/usage-probe.js';
 import { currentOf, reach, refreshed, type TokenSource, type TokenState } from './subscription.js';
-import { forgetReported } from './usage.js';
-import { addConnection, connectionOf, readModelConfig, setClaudeLogin, writeModelConfig, type ModelConfig } from './model-config.js';
+import { forgetOne, forgetReported } from './usage.js';
+import { readClaudeLogins, writeClaudeLogins, type ClaudeLogin } from './claude-store.js';
+import { loginRef } from './model-config.js';
 
 const CREDENTIALS = '.credentials.json';
 const RENEW_MARGIN_MS = 60_000;
@@ -22,8 +23,7 @@ export interface ClaudeLoginDeps {
   root?: string;
   probe?: (env: Record<string, string>) => Promise<unknown>;
   account?: (env: Record<string, string>) => ClaudeAccount;
-  read?: () => ModelConfig;
-  write?: (cfg: ModelConfig) => void;
+  dir?: string;
 }
 
 interface ClaudeTokens {
@@ -110,56 +110,80 @@ export function withClaudeLogin(login: string, deps: ClaudeLoginDeps, send: (tok
   );
 }
 
-function dropClaudeLogin(login: string, deps: ClaudeLoginDeps): void {
+const folderOf = (login: string, deps: ClaudeLoginDeps): string => claudeLoginEnv(login, deps).CLAUDE_CONFIG_DIR ?? '';
+
+function forgetTokens(login: string): void {
   seen.delete(login);
   state.delete(login);
+}
+
+function dropFolder(login: string, deps: ClaudeLoginDeps): void {
+  forgetTokens(login);
   try {
-    removeHome(claudeLoginEnv(login, deps).CLAUDE_CONFIG_DIR ?? '', true);
+    removeHome(folderOf(login, deps), true);
   } catch (err) {
-    log.warn({ err: errMsg(err) }, 'claude-logins: could not remove a Claude login that is no longer used');
+    log.warn({ err: errMsg(err) }, 'claude-logins: could not remove the folder of a Claude login that is no longer used');
   }
 }
 
-export function dropUnusedClaudeLogins(before: ModelConfig, after: ModelConfig, deps: ClaudeLoginDeps = {}): void {
-  const kept = new Set(after.connections.flatMap((c) => (c.claude === null ? [] : [c.claude.id])));
-  for (const c of before.connections) if (c.claude !== null && !kept.has(c.claude.id)) dropClaudeLogin(c.claude.id, deps);
+export function removeClaudeLogin(login: string, deps: ClaudeLoginDeps = {}): void {
+  const logins = readClaudeLogins(deps.dir);
+  if (!logins.some((l) => l.id === login)) throw new ApiError('no such Claude login on this box', 404);
+  writeClaudeLogins(logins.filter((l) => l.id !== login), deps.dir);
+  dropFolder(login, deps);
+  forgetOne(loginRef(login));
+  log.info({ login }, 'claude-logins: a Claude login was removed from this box');
 }
 
-function keep(login: string, connection: string | null, account: ClaudeAccount, deps: ClaudeLoginDeps): string | null {
-  const before = (deps.read ?? readModelConfig)();
-  const cfg = connection === null ? addConnection(before, { provider: 'anthropic' }) : before;
-  const id = connection ?? cfg.connections.at(-1)?.id ?? '';
-  if (connectionOf(cfg, id)?.provider !== 'anthropic') return 'that connection was removed during the sign-in';
-  const next = setClaudeLogin(cfg, id, { id: login, email: account.account, plan: account.plan, savedAt: new Date().toISOString() });
-  (deps.write ?? writeModelConfig)(next);
-  dropUnusedClaudeLogins(before, next, deps);
-  forgetReported(id);
-  log.info({ connection: id, plan: account.plan, added: connection === null }, 'claude-logins: the Claude login was kept for its own connection');
+function takeOver(fresh: string, replaced: string, deps: ClaudeLoginDeps): void {
+  const aside = `${folderOf(replaced, deps)}.old-${newId()}`;
+  moveHome(folderOf(replaced, deps), aside);
+  try {
+    moveHome(folderOf(fresh, deps), folderOf(replaced, deps));
+  } catch (err) {
+    moveHome(aside, folderOf(replaced, deps));
+    throw err;
+  }
+  forgetTokens(replaced);
+  try {
+    removeHome(aside, true);
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'claude-logins: could not remove the folder of the login that was signed in again');
+  }
+}
+
+function keep(login: string, replacing: string | null, account: ClaudeAccount, deps: ClaudeLoginDeps): string | null {
+  const logins = readClaudeLogins(deps.dir);
+  if (replacing !== null && !logins.some((l) => l.id === replacing)) return 'that Claude login was removed during the sign-in';
+  if (replacing !== null) takeOver(login, replacing, deps);
+  const entry: ClaudeLogin = { id: replacing ?? login, email: account.account, plan: account.plan, savedAt: new Date().toISOString() };
+  writeClaudeLogins(replacing === null ? [...logins, entry] : logins.map((l) => (l.id === replacing ? entry : l)), deps.dir);
+  forgetReported(loginRef(entry.id));
+  log.info({ login: entry.id, plan: account.plan, added: replacing === null }, 'claude-logins: the Claude login was kept on this box');
   return null;
 }
 
-function settle(ok: boolean, login: string, connection: string | null, deps: ClaudeLoginDeps): Promise<string | null> {
+function settle(ok: boolean, login: string, replacing: string | null, deps: ClaudeLoginDeps): Promise<string | null> {
   if (!ok) {
-    dropClaudeLogin(login, deps);
+    dropFolder(login, deps);
     return Promise.resolve(null);
   }
   let problem: string | null;
   try {
     const account = (deps.account ?? claudeAccountIn)(claudeLoginEnv(login, deps));
-    problem = account.signedIn ? keep(login, connection, account, deps) : 'the sign-in finished but Claude Code holds no login; try again';
+    problem = account.signedIn ? keep(login, replacing, account, deps) : 'the sign-in finished but Claude Code holds no login; try again';
   } catch (err) {
     problem = errMsg(err);
   }
-  if (problem !== null) dropClaudeLogin(login, deps);
+  if (problem !== null) dropFolder(login, deps);
   return Promise.resolve(problem);
 }
 
 export function claudeLoginTarget(asked: string, deps: ClaudeLoginDeps = {}): LoginTarget {
-  const connection = asked === NEW ? null : asked;
-  if (connection !== null && connectionOf((deps.read ?? readModelConfig)(), connection)?.provider !== 'anthropic')
-    throw new ApiError('no such Anthropic connection', 404);
+  const replacing = asked === NEW ? null : asked;
+  if (replacing !== null && !readClaudeLogins(deps.dir).some((l) => l.id === replacing)) throw new ApiError('no such Claude login on this box', 404);
   const login = newId();
-  return { key: asked, env: claudeLoginEnv(login, deps), settle: (ok) => settle(ok, login, connection, deps) };
+  return { key: asked, env: claudeLoginEnv(login, deps), settle: (ok) => settle(ok, login, replacing, deps) };
 }
 
 export function forgetClaudeTokens(): void {

@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,7 +30,8 @@ const { setTrainCallBackend } = await import('../../apps/daemon/src/stations/tra
 const { setPolicies } = await import('../../apps/daemon/src/policy/policy.ts');
 const { watchPolicySnapshot } = await import('../../apps/daemon/src/mcp/policy-snapshot.ts');
 const { handleGatewayRequest } = await import('../../apps/daemon/src/gateway/gateway.ts');
-const { readModelConfig } = await import('../../apps/daemon/src/gateway/model-config.ts');
+const { setupOf } = await import('../../apps/daemon/src/gateway/effective.ts');
+const { deliveredOf } = await import('../../apps/daemon/src/gateway/delivered.ts');
 const { startAgent } = await import('../../packages/sdk-runner/src/app.ts');
 const { runnerConfig } = await import('../../packages/sdk-runner/src/config.ts');
 
@@ -78,17 +79,27 @@ const scriptedRoute = process.env.SDK_RUNNER_CHECK_ROUTE === 'scripted';
 const gatewayOn = keyRoute || scriptedRoute;
 export const standIn: StandIn | null = keyRoute ? await startStandIn(PORT + 1) : null;
 export const upstream: ScriptedUpstream | null = scriptedRoute ? await startScripted(PORT + 1) : null;
-if (keyRoute) {
-  writeFileSync(
-    join(AGENTS, 'model.json'),
-    JSON.stringify({ version: 2, route: 'keyed', connections: [{ id: 'keyed', provider: 'anthropic', label: 'Anthropic', model: '', apiKey: STANDIN_KEY, region: '', zdr: false }] }),
-  );
+const keyed = { route: { primary: { connection: 'keyed', model: '' }, fallbacks: [] }, source: 'organization', connections: [{ id: 'keyed', provider: 'anthropic', label: 'Anthropic', credential: { apiKey: STANDIN_KEY } }] };
+let delivered = keyRoute ? deliveredOf(keyed) : null;
+const modelListeners = new Set<() => void>();
+export const modelChanges = {
+  onChange: (listener: () => void): (() => void) => {
+    modelListeners.add(listener);
+    return () => {
+      modelListeners.delete(listener);
+    };
+  },
+};
+export const deliveredSetup = (): ReturnType<typeof setupOf> => setupOf(delivered, []);
+export function deliver(raw: Record<string, unknown>): void {
+  delivered = deliveredOf(raw);
+  for (const listener of modelListeners) listener();
 }
 
 export const mcp = await createMetroMcp();
 mcp.startInbound();
 export const UPSTREAM = `http://127.0.0.1:${String(PORT + 1)}`;
-const gateway = { config: () => readModelConfig(AGENTS), identify: (key: string) => key === KEY, anthropicBase: UPSTREAM, openrouterBase: UPSTREAM };
+const gateway = { setup: deliveredSetup, identify: (key: string) => key === KEY, anthropicBase: UPSTREAM, openrouterBase: UPSTREAM };
 let also: ((req: IncomingMessage, res: ServerResponse) => boolean) | null = null;
 export const serveAlso = (handler: (req: IncomingMessage, res: ServerResponse) => boolean): void => {
   also = handler;

@@ -143,6 +143,18 @@ describe('the first segment is the daemon', () => {
     expect(routeHash({ kind: 'org-connector', id: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/organization/connectors/aB3-_xYz9Qw');
     expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'connectors', project: 'aB3-_xYz9Qw' });
   });
+
+  test('the organization Models page is an organization page, and an agent keeps its own Model page', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: null });
+    expect(routeSelection('#/organization/models')).toEqual({ kind: 'org-models' });
+    expect(routeHash({ kind: 'org-models' })).toEndWith('/organization/models');
+    expect(routeSelection('#/organization/models/x').kind).toBe('none');
+    expect(routeSelection('#/organization/models?openrouter=orA00000001')).toEqual({ kind: 'org-models' });
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeSelection('#/stage-labs/organization/models')).toEqual({ kind: 'org-models' });
+    expect(routeHash({ kind: 'org-models' })).toBe('#/stage-labs/organization/models');
+    expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/model')).toEqual({ kind: 'model', project: 'aB3-_xYz9Qw' });
+  });
 });
 
 describe('switching server keeps the page', () => {

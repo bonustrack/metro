@@ -4,8 +4,6 @@ import { stringOf } from '@metro-labs/http/api-http';
 const IMAGE_NOTE = '[an image was attached here; this model cannot see it]';
 export const TOOL_ERROR = '[tool error]';
 
-export const nonEmpty = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
-
 export interface InlineImage {
   mediaType: string;
   data: string;

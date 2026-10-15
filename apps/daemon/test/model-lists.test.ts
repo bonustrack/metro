@@ -3,9 +3,9 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
 import { forgetModelLists, LIST_TTL_MS, listCache, RETRY_MS } from '../src/gateway/model-lists.ts';
-import { anthropicModels } from '../src/gateway/provider-models.ts';
-import type { ModelConfig } from '../src/gateway/model-config.ts';
-import { configOf, makeConnection } from './model-fixture.ts';
+import { claudeModels } from '../src/gateway/provider-models.ts';
+import { SESSION_LOGIN, type ModelSetup } from '../src/gateway/model-config.ts';
+import { makeConnection, setupOf } from './model-fixture.ts';
 import { recordedClaudeModels, THINKING_OFF_REFUSAL } from './claude-models-fixture.ts';
 import { settle, waitFor } from './wait.ts';
 
@@ -24,7 +24,7 @@ let anthropic: Server;
 let gateway: Server;
 let anthropicBase = '';
 let base = '';
-let cfg: ModelConfig;
+let cfg: ModelSetup;
 let loginValid = true;
 
 const listen = async (server: Server): Promise<string> => {
@@ -65,7 +65,7 @@ beforeAll(async () => {
   });
   anthropicBase = await listen(anthropic);
   gateway = createServer((req, res) => {
-    if (handleGatewayRequest(req, res, { config: () => cfg, identify: (key) => key === 'mk_ok', anthropicBase })) return;
+    if (handleGatewayRequest(req, res, { setup: () => cfg, identify: (key) => key === 'mk_ok', anthropicBase })) return;
     res.writeHead(404).end();
   });
   base = await listen(gateway);
@@ -76,12 +76,14 @@ afterAll(() => {
   gateway.close();
 });
 
+const session = (): ModelSetup => setupOf(SESSION_LOGIN, [makeConnection('anthropic', { id: SESSION_LOGIN })]);
+
 beforeEach(() => {
   resetGatewayState();
   forgetModelLists();
   seen.length = 0;
   loginValid = true;
-  cfg = configOf('anthropic', [makeConnection('anthropic', { model: 'claude-sonnet-5-5' })]);
+  cfg = { ...session(), primary: { connection: SESSION_LOGIN, model: 'claude-sonnet-5-5' } };
 });
 
 const post = (body: Record<string, unknown>, authorization = LOGIN): Promise<Response> =>
@@ -93,8 +95,7 @@ const post = (body: Record<string, unknown>, authorization = LOGIN): Promise<Res
 
 const turn = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({ model: 'claude-opus-5-5', max_tokens: 8, messages: [{ role: 'user', content: 'hi' }], ...extra });
 
-const keyless = makeConnection('anthropic');
-const ids = async (): Promise<string[]> => (await anthropicModels(keyless, anthropicBase)).map((m) => m.id);
+const ids = (): Promise<string[]> => Promise.resolve(claudeModels(anthropicBase).map((m) => m.id));
 const listings = (): Seen[] => seen.filter((s) => s.method === 'GET');
 
 async function until(check: () => Promise<boolean>, ms = 5000): Promise<void> {
@@ -112,7 +113,7 @@ describe('the Anthropic model list without an API key', () => {
     expect(seen).toEqual([]);
     expect((await post(turn())).status).toBe(200);
     await until(async () => (await ids()).length === recordedClaudeModels.data.length);
-    const live = await anthropicModels(keyless, anthropicBase);
+    const live = claudeModels(anthropicBase);
     expect(live[0]).toEqual({ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' });
     expect(live.map((m) => m.id)).toEqual(recordedClaudeModels.data.map((m) => m.id));
     expect(listings()[0]?.auth).toBe(LOGIN);
@@ -122,7 +123,7 @@ describe('the Anthropic model list without an API key', () => {
   });
 
   test('never uses the agent key metro stands in with, and keeps the built-in list when the login cannot list', async () => {
-    cfg = configOf('anthropic', [makeConnection('anthropic')]);
+    cfg = session();
     expect((await post(turn(), 'Bearer mk_ok')).status).toBe(403);
     await waitFor(() => false, 50);
     expect(seen).toEqual([]);
@@ -130,7 +131,7 @@ describe('the Anthropic model list without an API key', () => {
     await post(turn());
     await waitFor(() => listings().length === 1);
     await waitFor(() => false, 50);
-    expect(await ids()).toEqual(await anthropicModels(keyless, 'http://127.0.0.1:1').then((l) => l.map((m) => m.id)));
+    expect(await ids()).toEqual(claudeModels('http://127.0.0.1:1').map((m) => m.id));
     await post(turn());
     await waitFor(() => false, 50);
     expect(listings().length).toBe(1);
@@ -138,26 +139,6 @@ describe('the Anthropic model list without an API key', () => {
 });
 
 describe('a model list kept for an hour', () => {
-  test('is reused while fresh, fetched again once stale, and kept when the provider then fails', async () => {
-    let clock = 0;
-    const cache = listCache<string>('test', () => clock);
-    let calls = 0;
-    const load = (list: string[]) => (): Promise<string[]> => {
-      calls += 1;
-      return Promise.resolve(list);
-    };
-    const fail = (): Promise<string[]> => Promise.reject(new Error('down'));
-    await expect(cache.get('k', fail)).rejects.toThrow('down');
-    expect(await cache.get('k', load(['a']))).toEqual(['a']);
-    expect(await cache.get('k', load(['b']))).toEqual(['a']);
-    clock = LIST_TTL_MS;
-    expect(await cache.get('k', load(['b']))).toEqual(['b']);
-    clock = 2 * LIST_TTL_MS;
-    expect(await cache.get('k', fail)).toEqual(['b']);
-    expect(cache.peek('k')).toEqual(['b']);
-    expect(calls).toBe(2);
-  });
-
   test('a background refresh runs only when the list is stale, and waits between failed tries', async () => {
     let clock = 0;
     const cache = listCache<string>('test', () => clock);

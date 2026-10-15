@@ -13,6 +13,7 @@ export type Selection =
   | { kind: 'organization' }
   | { kind: 'org-connectors' }
   | { kind: 'org-connector'; id: string }
+  | { kind: 'org-models' }
   | { kind: 'home'; project: string }
   | { kind: 'run'; project: string }
   | { kind: 'agent-settings'; project: string }

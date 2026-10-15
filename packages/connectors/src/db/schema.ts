@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable(
   'agents',
@@ -97,3 +97,46 @@ export const mcpApprovals = pgTable(
     uniqueIndex('mcp_approvals_pending_idx').on(t.agent, t.connector, t.tool, t.argsDigest).where(sql`${t.state} = 'pending'`),
   ],
 );
+
+export const modelConnections = pgTable(
+  'model_connections',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    provider: text('provider').notNull(),
+    label: text('label').notNull(),
+    model: text('model').notNull().default(''),
+    region: text('region').notNull().default(''),
+    zdr: boolean('zdr').notNull().default(false),
+    secret: text('secret'),
+    detail: text('detail'),
+    revision: integer('revision').notNull().default(1),
+    importAgent: text('import_agent'),
+    importId: text('import_id'),
+    createdBy: text('created_by').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [index('model_connections_owner_idx').on(t.owner), uniqueIndex('model_connections_import_idx').on(t.importAgent, t.importId)],
+);
+
+export const modelRoutes = pgTable(
+  'model_routes',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').references(() => agents.id, { onDelete: 'cascade' }),
+    route: text('route').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('model_routes_default_idx').on(t.owner).where(sql`${t.agent} IS NULL`),
+    uniqueIndex('model_routes_agent_idx').on(t.agent).where(sql`${t.agent} IS NOT NULL`),
+  ],
+);
+
+export const modelHosts = pgTable('model_hosts', {
+  owner: text('owner').primaryKey(),
+  chatgptHostId: text('chatgpt_host_id').notNull(),
+});

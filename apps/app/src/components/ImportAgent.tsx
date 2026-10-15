@@ -13,7 +13,7 @@ import { pickText } from '../lib/files.js';
 const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND = 'Adds what is missing. Nothing already here is replaced.';
-const OVERWRITE = 'Replaces what matches, including the whole model setup. The rest stays.';
+const OVERWRITE = 'Replaces what matches. The rest stays.';
 
 interface ImportAgentProps {
   open: boolean;
@@ -27,7 +27,6 @@ function landed(result: Applied): string {
     `${String(result.skills)} skills`,
     `${String(result.memory)} memory files`,
     `${String(result.sessions)} sessions`,
-    ...(result.model === 0 ? [] : ['the model setup']),
   ];
   return result.skipped === 0 ? parts.join(', ') : `${parts.join(', ')}; ${String(result.skipped)} left alone`;
 }
