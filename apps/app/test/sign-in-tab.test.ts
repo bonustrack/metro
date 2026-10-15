@@ -11,6 +11,7 @@ const external = [];
 mock.module('react-native', () => ({ Platform: { OS: platform } }));
 mock.module('./src/lib/open.js', () => ({ openExternal: (url) => external.push(url) }));
 mock.module('./src/lib/queries.js', () => ({ queryError: () => '', refresh: () => undefined }));
+mock.module('./src/lib/model-queries.js', () => ({ afterModelChange: () => undefined }));
 const { inNewTab } = await import('./src/components/sign-in-tab.js');
 const target = 'https://provider.example.com/authorize?resource=public';
 if (platform !== 'web') {

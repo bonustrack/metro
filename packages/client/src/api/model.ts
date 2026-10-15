@@ -2,8 +2,10 @@ import { filled, isRecord, str } from '../read.js';
 import { call } from './client.js';
 import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
+import { toModelOptions, type ModelOption } from './model-options.js';
+import { LOCAL_SESSION, isLocal, localLogin, loginOfLocal, toFallbacks, toRoute, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
 
-export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'gemini';
+export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
 
 export interface ProviderInfo {
   id: Provider;
@@ -13,34 +15,13 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: ProviderInfo[] = [
-  {
-    id: 'anthropic',
-    label: 'Anthropic',
-    site: 'https://anthropic.com',
-    blurb: 'Claude models, with your Claude subscription or an API key.',
-  },
+  { id: 'anthropic', label: 'Anthropic', site: 'https://anthropic.com', blurb: 'Claude models, with an API key from the Anthropic Console.' },
   { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account.' },
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },
-  {
-    id: 'codex',
-    label: 'Codex (ChatGPT)',
-    site: 'https://openai.com',
-    blurb: "GPT models on your ChatGPT Plus or Pro plan, with OpenAI's official sign-in.",
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini (Google)',
-    site: 'https://gemini.google.com',
-    blurb: 'Gemini models on your Google AI plan. Unofficial: Google can cut it off at any time.',
-  },
+  { id: 'codex', label: 'Codex (ChatGPT)', site: 'https://openai.com', blurb: "GPT models on a ChatGPT Plus or Pro plan, with OpenAI's official sign-in." },
 ];
 
-export interface Served {
-  connection: string;
-  provider: string;
-  model: string;
-  at: string;
-}
+export const ORG_MODELS_SINCE = '0.1.0-beta.309';
 
 export type CodexMethod = 'chatgpt' | 'code';
 
@@ -49,18 +30,27 @@ export interface ConnectionRow {
   provider: Provider;
   label: string;
   model: string;
-  hasKey: boolean;
   region: string;
   zdr: boolean;
-  signedIn: boolean;
+  hasKey: boolean;
+  signedOut: boolean;
   account: string | null;
   plan: string | null;
   method: CodexMethod | null;
 }
 
-export interface Fallback {
+export interface ClaudeLoginRow {
+  id: string;
+  email: string | null;
+  plan: string | null;
+  savedAt: string;
+}
+
+export interface Served {
   connection: string;
+  provider: string;
   model: string;
+  at: string;
 }
 
 export interface Hold {
@@ -70,63 +60,82 @@ export interface Hold {
 
 export const holdLine = (hold: Hold): string => (hold.until === null ? hold.reason : `${hold.reason}, ${untilLabel(hold.until)}`);
 
-export interface ChainRow extends Fallback {
+export interface ChainRow extends RouteStep {
   used: number | null;
   hold: Hold | null;
   active: boolean;
 }
 
+export interface ModelSync {
+  enrolled: boolean;
+  at: string | null;
+  error: string | null;
+}
+
 export interface ModelSettings {
-  route: string;
+  route: ModelRoute | null;
+  source: RouteSource;
+  sync: ModelSync | null;
   ready: boolean;
   reason: string | null;
   lastServed: Served | null;
   usage: Usage;
   connections: ConnectionRow[];
-  fallbacks: Fallback[] | null;
+  claude: ClaudeLoginRow[];
   chain: ChainRow[];
 }
 
-export interface ConnectionPatch {
-  provider?: Provider;
-  label?: string;
-  model?: string;
-  apiKey?: string;
-  region?: string;
-  zdr?: boolean;
-}
+const PASSTHROUGH = 'passthrough';
+const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
+export const SESSION_LABEL = 'Claude Code login of the server';
+export const CLAUDE_LOGIN_LABEL = 'Claude subscription';
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
+const methodOf = (value: unknown): CodexMethod | null => (value === 'chatgpt' || value === 'code' ? value : null);
+const local = (id: string): string => (id === PASSTHROUGH ? LOCAL_SESSION : id);
+
+export const usesKey = (p: Provider): boolean => KEY_PROVIDERS.includes(p);
 
 export function toServed(value: unknown): Served | null {
   if (!isRecord(value)) return null;
   const model = str(value.model);
   const at = str(value.at);
-  return model === '' || at === '' ? null : { connection: str(value.connection), provider: str(value.provider), model, at };
+  return model === '' || at === '' ? null : { connection: local(str(value.connection)), provider: str(value.provider), model, at };
 }
 
-function toConnection(raw: unknown): ConnectionRow | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || !isProvider(raw.provider)) return null;
+function accountOf(raw: Record<string, unknown>): Pick<ConnectionRow, 'account' | 'plan' | 'method'> {
+  if (isRecord(raw.account)) return { account: filled(raw.account.email), plan: filled(raw.account.plan), method: methodOf(raw.account.method) };
+  return { account: filled(raw.account), plan: filled(raw.plan), method: methodOf(raw.method) };
+}
+
+export function toConnection(raw: unknown): ConnectionRow | null {
+  if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '' || !isProvider(raw.provider)) return null;
+  const provider = raw.provider;
   return {
     id: raw.id,
-    provider: raw.provider,
+    provider,
     label: str(raw.label),
     model: str(raw.model),
-    hasKey: raw.hasKey === true,
     region: str(raw.region),
     zdr: raw.zdr === true,
-    signedIn: raw.signedIn === true,
-    account: filled(raw.account),
-    plan: filled(raw.plan),
-    method: raw.method === 'chatgpt' || raw.method === 'code' ? raw.method : null,
+    hasKey: typeof raw.hasKey === 'boolean' ? raw.hasKey : usesKey(provider) && !isLocal(raw.id),
+    signedOut: raw.signedOut === true || (provider === 'codex' && raw.signedIn === false),
+    ...accountOf(raw),
   };
 }
 
-function toFallback(raw: unknown): Fallback | null {
-  if (!isRecord(raw)) return null;
-  const fallback = { connection: str(raw.connection), model: str(raw.model) };
-  return fallback.connection === '' || fallback.model === '' ? null : fallback;
+function toClaudeLogin(raw: unknown): ClaudeLoginRow | null {
+  if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '') return null;
+  return { id: raw.id, email: filled(raw.email), plan: filled(raw.plan), savedAt: str(raw.savedAt) };
+}
+
+const blank = (id: string, label: string): ConnectionRow => ({
+  id, provider: 'anthropic', label, model: '', region: '', zdr: false, hasKey: false, signedOut: false, account: null, plan: null, method: null,
+});
+
+export function localConnections(claude: ClaudeLoginRow[]): ConnectionRow[] {
+  return [blank(LOCAL_SESSION, SESSION_LABEL), ...claude.map((login) => ({ ...blank(localLogin(login.id), CLAUDE_LOGIN_LABEL), account: login.email, plan: login.plan }))];
 }
 
 function toHold(raw: unknown): Hold | null {
@@ -137,70 +146,67 @@ function toHold(raw: unknown): Hold | null {
 function toChainRow(raw: unknown): ChainRow | null {
   if (!isRecord(raw)) return null;
   const used = typeof raw.used === 'number' && Number.isFinite(raw.used) ? Math.min(1, Math.max(0, raw.used)) : null;
-  return { connection: str(raw.connection), model: str(raw.model), used, hold: toHold(raw.hold), active: raw.active === true };
+  return { connection: local(str(raw.connection)), model: str(raw.model), used, hold: toHold(raw.hold), active: raw.active === true };
 }
 
+function flatRoute(body: Record<string, unknown>, connections: ConnectionRow[]): ModelRoute | null {
+  const id = local(str(body.route));
+  const fallbacks = toFallbacks(body.fallbacks);
+  if (id === '') return fallbacks.length === 0 ? null : { primary: { connection: LOCAL_SESSION, model: '' }, fallbacks };
+  const model = typeof body.model === 'string' ? body.model : (connections.find((c) => c.id === id)?.model ?? '');
+  return { primary: { connection: id, model }, fallbacks };
+}
+
+function toSync(raw: unknown): ModelSync | null {
+  if (!isRecord(raw)) return null;
+  return { enrolled: raw.enrolled === true, at: filled(raw.at), error: filled(raw.error) };
+}
+
+const listOf = <T>(raw: unknown, make: (item: unknown) => T | null): T[] => (Array.isArray(raw) ? raw.flatMap((item: unknown) => make(item) ?? []) : []);
+
+const claudeOf = (body: Record<string, unknown>): ClaudeLoginRow[] => listOf(body.claude ?? body.claudeLogins, toClaudeLogin);
+
 export function toModelSettings(body: unknown): ModelSettings {
-  if (!isRecord(body) || !Array.isArray(body.connections)) throw unexpected();
+  if (!isRecord(body) || (!Array.isArray(body.connections) && !('route' in body))) throw unexpected();
+  const claude = claudeOf(body);
+  const listed = listOf(body.connections, toConnection);
+  const connections = [...listed, ...localConnections(claude).filter((row) => !listed.some((c) => c.id === row.id))];
   return {
-    route: str(body.route),
+    route: typeof body.route === 'string' ? flatRoute(body, connections) : toRoute(body.route),
+    source: toSource(body.source),
+    sync: toSync(body.sync),
     ready: body.ready === true,
     reason: filled(body.reason),
     lastServed: toServed(body.lastServed),
     usage: toUsage(body.usage),
-    connections: body.connections.flatMap((c: unknown) => toConnection(c) ?? []),
-    fallbacks: Array.isArray(body.fallbacks) ? body.fallbacks.flatMap((f: unknown) => toFallback(f) ?? []) : null,
-    chain: Array.isArray(body.chain) ? body.chain.flatMap((r: unknown) => toChainRow(r) ?? []) : [],
+    connections,
+    claude,
+    chain: listOf(body.chain, toChainRow),
   };
 }
 
+export function usageOf(settings: ModelSettings, connection: string): Usage[string] | undefined {
+  const own = settings.usage[connection];
+  if (own !== undefined || !isLocal(connection)) return own;
+  return settings.usage[loginOfLocal(connection) ?? PASSTHROUGH];
+}
+
 const modelUrl = (): string => `${daemonBase()}/api/model`;
-const json = { 'content-type': 'application/json' };
 
 export async function fetchModel(): Promise<ModelSettings> {
   return toModelSettings(await call({ method: 'GET', base: modelUrl() }));
 }
 
-export async function fetchModelBundle(): Promise<Record<string, unknown>> {
-  const body = await call({ method: 'GET', base: `${modelUrl()}/bundle` });
-  if (!isRecord(body)) throw unexpected();
-  return body;
+export async function syncModel(): Promise<void> {
+  await call({ method: 'POST', base: modelUrl(), path: '/sync' });
 }
 
-export async function restoreModelBundle(bundle: Record<string, unknown>): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: `${modelUrl()}/restore`, headers: json, body: JSON.stringify(bundle) }));
+export async function removeClaudeLogin(id: string): Promise<void> {
+  await call({ method: 'DELETE', base: modelUrl(), path: `/claude/${encodeURIComponent(id)}` });
 }
 
-export async function chooseConnection(id: string): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'PUT', base: modelUrl(), headers: json, body: JSON.stringify({ route: id }) }));
-}
-
-export async function addConnection(patch: ConnectionPatch): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: '/connections', headers: json, body: JSON.stringify(patch) }));
-}
-
-export async function saveConnection(id: string, patch: ConnectionPatch): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'PUT', base: modelUrl(), path: `/connections/${id}`, headers: json, body: JSON.stringify(patch) }));
-}
-
-export async function saveFallbacks(fallbacks: Fallback[]): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'PUT', base: modelUrl(), path: '/fallbacks', headers: json, body: JSON.stringify({ fallbacks }) }));
-}
-
-export async function dropConnection(id: string): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'DELETE', base: modelUrl(), path: `/connections/${id}` }));
-}
-
-const withConnection = (path: string, id: string): string => (id === '' ? path : `${path}?connection=${encodeURIComponent(id)}`);
-
-export async function beginCodexLogin(id = ''): Promise<string> {
-  const body = await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/login', id) });
-  if (!isRecord(body) || typeof body.url !== 'string') throw unexpected();
-  return body.url;
-}
-
-export async function finishCodexLogin(url: string, id = ''): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: withConnection('/codex/callback', id), headers: json, body: JSON.stringify({ url }) }));
+export async function claudeModels(): Promise<ModelOption[]> {
+  return toModelOptions(await call({ method: 'GET', base: modelUrl(), path: '/claude-models' }));
 }
 
 const CODE_PARAM = /(?:^|[?&])code=[^&\s]/;
@@ -208,122 +214,6 @@ const STATE_PARAM = /(?:^|[?&])state=[^&\s]/;
 
 export const carriesCodeAndState = (pasted: string): boolean => CODE_PARAM.test(pasted.trim()) && STATE_PARAM.test(pasted.trim());
 
-export const CODEX_CODE_SINCE = '0.1.0-beta.256';
-
-export interface DeviceLogin {
-  id: string;
-  userCode: string;
-  verifyUrl: string;
-  interval: number;
-}
-
-export type DevicePoll = { status: 'pending' } | { status: 'done' } | { status: 'failed'; error: string };
-
-export async function beginCodexDevice(): Promise<DeviceLogin> {
-  const body = await call({ method: 'POST', base: modelUrl(), path: '/codex/device' });
-  if (!isRecord(body) || typeof body.id !== 'string' || typeof body.user_code !== 'string' || typeof body.verify_url !== 'string') throw unexpected();
-  return { id: body.id, userCode: body.user_code, verifyUrl: body.verify_url, interval: typeof body.interval === 'number' && body.interval >= 1 ? body.interval : 5 };
-}
-
-export async function pollCodexDevice(id: string, connection = ''): Promise<DevicePoll> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: withConnection(`/codex/device/${id}`, connection) });
-  if (!isRecord(body)) throw unexpected();
-  if (body.status === 'done') return { status: 'done' };
-  if (body.status === 'failed') return { status: 'failed', error: typeof body.error === 'string' ? body.error : 'The sign-in did not finish.' };
-  return { status: 'pending' };
-}
-
-export async function beginGeminiLogin(): Promise<{ url: string; state: string }> {
-  const body = await call({ method: 'POST', base: modelUrl(), path: '/gemini/login' });
-  if (!isRecord(body) || typeof body.url !== 'string' || typeof body.state !== 'string') throw unexpected();
-  return { url: body.url, state: body.state };
-}
-
-export async function finishGeminiLogin(code: string, state: string, project: string, id = ''): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'POST', base: modelUrl(), path: withConnection('/gemini/code', id), headers: json, body: JSON.stringify({ code, state, project }) }));
-}
-
-export async function geminiModels(id: string): Promise<string[]> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: withConnection('/gemini/models', id) });
-  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
-  return body.models.filter((m): m is string => typeof m === 'string');
-}
-
-export async function codexModels(id: string): Promise<string[]> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: withConnection('/codex/models', id) });
-  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
-  return body.models.filter((m): m is string => typeof m === 'string');
-}
-
-export const servedLabel = (served: Served): string => (served.provider === 'anthropic' ? served.model : `${served.provider}:${served.model}`);
-
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 export const ANTHROPIC_KEYS_URL = 'https://console.anthropic.com/settings/keys';
-const MATCH_MAX = 40;
-
-export interface ModelOption {
-  id: string;
-  name: string;
-  prompt?: number | null;
-  completion?: number | null;
-  created?: number | null;
-}
-
-const PER_MILLION = 1_000_000;
-
-const amount = (perToken: number): string => {
-  const each = perToken * PER_MILLION;
-  return `$${String(Number(each.toFixed(each >= 1 ? 2 : 3)))}`;
-};
-
-export function priceLabel(model: ModelOption): string {
-  const { prompt, completion } = model;
-  if (typeof prompt !== 'number' || typeof completion !== 'number') return '';
-  if (prompt === 0 && completion === 0) return 'Free';
-  return `${amount(prompt)} in · ${amount(completion)} out per 1M`;
-}
-
-export async function openrouterModels(): Promise<ModelOption[]> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/models' });
-  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
-  return body.models.flatMap((m: unknown) =>
-    isRecord(m) && typeof m.id === 'string'
-      ? [
-          {
-            id: m.id,
-            name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id,
-            prompt: typeof m.prompt === 'number' ? m.prompt : null,
-            completion: typeof m.completion === 'number' ? m.completion : null,
-            created: typeof m.created === 'number' ? m.created : null,
-          },
-        ]
-      : [],
-  );
-}
-
-export function matchModels(models: ModelOption[], query: string, limit = MATCH_MAX): ModelOption[] {
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w !== '');
-  const hit = (model: ModelOption): boolean => {
-    const hay = `${model.id} ${model.name}`.toLowerCase();
-    return words.every((word) => hay.includes(word));
-  };
-  return models.filter(hit).slice(0, limit);
-}
-
-export async function openrouterZdrModels(): Promise<Set<string>> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: '/openrouter/zdr' });
-  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
-  return new Set(body.models.filter((id): id is string => typeof id === 'string'));
-}
-
-async function providerModels(path: string, id: string): Promise<ModelOption[]> {
-  const body = await call({ method: 'GET', base: modelUrl(), path: id === '' ? path : `${path}?connection=${encodeURIComponent(id)}` });
-  if (!isRecord(body) || !Array.isArray(body.models)) throw unexpected();
-  return body.models.flatMap((m: unknown) =>
-    isRecord(m) && typeof m.id === 'string' ? [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id }] : [],
-  );
-}
-
-export const anthropicModels = (id: string): Promise<ModelOption[]> => providerModels('/anthropic/models', id);
-export const bedrockModels = (id: string): Promise<ModelOption[]> => providerModels('/bedrock/models', id);

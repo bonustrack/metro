@@ -1,4 +1,5 @@
-import type { ConnectionRow, ModelSettings, Provider } from './model.js';
+import type { ModelSettings, Provider } from './model.js';
+import type { RouteStep } from './model-route.js';
 import { tallyLine, untilLabel, type UsageWindow } from './usage.js';
 
 const SCOPED = 'Weekly, ';
@@ -12,7 +13,6 @@ export function modelWindows(windows: UsageWindow[], provider: Provider, model: 
   return windows.filter((w) => {
     if (w.used === null || w.label === 'Tokens per minute') return false;
     if (w.resetAt !== null && Date.parse(w.resetAt) <= now) return false;
-    if (provider === 'gemini') return w.label === model;
     if (!w.label.startsWith(SCOPED) || w.label === 'Weekly, all models') return true;
     const scope = (w.label.slice(SCOPED.length).trim().split(/\s+/)[0] ?? '').toLowerCase();
     return model.toLowerCase().split(/[^a-z0-9]+/).includes(scope);
@@ -23,15 +23,11 @@ export function limitingWindow(windows: UsageWindow[]): UsageWindow | null {
   return windows.reduce<UsageWindow | null>((most, w) => w.used !== null && (most === null || w.used > (most.used ?? 0)) ? w : most, null);
 }
 
-export function usageModel(settings: ModelSettings, conn: ConnectionRow | undefined): string {
-  if (conn !== undefined && conn.model !== '') return conn.model;
-  const row = settings.chain.find((r) => r.connection === (conn?.id ?? 'passthrough'));
+export function usageModel(settings: ModelSettings, step: RouteStep): string {
+  if (step.model !== '') return step.model;
+  const row = settings.chain.find((r) => r.connection === step.connection);
   if (row !== undefined && row.model !== '') return row.model;
-  return settings.lastServed?.connection === (conn?.id ?? 'passthrough') ? settings.lastServed.model : '';
-}
-
-export function connectionWindow(settings: ModelSettings, conn: ConnectionRow | undefined): UsageWindow | null {
-  return limitingWindow(modelWindows(settings.usage[conn?.id ?? 'passthrough']?.windows ?? [], conn?.provider ?? 'anthropic', usageModel(settings, conn)));
+  return settings.lastServed?.connection === step.connection ? settings.lastServed.model : '';
 }
 
 export function missingUsage(provider: Provider): string {

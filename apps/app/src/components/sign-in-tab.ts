@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import { openExternal } from '../lib/open.js';
 import { useQueryClient } from '@tanstack/react-query';
-import { queryError, refresh } from '../lib/queries.js';
+import { queryError } from '../lib/queries.js';
+import { afterModelChange } from '../lib/model-queries.js';
 
 export async function inNewTab<T>(begin: () => Promise<T>, urlOf: (started: T) => string | null, blocked: (url: string) => void): Promise<T> {
   if (Platform.OS !== 'web') {
@@ -62,7 +63,7 @@ export function useSignInTab<T>(begin: () => Promise<T>, urlOf: (started: T) => 
   return { starting, started, link, error, start, settle };
 }
 
-export function useModelAction(): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
+export function useModelAction(onDone?: () => void): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>, fallback: string) => void } {
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +71,8 @@ export function useModelAction(): { busy: boolean; error: string | null; run: (j
     setBusy(true);
     setError(null);
     job()
-      .then(() => refresh(client, 'model'))
+      .then(() => afterModelChange(client))
+      .then(() => { onDone?.(); })
       .catch((err: unknown) => {
         setError(queryError(err, fallback));
       })

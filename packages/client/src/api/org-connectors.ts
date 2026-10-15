@@ -56,7 +56,7 @@ const ERROR_PARAM = 'org_connector_error';
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const base = (): string => `${builtInDaemon()}/api/connectors`;
 
-function orgCall(init: CallInit): Promise<unknown> {
+export function orgCall(init: CallInit): Promise<unknown> {
   const identity = accountIdentity();
   const scope = accountScopeIdentity();
   return call({ ...init, checkAccount: () => {

@@ -7,7 +7,7 @@ import { gunzipBytes, gzipBytes, sha256Hex } from './primitives.js';
 const FILE_VERSION = 1;
 const FILE_KIND = 'agent-export';
 const FILE_EXTENSION = '.metro';
-export const SECTIONS = ['channels', 'skills', 'memory', 'sessions', 'model'] as const;
+export const SECTIONS = ['channels', 'skills', 'memory', 'sessions'] as const;
 export type Section = (typeof SECTIONS)[number];
 
 const PAYLOAD_MAX = 1024 * 1024 * 1024;
@@ -41,8 +41,6 @@ export interface PackedSession {
   text: string;
 }
 
-export type PackedModel = Record<string, unknown>;
-
 export interface Payload {
   version: number;
   exportedAt: string;
@@ -51,7 +49,6 @@ export interface Payload {
   skills?: PackedSkill[];
   memory?: PackedMemory[];
   sessions?: PackedSession[];
-  model?: PackedModel[];
 }
 
 export interface MetroFile {
@@ -65,7 +62,6 @@ export const SECTION_LABELS: Record<Section, string> = {
   skills: 'Skills',
   memory: 'Memory',
   sessions: 'Sessions',
-  model: 'Model',
 };
 
 export function countOf(payload: Payload, section: Section): number {
@@ -154,11 +150,6 @@ function sessionOf(raw: unknown): PackedSession {
   return { project: str(raw.project), id: str(raw.id), text: str(raw.text) };
 }
 
-function modelOf(raw: unknown): PackedModel {
-  if (!isRecord(raw) || str(raw.provider) === '') throw new Error('That export file has a model setup metro cannot read.');
-  return { ...raw, provider: str(raw.provider) };
-}
-
 export function parsePayload(raw: unknown): Payload {
   if (!isRecord(raw) || raw.version !== FILE_VERSION) throw new Error('That export file is not a v1 export.');
   const agent = isRecord(raw.agent) ? raw.agent : {};
@@ -170,7 +161,6 @@ export function parsePayload(raw: unknown): Payload {
     skills: listOf(raw.skills, skillOf),
     memory: listOf(raw.memory, memoryOf),
     sessions: listOf(raw.sessions, sessionOf),
-    model: listOf(raw.model, modelOf),
   };
 }
 

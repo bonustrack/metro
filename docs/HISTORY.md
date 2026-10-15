@@ -1,5 +1,19 @@
 # Metro history
 
+## 2026-10-15: Models belong to the organization
+
+Until this release each box kept its own model setup in Metro's `model.json` version 2: the provider connections with their keys and sign-ins, the route and the fallbacks, edited on the agent's Model page and saved by the daemon. The owner's decisions (Less, 2026-10-15; design in `docs/ORG-MODELS.md`):
+
+- **The model router and the provider setup move to the organization**, in api.metro.box's Postgres, like connectors (`model_connections`, `model_routes`, `model_hosts`; secrets sealed with `METRO_CONNECTORS_KEY` under their own additional data, so a connector's value never opens as a model secret). The organization gets a Models page next to its Connectors page: connections, the default model order, and the agents with their own order.
+- **The gateway stays on each box.** Requests still go from the box straight to the provider. The box fetches its effective setup (signed, in memory only, every 60 s and after every change on the page through `POST /api/model/sync`) and keeps the last good copy through network errors.
+- **Providers kept: OpenRouter, Codex (both sign-ins), Anthropic with an API key, Amazon Bedrock. Gemini is removed**, with its unofficial Google Antigravity sign-in.
+- **Claude logins stay on the box only.** An agent's own order can name one of that box's Claude logins (`local:<id>`) or the login the session carries (`local:session`); an organization route cannot.
+- **Each agent uses the organization's default unless an admin sets an override** for that agent on its Model page; clearing the override goes back to the default.
+- **Codex and OpenRouter sign-ins move to api.metro.box**, and a Codex refresh token never leaves it: the box gets access tokens only and asks for a forced refresh after a 401.
+- **A box's old `model.json` is moved once** when it starts with an enrolled agent key: each connection becomes an organization connection (idempotent by the old id), the old route becomes that agent's override, and the file keeps only the Claude logins (version 3). Gemini connections are dropped with a log line.
+- **The bundle and `.metro` exports no longer carry a model setup**, and a restore or an import ignores one.
+- **The page ships before the boxes**: the agent's Model page says "Update Metro to use the organization's models." on a daemon before `0.1.0-beta.309`, while the organization's Models page talks only to api.metro.box.
+
 ## 2026-10-15: The Agent SDK is the only runner
 
 Until this release a box ran its agent one of two ways, picked on the Harness page: the `cli` runner (`metro claude`, an interactive Claude Code in tmux that got chat through Claude Channels) or the `sdk` runner (`metro agent`, one Agent SDK conversation for chat, calls and background workers). Keeping both meant two saved conversations, two ways to take a call (a separate call session for `cli`), a Claude Code version to install, pin and update on every box, and a channel to re-check after every Claude Code release: 2.1.296 dropped the metro channel and every chat message on Emma for ten hours (2026-10-13). The owner decided to keep only the Agent SDK runner. His decisions, all final:

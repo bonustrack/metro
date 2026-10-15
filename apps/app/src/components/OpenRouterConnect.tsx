@@ -4,121 +4,75 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { daemonBase } from '@metro-labs/client/auth/daemon';
-import { beginOpenRouterLogin, cancelOpenRouterLogin, OPENROUTER_LOGIN_SINCE, pollOpenRouterLogin, type OpenRouterLogin } from '@metro-labs/client/api/openrouter-login';
-import { olderThan } from '@metro-labs/client/api/version';
-import { queryError, useModeQuery } from '../lib/queries.js';
+import type { ConnectionRow } from '@metro-labs/client/api/model';
+import { beginOrgOpenRouterLogin } from '@metro-labs/client/api/org-models';
+import { afterModelChange, useOrgModelsQuery } from '../lib/model-queries.js';
+import { queryError } from '../lib/queries.js';
 import { useSignInTab } from './sign-in-tab.js';
 import { SignInLink } from './ProviderSignIn.js';
 import { TextLink } from './TextLink.js';
-import { logError } from '../lib/log.js';
 
-function useAttemptCleanup(login: OpenRouterLogin | null): void {
+const AGAIN = 'Signing in again replaces the key of this connection. The model order stays.';
+const WAITING = 'Waiting for OpenRouter. Approve Metro in the tab that opened, then come back here.';
+
+function useNewConnection(waiting: boolean, known: Set<string>, onFound: () => void): void {
+  const { data } = useOrgModelsQuery(waiting);
+  const found = waiting && data !== undefined && data.connections.some((c) => c.provider === 'openrouter' && !known.has(c.id));
+  const latest = useRef(onFound);
   useEffect(() => {
-    if (login === null) return undefined;
-    return () => { cancelOpenRouterLogin(login).catch(logError('OpenRouter sign-in cleanup')); };
-  }, [login]);
+    latest.current = onFound;
+  });
+  useEffect(() => {
+    if (found) latest.current();
+  }, [found]);
 }
 
-function usePolling(login: OpenRouterLogin | null, settle: (error: string | null) => void, onDone: () => void): string | null {
-  const client = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setError(null);
-    if (login === null) return undefined;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = async (): Promise<void> => {
-      if (Date.now() >= login.expiresAt) {
-        settle('This OpenRouter sign-in expired. Start again.');
-        return;
-      }
-      try {
-        const result = await pollOpenRouterLogin(login);
-        if (stopped) return;
-        setError(null);
-        if (result.status === 'done') {
-          await client.invalidateQueries({ queryKey: ['model', login.base] });
-          if (!stopped && daemonBase() === login.base) {
-            settle(null);
-            onDone();
-          }
-          return;
-        }
-        if (result.status === 'failed') {
-          settle(result.error);
-          return;
-        }
-      } catch (err) {
-        if (!stopped) setError(queryError(err, 'Could not check the sign-in. Retrying.'));
-      }
-      if (!stopped) timer = setTimeout(() => { tick().catch(() => { setError('Could not check the sign-in.'); }); }, 1500);
-    };
-    tick().catch(() => { setError('Could not check the sign-in.'); });
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [login, settle, onDone, client]);
-  return error;
-}
-
-const signInError = (...errors: (string | null)[]): string | null => errors.find((error) => error !== null) ?? null;
-
-function LoginFlow({ connection, onDone, children }: { connection: string; onDone: () => void; children: ReactNode }): ReactNode {
-  const [manual, setManual] = useState(false);
+function LoginFlow({ connection, onDone, onManual }: { connection: ConnectionRow | null; onDone: () => void; onManual: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-  const begin = async (): Promise<OpenRouterLogin> => {
-    const login = await beginOpenRouterLogin(connection);
-    if (!mounted.current) {
-      await cancelOpenRouterLogin(login);
-      throw new Error('OpenRouter sign-in cancelled.');
-    }
-    return login;
+  const client = useQueryClient();
+  const { data } = useOrgModelsQuery();
+  const [known, setKnown] = useState(new Set<string>());
+  const [finishing, setFinishing] = useState(false);
+  const begin = (): Promise<string> => {
+    setKnown(new Set(data?.connections.map((c) => c.id) ?? []));
+    return beginOrgOpenRouterLogin(connection?.id ?? '');
   };
-  const { starting, started: login, link, error, start, settle } = useSignInTab(begin, (value) => value.url, 'Could not start OpenRouter sign-in.');
-  useAttemptCleanup(login);
-  const pollingError = usePolling(login, settle, onDone);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
-  const cancel = (): void => {
-    if (login === null) return;
-    setCancelling(true);
-    setCancelError(null);
-    cancelOpenRouterLogin(login).then((result) => {
-      if (result.status !== 'done') settle(null);
-    }).catch((err: unknown) => {
-      setCancelError(queryError(err, 'Could not cancel the sign-in. Try again.'));
-    }).finally(() => { setCancelling(false); });
+  const { starting, started, link, error, start, settle } = useSignInTab(begin, (url) => url, 'Could not start the OpenRouter sign-in.');
+  const finish = (): void => {
+    setFinishing(true);
+    afterModelChange(client)
+      .then(() => {
+        settle(null);
+        onDone();
+      })
+      .catch((err: unknown) => { settle(queryError(err, 'Could not check the sign-in.')); })
+      .finally(() => { setFinishing(false); });
   };
-  const message = signInError(error, pollingError, cancelError);
-  if (manual) return <Col gap={16}>{children}<TextLink size="md" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Col>;
+  useNewConnection(started !== null && connection === null, known, finish);
   return (
     <Col gap={10}>
-      <SignInLink link={login === null ? null : link} label="Open the OpenRouter sign-in">
-        <Button size="lg" dark={dark} label="Continue with OpenRouter" loading={starting} disabled={starting || login !== null} onPress={start} />
+      <SignInLink link={started === null ? null : link} label="Open the OpenRouter sign-in">
+        <Button size="lg" dark={dark} label="Continue with OpenRouter" loading={starting} disabled={starting || started !== null} onPress={start} />
       </SignInLink>
-      <Text size="md" role="secondary">Authorize Metro in your browser. The generated API key stays on this box.</Text>
-      {connection === '' ? null : <Text size="md" role="secondary">Signing in again replaces this connection&apos;s key. Its model and fallbacks stay.</Text>}
-      {login === null ? null : (
+      <Text size="md" role="secondary">Authorize Metro in your browser. OpenRouter makes a key for your organization.</Text>
+      {connection === null ? null : <Text size="md" role="secondary">{AGAIN}</Text>}
+      {started === null ? null : (
         <Col gap={8}>
-          <Text size="md" role="secondary">Waiting for OpenRouter. Come back here after you approve, or cancel below.</Text>
-          <Row><Button size="md" color="secondary" dark={dark} label="Cancel sign-in" loading={cancelling} disabled={cancelling} onPress={cancel} /></Row>
+          <Text size="md" role="secondary">{WAITING}</Text>
+          <Row gap={8} wrap>
+            <Button size="md" dark={dark} label="I approved it" loading={finishing} disabled={finishing} onPress={finish} />
+            <Button size="md" color="secondary" dark={dark} label="Cancel" disabled={finishing} onPress={() => { settle(null); }} />
+          </Row>
         </Col>
       )}
-      {message === null ? null : <Text size="md" role="danger">{message}</Text>}
-      {starting || login !== null ? null : <TextLink size="md" onPress={() => { setManual(true); }}>Use an API key</TextLink>}
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {starting || started !== null ? null : <TextLink size="md" onPress={onManual}>Use an API key</TextLink>}
     </Col>
   );
 }
 
-export function OpenRouterConnect({ connection, onDone, children }: { connection: string; onDone: () => void; children: ReactNode }): ReactNode {
-  const version = useModeQuery().data?.version ?? null;
-  if (!olderThan(version, OPENROUTER_LOGIN_SINCE)) return <LoginFlow connection={connection} onDone={onDone}>{children}</LoginFlow>;
-  return <Col gap={16}><Text size="md" role="secondary">Update Metro on this box to sign in with OpenRouter. You can still use an API key.</Text>{children}</Col>;
+export function OpenRouterConnect({ connection, onDone, children }: { connection: ConnectionRow | null; onDone: () => void; children: ReactNode }): ReactNode {
+  const [manual, setManual] = useState(false);
+  if (manual) return <Col gap={16}>{children}<TextLink size="md" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Col>;
+  return <LoginFlow connection={connection} onDone={onDone} onManual={() => { setManual(true); }} />;
 }

@@ -6,9 +6,13 @@ import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { ModelReadError, UsageBar, UsageUnavailable } from './ModelUsage.js';
 import { limitingWindow, limitNote, modelWindows, usageDetail, usageModel, usageReported, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
-import { PROVIDERS, type ConnectionRow, type ModelOption, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
-import { DEFAULT_MODEL, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
-import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/queries.js';
+import { ORG_MODELS_SINCE, SESSION_LABEL, type ConnectionRow, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
+import type { ModelOption } from '@metro-labs/client/api/model-options';
+import { effectiveRoute } from '@metro-labs/client/api/model-order';
+import { DEFAULT_MODEL, providerInfo, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
+import { olderThan } from '@metro-labs/client/api/version';
+import { useModeQuery } from '../lib/queries.js';
+import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/model-queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { useNow } from '../lib/use-now.js';
@@ -24,8 +28,8 @@ export function nameIn(options: ModelOption[] | undefined, model: string): strin
   return cut === -1 ? found.name : found.name.slice(cut + 2);
 }
 
-export function useModelName(conn: ConnectionRow | undefined, model = conn?.model ?? ''): string {
-  const models = useConnectionModelsQuery(conn);
+export function useModelName(conn: ConnectionRow | undefined, model: string, lists = true): string {
+  const models = useConnectionModelsQuery(lists ? conn : undefined);
   return conn === undefined ? DEFAULT_MODEL : nameIn(models.data, model);
 }
 
@@ -53,24 +57,24 @@ export function CardUsage({ usage, provider, model }: { usage: ModelSettings['us
 
 const CARD = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 } as const;
 
-function Card({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
+function Card({ settings, href, lists }: { settings: ModelSettings; href: string; lists: boolean }): ReactNode {
   const palette = useKitPalette();
   const conn = routedConnection(settings);
-  const model = usageModel(settings, conn);
-  const name = useModelName(conn, model);
+  const model = usageModel(settings, effectiveRoute(settings).primary);
+  const name = useModelName(conn, model, lists);
   const account = useAccountOf(conn);
   const usage = routedUsage(settings);
   const frame = [CARD, { borderColor: palette.border }];
   const hover = { borderColor: palette.sub };
   return (
     <RouteLink to={href} label="Model" style={frame} hoverStyle={hover}>
-      <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn?.provider)} size={LOGO_SIZE} />
+      <ProviderLogo provider={providerInfo(conn?.provider)} size={LOGO_SIZE} />
       <Col gap={2} flex={1} minWidth={0}>
         <Text size="md" weight="semibold" numberOfLines={1}>
           {name}
         </Text>
         <Text size="md" role="secondary">
-          {[conn?.label ?? 'Your Claude Code login', account].filter((part): part is string => part !== null).join(' · ')}
+          {[conn?.label ?? SESSION_LABEL, account].filter((part): part is string => part !== null).join(' · ')}
         </Text>
         <CardUsage usage={usage} provider={conn?.provider ?? 'anthropic'} model={model} />
         {settings.reason !== null ? (
@@ -88,11 +92,12 @@ function Card({ settings, href }: { settings: ModelSettings; href: string }): Re
 
 export function AgentRoute({ project }: { project: string }): ReactNode {
   const model = useModelQuery();
+  const lists = !olderThan(useModeQuery().data?.version ?? null, ORG_MODELS_SINCE);
   const target: Selection = { kind: 'model', project };
   return (
     <Col gap={8}>
       <ModelReadError error={model.error} cached={model.data !== undefined} />
-      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} />}
+      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} lists={lists} />}
     </Col>
   );
 }

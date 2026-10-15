@@ -7,7 +7,8 @@ import { allSides, side } from './ui/edges.js';
 import { View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { routeHash } from '@metro-labs/client/route';
-import { useClaudeSessionQuery, useModelQuery } from '../lib/queries.js';
+import { useClaudeSessionQuery } from '../lib/queries.js';
+import { useModelQuery } from '../lib/model-queries.js';
 import { type Selection } from '@metro-labs/client/selection';
 
 interface Step {
@@ -56,8 +57,8 @@ export function Checklist({ name, project, channels, connectors }: ChecklistProp
   const steps: Step[] = [
     {
       title: 'Choose a model',
-      hint: `Pick the AI behind ${name}: sign Claude Code in, or connect OpenRouter, Codex or Gemini.`,
-      done: session.data?.running === true || (model.data?.route ?? '') !== '',
+      hint: `Pick the AI behind ${name}: sign Claude Code in, or use the organization's models.`,
+      done: session.data?.running === true || (model.data?.route ?? null) !== null,
       target: { kind: 'model', project },
     },
     {

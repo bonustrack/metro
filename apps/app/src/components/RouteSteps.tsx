@@ -1,17 +1,15 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from './Icon.js';
 import { ProviderLogo } from './ProviderLogo.js';
-import { ProviderSetup } from './ProviderModal.js';
-import { UsageBar, UsageShort } from './ModelUsage.js';
-import { useStacked } from './SettingsSection.js';
-import { connectionNote, mostUsed } from './ProviderCard.js';
-import { PROVIDERS, type ConnectionRow, type ModelSettings } from '@metro-labs/client/api/model';
-import type { RouteDraft } from '@metro-labs/client/api/route-edit';
-import { useAccountOf } from '../lib/queries.js';
+import { connectionNote } from './ProviderCard.js';
+import type { ConnectionRow } from '@metro-labs/client/api/model';
+import type { RouteStep } from '@metro-labs/client/api/model-route';
+import { providerInfo } from '@metro-labs/client/api/providers';
+import { useAccountOf } from '../lib/model-queries.js';
 import { useHover } from './ui/hover.js';
 
 const MARK = 24;
@@ -72,9 +70,8 @@ function Radio({ on }: { on: boolean }): ReactNode {
   return <View style={ring} />;
 }
 
-function ConnectionOption({ conn, settings, on, onPick }: { conn: ConnectionRow; settings: ModelSettings; on: boolean; onPick: (id: string) => void }): ReactNode {
+function ConnectionOption({ conn, on, onPick }: { conn: ConnectionRow; on: boolean; onPick: (id: string) => void }): ReactNode {
   const palette = useKitPalette();
-  const compact = useStacked();
   const [hovered, hover] = useHover();
   const note = connectionNote(conn, useAccountOf(conn));
   const border = { borderColor: on ? palette.text : hovered ? palette.sub : palette.border };
@@ -82,46 +79,23 @@ function ConnectionOption({ conn, settings, on, onPick }: { conn: ConnectionRow;
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: on }} {...hover} style={[OPTION, border]} onPress={() => { onPick(conn.id); }}>
       <Row gap={12} align="center">
         <Radio on={on} />
-        <ProviderLogo provider={PROVIDERS.find((p) => p.id === conn.provider)} size={LOGO} />
+        <ProviderLogo provider={providerInfo(conn.provider)} size={LOGO} />
         <Col flex={1} minWidth={0} gap={2}>
           <Text size="xs" weight="medium" numberOfLines={1}>{conn.label}</Text>
           {note === '' ? null : <Text size="md" role="secondary" numberOfLines={1}>{note}</Text>}
         </Col>
-        {compact ? <UsageShort used={mostUsed(settings, conn.id)} /> : <UsageBar used={mostUsed(settings, conn.id)} />}
       </Row>
     </Pressable>
   );
 }
 
-function AddRow({ onPress }: { onPress: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const [hovered, hover] = useHover();
-  return (
-    <Pressable accessibilityRole="button" {...hover} style={[OPTION, { borderStyle: 'dashed', borderColor: hovered ? palette.sub : palette.border }]} onPress={onPress}>
-      <Row gap={12} align="center">
-        <Icon name="plus" size={18} color={palette.link} />
-        <Text size="xs" weight="medium" role="link">Add a connection</Text>
-      </Row>
-    </Pressable>
-  );
-}
-
-export function ConnectionStep({ settings, draft, onPick }: { settings: ModelSettings; draft: RouteDraft; onPick: (id: string, saved?: RouteDraft) => void }): ReactNode {
-  const none = settings.connections.length === 0;
-  const [adding, setAdding] = useState(none);
-  if (adding)
-    return (
-      <ProviderSetup
-        onDone={(saved) => { setAdding(false); onPick(saved.connection, saved); }}
-        onBack={none ? undefined : () => { setAdding(false); }}
-      />
-    );
+export function ConnectionStep({ connections, draft, empty, onPick }: { connections: ConnectionRow[]; draft: RouteStep; empty: ReactNode; onPick: (id: string) => void }): ReactNode {
+  if (connections.length === 0) return empty;
   return (
     <Col gap={8}>
-      {settings.connections.map((c) => (
-        <ConnectionOption key={c.id} conn={c} settings={settings} on={c.id === draft.connection} onPick={onPick} />
+      {connections.map((c) => (
+        <ConnectionOption key={c.id} conn={c} on={c.id === draft.connection} onPick={onPick} />
       ))}
-      <AddRow onPress={() => { setAdding(true); }} />
     </Col>
   );
 }

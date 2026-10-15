@@ -109,17 +109,21 @@ all of this on its own.
 The agent runs as one Agent SDK session: `metro agent` starts Claude Code through the
 Claude Agent SDK, with the metro MCP server loaded and the agent's key. Chat messages,
 voice calls and background workers share that one conversation. Inference goes through
-the daemon's model gateway, so the **Model** page decides where requests go: Anthropic,
-Amazon Bedrock, OpenRouter, Codex (a ChatGPT plan, through OpenAI's Sign in with ChatGPT
-or the Codex app's code sign-in) or Gemini, and a model change applies at once, with no
-restart.
+the daemon's model gateway, and the organization decides where requests go: its
+**Models** page on metro.box holds the connections (an Anthropic API key, Amazon Bedrock,
+OpenRouter, or Codex: a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the Codex
+app's code sign-in) and the default model order. Every agent uses that order unless an
+admin gives it its own on the agent's **Model** page, which can also use the Claude logins
+signed in on that box. The keys and sign-ins live sealed on metro.box; each box fetches
+what its order needs and calls the provider itself. A model change applies at once, with
+no restart.
 
 You do not type it yourself. Once the box has an agent and a model it can use, the daemon
 starts `metro agent` in a tmux session named `metro`, and starts it again when it exits,
 resuming the same conversation. The Terminal tab on the page opens that tmux session. The Claude Code it
 runs is the one bundled with the Agent SDK, installed by `metro agent` into
 `~/.metro/sdk-runner`; the box installs no Claude Code of its own. The Claude sign-in on
-the Model page and its usage check use that same Claude Code.
+the agent's Model page and its usage check use that same Claude Code.
 
 The session follows [docs/SETUP.md](docs/SETUP.md): an orchestrator-only main thread, a
 `worker` subagent, standing rules as a skill, and privacy settings. The daemon applies all
@@ -225,8 +229,8 @@ Sync never changes plugin enablement or connector configuration.
 ## Export and import
 
 The agent's Settings page can **Export** the agent to a `.metro` file on your disk, sealed
-with a passphrase you choose. You pick what goes in: channels, connectors, skills, memory,
-sessions and the model setup. **Import** on another box opens the file with the same
+with a passphrase you choose. You pick what goes in: channels, skills, memory and
+sessions. The model setup belongs to the organization, so it is not in the file. **Import** on another box opens the file with the same
 passphrase and adds what is missing, or overwrites what matches. Nothing goes through
 metro.box.
 
