@@ -14,14 +14,9 @@ export function selectedModel(settings: ModelSettings | undefined): string {
   return `${connection === undefined ? 'Default route' : providerLabel(connection.provider)} · ${model === '' ? 'Runner default (not reported)' : model}`;
 }
 
-function runnerLabel(runner: ClaudeSessionStatus['runner'] | undefined): string {
-  return runner === 'sdk' ? 'Agent SDK' : runner === 'cli' ? 'Claude Code' : 'Not reported';
-}
-
 export function RunSessionDetails({ status, model, state }: { status: ClaudeSessionStatus | undefined; model: ModelSettings | undefined; state: Freshness }): ReactNode {
   const activity = status?.activity;
   return <Col gap={16}>
-    <Text size="sm">Runner · {runnerLabel(status?.runner)}</Text>
     <Text size="sm" selectable>Session · {activity?.sessionId ?? 'Not reported'}</Text>
     <Text size="sm">Selected model · {selectedModel(model)}</Text>
     <Text size="sm" role="secondary">The model picked in Model settings. A fallback may answer instead.</Text>

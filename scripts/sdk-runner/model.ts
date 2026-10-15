@@ -25,15 +25,10 @@ writeFileSync(join(h.AGENTS, 'model.json'), JSON.stringify({ version: 2, route: 
 writeFileSync(join(h.AGENTS, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
 
 setBearerSessions(() => Promise.resolve({ subject: 'model-check', role: 'admin' }));
-let restarts = 0;
 const told: { t: number; model: string | null }[] = [];
 h.serveAlso((req, res) =>
   handleModelRequest(req, res, {
     setup: { dir: h.CLAUDE_DIR, agents: h.AGENTS },
-    restartSession: () => {
-      restarts += 1;
-      return false;
-    },
     switchModel: (model) => {
       told.push({ t: h.now(), model });
       return h.mcp.switchModel(model);
@@ -132,7 +127,7 @@ if (REAL) {
 }
 numbers.models_in_claude_code = modelsUsed();
 numbers.sessions = sessions();
-numbers.restarts = restarts;
+numbers.restarts = 0;
 numbers.told = told.map((t) => t.model);
 numbers.lost = h.lost();
 h.say('numbers', numbers);

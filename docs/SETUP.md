@@ -1,11 +1,13 @@
 # Setup
 
-What a Claude Code session on a metro box looks like, and how it gets that way. Since
-`0.1.0-beta.105` none of it is pasted or typed: the daemon and `metro claude` apply it,
-and this page explains what they apply, how to check it, and what it costs. Until
-2026-10-14 a Claude Code plugin (`metro@metro`) carried the guard, the standing rules and a
-connectors server; it is gone, and the daemon removes it from a box once. Connectors are now
-two tools of the metro MCP server.
+What the agent's Claude Code session on a metro box looks like, and how it gets that way.
+Since `0.1.0-beta.105` none of it is pasted or typed: the daemon and `metro agent` apply it,
+and this page explains what they apply, how to check it, and what it costs. The session is
+one Agent SDK conversation (`metro agent`), run with the Claude Code bundled with the SDK;
+the box installs no Claude Code of its own, and the interactive `metro claude` session went
+on 2026-10-15. Until 2026-10-14 a Claude Code plugin (`metro@metro`) carried the guard, the
+standing rules and a connectors server; it is gone, and the daemon removes it from a box
+once. Connectors are now two tools of the metro MCP server.
 
 ## What is applied, and by what
 
@@ -19,8 +21,8 @@ two tools of the metro MCP server.
 | The daily memory routine | the daemon, at boot, switchable on the Harness page | the agent's crontab, shown as `memory-routine` on the Scheduled page |
 | The `worker` subagent | the daemon, at boot | `~/.claude/agents/worker.md` |
 | Privacy settings and transcript retention | the daemon, at boot, switchable on the Harness page | `~/.claude/settings.json` |
-| The metro MCP server (with the connector tools `tool_search` and `tool_call`), Channels, the model route | `metro claude`, at every launch | the session only |
-| The session itself | the daemon, in a tmux session named `metro` | the Terminal tab |
+| The metro MCP server (with the connector tools `tool_search` and `tool_call`), chat messages, the model route | `metro agent`, at every start | the session only |
+| The session itself | the daemon, running `metro agent` in a tmux session named `metro` | the Terminal tab |
 
 The hooks and the skills ship inside the CLI package, and the hook entries point at the
 installed CLI, so all of this moves with `metro update`. A box needs nothing but `metro service install`, and a box
@@ -107,8 +109,8 @@ Twice a day, at 00:00 and 12:00, the agent's crontab runs `~/.metro/bin/memory-r
 that skill file (the shipped `MEMORY.md`). The job is always named `memory-routine`, and the
 Scheduled page shows the skill as its script. That command checks the Claude Code transcripts. When none changed since its
 last successful run, it stops and uses no tokens. Otherwise it creates the ten folders when
-they are missing and runs Claude Code once, headless (`claude -p`), on the box's model route,
-with the box's system prompt. Claude Code reads the skill and files the day into memory, then
+they are missing and runs Claude Code once, headless (`claude -p`, the Claude Code bundled
+with the Agent SDK), on the box's model route, with the box's system prompt. Claude Code reads the skill and files the day into memory, then
 writes or adds to the daily note and, when it is missing, last week's weekly note. That run has no metro
 MCP server and runs with `METRO_SESSION=memory`, so metro's hooks stand aside and it never takes
 the chat session's place. It saves no transcript.
@@ -153,8 +155,7 @@ Cron submits while the SDK is offline but does not start it, bypass a Harness St
 MCP slot, change its model or permissions, or wake a machine that is powered off. Missed
 whole-machine ticks are not backfilled; the first later firing is the next check. Queued
 slots of one routine coalesce to the newest before admission, rather than replaying every
-missed hour. The Claude Code runner does not consume this separate queue: switching to it
-parks accepted tasks until the Agent SDK runner is selected and started again.
+missed hour.
 
 The existing SDK runner polls every five seconds and uses its ordinary bounded input
 admission. Inputs have the pinned SDK's `task-notification` / `scheduled-trigger` origin,
@@ -215,15 +216,11 @@ surveys, feature-flag fetches, and update checks. What does **not** stop: prompt
 contents, command output, tool results and model responses still go to the model. That is the
 product working, not telemetry, and no setting here changes it.
 
-**Why the fourth variable, and the cached flag.** Turning telemetry off also turns off
-feature-flag evaluation, and the flag that enables Claude Channels defaults to off, so without
-more the agent would stop receiving chat. The fourth variable makes Claude Code read its local
-cache of flags instead, and `metro claude` seeds the Channels flag into that cache at every
-launch, whether or not the box has a claude.ai login. Measured on Claude Code 2.1.261: with the
-four variables and the seeded cache, Channels come up, with and without the daemon's gateway
-address; without the fourth variable they do not. The cache never refreshes on its own, which
-is stable rather than correct, and the variable is undocumented: re-check after a Claude Code
-update by sending the agent a message.
+**Why the fourth variable.** Turning telemetry off also turns off feature-flag evaluation;
+the fourth variable makes Claude Code read its local cache of flags instead. It was added
+because the interactive `metro claude` session got chat through Claude Channels, a flag that
+defaults to off. The Agent SDK session does not use Claude Channels: the runner turns metro's
+channel notifications into messages itself, so chat no longer depends on any flag.
 
 **Local disk.** Claude Code writes every transcript to `~/.claude/projects/` in plaintext,
 tool results included. `cleanupPeriodDays` sweeps them after a week; `history.jsonl`, every
@@ -242,10 +239,11 @@ since no answer from a chat can reach it.
 
 - **Harness page**: the Setup block lists the guard, the worker, the rules and the privacy
   settings, each green when in place.
-- **Terminal tab**: the session the daemon started shows the metro channel loaded and no
-  wizard. Ask the agent to run `echo hi` with Bash: it must say the main thread is
-  orchestrator-only and delegate instead.
-- **From chat**: send the agent a message. It should react, then answer.
+- **Harness page**: Agent SDK activity shows the session's state, its workers and recent
+  events.
+- **Terminal tab**: the tmux session the daemon started shows `metro agent` running.
+- **From chat**: send the agent a message. It should react, then answer. Ask it to run
+  `echo hi`: the main thread is orchestrator-only, so it hands that to a worker.
 
 ## What it costs
 

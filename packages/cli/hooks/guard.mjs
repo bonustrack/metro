@@ -26,7 +26,6 @@ const IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
 const MCP = /^mcp__/;
 const METRO_MCP = /^mcp__metro__/;
 const CONNECTOR_CALL = 'mcp__metro__tool_call';
-const VOICE = process.env.METRO_SESSION === 'voice';
 
 const connectorWork = (tool) =>
   `A connector call is work, not orchestration: ${tool} reads somebody's files, mail or records, and its answer can be long enough to crowd out the chat you are here to follow. Only metro's own tools run on this thread. Delegate it to a subagent with the Agent tool (run_in_background: true; the worker reaches every connector) and relay what it finds.`;
@@ -55,10 +54,7 @@ function verdict(payload, input) {
     return `${tool} blocks the session waiting on the terminal, and nobody is watching it. Decide with your best judgement and state the assumption, or ask over chat with the metro tools and keep working in the meantime.`;
   if (typeof payload.agent_id === 'string' && payload.agent_id !== '') return null;
   if (tool === 'Agent' && input.run_in_background === false)
-    return VOICE
-      ? 'On a voice call a foreground subagent leaves the caller in silence until it finishes. Re-issue the identical Agent call with run_in_background: true, tell the caller you will come back to it, and keep talking.'
-      : 'A foreground subagent blinds the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification.';
-  if (VOICE) return null;
+    return 'A foreground subagent blinds the main thread: it cannot see or acknowledge inbound metro messages until the agent finishes. Re-issue the identical Agent call with run_in_background: true, then wait for the task notification.';
   if (ORCHESTRATION.has(tool)) return null;
   if (tool === CONNECTOR_CALL) return connectorWork(tool);
   if (METRO_MCP.test(tool)) return null;

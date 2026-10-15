@@ -3,7 +3,6 @@ import { ApiError } from '@metro-labs/http/api-error';
 import type { RunnerActivity } from '@metro-labs/core/runner-activity';
 import { readAgentActivity } from './runner-activity.js';
 import { sdkAlive, stopSdkRunner } from './runner-process.js';
-import { continueArgs, sdkPending } from './session-continuity.js';
 import { syncAgentView } from '../agent-user/view.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -13,12 +12,8 @@ import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
-import { claudeDir } from './files.js';
-import { harnessRunner, isHarnessRunner, sdkAllowed, SDK_NEEDS_KEY, type HarnessRunner } from './runner.js';
-import { claudeAccount, claudeInstalled } from './login.js';
-import { trustFolder } from './onboarding.js';
+import { claudeAccount, claudeInstalled, forgetClaudeChecks } from './login.js';
 import { inSessionScope } from './memory.js';
-import { channelState, forgetChannelState, noteChannelState, type ChannelState } from './channel-check.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
@@ -31,41 +26,34 @@ function sessionEnv(): Record<string, string> {
 
 const SESSION_NAME = 'metro';
 const STATE_FILE = 'claude-session.json';
-const WARNING = 'WARNING: Loading development channels';
-const CONFIRM_POLL_MS = 500;
-const CONFIRM_WAIT_MS = 60_000;
 const WATCH_MS = 15_000;
 const STRIKE_WINDOW_MS = 60_000;
 const MAX_STRIKES = 5;
 const PAUSE_MS = 30 * 60_000;
+const PREPARE_MS = 16 * 60_000;
 
 export interface SessionDeps {
   tmux?: string;
   metro?: string[];
-  runner?: string[];
   home?: string;
   agents?: string;
   signedIn?: () => boolean;
   now?: () => number;
   version?: string;
-  prepare?: (runner: HarnessRunner) => Promise<void>;
 }
 
 export interface SessionStatus {
   name: string;
   running: boolean;
-  runner?: HarnessRunner;
   activity?: RunnerActivity | null;
   autostart: boolean;
   blocked: string | null;
   lastStartedAt: string | null;
   lastError: string | null;
-  channels?: ChannelState | null;
 }
 
 export interface SessionSnapshot {
   running: boolean;
-  runner: HarnessRunner | null;
   activity: RunnerActivity | null;
   lastStartedAt: string | null;
 }
@@ -120,55 +108,34 @@ export function metroCli(args: string[], fixed?: string[]): string[] {
 
 const sessionHome = (deps: SessionDeps): string => deps.home ?? claudeHome() ?? homedir();
 
-export function sessionRunner(deps: SessionDeps = {}): HarnessRunner {
-  const agents = deps.agents ?? agentsDir();
-  const runner = readState(agents).runner;
-  return isHarnessRunner(runner) ? runner : harnessRunner(agents);
-}
-
 export function assertSessionStopped(deps: SessionDeps = {}): void {
-  if (sessionLive(deps)) throw new ApiError('The session is running. Let it finish its work, stop it, then change its runner, permissions or prompt and start it again.', 409);
+  if (sessionLive(deps)) throw new ApiError('The session is running. Let it finish its work, stop it, then change its permissions or prompt and start it again.', 409);
 }
 
-export function assertSdkDrained(deps: SessionDeps = {}): void {
-  if (sdkPending(sessionHome(deps)) !== 0)
-    throw new ApiError('The Agent SDK still has chat messages it has not answered, or its saved state cannot be read. Start it so it answers them (fix the Model page first if it cannot start), stop it, then switch runners.', 409);
-}
-
-let changing = false;
-
-export async function withSessionChange<T>(run: () => Promise<T>): Promise<T> {
-  if (changing) throw new ApiError('A session change is already being prepared. Try again when it finishes.', 409);
-  changing = true;
-  try {
-    return await run();
-  } finally {
-    changing = false;
-  }
-}
-
-export async function prepareSessionRunner(runner: HarnessRunner, deps: SessionDeps = {}): Promise<void> {
-  if (deps.prepare !== undefined) return deps.prepare(runner);
-  const [bin = 'metro', ...args] = metroCli(['agent', '--prepare', runner]);
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(...asAgent(bin, args), { stdio: ['ignore', 'ignore', 'pipe'], timeout: 16 * 60_000 });
-    let error = '';
-    child.stderr.on('data', (chunk: Buffer) => { error = (error + chunk.toString()).slice(-2000); });
-    child.on('error', (err) => { reject(new ApiError(`Runner preparation failed: ${errMsg(err)}`, 503)); });
+export function prepareRunnerStore(): Promise<void> {
+  const [bin = 'metro', ...args] = metroCli(['agent', '--prepare']);
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(...asAgent(bin, args), { stdio: ['ignore', 'ignore', 'pipe'], cwd: '/', timeout: PREPARE_MS });
+    let said = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      said = (said + chunk.toString('utf8')).slice(-2000);
+    });
+    child.on('error', (err) => {
+      forgetClaudeChecks();
+      reject(err);
+    });
     child.on('close', (code) => {
+      forgetClaudeChecks();
       if (code === 0) resolve();
-      else reject(new ApiError(`Runner preparation failed. The runner choice was not changed. ${error.trim()}`, 503));
+      else reject(new Error(`metro agent --prepare failed: ${said.trim() || `exit ${String(code)}`}`));
     });
   });
 }
 
-function metroCommand(deps: SessionDeps, home: string): string[] {
-  if (harnessRunner(deps.agents ?? agentsDir()) === 'sdk') return metroCli(['agent'], deps.runner);
-  return [...metroCli(['claude'], deps.metro), ...continueArgs(home, claudeDir(), deps.agents)];
-}
+const loginNotRuledOut = (): boolean => claudeAccount().signedIn || !claudeInstalled();
 
 function credentialReady(deps: SessionDeps): string | null {
-  const signedIn = deps.signedIn ?? (() => claudeAccount().signedIn);
+  const signedIn = deps.signedIn ?? loginNotRuledOut;
   if (signedIn()) return null;
   try {
     const cfg = readModelConfig(deps.agents ?? agentsDir());
@@ -187,64 +154,26 @@ const ROOT_REFUSED = 'Metro runs as root; reinstall it as the metro user';
 
 export function sessionBlocked(deps: SessionDeps = {}): string | null {
   if (runningAsRoot()) return ROOT_REFUSED;
-  const agents = deps.agents ?? agentsDir();
-  if (harnessRunner(agents) === 'sdk' && !sdkAllowed(agents)) return SDK_NEEDS_KEY;
-  if (listAgentFiles(agents).length === 0) return 'no agent on this machine yet';
+  if (listAgentFiles(deps.agents ?? agentsDir()).length === 0) return 'no agent on this machine yet';
   return launchBlocked(deps);
 }
 
 function launchBlocked(deps: SessionDeps): string | null {
   if (agentUserMissing(deps))
     return 'Claude Code runs as the user agent here, and that user is not ready yet; see the log';
-  if (deps.metro === undefined && !claudeInstalled()) return 'Claude Code is not installed on this machine';
   if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
   return credentialReady(deps);
 }
 
-function capturePane(tmux: string): string {
-  const run = spawnSync(...asAgent(tmux, ['capture-pane', '-p', '-t', SESSION_NAME]), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  return run.error === undefined && run.status === 0 ? run.stdout : '';
-}
-
-function noteLaunchLines(pane: string, seen: Set<string>): void {
-  for (const line of pane.split('\n').map((l) => l.trim()))
-    if (line.startsWith('metro claude:') && !seen.has(line)) {
-      seen.add(line);
-      log.info({ line }, 'claude-session: metro claude said');
-    }
-}
-
-function confirmChannels(tmux: string, home: string, startedAt: number): void {
-  const until = startedAt + CONFIRM_WAIT_MS;
-  const seen = new Set<string>();
-  let confirmed = false;
-  let checked = false;
-  const tick = (): void => {
-    const pane = capturePane(tmux);
-    noteLaunchLines(pane, seen);
-    checked ||= noteChannelState(home, startedAt);
-    if (!confirmed && pane.includes(WARNING) && pane.includes('server:metro')) {
-      spawnSync(...asAgent(tmux, ['send-keys', '-t', SESSION_NAME, 'Enter']), { stdio: 'ignore' });
-      log.info('claude-session: confirmed the development channels dialog for server:metro');
-      confirmed = true;
-    }
-    if (Date.now() < until && sessionRunning(tmux)) setTimeout(tick, CONFIRM_POLL_MS).unref();
-  };
-  setTimeout(tick, CONFIRM_POLL_MS).unref();
-}
-
-function recordStart(deps: SessionDeps, tmux: string, now: number, run: { error?: Error; status: number | null; stderr: string }): void {
+function recordStart(deps: SessionDeps, now: number, run: { error?: Error; status: number | null; stderr: string }): void {
   memory.lastStartedAt = now;
-  forgetChannelState();
   if (run.error !== undefined || run.status !== 0) {
     memory.lastError = run.error === undefined ? `tmux new-session exited ${String(run.status)}: ${run.stderr.trim()}` : errMsg(run.error);
     log.warn({ err: memory.lastError }, 'claude-session: tmux could not start');
     return;
   }
   memory.lastError = null;
-  const agents = deps.agents ?? agentsDir();
-  writeState(agents, { version: deps.version ?? METRO_VERSION, runner: harnessRunner(agents) });
-  confirmChannels(tmux, sessionHome(deps), now);
+  writeState(deps.agents ?? agentsDir(), { version: deps.version ?? METRO_VERSION });
 }
 
 function tmuxLaunch(deps: SessionDeps, tmux: string, args: string[]): [string, string[]] {
@@ -253,7 +182,6 @@ function tmuxLaunch(deps: SessionDeps, tmux: string, args: string[]): [string, s
 }
 
 export function startSession(deps: SessionDeps = {}): SessionStatus {
-  if (changing) throw new ApiError('A runner change is being prepared. Start the session after it finishes.', 409);
   const status = sessionStatus(deps);
   if (status.running) return status;
   if (status.blocked !== null) throw new ApiError(`Cannot start the session: ${status.blocked}`, 409);
@@ -261,13 +189,12 @@ export function startSession(deps: SessionDeps = {}): SessionStatus {
   const tmux = deps.tmux ?? 'tmux';
   const home = sessionHome(deps);
   const now = (deps.now ?? Date.now)();
-  const trusted = trustFolder(home);
-  const [command = 'metro', ...args] = metroCommand(deps, home);
+  const [command = 'metro', ...args] = metroCli(['agent'], deps.metro);
   const tmuxArgs = ['new-session', '-d', '-s', SESSION_NAME, '-c', home, '-x', '200', '-y', '50', command, ...args];
   const launch = tmuxLaunch(deps, tmux, tmuxArgs);
   const run = spawnSync(...launch, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd: '/' });
-  recordStart(deps, tmux, now, run);
-  if (memory.lastError === null) log.info({ home, trusted, command: [command, ...args].join(' ') }, 'claude-session: started Claude Code in tmux');
+  recordStart(deps, now, run);
+  if (memory.lastError === null) log.info({ home, command: [command, ...args].join(' ') }, 'claude-session: started the Agent SDK runner in tmux');
   return sessionStatus(deps);
 }
 
@@ -277,32 +204,26 @@ export function stopSession(deps: SessionDeps = {}, cancelActive = false): Sessi
   return sessionStatus(deps);
 }
 
-export const sessionLive = (deps: SessionDeps = {}): boolean =>
-  sessionRunning(deps.tmux ?? 'tmux') || sdkAlive(readAgentActivity(sessionHome(deps)));
+export const runnerAlive = (deps: SessionDeps = {}): boolean => sdkAlive(readAgentActivity(sessionHome(deps)));
+
+export const sessionLive = (deps: SessionDeps = {}): boolean => sessionRunning(deps.tmux ?? 'tmux') || runnerAlive(deps);
 
 export function sessionSnapshot(deps: SessionDeps = {}): SessionSnapshot {
   const activity = readAgentActivity(sessionHome(deps));
-  const sdk = sdkAlive(activity);
-  const tmux = sessionRunning(deps.tmux ?? 'tmux');
-  const runner = sdk ? 'sdk' : tmux ? readState(deps.agents ?? agentsDir()).runner : null;
   return {
-    running: tmux || sdk,
-    runner: isHarnessRunner(runner) ? runner : null,
+    running: sdkAlive(activity) || sessionRunning(deps.tmux ?? 'tmux'),
     activity,
     lastStartedAt: memory.lastStartedAt === null ? null : new Date(memory.lastStartedAt).toISOString(),
   };
 }
 
 export function sessionStatus(deps: SessionDeps = {}): SessionStatus {
-  const snapshot = sessionSnapshot(deps);
   return {
     name: SESSION_NAME,
-    ...snapshot,
-    runner: snapshot.runner ?? sessionRunner(deps),
+    ...sessionSnapshot(deps),
     autostart: autostartEnabled(deps.agents ?? agentsDir()),
     blocked: sessionBlocked(deps),
     lastError: memory.lastError,
-    channels: channelState(),
   };
 }
 
@@ -312,7 +233,7 @@ function strike(now: number): boolean {
   if (memory.strikes < MAX_STRIKES) return false;
   memory.pausedUntil = now + PAUSE_MS;
   memory.strikes = 0;
-  log.warn({ pauseMinutes: PAUSE_MS / 60_000 }, 'claude-session: Claude Code keeps exiting right after starting; not restarting it for a while');
+  log.warn({ pauseMinutes: PAUSE_MS / 60_000 }, 'claude-session: the session keeps exiting right after starting; not restarting it for a while');
   return true;
 }
 
@@ -346,7 +267,6 @@ function situation(r: Resolved): 'running' | 'stale' | 'absent' {
 export function ensureSession(deps: SessionDeps = {}): Ensured {
   const r = resolved(deps);
   if (!autostartEnabled(r.agents)) return 'off';
-  if (changing) return 'blocked';
   const found = situation(r);
   if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
   const held = holdsBack(deps, r.now);
@@ -366,7 +286,7 @@ export function watchSession(deps: SessionDeps = {}, everyMs = WATCH_MS): void {
   const tick = (): void => {
     try {
       const outcome = ensureSession(deps);
-      if (outcome === 'started' || outcome === 'restarted') log.info({ outcome }, 'claude-session: Claude Code is up');
+      if (outcome === 'started' || outcome === 'restarted') log.info({ outcome }, 'claude-session: the Agent SDK runner is up');
     } catch (err) {
       log.warn({ err: errMsg(err) }, 'claude-session: check failed');
     }

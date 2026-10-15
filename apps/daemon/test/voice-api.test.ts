@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleVoiceRequest } from '../src/voice/api.ts';
-import { brainModel, languageOf, parseVoice } from '../src/voice/store.ts';
+import { languageOf, parseVoice } from '../src/voice/store.ts';
 import { sttUrl } from '../src/voice/scribe.ts';
 import { auth } from './identity-helper.ts';
 
@@ -54,8 +54,10 @@ describe('the voice settings of a box', () => {
     expect(put.status).toBe(200);
     const text = await put.text();
     expect(text).not.toContain('sk-SECRET');
-    expect(JSON.parse(text)).toMatchObject({ provider: 'elevenlabs', hasKey: true, voiceId: 'v1', model: 'codex:gpt-6', enabled: true });
+    expect(JSON.parse(text)).toMatchObject({ provider: 'elevenlabs', hasKey: true, voiceId: 'v1', enabled: true });
+    expect(JSON.parse(text)).not.toHaveProperty('model');
     expect(readFileSync(join(dir, 'voice.json'), 'utf8')).toContain('sk-SECRET');
+    expect(readFileSync(join(dir, 'voice.json'), 'utf8')).not.toContain('codex:gpt-6');
     expect(statSync(join(dir, 'voice.json')).mode & 0o777).toBe(0o600);
     const kept = await (await call('PUT', 'admin', { voiceId: 'v2', apiKey: '', enabled: false })).json();
     expect(kept).toMatchObject({ hasKey: true, voiceId: 'v2', enabled: false });
@@ -64,13 +66,10 @@ describe('the voice settings of a box', () => {
     expect(await (await call('GET', 'member')).json()).toMatchObject({ hasKey: false, voiceId: 'v2' });
   });
 
-  test('call Claude through the Anthropic connection when there is one, else the plain model', () => {
-    const cfg = parseVoice({ apiKey: 'k' });
-    const none = { version: 2 as const, route: '', connections: [] };
-    expect(brainModel(cfg, none)).toBe('claude-sonnet-5-5');
-    const anthropic = { ...none, connections: [{ provider: 'anthropic' }] } as unknown as Parameters<typeof brainModel>[1];
-    expect(brainModel(cfg, anthropic)).toBe('anthropic:claude-sonnet-5-5');
-    expect(brainModel(parseVoice({ model: 'codex:gpt-6' }), none)).toBe('codex:gpt-6');
+  test('a voice.json written with the old call model still reads', () => {
+    expect(parseVoice({ apiKey: 'k', voiceId: 'v', model: 'anthropic:claude-sonnet-5-5' })).toEqual({
+      provider: 'elevenlabs', apiKey: 'k', voiceId: 'v', language: '', enabled: true,
+    });
   });
 
   test('speech to text listens in English unless the page picks another language or Detect', async () => {

@@ -10,7 +10,7 @@ import { userAgent } from '../src/gateway/codex.ts';
 import { codexVersion } from '../src/gateway/codex-version.ts';
 import type { ModelConfig } from '../src/gateway/model-config.ts';
 import { auth, type Who } from './identity-helper.ts';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { jwt, makeConnection } from './model-fixture.ts';
@@ -21,7 +21,6 @@ import type { ModelApiDeps } from '../src/gateway/model-store.ts';
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 
 let server: Server;
-let restarts = 0;
 let issuer: Server;
 let backend: Server;
 let base = '';
@@ -197,10 +196,7 @@ beforeAll(async () => {
     geminiUserBase: backendBase,
     geminiBase: backendBase,
     setup: { dir: join(home, 'claude'), agents: join(home, 'agents') },
-    restartSession: () => {
-      restarts += 1;
-      return true;
-    },
+    runnerAlive: () => false,
     claudeUsage: () => {
       login.asked += 1;
       return login.answer();
@@ -236,7 +232,6 @@ beforeEach(() => {
   modelDeps.usageWaitMs = undefined;
   googleForms.length = 0;
   stored = { version: 2, route: '', connections: [] };
-  restarts = 0;
 });
 
 const conns = async (method: string, path = '', body?: unknown): Promise<Response> =>
@@ -283,13 +278,9 @@ describe('the connections on the page', () => {
     expect(stored.connections.map((c) => c.label)).toEqual(['OpenRouter', 'OpenRouter 2']);
     expect(stored.route).toBe(stored.connections[0]?.id);
 
-    const restartsBefore = restarts;
     const routed = await call('PUT', OWNER, { route: second });
     expect(((await routed.json()) as { route: string }).route).toBe(second);
     expect(stored.route).toBe(second);
-    expect(restarts).toBe(restartsBefore + 1);
-    await conns('PUT', `/${second}`, { label: 'Work' });
-    expect(restarts).toBe(restartsBefore + 1);
   });
 
   test('a connection is renamed, edited and removed on its own; removing the routed one moves the route', async () => {
@@ -739,30 +730,20 @@ describe('picking an Anthropic or Bedrock model without typing its id', () => {
     expect(await res.json()).toEqual({ models: [{ id: 'eu.anthropic.claude-sonnet-5', name: 'EU Claude Sonnet 5' }] });
   });
 
-  test('saving a non-Anthropic route writes the Claude Code model allowlist, and saving Anthropic back removes it', async () => {
-    await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
-    const settingsPath = join(home, 'claude', 'settings.json');
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toMatchObject({ availableModels: ['openrouter:anthropic/claude-sonnet-5'], enforceAvailableModels: true });
-    const anthropic = await add({ provider: 'anthropic' });
-    await call('PUT', OWNER, { route: anthropic });
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).not.toHaveProperty('availableModels');
+  test('saving a route writes no model allowlist into the settings of Claude Code', async () => {
+    const openrouter = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5' });
+    await call('PUT', OWNER, { route: openrouter });
+    expect(existsSync(join(home, 'claude', 'settings.json'))).toBe(false);
   });
 });
 
 describe('the Agent SDK session follows the Model page live', () => {
-  const setupFile = (): string => join(home, 'agents', 'claude-setup.json');
-  const runnerIs = (runner: 'cli' | 'sdk'): void => {
-    mkdirSync(join(home, 'agents'), { recursive: true });
-    writeFileSync(setupFile(), JSON.stringify({ runner }));
-  };
-
   test('a new model or route goes to the running session, which switches without a restart; the same model sends nothing', async () => {
     const told: (string | null)[] = [];
     modelDeps.switchModel = (model) => {
       told.push(model);
       return true;
     };
-    runnerIs('sdk');
     try {
       const sonnet = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5.5' });
       const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-5-5' });
@@ -772,20 +753,17 @@ describe('the Agent SDK session follows the Model page live', () => {
       await call('PUT', OWNER, { route: keyed });
       await conns('PUT', `/${keyed}`, { model: 'claude-sonnet-5-5' });
       expect(told).toEqual(['openrouter:anthropic/claude-sonnet-5.5', 'openrouter:openai/gpt-6.1', 'claude-opus-5-5', 'claude-sonnet-5-5']);
-      expect(restarts).toBe(0);
     } finally {
       modelDeps.switchModel = undefined;
-      rmSync(setupFile(), { force: true });
     }
   });
 
-  test('a running SDK rejects an unpermitted fallback before saving; stopped it stays selected but blocked, without a restart', async () => {
+  test('fallback models, a Claude login among them, are saved while the session runs and switch nothing', async () => {
     const told: (string | null)[] = [];
     modelDeps.switchModel = (model) => {
       told.push(model);
       return true;
     };
-    runnerIs('sdk');
     const fallbacks = async (list: { connection: string; model: string }[]): Promise<number> => {
       const res = await fetch(`${base}/api/model/fallbacks`, {
         method: 'PUT',
@@ -799,50 +777,54 @@ describe('the Agent SDK session follows the Model page live', () => {
       await add({ provider: 'openrouter', apiKey: 'or-key', model: 'anthropic/claude-sonnet-5.5' });
       const keyed = await add({ provider: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-5-5' });
       const login = await add({ provider: 'anthropic' });
-      expect(await fallbacks([{ connection: keyed, model: 'claude-opus-5-5' }])).toBe(200);
-      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 0 });
-      const unpermitted = [{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }];
-      modelDeps.sessionRunning = () => true;
-      expect(await fallbacks(unpermitted)).toBe(409);
-      expect(stored.fallbacks).toEqual([{ connection: keyed, model: 'claude-opus-5-5' }]);
-      modelDeps.sessionRunning = () => false;
-      expect(await fallbacks(unpermitted)).toBe(200);
-      expect(JSON.parse(readFileSync(setupFile(), 'utf8'))).toMatchObject({ runner: 'sdk' });
-      modelDeps.sessionRunning = () => true;
-      expect(await fallbacks(unpermitted)).toBe(200);
-      expect({ told, restarts }).toEqual({ told: ['openrouter:anthropic/claude-sonnet-5.5'], restarts: 0 });
+      modelDeps.runnerAlive = () => true;
+      const list = [{ connection: keyed, model: 'claude-opus-5-5' }, { connection: login, model: 'claude-opus-5-5' }];
+      expect(await fallbacks(list)).toBe(200);
+      expect(stored.fallbacks).toEqual(list);
+      expect(told).toEqual(['openrouter:anthropic/claude-sonnet-5.5']);
     } finally {
       modelDeps.switchModel = undefined;
-      modelDeps.sessionRunning = undefined;
-      rmSync(setupFile(), { force: true });
+      modelDeps.runnerAlive = () => false;
     }
   });
 
-  test('an SDK session that cannot be told is never killed; incompatible route and key changes are refused while it runs', async () => {
+  test('a running session that cannot be told is never killed and nothing is saved; a change that keeps its model is saved, and so is any change once it stopped', async () => {
     modelDeps.switchModel = () => false;
-    modelDeps.sessionRunning = () => false;
-    runnerIs('sdk');
     try {
       const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
-      modelDeps.sessionRunning = () => true;
+      modelDeps.runnerAlive = () => true;
       const before = structuredClone(stored);
       const refused = await conns('PUT', `/${one}`, { model: 'c/d' });
       expect(refused.status).toBe(409);
       expect(await refused.text()).toContain('Nothing was saved');
       expect(stored).toEqual(before);
-      expect(restarts).toBe(0);
-      const keyless = await add({ provider: 'anthropic', model: 'claude-opus-5-5' });
-      expect((await call('PUT', OWNER, { route: keyless })).status).toBe(409);
+      const login = await add({ provider: 'anthropic', model: 'claude-opus-5-5' });
+      expect((await call('PUT', OWNER, { route: login })).status).toBe(409);
       expect(stored.route).toBe(one);
-      expect((await conns('PUT', `/${one}`, { apiKey: '' })).status).toBe(409);
-      expect(stored.connections.find((c) => c.id === one)?.apiKey).toBe('or-key');
-      runnerIs('cli');
-      await conns('PUT', `/${one}`, { model: 'e/f' });
-      expect(restarts).toBe(1);
+      expect((await conns('PUT', `/${one}`, { label: 'Work' })).status).toBe(200);
+      modelDeps.runnerAlive = () => false;
+      expect((await call('PUT', OWNER, { route: login })).status).toBe(200);
+      expect(stored.route).toBe(login);
     } finally {
       modelDeps.switchModel = undefined;
-      modelDeps.sessionRunning = undefined;
-      rmSync(setupFile(), { force: true });
+      modelDeps.runnerAlive = () => false;
+    }
+  });
+
+  test('while no runner process is up (its tmux session still preparing, or gone), a model change is saved for the next start', async () => {
+    const told: (string | null)[] = [];
+    modelDeps.switchModel = (model) => {
+      told.push(model);
+      return false;
+    };
+    try {
+      const one = await add({ provider: 'openrouter', apiKey: 'or-key', model: 'a/b' });
+      const saved = await conns('PUT', `/${one}`, { model: 'c/d' });
+      expect(saved.status).toBe(200);
+      expect(stored.connections.find((c) => c.id === one)?.model).toBe('c/d');
+      expect(told).toEqual(['openrouter:a/b', 'openrouter:c/d']);
+    } finally {
+      modelDeps.switchModel = undefined;
     }
   });
 });

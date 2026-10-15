@@ -26,7 +26,6 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 const contentTypeOf = (env: TrainEvent): string => str(record(env.payload).contentType);
 const sourceIdOf = (env: TrainEvent): string => str(env.message_id) || str(env.id) || randomUUID();
-const callerNameOf = (env: TrainEvent): string => str(env.from_display_name) || str(env.from_name) || 'the caller';
 
 export const isCallEvent = (env: TrainEvent): boolean => CALL_TYPES.has(contentTypeOf(env));
 
@@ -74,9 +73,7 @@ function invite(env: TrainEvent, body: Record<string, unknown>, create: MakeCall
   invites.add(key);
   if (invites.size > INVITES_MAX) invites.delete(invites.values().next().value ?? '');
   current?.hangUp('the caller started a new call');
-  const callerName = callerNameOf(env);
-  const sourceId = sourceIdOf(env);
-  const start = { agentId, sourceId, line, lineName: str(env.line_name), direct: env.is_private === true, from, callerName, callId, callerPeer };
+  const start = { agentId, sourceId: sourceIdOf(env), line, from, callId, callerPeer };
   const call = create(start, readVoice(), () => {
     if (current === call) current = null;
   });

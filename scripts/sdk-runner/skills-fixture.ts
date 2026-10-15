@@ -12,7 +12,7 @@ import * as h from './shared-call-harness.js';
 
 const claude = join(h.ROOT, 'claude');
 const github = new FakeGitHub();
-const source = new GitHubSkills({ agents: join(h.ROOT, 'agents'), claude, sdk: () => true, request: github.fetch });
+const source = new GitHubSkills({ agents: join(h.ROOT, 'agents'), claude, request: github.fetch });
 const state = (): SkillActivation => JSON.parse(readFileSync(join(source.root, 'status.json'), 'utf8')) as SkillActivation;
 const local = join(claude, 'skills/local-fixture');
 mkdirSync(local, { recursive: true });

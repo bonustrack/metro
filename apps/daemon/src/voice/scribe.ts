@@ -7,7 +7,7 @@ export const elevenLabs = (): string => process.env.METRO_ELEVENLABS_URL ?? 'wss
 const STT_RATE = 16_000;
 const CHUNK_SAMPLES = STT_RATE / 10;
 const HELD_SAMPLES = STT_RATE * 2;
-export const VAD_SILENCE_SECS = 0.5;
+const VAD_SILENCE_SECS = 0.5;
 
 export interface Heard {
   partial(text: string): void;

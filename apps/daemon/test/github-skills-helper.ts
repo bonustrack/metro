@@ -47,5 +47,5 @@ export class FakeGitHub {
 export function fixture(): { dir: string; source: GitHubSkills; github: FakeGitHub } {
   const dir = mkdtempSync(join(tmpdir(), 'metro-github-skills-'));
   const github = new FakeGitHub();
-  return { dir, github, source: new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), sdk: () => true, request: github.fetch }) };
+  return { dir, github, source: new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), request: github.fetch }) };
 }

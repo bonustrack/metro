@@ -82,7 +82,7 @@ describe('bounded private GitHub skills source', () => {
     await source.sync(true);
     expect(manifest(source.root).id).toBe(first);
     expect(JSON.stringify(source.view())).toContain('failed skill validation');
-    const restarted = new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), sdk: () => true, request: github.fetch });
+    const restarted = new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), request: github.fetch });
     expect(restarted.rows()).toHaveLength(1);
     await restarted.remove();
     expect(manifest(source.root).source).toBeNull();
@@ -143,7 +143,7 @@ describe('bounded private GitHub skills source', () => {
     const prepared = manifest(source.root);
     rmSync(join(source.root, 'pending.json'));
     const calls = github.calls.length;
-    const restarted = new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), sdk: () => true, request: github.fetch });
+    const restarted = new GitHubSkills({ agents: join(dir, 'daemon'), claude: join(dir, 'claude'), request: github.fetch });
     await restarted.sync();
     expect(manifest(source.root)).toEqual(prepared);
     expect(github.calls.length).toBe(calls);
@@ -228,11 +228,7 @@ describe('bounded private GitHub skills source', () => {
     expect(active).toBe(0);
   });
 
-  test('refuses unsupported harnesses and input credential/path injection', async () => {
-    const { dir, github } = make();
-    const source = new GitHubSkills({ agents: join(dir, 'other'), claude: join(dir, 'cli'), sdk: () => false, request: github.fetch });
-    await expect(source.configure(SOURCE)).rejects.toThrow('Agent SDK');
-    expect(github.calls).toHaveLength(0);
+  test('refuses input credential/path injection', () => {
     for (const patch of [{ repository: 'https://evil.example/a/b' }, { repository: 'a/b?secret=x' }, { ref: '../main' }, { folder: '../skills' }, { folder: '/skills' }, { token: 'token\r\nHost: evil' }]) expect(() => githubSource({ ...SOURCE, ...patch })).toThrow();
   });
 });

@@ -42,7 +42,7 @@ function statusOf(state: string | undefined, session: ClaudeSessionStatus | unde
   if (session === undefined) return { text: 'Online', tone: 'good' };
   if (session.running) return { text: 'Online and ready', tone: 'good' };
   if (session.blocked !== null) return { text: `Online, but not ready: ${session.blocked}`, tone: 'bad', fix: { kind: 'claude', project } };
-  return { text: 'Online, but Claude Code is not running', tone: 'bad', fix: { kind: 'claude', project } };
+  return { text: 'Online, but the agent is not running', tone: 'bad', fix: { kind: 'claude', project } };
 }
 
 export function StatusLine({ host, project }: { host: string | null; project: string }): ReactNode {

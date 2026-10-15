@@ -10,8 +10,6 @@ import { listClaudeProjects, listClaudeSessions, listMemory, readMemoryFile, rea
 import { listClaudeSkills } from '../../apps/daemon/src/claude/skills.ts';
 import { listClaudeSettings } from '../../apps/daemon/src/claude/settings.ts';
 import { sessionRunning, startSession, stopSession } from '../../apps/daemon/src/claude/session.ts';
-import { continueArgs } from '../../apps/daemon/src/claude/session-continuity.ts';
-import { readJson, writeJson } from '../../packages/core/src/secure-fs.ts';
 import { provisionAgentUser } from '../../apps/daemon/src/agent-user/provision.ts';
 
 const results: string[] = [];
@@ -64,7 +62,7 @@ check('and comes off', out(...asAgent('curl', ['-s', '-m', '15', '-o', '/dev/nul
 
 const claudeDirOf = '/home/agent/.claude';
 check("the agent can read Metro's CLI but not its files", out(...asAgent('test', ['-r', '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js'])).ok && !out(...asAgent('test', ['-r', '/var/lib/metro/.metro/agents/agent.json'])).ok);
-check(`provisioning as metro sees Claude installed and opens the home to crossing (${await provisionAgentUser({ METRO_RUNTIME_STORE: '' })})`, out('stat', ['-c', '%a', '/home/agent']).text === '711');
+check(`provisioning as metro opens the home to crossing (${await provisionAgentUser()})`, out('stat', ['-c', '%a', '/home/agent']).text === '711');
 check('Sessions lists the projects', listClaudeProjects(claudeDirOf).some((p) => p.id === '-home-agent'));
 check('and a private transcript inside a closed folder', listClaudeSessions('-home-agent', claudeDirOf).some((x) => x.id === '11111111-2222-4333-8444-555555555555'));
 const turns = await readTranscript('-home-agent', '11111111-2222-4333-8444-555555555555', 0, 50, claudeDirOf);
@@ -73,10 +71,6 @@ check('Memory lists a private file in a folder', listMemory('-home-agent', claud
 check('and reads it', readMemoryFile('-home-agent', 'people/less.md', claudeDirOf).includes('short answers'));
 check('Skills lists the agent skill', listClaudeSkills(claudeDirOf).some((k) => k.name === 'demo-skill'));
 check('Settings lists the files', Array.isArray(listClaudeSettings(claudeDirOf)));
-const sessionState = '/var/lib/metro/.metro/agents/claude-session.json';
-const pinned = '11111111-2222-4333-8444-555555555555';
-writeJson(sessionState, { ...readJson<Record<string, unknown>>(sessionState, {}), cliSessionId: pinned });
-check('the watcher resumes the pinned private transcript', JSON.stringify(continueArgs('/home/agent', claudeDirOf, '/var/lib/metro/.metro/agents')) === JSON.stringify(['--resume', pinned]));
 startSession({ metro: ['sh', '-c', 'sleep 600'], agents: '/var/lib/metro/.metro/agents' });
 await new Promise((r) => setTimeout(r, 1000));
 check('the Claude session starts under metro', sessionRunning());

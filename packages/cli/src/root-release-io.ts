@@ -4,8 +4,7 @@ import { X509Certificate } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { isRecord } from './background.js';
-import { ISSUER, isVersion, PUBLISHER, RELEASE_DIR, type Published, type ReleaseDeps } from './root-release.js';
+import { ISSUER, isRecord, isVersion, PUBLISHER, RELEASE_DIR, type Published, type ReleaseDeps } from './root-release.js';
 import { PACKAGE_NAME } from './version.js';
 
 const REGISTRY = 'https://registry.npmjs.org';

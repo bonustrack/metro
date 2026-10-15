@@ -82,7 +82,7 @@ describe('main agent and worker activity', () => {
     expect(later.workers[0]?.tools).toBe(stale.workers[0]?.tools);
   });
 
-  test('stopped processes, stopped SDK reports and old reports while CLI runs are historical', () => {
+  test('stopped processes, stopped SDK reports and old reports while an old daemon runs Claude Code are historical', () => {
     for (const session of [{ running: false }, { runner: 'cli' }]) {
       const past = view({}, now + 120_000, session);
       expect(past.mode).toBe('past');
@@ -90,7 +90,7 @@ describe('main agent and worker activity', () => {
       expect(past.main).toContain('20 s at the last report');
       expect(past.workers[0]?.summary).toContain('running (1 min) at the last report');
     }
-    expect(view({}, now, { runner: 'cli' }).note).toContain('Claude Code runs now');
+    expect(view({}, now, { runner: 'cli' }).note).toContain('Claude Code runs now; update Metro.');
     const stopped = view({ phase: 'stopped', mainPhase: 'stopped' }, now + 120_000);
     expect(stopped.mode).toBe('past');
     expect(stopped.note).toContain('Agent SDK reported it stopped');
@@ -226,7 +226,7 @@ describe('worker creation order', () => {
     }
   });
 
-  test('stale, stopped and CLI history use the same creation order', () => {
+  test('stale, stopped and old Claude Code history use the same creation order', () => {
     for (const session of [{}, { running: false }, { runner: 'cli' }]) {
       expect(view({ tasks }, now + 90_000, session).workers.map((row) => row.id)).toEqual(['new', 'middle', 'old']);
     }
@@ -310,13 +310,13 @@ describe('recent sanitized events and polling', () => {
     expect(mixed.failures[1]?.text).toContain('Historical failure: A background task failed');
   });
 
-  test('only an open Harness observing a running SDK opts into two-second polling', () => {
+  test('only an open Harness observing a running agent on the Agent SDK opts into two-second polling', () => {
     const sdk = toClaudeSession({ running: true, runner: 'sdk' });
     expect(sessionPollMs(sdk, true)).toBe(2_000);
     expect(sessionPollMs(sdk, false)).toBe(10_000);
     expect(sessionPollMs(toClaudeSession({ running: false, runner: 'sdk' }), true)).toBe(10_000);
     expect(sessionPollMs(toClaudeSession({ running: true, runner: 'cli' }), true)).toBe(10_000);
-    expect(sessionPollMs(toClaudeSession({ running: true }), true)).toBe(10_000);
+    expect(sessionPollMs(toClaudeSession({ running: true }), true)).toBe(2_000);
     expect(sessionPollMs(undefined, true)).toBe(10_000);
   });
 });

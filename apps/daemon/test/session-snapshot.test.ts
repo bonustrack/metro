@@ -8,7 +8,6 @@ import { setBearerSessions } from '@metro-labs/http/api-http';
 import * as secureFs from '@metro-labs/core/secure-fs';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { sessionSnapshot, type SessionDeps } from '../src/claude/session.js';
-import * as runner from '../src/claude/runner.js';
 import * as login from '../src/claude/login.js';
 import * as model from '../src/gateway/model-config.js';
 
@@ -37,7 +36,6 @@ beforeEach(() => {
   deps = { tmux, home, agents, signedIn };
   signedIn.mockClear();
   setBearerSessions((req) => Promise.resolve(req.headers.authorization === AUTH ? { subject: 'snapshot-owner', role: 'member' } : null));
-  spyOn(runner, 'harnessRunner').mockImplementation(unexpected);
   spyOn(login, 'claudeAccount').mockImplementation(unexpected);
   spyOn(login, 'claudeInstalled').mockImplementation(unexpected);
   spyOn(model, 'readModelConfig').mockImplementation(unexpected);
@@ -69,7 +67,6 @@ function activity(over: Record<string, unknown> = {}): void {
 
 function expectPassive(): void {
   expect(signedIn).not.toHaveBeenCalled();
-  expect(runner.harnessRunner).not.toHaveBeenCalled();
   expect(login.claudeAccount).not.toHaveBeenCalled();
   expect(login.claudeInstalled).not.toHaveBeenCalled();
   expect(model.readModelConfig).not.toHaveBeenCalled();
@@ -99,80 +96,55 @@ function request(method = 'GET', authorization = AUTH): Promise<Answer> {
   });
 }
 
-test('live tmux returns its recorded CLI runner, not the configured SDK preference', async () => {
+test('live tmux counts as running, and the snapshot names no runner whatever an older file recorded', async () => {
   record('cli');
   writeFileSync(running, '');
-  writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
+  writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'cli' }));
   const before = readFileSync(join(agents, 'claude-session.json'), 'utf8');
   const answer = await request();
   expect(answer.status).toBe(200);
   expect(answer.headers['cache-control']).toBe('no-store');
-  expect(answer.body).toMatchObject({ running: true, runner: 'cli', activity: null });
+  expect(answer.body).toMatchObject({ running: true, activity: null });
   expect(answer.body).toHaveProperty('lastStartedAt');
+  expect(answer.body).not.toHaveProperty('runner');
   expect(answer.body).not.toHaveProperty('blocked');
   expect(answer.body).not.toHaveProperty('autostart');
   expect(readFileSync(join(agents, 'claude-session.json'), 'utf8')).toBe(before);
   expectPassive();
 });
 
-test('a live tmux session with no valid recorded runner stays unknown', () => {
-  writeFileSync(running, '');
-  for (const preference of ['cli', 'sdk']) {
-    writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: preference }));
-    for (const recorded of [undefined, 'unknown']) {
-      record(recorded);
-      expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: null, activity: null });
-    }
-  }
-  rmSync(join(agents, 'claude-session.json'));
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: null });
-  expectPassive();
-});
-
-test('verified SDK activity takes precedence over tmux and the previous recorded CLI runner', () => {
-  record('cli');
+test('verified SDK activity counts as running with or without tmux', () => {
   activity();
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: 'sdk', activity: { phase: 'working', pid: process.pid } });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: true, activity: { phase: 'working', pid: process.pid } });
   writeFileSync(running, '');
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: 'sdk' });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: true });
   expectPassive();
 });
 
 test('stale activity still identifies a live SDK but preserves its old observation time', () => {
   activity({ updatedAt: 1 });
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: 'sdk', activity: { phase: 'working', updatedAt: 1 } });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: true, activity: { phase: 'working', updatedAt: 1 } });
   expectPassive();
 });
 
 test.skipIf(process.platform !== 'linux')('a reused PID does not identify a live SDK', () => {
   activity({ procStart: '0' });
-  expect(sessionSnapshot(deps)).toMatchObject({ running: false, runner: null, activity: { phase: 'working' } });
-  record('cli');
+  expect(sessionSnapshot(deps)).toMatchObject({ running: false, activity: { phase: 'working' } });
   writeFileSync(running, '');
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: 'cli' });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: true });
   expectPassive();
 });
 
-test('a dead SDK or a stopped snapshot cannot claim a live runner from the recorded choice', () => {
+test('a dead SDK or a stopped snapshot is not running, and neither is a recorded choice', () => {
   record('sdk');
   for (const phase of ['working', 'stopped']) {
     activity({ pid: 2_147_483_647, phase, updatedAt: 1 });
-    expect(sessionSnapshot(deps)).toMatchObject({ running: false, runner: null, activity: { phase, updatedAt: 1 } });
+    expect(sessionSnapshot(deps)).toMatchObject({ running: false, activity: { phase, updatedAt: 1 } });
   }
   activity({ procStart: undefined, phase: 'stopped' });
-  expect(sessionSnapshot(deps)).toMatchObject({ running: false, runner: null });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: false });
   rmSync(join(home, '.metro', 'agent-status.json'));
-  for (const recorded of ['cli', 'sdk']) {
-    record(recorded);
-    expect(sessionSnapshot(deps)).toMatchObject({ running: false, runner: null, activity: null });
-  }
-  expectPassive();
-});
-
-test('live tmux can identify the recorded SDK before an activity file exists', () => {
-  record('sdk');
-  writeFileSync(running, '');
-  expect(sessionSnapshot(deps)).toMatchObject({ running: true, runner: 'sdk', activity: null });
+  expect(sessionSnapshot(deps)).toMatchObject({ running: false, activity: null });
   expectPassive();
 });
 

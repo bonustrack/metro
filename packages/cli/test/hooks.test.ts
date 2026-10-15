@@ -62,7 +62,6 @@ describe('the orchestrator guard the CLI ships', () => {
       expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
       expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
     }
-    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, EMPTY, 'voice')).toBe('allow');
     for (const old of ['mcp__mcp__find_tools', 'mcp__plugin_metro_mcp__find_tools'])
       expect(guard({ tool_name: old, tool_input: { query: 'notion page' } })).toMatch(/^deny: A connector call is work, not orches/);
     expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
@@ -147,34 +146,13 @@ describe('the owner policy the guard applies to metro tools', () => {
   });
 });
 
-describe('the guard in a voice call session (METRO_SESSION=voice)', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'metro-guard-voice-'));
-  writeFileSync(join(dir, 'policy.json'), JSON.stringify(SNAPSHOT));
-  const voice = (payload: Record<string, unknown>): string => guard(payload, dir, 'voice');
-
-  test('the main thread works itself: files, shell and connectors are not delegated', () => {
-    expect(voice({ tool_name: 'Read', tool_input: { file_path: '/x/notes.md' } })).toBe('allow');
-    expect(voice({ tool_name: 'Bash', tool_input: { command: 'ls' } })).toBe('allow');
-    expect(voice({ tool_name: 'mcp__zapier__run', tool_input: {} })).toBe('allow');
-    expect(voice({ tool_name: 'mcp__metro__read', tool_input: { line: LINE } })).toBe('allow');
-  });
-
-  test('long work goes to a background worker, and nothing waits on the terminal', () => {
-    expect(voice({ tool_name: 'Agent', tool_input: { run_in_background: false } })).toMatch(/^deny: On a voice call a foreground subagent/);
-    expect(voice({ tool_name: 'Agent', tool_input: { run_in_background: true } })).toBe('allow');
-    expect(voice({ tool_name: 'AskUserQuestion', tool_input: {} })).toMatch(/^deny: .* blocks the session/);
-  });
-
-  test('the owner policy is the chat session one: refused on the main thread, asked in a worker, blocked everywhere', () => {
-    expect(voice({ tool_name: 'mcp__metro__send', tool_input: { line: LINE, text: 'hi' } })).toMatch(/^deny: send on telegram \(tg000000001\) needs the/);
-    expect(voice({ tool_name: 'mcp__metro__send', tool_input: { line: LINE, text: 'hi' }, agent_id: 'w1' })).toMatch(/^ask: The owner asked to approve send/);
-    expect(voice({ tool_name: 'mcp__metro__delete', tool_input: { line: LINE, message_id: 'm1' } })).toMatch(/^deny: Blocked by the owner's policy/);
-  });
-
-  test('the chat standing rules are not loaded into the call', () => {
-    const run = spawnSync('node', [START], { encoding: 'utf8', env: { ...process.env, METRO_SESSION: 'voice' } });
-    expect(run.status).toBe(0);
-    expect(run.stdout.trim()).toBe('');
+describe('a session still marked METRO_SESSION=voice', () => {
+  test('gets the chat rules: the voice brain is gone, so the marker relaxes nothing', () => {
+    expect(guard({ tool_name: 'Bash', tool_input: { command: 'ls' } }, EMPTY, 'voice')).toMatch(/^deny: The main thread is orchestrator-only/);
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, EMPTY, 'voice')).toMatch(/^deny: A connector call is work, not orches/);
+    expect(guard({ tool_name: 'Agent', tool_input: { run_in_background: false } }, EMPTY, 'voice')).toMatch(/^deny: A foreground subagent blinds/);
+    const run = spawnSync('node', [START], { encoding: 'utf8', env: { ...process.env, CLAUDE_CONFIG_DIR: EMPTY, METRO_SESSION: 'voice' } });
+    expect(run.stdout).toContain('Standing rules');
   });
 });
 

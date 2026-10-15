@@ -4,13 +4,11 @@ import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { agentSession } from './agent.js';
 import { automationCommand } from './automation.js';
-import { launchClaude } from './claude.js';
 import { memoryPaths, memoryRoutine } from './memory.js';
 import { update } from './update.js';
 import { serve } from './serve.js';
 import { service, serviceStopHint } from './service.js';
 import { currentVersion } from './version.js';
-import { voiceSession } from './voice.js';
 
 const USAGE = `metro: run your agent on this machine
 
@@ -32,16 +30,12 @@ const USAGE = `metro: run your agent on this machine
   metro tail [agent-id]
                   follow this machine's inbound events, one JSON line each
   metro whoami    print the agent this machine runs
-  metro claude [args...]
-                  open Claude Code with the metro channel and the metro MCP server, its
-                  inference routed through the daemon's model gateway (the Model page);
-                  every argument is passed through the same
   metro agent     run chat, calls and background workers in one Agent SDK conversation,
-                  when the Harness runner is Agent SDK, using the Model page's model;
+                  using the Model page's model through the daemon's model gateway;
                   resume it after a restart; call audio runs independently
-  metro agent --prepare [cli|sdk]
-                  check the runner before selecting it; install the SDK runtime if needed,
-                  without starting a session or connecting to chat
+  metro agent --prepare
+                  install the Agent SDK runtime and the Claude Code it bundles if needed,
+                  and check that it runs, without starting a session or connecting to chat
   metro task submit <routine> <prompt-file> [--slot <UTC ISO timestamp>] [--dry-run]
   metro task status [routine]
   metro task finish <uuid> <token> completed|blocked
@@ -51,15 +45,9 @@ const USAGE = `metro: run your agent on this machine
                   --dry-run writes nothing; local authorization is not fresh owner approval
   metro memory [skill file]
                   run the memory routine once: when Claude Code transcripts changed since
-                  the last run, Claude Code reads the memory skill (or the file given) and
-                  files them into its memory, with no metro tools and writes only inside
-                  the memory folder
-  metro voice --model <model>
-                  the agent's side of a voice call, which the daemon starts when a call
-                  comes in: Claude Code reads the call's words as stream-json on stdin and
-                  streams its replies on stdout, with the agent's memory, skills, hooks,
-                  connectors and metro tools (on /mcp/voice, so the chat session keeps its
-                  slot) but no metro channel; tool approvals come back on stdout
+                  the last run, the Claude Code bundled with the Agent SDK reads the memory
+                  skill (or the file given) and files them into its memory, with no metro
+                  tools and writes only inside the memory folder
   metro update    update to the newest published version (--check only reports)
   metro version   print this CLI's version
 
@@ -94,11 +82,9 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   service: () => service(process.argv.slice(3)),
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
-  claude: () => launchClaude(process.argv.slice(3)),
   agent: () => agentSession(process.argv.slice(3)),
   task: () => automationCommand(process.argv.slice(3)),
   memory: () => memoryRoutine(memoryPaths(process.env, process.argv[3])),
-  voice: () => voiceSession(process.argv.slice(3)),
   update: () => update(process.argv.slice(3)),
   version: async () => {
     process.stdout.write(`${currentVersion()}\n`);

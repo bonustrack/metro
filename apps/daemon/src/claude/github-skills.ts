@@ -10,7 +10,6 @@ import { readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { receiveHomeFile, writeHomeText } from '../agent-user/home-fs.js';
 import { agentsDir } from '../agents/files.js';
 import { claudeDir } from './files.js';
-import { readSetupState } from './setup-state.js';
 import { GitHubFailure, GitHubReader } from './github-fetch.js';
 import { githubSource, validatedGeneration } from './github-validate.js';
 import type { ClaudeSkill } from './skills.js';
@@ -29,7 +28,6 @@ interface Stored {
 export interface GitHubSkillsDeps {
   agents: string;
   claude: string;
-  sdk(): boolean;
   request?: (url: string, init: RequestInit) => Promise<Response>;
 }
 const EMPTY: Stored = { source: null, prepared: null, etag: null, checkedAt: null, retryAt: 0, problem: null, rateLimit: 0, repositoryId: null };
@@ -107,7 +105,7 @@ export class GitHubSkills {
   view(activation = this.activation(), loaded = this.loaded(activation)): object {
     const { source, prepared, checkedAt, problem } = this.stored;
     return {
-      supported: this.deps.sdk(),
+      supported: true,
       source: source === null ? null : { repository: source.repository, ref: source.ref, folder: source.folder, hasToken: true },
       checking: this.busy, checkedAt, problem: this.unreadable ? 'The saved GitHub source is unreadable. Restore its configuration before changing it. Local skills are still available.' : problem,
       prepared: prepared === null ? null : { generation: prepared.id, source: prepared.source, skillCount: prepared.skills.length },
@@ -142,7 +140,6 @@ export class GitHubSkills {
   }
 
   async configure(raw: unknown): Promise<object> {
-    if (!this.deps.sdk()) throw new ApiError('GitHub skills require the Agent SDK runner. Local skills are unchanged.', 409);
     if (this.busy) throw new ApiError('A skills sync is already running. Try again when it finishes.', 409);
     const source = githubSource(raw);
     this.readable();
@@ -193,11 +190,10 @@ export class GitHubSkills {
   }
 
   async sync(force = false): Promise<void> {
-    if (force && !this.deps.sdk()) throw new ApiError('GitHub skills require the Agent SDK runner. Local skills are unchanged.', 409);
     this.readable();
     this.offer();
     const source = this.stored.source;
-    if (source === null || this.busy || !this.deps.sdk() || this.waiting(force)) return;
+    if (source === null || this.busy || this.waiting(force)) return;
     const epoch = this.epoch;
     this.busy = true;
     try { await this.fetch(source, epoch, force); }
@@ -254,6 +250,6 @@ export class GitHubSkills {
 
 let current: GitHubSkills | null = null;
 export function githubSkills(): GitHubSkills {
-  current ??= new GitHubSkills({ agents: agentsDir(), claude: claudeDir(), sdk: () => readSetupState(agentsDir()).runner === 'sdk' });
+  current ??= new GitHubSkills({ agents: agentsDir(), claude: claudeDir() });
   return current;
 }

@@ -11,7 +11,7 @@ function offer(call: Call, fixture: FakeCall): void {
   call.signalled({ kind: 'offer', from: callStart.callerPeer, to: signalOf(fixture, 'join')?.from, callId: callStart.callId, sdp: 'fake-offer' });
 }
 
-test('SDK calls open the existing conversation without a Brain or recent chat read', async () => {
+test('a call opens the existing conversation without reading the recent chat', async () => {
   const fixture = new FakeCall();
   const call = new Call(callStart, voiceConfig, () => undefined, fixture.deps);
   await call.begin();
@@ -27,13 +27,12 @@ test('SDK calls open the existing conversation without a Brain or recent chat re
   expect(fixture.calls.some((row) => row.action === 'send')).toBe(false);
 });
 
-test('an unavailable SDK conversation fails closed without falling back to CLI', async () => {
+test('an unavailable SDK conversation fails closed', async () => {
   const fixture = new FakeCall();
   fixture.available = false;
   const call = new Call(callStart, voiceConfig, () => undefined, fixture.deps);
   await expect(call.begin()).rejects.toThrow('shared conversation is unavailable');
   await call.leave('starting failed');
-  expect(fixture.events).not.toContain('cli');
   expect(signalOf(fixture, 'join')).toBeUndefined();
   expect(fixture.calls.some((row) => row.action === 'read' || row.action === 'send')).toBe(false);
 });
@@ -91,18 +90,4 @@ test('late callbacks from an old call cannot change its replacement route', asyn
   expect(nextFixture.events).toEqual(['shared']);
   await leaving;
   await next.leave('the caller hung up');
-});
-
-test('CLI calls retain their own Brain context path without the SDK seam', async () => {
-  const fixture = new FakeCall();
-  fixture.selected = false;
-  const call = new Call(callStart, voiceConfig, () => undefined, fixture.deps);
-  await call.begin();
-  await pause();
-  expect(fixture.routes).toEqual([]);
-  expect(fixture.events).toEqual(['cli', 'prime']);
-  expect(fixture.calls.filter((row) => row.action === 'read')).toHaveLength(1);
-  await call.leave('the caller hung up');
-  expect(fixture.events).not.toContain('ended');
-  expect(fixture.events.filter((row) => row === 'finish')).toHaveLength(1);
 });

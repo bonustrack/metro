@@ -11,8 +11,6 @@ import { claudeDir } from './files.js';
 import { memoryJobStatus, type MemoryJob } from './memory-routine.js';
 import { cliPackageDir, hooksDir, skillsDir } from './cli-files.js';
 import { hasMetroGuard, withMetroHooks } from './hooks.js';
-import { readModelConfig, routedConnection, type ModelConfig } from '../gateway/model-config.js';
-import { harnessRunner, runnerModel, sdkAllowed, sdkOnLogin, type HarnessRunner } from './runner.js';
 import { readSetupState, writeSetupState } from './setup-state.js';
 
 export const PRIVACY_ENV: Record<string, string> = {
@@ -69,9 +67,6 @@ export interface SetupReport {
 export interface SetupStatus {
   privacy: boolean;
   permissionMode: PermissionMode;
-  runner: HarnessRunner;
-  runnerAllowed: boolean;
-  sdkOnLogin: boolean;
   systemPrompt: string;
   liveEvents: boolean;
   memoryRoutine: boolean;
@@ -218,16 +213,23 @@ interface SettingsApplied {
   guard: boolean;
 }
 
-function applySettings(dir: string, privacy: boolean, hooks: string | null): SettingsApplied {
+const MODELS_KEYS = new Set(['availableModels', 'enforceAvailableModels']);
+
+const withoutMetroModels = (settings: Record<string, unknown>, metroWrote: boolean): Record<string, unknown> =>
+  metroWrote ? Object.fromEntries(Object.entries(settings).filter(([key]) => !MODELS_KEYS.has(key))) : settings;
+
+function applySettings(dir: string, agents: string, privacy: boolean, hooks: string | null): SettingsApplied {
+  const metroModels = readSetupState(agents).modelsByMetro === true;
   let guard = false;
   const settings = mergeSettings(dir, (current) => {
-    const next = withPrivacy(current, privacy);
+    const next = withPrivacy(withoutMetroModels(current, metroModels), privacy);
     const hooked = hooks === null ? null : withMetroHooks(next, hooks);
     if (hooks !== null && hooked === null)
       log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: the hooks in settings.json are not in the shape Claude Code reads, so metro did not add its own');
     guard = hasMetroGuard(hooked ?? next);
     return hooked ?? next;
   });
+  if (metroModels && settings !== 'unreadable') writeSetupState(agents, { modelsByMetro: false });
   return { settings, guard };
 }
 
@@ -280,9 +282,8 @@ export function ensureClaudeSetup(deps: SetupDeps = {}): SetupReport {
   const skill = placeSkill(dir, skills, METRO_SKILL);
   const stage = placeSkill(dir, skills, STAGE_SKILL);
   const memory = placeSkill(dir, skills, MEMORY_SKILL);
-  const applied = applySettings(dir, privacy, hooks);
+  const applied = applySettings(dir, agents, privacy, hooks);
   const report: SetupReport = { privacy, guard: applied.guard, worker, skill, stage, memory, settings: applied.settings };
-  syncAvailableModelsQuietly({ ...deps, dir, agents });
   if ([report.worker, report.skill, report.stage, report.memory].some(written) || report.settings === 'written')
     log.info(report, 'claude-setup: applied the Claude Code setup for a metro box');
   if (report.settings === 'unreadable') log.warn({ path: join(dir, 'settings.json') }, 'claude-setup: settings.json is not valid JSON, so the privacy settings and metro hooks were not written');
@@ -299,9 +300,6 @@ export function claudeSetupStatus(deps: SetupDeps = {}): SetupStatus {
   return {
     privacy: privacyEnabled(agents),
     permissionMode: permissionMode(agents),
-    runner: harnessRunner(agents),
-    runnerAllowed: sdkAllowed(agents),
-    sdkOnLogin: sdkOnLogin(agents),
     systemPrompt: systemPrompt(agents),
     liveEvents: liveEvents(agents),
     memoryRoutine: memoryRoutine(agents),
@@ -321,35 +319,5 @@ export function tryClaudeSetup(deps: SetupDeps = {}): void {
     ensureClaudeSetup(deps);
   } catch (err) {
     log.warn({ err: errMsg(err) }, 'claude-setup: could not apply the Claude Code setup');
-  }
-}
-
-const MODELS_KEY = 'availableModels';
-const ENFORCE_KEY = 'enforceAvailableModels';
-
-export const routeOf = (cfg: ModelConfig): string | null => (routedConnection(cfg)?.provider === 'anthropic' ? null : runnerModel(cfg));
-
-function withAvailableModels(settings: Record<string, unknown>, route: string | null, metroWrote: boolean): Record<string, unknown> {
-  if (route !== null) return { ...settings, [MODELS_KEY]: [route], [ENFORCE_KEY]: true };
-  if (!metroWrote) return settings;
-  return Object.fromEntries(Object.entries(settings).filter(([key]) => key !== MODELS_KEY && key !== ENFORCE_KEY));
-}
-
-export function syncAvailableModels(cfg: ModelConfig, deps: SetupDeps = {}): SettingsOutcome {
-  const dir = deps.dir ?? claudeDir();
-  const agents = deps.agents ?? agentsDir();
-  const route = routeOf(cfg);
-  const metroWrote = readSetupState(agents).modelsByMetro === true;
-  return mergeSettings(dir, (current) => {
-    writeSetupState(agents, { modelsByMetro: route !== null });
-    return withAvailableModels(current, route, metroWrote);
-  });
-}
-
-export function syncAvailableModelsQuietly(deps: SetupDeps = {}, cfg?: ModelConfig): void {
-  try {
-    syncAvailableModels(cfg ?? readModelConfig(deps.agents ?? agentsDir()), deps);
-  } catch (err) {
-    log.warn({ err: errMsg(err) }, 'claude-setup: could not sync the model allowlist');
   }
 }

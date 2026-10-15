@@ -27,8 +27,7 @@ export interface ModelApiDeps {
   anthropicBase?: string;
   bedrockControlBase?: string;
   setup?: SetupDeps;
-  restartSession?: () => boolean;
-  sessionRunning?: () => boolean;
+  runnerAlive?: () => boolean;
   switchModel?: (model: string | null) => boolean;
   claudeUsage?: (env?: Record<string, string>) => Promise<unknown>;
   claudeLoginsRoot?: string;

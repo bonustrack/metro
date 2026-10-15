@@ -5,40 +5,33 @@ import { claudeCall } from './claude.js';
 export interface ClaudeSessionStatus {
   name: string;
   running: boolean;
-  runner: HarnessRunner | null;
+  legacyRunner: boolean;
   autostart: boolean;
   blocked: string | null;
   lastStartedAt: string | null;
   lastError: string | null;
-  channelsSkipped: string | null;
   activity: RunnerActivity | null;
 }
-
-const skippedReason = (raw: unknown): string | null => {
-  if (!isRecord(raw) || raw.registered !== false) return null;
-  return filled(raw.reason) ?? 'no reason given';
-};
 
 export function toClaudeSession(body: unknown): ClaudeSessionStatus {
   if (!isRecord(body) || typeof body.running !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     name: typeof body.name === 'string' ? body.name : 'metro',
     running: body.running,
-    runner: body.runner === 'cli' || body.runner === 'sdk' ? body.runner : null,
+    legacyRunner: body.runner === 'cli',
     autostart: body.autostart !== false,
     blocked: filled(body.blocked),
     lastStartedAt: filled(body.lastStartedAt),
     lastError: filled(body.lastError),
-    channelsSkipped: skippedReason(body.channels),
     activity: parseRunnerActivity(body.activity),
   };
 }
 
-export type RuntimeSnapshot = Pick<ClaudeSessionStatus, 'running' | 'runner' | 'activity' | 'lastStartedAt'>;
+export type RuntimeSnapshot = Pick<ClaudeSessionStatus, 'running' | 'legacyRunner' | 'activity' | 'lastStartedAt'>;
 
 export function toRuntimeSnapshot(body: unknown): RuntimeSnapshot {
-  const { running, runner, activity, lastStartedAt } = toClaudeSession(body);
-  return { running, runner: running ? runner : null, activity, lastStartedAt };
+  const { running, legacyRunner, activity, lastStartedAt } = toClaudeSession(body);
+  return { running, legacyRunner: running && legacyRunner, activity, lastStartedAt };
 }
 
 export async function fetchClaudeSession(): Promise<ClaudeSessionStatus> {
@@ -51,7 +44,6 @@ export async function controlClaudeSession(input: { action?: 'start' | 'stop'; a
 }
 
 export type PermissionMode = 'auto' | 'bypass';
-export type HarnessRunner = 'cli' | 'sdk';
 
 export interface MemoryJob {
   state: 'scheduled' | 'own' | 'off' | 'unavailable';
@@ -61,9 +53,6 @@ export interface MemoryJob {
 export interface ClaudeSetup {
   privacy: boolean;
   permissionMode: PermissionMode;
-  runner: HarnessRunner | null;
-  runnerAllowed: boolean;
-  sdkOnLogin: boolean | null;
   systemPrompt: string;
   liveEvents: boolean | null;
   memoryRoutine: boolean | null;
@@ -84,20 +73,11 @@ function toMemoryJob(raw: unknown): MemoryJob | null {
   return state === undefined ? null : { state, job: filled(raw.job) };
 }
 
-function runnerOf(body: Record<string, unknown>): Pick<ClaudeSetup, 'runner' | 'runnerAllowed' | 'sdkOnLogin'> {
-  return {
-    runner: body.runner === 'sdk' || body.runner === 'cli' ? body.runner : null,
-    runnerAllowed: body.runnerAllowed === true,
-    sdkOnLogin: typeof body.sdkOnLogin === 'boolean' ? body.sdkOnLogin : null,
-  };
-}
-
 export function toClaudeSetup(body: unknown): ClaudeSetup {
   if (!isRecord(body) || typeof body.privacy !== 'boolean') throw new Error('Metro returned an unexpected response.');
   return {
     privacy: body.privacy,
     permissionMode: body.permissionMode === 'bypass' ? 'bypass' : 'auto',
-    ...runnerOf(body),
     systemPrompt: typeof body.systemPrompt === 'string' ? body.systemPrompt : '',
     liveEvents: typeof body.liveEvents === 'boolean' ? body.liveEvents : null,
     memoryRoutine: typeof body.memoryRoutine === 'boolean' ? body.memoryRoutine : null,
@@ -123,14 +103,6 @@ export async function setClaudePermissionMode(permissionMode: PermissionMode): P
   return toClaudeSetup(await claudeCall('POST', '/setup', { permissionMode }));
 }
 
-export async function setHarnessRunner(runner: HarnessRunner): Promise<ClaudeSetup> {
-  return toClaudeSetup(await claudeCall('POST', '/setup', { runner }));
-}
-
-export async function setSdkOnLogin(sdkOnLogin: boolean): Promise<ClaudeSetup> {
-  return toClaudeSetup(await claudeCall('POST', '/setup', { sdkOnLogin }));
-}
-
 export async function setClaudeLiveEvents(liveEvents: boolean): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { liveEvents }));
 }
@@ -141,24 +113,4 @@ export async function setClaudeMemoryRoutine(memoryRoutine: boolean): Promise<Cl
 
 export async function setClaudeSystemPrompt(systemPrompt: string): Promise<ClaudeSetup> {
   return toClaudeSetup(await claudeCall('POST', '/setup', { systemPrompt }));
-}
-
-export interface ClaudeVersion {
-  installed: string | null;
-  latest: string | null;
-  newer: boolean;
-}
-
-function toClaudeVersion(body: unknown): ClaudeVersion {
-  if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');
-  return { installed: filled(body.installed), latest: filled(body.latest), newer: body.newer === true };
-}
-
-export async function fetchClaudeVersion(): Promise<ClaudeVersion> {
-  return toClaudeVersion(await claudeCall('GET', '/version'));
-}
-
-export async function updateClaudeCode(): Promise<ClaudeVersion & { restarted: boolean }> {
-  const body = await claudeCall('POST', '/version');
-  return { ...toClaudeVersion(body), restarted: isRecord(body) && body.restarted === true };
 }

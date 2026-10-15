@@ -13,6 +13,7 @@ import { Dropdown } from '../Dropdown.js';
 import { Grid } from '../ui/Grid.js';
 import { WORKER_FILTERS, WORKER_STATE, workerSelection, type WorkerFilter } from './worker-state.js';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
+import { LEGACY_RUNNER_NOTE } from '@metro-labs/client/api/runner';
 import { freshness, sessionView, type Activity, type Freshness } from './session.js';
 
 const styles = StyleSheet.create({ title: { flex: 1, minWidth: 0 }, controls: { maxWidth: '100%' } });
@@ -30,7 +31,7 @@ function unavailableNote(status: ClaudeSessionStatus | undefined, disconnected: 
   if (disconnected) return 'Could not refresh the session. Below is the last known state, not live.';
   if (status === undefined) return 'Loading session status…';
   if (!status.running) return status.blocked === null ? 'The session is not running. Start it in Harness settings.' : 'Starting the session is blocked. Check Harness settings.';
-  if (status.runner !== 'sdk') return 'This runner reports no live activity. Messages still show below.';
+  if (status.legacyRunner) return `${LEGACY_RUNNER_NOTE} Messages still show below.`;
   return 'The session is running, but has reported no activity yet.';
 }
 

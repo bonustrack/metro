@@ -6,9 +6,6 @@ import { bearerSession, clientId, jwksUrl, SigningKeys, workosBase, type KeyStor
 import { ensureSecureDir, writeSecure } from '@metro-labs/core/secure-fs';
 
 const KEYS_FILE = '.jwks';
-const OPERATOR_USER = 'user_01M2TN3K6NRVX675M617GR4WVE';
-
-export const isOperatorUser = (user: string): boolean => user === OPERATOR_USER;
 
 export function jwksStore(dir: string): KeyStore {
   const path = join(dir, KEYS_FILE);
@@ -28,7 +25,7 @@ export function bearerSessionsFor(owner: () => string | null, keys: SigningKeys)
     const held = owner();
     if (held === null || session.organization === null || session.organization !== held)
       throw new ApiError('this machine belongs to another organization', 403);
-    return { subject: held, userId: session.userId, sessionId: session.sessionId, role: session.role === 'admin' ? 'admin' : 'member', ...(isOperatorUser(session.userId) ? { operator: true as const } : {}) };
+    return { subject: held, userId: session.userId, sessionId: session.sessionId, role: session.role === 'admin' ? 'admin' : 'member' };
   };
 }
 

@@ -61,10 +61,6 @@ export class Utterance {
     });
   }
 
-  get usable(): boolean {
-    return !this.closed && this.listener === null && this.ws.readyState <= WebSocket.OPEN;
-  }
-
   attach(listener: Voiced): void {
     if (!this.aborted && !this.finished) this.listener = listener;
   }

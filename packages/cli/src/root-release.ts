@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { isRecord } from './background.js';
 import { compareVersions, PACKAGE_NAME } from './version.js';
 
 export const RELEASE_DIR = '/usr/local/lib/metro/release';
@@ -11,6 +10,8 @@ const IN_TOTO = 'application/vnd.in-toto+json';
 const VERSION_RE = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z]{1,20}(?:\.[0-9A-Za-z]{1,20}){0,4})?$/;
 
 export type Trigger = 'root' | 'metro';
+
+export const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export interface Published {
   tags: Record<string, unknown>;

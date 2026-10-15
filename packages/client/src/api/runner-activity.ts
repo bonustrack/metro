@@ -32,7 +32,7 @@ export { runnerFailureSummary };
 export const runnerEventLabel = (kind: RunnerEventKind): string => EVENT[kind];
 
 export const sessionPollMs = (status: ClaudeSessionStatus | undefined, live: boolean): number =>
-  live && status?.running === true && status.runner === 'sdk' ? 2_000 : 10_000;
+  live && status?.running === true && !status.legacyRunner ? 2_000 : 10_000;
 
 function duration(ms: number): string {
   const seconds = Math.floor(Math.max(0, ms) / 1_000);
@@ -48,7 +48,7 @@ const elapsed = (start: number | null, end: number): string | null => start === 
 const terminal = (task: RunnerTask): boolean => ['completed', 'failed', 'stopped'].includes(task.status);
 
 function clockOf(status: ClaudeSessionStatus, activity: RunnerActivity, now: number): Clock {
-  const past = !status.running || status.runner === 'cli' || activity.phase === 'stopped';
+  const past = !status.running || status.legacyRunner || activity.phase === 'stopped';
   const mode = past ? 'past' : activityIsStale(activity.updatedAt, now) ? 'stale' : 'live';
   return { mode, at: mode === 'live' ? Math.max(now, activity.updatedAt) : activity.updatedAt, now };
 }
@@ -56,7 +56,7 @@ function clockOf(status: ClaudeSessionStatus, activity: RunnerActivity, now: num
 function reportNote(status: ClaudeSessionStatus, activity: RunnerActivity, clock: Clock): string {
   const at = date(activity.updatedAt);
   if (clock.mode === 'past') {
-    const reason = !status.running ? 'The session is not running.' : status.runner === 'cli' ? 'Claude Code runs now.' : 'The Agent SDK reported it stopped.';
+    const reason = !status.running ? 'The session is not running.' : status.legacyRunner ? 'Claude Code runs now; update Metro.' : 'The Agent SDK reported it stopped.';
     return `${reason} Last Agent SDK report: ${at}. History, not live. Times stop at this report.`;
   }
   if (clock.mode === 'stale') {

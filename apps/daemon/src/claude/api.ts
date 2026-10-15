@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
+import { apiFailure, apiSession, requireAdmin, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { githubSkillsAnswer } from './github-api.js';
@@ -35,7 +35,6 @@ import {
   stopSession,
   type SessionDeps,
 } from './session.js';
-import { claudeVersion, updateClaude, type VersionDeps } from './version.js';
 import { receiveSessionFile, sessionFilePath } from './session-files.js';
 import { createReadStream } from '../agent-user/agent-fs.js';
 import { pipeline } from 'node:stream/promises';
@@ -61,7 +60,6 @@ export interface ClaudeApiDeps extends SetupApiDeps {
   dir?: () => string;
   login?: LoginDeps;
   claudeLogins?: ClaudeLoginDeps;
-  version?: VersionDeps;
   skillSource?: GitHubSkills;
 }
 
@@ -135,11 +133,10 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   return createClaudeSkill(body.name, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
-const ADMIN_ONLY = /^\/api\/claude\/(login|session|version|setup|skill-source)(\/|$)/;
+const ADMIN_ONLY = /^\/api\/claude\/(login|session|setup|skill-source)(\/|$)/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
-const VERSION = 'version';
 
 function sessionCommand(body: Record<string, unknown>, session: SessionDeps): unknown {
   if (body.action === 'start') {
@@ -209,18 +206,9 @@ function answer(method: string, path: string, query: URLSearchParams, dir: strin
   return handler(query, dir, item);
 }
 
-function versionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise<unknown> {
-  const version: VersionDeps = { ...deps.version, session: deps.version?.session ?? deps.session };
-  const method = req.method ?? 'GET';
-  if (method === 'GET') return Promise.resolve(claudeVersion(version));
-  if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  return Promise.resolve(updateClaude(version));
-}
-
-const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps, session: ApiSession) => Promise<unknown>> = {
+const SINGLETONS: Record<string, (req: IncomingMessage, deps: ClaudeApiDeps) => Promise<unknown>> = {
   [SESSION]: sessionAnswer,
   [SETUP]: setupAnswer,
-  [VERSION]: versionAnswer,
 };
 
 function skillsAnswer(req: IncomingMessage, path: string, search: string, dir: string, source: GitHubSkills): unknown {
@@ -245,14 +233,14 @@ function fileAnswer(req: IncomingMessage, path: string, search: string, dir: str
   return answer(req.method ?? 'GET', path, new URLSearchParams(search), dir);
 }
 
-function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps, session: ApiSession): unknown {
+function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {
   const dir = (deps.dir ?? claudeDir)();
   const [head = '', item = ''] = parts(path);
   if (head === LOGIN) return loginAnswer(req, item, deps);
   if (head === 'skill-source' && parts(path).length === 1) return githubSkillsAnswer(req, deps.skillSource);
   if (head === 'skills') return skillsAnswer(req, path, search, dir, sourceOf(deps));
   const single = item === '' ? SINGLETONS[head] : undefined;
-  if (single !== undefined) return single(req, deps, session);
+  if (single !== undefined) return single(req, deps);
   return fileAnswer(req, path, search, dir);
 }
 
@@ -303,7 +291,7 @@ export function handleClaudeRequest(
       }
       if (req.method !== 'GET' && ADMIN_ONLY.test(path.replace(/\/{2,}/g, '/'))) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
-      sendJson(req, res, 200, await routed(req, path, search, deps, session));
+      sendJson(req, res, 200, await routed(req, path, search, deps));
     })
     .catch((err: unknown) => {
       if (err instanceof ApiError) apiFailure(req, res, err, 'claude-api');

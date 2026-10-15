@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, routineArgs, routineEnv, routinePrompt, settleWorkstreams, takeLock, type MemoryPaths } from '../src/memory.ts';
+import { changedTranscripts, isoWeek, MEMORY_FOLDERS, memoryPaths, memoryRoutine, previousWeek, projectDir, routineArgs, routineEnv, routinePrompt, settleWorkstreams, type MemoryPaths } from '../src/memory.ts';
 
 let dir = '';
 
@@ -94,13 +94,8 @@ describe('the run the routine starts', () => {
     expect(routineArgs('go', '/m', null)).not.toContain('--append-system-prompt');
   });
 
-  test('runs one at a time, and a lock left by a dead run or older than two hours is taken over', () => {
-    const lock = join(dir, 'x.lock');
-    expect(takeLock(lock)).toBe(true);
-    expect(takeLock(lock)).toBe(false);
-    expect(takeLock(lock, Date.now() + 3 * 60 * 60_000)).toBe(true);
-    writeFileSync(lock, '999999999');
-    expect(takeLock(lock)).toBe(true);
+  test('the project folder is named the way Claude Code names it', () => {
+    expect(projectDir('/h/.claude', '/home/agent')).toBe('/h/.claude/projects/-home-agent');
   });
 
   test('moves the workstreams marked finished to completed and fixes their index lines, and leaves the rest', () => {
