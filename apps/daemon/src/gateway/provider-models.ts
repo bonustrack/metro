@@ -1,8 +1,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { GatewayError, OAUTH_BETA } from './forward.js';
-import type { Connection } from './model-config.js';
-import { fingerprint, listCache } from './model-lists.js';
+import { listCache } from './model-lists.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
 export const ANTHROPIC_API = 'https://api.anthropic.com';
@@ -30,7 +29,6 @@ const KNOWN_CLAUDE: ProviderModel[] = [
 ];
 
 const claudeLists = listCache<ProviderModel>('anthropic');
-const bedrockLists = listCache<ProviderModel>('bedrock');
 
 const newestFirst = (list: Dated[]): ProviderModel[] =>
   list.sort((a, b) => b.created.localeCompare(a.created) || a.id.localeCompare(b.id)).map(({ id, name }) => ({ id, name }));
@@ -73,45 +71,7 @@ export function refreshLoginModels(headers: IncomingHttpHeaders, base = ANTHROPI
   return claudeLists.refresh(loginKey(base), () => listClaude(auth, 'the Claude Code login', base, fetchImpl));
 }
 
-export async function anthropicModels(settings: Connection, base = ANTHROPIC_API, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
-  if (settings.apiKey === '') {
-    const live = claudeLists.peek(loginKey(base)) ?? [];
-    return live.length > 0 ? live : KNOWN_CLAUDE;
-  }
-  return claudeLists.get(`key:${base}:${fingerprint(settings.apiKey)}`, () => listClaude({ 'x-api-key': settings.apiKey }, 'the stored key', base, fetchImpl));
-}
-
-export const bedrockControlBase = (region: string): string => `https://bedrock.${region}.amazonaws.com`;
-
-function bedrockEntry(entry: unknown): Dated[] {
-  if (!isRecord(entry)) return [];
-  const id = stringOf(entry.inferenceProfileId);
-  const status = stringOf(entry.status);
-  if (id === '' || !id.includes('anthropic') || (status !== '' && status !== 'ACTIVE')) return [];
-  return [{ id, name: stringOf(entry.inferenceProfileName) || id, created: stringOf(entry.createdAt) }];
-}
-
-async function listBedrock(settings: Connection, base: string, fetchImpl: typeof fetch): Promise<ProviderModel[]> {
-  const res = await fetchImpl(`${base}/inference-profiles?maxResults=${String(LIST_MAX)}`, {
-    headers: { authorization: `Bearer ${settings.apiKey}`, accept: 'application/json' },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
-  });
-  if (!res.ok)
-    throw new GatewayError(
-      res.status,
-      'api_error',
-      `Bedrock would not list its inference profiles (${String(res.status)}); the stored key may cover the runtime only, so type the model id instead`,
-    );
-  const body: unknown = await res.json();
-  const list = isRecord(body) && Array.isArray(body.inferenceProfileSummaries) ? body.inferenceProfileSummaries : null;
-  if (list === null) throw new GatewayError(502, 'api_error', 'Bedrock answered with no inference profile list');
-  return newestFirst(list.flatMap(bedrockEntry));
-}
-
-export async function bedrockModels(settings: Connection, base?: string, fetchImpl: typeof fetch = fetch): Promise<ProviderModel[]> {
-  if (settings.region === '') throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs a region before its models can be listed');
-  if (settings.apiKey === '') throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs an API key before its models can be listed');
-  const from = base ?? bedrockControlBase(settings.region);
-  return bedrockLists.get(`${from}:${fingerprint(settings.apiKey)}`, () => listBedrock(settings, from, fetchImpl));
+export function claudeModels(base = ANTHROPIC_API): ProviderModel[] {
+  const live = claudeLists.peek(loginKey(base)) ?? [];
+  return live.length > 0 ? live : KNOWN_CLAUDE;
 }

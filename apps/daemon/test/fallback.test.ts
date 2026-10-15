@@ -5,31 +5,32 @@ import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../sr
 import { chainOf, chainStatus, holdOf, routesToTry } from '../src/gateway/fallback.ts';
 import { noteUsage } from '../src/gateway/usage.ts';
 import { lastServed } from '../src/gateway/served.ts';
-import { ModelConfigError, parseModelConfig, removeConnection, setFallbacks, type ModelConfig, type Route } from '../src/gateway/model-config.ts';
-import { conn, configOf, connectionId, makeConnection } from './model-fixture.ts';
+import { SESSION_LOGIN, type ModelSetup, type Route } from '../src/gateway/model-config.ts';
+import { deliveredOf } from '../src/gateway/delivered.ts';
+import { conn, connectionId, makeConnection, setupOf } from './model-fixture.ts';
 
 const NOW = Date.parse('2026-10-03T23:00:00.000Z');
 const LATER = '2026-10-08T07:00:00.000Z';
 const EARLIER = '2026-10-03T22:00:00.000Z';
 
-const setup = (): ModelConfig => ({
-  ...configOf('anthropic', [
-    makeConnection('anthropic'),
-    makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-6' }),
-    makeConnection('codex', { model: 'gpt-6-luna' }),
-  ]),
-  fallbacks: [
-    { connection: connectionId('anthropic'), model: 'claude-fable-5-1' },
-    { connection: connectionId('openrouter'), model: 'anthropic/claude-opus-5-5' },
-  ],
-});
+const LOGIN = SESSION_LOGIN;
 
-const opus = (cfg: ModelConfig): Route => ({ connection: conn(cfg, 'anthropic'), model: 'claude-opus-5-5' });
+const setup = (): ModelSetup =>
+  setupOf(
+    LOGIN,
+    [makeConnection('anthropic', { id: LOGIN }), makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-6' }), makeConnection('codex', { model: 'gpt-6-luna' })],
+    [
+      { connection: LOGIN, model: 'claude-fable-5-1' },
+      { connection: connectionId('openrouter'), model: 'anthropic/claude-opus-5-5' },
+    ],
+  );
+
+const opus = (cfg: ModelSetup): Route => ({ connection: conn(cfg, 'anthropic'), model: 'claude-opus-5-5' });
 
 const window = (label: string, used: number, resetAt: string | null = LATER): { label: string; used: number; resetAt: string | null; detail: null } => ({ label, used, resetAt, detail: null });
 
 const login = (...windows: ReturnType<typeof window>[]): void => {
-  noteUsage(connectionId('anthropic'), { windows, note: null, at: new Date(NOW).toISOString() });
+  noteUsage(LOGIN, { windows, note: null, at: new Date(NOW).toISOString() });
 };
 
 const models = (routes: Route[]): string[] => routes.map((r) => `${r.connection.provider}:${r.model}`);
@@ -42,7 +43,7 @@ describe('the order of the models', () => {
   test('the first model comes first, then each fallback in the order the owner set', () => {
     const cfg = setup();
     expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-fable-5-1', 'openrouter:anthropic/claude-opus-5-5']);
-    cfg.fallbacks = [...(cfg.fallbacks ?? [])].reverse();
+    cfg.fallbacks = [...cfg.fallbacks].reverse();
     expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-fable-5-1']);
   });
 
@@ -50,23 +51,20 @@ describe('the order of the models', () => {
     const cfg = setup();
     cfg.fallbacks = [
       { connection: connectionId('codex'), model: 'gpt-6-luna' },
-      { connection: connectionId('anthropic'), model: 'claude-opus-5-5' },
-      { connection: connectionId('anthropic'), model: 'claude-fable-5-1' },
+      { connection: LOGIN, model: 'claude-opus-5-5' },
+      { connection: LOGIN, model: 'claude-fable-5-1' },
     ];
     expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-fable-5-1']);
     const haiku: Route = { connection: conn(cfg, 'anthropic'), model: 'claude-haiku-4-5' };
     expect(models(chainOf(haiku, cfg, 'claude-haiku-4-5'))).toEqual(['anthropic:claude-haiku-4-5']);
   });
 
-  test('the list is kept in model.json, unknown connections and repeats dropped, and removing a connection removes its fallbacks', () => {
+  test('the list comes as the organization delivered it: an unknown connection is left out, and a fallback with no model is dropped on arrival', () => {
     const cfg = setup();
-    const raw = { ...cfg, fallbacks: [...(cfg.fallbacks ?? []), { connection: 'gone', model: 'x' }, { connection: connectionId('anthropic'), model: 'claude-fable-5-1' }] };
-    expect(parseModelConfig(JSON.parse(JSON.stringify(raw))).fallbacks).toEqual(cfg.fallbacks);
-    expect(removeConnection(cfg, connectionId('openrouter')).fallbacks).toEqual([{ connection: connectionId('anthropic'), model: 'claude-fable-5-1' }]);
-    expect(setFallbacks(cfg, []).fallbacks).toBeUndefined();
-    expect(() => setFallbacks(cfg, [{ connection: 'gone', model: 'x' }])).toThrow(ModelConfigError);
-    expect(() => setFallbacks(cfg, [{ connection: connectionId('codex'), model: '' }])).toThrow('each fallback needs a model');
-    expect(() => setFallbacks(cfg, 'nope')).toThrow('fallbacks must be a list');
+    cfg.fallbacks = [...cfg.fallbacks, { connection: 'gone', model: 'x' }];
+    expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-fable-5-1', 'openrouter:anthropic/claude-opus-5-5']);
+    const delivered = deliveredOf({ route: { primary: { connection: 'a', model: 'm' }, fallbacks: [{ connection: 'b', model: '' }, { connection: 'c', model: 'n' }, 7] }, source: 'organization', connections: [] });
+    expect(delivered?.route?.fallbacks).toEqual([{ connection: 'c', model: 'n' }]);
   });
 });
 
@@ -109,7 +107,7 @@ describe('a model over 95% of its usage is skipped', () => {
 
   test('the page sees each model of the list with its usage, what holds it, and which one is active', () => {
     const cfg = setup();
-    cfg.connections[0] = { ...conn(cfg, 'anthropic'), model: 'claude-opus-5-5' };
+    cfg.primary = { connection: LOGIN, model: 'claude-opus-5-5' };
     login(window('Weekly', 0.97), window('Weekly, Fable', 0.2));
     const rows = chainStatus(cfg, NOW);
     expect(rows.map((r) => [r.model, r.used, r.hold?.reason ?? null, r.active])).toEqual([
@@ -175,7 +173,7 @@ let anthropic: Fake;
 let openrouter: Fake;
 let gateway: Server;
 let base = '';
-let cfg: ModelConfig;
+let cfg: ModelSetup;
 let openrouterDown = false;
 
 beforeAll(async () => {
@@ -187,7 +185,7 @@ beforeAll(async () => {
     if (openrouterDown) limited(res);
     else stream(res, 'openrouter');
   });
-  const deps: GatewayDeps = { config: () => cfg, identify: (key) => key === 'mk_ok', anthropicBase: anthropic.base, openrouterBase: openrouter.base };
+  const deps: GatewayDeps = { setup: () => cfg, identify: (key) => key === 'mk_ok', anthropicBase: anthropic.base, openrouterBase: openrouter.base };
   gateway = createServer((req, res) => {
     if (!handleGatewayRequest(req, res, deps)) res.writeHead(404).end();
   });

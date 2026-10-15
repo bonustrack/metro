@@ -10,7 +10,7 @@ process.env.SDK_RUNNER_CHECK_MODEL = 'openrouter:vendor/model-a';
 process.env.SDK_RUNNER_WORKER_DELAY_MS = '3000';
 const h = await import('./harness.ts');
 const { handleClaudeRequest } = await import('../../apps/daemon/src/claude/api.ts');
-writeFileSync(join(h.AGENTS, 'model.json'), JSON.stringify({ version: 2, route: 'or', connections: [{ id: 'or', provider: 'openrouter', label: 'Fixture', model: 'vendor/model-a', apiKey: 'fixture-key', region: '', zdr: false }] }));
+h.deliver({ route: { primary: { connection: 'or', model: 'vendor/model-a' }, fallbacks: [] }, source: 'organization', connections: [{ id: 'or', provider: 'openrouter', label: 'Fixture', credential: { apiKey: 'fixture-key' } }] });
 writeFileSync(join(h.AGENTS, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
 setBearerSessions(() => Promise.resolve({ subject: 'activity-fixture', role: 'admin' }));
 h.serveAlso((req, res) => handleClaudeRequest(req, res, {

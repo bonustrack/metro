@@ -6,6 +6,8 @@ import { Readable } from 'node:stream';
 import { agentUser, agentUserExpected, asUser, CLAUDE_ENV, claudeBin, forgetAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
 import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/agent-user/home-fs.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
+import { modelViewText, setupOf } from '../src/gateway/effective.ts';
+import { makeConnection } from './model-fixture.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
 const host = (over: Partial<UserHost> = {}): UserHost => ({ metro: true, lookup: (name) => (name === 'agent' ? AGENT : null), ...over });
@@ -68,9 +70,11 @@ describe('the Metro files the agent may read', () => {
       JSON.stringify({ version: 1, id: 'agent000001', key: 'secret-agent-key-0123456789', stations: [{ station: 'outlook', id: 'o1', config: { refreshToken: 'rt-SECRET' } }] }),
     );
     writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', model: 'x/y', apiKey: 'sk-SECRET', label: 'OpenRouter' }] }));
+    const delivered = { route: { primary: { connection: 'c1', model: 'x/y' }, fallbacks: [] }, source: 'organization' as const, connections: [makeConnection('openrouter', { id: 'c1', apiKey: 'sk-SECRET' })] };
     writeFileSync(join(dir, 'policy.json'), '{"version":1}');
     writeFileSync(join(dir, 'voice.json'), JSON.stringify({ provider: 'elevenlabs', apiKey: 'xi-SECRET' }));
-    const files = viewFiles(dir);
+    expect(JSON.parse(viewFiles(dir).get('model.json') ?? 'null')).toBeNull();
+    const files = viewFiles(dir, () => modelViewText(setupOf(delivered, [])));
     expect(files.has('voice.json')).toBe(false);
     const all = [...files.values()].join('\n');
     expect(all).not.toContain('SECRET');

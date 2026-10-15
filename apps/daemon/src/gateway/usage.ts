@@ -315,19 +315,6 @@ export function noteUsageHeaders(kind: 'anthropic' | 'codex', key: Key, headers:
 
 const dollars = (value: number): string => `$${value.toFixed(2)}`;
 
-export interface QuotaRow {
-  id: string;
-  remaining: number | null;
-  resetAt: string | null;
-}
-
-export function geminiUsage(rows: QuotaRow[], now = new Date()): Reported | null {
-  const windows: UsageWindow[] = rows
-    .filter((row) => row.remaining !== null)
-    .map((row) => ({ label: row.id, used: clamp(1 - (row.remaining ?? 0)), resetAt: row.resetAt, detail: null }));
-  return windows.length === 0 ? null : { windows, note: null, at: now.toISOString() };
-}
-
 export interface KeySpend {
   limit: number | null;
   remaining: number | null;

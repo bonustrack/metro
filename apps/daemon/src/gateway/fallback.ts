@@ -1,7 +1,7 @@
 import { log } from '@metro-labs/core/log';
 import { lastServed } from './served.js';
 import { PER_MINUTE, usageOf, type UsageWindow } from './usage.js';
-import { bareModel, connectionOf, isSmallModel, notReady, routedConnection, routeLabel, type Connection, type Fallback, type ModelConfig, type Route } from './model-config.js';
+import { bareModel, connectionOf, isSmallModel, notReady, primaryRoute, routeLabel, type Connection, type Fallback, type ModelSetup, type Route } from './model-config.js';
 
 export const USAGE_LIMIT = 0.95;
 const COOLDOWN_MS = 60_000;
@@ -36,7 +36,6 @@ function scopeOf(label: string): string | null {
 function applies(window: UsageWindow, route: Route, now: number): boolean {
   if (window.used === null || window.label === PER_MINUTE) return false;
   if (window.resetAt !== null && Date.parse(window.resetAt) <= now) return false;
-  if (route.connection.provider === 'gemini') return window.label === route.model;
   const scope = scopeOf(window.label);
   return scope === null || route.model.toLowerCase().split(/[^a-z0-9]+/).includes(scope);
 }
@@ -59,16 +58,16 @@ function fallbackModel(requested: string, conn: Connection, model: string): stri
   return conn.provider === 'anthropic' && isSmallModel(bare) ? bare : model;
 }
 
-function fallbackRoute(cfg: ModelConfig, fallback: Fallback, requested: string): Route | null {
-  const conn = connectionOf(cfg, fallback.connection);
-  if (conn === null || notReady(cfg, conn) !== null) return null;
+function fallbackRoute(setup: ModelSetup, fallback: Fallback, requested: string): Route | null {
+  const conn = connectionOf(setup, fallback.connection);
+  if (conn === null || notReady({ connection: conn, model: fallback.model }) !== null) return null;
   return { connection: conn, model: fallbackModel(requested, conn, fallback.model) };
 }
 
 const unique = (routes: Route[]): Route[] => routes.filter((route, at) => routes.findIndex((other) => keyOf(other) === keyOf(route)) === at);
 
-export const chainOf = (primary: Route, cfg: ModelConfig, requested: string): Route[] =>
-  unique([primary, ...(cfg.fallbacks ?? []).flatMap((f) => fallbackRoute(cfg, f, requested) ?? [])]);
+export const chainOf = (primary: Route, setup: ModelSetup, requested: string): Route[] =>
+  unique([primary, ...setup.fallbacks.flatMap((f) => fallbackRoute(setup, f, requested) ?? [])]);
 
 export function routesToTry(chain: Route[], now = Date.now()): Route[] {
   const open = chain.filter((route) => holdOf(route, now) === null);
@@ -120,28 +119,28 @@ export interface ChainRow {
   active: boolean;
 }
 
-function primaryOf(cfg: ModelConfig): Route | null {
-  const conn = routedConnection(cfg);
-  if (conn === null) return null;
+function primaryOf(setup: ModelSetup): Route | null {
+  const primary = primaryRoute(setup);
+  if (primary === null) return null;
   const served = lastServed();
-  const model = conn.model !== '' ? conn.model : served?.connection === conn.id ? served.model : '';
-  return { connection: conn, model };
+  const model = primary.model !== '' ? primary.model : served?.connection === primary.connection.id ? served.model : '';
+  return { connection: primary.connection, model };
 }
 
-function rowOf(cfg: ModelConfig, route: Route, now: number): Omit<ChainRow, 'active'> {
-  const reason = notReady(cfg, route.connection);
+function rowOf(route: Route, now: number): Omit<ChainRow, 'active'> {
+  const reason = notReady(route);
   const used = windowsFor(route, now).reduce<number | null>((most, w) => Math.max(most ?? 0, w.used ?? 0), null);
   return { connection: route.connection.id, model: route.model, used, hold: reason === null ? holdOf(route, now) : { reason, until: null } };
 }
 
-export function chainStatus(cfg: ModelConfig, now = Date.now()): ChainRow[] {
-  const primary = primaryOf(cfg);
+export function chainStatus(setup: ModelSetup, now = Date.now()): ChainRow[] {
+  const primary = primaryOf(setup);
   if (primary === null) return [];
-  const listed = (cfg.fallbacks ?? []).flatMap((f) => {
-    const conn = connectionOf(cfg, f.connection);
+  const listed = setup.fallbacks.flatMap((f) => {
+    const conn = connectionOf(setup, f.connection);
     return conn === null ? [] : [{ connection: conn, model: f.model }];
   });
-  const rows = unique([primary, ...listed]).map((route) => rowOf(cfg, route, now));
+  const rows = unique([primary, ...listed]).map((route) => rowOf(route, now));
   const active = Math.max(0, rows.findIndex((row) => row.hold === null));
   return rows.map((row, at) => ({ ...row, active: at === active }));
 }

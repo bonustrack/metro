@@ -11,7 +11,8 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
-import { notReady, readModelConfig, routedConnection } from '../gateway/model-config.js';
+import { notReady, primaryRoute, type ModelSetup } from '../gateway/model-config.js';
+import { effectiveSetup } from '../gateway/effective.js';
 import { claudeAccount, claudeInstalled, forgetClaudeChecks } from './login.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
@@ -38,6 +39,7 @@ export interface SessionDeps {
   home?: string;
   agents?: string;
   signedIn?: () => boolean;
+  model?: () => ModelSetup;
   now?: () => number;
   version?: string;
 }
@@ -138,13 +140,12 @@ function credentialReady(deps: SessionDeps): string | null {
   const signedIn = deps.signedIn ?? loginNotRuledOut;
   if (signedIn()) return null;
   try {
-    const cfg = readModelConfig(deps.agents ?? agentsDir());
-    const conn = routedConnection(cfg);
-    if (conn !== null && notReady(cfg) === null && (conn.provider !== 'anthropic' || conn.apiKey !== '')) return null;
+    const primary = primaryRoute((deps.model ?? (() => effectiveSetup(deps.agents ?? agentsDir())))());
+    if (primary !== null && notReady(primary) === null && (primary.connection.provider !== 'anthropic' || primary.connection.apiKey !== '')) return null;
   } catch (err) {
-    return `the Model page is not readable (${errMsg(err)})`;
+    return `the model setup is not readable (${errMsg(err)})`;
   }
-  return 'Claude Code is not signed in and the Model page routes nowhere yet';
+  return 'Claude Code is not signed in and the organization routes this agent to no model yet';
 }
 
 const agentUserMissing = (deps: SessionDeps): boolean =>

@@ -1,4 +1,4 @@
-import type { Connection, ModelConfig, Provider } from '../src/gateway/model-config.ts';
+import { isProvider, type CodexAccess, type Connection, type Fallback, type ModelSetup, type Provider } from '../src/gateway/model-config.ts';
 
 export const connectionId = (provider: Provider): string => `cn-${provider}`;
 
@@ -11,27 +11,32 @@ export function makeConnection(provider: Provider, fields: Partial<Connection> =
     apiKey: '',
     region: '',
     zdr: false,
+    revision: 1,
     codex: null,
-    gemini: null,
     claude: null,
+    account: { email: null, plan: null, method: null },
+    signedOut: false,
     ...fields,
   };
 }
 
-export const configOf = (route: Provider, connections: Connection[]): ModelConfig => ({
-  version: 2,
-  route: connectionId(route),
+export const codexAccess = (fields: Partial<CodexAccess> = {}): CodexAccess => ({ method: 'chatgpt', accessToken: 'at-1', expiresAt: Date.now() + 3_600_000, accountId: null, ...fields });
+
+export const setupOf = (route: string, connections: Connection[], fallbacks: Fallback[] = []): ModelSetup => ({
+  primary: { connection: isProvider(route) ? connectionId(route) : route, model: '' },
+  fallbacks,
   connections,
+  source: 'organization',
 });
 
-export function conn(cfg: ModelConfig, provider: Provider): Connection {
-  const found = cfg.connections.find((c) => c.provider === provider);
+export function conn(setup: ModelSetup, provider: Provider): Connection {
+  const found = setup.connections.find((c) => c.provider === provider);
   if (found === undefined) throw new Error(`no ${provider} connection in this fixture`);
   return found;
 }
 
-export function use(cfg: ModelConfig, provider: Provider): void {
-  cfg.route = conn(cfg, provider).id;
+export function use(setup: ModelSetup, provider: Provider): void {
+  setup.primary = { connection: conn(setup, provider).id, model: '' };
 }
 
 export const jwt = (claims: Record<string, unknown>): string => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'sig'].join('.');
