@@ -6,12 +6,10 @@ import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { ModelReadError, UsageBar, UsageUnavailable } from './ModelUsage.js';
 import { limitingWindow, limitNote, modelWindows, usageDetail, usageModel, usageReported, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
-import { ORG_MODELS_SINCE, SESSION_LABEL, type ConnectionRow, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
+import { SESSION_LABEL, type ConnectionRow, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
 import type { ModelOption } from '@metro-labs/client/api/model-options';
 import { effectiveRoute } from '@metro-labs/client/api/model-order';
 import { DEFAULT_MODEL, providerInfo, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
-import { olderThan } from '@metro-labs/client/api/version';
-import { useModeQuery } from '../lib/queries.js';
 import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/model-queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
@@ -28,8 +26,8 @@ export function nameIn(options: ModelOption[] | undefined, model: string): strin
   return cut === -1 ? found.name : found.name.slice(cut + 2);
 }
 
-export function useModelName(conn: ConnectionRow | undefined, model: string, lists = true): string {
-  const models = useConnectionModelsQuery(lists ? conn : undefined);
+export function useModelName(conn: ConnectionRow | undefined, model: string): string {
+  const models = useConnectionModelsQuery(conn);
   return conn === undefined ? DEFAULT_MODEL : nameIn(models.data, model);
 }
 
@@ -57,11 +55,11 @@ export function CardUsage({ usage, provider, model }: { usage: ModelSettings['us
 
 const CARD = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 } as const;
 
-function Card({ settings, href, lists }: { settings: ModelSettings; href: string; lists: boolean }): ReactNode {
+function Card({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
   const palette = useKitPalette();
   const conn = routedConnection(settings);
   const model = usageModel(settings, effectiveRoute(settings).primary);
-  const name = useModelName(conn, model, lists);
+  const name = useModelName(conn, model);
   const account = useAccountOf(conn);
   const usage = routedUsage(settings);
   const frame = [CARD, { borderColor: palette.border }];
@@ -92,12 +90,11 @@ function Card({ settings, href, lists }: { settings: ModelSettings; href: string
 
 export function AgentRoute({ project }: { project: string }): ReactNode {
   const model = useModelQuery();
-  const lists = !olderThan(useModeQuery().data?.version ?? null, ORG_MODELS_SINCE);
   const target: Selection = { kind: 'model', project };
   return (
     <Col gap={8}>
       <ModelReadError error={model.error} cached={model.data !== undefined} />
-      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} lists={lists} />}
+      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} />}
     </Col>
   );
 }

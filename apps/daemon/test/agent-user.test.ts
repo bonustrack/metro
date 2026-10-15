@@ -73,9 +73,7 @@ describe('the Metro files the agent may read', () => {
     const delivered = { route: { primary: { connection: 'c1', model: 'x/y' }, fallbacks: [] }, source: 'organization' as const, connections: [makeConnection('openrouter', { id: 'c1', apiKey: 'sk-SECRET' })] };
     writeFileSync(join(dir, 'policy.json'), '{"version":1}');
     writeFileSync(join(dir, 'voice.json'), JSON.stringify({ provider: 'elevenlabs', apiKey: 'xi-SECRET' }));
-    const local = viewFiles(dir).get('model.json') ?? '';
-    expect(local).not.toContain('SECRET');
-    expect(JSON.parse(local)).toEqual({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', model: 'x/y' }] });
+    expect(viewFiles(dir).get('model.json')).toBeNull();
     const files = viewFiles(dir, () => modelViewText(setupOf(delivered, [])));
     expect(files.has('voice.json')).toBe(false);
     const all = [...files.values()].join('\n');

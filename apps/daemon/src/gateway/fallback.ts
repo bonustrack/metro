@@ -55,7 +55,7 @@ export function holdOf(route: Route, now = Date.now()): Hold | null {
 
 function fallbackModel(requested: string, conn: Connection, model: string): string {
   const bare = bareModel(requested);
-  return conn.provider === 'anthropic' && isSmallModel(bare) ? bare : model;
+  return model === '' || (conn.provider === 'anthropic' && isSmallModel(bare)) ? bare : model;
 }
 
 function fallbackRoute(setup: ModelSetup, fallback: Fallback, requested: string): Route | null {

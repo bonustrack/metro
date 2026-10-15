@@ -1,5 +1,15 @@
 # Metro history
 
+## 2026-10-16: The model move is done
+
+Every box (all 8) imported its `model.json` version 2 into its organization with beta.309 and runs version 3 (Claude logins only), so what only the move needed goes:
+
+- **The one-time import goes on both sides**: api.metro.box's `POST /api/agents/models/import` (now 404) and the daemon's import. **The version 2 serving goes too**: a version 2 file found at start (none should be left) logs one warning and keeps only its Claude logins, rewritten as version 3; its connections are never served.
+- **The database, release A**: the code stops naming `model_connections.import_agent` and `import_id` (and `leaveOrganization` stops clearing them). Release B drops them with `model_connections_import_idx`.
+- **The page drops its compat for daemons before beta.309**: `ORG_MODELS_SINCE`, `USAGE_SINCE` and the reading of the old `/api/model` answer.
+- **The daemon deletes `chatgpt-host.json` at boot**, the one file the git history shows the old model setup writing in `<agents dir>`.
+- **A gap closed**: the api and the page accept an empty model on a `local:` fallback ("the model the request asks for"), but the box dropped such a fallback. It now keeps it and sends the requested model.
+
 ## 2026-10-15: Models belong to the organization
 
 Until this release each box kept its own model setup in Metro's `model.json` version 2: the provider connections with their keys and sign-ins, the route and the fallbacks, edited on the agent's Model page and saved by the daemon. The owner's decisions (Less, 2026-10-15; design in `docs/ORG-MODELS.md`):

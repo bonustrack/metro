@@ -19,7 +19,6 @@ export interface FakeApi {
   asked: Asked[];
   delivery: Record<string, unknown>;
   answer: ((path: string, body: Record<string, unknown>) => { status: number; body: unknown } | 'drop' | null) | null;
-  imported: Map<string, string>;
   close: () => Promise<void>;
 }
 
@@ -40,28 +39,8 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
 }
 
-function localOf(row: Record<string, unknown>): string | null {
-  if (row.provider !== 'anthropic' || 'apiKey' in row) return null;
-  const login = row.claude;
-  return typeof login === 'object' && login !== null && 'id' in login ? `local:${String(login.id)}` : 'local:session';
-}
-
-function importAnswer(api: FakeApi, body: Record<string, unknown>): Record<string, unknown> {
-  const rows: unknown[] = Array.isArray(body.connections) ? body.connections : [];
-  const ids: Record<string, string> = {};
-  for (const row of rows) {
-    if (typeof row !== 'object' || row === null) continue;
-    const entry = row as Record<string, unknown>;
-    const old = String(entry.id);
-    const local = localOf(entry);
-    if (local === null && !api.imported.has(old)) api.imported.set(old, `new${String(api.imported.size).padStart(8, '0')}`);
-    ids[old] = local ?? api.imported.get(old) ?? '';
-  }
-  return { ids };
-}
-
 export async function fakeApi(key: AgentKey): Promise<FakeApi> {
-  const api: FakeApi = { base: '', asked: [], delivery: delivery(null, []), answer: null, imported: new Map(), close: () => Promise.resolve() };
+  const api: FakeApi = { base: '', asked: [], delivery: delivery(null, []), answer: null, close: () => Promise.resolve() };
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const bytes = await readBodyBytes(req, 256 * 1024);
     const path = req.url ?? '';
@@ -79,7 +58,6 @@ export async function fakeApi(key: AgentKey): Promise<FakeApi> {
     }
     if (custom !== null) send(res, custom.status, custom.body);
     else if (path === '/api/agents/models') send(res, 200, api.delivery);
-    else if (path === '/api/agents/models/import') send(res, 200, importAnswer(api, body));
     else send(res, 404, { error: 'not found' });
   };
   const server: Server = createServer((req, res) => {
@@ -105,6 +83,6 @@ export const enrolledKey = (): AgentKey => ({ ...newAgentKey(), enrollment: { se
 
 export const metroApi = (base: string): MetroApi => ({ base, fetch: (url, init) => fetch(url, init), now: () => Date.now() });
 
-export function orgModelsFor(api: FakeApi, key: AgentKey | null, dir: string, owner: string | null = OWNER): OrgModels {
-  return new OrgModels({ owner: () => owner, key: () => key, api: metroApi(api.base), dir: () => dir });
+export function orgModelsFor(api: FakeApi, key: AgentKey | null, owner: string | null = OWNER): OrgModels {
+  return new OrgModels({ owner: () => owner, key: () => key, api: metroApi(api.base) });
 }

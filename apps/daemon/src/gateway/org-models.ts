@@ -2,7 +2,6 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentKey } from '../connectors/agent-key.js';
 import { agentCall, MetroApiRefusal, type MetroApi } from '../connectors/metro-api.js';
 import { deliveredOf, refreshedConnection, type Delivered } from './delivered.js';
-import { importModelFile, settleModelFile, type Moved } from './model-import.js';
 import type { Connection } from './model-config.js';
 
 const MODELS_PATH = '/api/agents/models';
@@ -15,7 +14,6 @@ export interface OrgModelsDeps {
   owner: () => string | null;
   key: () => AgentKey | null;
   api: MetroApi;
-  dir: () => string;
   pageSyncMs?: number;
 }
 
@@ -26,14 +24,6 @@ export interface SyncStatus {
 }
 
 const identityRefused = (err: unknown): boolean => err instanceof MetroApiRefusal && err.upstreamStatus === 401 && err.code === AGENT_KEY_MISSING;
-
-const unrenewed = new Set<string>();
-
-function noteUnrenewed(conn: Connection): void {
-  if (unrenewed.has(conn.id)) return;
-  unrenewed.add(conn.id);
-  log.warn({ connection: conn.id }, 'org-models: a Codex sign-in still read from model.json is not renewed on this box; api.metro.box renews it once the box moved its model setup to the organization');
-}
 
 export class OrgModels {
   private kept: Delivered | null = null;
@@ -100,10 +90,6 @@ export class OrgModels {
   }
 
   refresh(conn: Connection): Promise<Connection | null> {
-    if (conn.revision < 1) {
-      noteUnrenewed(conn);
-      return Promise.resolve(null);
-    }
     const newer = this.kept?.connections.find((c) => c.id === conn.id && c.revision > conn.revision);
     if (newer !== undefined) return Promise.resolve(newer);
     const slot = `${conn.id}\n${String(conn.revision)}`;
@@ -167,10 +153,6 @@ export class OrgModels {
       return;
     }
     this.status = { ...this.status, enrolled: true };
-    const moved = await importModelFile(this.deps.api, key, this.deps.dir()).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'org-models: model.json could not be read for the move to the organization');
-      return null;
-    });
     try {
       const delivered = deliveredOf(await agentCall(this.deps.api, key, MODELS_PATH, {}));
       if (delivered === null) {
@@ -182,16 +164,6 @@ export class OrgModels {
       this.keep(delivered);
     } catch (err) {
       this.failed(errMsg(err), identityRefused(err));
-      return;
-    }
-    if (moved !== null) this.settle(moved);
-  }
-
-  private settle(moved: Moved): void {
-    try {
-      if (settleModelFile(this.deps.dir(), moved)) this.notify();
-    } catch (err) {
-      log.warn({ err: errMsg(err) }, 'org-models: model.json could not be rewritten after the move to the organization');
     }
   }
 

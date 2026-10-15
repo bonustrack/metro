@@ -11,10 +11,10 @@ const connection = (id: string, account: string | null = `${id}@example.invalid`
   id, provider: 'codex', model: 'gpt-test', label: `Connection ${id}`, account: { email: account, plan: null, method: 'chatgpt' },
 });
 const settings = () => toModelSettings({
-  route: { primary: { connection: 'a', model: 'gpt-test' }, fallbacks: [{ connection: 'b', model: 'gpt-test' }] },
+  route: 'a', model: 'gpt-test', fallbacks: [{ connection: 'b', model: 'gpt-test' }],
   source: 'organization', connections: [connection('a'), connection('b')],
   chain: [{ connection: 'a', model: 'gpt-test', active: true }, { connection: 'b', model: 'gpt-test', active: false }],
-  usage: { a: report(0.47), b: report(0), passthrough: report(1) },
+  usage: { a: report(0.47), b: report(0), 'local:session': report(1) },
 });
 const runtime = (runner: string | null = 'sdk', running = true, phase = 'working', updatedAt = NOW): RuntimeSnapshot => toRuntimeSnapshot({
   runner, running, activity: { runner: 'sdk', pid: 42, phase, updatedAt },
@@ -46,7 +46,7 @@ describe('dashboard identity and model selection', () => {
 
   test('an active fallback uses its chosen model, not the primary or connection default', () => {
     const value = toModelSettings({
-      route: { primary: { connection: 'a', model: 'gpt-test' }, fallbacks: [{ connection: 'b', model: 'claude-sonnet-test' }] },
+      route: 'a', model: 'gpt-test', fallbacks: [{ connection: 'b', model: 'claude-sonnet-test' }],
       connections: [connection('a'), { ...connection('b'), provider: 'anthropic', model: 'claude-opus-test' }],
       chain: [{ connection: 'a', model: 'gpt-test', active: false }, { connection: 'b', model: 'claude-sonnet-test', active: true }],
       usage: { a: report(0.98), b: { at: new Date(NOW).toISOString(), windows: [
@@ -66,7 +66,7 @@ describe('dashboard identity and model selection', () => {
     expect(dashboardModel(value, NOW).connection).toBe('Connection a · a@example.invalid');
   });
 
-  test('a missing connection cannot borrow passthrough usage, another account or the last served route', () => {
+  test('a missing connection cannot borrow the session login usage, another account or the last served route', () => {
     const value = settings();
     value.connections = value.connections.filter((row) => row.id !== 'a');
     value.lastServed = { connection: 'b', provider: 'codex', model: 'gpt-elsewhere', at: new Date(NOW).toISOString() };
@@ -85,9 +85,9 @@ describe('dashboard identity and model selection', () => {
     expect(JSON.stringify(card)).not.toContain('100%');
   });
 
-  test('only an explicit passthrough route uses the passthrough reading and served model', () => {
-    const value = toModelSettings({ route: null, connections: [], usage: { passthrough: report(0.2) },
-      lastServed: { connection: 'passthrough', provider: 'anthropic', model: 'claude-sonnet-test', at: new Date(NOW).toISOString() },
+  test('only the session login route uses the session login reading and served model', () => {
+    const value = toModelSettings({ route: '', connections: [], usage: { 'local:session': report(0.2) },
+      lastServed: { connection: 'local:session', provider: 'anthropic', model: 'claude-sonnet-test', at: new Date(NOW).toISOString() },
     });
     expect(dashboardModel(value, NOW)).toMatchObject({ model: 'claude-sonnet-test', connection: 'Claude Code login of the server', usage: 'Weekly, all models · 20% used' });
     if (value.lastServed !== null) value.lastServed.connection = 'other-account';
@@ -95,7 +95,7 @@ describe('dashboard identity and model selection', () => {
   });
 
   test('model-scoped, expired and per-minute windows cannot inflate the selected model', () => {
-    const value = toModelSettings({ route: { primary: { connection: 'a', model: 'claude-sonnet-test' }, fallbacks: [] }, connections: [{ ...connection('a'), provider: 'anthropic' }],
+    const value = toModelSettings({ route: 'a', model: 'claude-sonnet-test', fallbacks: [], connections: [{ ...connection('a'), provider: 'anthropic' }],
       usage: { a: { at: new Date(NOW).toISOString(), windows: [
         { label: 'Weekly, Opus', used: 1 }, { label: 'Weekly, Sonnet', used: 0.12 },
         { label: 'Weekly', used: 0.4 }, { label: 'Tokens per minute', used: 1 },

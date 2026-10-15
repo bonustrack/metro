@@ -125,7 +125,7 @@ describe('passive dashboard network source', () => {
       if (request.url === `${API}/api/auth/organizations`) return json({ organizations: [first.organization, second.organization] });
       if (url.pathname === '/api/mode') return json(mode(url.hostname === 'one.example.invalid' ? 'org-a' : 'org-b'));
       if (url.pathname === '/api/claude/session/snapshot') return json({ running: true, runner: 'cli' });
-      if (url.pathname === '/api/model/snapshot') return json({ connections: [] });
+      if (url.pathname === '/api/model/snapshot') return json({ route: '', connections: [] });
       throw new Error(`Unexpected endpoint ${request.url}`);
     };
     const network = source();
@@ -244,7 +244,7 @@ describe('passive dashboard network source', () => {
   });
 
   test('mode is deduplicated per exact row but revalidated on a later poll', async () => {
-    answer = (request) => new URL(request.url).pathname === '/api/mode' ? json(mode()) : json({ connections: [] });
+    answer = (request) => new URL(request.url).pathname === '/api/mode' ? json(mode()) : json({ route: '', connections: [] });
     const network = source();
     await network.model(row(), 'explicit', signal());
     await network.model(row(), 'explicit', signal());
@@ -257,7 +257,7 @@ describe('passive dashboard network source', () => {
   test('membership removal forgets cached ownership before any later bearer is sent', async () => {
     let owner = 'org-a';
     answer = (request) => new URL(request.url).pathname === '/api/auth/organizations' ? json({ organizations: [] })
-      : new URL(request.url).pathname === '/api/mode' ? json(mode(owner)) : json({ connections: [] });
+      : new URL(request.url).pathname === '/api/mode' ? json(mode(owner)) : json({ route: '', connections: [] });
     const network = source();
     await network.model(row(), 'explicit', signal());
     owner = 'org-b'; await network.organizations(signal());
@@ -297,7 +297,7 @@ describe('passive dashboard network source', () => {
       const network = source();
       const result = endpoint === 'model' ? network.model(row(), 'old-token', signal()) : network.organizations(signal());
       await flush(); clearAccount();
-      pending.resolve(Response.json(endpoint === 'model' ? { connections: [] } : { organizations: [] }));
+      pending.resolve(Response.json(endpoint === 'model' ? { route: '', connections: [] } : { organizations: [] }));
       await expect(result).rejects.toBeInstanceOf(AuthError);
     }
   });
@@ -341,7 +341,7 @@ describe('passive dashboard network source', () => {
         const path = new URL(request.url).pathname;
         if (path === '/api/auth/organizations') return json({ organizations: [] });
         if (path === '/api/mode') return json(mode());
-        return json(path === '/api/model/snapshot' ? { connections: [] } : { running: true, runner: 'cli' });
+        return json(path === '/api/model/snapshot' ? { route: '', connections: [] } : { running: true, runner: 'cli' });
       };
       expect(await network.token('org-a', signal())).toBe(activeAccount()?.accessToken ?? 'missing');
       expect(await network.organizations(signal())).toEqual([]);

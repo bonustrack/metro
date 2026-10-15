@@ -3,7 +3,7 @@ import { call } from './client.js';
 import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
 import { toModelOptions, type ModelOption } from './model-options.js';
-import { LOCAL_SESSION, isLocal, localLogin, loginOfLocal, toFallbacks, toRoute, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
+import { LOCAL_SESSION, isLocal, localLogin, toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
 
@@ -20,8 +20,6 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },
   { id: 'codex', label: 'Codex (ChatGPT)', site: 'https://openai.com', blurb: "GPT models on a ChatGPT Plus or Pro plan, with OpenAI's official sign-in." },
 ];
-
-export const ORG_MODELS_SINCE = '0.1.0-beta.309';
 
 export type CodexMethod = 'chatgpt' | 'code';
 
@@ -85,7 +83,6 @@ export interface ModelSettings {
   chain: ChainRow[];
 }
 
-const PASSTHROUGH = 'passthrough';
 const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
 export const SESSION_LABEL = 'Claude Code login of the server';
 export const CLAUDE_LOGIN_LABEL = 'Claude subscription';
@@ -93,7 +90,6 @@ export const CLAUDE_LOGIN_LABEL = 'Claude subscription';
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
 const methodOf = (value: unknown): CodexMethod | null => (value === 'chatgpt' || value === 'code' ? value : null);
-const local = (id: string): string => (id === PASSTHROUGH ? LOCAL_SESSION : id);
 
 export const usesKey = (p: Provider): boolean => KEY_PROVIDERS.includes(p);
 
@@ -101,7 +97,7 @@ export function toServed(value: unknown): Served | null {
   if (!isRecord(value)) return null;
   const model = str(value.model);
   const at = str(value.at);
-  return model === '' || at === '' ? null : { connection: local(str(value.connection)), provider: str(value.provider), model, at };
+  return model === '' || at === '' ? null : { connection: str(value.connection), provider: str(value.provider), model, at };
 }
 
 function accountOf(raw: Record<string, unknown>): Pick<ConnectionRow, 'account' | 'plan' | 'method'> {
@@ -120,7 +116,7 @@ export function toConnection(raw: unknown): ConnectionRow | null {
     region: str(raw.region),
     zdr: raw.zdr === true,
     hasKey: typeof raw.hasKey === 'boolean' ? raw.hasKey : usesKey(provider) && !isLocal(raw.id),
-    signedOut: raw.signedOut === true || (provider === 'codex' && raw.signedIn === false),
+    signedOut: raw.signedOut === true,
     ...accountOf(raw),
   };
 }
@@ -146,15 +142,14 @@ function toHold(raw: unknown): Hold | null {
 function toChainRow(raw: unknown): ChainRow | null {
   if (!isRecord(raw)) return null;
   const used = typeof raw.used === 'number' && Number.isFinite(raw.used) ? Math.min(1, Math.max(0, raw.used)) : null;
-  return { connection: local(str(raw.connection)), model: str(raw.model), used, hold: toHold(raw.hold), active: raw.active === true };
+  return { connection: str(raw.connection), model: str(raw.model), used, hold: toHold(raw.hold), active: raw.active === true };
 }
 
-function flatRoute(body: Record<string, unknown>, connections: ConnectionRow[]): ModelRoute | null {
-  const id = local(str(body.route));
+function routeOf(body: Record<string, unknown>): ModelRoute | null {
+  const id = str(body.route);
   const fallbacks = toFallbacks(body.fallbacks);
   if (id === '') return fallbacks.length === 0 ? null : { primary: { connection: LOCAL_SESSION, model: '' }, fallbacks };
-  const model = typeof body.model === 'string' ? body.model : (connections.find((c) => c.id === id)?.model ?? '');
-  return { primary: { connection: id, model }, fallbacks };
+  return { primary: { connection: id, model: str(body.model) }, fallbacks };
 }
 
 function toSync(raw: unknown): ModelSync | null {
@@ -164,15 +159,13 @@ function toSync(raw: unknown): ModelSync | null {
 
 const listOf = <T>(raw: unknown, make: (item: unknown) => T | null): T[] => (Array.isArray(raw) ? raw.flatMap((item: unknown) => make(item) ?? []) : []);
 
-const claudeOf = (body: Record<string, unknown>): ClaudeLoginRow[] => listOf(body.claude ?? body.claudeLogins, toClaudeLogin);
-
 export function toModelSettings(body: unknown): ModelSettings {
-  if (!isRecord(body) || (!Array.isArray(body.connections) && !('route' in body))) throw unexpected();
-  const claude = claudeOf(body);
+  if (!isRecord(body) || typeof body.route !== 'string' || !Array.isArray(body.connections)) throw unexpected();
+  const claude = listOf(body.claude, toClaudeLogin);
   const listed = listOf(body.connections, toConnection);
   const connections = [...listed, ...localConnections(claude).filter((row) => !listed.some((c) => c.id === row.id))];
   return {
-    route: typeof body.route === 'string' ? flatRoute(body, connections) : toRoute(body.route),
+    route: routeOf(body),
     source: toSource(body.source),
     sync: toSync(body.sync),
     ready: body.ready === true,
@@ -185,11 +178,7 @@ export function toModelSettings(body: unknown): ModelSettings {
   };
 }
 
-export function usageOf(settings: ModelSettings, connection: string): Usage[string] | undefined {
-  const own = settings.usage[connection];
-  if (own !== undefined || !isLocal(connection)) return own;
-  return settings.usage[loginOfLocal(connection) ?? PASSTHROUGH];
-}
+export const usageOf = (settings: ModelSettings, connection: string): Usage[string] | undefined => settings.usage[connection];
 
 const modelUrl = (): string => `${daemonBase()}/api/model`;
 

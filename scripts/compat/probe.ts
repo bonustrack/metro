@@ -157,10 +157,8 @@ await ok('fetchMemory', () => claude.fetchMemory(project));
 await ok('fetchMemoryFile', () => claude.fetchMemoryFile(project, 'compat.md'));
 
 await ok('fetchModel', () => model.fetchModel());
-if (!olderThan(daemonMode?.version ?? null, model.ORG_MODELS_SINCE)) {
-  await ok('syncModel', () => model.syncModel());
-  await ok('claudeModels', () => model.claudeModels());
-}
+await ok('syncModel', () => model.syncModel());
+await ok('claudeModels', () => model.claudeModels());
 
 await ok('setAllowlist', () => attach.setAllowlist(agent, 'threema', account, ['*ABCDEFG']));
 await ok('setAccountEnabled off', () => attach.setAccountEnabled(agent, 'threema', account, false));

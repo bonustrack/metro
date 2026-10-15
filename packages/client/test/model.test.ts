@@ -39,7 +39,9 @@ const READING = { at: '2026-10-15T10:00:00.000Z', windows: [{ label: 'Weekly', u
 describe('what the Model page reads from the box', () => {
   test('the effective route, its source, the delivered connections and the Claude logins, with no credential', () => {
     const settings = toModelSettings({
-      route: { primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }, { connection: 'x', model: '' }] },
+      route: 'orA00000001',
+      model: 'openai/gpt-5.2',
+      fallbacks: [{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }, { connection: 'x', model: '' }],
       source: 'organization',
       connections: [
         { id: 'orA00000001', provider: 'openrouter', label: 'OpenRouter', model: 'openai/gpt-5.2', zdr: true, account: { email: null, plan: null, method: null } },
@@ -51,7 +53,7 @@ describe('what the Model page reads from the box', () => {
       usage: { 'orA00000001': READING },
     });
     expect(settings.source).toBe('organization');
-    expect(settings.route?.fallbacks).toEqual([{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }]);
+    expect(settings.route).toEqual({ primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }] });
     expect(settings.connections.map((c) => c.id)).toEqual(['orA00000001', 'cdx00000001', LOCAL_SESSION, 'local:login0000001']);
     expect(settings.connections[0]).toMatchObject({ provider: 'openrouter', hasKey: true, zdr: true, signedOut: false, account: null });
     expect(settings.connections[1]).toMatchObject({ hasKey: false, signedOut: true, account: 'less@x', plan: 'plus', method: 'chatgpt' });
@@ -60,22 +62,15 @@ describe('what the Model page reads from the box', () => {
     expect(JSON.stringify(settings)).not.toContain('apiKey');
   });
 
-  test('an answer from a daemon before organization models still reads, as the same route shape', () => {
-    const old = toModelSettings({
-      route: 'cn-1',
-      connections: [{ id: 'cn-1', provider: 'codex', label: 'ChatGPT', model: 'gpt-5.4', signedIn: false }],
-      fallbacks: [{ connection: 'cn-1', model: 'gpt-5.2' }],
-      chain: [{ connection: 'passthrough', model: 'claude-x' }],
-      usage: { passthrough: READING },
-    });
-    expect(old.route).toEqual({ primary: { connection: 'cn-1', model: 'gpt-5.4' }, fallbacks: [{ connection: 'cn-1', model: 'gpt-5.2' }] });
-    expect(old.source).toBeNull();
-    expect(old.connections[0]?.signedOut).toBe(true);
-    expect(old.chain[0]?.connection).toBe(LOCAL_SESSION);
-    const passthrough = toModelSettings({ route: '', connections: [], usage: { passthrough: READING } });
-    expect(passthrough.route).toBeNull();
-    expect(usageOf(passthrough, LOCAL_SESSION)?.windows[0]?.used).toBe(0.5);
-    expect(toModelSettings({ route: '', connections: [], fallbacks: [{ connection: 'cn-1', model: 'x' }] }).route?.primary.connection).toBe(LOCAL_SESSION);
+  test('no primary rides the session login, with or without fallbacks, and only the box answer fields count', () => {
+    const bare = toModelSettings({ route: '', model: '', connections: [{ id: 'cn-1', provider: 'codex', label: 'ChatGPT', signedIn: false }], usage: { 'local:session': READING } });
+    expect(bare.route).toBeNull();
+    expect(bare.source).toBeNull();
+    expect(bare.connections[0]?.signedOut).toBe(false);
+    expect(usageOf(bare, LOCAL_SESSION)?.windows[0]?.used).toBe(0.5);
+    expect(toModelSettings({ route: '', connections: [], fallbacks: [{ connection: 'cn-1', model: 'x' }] }).route).toEqual({ primary: { connection: LOCAL_SESSION, model: '' }, fallbacks: [{ connection: 'cn-1', model: 'x' }] });
+    expect(toModelSettings({ route: 'cn-1', connections: [{ id: 'cn-1', provider: 'codex', model: 'gpt-5.4' }] }).route?.primary).toEqual({ connection: 'cn-1', model: '' });
+    expect(toModelSettings({ route: '', connections: [], claudeLogins: [{ id: 'login0000001' }] }).claude).toEqual([]);
   });
 
   test('the box answer names the primary by id with its model, its sync state, and usage under the local ids', () => {
@@ -102,15 +97,18 @@ describe('what the Model page reads from the box', () => {
     expect(toModelSettings({ route: '', source: null, sync: { enrolled: false }, connections: [] }).sync).toEqual({ enrolled: false, at: null, error: null });
   });
 
-  test('a body with neither connections nor a route is refused, and the four providers are the known list', () => {
-    expect(toModelSettings({ route: null, source: null }).route).toBeNull();
+  test('a body without the route id and the connections list is refused, and the four providers are the known list', () => {
     expect(() => toModelSettings({ ready: true })).toThrow(/unexpected/);
+    expect(() => toModelSettings({ route: null, connections: [] })).toThrow(/unexpected/);
+    expect(() => toModelSettings({ route: { primary: { connection: 'a', model: 'm' }, fallbacks: [] }, connections: [] })).toThrow(/unexpected/);
+    expect(() => toModelSettings({ route: '' })).toThrow(/unexpected/);
     expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex']);
   });
 
-  test('usage of a Claude login is found under its own id when the box keys it so', () => {
-    const settings = toModelSettings({ route: null, connections: [], claude: [{ id: 'login0000001' }], usage: { login0000001: READING } });
+  test('usage of a Claude login is found only under its local id', () => {
+    const settings = toModelSettings({ route: '', connections: [], claude: [{ id: 'login0000001' }], usage: { 'local:login0000001': READING, login0000002: READING } });
     expect(usageOf(settings, 'local:login0000001')?.windows[0]?.used).toBe(0.5);
+    expect(usageOf(settings, 'local:login0000002')).toBeUndefined();
     expect(usageOf(settings, 'orA00000001')).toBeUndefined();
   });
 
@@ -122,7 +120,7 @@ describe('what the Model page reads from the box', () => {
   });
 
   test('the last request names the connection it went to, and a half answer is no answer', () => {
-    expect(toServed({ connection: 'passthrough', provider: 'anthropic', model: 'x', at: '2026-10-15T10:00:00.000Z' })?.connection).toBe(LOCAL_SESSION);
+    expect(toServed({ connection: LOCAL_SESSION, provider: 'anthropic', model: 'x', at: '2026-10-15T10:00:00.000Z' })?.connection).toBe(LOCAL_SESSION);
     expect(toServed({ provider: 'openrouter', model: 'x/y' })).toBeNull();
   });
 
@@ -133,7 +131,7 @@ describe('what the Model page reads from the box', () => {
   });
 
   test('sync is a POST and the Claude model list a GET on the selected box', async () => {
-    serve({ route: null, connections: [] });
+    serve({ route: '', connections: [] });
     await syncModel();
     expect(calls).toEqual([{ url: 'https://box.example.ts.net/api/model/sync', method: 'POST' }]);
     serve({ models: [{ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }, 'claude-haiku-4-5'] });

@@ -21,7 +21,7 @@ const AT = '2026-10-15T00:00:00.000Z';
 let held: TestDb;
 
 const connection = (id: string, owner = TEST_OWNER, patch: Partial<typeof modelConnections.$inferInsert> = {}): typeof modelConnections.$inferInsert => ({
-  id, owner, provider: 'openrouter', label: 'OpenRouter', model: '', region: '', zdr: false, secret: null, detail: null, revision: 1, importAgent: null, importId: null, createdBy: 'user:test', createdAt: AT, updatedAt: AT, ...patch,
+  id, owner, provider: 'openrouter', label: 'OpenRouter', model: '', region: '', zdr: false, secret: null, detail: null, revision: 1, createdBy: 'user:test', createdAt: AT, updatedAt: AT, ...patch,
 });
 
 const routeRow = (id: string, agent: string | null, owner = TEST_OWNER): typeof modelRoutes.$inferInsert => ({
@@ -90,22 +90,21 @@ describe('the model tables', () => {
     expect((await held.db.select().from(modelRoutes)).map((row) => row.id).sort()).toEqual(['route000001', 'route000002']);
   });
 
-  test('an import marker is unique per agent and old id, providers and host ids are checked', async () => {
-    await held.db.insert(modelConnections).values(connection('conn0000001', TEST_OWNER, { importAgent: 'agent000001', importId: 'oldid000001' }));
-    await refused(() => held.db.insert(modelConnections).values(connection('conn0000002', TEST_OWNER, { importAgent: 'agent000001', importId: 'oldid000001' })));
-    await held.db.insert(modelConnections).values(connection('conn0000003', TEST_OWNER, { importAgent: 'agent000002', importId: 'oldid000001' }));
+  test('providers and host ids are checked, and a connection written now leaves the old import columns empty', async () => {
+    await held.db.insert(modelConnections).values(connection('conn0000001'));
+    expect((await held.client.query('SELECT import_agent, import_id FROM model_connections')).rows).toEqual([{ import_agent: null, import_id: null }]);
     await refused(() => held.db.insert(modelConnections).values(connection('conn0000004', TEST_OWNER, { provider: 'gemini' })));
-    await refused(() => held.db.insert(modelConnections).values(connection('conn0000005', TEST_OWNER, { importAgent: 'agent000001' })));
     await refused(() => held.db.execute(sql`INSERT INTO model_hosts (owner, chatgpt_host_id) VALUES ('org_x', 'not-a-urn')`));
   });
 
-  test('leaving an organization drops the agent’s override and its import markers, not the connections', async () => {
-    await held.db.insert(modelConnections).values(connection('conn0000001', TEST_OWNER, { importAgent: 'agent000001', importId: 'oldid000001' }));
+  test('leaving an organization drops the agent’s override, not the connections, even one an old import marked', async () => {
+    await held.db.insert(modelConnections).values(connection('conn0000001'));
+    await held.client.query("UPDATE model_connections SET import_agent = 'agent000001', import_id = 'oldid000001'");
     await held.db.insert(modelRoutes).values(routeRow('route000001', 'agent000001'));
     await held.db.insert(modelRoutes).values(routeRow('route000002', null));
     await held.db.transaction((tx) => leaveOrganization(tx, 'agent000001'));
     expect((await held.db.select().from(modelRoutes)).map((row) => row.id)).toEqual(['route000002']);
-    expect((await held.db.select().from(modelConnections))[0]).toMatchObject({ id: 'conn0000001', importAgent: null, importId: null });
+    expect((await held.db.select().from(modelConnections)).map((row) => row.id)).toEqual(['conn0000001']);
   });
 
   test('a stored route with no primary reads with its first fallback promoted, and an empty one is not listed', async () => {

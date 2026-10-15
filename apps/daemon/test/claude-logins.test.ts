@@ -269,8 +269,8 @@ describe('several Claude subscriptions on one box', () => {
   });
 });
 
-describe('a box whose model.json has not moved to its organization yet', () => {
-  test('a new login keeps the v2 file as it is and is added to it, and a bad login reference is never read', async () => {
+describe('a box whose model.json is still the old version 2', () => {
+  test('a new login writes version 3 with the logins it held, and a bad login reference is never read', async () => {
     const [bob] = own();
     const v2 = {
       version: 2,
@@ -284,11 +284,10 @@ describe('a box whose model.json has not moved to its organization yet', () => {
     writeFileSync(join(agents, 'model.json'), JSON.stringify(v2));
     expect(own()).toEqual([bob as ClaudeLogin]);
     expect((await signIn('new', 'dave')).state).toBe('done');
-    const file = JSON.parse(readFileSync(join(agents, 'model.json'), 'utf8')) as { version: number; route: string; connections: { id: string; claude?: { email: string } }[] };
-    expect(file.version).toBe(2);
-    expect(file.route).toBe('old-or');
-    expect(file.connections.slice(0, 3).map((c) => c.id)).toEqual(['old-or', 'old-bad', 'old-bob']);
-    expect(file.connections[3]?.claude?.email).toBe('dave@example.com');
+    const file = JSON.parse(readFileSync(join(agents, 'model.json'), 'utf8')) as { version: number; claude: { email: string }[] };
+    expect(file.version).toBe(3);
+    expect(file.claude.map((l) => l.email)).toEqual(['bob@example.com', 'dave@example.com']);
+    expect(readFileSync(join(agents, 'model.json'), 'utf8')).not.toContain('or-1');
     expect(own().map((l) => l.email)).toEqual(['bob@example.com', 'dave@example.com']);
   }, 20_000);
 });

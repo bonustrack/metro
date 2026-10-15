@@ -96,7 +96,7 @@ beforeEach(() => {
   seen.length = 0;
   api.asked.length = 0;
   api.answer = null;
-  models = orgModelsFor(api, key, dir);
+  models = orgModelsFor(api, key);
 });
 
 const post = (model: string, headers: Record<string, string> = {}): Promise<Response> =>
@@ -147,37 +147,22 @@ describe('the gateway on the setup the organization delivered', () => {
     await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
     expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
     writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 3, claude: [] }));
-    models = orgModelsFor(api, null, dir);
+    models = orgModelsFor(api, null);
     await models.sync();
     await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
     expect(seen[1]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
   });
 });
 
-describe('the gateway on a model.json not moved to the organization yet', () => {
-  const v2 = (connections: Record<string, unknown>[], route: string): void => {
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));
-  };
-
-  test('an unenrolled box keeps its own route and key, whatever the organization would deliver', async () => {
-    v2([{ id: 'oldOpenRout', provider: 'openrouter', model: 'x/y', apiKey: 'sk-or-v2' }], 'oldOpenRout');
-    models = orgModelsFor(api, null, dir);
+describe('the gateway on a model.json still in the old version 2', () => {
+  test('its route and key are never served: an unenrolled box rides the login the session carries', async () => {
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'oldOpenRout', connections: [{ id: 'oldOpenRout', provider: 'openrouter', model: 'x/y', apiKey: 'sk-or-v2' }] }));
+    models = orgModelsFor(api, null);
     await models.sync();
-    const res = await post('claude-sonnet-5');
+    const res = await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' });
     expect(res.status).toBe(200);
     await res.text();
-    expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-or-v2' });
-    expect((JSON.parse(seen[0]?.body ?? '{}') as { model: string }).model).toBe('x/y');
-  });
-
-  test('a refused Codex token of model.json is not renewed, and api.metro.box is not asked', async () => {
-    v2([{ id: 'oldCodex001', provider: 'codex', model: 'gpt-5.4', codex: { clientId: 'oaiapp_1', accessToken: 'at-old', refreshToken: 'rt', expiresAt: 1 } }], 'oldCodex001');
-    api.answer = (path) => (path === '/api/agents/models/import' ? 'drop' : null);
-    await models.sync();
-    const res = await post('claude-sonnet-5');
-    expect(res.status).toBe(403);
-    expect(await res.text()).toContain('could not renew');
-    expect(seen.map((s) => s.auth)).toEqual(['Bearer at-old']);
-    expect(api.asked.map((a) => a.path)).not.toContain('/api/agents/models/refresh');
+    expect(seen.map((s) => s.auth)).toEqual(['Bearer sk-ant-oat-session']);
+    expect((JSON.parse(seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-sonnet-5');
   });
 });

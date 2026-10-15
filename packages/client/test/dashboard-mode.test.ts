@@ -9,7 +9,7 @@ const organization = { id: 'fixture-org', name: 'Fixture', slug: null, role: 'me
   agents: [{ id: 'fixture-agent', host: 'fixture.example.invalid', name: null, slug: null, avatar: null }] };
 const MODE = { mode: 'local' as const, owner: organization.id, version: '0.1.0-beta.270', stopped: false };
 const SESSION = toRuntimeSnapshot({ running: true, runner: 'cli' });
-const MODEL = toModelSettings({ connections: [] });
+const MODEL = toModelSettings({ route: '', connections: [] });
 const flush = async (): Promise<void> => { for (let at = 0; at < 60; at += 1) await Promise.resolve(); };
 const polls: DashboardPoll[] = [];
 afterEach(() => { for (const poll of polls.splice(0)) poll.stop(); });

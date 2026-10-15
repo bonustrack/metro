@@ -5,12 +5,11 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { currentServer } from '@metro-labs/client/auth/daemon';
-import { ORG_MODELS_SINCE, type ModelSettings, type ModelSync } from '@metro-labs/client/api/model';
+import type { ModelSettings, ModelSync } from '@metro-labs/client/api/model';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { modelOrder } from '@metro-labs/client/api/model-order';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
 import { canAddFallback } from '@metro-labs/client/api/route-edit';
-import { olderThan } from '@metro-labs/client/api/version';
 import { routeHash } from '@metro-labs/client/route';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
@@ -21,12 +20,11 @@ import { ClaudeLogins } from './ClaudeLogins.js';
 import { TextLink } from './TextLink.js';
 import { useRouteControl } from './route-actions.js';
 import { agentChoices, editNote, sourceLine, withRoute } from './model-view.js';
-import { queryError, useModeQuery } from '../lib/queries.js';
+import { queryError } from '../lib/queries.js';
 import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
 const MODEL_NOTE = 'The models your agent uses, in order. It uses the first one under 95% usage, and goes back when limits reset.';
-const UPDATE = 'Update Metro to use the organization’s models.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the model order.';
 const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it uses the Claude Code login of its server.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
@@ -112,16 +110,14 @@ function Live({ project }: { project: string }): ReactNode {
 }
 
 export function ModelPage({ project }: { project: string }): ReactNode {
-  const mode = useModeQuery();
   useDocumentTitle('Model');
-  const old = olderThan(mode.data?.version ?? null, ORG_MODELS_SINCE);
   return (
     <Col gap={32}>
       <Col gap={8}>
         <PageTitle>Model</PageTitle>
         <Text size="md" role="secondary">{MODEL_NOTE}</Text>
       </Col>
-      {old ? <Text size="md" role="secondary">{UPDATE}</Text> : <Live project={project} />}
+      <Live project={project} />
     </Col>
   );
 }

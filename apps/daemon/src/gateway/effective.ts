@@ -1,9 +1,8 @@
 import { log } from '@metro-labs/core/log';
 import { agentsDir } from '../agents/files.js';
-import { claudeLoginsIn, isV2, readModelFile, type ClaudeLogin } from './claude-store.js';
+import { readClaudeLogins, type ClaudeLogin } from './claude-store.js';
 import type { Delivered } from './delivered.js';
 import { emptySetup, LOCAL_PREFIX, loginConnection, primaryRoute, runnerModel, SESSION_LOGIN, sessionConnection, type Connection, type ModelSetup } from './model-config.js';
-import { v2Setup } from './model-v2.js';
 import { deliveredSetup, type OrgModels } from './org-models.js';
 
 function localOf(id: string, logins: ClaudeLogin[]): Connection | null {
@@ -21,10 +20,7 @@ export function setupOf(delivered: Delivered | null, logins: ClaudeLogin[]): Mod
   return { primary: route.primary, fallbacks: route.fallbacks, connections: [...delivered.connections, ...locals], source: delivered.source };
 }
 
-export function effectiveSetup(dir = agentsDir(), delivered: Delivered | null = deliveredSetup()): ModelSetup {
-  const raw = readModelFile(dir);
-  return isV2(raw) ? v2Setup(raw) : setupOf(delivered, claudeLoginsIn(raw));
-}
+export const effectiveSetup = (dir = agentsDir(), delivered: Delivered | null = deliveredSetup()): ModelSetup => setupOf(delivered, readClaudeLogins(dir));
 
 export function modelViewText(setup: ModelSetup): string | null {
   const primary = primaryRoute(setup);

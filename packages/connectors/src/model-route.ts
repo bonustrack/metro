@@ -12,7 +12,7 @@ export interface ModelRoute {
   fallbacks: RouteTarget[];
 }
 
-export const LOCAL_SESSION = 'local:session';
+const LOCAL_SESSION = 'local:session';
 export const FALLBACKS_MAX = 8;
 export const MODEL_ID_MAX = 512;
 
@@ -22,14 +22,12 @@ export const isLocalRef = (ref: string): boolean => ref === LOCAL_SESSION || (re
 
 export const isRouteRef = (ref: string): boolean => ID_RE.test(ref) || isLocalRef(ref);
 
-export const localLogin = (loginId: string): string => `${LOCAL_PREFIX}${loginId}`;
-
 function targetOf(raw: unknown): RouteTarget | null {
   if (!isRecord(raw) || typeof raw.connection !== 'string' || typeof raw.model !== 'string') return null;
   return isRouteRef(raw.connection) && raw.model.length <= MODEL_ID_MAX ? { connection: raw.connection, model: raw.model } : null;
 }
 
-export function routeFrom(primary: RouteTarget | null, fallbacks: RouteTarget[]): ModelRoute | null {
+function routeFrom(primary: RouteTarget | null, fallbacks: RouteTarget[]): ModelRoute | null {
   const [first, ...rest] = primary === null ? fallbacks : [primary, ...fallbacks];
   return first === undefined ? null : { primary: first, fallbacks: rest.slice(0, FALLBACKS_MAX) };
 }

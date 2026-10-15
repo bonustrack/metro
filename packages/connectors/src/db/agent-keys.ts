@@ -2,7 +2,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './database.js';
 import { isUniqueViolation } from './errors.js';
-import { agents, agentKeys, connectorAgents, modelConnections, modelRoutes } from './schema.js';
+import { agents, agentKeys, connectorAgents, modelRoutes } from './schema.js';
 
 export interface AgentKeyRow {
   agent: string;
@@ -44,7 +44,6 @@ async function enrollIn(tx: Database, row: AgentKeyRow): Promise<void> {
 export async function leaveOrganization(tx: Database, agent: string): Promise<void> {
   await tx.delete(connectorAgents).where(eq(connectorAgents.agent, agent));
   await tx.delete(modelRoutes).where(eq(modelRoutes.agent, agent));
-  await tx.update(modelConnections).set({ importAgent: null, importId: null }).where(eq(modelConnections.importAgent, agent));
   await tx.delete(agentKeys).where(eq(agentKeys.agent, agent));
 }
 

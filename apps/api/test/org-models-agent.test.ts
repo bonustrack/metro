@@ -42,7 +42,7 @@ const delivered = async (agent = ours): Promise<Delivered> => {
 
 async function seed(id: string, provider: string, secret: ModelSecret | null, patch: Partial<ModelConnectionRow> = {}): Promise<ModelConnectionRow> {
   const at = new Date(now).toISOString();
-  const row: ModelConnectionRow = { id, owner: TEST_OWNER, provider, label: provider, model: 'model-a', region: '', zdr: false, secret: null, detail: null, revision: 1, importAgent: null, importId: null, createdBy: 'user:test', createdAt: at, updatedAt: at, ...patch };
+  const row: ModelConnectionRow = { id, owner: TEST_OWNER, provider, label: provider, model: 'model-a', region: '', zdr: false, secret: null, detail: null, revision: 1, createdBy: 'user:test', createdAt: at, updatedAt: at, ...patch };
   const key = api.models.key();
   if (key === null) throw new Error('no key');
   row.secret = secret === null ? null : sealModelSecret(key, row, secret);
@@ -203,81 +203,10 @@ describe('Codex refresh', () => {
 });
 
 describe('the one-time import', () => {
-  const body = {
-    connections: [
-      { id: 'oldOpenRout', provider: 'openrouter', label: 'OR', model: 'openai/gpt-5.2', region: '', zdr: true, apiKey: 'sk-or-imported' },
-      { id: 'oldCodex001', provider: 'codex', label: '', model: 'gpt-5.2', codex: { accountId: 'acct-9', email: 'c@example.com', plan: 'pro', accessToken: 'ACC', refreshToken: 'REF', expiresAt: Date.now() + 3_600_000, savedAt: '2026-10-01T00:00:00.000Z' } },
-      { id: 'oldKeyless1', provider: 'anthropic', model: '' },
-      { id: 'oldClaude01', provider: 'anthropic', model: 'claude-opus-5-5', claude: { id: 'Login123456' } },
-      { id: 'oldGemini01', provider: 'gemini', model: 'gemini-3' },
-    ],
-    route: 'oldCodex001',
-    fallbacks: [{ connection: 'oldClaude01', model: 'claude-sonnet-5-5' }, { connection: 'oldKeyless1', model: 'claude-haiku-4-5' }, { connection: 'oldOpenRout', model: 'openai/gpt-5.2' }, { connection: 'oldGemini01', model: 'gemini-3' }],
-  };
-
-  test('maps ids, keeps local logins local, drops Gemini, sets the override, and a repeat changes nothing', async () => {
-    const first = await call(IMPORT, body);
-    expect(first.status).toBe(200);
-    const { ids } = (await first.json()) as { ids: Record<string, string> };
-    expect(ids.oldKeyless1).toBe('local:session');
-    expect(ids.oldClaude01).toBe('local:Login123456');
-    expect(ids.oldGemini01).toBeUndefined();
-    expect(ids.oldOpenRout).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
-    const again = (await (await call(IMPORT, body)).json()) as { ids: Record<string, string> };
-    expect(again.ids).toEqual(ids);
-    expect(await held.db.$count(modelConnections)).toBe(2);
-    const answer = await delivered();
-    expect(answer.source).toBe('agent');
-    expect(answer.route).toEqual({
-      primary: { connection: ids.oldCodex001 ?? '', model: 'gpt-5.2' },
-      fallbacks: [{ connection: 'local:Login123456', model: 'claude-sonnet-5-5' }, { connection: 'local:session', model: 'claude-haiku-4-5' }, { connection: ids.oldOpenRout ?? '', model: 'openai/gpt-5.2' }],
-    });
-    const byId = new Map(answer.connections.map((c) => [c.id, c]));
-    expect(byId.get(ids.oldCodex001 ?? '')).toMatchObject({ credential: { accessToken: 'ACC', method: 'code', accountId: 'acct-9' }, account: { email: 'c@example.com', plan: 'pro', method: 'code' } });
-    expect(byId.get(ids.oldOpenRout ?? '')).toMatchObject({ credential: { apiKey: 'sk-or-imported' } });
-  });
-
-  test('a body with no connections is refused; bad rows are skipped and named, and the rest imports', async () => {
-    expect((await call(IMPORT, { route: 'x' })).status).toBe(400);
-    const res = await call(IMPORT, {
-      connections: [{ id: 'bad', provider: 'openrouter' }, 'nope', { id: 'oldOther001', provider: 'mistral' }, body.connections[0]],
-      route: 'oldOther001',
-      fallbacks: [{ connection: 'oldOpenRout', model: 'openai/gpt-5.2' }, { connection: 'oldOther001', model: 'm' }],
-    });
-    expect(res.status).toBe(200);
-    const answer = (await res.json()) as { ids: Record<string, string>; skipped: { id: string; reason: string }[] };
-    expect(answer.skipped).toEqual([
-      { id: 'bad', reason: 'it has no 11-character id' },
-      { id: '', reason: 'it has no 11-character id' },
-      { id: 'oldOther001', reason: 'its provider is not anthropic, bedrock, openrouter or codex' },
-    ]);
-    expect(Object.keys(answer.ids)).toEqual(['oldOpenRout']);
-    expect((await delivered()).route).toEqual({ primary: { connection: answer.ids.oldOpenRout ?? '', model: 'openai/gpt-5.2' }, fallbacks: [] });
-  });
-
-  test('a connection with an API key and a Claude login imports as a key connection', async () => {
-    const both = { id: 'oldBoth0001', provider: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-ant-both', claude: { id: 'Login123456' } };
-    const { ids } = (await (await call(IMPORT, { connections: [both], route: 'oldBoth0001' })).json()) as { ids: Record<string, string> };
-    expect(ids.oldBoth0001).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
-    const answer = await delivered();
-    expect(answer.route?.primary).toEqual({ connection: ids.oldBoth0001 ?? '', model: 'claude-opus-5-5' });
-    expect(answer.connections[0]).toMatchObject({ provider: 'anthropic', credential: { apiKey: 'sk-ant-both' } });
-  });
-
-  test('a route left empty by the import pins no override', async () => {
-    const res = await call(IMPORT, { connections: [{ id: 'oldOther001', provider: 'mistral' }, body.connections[0]], route: 'oldOther001', fallbacks: [] });
-    expect(res.status).toBe(200);
+  test('is gone: the route answers 404 and keeps nothing', async () => {
+    const res = await call(IMPORT, { connections: [{ id: 'oldOpenRout', provider: 'openrouter', model: 'm', apiKey: 'sk-or' }], route: 'oldOpenRout' });
+    expect(res.status).toBe(404);
+    expect(await held.db.$count(modelConnections)).toBe(0);
     expect(await held.db.$count(modelRoutes)).toBe(0);
-    expect((await delivered()).source).toBeNull();
-  });
-
-  test('the organization limit counts only the rows that can be imported', async () => {
-    for (let i = 0; i < 99; i += 1) await seed(`seed${String(i).padStart(7, '0')}`, 'openrouter', { kind: 'key', apiKey: 'sk-or' });
-    const valid = (id: string): Record<string, unknown> => ({ id, provider: 'openrouter', model: 'm', apiKey: 'sk-or' });
-    expect((await call(IMPORT, { connections: [valid('oldValid001'), valid('oldValid002')] })).status).toBe(409);
-    expect(await held.db.$count(modelConnections)).toBe(99);
-    const res = await call(IMPORT, { connections: [{ id: 'x', provider: 'openrouter' }, { id: 'oldOther001', provider: 'mistral' }, valid('oldValid001')] });
-    expect(res.status).toBe(200);
-    expect(await held.db.$count(modelConnections)).toBe(100);
   });
 });

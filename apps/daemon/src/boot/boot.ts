@@ -62,7 +62,8 @@ import { startCloudWatchPublisher } from '../server/cloudwatch.js';
 import { watchFallbackUsage } from '../gateway/usage-refresh.js';
 import { startOrgModels, stopOrgModels } from '../gateway/org-models.js';
 import { effectiveSetup, watchModelChanges } from '../gateway/effective.js';
-import { readClaudeLogins } from '../gateway/claude-store.js';
+import { readClaudeLogins, retireV2ModelFile } from '../gateway/claude-store.js';
+import { removeModelLeftovers } from '../gateway/model-leftovers.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { METRO_API } from '../connectors/metro-api.js';
 import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } from '../voice/calls.js';
@@ -144,6 +145,8 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
 
 async function main(): Promise<void> {
   removeConnectorLeftovers();
+  removeModelLeftovers();
+  retireV2ModelFile();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   watchPolicySnapshot();
@@ -154,7 +157,7 @@ installBearerSessions(agentsDir(), localOwner);
   syncGmailHost();
   supervisor.start();
   sweepLeftoverCalls();
-  const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API, dir: agentsDir });
+  const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
   watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(

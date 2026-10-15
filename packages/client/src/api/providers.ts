@@ -15,8 +15,7 @@ export const routedConnection = (s: ModelSettings): ConnectionRow | undefined =>
 
 export const routedUsage = (s: ModelSettings): ModelSettings['usage'][string] | undefined => usageOf(s, s.route?.primary.connection ?? LOCAL_SESSION);
 
-export const usesSessionLogin = (c: ConnectionRow): boolean =>
-  c.id === LOCAL_SESSION || (c.provider === 'anthropic' && !c.hasKey && c.account === null && !isLocal(c.id));
+export const usesSessionLogin = (c: ConnectionRow): boolean => c.id === LOCAL_SESSION;
 
 const signedAs = (c: ConnectionRow): string => [c.account ?? 'signed in', c.plan === null ? '' : `(${c.plan})`].filter((x) => x !== '').join(' ');
 

@@ -10,7 +10,7 @@ export const LABEL_MAX = 60;
 export const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d{1,2}$/;
 const API_KEY_RE = /^[\x21-\x7e]{1,4096}$/;
 
-export const LABELS: Record<ModelProvider, string> = {
+const LABELS: Record<ModelProvider, string> = {
   anthropic: 'Anthropic',
   bedrock: 'Amazon Bedrock',
   openrouter: 'OpenRouter',
@@ -62,7 +62,7 @@ export function connectionArg(body: unknown): string | null {
 export function newModelRow(caller: Pick<Caller, 'owner'> & { userId: string }, provider: ModelProvider, label: string, at: string): ModelConnectionRow {
   return {
     id: newId(), owner: caller.owner, provider, label, model: '', region: '', zdr: false, secret: null, detail: null, revision: 1,
-    importAgent: null, importId: null, createdBy: `user:${caller.userId}`, createdAt: at, updatedAt: at,
+    createdBy: `user:${caller.userId}`, createdAt: at, updatedAt: at,
   };
 }
 

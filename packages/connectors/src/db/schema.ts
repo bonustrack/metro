@@ -111,13 +111,11 @@ export const modelConnections = pgTable(
     secret: text('secret'),
     detail: text('detail'),
     revision: integer('revision').notNull().default(1),
-    importAgent: text('import_agent'),
-    importId: text('import_id'),
     createdBy: text('created_by').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (t) => [index('model_connections_owner_idx').on(t.owner), uniqueIndex('model_connections_import_idx').on(t.importAgent, t.importId)],
+  (t) => [index('model_connections_owner_idx').on(t.owner)],
 );
 
 export const modelRoutes = pgTable(
