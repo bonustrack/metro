@@ -80,7 +80,10 @@ async function removeIn(tx: Database, owner: string, id: string): Promise<ModelC
   const routes = await tx.select().from(modelRoutes).where(eq(modelRoutes.owner, owner)).for('update');
   for (const held of routes) {
     const route = routeOf(held.route);
-    if (routeNames(route).includes(id)) await tx.update(modelRoutes).set({ route: routeText(withoutConnection(route, id)) }).where(eq(modelRoutes.id, held.id));
+    if (route === null || !routeNames(route).includes(id)) continue;
+    const next = withoutConnection(route, id);
+    if (next === null) await tx.delete(modelRoutes).where(eq(modelRoutes.id, held.id));
+    else await tx.update(modelRoutes).set({ route: routeText(next) }).where(eq(modelRoutes.id, held.id));
   }
   await tx.delete(modelConnections).where(owned(owner, id));
   return row;
@@ -127,7 +130,11 @@ async function listIn(db: Database, owner: string): Promise<OrgModels> {
     .innerJoin(agents, and(eq(agents.id, modelRoutes.agent), eq(agents.owner, owner)))
     .where(eq(modelRoutes.owner, owner))
     .orderBy(modelRoutes.agent);
-  return { connections, routes: [...defaults, ...overrides].map((held) => ({ agent: held.agent, route: routeOf(held.route) })) };
+  const routes = [...defaults, ...overrides].flatMap((held) => {
+    const route = routeOf(held.route);
+    return route === null ? [] : [{ agent: held.agent, route }];
+  });
+  return { connections, routes };
 }
 
 export function orgModelStore(db: () => Database): OrgModelStore {

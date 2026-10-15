@@ -108,6 +108,14 @@ describe('the model tables', () => {
     expect((await held.db.select().from(modelConnections))[0]).toMatchObject({ id: 'conn0000001', importAgent: null, importId: null });
   });
 
+  test('a stored route with no primary reads with its first fallback promoted, and an empty one is not listed', async () => {
+    const store = orgModelStore(() => held.db);
+    const stored = (id: string, agent: string | null, route: unknown): typeof modelRoutes.$inferInsert => ({ ...routeRow(id, agent), route: JSON.stringify(route) });
+    await held.db.insert(modelRoutes).values(stored('route000001', null, { primary: null, fallbacks: [{ connection: 'conn0000001', model: 'a' }, { connection: 'conn0000002', model: 'b' }] }));
+    await held.db.insert(modelRoutes).values(stored('route000002', 'agent000001', { primary: null, fallbacks: [] }));
+    expect((await store.list(TEST_OWNER)).routes).toEqual([{ agent: null, route: { primary: { connection: 'conn0000001', model: 'a' }, fallbacks: [{ connection: 'conn0000002', model: 'b' }] } }]);
+  });
+
   test('an edit that changes the credential moves the revision, others do not', async () => {
     const store = orgModelStore(() => held.db);
     await held.db.insert(modelConnections).values(connection('conn0000001'));

@@ -114,9 +114,11 @@ describe('what the Model page reads from the box', () => {
     expect(usageOf(settings, 'orA00000001')).toBeUndefined();
   });
 
-  test('a route needs a primary, and fallbacks need a named model', () => {
+  test('a route needs a primary, and fallbacks need a named model unless they use a login of the box', () => {
     expect(toRoute({ fallbacks: [{ connection: 'a', model: 'b' }] })).toBeNull();
     expect(toRoute({ primary: { connection: 'a', model: '' }, fallbacks: [{ connection: 'b', model: '' }, { connection: 'c', model: 'm' }] })).toEqual({ primary: { connection: 'a', model: '' }, fallbacks: [{ connection: 'c', model: 'm' }] });
+    const local = [{ connection: LOCAL_SESSION, model: '' }, { connection: 'local:login0000001', model: '' }];
+    expect(toRoute({ primary: { connection: 'a', model: 'm' }, fallbacks: local })?.fallbacks).toEqual(local);
   });
 
   test('the last request names the connection it went to, and a half answer is no answer', () => {

@@ -168,6 +168,27 @@ describe('Codex refresh', () => {
     expect(vendor.sent).toHaveLength(1);
   });
 
+  test('a forced refresh within a minute of the last token answers the current one, and a later one renews again', async () => {
+    await seed('conn0000008', 'codex', codex(now + 3_600_000));
+    await route(null, { primary: { connection: 'conn0000008', model: 'gpt-5.2' }, fallbacks: [] });
+    vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
+    const ask = async (revision: number): Promise<Delivered['connections'][number]> => (await (await call(REFRESH, { connection: 'conn0000008', revision })).json()) as Delivered['connections'][number];
+    expect((await ask(1)).revision).toBe(2);
+    for (let i = 0; i < 3; i += 1) expect(await ask(2)).toMatchObject({ revision: 2, credential: { accessToken: 'ACCESS_FORCED' } });
+    expect(vendor.sent).toHaveLength(1);
+    now += 61_000;
+    expect((await ask(2)).revision).toBe(3);
+    expect(vendor.sent).toHaveLength(2);
+  });
+
+  test('a connection signed in less than a minute ago is not renewed by a forced refresh', async () => {
+    await seed('conn0000009', 'codex', codex(now + 3_600_000), { detail: modelDetailText({ method: 'chatgpt', signedInAt: new Date(now).toISOString() }) });
+    await route(null, { primary: { connection: 'conn0000009', model: 'gpt-5.2' }, fallbacks: [] });
+    vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
+    expect(await (await call(REFRESH, { connection: 'conn0000009', revision: 1 })).json()).toMatchObject({ revision: 1, credential: { accessToken: 'ACCESS_OLD' } });
+    expect(vendor.sent).toHaveLength(0);
+  });
+
   test('an invalid grant signs the connection out; a connection the route does not name is 404', async () => {
     await seed('conn0000006', 'codex', { kind: 'codex', method: 'code', accessToken: 'ACCESS_OLD', refreshToken: 'REFRESH_OLD', expiresAt: now + 3_600_000, accountId: 'acct-1' });
     await seed('conn0000007', 'openrouter', { kind: 'key', apiKey: 'sk-or' });
@@ -216,9 +237,47 @@ describe('the one-time import', () => {
     expect(byId.get(ids.oldOpenRout ?? '')).toMatchObject({ credential: { apiKey: 'sk-or-imported' } });
   });
 
-  test('a malformed import is refused and leaves nothing', async () => {
-    expect((await call(IMPORT, { connections: [{ id: 'bad', provider: 'openrouter' }] })).status).toBe(400);
-    expect((await call(IMPORT, { connections: [{ id: 'oldOther001', provider: 'mistral' }] })).status).toBe(400);
-    expect(await held.db.$count(modelConnections)).toBe(0);
+  test('a body with no connections is refused; bad rows are skipped and named, and the rest imports', async () => {
+    expect((await call(IMPORT, { route: 'x' })).status).toBe(400);
+    const res = await call(IMPORT, {
+      connections: [{ id: 'bad', provider: 'openrouter' }, 'nope', { id: 'oldOther001', provider: 'mistral' }, body.connections[0]],
+      route: 'oldOther001',
+      fallbacks: [{ connection: 'oldOpenRout', model: 'openai/gpt-5.2' }, { connection: 'oldOther001', model: 'm' }],
+    });
+    expect(res.status).toBe(200);
+    const answer = (await res.json()) as { ids: Record<string, string>; skipped: { id: string; reason: string }[] };
+    expect(answer.skipped).toEqual([
+      { id: 'bad', reason: 'it has no 11-character id' },
+      { id: '', reason: 'it has no 11-character id' },
+      { id: 'oldOther001', reason: 'its provider is not anthropic, bedrock, openrouter or codex' },
+    ]);
+    expect(Object.keys(answer.ids)).toEqual(['oldOpenRout']);
+    expect((await delivered()).route).toEqual({ primary: { connection: answer.ids.oldOpenRout ?? '', model: 'openai/gpt-5.2' }, fallbacks: [] });
+  });
+
+  test('a connection with an API key and a Claude login imports as a key connection', async () => {
+    const both = { id: 'oldBoth0001', provider: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-ant-both', claude: { id: 'Login123456' } };
+    const { ids } = (await (await call(IMPORT, { connections: [both], route: 'oldBoth0001' })).json()) as { ids: Record<string, string> };
+    expect(ids.oldBoth0001).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]{10}$/);
+    const answer = await delivered();
+    expect(answer.route?.primary).toEqual({ connection: ids.oldBoth0001 ?? '', model: 'claude-opus-5-5' });
+    expect(answer.connections[0]).toMatchObject({ provider: 'anthropic', credential: { apiKey: 'sk-ant-both' } });
+  });
+
+  test('a route left empty by the import pins no override', async () => {
+    const res = await call(IMPORT, { connections: [{ id: 'oldOther001', provider: 'mistral' }, body.connections[0]], route: 'oldOther001', fallbacks: [] });
+    expect(res.status).toBe(200);
+    expect(await held.db.$count(modelRoutes)).toBe(0);
+    expect((await delivered()).source).toBeNull();
+  });
+
+  test('the organization limit counts only the rows that can be imported', async () => {
+    for (let i = 0; i < 99; i += 1) await seed(`seed${String(i).padStart(7, '0')}`, 'openrouter', { kind: 'key', apiKey: 'sk-or' });
+    const valid = (id: string): Record<string, unknown> => ({ id, provider: 'openrouter', model: 'm', apiKey: 'sk-or' });
+    expect((await call(IMPORT, { connections: [valid('oldValid001'), valid('oldValid002')] })).status).toBe(409);
+    expect(await held.db.$count(modelConnections)).toBe(99);
+    const res = await call(IMPORT, { connections: [{ id: 'x', provider: 'openrouter' }, { id: 'oldOther001', provider: 'mistral' }, valid('oldValid001')] });
+    expect(res.status).toBe(200);
+    expect(await held.db.$count(modelConnections)).toBe(100);
   });
 });

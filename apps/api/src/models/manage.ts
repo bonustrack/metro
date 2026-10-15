@@ -99,7 +99,7 @@ export async function putRoute(deps: ModelsDeps, caller: Caller, body: unknown):
   const input = isRecord(body) ? body : {};
   const agent = agentOf(input.agent);
   const route = await deps.store.setRoute({ owner: caller.owner, agent, route: routeInput(input, agent !== null), actor: userActor(caller), at: isoNow(deps) });
-  log.info({ owner: caller.owner, agent, primary: route.primary?.connection ?? null, fallbacks: route.fallbacks.length }, 'models: route changed');
+  log.info({ owner: caller.owner, agent, primary: route.primary.connection, fallbacks: route.fallbacks.length }, 'models: route changed');
   return { agent, route };
 }
 

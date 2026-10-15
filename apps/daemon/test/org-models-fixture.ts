@@ -41,10 +41,9 @@ function send(res: ServerResponse, status: number, body: unknown): void {
 }
 
 function localOf(row: Record<string, unknown>): string | null {
-  if (row.provider !== 'anthropic') return null;
+  if (row.provider !== 'anthropic' || 'apiKey' in row) return null;
   const login = row.claude;
-  if (typeof login === 'object' && login !== null && 'id' in login) return `local:${String(login.id)}`;
-  return 'apiKey' in row ? null : 'local:session';
+  return typeof login === 'object' && login !== null && 'id' in login ? `local:${String(login.id)}` : 'local:session';
 }
 
 function importAnswer(api: FakeApi, body: Record<string, unknown>): Record<string, unknown> {

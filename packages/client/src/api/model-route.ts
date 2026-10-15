@@ -34,7 +34,7 @@ export function toFallbacks(raw: unknown): RouteStep[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item: unknown) => {
     const step = toStep(item);
-    return step === null || step.model === '' ? [] : [step];
+    return step === null || (step.model === '' && !isLocal(step.connection)) ? [] : [step];
   });
 }
 

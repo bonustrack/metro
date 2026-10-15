@@ -4,9 +4,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setupOf } from '../src/gateway/effective.ts';
+import { effectiveSetup } from '../src/gateway/effective.ts';
 import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
-import { readClaudeLogins } from '../src/gateway/claude-store.ts';
 import type { OrgModels } from '../src/gateway/org-models.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsFor, type FakeApi } from './org-models-fixture.ts';
 
@@ -74,7 +73,7 @@ beforeAll(async () => {
   providerBase = await listen(provider);
   gateway = createServer((req, res) => {
     const handled = handleGatewayRequest(req, res, {
-      setup: () => setupOf(models.current(), readClaudeLogins(dir)),
+      setup: () => effectiveSetup(dir, models.current()),
       identify: (k) => k === 'mk_ok',
       anthropicBase: providerBase,
       openrouterBase: providerBase,
@@ -142,16 +141,43 @@ describe('the gateway on the setup the organization delivered', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('local:session rides the login the session carries, and an unenrolled box serves only that', async () => {
+  test('local:session rides the login the session carries, and an unenrolled box with a v3 file serves only that', async () => {
     api.delivery = delivery({ connection: 'local:session', model: '' }, [], [], 'agent');
     await models.sync();
     await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
     expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'or', connections: [{ id: 'or', provider: 'openrouter', model: 'x/y', apiKey: 'sk-or-v2' }] }));
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 3, claude: [] }));
     models = orgModelsFor(api, null, dir);
     await models.sync();
     await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
     expect(seen[1]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
-    expect(seen.some((s) => s.auth.includes('sk-or-v2'))).toBe(false);
+  });
+});
+
+describe('the gateway on a model.json not moved to the organization yet', () => {
+  const v2 = (connections: Record<string, unknown>[], route: string): void => {
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route, connections }));
+  };
+
+  test('an unenrolled box keeps its own route and key, whatever the organization would deliver', async () => {
+    v2([{ id: 'oldOpenRout', provider: 'openrouter', model: 'x/y', apiKey: 'sk-or-v2' }], 'oldOpenRout');
+    models = orgModelsFor(api, null, dir);
+    await models.sync();
+    const res = await post('claude-sonnet-5');
+    expect(res.status).toBe(200);
+    await res.text();
+    expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-or-v2' });
+    expect((JSON.parse(seen[0]?.body ?? '{}') as { model: string }).model).toBe('x/y');
+  });
+
+  test('a refused Codex token of model.json is not renewed, and api.metro.box is not asked', async () => {
+    v2([{ id: 'oldCodex001', provider: 'codex', model: 'gpt-5.4', codex: { clientId: 'oaiapp_1', accessToken: 'at-old', refreshToken: 'rt', expiresAt: 1 } }], 'oldCodex001');
+    api.answer = (path) => (path === '/api/agents/models/import' ? 'drop' : null);
+    await models.sync();
+    const res = await post('claude-sonnet-5');
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('could not renew');
+    expect(seen.map((s) => s.auth)).toEqual(['Bearer at-old']);
+    expect(api.asked.map((a) => a.path)).not.toContain('/api/agents/models/refresh');
   });
 });

@@ -13,7 +13,7 @@ import type { OrgModelStore } from '@metro-labs/connectors/db/models';
 import { codexStale, refreshModelConnection } from '@metro-labs/connectors/model-refresh';
 import type { ModelRoute } from '@metro-labs/connectors/model-route';
 import { MODELS_MAX, modelKey, refreshDeps } from './deps.js';
-import { importPlan } from './import.js';
+import { importPlan, type Skipped } from './import.js';
 import { agentConnection, type AgentConnection } from './view.js';
 
 const MODELS = '/api/agents/models';
@@ -94,11 +94,11 @@ async function refreshed(deps: AgentModelsDeps, identity: AgentKeyRow, body: unk
   return agentConnection(key, current);
 }
 
-async function imported(deps: AgentModelsDeps, identity: AgentKeyRow, body: unknown): Promise<{ ids: Record<string, string> }> {
+async function imported(deps: AgentModelsDeps, identity: AgentKeyRow, body: unknown): Promise<{ ids: Record<string, string>; skipped: Skipped[] }> {
   const plan = importPlan(modelKey(deps), body);
   const ids = await deps.delivery.import(identity, { rows: plan.rows, route: plan.route, at: new Date(deps.now()).toISOString(), limit: MODELS_MAX });
-  log.info({ agent: identity.agent, owner: identity.owner, connections: plan.rows.length, local: plan.local.size }, 'models: an agent imported its model setup');
-  return { ids: Object.fromEntries([...ids, ...plan.local]) };
+  log.info({ agent: identity.agent, owner: identity.owner, connections: plan.rows.length, local: plan.local.size, skipped: plan.skipped.length }, 'models: an agent imported its model setup');
+  return { ids: Object.fromEntries([...ids, ...plan.local]), skipped: plan.skipped };
 }
 
 async function route(path: string, req: IncomingMessage, deps: AgentModelsDeps): Promise<unknown> {

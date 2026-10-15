@@ -5,6 +5,7 @@ import type { ModelConnectionRow, ModelEdit, OrgModelStore } from './db/models.j
 import { modelDetailOf, modelDetailText, openModelSecret, sealModelSecret, type CodexSecret, type ModelDetail, type ModelSecret } from './model-secret.js';
 
 export const REFRESH_BEFORE_MS = 5 * 60_000;
+const FORCED_GAP_MS = 60_000;
 
 export interface ModelRefreshDeps {
   key: Buffer;
@@ -37,9 +38,12 @@ export function codexStale(key: Buffer, row: ModelConnectionRow, now: number): b
   return secret !== null && secret.expiresAt - now <= REFRESH_BEFORE_MS;
 }
 
-function refreshedDetail(detail: ModelDetail, refreshed: Refreshed): ModelDetail {
+const issuedWithin = (detail: ModelDetail, now: number): boolean => [detail.refreshedAt, detail.signedInAt].some((at) => at !== undefined && now - Date.parse(at) < FORCED_GAP_MS);
+
+function refreshedDetail(detail: ModelDetail, refreshed: Refreshed, now: number): ModelDetail {
   return {
     ...detail,
+    refreshedAt: new Date(now).toISOString(),
     ...(refreshed.email === null ? {} : { email: refreshed.email }),
     ...(refreshed.plan === null ? {} : { plan: refreshed.plan }),
     ...(refreshed.secret.accountId === undefined ? {} : { accountId: refreshed.secret.accountId }),
@@ -47,13 +51,14 @@ function refreshedDetail(detail: ModelDetail, refreshed: Refreshed): ModelDetail
 }
 
 async function refreshEdit(deps: ModelRefreshDeps, row: ModelConnectionRow, forced: number | undefined): Promise<ModelEdit> {
-  if (forced !== undefined && row.revision !== forced) return unchanged();
+  const detail = modelDetailOf(row.detail);
+  if (forced !== undefined && (row.revision !== forced || issuedWithin(detail, deps.now()))) return unchanged();
   const secret = liveCodex(deps.key, row);
   if (secret === null || (forced === undefined && secret.expiresAt - deps.now() > REFRESH_BEFORE_MS)) return unchanged();
-  const detail = modelDetailOf(row.detail);
   try {
-    const refreshed = await refreshCodex(secret, deps.fetch, deps.now(), deps.issuer);
-    return { change: { secret: sealModelSecret(deps.key, row, refreshed.secret), detail: modelDetailText(refreshedDetail(detail, refreshed)) }, credential: true };
+    const now = deps.now();
+    const refreshed = await refreshCodex(secret, deps.fetch, now, deps.issuer);
+    return { change: { secret: sealModelSecret(deps.key, row, refreshed.secret), detail: modelDetailText(refreshedDetail(detail, refreshed, now)) }, credential: true };
   } catch (err) {
     if (isDeadGrant(err)) {
       log.warn({ owner: row.owner, connection: row.id }, 'models: OpenAI refused the Codex refresh token, so the connection is signed out');

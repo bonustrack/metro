@@ -27,11 +27,12 @@ export interface ModelDetail {
   method?: CodexMethod;
   accountId?: string;
   signedInAt?: string;
+  refreshedAt?: string;
   signedOut?: boolean;
 }
 
 const TOKEN_RE = /^[\x21-\x7e]{1,16384}$/;
-const DETAIL_TEXT = ['email', 'plan', 'accountId', 'signedInAt'] as const;
+const DETAIL_TEXT = ['email', 'plan', 'accountId', 'signedInAt', 'refreshedAt'] as const;
 
 export const isModelProvider = (value: unknown): value is ModelProvider => typeof value === 'string' && (MODEL_PROVIDERS as readonly string[]).includes(value);
 

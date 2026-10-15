@@ -145,6 +145,11 @@ describe('routes', () => {
     expect((await call('PUT', '/api/models/route', { agent: null, primary: { connection: theirs.id, model: 'm' } })).status).toBe(400);
     expect((await call('PUT', '/api/models/route', { agent: THEIRS, primary })).status).toBe(404);
     expect((await call('PUT', '/api/models/route', { agent: null, primary: { connection: or.id, model: '' } })).status).toBe(400);
+    for (const missing of [{ agent: null, primary: null, fallbacks: [primary] }, { agent: OURS, fallbacks: [primary] }]) {
+      const refused = await call('PUT', '/api/models/route', missing);
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({ error: 'A route needs a primary model. To remove a route, delete it.' });
+    }
     const nine = Array.from({ length: 9 }, (_, i) => ({ connection: or.id, model: `m${String(i)}` }));
     expect((await call('PUT', '/api/models/route', { agent: null, primary, fallbacks: nine })).status).toBe(400);
     expect((await call('PUT', '/api/models/route', { agent: null, primary })).status).toBe(200);
@@ -158,12 +163,20 @@ describe('routes', () => {
   test('removing a connection takes it out of every route, and an override can be removed', async () => {
     const or = await add();
     const second = await add();
-    await call('PUT', '/api/models/route', { agent: null, primary: { connection: or.id, model: 'a' }, fallbacks: [{ connection: second.id, model: 'b' }] });
+    const third = await add();
+    await call('PUT', '/api/models/route', { agent: null, primary: { connection: or.id, model: 'a' }, fallbacks: [{ connection: second.id, model: 'b' }, { connection: third.id, model: 'c' }] });
     await call('PUT', '/api/models/route', { agent: OURS, primary: { connection: second.id, model: 'b' }, fallbacks: [{ connection: or.id, model: 'a' }] });
     expect(await data<unknown>(await call('DELETE', `/api/models/${or.id}`))).toEqual({ id: or.id, deleted: true });
     const view = await data<{ default: unknown; agents: Record<string, unknown> }>(await call('GET', '/api/models'));
-    expect(view.default).toEqual({ primary: null, fallbacks: [{ connection: second.id, model: 'b' }] });
+    expect(view.default).toEqual({ primary: { connection: second.id, model: 'b' }, fallbacks: [{ connection: third.id, model: 'c' }] });
     expect(view.agents[OURS]).toEqual({ primary: { connection: second.id, model: 'b' }, fallbacks: [] });
+    await call('DELETE', `/api/models/${second.id}`);
+    const after = await data<{ default: unknown; agents: Record<string, unknown> }>(await call('GET', '/api/models'));
+    expect(after.default).toEqual({ primary: { connection: third.id, model: 'c' }, fallbacks: [] });
+    expect(after.agents).toEqual({});
+    await call('DELETE', `/api/models/${third.id}`);
+    expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toBeNull();
+    await call('PUT', '/api/models/route', { agent: OURS, primary: { connection: 'local:session', model: '' } });
     expect(await data<unknown>(await call('DELETE', `/api/models/route?agent=${OURS}`))).toEqual({ agent: OURS, deleted: true });
     expect((await data<{ agents: Record<string, unknown> }>(await call('GET', '/api/models'))).agents).toEqual({});
   });

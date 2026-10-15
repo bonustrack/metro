@@ -76,7 +76,7 @@ async function withUsage(deps: ModelApiDeps): Promise<Record<string, unknown>> {
 }
 
 async function synced(deps: ModelApiDeps): Promise<Record<string, unknown>> {
-  await (deps.sync ?? (() => orgModels()?.sync() ?? Promise.resolve()))();
+  await (deps.sync ?? (() => orgModels()?.requested() ?? Promise.resolve()))();
   return settingsBody(deps);
 }
 

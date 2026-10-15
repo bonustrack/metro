@@ -2,18 +2,21 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentKey } from '../connectors/agent-key.js';
 import { agentCall, MetroApiRefusal, type MetroApi } from '../connectors/metro-api.js';
 import { deliveredOf, refreshedConnection, type Delivered } from './delivered.js';
-import { importModelFile } from './model-import.js';
+import { importModelFile, settleModelFile, type Moved } from './model-import.js';
 import type { Connection } from './model-config.js';
 
 const MODELS_PATH = '/api/agents/models';
 const REFRESH_PATH = '/api/agents/models/refresh';
 const SYNC_MS = 60_000;
+const PAGE_SYNC_MS = 5_000;
+const AGENT_KEY_MISSING = 'agent_key_missing';
 
 export interface OrgModelsDeps {
   owner: () => string | null;
   key: () => AgentKey | null;
   api: MetroApi;
   dir: () => string;
+  pageSyncMs?: number;
 }
 
 export interface SyncStatus {
@@ -22,13 +25,23 @@ export interface SyncStatus {
   error: string | null;
 }
 
-const refused = (err: unknown): boolean => err instanceof MetroApiRefusal && err.upstreamStatus >= 400 && err.upstreamStatus < 500;
+const identityRefused = (err: unknown): boolean => err instanceof MetroApiRefusal && err.upstreamStatus === 401 && err.code === AGENT_KEY_MISSING;
+
+const unrenewed = new Set<string>();
+
+function noteUnrenewed(conn: Connection): void {
+  if (unrenewed.has(conn.id)) return;
+  unrenewed.add(conn.id);
+  log.warn({ connection: conn.id }, 'org-models: a Codex sign-in still read from model.json is not renewed on this box; api.metro.box renews it once the box moved its model setup to the organization');
+}
 
 export class OrgModels {
   private kept: Delivered | null = null;
   private status: SyncStatus = { enrolled: false, at: null, error: null };
   private running: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private trailing: ReturnType<typeof setTimeout> | null = null;
+  private pageAt = Number.NEGATIVE_INFINITY;
   private readonly refreshing = new Map<string, Promise<Connection | null>>();
   private readonly listeners = new Set<() => void>();
 
@@ -56,6 +69,17 @@ export class OrgModels {
     return this.running;
   }
 
+  requested(): Promise<void> {
+    const now = this.deps.api.now();
+    const wait = this.pageAt + (this.deps.pageSyncMs ?? PAGE_SYNC_MS) - now;
+    if (wait <= 0) {
+      this.pageAt = now;
+      return this.sync();
+    }
+    this.trailing ??= this.later(wait);
+    return this.running ?? Promise.resolve();
+  }
+
   start(everyMs = SYNC_MS): void {
     if (this.timer !== null) return;
     const tick = (): void => {
@@ -70,10 +94,16 @@ export class OrgModels {
 
   stop(): void {
     if (this.timer !== null) clearInterval(this.timer);
+    if (this.trailing !== null) clearTimeout(this.trailing);
     this.timer = null;
+    this.trailing = null;
   }
 
   refresh(conn: Connection): Promise<Connection | null> {
+    if (conn.revision < 1) {
+      noteUnrenewed(conn);
+      return Promise.resolve(null);
+    }
     const newer = this.kept?.connections.find((c) => c.id === conn.id && c.revision > conn.revision);
     if (newer !== undefined) return Promise.resolve(newer);
     const slot = `${conn.id}\n${String(conn.revision)}`;
@@ -84,6 +114,17 @@ export class OrgModels {
     });
     this.refreshing.set(slot, run);
     return run;
+  }
+
+  private later(wait: number): ReturnType<typeof setTimeout> {
+    const timer = setTimeout(() => {
+      this.trailing = null;
+      this.requested().catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'org-models: the model setup could not be read');
+      });
+    }, wait);
+    timer.unref();
+    return timer;
   }
 
   private enrolledKey(): AgentKey | null {
@@ -100,7 +141,10 @@ export class OrgModels {
   private keep(next: Delivered | null): void {
     const changed = JSON.stringify(next) !== JSON.stringify(this.kept);
     this.kept = next;
-    if (!changed) return;
+    if (changed) this.notify();
+  }
+
+  private notify(): void {
     for (const listener of [...this.listeners])
       try {
         listener();
@@ -110,7 +154,7 @@ export class OrgModels {
   }
 
   private failed(error: string, clear: boolean): void {
-    if (this.status.error !== error) log.warn({ err: error, kept: !clear && this.kept !== null }, clear ? 'org-models: api.metro.box refused the model setup, so it is cleared' : 'org-models: api.metro.box could not be read, so the last model setup stands');
+    if (this.status.error !== error) log.warn({ err: error, kept: !clear && this.kept !== null }, clear ? 'org-models: api.metro.box no longer knows this agent key, so the model setup is cleared' : 'org-models: api.metro.box did not deliver the model setup, so the last one stands');
     this.status = { ...this.status, error };
     if (clear) this.keep(null);
   }
@@ -123,8 +167,9 @@ export class OrgModels {
       return;
     }
     this.status = { ...this.status, enrolled: true };
-    await importModelFile(this.deps.api, key, this.deps.dir()).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'org-models: model.json could not be rewritten after the move to the organization');
+    const moved = await importModelFile(this.deps.api, key, this.deps.dir()).catch((err: unknown) => {
+      log.warn({ err: errMsg(err) }, 'org-models: model.json could not be read for the move to the organization');
+      return null;
     });
     try {
       const delivered = deliveredOf(await agentCall(this.deps.api, key, MODELS_PATH, {}));
@@ -136,7 +181,17 @@ export class OrgModels {
       this.status = { enrolled: true, at: new Date(this.deps.api.now()).toISOString(), error: null };
       this.keep(delivered);
     } catch (err) {
-      this.failed(errMsg(err), refused(err));
+      this.failed(errMsg(err), identityRefused(err));
+      return;
+    }
+    if (moved !== null) this.settle(moved);
+  }
+
+  private settle(moved: Moved): void {
+    try {
+      if (settleModelFile(this.deps.dir(), moved)) this.notify();
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'org-models: model.json could not be rewritten after the move to the organization');
     }
   }
 

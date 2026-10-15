@@ -3,12 +3,13 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ImportRow } from '@metro-labs/connectors/db/model-delivery';
 import { nonEmpty } from '@metro-labs/connectors/codex-tokens';
-import { distinctFallbacks, FALLBACKS_MAX, isLocalRef, LOCAL_SESSION, localLogin, MODEL_ID_MAX, type ModelRoute, type RouteTarget } from '@metro-labs/connectors/model-route';
+import { distinctFallbacks, FALLBACKS_MAX, isLocalRef, LOCAL_SESSION, localLogin, MODEL_ID_MAX, routeFrom, type ModelRoute, type RouteTarget } from '@metro-labs/connectors/model-route';
 import { isModelProvider, KEY_PROVIDERS, modelDetailText, modelSecretOf, sealModelSecret, type ModelDetail, type ModelProvider, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { NEW_CLIENT } from './codex-login.js';
 import { LABEL_MAX, LABELS, REGION_RE } from './input.js';
 
 const CONNECTIONS_MAX = 20;
+const SHOWN_ID_MAX = 64;
 const KEY_MAX = 4096;
 
 interface Sent {
@@ -21,9 +22,21 @@ interface Wanted {
   model: string;
 }
 
+export interface Skipped {
+  id: string;
+  reason: string;
+}
+
+interface Entry {
+  raw: Record<string, unknown>;
+  id: string;
+  provider: ModelProvider;
+}
+
 export interface ImportPlan {
   rows: ImportRow[];
   local: Map<string, string>;
+  skipped: Skipped[];
   route: (ids: Map<string, string>) => ModelRoute | null;
 }
 
@@ -82,15 +95,16 @@ function rowOf(key: Buffer, raw: Record<string, unknown>, id: string, provider: 
 }
 
 function localRef(raw: Record<string, unknown>, provider: ModelProvider): string | null {
-  if (isRecord(raw.claude) && typeof raw.claude.id === 'string' && ID_RE.test(raw.claude.id)) return localLogin(raw.claude.id);
-  return provider === 'anthropic' && text(raw.apiKey, KEY_MAX) === '' ? LOCAL_SESSION : null;
+  if (provider !== 'anthropic' || text(raw.apiKey, KEY_MAX) !== '') return null;
+  return isRecord(raw.claude) && typeof raw.claude.id === 'string' && ID_RE.test(raw.claude.id) ? localLogin(raw.claude.id) : LOCAL_SESSION;
 }
 
-function entryOf(raw: unknown): { raw: Record<string, unknown>; id: string; provider: ModelProvider } | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || !ID_RE.test(raw.id)) throw bad('each connection needs its 11-character id');
+function entryOf(raw: unknown): Entry | Skipped | null {
+  const id = isRecord(raw) && typeof raw.id === 'string' ? raw.id.slice(0, SHOWN_ID_MAX) : '';
+  if (!isRecord(raw) || !ID_RE.test(id)) return { id, reason: 'it has no 11-character id' };
   if (raw.provider === 'gemini') return null;
-  if (!isModelProvider(raw.provider)) throw bad('each connection needs a provider: anthropic, bedrock, openrouter or codex');
-  return { raw, id: raw.id, provider: raw.provider };
+  if (!isModelProvider(raw.provider)) return { id, reason: 'its provider is not anthropic, bedrock, openrouter or codex' };
+  return { raw, id, provider: raw.provider };
 }
 
 function wantedOf(raw: unknown, sent: Sent[]): Wanted | null {
@@ -110,24 +124,27 @@ function routeBuilder(body: Record<string, unknown>, sent: Sent[], local: Map<st
   const rawFallbacks: unknown[] = Array.isArray(body.fallbacks) ? body.fallbacks.slice(0, FALLBACKS_MAX * 4) : [];
   return (ids) => {
     const primary = mapped(wantedOf(body.route, sent), ids, local, false);
-    const fallbacks = distinctFallbacks(rawFallbacks.flatMap((raw) => mapped(wantedOf(raw, sent), ids, local, true) ?? []));
-    return primary === null && fallbacks.length === 0 ? null : { primary, fallbacks };
+    return routeFrom(primary, distinctFallbacks(rawFallbacks.flatMap((raw) => mapped(wantedOf(raw, sent), ids, local, true) ?? [])));
   };
 }
 
+const TOO_MANY = `a box sends at most ${String(CONNECTIONS_MAX)} connections`;
+
 export function importPlan(key: Buffer, body: unknown): ImportPlan {
   if (!isRecord(body) || !Array.isArray(body.connections)) throw bad('Send the connections of model.json, its route and its fallbacks.');
-  if (body.connections.length > CONNECTIONS_MAX) throw bad(`A box keeps at most ${String(CONNECTIONS_MAX)} connections.`);
-  const rows: ImportRow[] = [];
-  const local = new Map<string, string>();
+  const plan: ImportPlan = { rows: [], local: new Map(), skipped: [], route: () => null };
   const sent: Sent[] = [];
   for (const raw of body.connections) {
     const entry = entryOf(raw);
     if (entry === null || sent.some((held) => held.id === entry.id)) continue;
+    if ('reason' in entry || sent.length >= CONNECTIONS_MAX) {
+      plan.skipped.push('reason' in entry ? entry : { id: entry.id, reason: TOO_MANY });
+      continue;
+    }
     sent.push({ id: entry.id, model: text(entry.raw.model, MODEL_ID_MAX) });
     const ref = localRef(entry.raw, entry.provider);
-    if (ref === null) rows.push(rowOf(key, entry.raw, entry.id, entry.provider));
-    else local.set(entry.id, ref);
+    if (ref === null) plan.rows.push(rowOf(key, entry.raw, entry.id, entry.provider));
+    else plan.local.set(entry.id, ref);
   }
-  return { rows, local, route: routeBuilder(body, sent, local) };
+  return { ...plan, route: routeBuilder(body, sent, plan.local) };
 }

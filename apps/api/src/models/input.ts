@@ -88,7 +88,8 @@ function targetInput(raw: unknown, agentRoute: boolean, what: string): RouteTarg
 }
 
 export function routeInput(body: Record<string, unknown>, agentRoute: boolean): ModelRoute {
-  const primary = body.primary === null || body.primary === undefined ? null : targetInput(body.primary, agentRoute, 'primary');
+  if (body.primary === null || body.primary === undefined) throw bad('A route needs a primary model. To remove a route, delete it.');
+  const primary = targetInput(body.primary, agentRoute, 'primary');
   const raw = body.fallbacks ?? [];
   if (!Array.isArray(raw)) throw bad('fallbacks must be a list');
   if (raw.length > FALLBACKS_MAX) throw bad(`A route keeps at most ${String(FALLBACKS_MAX)} fallbacks.`);

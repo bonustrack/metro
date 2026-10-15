@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupOf, watchModelChanges } from '../src/gateway/effective.ts';
 import { primaryRoute } from '../src/gateway/model-config.ts';
-import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsFor, type FakeApi } from './org-models-fixture.ts';
+import { OrgModels } from '../src/gateway/org-models.ts';
+import { writeClaudeLogins } from '../src/gateway/claude-store.ts';
+import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, metroApi, orgModelsFor, OWNER, type FakeApi } from './org-models-fixture.ts';
+import { waitFor } from './wait.ts';
 
 const key = enrolledKey();
 let api: FakeApi;
@@ -53,19 +56,44 @@ describe('the delivered model setup', () => {
     expect(() => readFileSync(join(dir, 'model.json'), 'utf8')).toThrow();
   });
 
-  test('a 5xx, a dropped connection and an unreadable answer keep the last good copy; a 4xx clears it', async () => {
+  test('only api.metro.box saying it no longer knows the agent key clears the setup; every other failure keeps the last good copy', async () => {
     const models = orgModelsFor(api, key, dir);
     await models.sync();
-    for (const answer of [{ status: 503, body: { error: 'down' } }, 'drop' as const, { status: 200, body: { route: 'nope', connections: 'nope' } }]) {
+    const kept = [
+      { status: 503, body: { error: 'down' } },
+      'drop' as const,
+      { status: 200, body: { route: 'nope', connections: 'nope' } },
+      { status: 401, body: { error: 'The clock of this agent is more than five minutes off.' } },
+      { status: 401, body: { error: 'This agent is not enrolled with Metro, or its request signature is not valid.' } },
+      { status: 429, body: { error: 'This agent sent too many requests.' } },
+      { status: 403, body: '<html>Cloudflare</html>' },
+      { status: 404, body: { error: 'not found' } },
+      { status: 400, body: { error: 'bad' } },
+    ];
+    for (const answer of kept) {
       api.answer = () => answer;
       await models.sync();
       expect(models.current()?.connections[0]?.apiKey).toBe('sk-or-secret');
       expect(models.syncStatus().error).not.toBeNull();
     }
-    api.answer = () => ({ status: 403, body: { error: 'This agent moved to another organization.' } });
+    api.answer = () => ({ status: 401, body: { error: 'This agent is not enrolled with Metro, or its request signature is not valid.', code: 'agent_key_missing' } });
     await models.sync();
     expect(models.current()).toBeNull();
-    expect(models.syncStatus().error).toBe('This agent moved to another organization.');
+    expect(models.syncStatus().error).toBe('This agent is not enrolled with Metro, or its request signature is not valid.');
+  });
+
+  test('the page asks at most once per window; a call inside it answers what is held, and one trailing fetch follows', async () => {
+    const models = new OrgModels({ owner: () => OWNER, key: () => key, api: metroApi(api.base), dir: () => dir, pageSyncMs: 300 });
+    const fetches = (): number => api.asked.filter((a) => a.path === '/api/agents/models').length;
+    await models.requested();
+    expect(fetches()).toBe(1);
+    await Promise.all([models.requested(), models.requested(), models.requested()]);
+    expect(fetches()).toBe(1);
+    await waitFor(() => fetches() === 2);
+    expect(fetches()).toBe(2);
+    await Bun.sleep(400);
+    expect(fetches()).toBe(2);
+    models.stop();
   });
 
   test('a connection delivered without a credential is signed out, and a route with no primary serves nothing', async () => {
@@ -95,6 +123,9 @@ describe('the delivered model setup', () => {
     expect((await models.refresh(held))?.revision).toBe(4);
     api.answer = () => ({ status: 404, body: { error: 'not in the route' } });
     expect(await models.refresh({ ...held, id: 'cx000000002' })).toBeNull();
+    const asked = api.asked.length;
+    expect(await models.refresh({ ...held, id: 'oldCodex001', revision: 0 })).toBeNull();
+    expect(api.asked).toHaveLength(asked);
   });
 });
 
@@ -112,7 +143,7 @@ describe('the live switch', () => {
     await models.sync();
     api.delivery = delivery({ connection: 'or000000001', model: 'anthropic/claude-sonnet-5' }, [deliveredRow('or000000001', 'openrouter', { label: 'Renamed', credential: keyCredential('sk-or-other') })]);
     await models.sync();
-    api.answer = () => ({ status: 401, body: { error: 'gone' } });
+    api.answer = () => ({ status: 401, body: { error: 'gone', code: 'agent_key_missing' } });
     await models.sync();
     expect(told).toEqual(['openrouter:openai/gpt-5.2', 'openrouter:anthropic/claude-sonnet-5', null]);
   });
@@ -183,6 +214,47 @@ describe('the one-time move of model.json to the organization', () => {
     expect(api.asked.filter((a) => a.path === '/api/agents/models/import')).toHaveLength(2);
     expect(modelFile()).toMatchObject({ version: 3 });
     expect([...api.imported.keys()]).toEqual(['old-or', 'old-cx']);
+  });
+
+  test('a Claude login saved or removed while the import is on its way is what the v3 file keeps', async () => {
+    writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
+    const added = { id: 'Login999999', email: 'new@example.com', plan: 'pro', savedAt: '2026-10-15T00:00:00.000Z' };
+    api.answer = (path) => {
+      if (path === '/api/agents/models/import') writeClaudeLogins([added], dir);
+      return null;
+    };
+    await orgModelsFor(api, key, dir).sync();
+    expect(modelFile()).toEqual({ version: 3, claude: [added] });
+  });
+
+  test('the v2 file is served and kept until the setup after the import is delivered', async () => {
+    writeFileSync(join(dir, 'model.json'), JSON.stringify(V2));
+    const { effectiveSetup } = await import('../src/gateway/effective.ts');
+    const models = orgModelsFor(api, key, dir);
+    api.answer = (path) => (path === '/api/agents/models' ? { status: 503, body: { error: 'down' } } : null);
+    await models.sync();
+    expect(modelFile()).toEqual(V2);
+    const local = effectiveSetup(dir, models.current());
+    expect(local).toMatchObject({ primary: { connection: 'local:Login123456', model: 'claude-opus-5' }, source: null });
+    expect(local.fallbacks).toEqual([{ connection: 'old-or', model: 'openai/gpt-5.2' }, { connection: 'local:session', model: 'claude-sonnet-5' }]);
+    expect(local.connections.find((c) => c.id === 'old-or')).toMatchObject({ apiKey: 'sk-or-v2', revision: 0 });
+    expect(local.connections.find((c) => c.id === 'old-cx')?.codex).toEqual({ method: 'chatgpt', accessToken: 'at', expiresAt: 5, accountId: null });
+    expect(local.connections.map((c) => c.id)).not.toContain('old-gem');
+    api.answer = null;
+    await models.sync();
+    expect(modelFile()).toMatchObject({ version: 3 });
+    expect(effectiveSetup(dir, models.current()).primary).toEqual({ connection: 'or000000001', model: 'openai/gpt-5.2' });
+  });
+
+  test('a connection holding an API key and a Claude login moves as a key connection', async () => {
+    const both = { id: 'old-both', provider: 'anthropic', label: 'Both', model: 'claude-opus-5', apiKey: 'sk-ant-both', claude: { id: 'Login123456', email: 'less@example.com', plan: 'max', savedAt: 'x' } };
+    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'old-both', connections: [both] }));
+    const { effectiveSetup } = await import('../src/gateway/effective.ts');
+    expect(effectiveSetup(dir, null).connections).toEqual([expect.objectContaining({ id: 'old-both', apiKey: 'sk-ant-both', claude: null })]);
+    api.answer = (path) => (path === '/api/agents/models/import' ? { status: 200, body: { ids: { 'old-both': 'new00000000' }, skipped: [{ id: 'x', reason: 'it has no 11-character id' }] } } : null);
+    await orgModelsFor(api, key, dir).sync();
+    expect(api.asked.find((a) => a.path === '/api/agents/models/import')?.body.connections).toEqual([{ id: 'old-both', provider: 'anthropic', label: 'Both', model: 'claude-opus-5', region: '', zdr: false, apiKey: 'sk-ant-both' }]);
+    expect(modelFile()).toEqual({ version: 3, claude: [both.claude] });
   });
 
   test('a box that only rode the session login sends nothing and pins no override', async () => {

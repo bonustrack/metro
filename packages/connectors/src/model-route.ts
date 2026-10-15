@@ -8,7 +8,7 @@ export interface RouteTarget {
 }
 
 export interface ModelRoute {
-  primary: RouteTarget | null;
+  primary: RouteTarget;
   fallbacks: RouteTarget[];
 }
 
@@ -29,24 +29,28 @@ function targetOf(raw: unknown): RouteTarget | null {
   return isRouteRef(raw.connection) && raw.model.length <= MODEL_ID_MAX ? { connection: raw.connection, model: raw.model } : null;
 }
 
-export function routeOf(text: string): ModelRoute {
+export function routeFrom(primary: RouteTarget | null, fallbacks: RouteTarget[]): ModelRoute | null {
+  const [first, ...rest] = primary === null ? fallbacks : [primary, ...fallbacks];
+  return first === undefined ? null : { primary: first, fallbacks: rest.slice(0, FALLBACKS_MAX) };
+}
+
+export function routeOf(text: string): ModelRoute | null {
   const value = parsedJson(text);
-  if (!isRecord(value)) return { primary: null, fallbacks: [] };
+  if (!isRecord(value)) return null;
   const fallbacks = Array.isArray(value.fallbacks) ? value.fallbacks.flatMap((raw: unknown) => targetOf(raw) ?? []) : [];
-  return { primary: targetOf(value.primary), fallbacks: fallbacks.slice(0, FALLBACKS_MAX) };
+  return routeFrom(targetOf(value.primary), fallbacks);
 }
 
 export const routeText = (route: ModelRoute): string => JSON.stringify({ primary: route.primary, fallbacks: route.fallbacks });
 
 export function routeNames(route: ModelRoute): string[] {
-  const named = [route.primary?.connection, ...route.fallbacks.map((f) => f.connection)].filter((ref): ref is string => ref !== undefined);
-  return [...new Set(named)];
+  return [...new Set([route.primary.connection, ...route.fallbacks.map((f) => f.connection)])];
 }
 
 export const orgConnectionsOf = (route: ModelRoute): string[] => routeNames(route).filter((ref) => !isLocalRef(ref));
 
-export function withoutConnection(route: ModelRoute, id: string): ModelRoute {
-  return { primary: route.primary?.connection === id ? null : route.primary, fallbacks: route.fallbacks.filter((f) => f.connection !== id) };
+export function withoutConnection(route: ModelRoute, id: string): ModelRoute | null {
+  return routeFrom(route.primary.connection === id ? null : route.primary, route.fallbacks.filter((f) => f.connection !== id));
 }
 
 export function distinctFallbacks(fallbacks: RouteTarget[]): RouteTarget[] {

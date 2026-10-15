@@ -39,13 +39,13 @@ function credentialOf(c: Row): Row | null {
 
 function addRow(plan: Plan, c: Row): void {
   const base = { id: text(c.id), provider: c.provider, label: text(c.label), model: text(c.model), region: text(c.region), zdr: c.zdr === true };
-  const login = c.provider === 'anthropic' ? claudeLoginOf(c.claude) : null;
-  const credential = login === null ? credentialOf(c) : null;
-  if (login !== null) plan.connections.push({ ...base, claude: { id: login.id } });
-  else if (credential !== null) {
+  const credential = credentialOf(c);
+  const login = c.provider === 'anthropic' && credential === null ? claudeLoginOf(c.claude) : null;
+  if (credential !== null) {
     plan.connections.push({ ...base, ...credential });
     plan.credentialed += 1;
-  } else if (c.provider === 'anthropic') {
+  } else if (login !== null) plan.connections.push({ ...base, claude: { id: login.id } });
+  else if (c.provider === 'anthropic') {
     plan.connections.push(base);
     plan.sessionOnly.add(base.id);
   }
@@ -85,23 +85,41 @@ function importBody(raw: Row & { connections: unknown[] }): { body: Row | null; 
   return { body: empty ? null : { connections: plan.connections, route, fallbacks }, sent: plan.credentialed, gemini: plan.gemini };
 }
 
-export async function importModelFile(api: MetroApi, key: AgentKey, dir: string): Promise<void> {
+export interface Moved {
+  sent: number;
+  gemini: number;
+}
+
+function noteSkipped(raw: unknown): void {
+  const skipped = Array.isArray(raw) ? raw.flatMap((s: unknown) => (isRecord(s) ? [{ id: text(s.id), reason: text(s.reason) }] : [])) : [];
+  if (skipped.length > 0) log.warn({ skipped }, 'org-models: api.metro.box could not import some connections of model.json, so they are not moved');
+}
+
+export async function importModelFile(api: MetroApi, key: AgentKey, dir: string): Promise<Moved | null> {
   const raw = readModelFile(dir);
-  if (!isV2(raw)) return;
+  if (!isV2(raw)) return null;
   const { body, sent, gemini } = importBody(raw);
   try {
     if (body !== null) {
       const answer = await agentCall(api, key, IMPORT_PATH, body);
       if (!isRecord(answer.ids)) throw new Error('api.metro.box answered the import without ids');
+      noteSkipped(answer.skipped);
     }
   } catch (err) {
     if (errMsg(err) !== lastRefusal) log.warn({ err: errMsg(err) }, 'org-models: the model setup of this box could not move to its organization yet; it is tried again');
     lastRefusal = errMsg(err);
-    return;
+    return null;
   }
   lastRefusal = '';
+  return { sent, gemini };
+}
+
+export function settleModelFile(dir: string, moved: Moved): boolean {
+  const raw = readModelFile(dir);
+  if (!isV2(raw)) return false;
   const logins = claudeLoginsIn(raw);
   writeSecure(modelPath(dir), v3Text(logins));
-  if (gemini > 0) log.info({ dropped: gemini }, 'org-models: Gemini connections are no longer supported, so they were dropped');
-  log.info({ moved: sent, claudeLogins: logins.length }, 'org-models: the model setup of this box moved to its organization; model.json keeps only its Claude logins');
+  if (moved.gemini > 0) log.info({ dropped: moved.gemini }, 'org-models: Gemini connections are no longer supported, so they were dropped');
+  log.info({ moved: moved.sent, claudeLogins: logins.length }, 'org-models: the model setup of this box moved to its organization; model.json keeps only its Claude logins');
+  return true;
 }
