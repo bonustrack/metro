@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
-import { errorFrame, GatewayError, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
+import { errorFrame, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { Connection } from './model-config.js';
 import { estimateTokens } from './subscription.js';
 import { UsageScanner } from './usage.js';
@@ -225,9 +225,4 @@ export async function bedrockCount(
   }
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ input_tokens: counted ?? estimateTokens(rewritten.body) }));
-}
-
-export function assertBedrockReady(settings: Connection): void {
-  if (settings.apiKey === '' || settings.region === '')
-    throw new GatewayError(400, 'invalid_request_error', 'Bedrock needs an API key and a region: add them on the Model page.');
 }

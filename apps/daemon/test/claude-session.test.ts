@@ -8,7 +8,7 @@ import { handleClaudeRequest } from '../src/claude/api.js';
 import * as login from '../src/claude/login.js';
 import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
-import { configOf, makeConnection } from './model-fixture.ts';
+import { makeConnection, setupOf } from './model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const KEY = `mk_${'a'.repeat(43)}`;
@@ -96,8 +96,10 @@ describe('what stands in the way of a session', () => {
 
   test('a route to an Anthropic API key needs no Claude login', () => {
     agent();
-    writeFileSync(join(dir, 'agents', 'model.json'), JSON.stringify(configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })])));
-    expect(sessionBlocked(deps({ signedIn: () => false }))).toBeNull();
+    const keyed = setupOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })]);
+    expect(sessionBlocked(deps({ signedIn: () => false, model: () => keyed }))).toBeNull();
+    const session = setupOf('local:session', [makeConnection('anthropic', { id: 'local:session' })]);
+    expect(sessionBlocked(deps({ signedIn: () => false, model: () => session }))).toContain('not signed in');
   });
 
   test('a runner store the boot could not prepare holds nothing back: Start and the watcher run metro agent, which prepares it', () => {
@@ -110,20 +112,19 @@ describe('what stands in the way of a session', () => {
     expect(recorded().find((c) => c.startsWith('new-session'))).toEndWith(' agent');
   });
 
-  test('with Claude Code in the store, a missing login and a Model page that routes nowhere still block the start', () => {
+  test('with Claude Code in the store, a missing login and an organization that routes nowhere still block the start', () => {
     agent();
     spyOn(login, 'claudeInstalled').mockReturnValue(true);
     spyOn(login, 'claudeAccount').mockReturnValue({ signedIn: false, account: null, plan: null });
     expect(sessionBlocked(deps({ metro: undefined, signedIn: undefined }))).toContain('not signed in');
   });
 
-  test('a Model page routing to a ready provider counts as a credential', () => {
+  test('a delivered route to a ready provider counts as a credential, and one that is not ready does not', () => {
     agent();
-    writeFileSync(
-      join(dir, 'agents', 'model.json'),
-      JSON.stringify({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', apiKey: 'k', model: 'anthropic/claude' }] }),
-    );
-    expect(sessionBlocked(deps({ signedIn: () => false }))).toBeNull();
+    const ready = setupOf('openrouter', [makeConnection('openrouter', { apiKey: 'k', model: 'anthropic/claude' })]);
+    expect(sessionBlocked(deps({ signedIn: () => false, model: () => ready }))).toBeNull();
+    const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
+    expect(sessionBlocked(deps({ signedIn: () => false, model: () => keyless }))).toContain('routes this agent to no model');
   });
 });
 
@@ -160,8 +161,7 @@ describe('starting the session', () => {
     writeFileSync(join(agents, 'claude-setup.json'), JSON.stringify({ runner: 'sdk', sdkOnLogin: false }));
     expect(sessionBlocked(deps())).toBeNull();
     startSession(deps({ metro: ['metro', 'agent'] }));
-    writeFileSync(join(agents, 'model.json'), JSON.stringify(configOf('codex', [makeConnection('codex', { model: 'gpt-6' })])));
-    expect(ensureSession(deps())).toBe('running');
+    expect(ensureSession(deps({ model: () => setupOf('codex', [makeConnection('codex', { model: 'gpt-6' })]) }))).toBe('running');
     expect(recorded().some((c) => c.startsWith('kill-session'))).toBe(false);
   });
 

@@ -1,6 +1,5 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setBearerSessions } from '../../packages/http/src/api-http.ts';
 import { STANDIN_KEY } from './key-route.ts';
 
 process.env.SDK_RUNNER_CHECK_ROUTE ??= 'scripted';
@@ -11,38 +10,29 @@ const OTHER_PROVIDER = 'claude-opus-5-5';
 process.env.SDK_RUNNER_CHECK_MODEL = FIRST;
 
 const h = await import('./harness.ts');
-const { handleModelRequest } = await import('../../apps/daemon/src/gateway/model-api.ts');
+const { watchModelChanges } = await import('../../apps/daemon/src/gateway/effective.ts');
 
 const bare = (model: string): string => model.replace(/^openrouter:/, '');
 const ROUTED = REAL ? 'keyed' : 'or';
 const connections = REAL
-  ? [{ id: 'keyed', provider: 'anthropic', label: 'Anthropic', model: FIRST, apiKey: STANDIN_KEY, region: '', zdr: false }]
+  ? [{ id: 'keyed', provider: 'anthropic', label: 'Anthropic', credential: { apiKey: STANDIN_KEY } }]
   : [
-      { id: 'or', provider: 'openrouter', label: 'OpenRouter', model: bare(FIRST), apiKey: 'or-standin', region: '', zdr: false },
-      { id: 'an', provider: 'anthropic', label: 'Anthropic', model: OTHER_PROVIDER, apiKey: 'sk-ant-standin', region: '', zdr: false },
+      { id: 'or', provider: 'openrouter', label: 'OpenRouter', credential: { apiKey: 'or-standin' } },
+      { id: 'an', provider: 'anthropic', label: 'Anthropic', credential: { apiKey: 'sk-ant-standin' } },
     ];
-writeFileSync(join(h.AGENTS, 'model.json'), JSON.stringify({ version: 2, route: ROUTED, connections }));
+interface Ref {
+  connection: string;
+  model: string;
+}
+const route = (primary: Ref, fallbacks: Ref[] = []): Record<string, unknown> => ({ route: { primary, fallbacks }, source: 'agent', connections });
+h.deliver(route({ connection: ROUTED, model: REAL ? FIRST : bare(FIRST) }));
 writeFileSync(join(h.AGENTS, 'claude-setup.json'), JSON.stringify({ runner: 'sdk' }));
 
-setBearerSessions(() => Promise.resolve({ subject: 'model-check', role: 'admin' }));
 const told: { t: number; model: string | null }[] = [];
-h.serveAlso((req, res) =>
-  handleModelRequest(req, res, {
-    setup: { dir: h.CLAUDE_DIR, agents: h.AGENTS },
-    switchModel: (model) => {
-      told.push({ t: h.now(), model });
-      return h.mcp.switchModel(model);
-    },
-    anthropicBase: h.UPSTREAM,
-    openrouterBase: h.UPSTREAM,
-  }),
-);
-
-const put = async (path: string, body: unknown): Promise<number> => {
-  const res = await fetch(`${h.BASE}${path}`, { method: 'PUT', headers: { authorization: 'Bearer check', 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  await res.text();
-  return res.status;
-};
+watchModelChanges(h.modelChanges, (model) => {
+  told.push({ t: h.now(), model });
+  return h.mcp.switchModel(model);
+}, h.deliveredSetup);
 
 interface Seen {
   main: string[];
@@ -78,10 +68,10 @@ async function ask(name: string, text: string): Promise<void> {
   numbers[`${name}_upstream`] = seenSince(before.mark, before.counts);
 }
 
-async function change(name: string, path: string, body: unknown): Promise<void> {
+function change(name: string, raw: Record<string, unknown>): void {
   const at = h.now();
-  numbers[`${name}_status`] = await put(path, body);
-  numbers[`${name}_put_ms`] = h.now() - at;
+  h.deliver(raw);
+  numbers[`${name}_switch_ms`] = h.now() - at;
   numbers[`${name}_told`] = told.at(-1)?.model;
 }
 
@@ -101,7 +91,7 @@ async function delegate(name: string): Promise<void> {
 
 async function fallBack(): Promise<void> {
   const switches = told.length;
-  await change('fallback', '/api/model/fallbacks', { fallbacks: [{ connection: 'or', model: 'vendor/model-c' }] });
+  change('fallback', route({ connection: 'an', model: OTHER_PROVIDER }, [{ connection: 'or', model: 'vendor/model-c' }]));
   h.upstream?.refuse.add(OTHER_PROVIDER);
   await ask('fallback', 'Which model are you now? Answer here in one line.');
   numbers.fallback_refused = h.upstream?.refused.length;
@@ -111,15 +101,15 @@ async function fallBack(): Promise<void> {
 const agent = await h.boot(10_000_000);
 await ask('start', 'Remember the codeword PLUM-42. Which model are you? Answer here in one line.');
 await h.settled();
-await change('switch', `/api/model/connections/${ROUTED}`, { model: bare(SECOND) });
+change('switch', route({ connection: ROUTED, model: bare(SECOND) }));
 await ask('after_switch', 'Which model are you now? Answer here in one line.');
 await h.settled();
 await delegate('worker');
 if (REAL) {
-  await change('back', `/api/model/connections/${ROUTED}`, { model: FIRST });
+  change('back', route({ connection: ROUTED, model: FIRST }));
   await ask('recall', 'What was the codeword I gave you at the start? Answer here in one line.');
 } else {
-  await change('provider', '/api/model', { route: 'an' });
+  change('provider', route({ connection: 'an', model: OTHER_PROVIDER }));
   await ask('other_provider', 'Which model are you now? Answer here in one line.');
   await h.settled();
   await delegate('anthropic_worker');

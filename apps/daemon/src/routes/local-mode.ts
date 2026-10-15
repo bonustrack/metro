@@ -23,7 +23,7 @@ import {
   localOwner,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
-import { readModelConfig } from '../gateway/model-config.js';
+import { effectiveSetup } from '../gateway/effective.js';
 import type { StationName } from '@metro-labs/core/station-names';
 
 export interface LocalModeDeps {
@@ -36,7 +36,6 @@ export interface LocalModeDeps {
   toolGroups?: AgentApiDeps['toolGroups'];
   prepareAccount: AccountApiDeps['prepareAccount'];
   liveEvents?: (on: boolean) => void;
-  switchModel?: (model: string | null) => boolean;
 }
 
 function attachSessions(deps: LocalModeDeps): AttachSessions {
@@ -142,8 +141,8 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     controlApi: { restart: deps.restart, stop: deps.stop },
     ownerApi: { setOwner: setLocalOwner },
     machineApi: {},
-    modelApi: { switchModel: deps.switchModel, owner: localOwner },
-    gateway: { config: readModelConfig },
+    modelApi: {},
+    gateway: { setup: () => effectiveSetup() },
     terminalApi: {},
     mode: localModeInfo,
   };

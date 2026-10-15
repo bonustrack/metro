@@ -3,7 +3,6 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
 import {
-  assertBedrockReady,
   bedrockBase,
   bedrockCount,
   bedrockMessages,
@@ -37,21 +36,17 @@ import {
   withEffort,
   withThinkingFor,
 } from './effort.js';
-import { notReady, PASSTHROUGH_ID, readModelConfig, resolveRoute, routeLabel, setCodexAuth, setGeminiAuth, writeModelConfig, type Connection, type ModelConfig, type Route } from './model-config.js';
-import { codexMessages, sharedCodexState } from './codex.js';
-import { geminiMessages, sharedGeminiState } from './gemini.js';
+import { notReady, resolveRoute, routeLabel, sessionConnection, type Connection, type ModelSetup, type Route } from './model-config.js';
+import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
-import type { GeminiDeps } from './gemini.js';
-import type { CodexDeps } from './codex.js';
-import type { GeminiTokens } from './gemini-auth.js';
 import { OPENROUTER_BASE } from './openrouter.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
 import { ANTHROPIC_API, refreshLoginModels } from './provider-models.js';
-import type { CodexTokens } from './codex-auth.js';
 import { forgetClaudeTokens, withClaudeLogin, type ClaudeLoginDeps } from './claude-logins.js';
+import { orgModels } from './org-models.js';
 
 const GATEWAY_PREFIX = '/gateway';
 const MESSAGES = '/v1/messages';
@@ -60,13 +55,12 @@ const MODELS = '/v1/models';
 const HELLO = '/api/hello';
 
 export interface GatewayDeps {
-  config: () => ModelConfig;
+  setup: () => ModelSetup;
   identify?: (key: string) => boolean;
   anthropicBase?: string;
   bedrockBase?: string;
   openrouterBase?: string;
   codex?: Partial<CodexDeps>;
-  gemini?: Partial<GeminiDeps>;
   claudeLogins?: ClaudeLoginDeps;
 }
 
@@ -79,18 +73,10 @@ export function resetGatewayState(): void {
   learned.fields.clear();
   learned.dropBetas = false;
   forgetLearnedThinking();
-  sharedCodexState.clear();
-  sharedGeminiState.clear();
   forgetClaudeTokens();
 }
 
-const saveCodexTokens = (id: string, tokens: CodexTokens): void => {
-  writeModelConfig(setCodexAuth(readModelConfig(), id, tokens));
-};
-
-const saveGeminiTokens = (id: string, tokens: GeminiTokens): void => {
-  writeModelConfig(setGeminiAuth(readModelConfig(), id, tokens));
-};
+const refreshCodex = (conn: Connection): Promise<Connection | null> => orgModels()?.refresh(conn) ?? Promise.resolve(null);
 
 const keyOf = (req: IncomingMessage): string => {
   const raw = req.headers['x-metro-key'];
@@ -99,27 +85,23 @@ const keyOf = (req: IncomingMessage): string => {
 
 const defaultIdentify = (key: string): boolean => key !== '' && agentIdForKey(key) !== undefined;
 
-function modelsBody(cfg: ModelConfig): Record<string, unknown> {
-  const data = cfg.connections
-    .filter((c) => c.provider !== 'anthropic' && c.model !== '')
-    .map((c) => ({ id: `${c.provider}:${c.model}`, display_name: `${c.label} · ${c.model}`, description: 'Through metro' }));
+function routesOf(setup: ModelSetup): Route[] {
+  return [...(setup.primary === null ? [] : [setup.primary]), ...setup.fallbacks].flatMap((ref) => {
+    const conn = setup.connections.find((c) => c.id === ref.connection);
+    const model = ref.model === '' ? (conn?.model ?? '') : ref.model;
+    return conn === undefined || model === '' ? [] : [{ connection: conn, model }];
+  });
+}
+
+function modelsBody(setup: ModelSetup): Record<string, unknown> {
+  const listed = routesOf(setup)
+    .filter((r) => r.connection.provider !== 'anthropic')
+    .map((r) => ({ id: routeLabel(r), display_name: `${r.connection.label} · ${r.model}`, description: 'Through metro' }));
+  const data = listed.filter((m, at) => listed.findIndex((o) => o.id === m.id) === at);
   return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null };
 }
 
-const PASSTHROUGH: Connection = {
-  id: PASSTHROUGH_ID,
-  provider: 'anthropic',
-  label: 'Claude Code login',
-  model: '',
-  apiKey: '',
-  region: '',
-  zdr: false,
-  codex: null,
-  gemini: null,
-  claude: null,
-};
-
-const passthrough = (body: Record<string, unknown>): Route => ({ connection: PASSTHROUGH, model: requestedModel(body) });
+const passthrough = (body: Record<string, unknown>): Route => ({ connection: sessionConnection(), model: requestedModel(body) });
 
 function requestedModel(body: Record<string, unknown>): string {
   const model = body.model;
@@ -175,7 +157,7 @@ function listLoginModels(headers: IncomingHttpHeaders, anthropicBase: string): v
 function sendAnthropic(req: IncomingMessage, conn: Connection, anthropicBase: string, attempt: (base: Record<string, string>) => Promise<Response>, deps: GatewayDeps): Promise<Response> {
   if (conn.apiKey !== '') return attempt(anthropicHeaders(req, conn.apiKey));
   if (conn.claude === null) return attempt(forwardedHeaders(req));
-  return withClaudeLogin(conn.claude.id, deps.claudeLogins ?? {}, (token) => {
+  return withClaudeLogin(conn.claude, deps.claudeLogins ?? {}, (token) => {
     listLoginModels({ authorization: `Bearer ${token}` }, anthropicBase);
     return attempt(loginHeaders(req, token));
   });
@@ -184,7 +166,7 @@ function sendAnthropic(req: IncomingMessage, conn: Connection, anthropicBase: st
 async function refusedLogin(conn: Connection, upstream: Response): Promise<void> {
   if (conn.apiKey !== '' || conn.claude === null || upstream.status !== 401) return;
   await upstream.body?.cancel();
-  throw new GatewayError(403, 'permission_error', `Anthropic refused the Claude login of ${conn.label}: sign in again on the Model page`);
+  throw new GatewayError(403, 'permission_error', `Anthropic refused the Claude login ${conn.label}: sign in again on the Model page`);
 }
 
 async function toAnthropic(
@@ -204,7 +186,7 @@ async function toAnthropic(
     throw new GatewayError(
       403,
       'permission_error',
-      'Claude Code on this machine has no Anthropic login of its own; choose Bedrock, OpenRouter, Codex or Gemini on the Model page, or sign in on the Claude tab',
+      "Claude Code on this machine has no Anthropic login of its own; route this agent to a model on the organization's Models page, or sign in a Claude login on the Model page",
     );
   const watch = watchUpstream(res);
   if (passthrough) listLoginModels(req.headers, anthropicBase);
@@ -223,17 +205,8 @@ async function toAnthropic(
   await pipeResponse(upstream, res, watch, passthrough ? { scanner } : { ownCredential: true, scanner });
 }
 
-async function toOpenRouter(
-  req: IncomingMessage,
-  res: ServerResponse,
-  body: Record<string, unknown>,
-  route: Route,
-  cfg: ModelConfig,
-  deps: GatewayDeps,
-): Promise<void> {
+async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
   const conn = route.connection;
-  const reason = notReady(cfg, conn);
-  if (reason !== null) throw new GatewayError(400, 'invalid_request_error', reason);
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     accept: req.headers.accept ?? 'application/json',
@@ -270,11 +243,9 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
   if (!upstream.ok) log.warn({ connection, model, status: upstream.status }, 'gateway: the provider refused the request');
 }
 
-async function toSubscription(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
-  const conn = route.connection;
+async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
   if (path === COUNT) countTokens(res, body);
-  else if (conn.provider === 'gemini') await geminiMessages(req, res, body, route.model, conn, { save: saveGeminiTokens, ...deps.gemini }, sharedGeminiState, watchUpstream(res));
-  else await codexMessages(req, res, body, route.model, conn, { save: saveCodexTokens, ...deps.codex }, sharedCodexState, watchUpstream(res));
+  else await codexMessages(req, res, body, route.model, route.connection, { refresh: refreshCodex, ...deps.codex }, watchUpstream(res));
 }
 
 function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<string, unknown> {
@@ -290,16 +261,17 @@ interface Request {
   parsed: Record<string, unknown>;
   sent: Record<string, unknown>;
   body: Record<string, unknown>;
-  cfg: ModelConfig;
+  setup: ModelSetup;
 }
 
 async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: GatewayDeps): Promise<void> {
   const { path, body } = ask;
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
+  const reason = notReady(route);
+  if (reason !== null) throw new GatewayError(400, 'invalid_request_error', reason);
   if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
   if (conn.provider === 'bedrock') {
-    assertBedrockReady(conn);
     const up = { settings: conn, base: deps.bedrockBase ?? bedrockBase(conn.region), learned, watch: watchUpstream(res) };
     if (path === COUNT) await bedrockCount(req, res, body, route.model, up);
     else await bedrockMessages(req, res, body, route.model, up);
@@ -307,25 +279,25 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   }
   if (conn.provider === 'openrouter') {
     if (path === COUNT) throw new GatewayError(404, 'not_found_error', 'OpenRouter does not count tokens');
-    await toOpenRouter(req, res, body, route, ask.cfg, deps);
+    await toOpenRouter(req, res, body, route, deps);
     return;
   }
-  if (conn.provider === 'codex' || conn.provider === 'gemini') {
-    await toSubscription(req, res, path, body, route, deps);
+  if (conn.provider === 'codex') {
+    await toCodex(req, res, path, body, route, deps);
     return;
   }
   await toAnthropic(req, res, bytesOf(ask.raw, ask.parsed, ask.sent), ask.sent, body, route, deps);
 }
 
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
-  const cfg = deps.config();
+  const setup = deps.setup();
   const raw = await readBody(req);
   const parsed = parseJson(raw);
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
-  const primary = resolveRoute(requested, cfg) ?? passthrough(sent);
-  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent), cfg };
-  const routes = routesToTry(chainOf(primary, cfg, requested));
+  const primary = resolveRoute(requested, setup) ?? passthrough(sent);
+  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent), setup };
+  const routes = routesToTry(chainOf(primary, setup, requested));
   for (const [at, route] of routes.entries()) {
     const next = routes[at + 1];
     if (path === MESSAGES) noteChoice(primary, route);
@@ -357,7 +329,7 @@ function failed(res: ServerResponse, err: unknown): void {
 function answer(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): void {
   if (req.method === 'GET' && path === MODELS) {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(modelsBody(deps.config())));
+    res.end(JSON.stringify(modelsBody(deps.setup())));
     return;
   }
   if (req.method === 'POST' && (path === MESSAGES || path === COUNT)) {

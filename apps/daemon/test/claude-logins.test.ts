@@ -1,17 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { handleClaudeRequest } from '../src/claude/api.ts';
 import { forgetClaudeLogin } from '../src/claude/login.ts';
+import { readClaudeLogins, type ClaudeLogin } from '../src/gateway/claude-store.ts';
+import { setupOf } from '../src/gateway/effective.ts';
 import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
 import { handleModelRequest } from '../src/gateway/model-api.ts';
-import { parseModelConfig, type Connection, type ModelConfig } from '../src/gateway/model-config.ts';
+import { emptySetup, type ModelSetup } from '../src/gateway/model-config.ts';
 import { forgetUsage, usageSeen } from '../src/gateway/usage.ts';
 import { auth } from './identity-helper.ts';
-import { makeConnection } from './model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const FAR = 4_102_444_800_000;
@@ -36,8 +37,9 @@ interface Seen {
 
 const root = mkdtempSync(join(tmpdir(), 'metro-claude-logins-'));
 const logins = join(root, 'logins');
+const agents = join(root, 'agents');
 const priorConfigDir = process.env.CLAUDE_CONFIG_DIR;
-let stored: ModelConfig = { version: 2, route: '', connections: [] };
+let setup: ModelSetup = emptySetup();
 let base = '';
 let server: Server;
 let upstream: Server;
@@ -66,15 +68,9 @@ const account = (env: Record<string, string>): { signedIn: boolean; account: str
   return existsSync(who) ? { signedIn: true, account: readFileSync(who, 'utf8'), plan: 'max' } : { signedIn: false, account: null, plan: null };
 };
 
-const store = {
-  read: () => stored,
-  write: (cfg: ModelConfig) => {
-    stored = cfg;
-  },
-};
-
 beforeAll(async () => {
   process.env.CLAUDE_CONFIG_DIR = join(root, 'machine');
+  mkdirSync(agents, { recursive: true });
   upstream = createServer((req: IncomingMessage, res: ServerResponse) => {
     req.resume();
     req.on('end', () => {
@@ -91,18 +87,18 @@ beforeAll(async () => {
       }
       const used = String((token.length % 10) / 10);
       res.writeHead(200, { 'content-type': 'application/json', 'anthropic-ratelimit-unified-5h-utilization': used });
-      res.end(JSON.stringify({ type: 'message', content: [] }));
+      res.end(JSON.stringify({ type: 'message', content: [], data: [] }));
     });
   });
   await new Promise<void>((r) => {
     upstream.listen(0, '127.0.0.1', r);
   });
   const upstreamBase = `http://127.0.0.1:${String((upstream.address() as AddressInfo).port)}`;
+  const claudeLogins = { root: logins, account, probe, dir: agents };
   server = createServer((req, res) => {
-    if (handleClaudeRequest(req, res, { login: { command: ['sh', '-c', LOGIN] }, claudeLogins: { root: logins, account, probe, ...store } })) return;
-    const model = { ...store, claudeUsage: probe, claudeLoginsRoot: logins, anthropicBase: upstreamBase, openrouterBase: upstreamBase, usageWaitMs: 2_000 };
-    if (handleModelRequest(req, res, { ...model, setup: { dir: join(root, 'machine'), agents: join(root, 'agents') }, runnerAlive: () => false })) return;
-    if (handleGatewayRequest(req, res, { config: () => stored, identify: (key) => key === 'mk_ok', anthropicBase: upstreamBase, openrouterBase: upstreamBase, claudeLogins: { root: logins, probe } })) return;
+    if (handleClaudeRequest(req, res, { login: { command: ['sh', '-c', LOGIN] }, claudeLogins })) return;
+    if (handleModelRequest(req, res, { dir: () => agents, setup: () => setup, claudeUsage: probe, claudeLogins, anthropicBase: upstreamBase, openrouterBase: upstreamBase, usageWaitMs: 2_000 })) return;
+    if (handleGatewayRequest(req, res, { setup: () => setup, identify: (key) => key === 'mk_ok', anthropicBase: upstreamBase, openrouterBase: upstreamBase, claudeLogins })) return;
     res.writeHead(404).end();
   });
   await new Promise<void>((r) => {
@@ -127,12 +123,13 @@ beforeEach(() => {
   probed.length = 0;
   refused.clear();
   renewTo = null;
+  setup = emptySetup();
 });
 
-const call = async (method: string, path: string, body?: unknown): Promise<Response> =>
+const call = async (method: string, path: string, body?: unknown, role: 'admin' | 'member' = 'admin'): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
-    headers: { authorization: await auth(OWNER), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { authorization: await auth(OWNER, role), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -156,11 +153,11 @@ async function signIn(connection: string, code: string): Promise<View> {
   return viewOf(path);
 }
 
-const own = (): Connection[] => stored.connections.filter((c) => c.claude !== null);
-const dirOf = (c: Connection | undefined): string => join(logins, c?.claude?.id ?? 'none');
+const own = (): ClaudeLogin[] => readClaudeLogins(agents);
+const dirOf = (login: ClaudeLogin | undefined): string => join(logins, login?.id ?? 'none');
 
-async function ask(connection: string, sessionAuth = 'Bearer machine-login'): Promise<Response> {
-  stored = { ...stored, route: connection };
+async function ask(login: string, sessionAuth = 'Bearer machine-login'): Promise<Response> {
+  setup = setupOf({ route: { primary: { connection: `local:${login}`, model: '' }, fallbacks: [] }, source: 'agent', connections: [] }, own());
   return fetch(`${base}/gateway/v1/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-metro-key': 'mk_ok', authorization: sessionAuth, 'anthropic-beta': 'fine-grained-tool-streaming-2025-05-14' },
@@ -169,46 +166,46 @@ async function ask(connection: string, sessionAuth = 'Bearer machine-login'): Pr
 }
 
 describe('several Claude subscriptions on one box', () => {
-  test('each sign-in becomes its own connection with its own login folder and email, and the first one is left alone', async () => {
+  test('each sign-in is kept in model.json v3 with its own login folder and email, and the first one is left alone', async () => {
     expect((await signIn('new', 'alice')).state).toBe('done');
     const [alice] = own();
-    expect(alice?.provider).toBe('anthropic');
-    expect(alice?.claude?.email).toBe('alice@example.com');
+    expect(alice?.email).toBe('alice@example.com');
     const before = structuredClone(alice);
     expect((await signIn('new', 'bob')).state).toBe('done');
     const [first, bob] = own();
-    expect(first).toEqual(before as Connection);
-    expect(bob?.claude?.email).toBe('bob@example.com');
-    expect(bob?.claude?.id).not.toBe(first?.claude?.id);
+    expect(first).toEqual(before as ClaudeLogin);
+    expect(bob?.email).toBe('bob@example.com');
+    expect(bob?.id).not.toBe(first?.id);
     expect(tokenIn(dirOf(first))).toBe('tok-alice');
     expect(tokenIn(dirOf(bob))).toBe('tok-bob');
-    const page = (await (await call('GET', '/api/model')).json()) as { connections: { id: string; account: string | null; signedIn: boolean; label: string }[] };
-    expect(page.connections.map((c) => [c.account, c.signedIn])).toEqual([
-      ['alice@example.com', true],
-      ['bob@example.com', true],
+    expect(JSON.parse(readFileSync(join(agents, 'model.json'), 'utf8'))).toEqual({ version: 3, claude: own() });
+    expect(statSync(join(agents, 'model.json')).mode & 0o777).toBe(0o600);
+    const page = (await (await call('GET', '/api/model')).json()) as { claude: ClaudeLogin[] };
+    expect(page.claude.map((c) => [c.id, c.email, c.plan])).toEqual([
+      [first?.id, 'alice@example.com', 'max'],
+      [bob?.id, 'bob@example.com', 'max'],
     ]);
-    expect(page.connections[0]?.label).not.toBe(page.connections[1]?.label);
     expect(JSON.stringify(page)).not.toContain('tok-');
   }, 20_000);
 
-  test('signing one connection in again replaces only its login; a failed or unknown sign-in changes nothing', async () => {
+  test('signing one login in again keeps its id and replaces only its folder; a failed or unknown sign-in changes nothing', async () => {
     const [alice, bob] = own();
     const bobBefore = structuredClone(bob);
     const failed = await signIn(alice?.id ?? '', 'fail');
     expect(failed.state).toBe('failed');
-    expect(own()[0]).toEqual(alice as Connection);
-    expect(readdirSync(logins).sort()).toEqual([alice?.claude?.id, bob?.claude?.id].sort());
+    expect(own()[0]).toEqual(alice as ClaudeLogin);
+    expect(readdirSync(logins).sort()).toEqual([alice?.id, bob?.id].sort());
     expect((await signIn(alice?.id ?? '', 'carol')).state).toBe('done');
     const [carol, stillBob] = own();
     expect(carol?.id).toBe(alice?.id);
-    expect(carol?.claude?.email).toBe('carol@example.com');
-    expect(existsSync(dirOf(alice))).toBe(false);
+    expect(carol?.email).toBe('carol@example.com');
     expect(tokenIn(dirOf(carol))).toBe('tok-carol');
-    expect(stillBob).toEqual(bobBefore as Connection);
+    expect(readdirSync(logins).sort()).toEqual([alice?.id, bob?.id].sort());
+    expect(stillBob).toEqual(bobBefore as ClaudeLogin);
     expect((await call('POST', '/api/claude/login?connection=no-such-one')).status).toBe(404);
   }, 20_000);
 
-  test('the gateway sends each connection with its own token, even when the session has no login of its own', async () => {
+  test('the gateway sends each local:<login> route with its own token, even when the session has no login of its own', async () => {
     const [carol, bob] = own();
     expect((await ask(carol?.id ?? '')).status).toBe(200);
     expect((await ask(bob?.id ?? '', 'Bearer mk_ok')).status).toBe(200);
@@ -219,8 +216,8 @@ describe('several Claude subscriptions on one box', () => {
       expect(s.metroKey).toBeNull();
     }
     const usage = usageSeen();
-    expect(usage[carol?.id ?? '']?.windows[0]?.used).toBe(0.9);
-    expect(usage[bob?.id ?? '']?.windows[0]?.used).toBe(0.7);
+    expect(usage[`local:${carol?.id ?? ''}`]?.windows[0]?.used).toBe(0.9);
+    expect(usage[`local:${bob?.id ?? ''}`]?.windows[0]?.used).toBe(0.7);
   });
 
   test('a stale token is renewed by Claude Code in that login folder only, and a refused one is renewed once then retried', async () => {
@@ -248,65 +245,50 @@ describe('several Claude subscriptions on one box', () => {
     writeTokens(dirOf(carol), 'tok-carol');
   });
 
-  test('the usage of each login is asked of Claude Code in that login folder, and kept apart', async () => {
+  test('the usage of each login is asked of Claude Code in that login folder, and kept apart under local:<login>', async () => {
     const [carol, bob] = own();
     const page = (await (await call('GET', '/api/model')).json()) as { usage: Record<string, { windows: { used: number }[] }> };
-    expect(probed.sort()).toEqual([dirOf(carol), dirOf(bob)].sort());
-    expect(page.usage[carol?.id ?? '']?.windows[0]?.used).toBe(0.17);
-    expect(page.usage[bob?.id ?? '']?.windows[0]?.used).toBe(0.15);
+    expect(probed.filter((p) => p !== 'machine').sort()).toEqual([dirOf(carol), dirOf(bob)].sort());
+    expect(page.usage[`local:${carol?.id ?? ''}`]?.windows[0]?.used).toBe(0.17);
+    expect(page.usage[`local:${bob?.id ?? ''}`]?.windows[0]?.used).toBe(0.15);
+    expect(page.usage['local:session']?.windows[0]?.used).toBe(0.05);
   });
 
-  test('removing one connection removes its login folder only, and the other keeps working', async () => {
+  test('removing one login takes an admin, removes its folder only, and the other keeps working', async () => {
     const [carol, bob] = own();
-    expect((await call('DELETE', `/api/model/connections/${carol?.id ?? ''}`)).status).toBe(200);
+    expect((await call('DELETE', `/api/model/claude/${carol?.id ?? ''}`, undefined, 'member')).status).toBe(403);
+    expect((await call('DELETE', `/api/model/claude/${carol?.id ?? ''}`)).status).toBe(200);
+    expect((await call('DELETE', `/api/model/claude/${carol?.id ?? ''}`)).status).toBe(404);
     expect(existsSync(dirOf(carol))).toBe(false);
-    expect(own()).toEqual([bob as Connection]);
+    expect(own()).toEqual([bob as ClaudeLogin]);
     expect((await ask(bob?.id ?? '')).status).toBe(200);
     expect(seen.at(-1)?.auth).toBe('Bearer tok-bob');
+    const gone = await ask(carol?.id ?? '');
+    expect(gone.status).toBe(400);
+    expect(await gone.text()).toContain('not on this box');
   });
 });
 
-describe('connections from before, and the providers that use keys', () => {
-  test('a keyless Anthropic connection saved before keeps riding the session login, and a bad login reference is dropped', async () => {
-    const legacy = parseModelConfig({
+describe('a box whose model.json has not moved to its organization yet', () => {
+  test('a new login keeps the v2 file as it is and is added to it, and a bad login reference is never read', async () => {
+    const [bob] = own();
+    const v2 = {
       version: 2,
-      route: 'old-1',
+      route: 'old-or',
       connections: [
-        { id: 'old-1', provider: 'anthropic', label: 'Anthropic' },
-        { id: 'old-2', provider: 'anthropic', label: 'Anthropic 2', claude: { id: '../../escape', email: 'x@example.com' } },
-        { id: 'old-3', provider: 'openrouter', label: 'OpenRouter', apiKey: 'or-1', claude: { id: 'AAAAAAAAAAA' } },
-      ],
-    });
-    expect(legacy.connections.map((c) => c.claude)).toEqual([null, null, null]);
-    stored = legacy;
-    expect((await ask('old-2')).status).toBe(200);
-    expect(seen.at(-1)?.auth).toBe('Bearer machine-login');
-    const page = (await (await call('GET', '/api/model')).json()) as { usage: Record<string, unknown> };
-    expect(probed).toEqual(['machine']);
-    expect(Object.keys(page.usage).sort()).toEqual(['old-1', 'old-2']);
-  });
-
-  test('two keys of one provider stay two connections, each request carries its own key, and removing one keeps the other', async () => {
-    stored = {
-      version: 2,
-      route: 'a-1',
-      connections: [
-        makeConnection('anthropic', { id: 'a-1', apiKey: 'sk-one' }),
-        makeConnection('anthropic', { id: 'a-2', apiKey: 'sk-two' }),
-        makeConnection('openrouter', { id: 'o-1', apiKey: 'or-one', model: 'x/y' }),
-        makeConnection('openrouter', { id: 'o-2', apiKey: 'or-two', model: 'x/y' }),
+        { id: 'old-or', provider: 'openrouter', label: 'OpenRouter', apiKey: 'or-1', model: 'x/y' },
+        { id: 'old-bob', provider: 'anthropic', label: 'Bob', claude: bob },
+        { id: 'old-bad', provider: 'anthropic', label: 'Bad', claude: { id: '../../escape', email: 'x@example.com' } },
       ],
     };
-    for (const id of ['a-1', 'a-2', 'o-1', 'o-2']) await ask(id);
-    expect(seen.map((s) => s.apiKey ?? s.auth)).toEqual(['sk-one', 'sk-two', 'Bearer or-one', 'Bearer or-two']);
-    expect((await call('DELETE', '/api/model/connections/a-1')).status).toBe(200);
-    expect((await call('DELETE', '/api/model/connections/o-2')).status).toBe(200);
-    expect(stored.connections.map((c) => [c.id, c.apiKey])).toEqual([
-      ['a-2', 'sk-two'],
-      ['o-1', 'or-one'],
-    ]);
-    await ask('a-2');
-    await ask('o-1');
-    expect(seen.slice(-2).map((s) => s.apiKey ?? s.auth)).toEqual(['sk-two', 'Bearer or-one']);
-  });
+    writeFileSync(join(agents, 'model.json'), JSON.stringify(v2));
+    expect(own()).toEqual([bob as ClaudeLogin]);
+    expect((await signIn('new', 'dave')).state).toBe('done');
+    const file = JSON.parse(readFileSync(join(agents, 'model.json'), 'utf8')) as { version: number; route: string; connections: { id: string; claude?: { email: string } }[] };
+    expect(file.version).toBe(2);
+    expect(file.route).toBe('old-or');
+    expect(file.connections.slice(0, 3).map((c) => c.id)).toEqual(['old-or', 'old-bad', 'old-bob']);
+    expect(file.connections[3]?.claude?.email).toBe('dave@example.com');
+    expect(own().map((l) => l.email)).toEqual(['bob@example.com', 'dave@example.com']);
+  }, 20_000);
 });

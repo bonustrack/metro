@@ -60,6 +60,11 @@ import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
 import { watchFallbackUsage } from '../gateway/usage-refresh.js';
+import { startOrgModels, stopOrgModels } from '../gateway/org-models.js';
+import { effectiveSetup, watchModelChanges } from '../gateway/effective.js';
+import { readClaudeLogins } from '../gateway/claude-store.js';
+import { readAgentKey } from '../connectors/agent-key.js';
+import { METRO_API } from '../connectors/metro-api.js';
 import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } from '../voice/calls.js';
 
 installCrashGuard();
@@ -114,7 +119,7 @@ async function syncStations(station: StationName): Promise<void> {
   }
 }
 
-function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: string | null) => boolean): SessionApis {
+function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
   return localSessionApis({
       syncStations,
       reloadAgents: async () => {
@@ -133,7 +138,6 @@ function sessionApis(setLiveEvents: (on: boolean) => void, switchModel: (model: 
       toolGroups: stationToolGroups,
       prepareAccount,
       liveEvents: setLiveEvents,
-      switchModel,
     });
 }
 
@@ -150,10 +154,12 @@ installBearerSessions(agentsDir(), localOwner);
   syncGmailHost();
   supervisor.start();
   sweepLeftoverCalls();
+  const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API, dir: agentsDir });
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
+  watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(
     emit,
-    sessionApis(metroMcp.setLiveEvents, metroMcp.switchModel),
+    sessionApis(metroMcp.setLiveEvents),
     metroMcp.httpHandler,
     true,
   );
@@ -174,7 +180,7 @@ installBearerSessions(agentsDir(), localOwner);
   });
   watchConnectorTools();
   startCloudWatchPublisher();
-  watchFallbackUsage();
+  watchFallbackUsage(() => effectiveSetup(), () => readClaudeLogins());
   announceLocalEndpoint();
   tunnel?.start();
   log.info(
@@ -221,6 +227,7 @@ async function shutdown(): Promise<void> {
     log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the approval relay');
   });
   const leaving = leaveCallsForShutdown();
+  stopOrgModels();
   unwatchSession();
   tunnel?.stop();
   if (webhookServer) {

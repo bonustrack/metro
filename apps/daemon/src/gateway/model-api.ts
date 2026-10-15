@@ -1,217 +1,105 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, apiSession, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { isRecord } from '@metro-labs/core/is-record';
-import { log } from '@metro-labs/core/log';
-import { openrouterModels, openrouterZdrModels } from './openrouter.js';
-import { anthropicModels, bedrockModels } from './provider-models.js';
-import { runnerAlive } from '../claude/session.js';
-import { forgetOne, forgetReported } from './usage.js';
-import {
-  addConnection,
-  connectionOf,
-  parseModelConfig,
-  readModelConfig,
-  readModelSnapshot,
-  removeConnection,
-  routedConnection,
-  setFallbacks,
-  setRoute,
-  updateConnection,
-  writeModelConfig,
-  type ModelConfig,
-} from './model-config.js';
-import { asApiError, BODY_MAX, claudeLoginDeps, connectionFor, settingsBody, type ModelApiDeps, type Route, type Store } from './model-store.js';
-import { dropUnusedClaudeLogins } from './claude-logins.js';
-import { CODEX_ROUTES, codexDeviceRoute, GEMINI_ROUTES } from './model-signin.js';
-import { refreshUsage } from './usage-refresh.js';
-import { handleOpenRouterSignIn } from './openrouter-signin.js';
+import { apiFailure, apiSession, cors, requireAdmin, sendJson, type ApiSession } from '@metro-labs/http/api-http';
+import { agentsDir } from '../agents/files.js';
+import { removeClaudeLogin } from './claude-logins.js';
+import { readClaudeLogins, type ClaudeLogin } from './claude-store.js';
+import { effectiveSetup } from './effective.js';
+import { chainStatus } from './fallback.js';
+import { notReady, primaryRoute, type Connection, type ModelSetup } from './model-config.js';
+import { orgModels, type SyncStatus } from './org-models.js';
+import { claudeModels } from './provider-models.js';
+import { lastServed } from './served.js';
+import { refreshUsage, type UsageDeps } from './usage-refresh.js';
+import { usageSeen } from './usage.js';
 
 const PATH = '/api/model';
 const SNAPSHOT = '/api/model/snapshot';
-const CONNECTIONS = '/api/model/connections';
-const FALLBACKS = '/api/model/fallbacks';
-const CODEX = '/api/model/codex/';
-const GEMINI = '/api/model/gemini/';
-const OPENROUTER = '/api/model/openrouter/';
-const ANTHROPIC = '/api/model/anthropic/';
-const BEDROCK = '/api/model/bedrock/';
-const BUNDLE = '/api/model/bundle';
-const RESTORE = '/api/model/restore';
-const RESTORE_MAX = 64 * 1024;
-const DEVICE_PREFIX = 'device/';
-const DEVICE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+const SYNC = '/api/model/sync';
+const CLAUDE_MODELS = '/api/model/claude-models';
+const CLAUDE_LOGIN = '/api/model/claude/';
+const LOGIN_RE = /^[A-Za-z0-9_-]{11}$/;
 
-export type { ModelApiDeps } from './model-store.js';
-
-function runnerModel(cfg: ModelConfig): string | null {
-  const conn = routedConnection(cfg);
-  if (conn === null || conn.model === '') return null;
-  return conn.provider === 'anthropic' ? conn.model : `${conn.provider}:${conn.model}`;
+export interface ModelApiDeps extends UsageDeps {
+  dir?: () => string;
+  setup?: () => ModelSetup;
+  sync?: () => Promise<void>;
+  syncStatus?: () => SyncStatus;
+  anthropicBase?: string;
 }
 
-function switchLive(before: ModelConfig, next: ModelConfig, deps: ModelApiDeps): void {
-  const [was, now] = [runnerModel(before), runnerModel(next)];
-  if (was === now) return;
-  if (deps.switchModel?.(now) === true) log.info({ was, now }, 'model-api: the model changed, so the Agent SDK session switches to it live, with no restart');
-  else if (runnerIsUp(deps)) throw new ApiError('The running Agent SDK could not be told about this model change. Nothing was saved. Let its work finish, stop it, then save and start it again.', 409);
-  else log.info({ was, now }, 'model-api: the model changed while no Agent SDK runner is up; its next start loads it');
+const NO_SYNC: SyncStatus = { enrolled: false, at: null, error: null };
+
+function publicConnection(c: Connection): Record<string, unknown> {
+  return {
+    id: c.id,
+    provider: c.provider,
+    label: c.label,
+    model: c.model,
+    hasKey: c.apiKey !== '',
+    region: c.region,
+    zdr: c.zdr,
+    signedIn: c.codex !== null || (c.claude !== null && !c.signedOut),
+    signedOut: c.signedOut,
+    account: c.account.email,
+    plan: c.account.plan,
+    method: c.account.method,
+  };
 }
 
-function kept(store: Store, next: ModelConfig, deps: ModelApiDeps, note: string, fields: Record<string, unknown>): unknown {
-  const before = store.read();
-  store.write(next);
-  try {
-    switchLive(before, next, deps);
-  } catch (err) {
-    store.write(before);
-    throw err;
-  }
-  log.info(fields, note);
-  return settingsBody(next);
+const loginsOf = (deps: ModelApiDeps): ClaudeLogin[] => readClaudeLogins(deps.dir?.() ?? agentsDir());
+const setupOf = (deps: ModelApiDeps): ModelSetup => (deps.setup ?? (() => effectiveSetup(deps.dir?.())))();
+
+export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
+  const setup = setupOf(deps);
+  const primary = primaryRoute(setup);
+  const reason = primary === null ? null : notReady(primary);
+  return {
+    source: setup.source,
+    sync: (deps.syncStatus ?? (() => orgModels()?.syncStatus() ?? NO_SYNC))(),
+    route: primary?.connection.id ?? '',
+    model: primary?.model ?? '',
+    ready: reason === null,
+    reason,
+    connections: setup.connections.map(publicConnection),
+    fallbacks: setup.fallbacks,
+    chain: chainStatus(setup),
+    claude: loginsOf(deps),
+    lastServed: lastServed(),
+    usage: usageSeen(),
+  };
 }
 
-async function withBody(req: IncomingMessage, run: (body: Record<string, unknown>) => ModelConfig): Promise<ModelConfig> {
-  const body = await readJsonBody(req, BODY_MAX);
-  if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
-  try {
-    return run(body);
-  } catch (err) {
-    return asApiError(err);
-  }
+async function withUsage(deps: ModelApiDeps): Promise<Record<string, unknown>> {
+  await refreshUsage(setupOf(deps), loginsOf(deps), deps);
+  return settingsBody(deps);
 }
 
-async function chooseRoute(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const next = await withBody(req, (body) => setRoute(store.read(), typeof body.route === 'string' ? body.route : ''));
-  return kept(store, next, deps, 'model-api: route changed', { route: next.route });
+async function synced(deps: ModelApiDeps): Promise<Record<string, unknown>> {
+  await (deps.sync ?? (() => orgModels()?.sync() ?? Promise.resolve()))();
+  return settingsBody(deps);
 }
 
-async function chooseFallbacks(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const next = await withBody(req, (body) => setFallbacks(store.read(), body.fallbacks));
-  return kept(store, next, deps, 'model-api: fallback models changed', { fallbacks: (next.fallbacks ?? []).map((f) => `${f.connection}:${f.model}`) });
+function dropLogin(session: ApiSession, login: string, deps: ModelApiDeps): Record<string, unknown> {
+  requireAdmin(session);
+  removeClaudeLogin(login, { ...deps.claudeLogins, dir: deps.dir?.() ?? deps.claudeLogins?.dir });
+  return settingsBody(deps);
 }
 
-async function create(req: IncomingMessage, deps: ModelApiDeps, store: Store): Promise<unknown> {
-  const next = await withBody(req, (body) => addConnection(store.read(), body));
-  return kept(store, next, deps, 'model-api: connection added', { connection: next.connections.at(-1)?.id ?? '' });
+type Run = (session: ApiSession) => Promise<unknown>;
+
+function routeFor(path: string, method: string | undefined, deps: ModelApiDeps): Run | number {
+  const only = (wanted: string, run: Run): Run | number => (method === wanted ? run : 405);
+  if (path === PATH) return only('GET', () => withUsage(deps));
+  if (path === SNAPSHOT) return only('GET', () => Promise.resolve(settingsBody(deps)));
+  if (path === SYNC) return only('POST', () => synced(deps));
+  if (path === CLAUDE_MODELS) return only('GET', () => Promise.resolve({ models: claudeModels(deps.anthropicBase) }));
+  const login = path.slice(CLAUDE_LOGIN.length);
+  if (!LOGIN_RE.test(login)) return 404;
+  return only('DELETE', (session) => Promise.resolve(dropLogin(session, login, deps)));
 }
 
-async function change(req: IncomingMessage, deps: ModelApiDeps, store: Store, id: string): Promise<unknown> {
-  const before = connectionOf(store.read(), id)?.apiKey;
-  const next = await withBody(req, (body) => updateConnection(store.read(), id, body));
-  if (connectionOf(next, id)?.apiKey !== before) forgetReported(id);
-  return kept(store, next, deps, 'model-api: connection changed', { connection: id });
-}
-
-function drop(deps: ModelApiDeps, store: Store, id: string): unknown {
-  const before = store.read();
-  let next: ModelConfig;
-  try {
-    next = removeConnection(before, id);
-  } catch (err) {
-    asApiError(err);
-  }
-  forgetOne(id);
-  const body = kept(store, next, deps, 'model-api: connection removed', { connection: id });
-  dropUnusedClaudeLogins(before, next, claudeLoginDeps(deps));
-  return body;
-}
-
-async function settingsWithUsage(deps: ModelApiDeps, store: Store): Promise<Record<string, unknown>> {
-  await refreshUsage(deps, store);
-  return settingsBody(store.read());
-}
-
-const OPENROUTER_ROUTES: Record<string, Route> = {
-  models: { method: 'GET', run: async (_req, deps) => ({ models: await openrouterModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }) },
-  zdr: { method: 'GET', run: async (_req, deps) => ({ models: await openrouterZdrModels(deps.openrouterBase, deps.fetchImpl).catch(asApiError) }) },
-};
-
-const ANTHROPIC_ROUTES: Record<string, Route> = {
-  models: {
-    method: 'GET',
-    run: async (req, deps, store) => ({ models: await anthropicModels(connectionFor(store.read(), req, 'anthropic'), deps.anthropicBase, deps.fetchImpl).catch(asApiError) }),
-  },
-};
-
-const BEDROCK_ROUTES: Record<string, Route> = {
-  models: {
-    method: 'GET',
-    run: async (req, deps, store) => ({ models: await bedrockModels(connectionFor(store.read(), req, 'bedrock'), deps.bedrockControlBase, deps.fetchImpl).catch(asApiError) }),
-  },
-};
-
-const named = (table: Record<string, Route>, name: string, method: string | undefined): Route | number => {
-  const route = table[name];
-  if (route === undefined) return 404;
-  return route.method === method ? route : 405;
-};
-
-async function restore(req: IncomingMessage, store: Store, deps: ModelApiDeps): Promise<unknown> {
-  const body = await readJsonBody(req, RESTORE_MAX);
-  if (!isRecord(body)) throw new ApiError('body must be a JSON object', 400);
-  const before = store.read();
-  const next = parseModelConfig(body);
-  const answer = kept(store, next, deps, 'model-api: model setup restored from a file', {});
-  dropUnusedClaudeLogins(before, next, claudeLoginDeps(deps));
-  return answer;
-}
-
-function bundleRoute(path: string, method: string | undefined): Route | number {
-  if (path === BUNDLE) return method === 'GET' ? { method: 'GET', run: (_req, _deps, store) => Promise.resolve(store.read()) } : 405;
-  return method === 'POST' ? { method: 'POST', run: (req, deps, store) => restore(req, store, deps) } : 405;
-}
-
-function settingsRoute(path: string, method: string | undefined): Route | number {
-  if (path === FALLBACKS) return method === 'PUT' ? { method: 'POST', run: chooseFallbacks } : 405;
-  if (method === 'GET') return { method: 'GET', run: (_req, deps, store) => settingsWithUsage(deps, store) };
-  if (method === 'PUT') return { method: 'POST', run: chooseRoute };
-  return 405;
-}
-
-function connectionsRoute(path: string, method: string | undefined): Route | number {
-  if (path === CONNECTIONS) return method === 'POST' ? { method: 'POST', run: create } : 405;
-  const id = path.slice(CONNECTIONS.length + 1);
-  if (id === '' || id.includes('/')) return 404;
-  if (method === 'PUT') return { method: 'POST', run: (req, deps, store) => change(req, deps, store, id) };
-  if (method === 'DELETE') return { method: 'GET', run: (_req, deps, store) => Promise.resolve(drop(deps, store, id)) };
-  return 405;
-}
-
-function codexRoute(rest: string, method: string | undefined): Route | number {
-  if (rest in CODEX_ROUTES) return named(CODEX_ROUTES, rest, method);
-  const id = rest.startsWith(DEVICE_PREFIX) ? rest.slice(DEVICE_PREFIX.length) : '';
-  if (!DEVICE_ID_RE.test(id)) return 404;
-  return codexDeviceRoute(id, method);
-}
-
-const TABLES: [string, Record<string, Route>][] = [
-  [OPENROUTER, OPENROUTER_ROUTES],
-  [ANTHROPIC, ANTHROPIC_ROUTES],
-  [BEDROCK, BEDROCK_ROUTES],
-  [GEMINI, GEMINI_ROUTES],
-];
-const EXACT = new Set([PATH, SNAPSHOT, FALLBACKS, BUNDLE, RESTORE, CONNECTIONS]);
-const PREFIXES = [`${CONNECTIONS}/`, CODEX, ...TABLES.map(([prefix]) => prefix)];
-
-const mine = (path: string): boolean => EXACT.has(path) || PREFIXES.some((prefix) => path.startsWith(prefix));
-
-function routeFor(path: string, method: string | undefined): Route | number {
-  if (path === SNAPSHOT) return method === 'GET' ? { method: 'GET', run: (_req, _deps, store) => Promise.resolve().then(() => settingsBody(store.read())).catch(asApiError) } : 405;
-  if (path === PATH || path === FALLBACKS) return settingsRoute(path, method);
-  if (path === BUNDLE || path === RESTORE) return bundleRoute(path, method);
-  if (path === CONNECTIONS || path.startsWith(`${CONNECTIONS}/`)) return connectionsRoute(path, method);
-  const table = TABLES.find(([prefix]) => path.startsWith(prefix));
-  if (table !== undefined) return named(table[1], path.slice(table[0].length), method);
-  return codexRoute(path.slice(CODEX.length), method);
-}
-
-const runnerIsUp = (deps: ModelApiDeps): boolean => (deps.runnerAlive ?? (() => runnerAlive()))();
-
-const storeFor = (path: string, deps: ModelApiDeps): Store => ({
-  read: deps.read ?? (path === SNAPSHOT ? readModelSnapshot : readModelConfig),
-  write: deps.write ?? writeModelConfig,
-});
+const mine = (path: string): boolean => path === PATH || path.startsWith(`${PATH}/`);
 
 export function handleModelRequest(req: IncomingMessage, res: ServerResponse, deps: ModelApiDeps): boolean {
   const path = (req.url ?? '').split('?')[0] ?? '';
@@ -220,9 +108,7 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
     res.writeHead(204, cors(req)).end();
     return true;
   }
-  const store = storeFor(path, deps);
-  if (handleOpenRouterSignIn(req, res, deps, store)) return true;
-  const route = routeFor(path, req.method);
+  const route = path === PATH || path.startsWith(CLAUDE_LOGIN) || [SNAPSHOT, SYNC, CLAUDE_MODELS].includes(path) ? routeFor(path, req.method, deps) : 404;
   if (typeof route === 'number') {
     sendJson(req, res, route, { error: route === 404 ? 'not found' : 'method not allowed' });
     return true;
@@ -230,7 +116,7 @@ export function handleModelRequest(req: IncomingMessage, res: ServerResponse, de
   apiSession(req)
     .then(async (session) => {
       if (!session) throw new ApiError('unauthorized', 401);
-      sendJson(req, res, 200, await route.run(req, deps, store));
+      sendJson(req, res, 200, await route(session));
     })
     .catch((err: unknown) => {
       apiFailure(req, res, err, 'model-api');

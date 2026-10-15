@@ -3,12 +3,12 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
 import { lastServed } from '../src/gateway/served.ts';
+import { codexVersion } from '../src/gateway/codex-version.ts';
+import { userAgent } from '../src/gateway/codex.ts';
 import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
-import type { ModelConfig } from '../src/gateway/model-config.ts';
-import { conn, configOf, connectionId, makeConnection, use } from './model-fixture.ts';
-import type { CodexTokens } from '../src/gateway/codex-auth.ts';
-import type { GeminiTokens } from '../src/gateway/gemini-auth.ts';
+import { SESSION_LOGIN, type Connection, type ModelSetup } from '../src/gateway/model-config.ts';
+import { codexAccess, conn, makeConnection, setupOf, use } from './model-fixture.ts';
 import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
 import { refreshLoginModels } from '../src/gateway/provider-models.ts';
 import { recordedClaudeModels } from './claude-models-fixture.ts';
@@ -59,17 +59,11 @@ const frame = (event: object): Buffer =>
 let anthropic: Fake;
 let bedrock: Fake;
 let openrouter: Fake;
+let registry: Fake;
 let codexBackend: Fake;
-let tokenIssuer: Fake;
-let geminiBackend: Fake;
-let googleTokens: Fake;
-const savedGemini: GeminiTokens[] = [];
-const geminiFailures: number[] = [];
-const geminiRefusals: string[] = [];
-const geminiTokens = (): GeminiTokens => ({ accessToken: 'ga-1', refreshToken: 'gr-1', expiresAt: Date.now() + 3_600_000, email: 'less@gmail.com', project: 'proj-1', tier: 'Google AI Pro', savedAt: new Date().toISOString() });
-const saved: CodexTokens[] = [];
-const tokens = (): CodexTokens => ({ method: 'chatgpt', clientId: 'oaiapp_1', subject: 'user-1', email: 'less@example.com', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
-const codeTokens = (): CodexTokens => ({ method: 'code', accountId: 'acct_1', email: 'less@example.com', plan: 'pro', accessToken: 'at-1', refreshToken: 'rt-1', expiresAt: Date.now() + 3_600_000, savedAt: new Date().toISOString() });
+const refreshes: { id: string; revision: number }[] = [];
+const renewOnce = (c: Connection): Connection | null => (c.codex === null ? null : { ...c, revision: c.revision + 1, codex: { ...c.codex, accessToken: 'at-2' } });
+let renewed: (c: Connection) => Connection | null = renewOnce;
 const codexEvents = (): string[] => [
   JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }),
   JSON.stringify({ type: 'response.output_item.added', item: { id: 'rs_1', type: 'reasoning' } }),
@@ -86,10 +80,10 @@ const codexEvents = (): string[] => [
 ];
 let gateway: Server;
 let base = '';
-let cfg: ModelConfig;
+let cfg: ModelSetup;
 
 const deps: GatewayDeps = {
-  config: () => cfg,
+  setup: () => cfg,
   identify: (key) => key === 'mk_ok',
   anthropicBase: '',
   bedrockBase: '',
@@ -135,42 +129,22 @@ beforeAll(async () => {
     for (const data of codexEvents()) res.write(`data: ${data}\n\n`);
     res.end();
   });
-  tokenIssuer = await fake((_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ access_token: 'at-2', refresh_token: 'rt-2', expires_in: 3600, token_type: 'Bearer' }));
-  });
-  geminiBackend = await fake((req, res) => {
-    if (req.headers.authorization === 'Bearer stale') {
-      res.writeHead(401, { 'content-type': 'application/json' });
-      res.end('{"error":{"message":"invalid token"}}');
-      return;
-    }
-    const failure = geminiFailures.shift();
-    if (failure !== undefined) {
-      res.writeHead(failure, { 'content-type': 'application/json' });
-      const details = failure === 429 ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'QUOTA_EXHAUSTED', metadata: { model: 'gemini-2.5-flash' } }, { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37s' }] : [];
-      res.end(JSON.stringify({ error: { message: geminiRefusals.shift() ?? `Code Assist answered ${String(failure)}`, details } }));
-      return;
-    }
-    res.writeHead(200, { 'content-type': 'text/event-stream' });
-    const chunk = (parts: unknown[], finish?: string, usage?: unknown): string =>
-      `data: ${JSON.stringify({ response: { candidates: [{ content: { role: 'model', parts }, ...(finish === undefined ? {} : { finishReason: finish }) }], ...(usage === undefined ? {} : { usageMetadata: usage }) } })}\n\n`;
-    res.write(chunk([{ text: 'pondering', thought: true, thoughtSignature: 'SIG1' }]));
-    res.write(chunk([{ text: 'Hel' }]));
-    res.write(chunk([{ text: 'lo' }]));
-    res.write(chunk([{ functionCall: { name: 'Bash', args: { command: 'ls' } }, thoughtSignature: 'SIG2' }], 'STOP', { promptTokenCount: 120, candidatesTokenCount: 5, thoughtsTokenCount: 4, cachedContentTokenCount: 100 }));
-    res.end();
-  });
-  googleTokens = await fake((_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ access_token: 'ga-2', expires_in: 3599, token_type: 'Bearer' }));
-  });
-  deps.gemini = { base: [geminiBackend.base, geminiBackend.base], tokenBase: googleTokens.base, save: (_id, t) => { savedGemini.push(t); } };
-  deps.codex = { base: codexBackend.base, issuer: tokenIssuer.base, save: (_id, t) => { saved.push(t); } };
+  deps.codex = {
+    base: codexBackend.base,
+    refresh: (c) => {
+      refreshes.push({ id: c.id, revision: c.revision });
+      return Promise.resolve(renewed(c));
+    },
+  };
   deps.anthropicBase = anthropic.base;
   await refreshLoginModels({ authorization: 'Bearer sk-ant-oat-login' }, anthropic.base);
   deps.bedrockBase = bedrock.base;
   deps.openrouterBase = openrouter.base;
+  registry = await fake((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{"version":"0.158.2"}');
+  });
+  process.env.METRO_CODEX_REGISTRY = registry.base;
   gateway = createServer((req, res) => {
     if (handleGatewayRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -182,27 +156,22 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  for (const s of [anthropic.server, bedrock.server, openrouter.server, codexBackend.server, tokenIssuer.server, geminiBackend.server, googleTokens.server, gateway]) s.close();
+  delete process.env.METRO_CODEX_REGISTRY;
+  for (const s of [anthropic.server, bedrock.server, openrouter.server, codexBackend.server, registry.server, gateway]) s.close();
 });
 
 beforeEach(() => {
   resetGatewayState();
-  cfg = configOf('anthropic', [
-    makeConnection('anthropic'),
+  cfg = setupOf(SESSION_LOGIN, [
+    makeConnection('anthropic', { id: SESSION_LOGIN }),
     makeConnection('bedrock', { region: 'eu-central-1', apiKey: 'aws-key' }),
     makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' }),
-    makeConnection('codex', { model: 'gpt-5.3-codex', codex: tokens() }),
-    makeConnection('gemini', { model: 'gemini-3-pro-preview', gemini: geminiTokens() }),
+    makeConnection('codex', { model: 'gpt-5.3-codex', codex: codexAccess() }),
   ]);
-  geminiBackend.seen.length = 0;
-  geminiFailures.length = 0;
-  geminiRefusals.length = 0;
-  googleTokens.seen.length = 0;
-  savedGemini.length = 0;
+  refreshes.length = 0;
+  renewed = renewOnce;
   anthropic.seen.length = 0;
   codexBackend.seen.length = 0;
-  tokenIssuer.seen.length = 0;
-  saved.length = 0;
   bedrock.seen.length = 0;
   openrouter.seen.length = 0;
 });
@@ -249,7 +218,7 @@ describe('the session on any connection', () => {
   });
 
   test('a keyed request keeps the model and effort policy', async () => {
-    cfg = configOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-key', model: 'claude-opus-5' })]);
+    cfg = setupOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-key', model: 'claude-opus-5' })]);
     const body = { ...message('claude-sonnet-5'), output_config: { effort: 'high' } };
     expect((await post('/gateway/v1/messages', body, { authorization: 'Bearer claude-login' })).status).toBe(200);
     expect(anthropic.seen[0]?.headers['x-api-key']).toBe('sk-ant-key');
@@ -380,11 +349,11 @@ describe('the Anthropic route', () => {
       res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
     };
     try {
-      expect(usageSeen()[connectionId('anthropic')]).toBeUndefined();
+      expect(usageSeen()[SESSION_LOGIN]).toBeUndefined();
       const res = await post('/gateway/v1/messages', message('claude-opus-4-8', true));
       expect(res.status).toBe(200);
       await res.text();
-      const seen = usageSeen()[connectionId('anthropic')];
+      const seen = usageSeen()[SESSION_LOGIN];
       expect(seen?.windows.map((w) => [w.label, w.used])).toEqual([
         ['5-hour window', 0.34],
         ['Weekly, all models', 0.61],
@@ -422,7 +391,7 @@ describe('the Bedrock route', () => {
     conn(cfg, 'bedrock').apiKey = '';
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-4-6'));
     expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
+    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Bedrock has no API key');
     expect(bedrock.seen.length).toBe(1);
   });
 });
@@ -487,11 +456,12 @@ describe('the OpenRouter route', () => {
 });
 
 describe('what the picker can discover', () => {
-  test('lists the configured routes under ids the picker keeps', async () => {
-    conn(cfg, 'bedrock').model = 'eu.anthropic.claude-sonnet-4-6';
+  test('lists the models of the route under ids the picker keeps', async () => {
+    cfg.primary = { connection: conn(cfg, 'bedrock').id, model: 'eu.anthropic.claude-sonnet-4-6' };
+    cfg.fallbacks = [{ connection: conn(cfg, 'openrouter').id, model: 'openai/gpt-5.2-codex' }, { connection: conn(cfg, 'codex').id, model: 'gpt-5.3-codex' }, { connection: SESSION_LOGIN, model: 'claude-sonnet-5' }];
     const res = await fetch(`${base}/gateway/v1/models?limit=1000`, { headers: { 'x-metro-key': 'mk_ok' } });
     const body = (await res.json()) as { data: { id: string; display_name: string }[] };
-    expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex', 'gemini:gemini-3-pro-preview']);
+    expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex']);
     expect(body.data[0]?.display_name).toContain('bedrock');
   });
 });
@@ -544,34 +514,61 @@ describe('the Codex route', () => {
     ]);
   });
 
-  test('a 401 refreshes the ChatGPT tokens once, saves them, and retries', async () => {
+  test('a 401 asks api.metro.box once for a renewed sign-in with the revision it used, and retries with it', async () => {
     use(cfg, 'codex');
-    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired' };
+    Object.assign(conn(cfg, 'codex'), { revision: 3, codex: codexAccess({ accessToken: 'expired' }) });
     const res = await post('/gateway/v1/messages', message('gpt-5.4', true));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
-    expect(tokenIssuer.seen.length).toBe(1);
-    expect(tokenIssuer.seen[0]?.url).toBe('/api/accounts/oauth/token');
-    expect(Object.fromEntries(new URLSearchParams(tokenIssuer.seen[0]?.body ?? ''))).toEqual({ grant_type: 'refresh_token', client_id: 'oaiapp_1', refresh_token: 'rt-1', resource: 'https://api.openai.com/v1' });
-    expect(saved[0]?.accessToken).toBe('at-2');
-    expect(codexBackend.seen.at(-1)?.headers.authorization).toBe('Bearer at-2');
+    expect(refreshes).toEqual([{ id: conn(cfg, 'codex').id, revision: 3 }]);
+    expect(codexBackend.seen.map((r) => r.headers.authorization)).toEqual(['Bearer expired', 'Bearer at-2']);
     expect((JSON.parse(codexBackend.seen.at(-1)?.body ?? '{}') as { model: string }).model).toBe('gpt-5.4');
   });
 
-  test('a code sign-in calls the ChatGPT backend as the Codex app, and a 401 refreshes it with the JSON grant of the Codex app client', async () => {
+  test('a renewal api.metro.box cannot give is a 403 naming where to sign in again, and a second refusal is a 403 too', async () => {
     use(cfg, 'codex');
-    conn(cfg, 'codex').codex = { ...codeTokens(), accessToken: 'expired' };
+    conn(cfg, 'codex').codex = codexAccess({ accessToken: 'expired' });
+    renewed = () => null;
+    const refused = await post('/gateway/v1/messages', message('gpt-5.4'));
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { error: { type: string; message: string } }).error).toMatchObject({ type: 'permission_error', message: expect.stringContaining('Models page') });
+    renewed = (c) => c;
+    const again = await post('/gateway/v1/messages', message('gpt-5.4'));
+    expect(again.status).toBe(403);
+    await again.text();
+    expect(refreshes).toHaveLength(2);
+    expect(codexBackend.seen).toHaveLength(3);
+  });
+
+  test('a code sign-in calls the ChatGPT backend as the Codex app, and a 401 is renewed by api.metro.box', async () => {
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = codexAccess({ method: 'code', accountId: 'acct_1', accessToken: 'expired' });
     const res = await post('/gateway/v1/messages', message('gpt-5.4', true), { 'x-claude-code-session-id': 'sess-2' });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('event: message_stop');
-    expect(tokenIssuer.seen.map((r) => r.url)).toEqual(['/oauth/token']);
-    expect(JSON.parse(tokenIssuer.seen[0]?.body ?? '{}')).toEqual({ client_id: 'app_EMoamEEZ73f0CkXaXp7hrann', grant_type: 'refresh_token', refresh_token: 'rt-1' });
-    expect(saved[0]).toMatchObject({ method: 'code', accountId: 'acct_1', plan: 'pro', accessToken: 'at-2', refreshToken: 'rt-2' });
+    expect(refreshes).toHaveLength(1);
     const last = codexBackend.seen.at(-1);
     expect(last?.url).toBe('/responses');
     expect(last?.headers).toMatchObject({ authorization: 'Bearer at-2', 'chatgpt-account-id': 'acct_1', originator: 'codex_cli_rs', 'openai-beta': 'responses=experimental', 'session-id': 'sess-2' });
     expect(String(last?.headers['user-agent'])).toMatch(/^codex_cli_rs\/\d+\.\d+\.\d+ \(.+\) metro$/);
     expect((JSON.parse(last?.body ?? '{}') as { model: string; prompt_cache_key: string })).toMatchObject({ model: 'gpt-5.4', prompt_cache_key: 'sess-2' });
+  });
+
+  test('a code sign-in announces the latest Codex CLI on npm, learned in the background, and an override wins', async () => {
+    use(cfg, 'codex');
+    conn(cfg, 'codex').codex = codexAccess({ method: 'code', accountId: 'acct_1' });
+    await (await post('/gateway/v1/messages', message('gpt-5.4', true))).text();
+    for (let tries = 0; tries < 50 && codexVersion() !== '0.158.2'; tries += 1) await Bun.sleep(10);
+    await (await post('/gateway/v1/messages', message('gpt-5.4', true))).text();
+    expect(String(codexBackend.seen.at(-1)?.headers['user-agent'])).toContain('codex_cli_rs/0.158.2');
+    process.env.METRO_CODEX_VERSION = '0.160.0';
+    try {
+      expect(userAgent()).toContain('codex_cli_rs/0.160.0');
+      process.env.METRO_CODEX_VERSION = 'not a version';
+      expect(codexVersion()).toBe('0.158.2');
+    } finally {
+      delete process.env.METRO_CODEX_VERSION;
+    }
   });
 
   test('a used-up ChatGPT plan is a 429 rate limit that says where to manage the usage', async () => {
@@ -594,155 +591,17 @@ describe('the Codex route', () => {
     use(cfg, 'codex');
     const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
     expect(((await count.json()) as { input_tokens: number }).input_tokens).toBeGreaterThan(10);
+    const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok' } });
+    expect(((await models.json()) as { data: { id: string }[] }).data.map((m) => m.id)).toContain('codex:gpt-5.3-codex');
     conn(cfg, 'codex').codex = null;
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
     expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
-    const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok' } });
-    expect(((await models.json()) as { data: { id: string }[] }).data.map((m) => m.id)).toContain('codex:gpt-5.3-codex');
-  });
-});
-
-describe('the Gemini route', () => {
-  test('presents as Antigravity to Code Assist, with the system prompt behind the identity lines, and translates the stream', async () => {
-    use(cfg, 'gemini');
-    const res = await post('/gateway/v1/messages', { ...message('claude-sonnet-5', true), thinking: { type: 'enabled', budget_tokens: 1024 }, tools: [{ name: 'Bash', description: 'run', input_schema: { type: 'object', properties: { command: { type: 'string' } }, additionalProperties: false, $schema: 'x' } }] }, { 'x-claude-code-session-id': 'sess-9' });
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toBe('text/event-stream');
-    const text = await res.text();
-    expect(text).toContain('"type":"message_start"');
-    expect(text).toContain('"thinking_delta","thinking":"pondering"');
-    expect(text).toContain('"signature_delta","signature":"metro-gemini:');
-    expect(text).toContain('"text_delta","text":"Hel"');
-    expect(text).toContain('"text_delta","text":"lo"');
-    expect(text).toContain('"name":"Bash","input":{}');
-    expect(text).toContain('"input_json_delta","partial_json":"{\\"command\\":\\"ls\\"}"');
-    expect(text).toContain('"stop_reason":"tool_use"');
-    expect(text).toContain('"input_tokens":20,"output_tokens":9,"cache_read_input_tokens":100');
-    expect(text).toContain('event: message_stop');
-    expect(geminiBackend.seen.length).toBe(1);
-    expect(geminiBackend.seen[0]?.url).toBe('/v1internal:streamGenerateContent?alt=sse');
-    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { model: string; project: string; userAgent: string; requestType: string; requestId: string; request: Record<string, unknown> };
-    expect(sent).toMatchObject({ model: 'gemini-3-pro-preview', project: 'proj-1', userAgent: 'antigravity', requestType: 'agent' });
-    expect(sent.requestId).toMatch(/^agent-[0-9a-f-]{36}$/);
-    expect(sent.request.sessionId).toBe('sess-9');
-    const instruction = sent.request.systemInstruction as { role: string; parts: { text: string }[] };
-    expect(instruction.role).toBe('user');
-    expect(instruction.parts.length).toBe(3);
-    expect(instruction.parts[0]?.text).toMatch(/^You are Antigravity/);
-    expect(instruction.parts[1]?.text).toMatch(/^Please ignore the following \[ignore\]/);
-    expect(instruction.parts[2]).toEqual({ text: 'attribution' });
-    expect(sent.request.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
-    expect(sent.request.tools).toEqual([{ functionDeclarations: [{ name: 'Bash', description: 'run', parameters: { type: 'object', properties: { command: { type: 'string' } } } }] }]);
-    expect(sent.request.generationConfig).toEqual({ maxOutputTokens: 8, thinkingConfig: { includeThoughts: true } });
-    const headers = geminiBackend.seen[0]?.headers ?? {};
-    expect(headers.authorization).toBe('Bearer ga-1');
-    expect(String(headers['user-agent'])).toMatch(/^antigravity\/\d+\.\d+\.\d+ (darwin|linux|win32)\//);
-    expect(headers['x-client-name']).toBe('antigravity');
-    expect(String(headers['x-client-version'])).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(headers['x-goog-api-client']).toBe('gl-node/18.18.2 fire/0.8.6 grpc/1.10.x');
-    expect(String(headers['x-machine-session-id'])).toMatch(/^[0-9a-f-]{36}$/);
-    expect(headers.accept).toBe('text/event-stream');
-  });
-
-  test('a Code Assist endpoint that fails with a 5xx or a 429 is followed by the next one; another 4xx is relayed as is', async () => {
-    use(cfg, 'gemini');
-    geminiFailures.push(503);
-    const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('event: message_stop');
-    expect(geminiBackend.seen.length).toBe(2);
-    geminiFailures.push(429);
-    const relieved = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
-    expect(relieved.status).toBe(200);
-    expect(geminiBackend.seen.length).toBe(4);
-    geminiFailures.push(429, 429);
-    const limited = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
-    expect(limited.status).toBe(429);
-    expect(geminiBackend.seen.length).toBe(6);
-    const body = (await limited.json()) as { error: { message: string } };
-    expect(body.error.message).toBe('Code Assist answered 429 (QUOTA_EXHAUSTED; model=gemini-2.5-flash; retry after 37s)');
-    geminiFailures.push(400);
-    const refused = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
-    expect(refused.status).toBe(400);
-    expect(geminiBackend.seen.length).toBe(7);
-  });
-
-  test('the effort becomes a thinking level, and a Gemini that refuses it is asked again without it', async () => {
-    use(cfg, 'gemini');
-    const turn = { ...message('gemini-2.5-flash', true), output_config: { effort: 'high' }, thinking: { type: 'adaptive' } };
-    await (await post('/gateway/v1/messages', turn)).text();
-    const first = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { request: { generationConfig: Record<string, unknown> } };
-    expect(first.request.generationConfig.thinkingLevel).toBe('low');
-    geminiFailures.push(400);
-    geminiRefusals.push('Unknown name "thinkingLevel" at generation_config');
-    const res = await post('/gateway/v1/messages', turn);
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('event: message_stop');
-    const again = JSON.parse(geminiBackend.seen[2]?.body ?? '{}') as { request: { generationConfig: Record<string, unknown> } };
-    expect(again.request.generationConfig).not.toHaveProperty('thinkingLevel');
-  });
-
-  test('a 401 refreshes the Google tokens once, saves them, and retries', async () => {
-    use(cfg, 'gemini');
-    conn(cfg, 'gemini').gemini = { ...geminiTokens(), accessToken: 'stale' };
-    const res = await post('/gateway/v1/messages', message('gemini-2.5-flash', true));
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('event: message_stop');
-    expect(googleTokens.seen.length).toBe(1);
-    expect(googleTokens.seen[0]?.url).toBe('/token');
-    expect(new URLSearchParams(googleTokens.seen[0]?.body ?? '').get('grant_type')).toBe('refresh_token');
-    expect(savedGemini[0]).toMatchObject({ accessToken: 'ga-2', refreshToken: 'gr-1', project: 'proj-1', email: 'less@gmail.com' });
-    expect(geminiBackend.seen.at(-1)?.headers.authorization).toBe('Bearer ga-2');
-    expect((JSON.parse(geminiBackend.seen.at(-1)?.body ?? '{}') as { model: string }).model).toBe('gemini-2.5-flash');
-  });
-
-  test('token counting is an estimate, a disconnected account is a 400, and the picker sees the route', async () => {
-    use(cfg, 'gemini');
-    const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-5'));
-    expect(((await count.json()) as { input_tokens: number }).input_tokens).toBeGreaterThan(10);
-    conn(cfg, 'gemini').gemini = null;
-    const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
-    expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Model page');
-    const models = await fetch(`${base}/gateway/v1/models`, { headers: { 'x-metro-key': 'mk_ok' } });
-    expect(((await models.json()) as { data: { id: string }[] }).data.map((m) => m.id)).toContain('gemini:gemini-3-pro-preview');
+    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Models page');
+    expect(refreshes).toHaveLength(0);
   });
 });
 
 describe('what keeps a session alive through a bad hour', () => {
-  test('two requests hitting an expired ChatGPT token share ONE refresh', async () => {
-    use(cfg, 'codex');
-    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired', savedAt: new Date(Date.now() - 5_000).toISOString() };
-    const before = tokenIssuer.seen.length;
-    const [a, b] = await Promise.all([post('/gateway/v1/messages', message('gpt-5.4', true)), post('/gateway/v1/messages', message('gpt-5.4', true))]);
-    expect(a.status).toBe(200);
-    expect(b.status).toBe(200);
-    expect((await a.text()).endsWith('event: message_stop\ndata: {"type":"message_stop"}\n\n')).toBe(true);
-    await b.text();
-    expect(tokenIssuer.seen.length - before).toBe(1);
-  });
-
-  test('two ChatGPT connections never share a refreshed token: each refreshes with its own', async () => {
-    use(cfg, 'codex');
-    const stale = new Date(Date.now() - 5_000).toISOString();
-    conn(cfg, 'codex').codex = { ...tokens(), accessToken: 'expired', savedAt: stale };
-    expect((await post('/gateway/v1/messages', message('gpt-5.4', true))).status).toBe(200);
-    const second = makeConnection('codex', { id: 'cn-codex-two', model: 'gpt-5.4', codex: { ...tokens(), clientId: 'oaiapp_2', accessToken: 'expired', refreshToken: 'rt-second', savedAt: stale } });
-    cfg.connections.push(second);
-    cfg.route = second.id;
-    const before = tokenIssuer.seen.length;
-    try {
-      const res = await post('/gateway/v1/messages', message('gpt-5.4', true));
-      expect(res.status).toBe(200);
-      await res.text();
-      expect(tokenIssuer.seen.length - before).toBe(1);
-      expect(Object.fromEntries(new URLSearchParams(tokenIssuer.seen.at(-1)?.body ?? ''))).toMatchObject({ client_id: 'oaiapp_2', refresh_token: 'rt-second' });
-    } finally {
-      cfg.connections = cfg.connections.filter((c) => c.id !== second.id);
-    }
-  });
-
   test('a provider that goes silent is cut off with an error frame instead of hanging behind the pings', async () => {
     const answer = openrouter.answer;
     openrouter.answer = (_req, res) => {
@@ -885,13 +744,5 @@ describe('MCP tool search', () => {
     const sent = JSON.parse(codexBackend.seen[0]?.body ?? '{}') as { tools: { name: string }[]; input: Record<string, unknown>[] };
     expect(names(sent.tools)).toEqual(['ToolSearch', 'mcp__probe__pinned', 'mcp__probe__secret_word']);
     expect(sent.input.find((item) => item.type === 'function_call_output')).toEqual({ type: 'function_call_output', call_id: 'toolu_search1', output: `<functions>\n${secretFunction}\n</functions>` });
-  });
-
-  test('Gemini gets the found tool as a function declaration and the search result as the <functions> block', async () => {
-    use(cfg, 'gemini');
-    await post('/gateway/v1/messages', { ...afterSearch('claude-sonnet-5'), stream: true }, { 'anthropic-beta': TOOL_SEARCH_BETAS });
-    const sent = JSON.parse(geminiBackend.seen[0]?.body ?? '{}') as { request: { tools: { functionDeclarations: { name: string }[] }[]; contents: unknown } };
-    expect(names(sent.request.tools[0]?.functionDeclarations ?? [])).toEqual(['ToolSearch', 'mcp__probe__pinned', 'mcp__probe__secret_word']);
-    expect(JSON.stringify(sent.request.contents)).toContain(JSON.stringify({ functionResponse: { id: 'toolu_search1', name: 'ToolSearch', response: { result: `<functions>\n${secretFunction}\n</functions>` } } }));
   });
 });
