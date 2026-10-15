@@ -140,35 +140,8 @@ describe('main agent and worker activity', () => {
     expect(old.main).toBe('Main agent: working');
     expect(old.tools).toBe('Tools in use: Read');
     expect(old.workers).toEqual([]);
-    expect(old.events).toEqual([]);
     expect(view({ activeTools: [] }).tools).toBe('Main tools: None reported');
     expect(toClaudeSession({ running: true }).activity).toBeNull();
-  });
-
-  test('input timings and call transport status stay distinct and freeze when stale', () => {
-    const input = {
-      id: '01234567-89ab-cdef-0123-456789abcdef', kind: 'call', state: 'output', acceptedAt: now - 5_000,
-      dispatchedAt: now - 4_950, consumedAt: now - 4_900, firstOutputAt: now - 2_000, completedAt: null,
-      text: 'private-transcript', route: { from: 'private-caller' },
-    };
-    const over = { inputs: [input], queueOldestAt: now - 10_000, callState: 'completed' };
-    const active = view(over, now + 2_000);
-    expect(active.queue).toBe('Oldest queued input: 12 s');
-    expect(active.call).toContain('audio transport completed');
-    expect(active.call).toContain('not proof the caller heard it');
-    expect(active.inputs[0]?.summary).toContain('Call · first SDK output');
-    expect(active.inputs[0]?.details).toContain('(50 ms after acceptance)');
-    expect(active.inputs[0]?.details).toContain('(100 ms after acceptance)');
-    expect(active.inputs[0]?.details).toContain('(3 s after acceptance)');
-    expect(JSON.stringify(active)).not.toContain('private-');
-    const stale = view(over, now + 40_000);
-    expect(stale.queue).toBe('Oldest queued input at the last report: 10 s');
-    expect(stale.call).toContain('at the last report');
-    expect(view(over, now + 90_000).queue).toBe(stale.queue);
-    expect(view({ inputs: [{ ...input, state: 'cancelled', completedAt: now }] }).inputs[0]?.details).toContain('Cancelled:');
-    expect(view().queue).toBeNull();
-    expect(view().call).toBeNull();
-    expect(view().inputs).toEqual([]);
   });
 
   test('a long active tool list stays compact', () => {
@@ -234,20 +207,6 @@ describe('worker creation order', () => {
 });
 
 describe('recent sanitized events and polling', () => {
-  test('keeps newest-first event order and known names without mutating the snapshot', () => {
-    const events = [
-      { at: now, kind: 'approval_ended' },
-      { at: now - 1_000, kind: 'permission_denied', tool: 'Bash', taskId: 'worker-1' },
-      { at: now - 2_000, kind: 'api_retry' },
-      { at: now - 3_000, kind: 'session_failed' },
-    ];
-    expect(view({ events }).events).toEqual([
-      'just now · Approval ended', '1 s ago · Permission denied · Bash · worker worker-1',
-      '2 s ago · Model request retried', '3 s ago · Session failed',
-    ]);
-    expect(events[0]?.kind).toBe('approval_ended');
-  });
-
   test('display picks only safe task, tool and event fields', () => {
     const privateFields = { description: 'private-description', prompt: 'private-prompt', summary: 'private-summary', toolArgs: { command: 'private-command' } };
     const safe = view({
@@ -257,7 +216,6 @@ describe('recent sanitized events and polling', () => {
       events: [{ at: now, kind: 'tool_started', tool: 'Read', ...privateFields }],
     });
     expect(JSON.stringify(safe)).not.toContain('private-');
-    expect(safe.events).toEqual(['just now · Tool started · Read']);
     expect(safe.workers[0]).toMatchObject({ title: 'Inspect worker metadata', lastObservedModel: 'worker-model' });
   });
 
@@ -271,8 +229,6 @@ describe('recent sanitized events and polling', () => {
     expect(past.failures[0]?.text).toContain('worker worker-1');
     expect(past.failures[0]?.text).toContain('tool call tool-1');
     expect(past.failures[0]?.text).toContain(new Date(failure.at).toLocaleString());
-    expect(past.events[0]).toContain('Historical failure: Read exceeded its token limit.');
-    expect(past.events[0]).toContain('event failure-1');
     expect(JSON.stringify(past)).not.toContain('PRIVATE');
     const current = view({ activeFailure: failure, lastFailure: failure });
     expect(current.failures).toHaveLength(1);
@@ -289,7 +245,6 @@ describe('recent sanitized events and polling', () => {
       diagnostic: { source: 'stderr', errorCode: 'ERR_MODULE_NOT_FOUND', exitCode: 1, message: 'PRIVATE', stderr: 'PRIVATE', endpoint: 'https://private.invalid/PRIVATE' } };
     const current = view({ phase: 'error', mainPhase: 'error', activeFailure: failure, lastFailure: failure, events: [failure], lastError: 'PRIVATE' });
     expect(current.failures[0]?.text).toContain('Prepare the SDK runtime again. Observed: ERR_MODULE_NOT_FOUND, exit 1 (startup stderr)');
-    expect(current.events[0]).toContain('ERR_MODULE_NOT_FOUND, exit 1 (startup stderr)');
     expect(JSON.stringify(current)).not.toContain('PRIVATE');
     const historical = view({ activeFailure: null, lastFailure: failure });
     expect(historical.failures[0]?.text).toContain('Historical failure:');

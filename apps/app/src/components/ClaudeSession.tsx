@@ -7,7 +7,6 @@ import { SettingsSection } from './SettingsSection.js';
 import { TextLink } from './TextLink.js';
 import { controlClaudeSession, type ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { sessionNote } from '@metro-labs/client/api/runner';
-import { RunnerActivity } from './RunnerActivity.js';
 import { queryError, refresh, useClaudeSessionQuery } from '../lib/queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
@@ -36,7 +35,7 @@ function useSend(): { send: Send; busy: boolean; error: string | null } {
   return { send, busy, error };
 }
 
-function Rows({ status, project, live }: { status: ClaudeSessionStatus; project: string; live: boolean }): ReactNode {
+function Rows({ status, project }: { status: ClaudeSessionStatus; project: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { send, busy, error } = useSend();
   const [now, setNow] = useState(Date.now);
@@ -57,7 +56,9 @@ function Rows({ status, project, live }: { status: ClaudeSessionStatus; project:
         )}
         {error === null ? null : <Text size="md" role="danger">{error}</Text>}
       </SettingsSection>
-      <RunnerActivity status={status} now={now} live={live} />
+      <SettingsSection title="Activity" note="What the agent and its workers are doing now.">
+        <TextLink to={routeHash({ kind: 'run', project })}>Open Run</TextLink>
+      </SettingsSection>
       <SettingsSection title="Start by itself" note={AUTOSTART}>
         <Choice
           label="Start by itself"
@@ -90,5 +91,5 @@ export function ClaudeSession({ project, live = false }: { project: string; live
       </SettingsSection>
     );
   if (session.data === undefined) return null;
-  return <Rows status={session.data} project={project} live={live} />;
+  return <Rows status={session.data} project={project} />;
 }
