@@ -13,7 +13,7 @@ export function makeConnection(provider: Provider, fields: Partial<Connection> =
     zdr: false,
     revision: 1,
     codex: null,
-    claude: null,
+    claudeToken: '',
     account: { email: null, plan: null, method: null },
     signedOut: false,
     ...fields,

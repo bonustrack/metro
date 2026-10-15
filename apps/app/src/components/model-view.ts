@@ -1,4 +1,4 @@
-import { localConnections, type ConnectionRow, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
+import type { ConnectionRow, ModelSettings, Provider } from '@metro-labs/client/api/model';
 import { routeSteps, type ModelRoute } from '@metro-labs/client/api/model-route';
 import type { OrgModelConnection, OrgModelPatch, OrgModels } from '@metro-labs/client/api/org-models';
 import { connectionDetail, providerLabel } from '@metro-labs/client/api/providers';
@@ -11,7 +11,7 @@ export interface KeyDraft {
 
 const OWN = 'This agent uses its own model order.';
 const ORGANIZATION = 'This agent uses the organization’s default model order.';
-const NONE = 'No model order is set yet, so this agent uses the Claude Code login of its server.';
+const NONE = 'No model order is set yet, so this agent has no model.';
 const EDIT_NOTE = 'Changing the list gives this agent its own model order.';
 
 export function routesUsing(list: OrgModels, id: string): number {
@@ -31,8 +31,6 @@ export function sourceLine(source: ModelSettings['source'], route: ModelRoute | 
 }
 
 export const editNote = (own: boolean, route: ModelRoute | null): string => (own ? OWN : `${route === null ? NONE : ORGANIZATION} ${EDIT_NOTE}`);
-
-export const agentChoices = (list: OrgModels, settings: ModelSettings): ConnectionRow[] => [...list.connections, ...localConnections(settings.claude)];
 
 export function withRoute(settings: ModelSettings, route: ModelRoute | null, choices: ConnectionRow[]): ModelSettings {
   const known = new Set(settings.connections.map((c) => c.id));

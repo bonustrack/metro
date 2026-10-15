@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import { toSettingsFile } from '../src/api/claude.js';
+import { answerClaudeLogin, cancelClaudeLogin, claudeAvailable, pollClaudeLogin, startClaudeLogin, toSettingsFile } from '../src/api/claude.js';
 import { controlClaudeSession, toClaudeSession } from '../src/api/claude-box.js';
 import { clearAccount } from '../src/auth/account.js';
 import { installTestAccount } from './account-fixture.js';
@@ -36,6 +36,28 @@ test('Start and Stop explicitly set autostart even for an older daemon', async (
       '{"action":"stop","autostart":false}', '{"action":"start","autostart":true}', '{"autostart":false}',
     ]);
     expect(fetch.mock.calls.map((call) => call[1]?.method)).toEqual(['POST', 'POST', 'POST']);
+  } finally {
+    fetch.mockRestore();
+    clearAccount();
+  }
+});
+
+test('the Claude token sign-in starts with a plain POST on the box it names, and the token comes back on the answer that carries it', async () => {
+  installTestAccount();
+  const token = `sk-ant-oat01-${'k'.repeat(80)}`;
+  const box = 'https://metro-abc123.example.ts.net';
+  const answers = [{ id: 'run1', state: 'pending', url: 'https://claude.ai/oauth/authorize?x=1', output: '' }, { id: 'run1', state: 'pending', url: null, output: '' }, { id: 'run1', state: 'done', url: null, output: '[token]', error: null, token }, { available: true }, { ended: true }];
+  const fetch = spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(Response.json(answers.shift())));
+  try {
+    expect(await startClaudeLogin(box)).toMatchObject({ id: 'run1', state: 'pending', url: 'https://claude.ai/oauth/authorize?x=1', token: null });
+    expect(await answerClaudeLogin('run1', 'the-code', box)).toMatchObject({ state: 'pending', token: null });
+    expect(await pollClaudeLogin('run1', box)).toMatchObject({ state: 'done', token });
+    expect(await claudeAvailable(box)).toBe(true);
+    await cancelClaudeLogin('run1', box);
+    expect(fetch.mock.calls.map((call) => [String(call[0]), call[1]?.method])).toEqual([
+      [`${box}/api/claude/login`, 'POST'], [`${box}/api/claude/login/run1`, 'POST'], [`${box}/api/claude/login/run1`, 'GET'], [`${box}/api/claude/login`, 'GET'], [`${box}/api/claude/login/run1`, 'DELETE'],
+    ]);
+    expect(fetch.mock.calls[1]?.[1]?.body).toBe('{"text":"the-code"}');
   } finally {
     fetch.mockRestore();
     clearAccount();

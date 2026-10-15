@@ -11,6 +11,7 @@ import type { ListedModel } from './list-cache.js';
 
 const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
+const OAUTH_BETA = 'oauth-2025-04-20';
 const OPENROUTER_API = 'https://openrouter.ai/api/v1';
 const CODEX_BACKEND = 'https://chatgpt.com/backend-api/codex';
 const LIST_MAX = 1000;
@@ -57,11 +58,16 @@ function claudeEntry(entry: unknown): Dated[] {
   return [{ id, name: stringOf(entry.display_name) || id, created: stringOf(entry.created_at) }];
 }
 
-export async function anthropicModels(apiKey: string, fetchImpl: FetchLike): Promise<ListedModel[]> {
-  const body = await getJson(fetchImpl, `${ANTHROPIC_API}/v1/models?limit=${String(LIST_MAX)}`, { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION }, 'Anthropic');
+async function listAnthropic(auth: Record<string, string>, fetchImpl: FetchLike): Promise<ListedModel[]> {
+  const body = await getJson(fetchImpl, `${ANTHROPIC_API}/v1/models?limit=${String(LIST_MAX)}`, { ...auth, 'anthropic-version': ANTHROPIC_VERSION }, 'Anthropic');
   if (!Array.isArray(body.data)) throw new ApiError('Anthropic answered with no model list', 503);
   return newestFirst(body.data.flatMap(claudeEntry));
 }
+
+export const anthropicModels = (apiKey: string, fetchImpl: FetchLike): Promise<ListedModel[]> => listAnthropic({ 'x-api-key': apiKey }, fetchImpl);
+
+export const subscriptionModels = (token: string, fetchImpl: FetchLike): Promise<ListedModel[]> =>
+  listAnthropic({ authorization: `Bearer ${token}`, 'anthropic-beta': OAUTH_BETA }, fetchImpl);
 
 function bedrockEntry(entry: unknown): Dated[] {
   if (!isRecord(entry)) return [];

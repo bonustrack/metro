@@ -90,7 +90,7 @@ export const modelChanges = {
     };
   },
 };
-export const deliveredSetup = (): ReturnType<typeof setupOf> => setupOf(delivered, []);
+export const deliveredSetup = (): ReturnType<typeof setupOf> => setupOf(delivered);
 export function deliver(raw: Record<string, unknown>): void {
   delivered = deliveredOf(raw);
   for (const listener of modelListeners) listener();

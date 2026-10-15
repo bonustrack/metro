@@ -14,7 +14,7 @@ const settings = () => toModelSettings({
   route: 'a', model: 'gpt-test', fallbacks: [{ connection: 'b', model: 'gpt-test' }],
   source: 'organization', connections: [connection('a'), connection('b')],
   chain: [{ connection: 'a', model: 'gpt-test', active: true }, { connection: 'b', model: 'gpt-test', active: false }],
-  usage: { a: report(0.47), b: report(0), 'local:session': report(1) },
+  usage: { a: report(0.47), b: report(0) },
 });
 const runtime = (runner: string | null = 'sdk', running = true, phase = 'working', updatedAt = NOW): RuntimeSnapshot => toRuntimeSnapshot({
   runner, running, activity: { runner: 'sdk', pid: 42, phase, updatedAt },
@@ -85,13 +85,11 @@ describe('dashboard identity and model selection', () => {
     expect(JSON.stringify(card)).not.toContain('100%');
   });
 
-  test('only the session login route uses the session login reading and served model', () => {
+  test('no route shows the model as unavailable, never a login of the server', () => {
     const value = toModelSettings({ route: '', connections: [], usage: { 'local:session': report(0.2) },
       lastServed: { connection: 'local:session', provider: 'anthropic', model: 'claude-sonnet-test', at: new Date(NOW).toISOString() },
     });
-    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'claude-sonnet-test', connection: 'Claude Code login of the server', usage: 'Weekly, all models · 20% used' });
-    if (value.lastServed !== null) value.lastServed.connection = 'other-account';
-    expect(dashboardModel(value, NOW).model).toBe('Model not reported');
+    expect(dashboardModel(value, NOW)).toMatchObject({ model: 'Model unavailable', connection: 'Connection unavailable', usage: 'Usage unavailable' });
   });
 
   test('model-scoped, expired and per-minute windows cannot inflate the selected model', () => {

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   anthropicUsage,
-  claudeLoginUsage,
   codexUsage,
   forgetUsage,
   mayProbe,
@@ -12,8 +11,6 @@ import {
   UsageScanner,
   windowLabel,
 } from '../src/gateway/usage.ts';
-import { usageIn } from '../src/claude/usage-probe.ts';
-import { recordedClaudeUsageAnswer } from './usage-fixtures.ts';
 
 const NOW = new Date('2026-09-17T10:00:00.000Z');
 const RESET = Math.floor(new Date('2026-09-17T12:30:00.000Z').getTime() / 1000);
@@ -180,38 +177,6 @@ describe('what the page is handed', () => {
     expect(mayProbe('cn-1', 1000, 1000)).toBe(true);
     forgetUsage();
     expect(mayProbe('cn-1', 1001, 1000)).toBe(true);
-  });
-});
-
-describe('usage asked for before any request', () => {
-  test('the Claude Code login usage, as Claude Code answered it on this box, becomes the same windows as its headers', () => {
-    const usage = claudeLoginUsage(usageIn(recordedClaudeUsageAnswer), NOW);
-    expect(usage).toEqual({
-      windows: [
-        { label: '5-hour window', used: 0.11, resetAt: '2026-09-29T13:49:59.999Z', detail: null },
-        { label: 'Weekly, all models', used: 0.7, resetAt: '2026-09-30T23:59:59.999Z', detail: null },
-        { label: 'Weekly, Fable', used: 0, resetAt: '2026-10-01T00:00:00.000Z', detail: null },
-      ],
-      note: null,
-      at: NOW.toISOString(),
-    });
-  });
-
-  test('the SDK model rows and the Sonnet window are read, a duplicate label is kept once, and no limits mean nothing', () => {
-    const usage = claudeLoginUsage(
-      {
-        seven_day_sonnet: { utilization: 40, resets_at: '2026-09-20T00:00:00Z' },
-        model_scoped: [{ display_name: 'Fable', utilization: 12.5, resets_at: null }],
-        limits: [{ kind: 'weekly_scoped', percent: 12, scope: { model: { display_name: 'Fable' } } }, { kind: 'session', percent: 5 }],
-      },
-      NOW,
-    );
-    expect(usage?.windows).toEqual([
-      { label: 'Weekly, Sonnet', used: 0.4, resetAt: '2026-09-20T00:00:00.000Z', detail: null },
-      { label: 'Weekly, Fable', used: 0.125, resetAt: null, detail: null },
-    ]);
-    expect(claudeLoginUsage(null, NOW)).toBeNull();
-    expect(claudeLoginUsage({ five_hour: null, seven_day: null }, NOW)).toBeNull();
   });
 });
 

@@ -12,12 +12,7 @@ export interface ModelRoute {
 
 export type RouteSource = 'agent' | 'organization' | null;
 
-export const LOCAL_SESSION = 'local:session';
 export const FALLBACKS_MAX = 8;
-const LOCAL_PREFIX = 'local:';
-
-export const isLocal = (connection: string): boolean => connection.startsWith(LOCAL_PREFIX);
-export const localLogin = (id: string): string => `${LOCAL_PREFIX}${id}`;
 
 export const sameStep = (a: RouteStep, b: RouteStep): boolean => a.connection === b.connection && a.model === b.model;
 
@@ -33,7 +28,7 @@ export function toFallbacks(raw: unknown): RouteStep[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((item: unknown) => {
     const step = toStep(item);
-    return step === null || (step.model === '' && !isLocal(step.connection)) ? [] : [step];
+    return step === null || step.model === '' ? [] : [step];
   });
 }
 

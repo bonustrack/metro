@@ -12,10 +12,10 @@ import { afterModelChange } from '../lib/model-queries.js';
 import { orgConnectionDetail } from './model-view.js';
 
 const NOTE = 'The keys and accounts your agents use. Requests go from each agent straight to the provider.';
-const EMPTY = 'No connection yet. Add OpenRouter, Codex, an Anthropic key or Amazon Bedrock.';
+const EMPTY = 'No connection yet. Add a Claude subscription, an Anthropic key, OpenRouter, Codex or Amazon Bedrock.';
 
 function menuLabel(connection: OrgModelConnection): string {
-  if (connection.provider === 'codex') return 'Sign in again';
+  if (connection.provider === 'codex' || connection.subscription) return 'Sign in again';
   return connection.signedOut ? 'Add a key' : 'Settings and key';
 }
 

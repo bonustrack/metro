@@ -1,11 +1,12 @@
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelConnectionRow } from '@metro-labs/connectors/db/models';
 import { codexStale, refreshModelConnection } from '@metro-labs/connectors/model-refresh';
-import { modelDetailOf, openModelSecret, type CodexSecret } from '@metro-labs/connectors/model-secret';
+import { modelDetailOf, openModelSecret, type CodexSecret, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { modelKey, refreshDeps, type Caller, type ModelsDeps } from './deps.js';
 import { learnCodexVersion } from './codex-version.js';
 import { fingerprint, type ListedModel } from './list-cache.js';
-import { anthropicModels, bedrockModels, codexModels, KNOWN_CLAUDE, openrouterModels } from './provider-lists.js';
+import { anthropicModels, bedrockModels, codexModels, KNOWN_CLAUDE, openrouterModels, subscriptionModels } from './provider-lists.js';
 
 const SIGNED_OUT = 'This Codex connection is signed out. Sign in again on the Models page.';
 
@@ -23,15 +24,27 @@ async function codexList(deps: ModelsDeps, key: Buffer, row: ModelConnectionRow)
   return deps.lists.get(`codex:${row.id}:${secret.method}:${fingerprint(who)}:${version}`, () => codexModels(secret, version, deps.fetch));
 }
 
-function keyOf(key: Buffer, row: ModelConnectionRow): string | null {
-  const secret = openModelSecret(key, row);
-  return secret?.kind === 'key' ? secret.apiKey : null;
+async function subscriptionList(deps: ModelsDeps, row: ModelConnectionRow, token: string): Promise<ListedModel[]> {
+  try {
+    return await deps.lists.get(`claude:${row.id}:${fingerprint(token)}`, () => subscriptionModels(token, deps.fetch));
+  } catch (err) {
+    log.warn({ owner: row.owner, connection: row.id, err: errMsg(err) }, 'models: Anthropic would not list the models of a Claude subscription, so the known Claude models are offered');
+    return KNOWN_CLAUDE;
+  }
+}
+
+async function anthropicList(deps: ModelsDeps, row: ModelConnectionRow, secret: ModelSecret | null): Promise<ListedModel[]> {
+  if (secret?.kind === 'claude') return subscriptionList(deps, row, secret.token);
+  if (secret?.kind !== 'key') return KNOWN_CLAUDE;
+  const apiKey = secret.apiKey;
+  return deps.lists.get(`anthropic:${row.id}:${fingerprint(apiKey)}`, () => anthropicModels(apiKey, deps.fetch));
 }
 
 async function keyedList(deps: ModelsDeps, key: Buffer, row: ModelConnectionRow): Promise<ListedModel[]> {
-  const apiKey = keyOf(key, row);
-  if (row.provider === 'anthropic') return apiKey === null ? KNOWN_CLAUDE : deps.lists.get(`anthropic:${row.id}:${fingerprint(apiKey)}`, () => anthropicModels(apiKey, deps.fetch));
-  if (apiKey === null || row.region === '') throw new ApiError('Bedrock needs an API key and a region before its models can be listed.', 400);
+  const secret = openModelSecret(key, row);
+  if (row.provider === 'anthropic') return anthropicList(deps, row, secret);
+  if (secret?.kind !== 'key' || row.region === '') throw new ApiError('Bedrock needs an API key and a region before its models can be listed.', 400);
+  const apiKey = secret.apiKey;
   return deps.lists.get(`bedrock:${row.id}:${fingerprint(apiKey, row.region)}`, () => bedrockModels(apiKey, row.region, deps.fetch));
 }
 

@@ -9,7 +9,6 @@ import { connectionNote } from './ProviderCard.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
 import type { RouteStep } from '@metro-labs/client/api/model-route';
 import { providerInfo } from '@metro-labs/client/api/providers';
-import { useAccountOf } from '../lib/model-queries.js';
 import { useHover } from './ui/hover.js';
 
 const MARK = 24;
@@ -73,7 +72,7 @@ function Radio({ on }: { on: boolean }): ReactNode {
 function ConnectionOption({ conn, on, onPick }: { conn: ConnectionRow; on: boolean; onPick: (id: string) => void }): ReactNode {
   const palette = useKitPalette();
   const [hovered, hover] = useHover();
-  const note = connectionNote(conn, useAccountOf(conn));
+  const note = connectionNote(conn);
   const border = { borderColor: on ? palette.text : hovered ? palette.sub : palette.border };
   return (
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: on }} {...hover} style={[OPTION, border]} onPress={() => { onPick(conn.id); }}>

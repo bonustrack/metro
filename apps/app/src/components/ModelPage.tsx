@@ -16,25 +16,24 @@ import { Loading } from './Loading.js';
 import { ModelReadError } from './ModelUsage.js';
 import { ModelRouting } from './ModelRouting.js';
 import { RouteEditor, type RouteScope } from './RouteEditor.js';
-import { ClaudeLogins } from './ClaudeLogins.js';
 import { TextLink } from './TextLink.js';
 import { useRouteControl } from './route-actions.js';
-import { agentChoices, editNote, sourceLine, withRoute } from './model-view.js';
+import { editNote, sourceLine, withRoute } from './model-view.js';
 import { queryError } from '../lib/queries.js';
 import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
 const MODEL_NOTE = 'The models your agent uses, in order. It uses the first one under 95% usage, and goes back when limits reset.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the model order.';
-const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it uses the Claude Code login of its server.';
+const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it has no model.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
-const NO_CONNECTION = 'No connection yet. Add one on the organization’s Models page, or sign in with Claude below.';
+const NO_CONNECTION = 'No connection yet. Add one on the organization’s Models page, a Claude subscription included.';
 
-function useAgentScope(settings: ModelSettings, org: OrgModels, agent: string): RouteScope {
+function useAgentScope(org: OrgModels, agent: string): RouteScope {
   const client = useQueryClient();
   return {
     route: org.agents[agent] ?? org.default,
-    connections: agentChoices(org, settings),
+    connections: org.connections,
     empty: <Text size="md" role="secondary">{NO_CONNECTION}</Text>,
     save: async (route: ModelRoute) => {
       await setModelRoute(agent, route);
@@ -46,7 +45,7 @@ function useAgentScope(settings: ModelSettings, org: OrgModels, agent: string): 
 function OrderEditor({ settings, org, agent }: { settings: ModelSettings; org: OrgModels; agent: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
-  const scope = useAgentScope(settings, org, agent);
+  const scope = useAgentScope(org, agent);
   const control = useRouteControl(scope.route, scope.save);
   const own = org.agents[agent] !== undefined;
   const shown = withRoute(settings, scope.route, scope.connections);
@@ -104,7 +103,6 @@ function Live({ project }: { project: string }): ReactNode {
       {model.data.reason === null ? null : <Text size="md" role="danger">{model.data.reason}</Text>}
       <Order settings={model.data} org={org.data} orgError={org.error} />
       <TextLink size="md" to={routeHash({ kind: 'org-models' })}>Connections and the default order are on the organization’s Models page</TextLink>
-      <ClaudeLogins settings={model.data} />
     </Col>
   );
 }

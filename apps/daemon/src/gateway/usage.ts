@@ -1,6 +1,3 @@
-import { isRecord } from '@metro-labs/core/is-record';
-import { stringOf } from '@metro-labs/http/api-http';
-
 type Key = string;
 
 export interface UsageWindow {
@@ -31,14 +28,13 @@ const latest = new Map<Key, Reported>();
 const stamps = new Map<Key, Map<string, number>>();
 const tallies = new Map<Key, Tally>();
 const probed = new Map<Key, number>();
-const answers = new Map<Key, Reported>();
 
 export const noteUsage = (key: Key, usage: Reported): void => {
   latest.set(key, usage);
   stamps.set(key, new Map(usage.windows.map((w) => [w.label, Date.parse(usage.at)])));
 };
 
-export function mergeUsage(key: Key, usage: Reported): void {
+function mergeUsage(key: Key, usage: Reported): void {
   const seen = latest.get(key);
   const marks = stamps.get(key);
   if (seen === undefined || marks === undefined) {
@@ -66,25 +62,11 @@ export function usageSeen(): Record<Key, ProviderUsage> {
 
 export const usageOf = (key: Key): Reported | undefined => latest.get(key);
 
-export const forgetOne = (key: Key): void => {
-  latest.delete(key);
-  stamps.delete(key);
-  tallies.delete(key);
-  probed.delete(key);
-};
-
-export const forgetReported = (key: Key): void => {
-  latest.delete(key);
-  stamps.delete(key);
-  probed.delete(key);
-};
-
 export const forgetUsage = (): void => {
   latest.clear();
   stamps.clear();
   tallies.clear();
   probed.clear();
-  answers.clear();
 };
 
 export function mayProbe(key: Key, now: number, every: number): boolean {
@@ -92,12 +74,6 @@ export function mayProbe(key: Key, now: number, every: number): boolean {
   probed.set(key, now);
   return true;
 }
-
-export const probeAnswer = (key: Key): Reported | undefined => answers.get(key);
-
-export const keepProbeAnswer = (key: Key, usage: Reported): void => {
-  answers.set(key, usage);
-};
 
 export interface Counted {
   input: number;
@@ -263,47 +239,6 @@ export function codexUsage(headers: Headers, now = new Date()): Reported | null 
   if (windows.length === 0) return null;
   const reached = headers.get('x-codex-rate-limit-reached-type');
   return { windows, note: reached === null || reached === '' ? null : reached.replaceAll('_', ' '), at: now.toISOString() };
-}
-
-const present = (w: UsageWindow | null): w is UsageWindow => w !== null;
-
-const textOf = (raw: unknown): string | null => (typeof raw === 'number' || typeof raw === 'string' ? String(raw) : null);
-
-const numberOf = (raw: unknown): number | null => (typeof raw === 'number' && Number.isFinite(raw) ? raw : null);
-
-const CLAUDE_WINDOWS: [string, string][] = [
-  ['five_hour', '5-hour window'],
-  ['seven_day', 'Weekly, all models'],
-  ['seven_day_sonnet', 'Weekly, Sonnet'],
-  ['seven_day_opus', 'Weekly, Opus'],
-];
-
-function percentWindow(label: string, raw: unknown, now: Date): UsageWindow | null {
-  if (!isRecord(raw)) return null;
-  const percent = numberOf(raw.utilization) ?? numberOf(raw.percent);
-  if (percent === null) return null;
-  return { label, used: clamp(percent / 100), resetAt: whenFrom(textOf(raw.resets_at), now), detail: null };
-}
-
-function scopedName(entry: Record<string, unknown>): string {
-  if (stringOf(entry.display_name) !== '') return stringOf(entry.display_name);
-  if (entry.kind !== 'weekly_scoped' || !isRecord(entry.scope) || !isRecord(entry.scope.model)) return '';
-  return stringOf(entry.scope.model.display_name);
-}
-
-function scopedWindows(limits: Record<string, unknown>, now: Date): (UsageWindow | null)[] {
-  const listed = [limits.model_scoped, limits.limits].flatMap((list): unknown[] => (Array.isArray(list) ? (list as unknown[]) : []));
-  return listed.map((entry) => {
-    const name = isRecord(entry) ? scopedName(entry) : '';
-    return name === '' ? null : percentWindow(`Weekly, ${name}`, entry, now);
-  });
-}
-
-export function claudeLoginUsage(limits: unknown, now = new Date()): Reported | null {
-  if (!isRecord(limits)) return null;
-  const all = [...CLAUDE_WINDOWS.map(([key, label]) => percentWindow(label, limits[key], now)), ...scopedWindows(limits, now)].filter(present);
-  const windows = all.filter((w, index) => all.findIndex((other) => other.label === w.label) === index);
-  return windows.length === 0 ? null : { windows, note: null, at: now.toISOString() };
 }
 
 export function noteUsageHeaders(kind: 'anthropic' | 'codex', key: Key, headers: Headers, now = new Date()): void {

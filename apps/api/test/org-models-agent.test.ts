@@ -90,11 +90,19 @@ describe('the delivered setup', () => {
     const org = await delivered();
     expect(org.source).toBe('organization');
     expect(org.connections).toEqual([expect.objectContaining({ id: 'conn0000001', provider: 'openrouter', zdr: true, revision: 1, credential: { apiKey: 'sk-or-secret' } }) as unknown as Delivered['connections'][number]]);
-    await route('agent000001', { primary: { connection: 'conn0000002', model: 'claude-sonnet-5-5' }, fallbacks: [{ connection: 'local:Xyz12345678', model: 'claude-haiku-4-5' }, { connection: 'local:session', model: '' }] });
+    await route('agent000001', { primary: { connection: 'conn0000002', model: 'claude-sonnet-5-5' }, fallbacks: [] });
     const own = await delivered();
     expect(own.source).toBe('agent');
-    expect(own.route?.fallbacks.map((f) => f.connection)).toEqual(['local:Xyz12345678', 'local:session']);
     expect(own.connections.map((c) => c.id)).toEqual(['conn0000002']);
+  });
+
+  test('a Claude subscription is delivered as its token, and a stored route naming a box login drops that step', async () => {
+    const token = `sk-ant-oat01-${'t'.repeat(90)}`;
+    await seed('conn0000010', 'anthropic', { kind: 'claude', token }, { detail: modelDetailText({ subscription: true, signedInAt: new Date(now).toISOString() }) });
+    await held.db.insert(modelRoutes).values({ id: 'routeLocal1', owner: TEST_OWNER, agent: null, updatedBy: 'user:test', updatedAt: new Date(now).toISOString(), route: JSON.stringify({ primary: { connection: 'local:session', model: '' }, fallbacks: [{ connection: 'conn0000010', model: 'claude-opus-5-5' }, { connection: 'local:Xyz12345678', model: 'm' }] }) });
+    const answer = await delivered();
+    expect(answer.route).toEqual({ primary: { connection: 'conn0000010', model: 'claude-opus-5-5' }, fallbacks: [] });
+    expect(answer.connections).toEqual([expect.objectContaining({ id: 'conn0000010', provider: 'anthropic', revision: 1, credential: { claudeToken: token } }) as unknown as Delivered['connections'][number]]);
   });
 
   test('a signed-out connection carries no credential and no refresh token ever leaves', async () => {

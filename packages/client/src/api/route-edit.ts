@@ -1,6 +1,6 @@
 import type { ConnectionRow } from './model.js';
 import type { ModelOption } from './model-options.js';
-import { FALLBACKS_MAX, isLocal, sameStep, type ModelRoute, type RouteStep } from './model-route.js';
+import { FALLBACKS_MAX, sameStep, type ModelRoute, type RouteStep } from './model-route.js';
 
 export type Slot = { kind: 'primary' } | { kind: 'fallback'; at: number } | { kind: 'new' };
 
@@ -47,10 +47,9 @@ function others(route: ModelRoute | null, slot: Slot): RouteStep[] {
   return slot.kind === 'primary' ? list : [route.primary, ...list];
 }
 
-function modelProblem(conn: ConnectionRow, slot: Slot, model: string): string | null {
+function modelProblem(slot: Slot, model: string): string | null {
   if (model !== '') return null;
-  if (slot.kind !== 'primary') return 'Choose a named model for a fallback.';
-  return isLocal(conn.id) ? null : 'Choose a model.';
+  return slot.kind === 'primary' ? 'Choose a model.' : 'Choose a named model for a fallback.';
 }
 
 function zdrProblem(conn: ConnectionRow, model: string, models: ModelOption[]): string | null {
@@ -62,7 +61,7 @@ export function problemOf(route: ModelRoute | null, connections: ConnectionRow[]
   const conn = connectionOf(connections, draft.connection);
   if (conn === undefined) return 'Choose a connection.';
   const duplicate = slot.kind !== 'primary' && others(route, slot).some((step) => sameStep(step, draft));
-  return modelProblem(conn, slot, draft.model) ?? (duplicate ? 'This model is already in the list.' : zdrProblem(conn, draft.model, models));
+  return modelProblem(slot, draft.model) ?? (duplicate ? 'This model is already in the list.' : zdrProblem(conn, draft.model, models));
 }
 
 export function routeAfter(route: ModelRoute | null, slot: Slot, draft: RouteStep): ModelRoute {

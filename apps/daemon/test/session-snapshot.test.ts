@@ -20,7 +20,7 @@ let calls = '';
 let running = '';
 let deps: SessionDeps;
 const unexpected = (): never => { throw new Error('snapshot must only observe session state'); };
-const signedIn = mock(unexpected);
+const model = mock(unexpected);
 const kill = process.kill.bind(process);
 
 beforeEach(() => {
@@ -33,10 +33,9 @@ beforeEach(() => {
   mkdirSync(agents);
   const tmux = join(dir, 'tmux');
   writeFileSync(tmux, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${calls}'\n[ "$*" = 'has-session -t metro' ] && [ -f '${running}' ]\n`, { mode: 0o700 });
-  deps = { tmux, home, agents, signedIn };
-  signedIn.mockClear();
+  deps = { tmux, home, agents, model };
+  model.mockClear();
   setBearerSessions((req) => Promise.resolve(req.headers.authorization === AUTH ? { subject: 'snapshot-owner', role: 'member' } : null));
-  spyOn(login, 'claudeAccount').mockImplementation(unexpected);
   spyOn(login, 'claudeInstalled').mockImplementation(unexpected);
   spyOn(effective, 'effectiveSetup').mockImplementation(unexpected);
   spyOn(secureFs, 'writeJson').mockImplementation(unexpected);
@@ -66,8 +65,7 @@ function activity(over: Record<string, unknown> = {}): void {
 }
 
 function expectPassive(): void {
-  expect(signedIn).not.toHaveBeenCalled();
-  expect(login.claudeAccount).not.toHaveBeenCalled();
+  expect(model).not.toHaveBeenCalled();
   expect(login.claudeInstalled).not.toHaveBeenCalled();
   expect(effective.effectiveSetup).not.toHaveBeenCalled();
   expect(secureFs.writeJson).not.toHaveBeenCalled();

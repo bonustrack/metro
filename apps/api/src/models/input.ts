@@ -1,14 +1,16 @@
+import { isClaudeToken } from '@metro-labs/core/claude-token';
 import { ID_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelConnectionRow } from '@metro-labs/connectors/db/models';
-import { distinctFallbacks, FALLBACKS_MAX, isLocalRef, MODEL_ID_MAX, type ModelRoute, type RouteTarget } from '@metro-labs/connectors/model-route';
-import type { ModelProvider } from '@metro-labs/connectors/model-secret';
+import { distinctFallbacks, FALLBACKS_MAX, MODEL_ID_MAX, type ModelRoute, type RouteTarget } from '@metro-labs/connectors/model-route';
+import { modelDetailOf, type ModelProvider } from '@metro-labs/connectors/model-secret';
 import type { Caller } from './deps.js';
 
 export const LABEL_MAX = 60;
 export const REGION_RE = /^[a-z]{2}(?:-[a-z]+)+-\d{1,2}$/;
 const API_KEY_RE = /^[\x21-\x7e]{1,4096}$/;
+const LOCAL_PREFIX = 'local:';
 
 const LABELS: Record<ModelProvider, string> = {
   anthropic: 'Anthropic',
@@ -16,13 +18,15 @@ const LABELS: Record<ModelProvider, string> = {
   openrouter: 'OpenRouter',
   codex: 'Codex (ChatGPT)',
 };
+const SUBSCRIPTION_LABEL = 'Claude subscription';
 
 const bad = (message: string): ApiError => new ApiError(message, 400);
 
-export function labelFor(taken: ModelConnectionRow[], provider: ModelProvider, given: string): string {
+export function labelFor(taken: ModelConnectionRow[], provider: ModelProvider, given: string, subscription = false): string {
   if (given !== '') return given;
-  const count = taken.filter((row) => row.provider === provider).length;
-  return count === 0 ? LABELS[provider] : `${LABELS[provider]} ${String(count + 1)}`;
+  const base = subscription ? SUBSCRIPTION_LABEL : LABELS[provider];
+  const count = taken.filter((row) => row.provider === provider && (modelDetailOf(row.detail).subscription === true) === subscription).length;
+  return count === 0 ? base : `${base} ${String(count + 1)}`;
 }
 
 export function textField(body: Record<string, unknown>, key: string, what: string, max: number): string | undefined {
@@ -42,6 +46,12 @@ export function regionOf(value: unknown): string {
 export function apiKeyOf(value: unknown): string {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!API_KEY_RE.test(text)) throw bad('Give the API key: printable characters, 4,096 at most.');
+  return text;
+}
+
+export function claudeTokenOf(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!isClaudeToken(text)) throw bad('Give the token that claude setup-token prints: it starts with sk-ant-oat01-.');
   return text;
 }
 
@@ -76,22 +86,21 @@ function modelInput(raw: Record<string, unknown>, what: string): string {
   return model;
 }
 
-function targetInput(raw: unknown, agentRoute: boolean, what: string): RouteTarget {
+function targetInput(raw: unknown, what: string): RouteTarget {
   if (!isRecord(raw) || typeof raw.connection !== 'string') throw bad(`${what} must be an object with a connection and a model`);
   const connection = raw.connection.trim();
   const model = modelInput(raw, what);
-  const local = isLocalRef(connection);
-  if (local && !agentRoute) throw bad('Only an agent route may use the box’s own Claude login.');
-  if (!local && !ID_RE.test(connection)) throw bad(`${what} names no model connection`);
-  if (model === '' && !local) throw bad(`${what} needs a model`);
+  if (connection.startsWith(LOCAL_PREFIX)) throw bad(`${what} names a Claude login of a box. Those are gone: add a Claude subscription on the organization’s Models page.`);
+  if (!ID_RE.test(connection)) throw bad(`${what} names no model connection`);
+  if (model === '') throw bad(`${what} needs a model`);
   return { connection, model };
 }
 
-export function routeInput(body: Record<string, unknown>, agentRoute: boolean): ModelRoute {
+export function routeInput(body: Record<string, unknown>): ModelRoute {
   if (body.primary === null || body.primary === undefined) throw bad('A route needs a primary model. To remove a route, delete it.');
-  const primary = targetInput(body.primary, agentRoute, 'primary');
+  const primary = targetInput(body.primary, 'primary');
   const raw = body.fallbacks ?? [];
   if (!Array.isArray(raw)) throw bad('fallbacks must be a list');
   if (raw.length > FALLBACKS_MAX) throw bad(`A route keeps at most ${String(FALLBACKS_MAX)} fallbacks.`);
-  return { primary, fallbacks: distinctFallbacks(raw.map((entry: unknown) => targetInput(entry, agentRoute, 'each fallback'))) };
+  return { primary, fallbacks: distinctFallbacks(raw.map((entry: unknown) => targetInput(entry, 'each fallback'))) };
 }

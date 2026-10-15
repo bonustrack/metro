@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { localConnections, toConnection, type ConnectionRow } from '../src/api/model.js';
+import { toConnection, type ConnectionRow } from '../src/api/model.js';
 import { FALLBACKS_MAX, type ModelRoute } from '../src/api/model-route.js';
 import {
   canAddFallback,
@@ -41,7 +41,7 @@ describe('the route editor starts from what the slot holds', () => {
 
   test('picking a connection takes its default model', () => {
     expect(withConnection(connections, 'gpt')).toEqual({ connection: 'gpt', model: 'gpt-6-astra' });
-    expect(withConnection(connections, 'local:session')).toEqual({ connection: 'local:session', model: '' });
+    expect(withConnection(connections, 'gone')).toEqual({ connection: 'gone', model: '' });
   });
 });
 
@@ -75,8 +75,7 @@ describe('what keeps Save off', () => {
     expect(problemOf(route, connections, { kind: 'new' }, { connection: 'max', model: '' })).toBe('Choose a named model for a fallback.');
     expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'max', model: '' })).toBe('Choose a model.');
     expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'or', model: '' })).toBe('Choose a model.');
-    const local = [...connections, ...localConnections([])];
-    expect(problemOf(route, local, { kind: 'primary' }, { connection: 'local:session', model: '' })).toBeNull();
+    expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'local:session', model: '' })).toBe('Choose a connection.');
   });
 
   test('with zero data retention on, a listed model without such an endpoint is refused', () => {

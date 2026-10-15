@@ -13,17 +13,7 @@ import {
   readClaudeSkill,
   writeClaudeSkill,
 } from './skills.js';
-import {
-  answerClaudeLogin,
-  claudeAccount,
-  claudeInstalled,
-  claudeLoginView,
-  endClaudeLogin,
-  startClaudeLogin,
-  type LoginDeps,
-  type LoginTarget,
-} from './login.js';
-import { claudeLoginTarget, type ClaudeLoginDeps } from '../gateway/claude-logins.js';
+import { answerClaudeLogin, claudeInstalled, claudeLoginView, endClaudeLogin, startClaudeLogin, type LoginDeps } from './login.js';
 import { setupAnswer, type SetupApiDeps } from './setup-api.js';
 import {
   autostartEnabled,
@@ -59,7 +49,6 @@ const PAGE_MAX = 500;
 export interface ClaudeApiDeps extends SetupApiDeps {
   dir?: () => string;
   login?: LoginDeps;
-  claudeLogins?: ClaudeLoginDeps;
   skillSource?: GitHubSkills;
 }
 
@@ -134,6 +123,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
 }
 
 const ADMIN_ONLY = /^\/api\/claude\/(login|session|setup|skill-source)(\/|$)/;
+const TOKEN_READS = /^\/api\/claude\/login\/[^/]+$/;
 const LOGIN = 'login';
 const SESSION = 'session';
 const SETUP = 'setup';
@@ -166,16 +156,11 @@ async function sessionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise
   return sessionCommand(body, session);
 }
 
-function loginTarget(req: IncomingMessage, deps: ClaudeApiDeps): LoginTarget | null {
-  const asked = new URL(req.url ?? '', 'http://metro').searchParams.get('connection');
-  return asked === null ? null : claudeLoginTarget(asked, deps.claudeLogins);
-}
-
 async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps): Promise<unknown> {
   const method = req.method ?? 'GET';
   if (id === '') {
-    if (method === 'POST') return startClaudeLogin(deps.login, Date.now(), loginTarget(req, deps));
-    if (method === 'GET') return { available: claudeInstalled(), ...claudeAccount() };
+    if (method === 'POST') return startClaudeLogin(deps.login);
+    if (method === 'GET') return { available: claudeInstalled() };
     throw new ApiError('method not allowed', 405);
   }
   if (method === 'GET') return claudeLoginView(id);
@@ -289,7 +274,8 @@ export function handleClaudeRequest(
         sendJson(req, res, 200, sessionSnapshot(deps.session));
         return;
       }
-      if (req.method !== 'GET' && ADMIN_ONLY.test(path.replace(/\/{2,}/g, '/'))) requireAdmin(session);
+      const plain = path.replace(/\/{2,}/g, '/');
+      if ((req.method !== 'GET' && ADMIN_ONLY.test(plain)) || TOKEN_READS.test(plain)) requireAdmin(session);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps));
     })

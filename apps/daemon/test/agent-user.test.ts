@@ -74,7 +74,7 @@ describe('the Metro files the agent may read', () => {
     writeFileSync(join(dir, 'policy.json'), '{"version":1}');
     writeFileSync(join(dir, 'voice.json'), JSON.stringify({ provider: 'elevenlabs', apiKey: 'xi-SECRET' }));
     expect(viewFiles(dir).get('model.json')).toBeNull();
-    const files = viewFiles(dir, () => modelViewText(setupOf(delivered, [])));
+    const files = viewFiles(dir, () => modelViewText(setupOf(delivered)));
     expect(files.has('voice.json')).toBe(false);
     const all = [...files.values()].join('\n');
     expect(all).not.toContain('SECRET');

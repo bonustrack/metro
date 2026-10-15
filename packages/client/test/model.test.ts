@@ -3,9 +3,9 @@ import { baseDomain, faviconUrl } from '../src/api/favicon.js';
 import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
-import { carriesCodeAndState, claudeModels, PROVIDERS, removeClaudeLogin, syncModel, toModelSettings, toServed, usageOf } from '../src/api/model.js';
+import { carriesCodeAndState, PROVIDERS, syncModel, toModelSettings, toServed, usageOf } from '../src/api/model.js';
 import { matchModels, priceLabel, toModelOptions } from '../src/api/model-options.js';
-import { LOCAL_SESSION, toRoute } from '../src/api/model-route.js';
+import { toRoute } from '../src/api/model-route.js';
 import { installTestAccount } from './account-fixture.js';
 
 const realFetch = globalThis.fetch;
@@ -37,63 +37,61 @@ afterAll(() => {
 const READING = { at: '2026-10-15T10:00:00.000Z', windows: [{ label: 'Weekly', used: 0.5 }] };
 
 describe('what the Model page reads from the box', () => {
-  test('the effective route, its source, the delivered connections and the Claude logins, with no credential', () => {
+  test('the effective route, its source and the delivered connections, with no credential', () => {
     const settings = toModelSettings({
       route: 'orA00000001',
       model: 'openai/gpt-5.2',
-      fallbacks: [{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }, { connection: 'x', model: '' }],
+      fallbacks: [{ connection: 'antA0000001', model: 'claude-sonnet-5-5' }, { connection: 'x', model: '' }],
       source: 'organization',
       connections: [
         { id: 'orA00000001', provider: 'openrouter', label: 'OpenRouter', model: 'openai/gpt-5.2', zdr: true, account: { email: null, plan: null, method: null } },
         { id: 'cdx00000001', provider: 'codex', label: 'ChatGPT', account: { email: 'less@x', plan: 'plus', method: 'chatgpt' }, signedOut: true },
+        { id: 'antA0000001', provider: 'anthropic', label: 'Max plan', subscription: true, hasKey: false },
         { id: 'gem00000001', provider: 'gemini', label: 'Gemini' },
         'nope',
       ],
-      claude: [{ id: 'login0000001', email: 'less@claude', plan: 'max', savedAt: '2026-10-01' }, { email: 'no id' }],
       usage: { 'orA00000001': READING },
     });
     expect(settings.source).toBe('organization');
-    expect(settings.route).toEqual({ primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'local:login0000001', model: 'claude-sonnet-5-5' }] });
-    expect(settings.connections.map((c) => c.id)).toEqual(['orA00000001', 'cdx00000001', LOCAL_SESSION, 'local:login0000001']);
+    expect(settings.route).toEqual({ primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'antA0000001', model: 'claude-sonnet-5-5' }] });
+    expect(settings.connections.map((c) => c.id)).toEqual(['orA00000001', 'cdx00000001', 'antA0000001']);
     expect(settings.connections[0]).toMatchObject({ provider: 'openrouter', hasKey: true, zdr: true, signedOut: false, account: null });
     expect(settings.connections[1]).toMatchObject({ hasKey: false, signedOut: true, account: 'less@x', plan: 'plus', method: 'chatgpt' });
-    expect(settings.connections[3]).toMatchObject({ provider: 'anthropic', label: 'Claude subscription', account: 'less@claude', plan: 'max', hasKey: false });
-    expect(settings.claude).toEqual([{ id: 'login0000001', email: 'less@claude', plan: 'max', savedAt: '2026-10-01' }]);
+    expect(settings.connections[0]?.subscription).toBe(false);
+    expect(settings.connections[2]).toMatchObject({ provider: 'anthropic', label: 'Max plan', subscription: true, hasKey: false });
+    expect(settings).not.toHaveProperty('claude');
     expect(JSON.stringify(settings)).not.toContain('apiKey');
   });
 
-  test('no primary rides the session login, with or without fallbacks, and only the box answer fields count', () => {
-    const bare = toModelSettings({ route: '', model: '', connections: [{ id: 'cn-1', provider: 'codex', label: 'ChatGPT', signedIn: false }], usage: { 'local:session': READING } });
+  test('no primary is no route, with or without fallbacks, and only the box answer fields count', () => {
+    const bare = toModelSettings({ route: '', model: '', connections: [{ id: 'cn-1', provider: 'codex', label: 'ChatGPT', signedIn: false }] });
     expect(bare.route).toBeNull();
     expect(bare.source).toBeNull();
     expect(bare.connections[0]?.signedOut).toBe(false);
-    expect(usageOf(bare, LOCAL_SESSION)?.windows[0]?.used).toBe(0.5);
-    expect(toModelSettings({ route: '', connections: [], fallbacks: [{ connection: 'cn-1', model: 'x' }] }).route).toEqual({ primary: { connection: LOCAL_SESSION, model: '' }, fallbacks: [{ connection: 'cn-1', model: 'x' }] });
+    expect(toModelSettings({ route: '', connections: [], fallbacks: [{ connection: 'cn-1', model: 'x' }] }).route).toBeNull();
     expect(toModelSettings({ route: 'cn-1', connections: [{ id: 'cn-1', provider: 'codex', model: 'gpt-5.4' }] }).route?.primary).toEqual({ connection: 'cn-1', model: '' });
-    expect(toModelSettings({ route: '', connections: [], claudeLogins: [{ id: 'login0000001' }] }).claude).toEqual([]);
   });
 
-  test('the box answer names the primary by id with its model, its sync state, and usage under the local ids', () => {
+  test('the box answer names the primary by id with its model, its sync state, and usage by connection id', () => {
     const box = toModelSettings({
       source: 'agent',
       sync: { enrolled: true, at: '2026-10-15T10:00:00.000Z', error: null },
-      route: 'local:login0000001',
+      route: 'antA0000001',
       model: 'claude-sonnet-5-5',
       ready: true,
       reason: null,
       connections: [
-        { id: 'local:login0000001', provider: 'anthropic', label: 'Claude', model: '', hasKey: false, signedIn: true, signedOut: false, account: 'own@claude', plan: 'max', method: null },
-        { id: 'local:session', provider: 'anthropic', label: 'Session', hasKey: false, signedIn: false, signedOut: false, account: null },
+        { id: 'antA0000001', provider: 'anthropic', label: 'Claude', model: '', hasKey: false, subscription: true, signedOut: false, account: null, plan: null, method: null },
+        { id: 'antB0000001', provider: 'anthropic', label: 'Key', hasKey: true, subscription: false, signedOut: false, account: null },
       ],
-      fallbacks: [{ connection: 'local:session', model: 'claude-haiku-4-5' }],
-      claude: [{ id: 'login0000001', email: 'own@claude', plan: 'max', savedAt: '2026-10-01' }],
-      usage: { 'local:session': READING, 'local:login0000001': { ...READING, windows: [{ label: 'Weekly', used: 0.2 }] } },
+      fallbacks: [{ connection: 'antB0000001', model: 'claude-haiku-4-5' }],
+      usage: { antB0000001: READING, antA0000001: { ...READING, windows: [{ label: 'Weekly', used: 0.2 }] } },
     });
-    expect(box.route).toEqual({ primary: { connection: 'local:login0000001', model: 'claude-sonnet-5-5' }, fallbacks: [{ connection: 'local:session', model: 'claude-haiku-4-5' }] });
+    expect(box.route).toEqual({ primary: { connection: 'antA0000001', model: 'claude-sonnet-5-5' }, fallbacks: [{ connection: 'antB0000001', model: 'claude-haiku-4-5' }] });
     expect(box.sync).toEqual({ enrolled: true, at: '2026-10-15T10:00:00.000Z', error: null });
-    expect(box.connections.map((c) => [c.id, c.label, c.account])).toEqual([['local:login0000001', 'Claude', 'own@claude'], ['local:session', 'Session', null]]);
-    expect(usageOf(box, 'local:login0000001')?.windows[0]?.used).toBe(0.2);
-    expect(usageOf(box, LOCAL_SESSION)?.windows[0]?.used).toBe(0.5);
+    expect(box.connections.map((c) => [c.id, c.label, c.subscription, c.hasKey])).toEqual([['antA0000001', 'Claude', true, false], ['antB0000001', 'Key', false, true]]);
+    expect(usageOf(box, 'antA0000001')?.windows[0]?.used).toBe(0.2);
+    expect(usageOf(box, 'antB0000001')?.windows[0]?.used).toBe(0.5);
     expect(toModelSettings({ route: '', source: null, sync: { enrolled: false }, connections: [] }).sync).toEqual({ enrolled: false, at: null, error: null });
   });
 
@@ -105,38 +103,21 @@ describe('what the Model page reads from the box', () => {
     expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex']);
   });
 
-  test('usage of a Claude login is found only under its local id', () => {
-    const settings = toModelSettings({ route: '', connections: [], claude: [{ id: 'login0000001' }], usage: { 'local:login0000001': READING, login0000002: READING } });
-    expect(usageOf(settings, 'local:login0000001')?.windows[0]?.used).toBe(0.5);
-    expect(usageOf(settings, 'local:login0000002')).toBeUndefined();
-    expect(usageOf(settings, 'orA00000001')).toBeUndefined();
-  });
-
-  test('a route needs a primary, and fallbacks need a named model unless they use a login of the box', () => {
+  test('a route needs a primary, and every fallback needs a named model', () => {
     expect(toRoute({ fallbacks: [{ connection: 'a', model: 'b' }] })).toBeNull();
     expect(toRoute({ primary: { connection: 'a', model: '' }, fallbacks: [{ connection: 'b', model: '' }, { connection: 'c', model: 'm' }] })).toEqual({ primary: { connection: 'a', model: '' }, fallbacks: [{ connection: 'c', model: 'm' }] });
-    const local = [{ connection: LOCAL_SESSION, model: '' }, { connection: 'local:login0000001', model: '' }];
-    expect(toRoute({ primary: { connection: 'a', model: 'm' }, fallbacks: local })?.fallbacks).toEqual(local);
+    expect(toRoute({ primary: { connection: 'a', model: 'm' }, fallbacks: [{ connection: 'local:session', model: '' }] })?.fallbacks).toEqual([]);
   });
 
   test('the last request names the connection it went to, and a half answer is no answer', () => {
-    expect(toServed({ connection: LOCAL_SESSION, provider: 'anthropic', model: 'x', at: '2026-10-15T10:00:00.000Z' })?.connection).toBe(LOCAL_SESSION);
+    expect(toServed({ connection: 'antA0000001', provider: 'anthropic', model: 'x', at: '2026-10-15T10:00:00.000Z' })?.connection).toBe('antA0000001');
     expect(toServed({ provider: 'openrouter', model: 'x/y' })).toBeNull();
   });
 
-  test('removing a box Claude login is a DELETE on the box', async () => {
-    serve({});
-    await removeClaudeLogin('login0000001');
-    expect(calls).toEqual([{ url: 'https://box.example.ts.net/api/model/claude/login0000001', method: 'DELETE' }]);
-  });
-
-  test('sync is a POST and the Claude model list a GET on the selected box', async () => {
+  test('sync is a POST on the selected box', async () => {
     serve({ route: '', connections: [] });
     await syncModel();
     expect(calls).toEqual([{ url: 'https://box.example.ts.net/api/model/sync', method: 'POST' }]);
-    serve({ models: [{ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }, 'claude-haiku-4-5'] });
-    expect(await claudeModels()).toEqual([{ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', price: '', zdr: null }, { id: 'claude-haiku-4-5', name: 'claude-haiku-4-5', price: '', zdr: null }]);
-    expect(calls).toEqual([{ url: 'https://box.example.ts.net/api/model/claude-models', method: 'GET' }]);
   });
 });
 

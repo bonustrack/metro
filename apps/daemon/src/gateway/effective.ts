@@ -1,26 +1,15 @@
 import { log } from '@metro-labs/core/log';
-import { agentsDir } from '../agents/files.js';
-import { readClaudeLogins, type ClaudeLogin } from './claude-store.js';
 import type { Delivered } from './delivered.js';
-import { emptySetup, LOCAL_PREFIX, loginConnection, primaryRoute, runnerModel, SESSION_LOGIN, sessionConnection, type Connection, type ModelSetup } from './model-config.js';
+import { emptySetup, primaryRoute, runnerModel, type ModelSetup } from './model-config.js';
 import { deliveredSetup, type OrgModels } from './org-models.js';
 
-function localOf(id: string, logins: ClaudeLogin[]): Connection | null {
-  if (id === SESSION_LOGIN) return sessionConnection();
-  if (!id.startsWith(LOCAL_PREFIX)) return null;
-  const login = id.slice(LOCAL_PREFIX.length);
-  return loginConnection(login, logins.find((l) => l.id === login));
-}
-
-export function setupOf(delivered: Delivered | null, logins: ClaudeLogin[]): ModelSetup {
+export function setupOf(delivered: Delivered | null): ModelSetup {
   const route = delivered?.route ?? null;
   if (delivered === null || route === null) return { ...emptySetup(), source: delivered?.source ?? null };
-  const named = [...(route.primary === null ? [] : [route.primary]), ...route.fallbacks].map((r) => r.connection);
-  const locals = [...new Set(named)].flatMap((id) => localOf(id, logins) ?? []);
-  return { primary: route.primary, fallbacks: route.fallbacks, connections: [...delivered.connections, ...locals], source: delivered.source };
+  return { primary: route.primary, fallbacks: route.fallbacks, connections: delivered.connections, source: delivered.source };
 }
 
-export const effectiveSetup = (dir = agentsDir(), delivered: Delivered | null = deliveredSetup()): ModelSetup => setupOf(delivered, readClaudeLogins(dir));
+export const effectiveSetup = (delivered: Delivered | null = deliveredSetup()): ModelSetup => setupOf(delivered);
 
 export function modelViewText(setup: ModelSetup): string | null {
   const primary = primaryRoute(setup);

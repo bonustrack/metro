@@ -9,6 +9,8 @@ import { json, provider, startApi, type Api, type Provider } from './org-models-
 const OURS = 'agent000001';
 const THEIRS = 'agent000003';
 const SECRET = 'sk-or-v1-very-secret-key';
+const CLAUDE_TOKEN = `sk-ant-oat01-${'Ab3_-'.repeat(19)}AA`;
+const NEW_TOKEN = `sk-ant-oat01-${'Zy9-_'.repeat(19)}AA`;
 
 let held: TestDb;
 let api: Api;
@@ -22,6 +24,7 @@ interface View {
   model: string;
   region: string;
   zdr: boolean;
+  subscription: boolean;
   signedOut: boolean;
 }
 
@@ -136,12 +139,80 @@ describe('connections', () => {
   });
 });
 
+describe('Claude subscriptions', () => {
+  const subscribe = async (body: Record<string, unknown> = {}): Promise<View> => {
+    const res = await call('POST', '/api/models', { provider: 'anthropic', claudeToken: CLAUDE_TOKEN, ...body });
+    expect(res.status).toBe(201);
+    return (await data<{ connection: View }>(res)).connection;
+  };
+
+  test('a token from claude setup-token is sealed as its own kind and no answer carries it', async () => {
+    const made = await subscribe({ label: '' });
+    expect(made).toMatchObject({ provider: 'anthropic', label: 'Claude subscription', subscription: true, signedOut: false });
+    expect((await subscribe()).label).toBe('Claude subscription 2');
+    const keyed = await data<{ connection: View }>(await call('POST', '/api/models', { provider: 'anthropic', apiKey: 'sk-ant-api-key' }));
+    expect(keyed.connection).toMatchObject({ label: 'Anthropic', subscription: false });
+    expect(JSON.stringify(await data<unknown>(await call('GET', '/api/models')))).not.toContain(CLAUDE_TOKEN);
+    const row = (await held.db.select().from(modelConnections).where(eq(modelConnections.id, made.id)))[0];
+    const key = api.models.key();
+    if (row?.secret === null || row === undefined || key === null) throw new Error('not stored');
+    expect(row.secret).not.toContain(CLAUDE_TOKEN);
+    expect(openSecret(key, TEST_OWNER, made.id, row.secret, 'model')).toEqual({ kind: 'claude', token: CLAUDE_TOKEN });
+  });
+
+  test('anything but a whole sk-ant-oat01- token is refused, and only on Anthropic', async () => {
+    const refused = async (body: Record<string, unknown>): Promise<string> => {
+      const res = await call('POST', '/api/models', { provider: 'anthropic', ...body });
+      expect(res.status).toBe(400);
+      return ((await res.json()) as { error: string }).error;
+    };
+    expect(await refused({ claudeToken: 'sk-ant-oat01-short' })).toContain('claude setup-token');
+    expect(await refused({ claudeToken: CLAUDE_TOKEN.replace('oat01', 'api03') })).toContain('sk-ant-oat01-');
+    expect(await refused({ claudeToken: `${CLAUDE_TOKEN} extra` })).toContain('sk-ant-oat01-');
+    expect(await refused({ claudeToken: 42 })).toContain('sk-ant-oat01-');
+    expect(await refused({ claudeToken: CLAUDE_TOKEN, apiKey: 'sk-ant-key' })).toContain('not both');
+    expect(await refused({ provider: 'openrouter', claudeToken: CLAUDE_TOKEN })).toContain('Only an Anthropic connection');
+    expect(await held.db.$count(modelConnections)).toBe(0);
+  });
+
+  test('signing in again replaces the token with a new revision, and a key and a token never swap', async () => {
+    const made = await subscribe();
+    expect((await call('PATCH', `/api/models/${made.id}`, { claudeToken: 'sk-ant-oat01-short' })).status).toBe(400);
+    expect((await call('PATCH', `/api/models/${made.id}`, { apiKey: 'sk-ant-key' })).status).toBe(400);
+    expect(await revisionOf(made.id)).toBe(1);
+    const replaced = await call('PATCH', `/api/models/${made.id}`, { claudeToken: NEW_TOKEN, label: 'Max plan' });
+    expect(await data<{ connection: View }>(replaced)).toMatchObject({ connection: { label: 'Max plan', subscription: true } });
+    expect(await revisionOf(made.id)).toBe(2);
+    const row = (await held.db.select().from(modelConnections).where(eq(modelConnections.id, made.id)))[0];
+    const key = api.models.key();
+    if (row?.secret === null || row === undefined || key === null) throw new Error('not stored');
+    expect(openSecret(key, TEST_OWNER, made.id, row.secret, 'model')).toEqual({ kind: 'claude', token: NEW_TOKEN });
+    const keyed = await data<{ connection: View }>(await call('POST', '/api/models', { provider: 'anthropic', apiKey: 'sk-ant-key' }));
+    expect((await call('PATCH', `/api/models/${keyed.connection.id}`, { claudeToken: NEW_TOKEN })).status).toBe(400);
+  });
+
+  test('its models are listed with the token as a bearer, and the known Claude models stand in when Anthropic refuses', async () => {
+    const made = await subscribe();
+    vendor.replies.set('GET https://api.anthropic.com/v1/models', (sent) => sent.headers.get('authorization') === `Bearer ${CLAUDE_TOKEN}` && sent.headers.get('anthropic-beta') === 'oauth-2025-04-20' && !sent.headers.has('x-api-key')
+      ? json({ data: [{ id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5', created_at: '2026-09-01' }] })
+      : json({ error: 'no' }, 401));
+    expect(await data<unknown>(await call('GET', `/api/models/${made.id}/models`))).toEqual({ models: [{ id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }] });
+    await call('PATCH', `/api/models/${made.id}`, { claudeToken: NEW_TOKEN });
+    const fallback = await data<{ models: { id: string }[] }>(await call('GET', `/api/models/${made.id}/models`));
+    expect(fallback.models.map((m) => m.id)).toContain('claude-opus-5-5');
+  });
+});
+
 describe('routes', () => {
-  test('the default and an override name only this organization, local logins only on an agent route', async () => {
+  test('the default and an override name only connections of this organization, never a Claude login of a box', async () => {
     const or = await add();
     const theirs = await add({}, await auth(TEST_STRANGER));
     const primary = { connection: or.id, model: 'openai/gpt-5.2' };
-    expect((await call('PUT', '/api/models/route', { agent: null, primary, fallbacks: [{ connection: 'local:session', model: '' }] })).status).toBe(400);
+    for (const local of [{ agent: null, primary, fallbacks: [{ connection: 'local:session', model: '' }] }, { agent: OURS, primary: { connection: 'local:Login123456', model: 'claude-opus-5-5' } }]) {
+      const refused = await call('PUT', '/api/models/route', local);
+      expect(refused.status).toBe(400);
+      expect(((await refused.json()) as { error: string }).error).toContain('add a Claude subscription');
+    }
     expect((await call('PUT', '/api/models/route', { agent: null, primary: { connection: theirs.id, model: 'm' } })).status).toBe(400);
     expect((await call('PUT', '/api/models/route', { agent: THEIRS, primary })).status).toBe(404);
     expect((await call('PUT', '/api/models/route', { agent: null, primary: { connection: or.id, model: '' } })).status).toBe(400);
@@ -153,7 +224,7 @@ describe('routes', () => {
     const nine = Array.from({ length: 9 }, (_, i) => ({ connection: or.id, model: `m${String(i)}` }));
     expect((await call('PUT', '/api/models/route', { agent: null, primary, fallbacks: nine })).status).toBe(400);
     expect((await call('PUT', '/api/models/route', { agent: null, primary })).status).toBe(200);
-    const override = { agent: OURS, primary: { connection: 'local:Login123456', model: 'claude-opus-5-5' }, fallbacks: [{ connection: or.id, model: 'openai/gpt-5.2' }, { connection: or.id, model: 'openai/gpt-5.2' }] };
+    const override = { agent: OURS, primary: { connection: or.id, model: 'anthropic/claude-opus-5.5' }, fallbacks: [{ connection: or.id, model: 'openai/gpt-5.2' }, { connection: or.id, model: 'openai/gpt-5.2' }] };
     expect(await data<unknown>(await call('PUT', '/api/models/route', override))).toEqual({ agent: OURS, route: { primary: override.primary, fallbacks: [{ connection: or.id, model: 'openai/gpt-5.2' }] } });
     const view = await data<{ default: unknown; agents: Record<string, unknown> }>(await call('GET', '/api/models'));
     expect(view.default).toEqual({ primary, fallbacks: [] });
@@ -176,7 +247,8 @@ describe('routes', () => {
     expect(after.agents).toEqual({});
     await call('DELETE', `/api/models/${third.id}`);
     expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toBeNull();
-    await call('PUT', '/api/models/route', { agent: OURS, primary: { connection: 'local:session', model: '' } });
+    const fourth = await add();
+    expect((await call('PUT', '/api/models/route', { agent: OURS, primary: { connection: fourth.id, model: 'd' } })).status).toBe(200);
     expect(await data<unknown>(await call('DELETE', `/api/models/route?agent=${OURS}`))).toEqual({ agent: OURS, deleted: true });
     expect((await data<{ agents: Record<string, unknown> }>(await call('GET', '/api/models'))).agents).toEqual({});
   });

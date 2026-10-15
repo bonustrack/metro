@@ -4,12 +4,12 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelChange, ModelConnectionRow, ModelEdit } from '@metro-labs/connectors/db/models';
 import { MODEL_ID_MAX, type ModelRoute } from '@metro-labs/connectors/model-route';
-import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealModelSecret, type ModelProvider } from '@metro-labs/connectors/model-secret';
+import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealModelSecret, type ModelDetail, type ModelProvider, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { isoNow, modelKey, MODELS_MAX, userActor, type Caller, type ModelsDeps } from './deps.js';
-import { apiKeyOf, creator, flagOf, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
+import { apiKeyOf, claudeTokenOf, creator, flagOf, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
 import { connectionView, type ConnectionView, type ModelsView } from './view.js';
 
-const PATCH_FIELDS = ['label', 'model', 'region', 'zdr', 'apiKey'];
+const PATCH_FIELDS = ['label', 'model', 'region', 'zdr', 'apiKey', 'claudeToken'];
 
 const bad = (message: string): ApiError => new ApiError(message, 400);
 
@@ -32,20 +32,35 @@ function keyProvider(value: unknown): ModelProvider {
   return value;
 }
 
+interface Credential {
+  secret: ModelSecret;
+  subscription: boolean;
+}
+
+function credentialInput(provider: ModelProvider, input: Record<string, unknown>): Credential {
+  if (!Object.hasOwn(input, 'claudeToken')) return { secret: { kind: 'key', apiKey: apiKeyOf(input.apiKey) }, subscription: false };
+  if (provider !== 'anthropic') throw bad('Only an Anthropic connection holds a Claude subscription token.');
+  if (Object.hasOwn(input, 'apiKey')) throw bad('Send an API key or a Claude subscription token, not both.');
+  return { secret: { kind: 'claude', token: claudeTokenOf(input.claudeToken) }, subscription: true };
+}
+
+const subscriptionDetail = (at: string): ModelDetail => ({ subscription: true, signedInAt: at });
+
 export async function createModel(deps: ModelsDeps, caller: Caller, body: unknown): Promise<{ connection: ConnectionView }> {
   const key = modelKey(deps);
   const input = isRecord(body) ? body : {};
   const provider = keyProvider(input.provider);
-  const apiKey = apiKeyOf(input.apiKey);
+  const { secret, subscription } = credentialInput(provider, input);
   const label = textField(input, 'label', 'label', LABEL_MAX) ?? '';
   const model = textField(input, 'model', 'model', MODEL_ID_MAX) ?? '';
   const region = regionOf(input.region);
   const zdr = flagOf(input.zdr, 'zero data retention');
   const taken = await roomFor(deps, caller.owner);
-  const row = { ...newModelRow(creator(caller), provider, labelFor(taken, provider, label), isoNow(deps)), model, region, zdr };
-  const made: ModelConnectionRow = { ...row, secret: sealModelSecret(key, row, { kind: 'key', apiKey }) };
+  const at = isoNow(deps);
+  const row = { ...newModelRow(creator(caller), provider, labelFor(taken, provider, label, subscription), at), model, region, zdr };
+  const made: ModelConnectionRow = { ...row, secret: sealModelSecret(key, row, secret), detail: subscription ? modelDetailText(subscriptionDetail(at)) : null };
   await deps.store.create(made);
-  log.info({ owner: caller.owner, id: made.id, provider }, 'models: connection added');
+  log.info({ owner: caller.owner, id: made.id, provider, subscription }, 'models: connection added');
   return { connection: connectionView(made) };
 }
 
@@ -65,19 +80,31 @@ function keyEdit(key: Buffer, change: ModelChange, apiKey: string): (row: ModelC
   return (row) => {
     if (row.provider === 'codex') throw bad('Codex signs in with ChatGPT. Sign in again instead.');
     const detail = modelDetailOf(row.detail);
+    if (detail.subscription === true) throw bad('This connection holds a Claude subscription. Sign in again to replace its token.');
     delete detail.signedOut;
     return { change: { ...change, secret: sealModelSecret(key, row, { kind: 'key', apiKey }), detail: modelDetailText(detail) }, credential: true };
   };
+}
+
+function tokenEdit(key: Buffer, change: ModelChange, token: string, at: string): (row: ModelConnectionRow) => ModelEdit {
+  return (row) => {
+    if (row.provider !== 'anthropic' || modelDetailOf(row.detail).subscription !== true) throw bad('Only a Claude subscription connection takes a Claude token.');
+    return { change: { ...change, secret: sealModelSecret(key, row, { kind: 'claude', token }), detail: modelDetailText(subscriptionDetail(at)) }, credential: true };
+  };
+}
+
+function credentialEdit(deps: ModelsDeps, input: Record<string, unknown>, change: ModelChange): (row: ModelConnectionRow) => ModelEdit {
+  if (Object.hasOwn(input, 'apiKey') && Object.hasOwn(input, 'claudeToken')) throw bad('Send an API key or a Claude subscription token, not both.');
+  if (Object.hasOwn(input, 'claudeToken')) return tokenEdit(modelKey(deps), change, claudeTokenOf(input.claudeToken), isoNow(deps));
+  if (Object.hasOwn(input, 'apiKey')) return keyEdit(modelKey(deps), change, apiKeyOf(input.apiKey));
+  return () => ({ change });
 }
 
 export async function patchModel(deps: ModelsDeps, caller: Caller, id: string, body: unknown): Promise<{ connection: ConnectionView }> {
   const input = isRecord(body) ? body : {};
   const fields = Object.keys(input);
   if (fields.length === 0 || fields.some((field) => !PATCH_FIELDS.includes(field))) throw bad(`Send ${PATCH_FIELDS.join(', ')} to change.`);
-  const change = plainChange(input);
-  const apiKey = Object.hasOwn(input, 'apiKey') ? apiKeyOf(input.apiKey) : null;
-  const edit = apiKey === null ? (): ModelEdit => ({ change }) : keyEdit(modelKey(deps), change, apiKey);
-  const saved = await deps.store.edit(caller.owner, id, isoNow(deps), edit);
+  const saved = await deps.store.edit(caller.owner, id, isoNow(deps), credentialEdit(deps, input, plainChange(input)));
   log.info({ owner: caller.owner, id, fields }, 'models: connection changed');
   return { connection: connectionView(saved) };
 }
@@ -98,7 +125,7 @@ function agentOf(raw: unknown): string | null {
 export async function putRoute(deps: ModelsDeps, caller: Caller, body: unknown): Promise<{ agent: string | null; route: ModelRoute }> {
   const input = isRecord(body) ? body : {};
   const agent = agentOf(input.agent);
-  const route = await deps.store.setRoute({ owner: caller.owner, agent, route: routeInput(input, agent !== null), actor: userActor(caller), at: isoNow(deps) });
+  const route = await deps.store.setRoute({ owner: caller.owner, agent, route: routeInput(input), actor: userActor(caller), at: isoNow(deps) });
   log.info({ owner: caller.owner, agent, primary: route.primary.connection, fallbacks: route.fallbacks.length }, 'models: route changed');
   return { agent, route };
 }

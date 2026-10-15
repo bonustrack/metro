@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomInt } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { effectiveSetup } from '../src/gateway/effective.ts';
 import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
 import type { OrgModels } from '../src/gateway/org-models.ts';
@@ -12,6 +9,7 @@ import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsF
 interface Seen {
   url: string;
   auth: string;
+  beta: string;
   body: string;
 }
 
@@ -22,7 +20,6 @@ let provider: Server;
 let gateway: Server;
 let providerBase = '';
 let base = '';
-let dir = '';
 const seen: Seen[] = [];
 
 const codexEvents = [
@@ -38,7 +35,7 @@ function answer(req: IncomingMessage, res: ServerResponse, body: string): void {
     res.writeHead(200, { 'content-type': 'application/json' }).end('{"data":[]}');
     return;
   }
-  seen.push({ url: req.url ?? '', auth: String(req.headers.authorization ?? req.headers['x-api-key'] ?? ''), body });
+  seen.push({ url: req.url ?? '', auth: String(req.headers.authorization ?? req.headers['x-api-key'] ?? ''), beta: String(req.headers['anthropic-beta'] ?? ''), body });
   if (req.headers.authorization === 'Bearer at-old') {
     res.writeHead(401, { 'content-type': 'application/json' }).end('{"detail":"expired"}');
     return;
@@ -73,7 +70,7 @@ beforeAll(async () => {
   providerBase = await listen(provider);
   gateway = createServer((req, res) => {
     const handled = handleGatewayRequest(req, res, {
-      setup: () => effectiveSetup(dir, models.current()),
+      setup: () => effectiveSetup(models.current()),
       identify: (k) => k === 'mk_ok',
       anthropicBase: providerBase,
       openrouterBase: providerBase,
@@ -90,8 +87,6 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  rmSync(dir || join(tmpdir(), 'metro-none'), { recursive: true, force: true });
-  dir = mkdtempSync(join(tmpdir(), 'metro-org-gateway-'));
   resetGatewayState();
   seen.length = 0;
   api.asked.length = 0;
@@ -141,28 +136,17 @@ describe('the gateway on the setup the organization delivered', () => {
     expect(seen).toHaveLength(0);
   });
 
-  test('local:session rides the login the session carries, and an unenrolled box with a v3 file serves only that', async () => {
-    api.delivery = delivery({ connection: 'local:session', model: '' }, [], [], 'agent');
+  test('a delivered Claude subscription is sent with its token and the oauth beta, and an unenrolled box serves no model at all', async () => {
+    const token = `sk-ant-oat01-${'i'.repeat(80)}`;
+    api.delivery = delivery({ connection: 'an000000001', model: 'claude-opus-5-5' }, [deliveredRow('an000000001', 'anthropic', { credential: { claudeToken: token } })], [], 'agent');
     await models.sync();
     await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
-    expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 3, claude: [] }));
-    models = orgModelsFor(api, null);
-    await models.sync();
-    await (await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' })).text();
-    expect(seen[1]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-oat-session' });
-  });
-});
-
-describe('the gateway on a model.json still in the old version 2', () => {
-  test('its route and key are never served: an unenrolled box rides the login the session carries', async () => {
-    writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'oldOpenRout', connections: [{ id: 'oldOpenRout', provider: 'openrouter', model: 'x/y', apiKey: 'sk-or-v2' }] }));
+    expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: `Bearer ${token}`, beta: 'oauth-2025-04-20' });
+    expect((JSON.parse(seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-opus-5-5');
     models = orgModelsFor(api, null);
     await models.sync();
     const res = await post('claude-sonnet-5', { authorization: 'Bearer sk-ant-oat-session' });
-    expect(res.status).toBe(200);
-    await res.text();
-    expect(seen.map((s) => s.auth)).toEqual(['Bearer sk-ant-oat-session']);
-    expect((JSON.parse(seen[0]?.body ?? '{}') as { model: string }).model).toBe('claude-sonnet-5');
+    expect(res.status).toBe(503);
+    expect(seen).toHaveLength(1);
   });
 });

@@ -1,20 +1,25 @@
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { markOnboardingDone } from './onboarding.js';
 import { ApiError } from '@metro-labs/http/api-error';
-import { isRecord } from '@metro-labs/core/is-record';
+import { claudeTokenIn, withoutClaudeTokens } from '@metro-labs/core/claude-token';
 import { errMsg, log } from '@metro-labs/core/log';
 import { agentCommand, asAgent, CLAUDE_ENV, claudeBin } from '../agent-user/user.js';
 
-const LOGIN_ARGS = ['auth', 'login', '--claudeai'];
-const STATUS_COMMAND = ['auth', 'status', '--json'];
+const TOKEN_ARGS = ['setup-token'];
 const TTL_MS = 10 * 60_000;
+const TOKEN_TTL_MS = 2 * 60_000;
 const OUTPUT_MAX = 8_000;
-const COLS = 100;
+const RAW_MAX = 256_000;
+const COLS = 500;
 const ROWS = 40;
+const DRAIN_MS = 250;
 const ESC = String.fromCharCode(27);
-const CSI = /^\[[0-9;?]*[a-zA-Z]/;
+const BEL = String.fromCharCode(7);
+const CSI = /^\[[0-?]*[ -/]*[@-~]/;
+const SHORT_ESCAPE = /^[()#%].|^./s;
 const URL_RE = /https:\/\/[^\s"'`]+/g;
+const TOKEN_HEAD_RE = /^[A-Za-z0-9_-]+/;
+const FINISHED_TOKEN_RE = /sk-ant-oat01-[A-Za-z0-9_-]+[\r\n]/;
 
 type LoginState = 'pending' | 'done' | 'failed';
 
@@ -24,21 +29,16 @@ export interface LoginView {
   url: string | null;
   output: string;
   error: string | null;
-}
-
-export interface LoginTarget {
-  key: string;
-  env: Record<string, string>;
-  settle: (ok: boolean) => Promise<string | null>;
+  token?: string;
 }
 
 interface Live {
   id: string;
   startedAt: number;
   state: LoginState;
-  output: string;
+  raw: string;
   error: string | null;
-  target: LoginTarget | null;
+  token: string | null;
   write: (text: string) => void;
   kill: () => void;
 }
@@ -49,10 +49,16 @@ export interface LoginDeps {
 
 let live: Live | null = null;
 
+function plainPart(part: string): string {
+  if (part.startsWith('[')) return part.replace(CSI, '');
+  if (part.startsWith(']')) return part.includes(BEL) ? part.slice(part.indexOf(BEL) + 1) : '';
+  return part.replace(SHORT_ESCAPE, '');
+}
+
 export function plainText(raw: string): string {
   return raw
     .split(ESC)
-    .map((part, index) => (index === 0 ? part : part.replace(CSI, '')))
+    .map((part, index) => (index === 0 ? part : plainPart(part)))
     .join('');
 }
 
@@ -62,17 +68,18 @@ export function loginUrlIn(output: string): string | null {
   return trimmed.find((url) => url.includes('claude.ai') || url.includes('anthropic.com')) ?? trimmed[0] ?? null;
 }
 
-const view = (session: Live): LoginView => ({
-  id: session.id,
-  state: session.state,
-  url: loginUrlIn(session.output),
-  output: session.output,
-  error: session.error,
-});
+function view(session: Live): LoginView {
+  const shown = withoutClaudeTokens(plainText(session.raw));
+  const base = { id: session.id, state: session.state, url: loginUrlIn(shown), output: shown.slice(-OUTPUT_MAX), error: session.error };
+  const token = session.token;
+  if (session.state !== 'done' || token === null) return base;
+  session.token = null;
+  log.info('claude-login: the long-lived Claude token was handed to the page once, and the box keeps no copy');
+  return { ...base, token };
+}
 
 function sweep(now: number): void {
-  if (live !== null && live.state !== 'pending') return;
-  if (live !== null && now - live.startedAt > TTL_MS) {
+  if (live?.state === 'pending' && now - live.startedAt > TTL_MS) {
     live.kill();
     live = null;
   }
@@ -80,109 +87,63 @@ function sweep(now: number): void {
 
 const CHECK_MS = 30_000;
 
-interface Checked<T> {
-  at: number;
-  value: T;
-}
-
-const checks: { installed?: Checked<boolean>; account?: Checked<ClaudeAccount> } = {};
-
-function remembered<T>(slot: Checked<T> | undefined, read: () => T, keep: (c: Checked<T>) => void): T {
-  const now = Date.now();
-  if (slot !== undefined && now - slot.at < CHECK_MS) return slot.value;
-  const value = read();
-  keep({ at: now, value });
-  return value;
-}
+let installed: { at: number; value: boolean } | null = null;
 
 export function forgetClaudeChecks(): void {
-  delete checks.installed;
-  delete checks.account;
+  installed = null;
 }
 
 export function claudeInstalled(): boolean {
-  return remembered(checks.installed, () => {
-    const run = spawnSync(...asAgent(claudeBin(), ['--version'], CLAUDE_ENV), { stdio: 'ignore', env: { ...process.env, ...CLAUDE_ENV } });
-    return run.error === undefined && run.status === 0;
-  }, (c) => {
-    checks.installed = c;
-  });
-}
-
-export interface ClaudeAccount {
-  signedIn: boolean;
-  account: string | null;
-  plan: string | null;
-}
-
-const SIGNED_OUT: ClaudeAccount = { signedIn: false, account: null, plan: null };
-
-export function claudeAccount(): ClaudeAccount {
-  return remembered(checks.account, () => claudeAccountIn({}), (c) => {
-    checks.account = c;
-  });
-}
-
-const textOf = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
-
-export function claudeAccountIn(extra: Record<string, string>): ClaudeAccount {
-  const env = { ...CLAUDE_ENV, ...extra };
-  const run = spawnSync(...asAgent(claudeBin(), STATUS_COMMAND, env), { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, ...env } });
-  if (run.error !== undefined || typeof run.stdout !== 'string') return SIGNED_OUT;
-  try {
-    const parsed: unknown = JSON.parse(run.stdout);
-    if (!isRecord(parsed)) return SIGNED_OUT;
-    const account = textOf(parsed.email) ?? textOf(parsed.organization) ?? textOf(parsed.orgName);
-    return { signedIn: parsed.authenticated === true || parsed.loggedIn === true || account !== null, account, plan: textOf(parsed.subscriptionType) };
-  } catch {
-    return SIGNED_OUT;
-  }
+  const now = Date.now();
+  if (installed !== null && now - installed.at < CHECK_MS) return installed.value;
+  const run = spawnSync(...asAgent(claudeBin(), ['--version'], CLAUDE_ENV), { stdio: 'ignore', env: { ...process.env, ...CLAUDE_ENV } });
+  installed = { at: now, value: run.error === undefined && run.status === 0 };
+  return installed.value;
 }
 
 function note(session: Live, chunk: string): void {
-  const next = session.output + plainText(chunk);
-  session.output = next.length > OUTPUT_MAX ? next.slice(next.length - OUTPUT_MAX) : next;
+  if (session.state !== 'pending') return;
+  const next = session.raw + chunk;
+  session.raw = next.length > RAW_MAX ? next.slice(next.length - RAW_MAX).replace(TOKEN_HEAD_RE, '') : next;
+  if (session.token !== null) return;
+  const text = plainText(session.raw);
+  if (FINISHED_TOKEN_RE.test(text)) session.token = claudeTokenIn(text);
 }
 
-async function verdict(session: Live, code: number): Promise<string | null> {
-  const problem = code === 0 ? null : `the login ended with status ${String(code)}`;
-  if (session.target === null) return problem;
-  try {
-    return (await session.target.settle(problem === null)) ?? problem;
-  } catch (err) {
-    return errMsg(err);
-  }
+function dropTokenLater(session: Live): void {
+  setTimeout(() => {
+    if (session.token === null) return;
+    session.token = null;
+    session.state = 'failed';
+    session.error = 'the token was not collected in time; start again';
+    log.info('claude-login: the long-lived Claude token was not collected in time, so it was dropped');
+  }, TOKEN_TTL_MS).unref();
 }
 
-function runningFor(target: LoginTarget | null): Live | null {
-  if (live === null || live.state !== 'pending') return null;
-  if (live.target?.key === target?.key) return live;
-  live.kill();
-  live = null;
-  return null;
+function settle(session: Live, code: number): void {
+  const text = plainText(session.raw);
+  const token = session.token ?? claudeTokenIn(text);
+  session.raw = withoutClaudeTokens(text);
+  session.token = token;
+  if (token === null) session.error = code === 0 ? 'Claude Code finished without printing a token; try again' : `the sign-in ended with status ${String(code)}`;
+  session.state = token === null ? 'failed' : 'done';
+  if (token !== null) dropTokenLater(session);
+  log.info({ state: session.state }, 'claude-login: claude setup-token finished');
 }
 
-export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now(), target: LoginTarget | null = null): LoginView {
+export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now()): LoginView {
   sweep(now);
-  const running = runningFor(target);
-  if (running !== null) return view(running);
-  const env = { TERM: 'xterm-256color', ...CLAUDE_ENV, ...target?.env };
-  const command = deps.command ?? agentCommand([claudeBin(), ...LOGIN_ARGS], env);
-  const session: Live = {
-    id: randomBytes(9).toString('base64url'),
-    startedAt: now,
-    state: 'pending',
-    output: '',
-    error: null,
-    target,
-    write: () => undefined,
-    kill: () => undefined,
-  };
+  if (live?.state === 'pending') return view(live);
+  if (live !== null) live.token = null;
+  const env = { TERM: 'xterm-256color', ...CLAUDE_ENV };
+  const command = deps.command ?? agentCommand([claudeBin(), ...TOKEN_ARGS], env);
+  const session: Live = { id: randomBytes(9).toString('base64url'), startedAt: now, state: 'pending', raw: '', error: null, token: null, write: () => undefined, kill: () => undefined };
+  const decoder = new TextDecoder();
   const terminal = new Bun.Terminal({
     cols: COLS,
     rows: ROWS,
     data: (_term, chunk: Uint8Array) => {
-      note(session, Buffer.from(chunk).toString('utf8'));
+      note(session, decoder.decode(chunk, { stream: true }));
     },
   });
   const proc = Bun.spawn(command, { terminal, env: { ...process.env, ...env } });
@@ -194,21 +155,19 @@ export function startClaudeLogin(deps: LoginDeps = {}, now = Date.now(), target:
     terminal.close();
   };
   proc.exited
-    .then(async (code) => {
+    .then((code) => {
       session.write = () => undefined;
-      terminal.close();
-      forgetClaudeChecks();
-      session.error = await verdict(session, code);
-      session.state = session.error === null ? 'done' : 'failed';
-      const onboarding = session.error === null ? markOnboardingDone() : 'skipped';
-      log.info({ state: session.state, onboarding, own: session.target !== null }, 'claude-login: the official login finished');
+      setTimeout(() => {
+        terminal.close();
+        settle(session, code);
+      }, DRAIN_MS).unref();
     })
     .catch((err: unknown) => {
       session.state = 'failed';
       session.error = errMsg(err);
     });
   live = session;
-  log.info({ command: command[0] }, 'claude-login: started');
+  log.info({ command: command[0] }, 'claude-login: started claude setup-token');
   return view(session);
 }
 
@@ -233,11 +192,13 @@ export function answerClaudeLogin(id: string, text: string): LoginView {
 export function endClaudeLogin(id: string): { ended: true } {
   const session = current(id);
   session.kill();
+  session.token = null;
   live = null;
   return { ended: true };
 }
 
 export const forgetClaudeLogin = (): void => {
   live?.kill();
+  if (live !== null) live.token = null;
   live = null;
 };

@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { AgentKeyMissing } from '../agent-auth.js';
-import { orgConnectionsOf, routeOf, type ModelRoute } from '../model-route.js';
+import { routeNames, routeOf, type ModelRoute } from '../model-route.js';
 import type { AgentKeyRow } from './agent-keys.js';
 import type { Database } from './database.js';
 import { hostIdIn, type ModelConnectionRow } from './models.js';
@@ -35,7 +35,7 @@ async function setupIn(tx: Database, identity: AgentKeyRow): Promise<AgentModelS
   const own = routes.find((held) => held.agent === identity.agent);
   const chosen = own ?? routes.find((held) => held.agent === null);
   const route = chosen === undefined ? null : routeOf(chosen.route);
-  const named = route === null ? [] : orgConnectionsOf(route);
+  const named = route === null ? [] : routeNames(route);
   const connections = named.length === 0 ? [] : await tx.select().from(modelConnections).where(and(eq(modelConnections.owner, identity.owner), inArray(modelConnections.id, named))).orderBy(modelConnections.id);
   const source: RouteSource = own !== undefined ? 'agent' : chosen === undefined ? null : 'organization';
   return { route, source, connections, hostId: await hostIdIn(tx, identity.owner) };

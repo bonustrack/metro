@@ -13,7 +13,7 @@ import type { ConnectionRow } from '@metro-labs/client/api/model';
 import type { ModelRoute, RouteStep } from '@metro-labs/client/api/model-route';
 import { changesOf, draftOf, problemOf, routeAfter, slotTitle, withConnection, type RouteChange, type Slot } from '@metro-labs/client/api/route-edit';
 import { queryError } from '../lib/queries.js';
-import { useAccountOf, useConnectionModelsQuery } from '../lib/model-queries.js';
+import { useConnectionModelsQuery } from '../lib/model-queries.js';
 
 type Open = 'connection' | 'model';
 
@@ -83,9 +83,9 @@ function useSave(scope: RouteScope, slot: Slot, draft: RouteStep, onClose: () =>
   return { busy, error, save };
 }
 
-function connectionValue(conn: ConnectionRow | undefined, account: string | null): string {
+function connectionValue(conn: ConnectionRow | undefined): string {
   if (conn === undefined) return 'Choose where requests go';
-  const note = connectionNote(conn, account);
+  const note = connectionNote(conn);
   return note === '' ? conn.label : `${conn.label} · ${note}`;
 }
 
@@ -99,7 +99,6 @@ function Editor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClo
   const [draft, setDraft] = useState<RouteStep>(() => draftOf(scope.route, slot));
   const [open, setOpen] = useState<Open>(scope.connections.some((c) => c.id === draft.connection) ? 'model' : 'connection');
   const conn = scope.connections.find((c) => c.id === draft.connection);
-  const account = useAccountOf(conn);
   const name = useNames(scope, slot, draft);
   const listed = useConnectionModelsQuery(conn);
   const problem = problemOf(scope.route, scope.connections, slot, draft, listed.data);
@@ -112,11 +111,11 @@ function Editor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClo
   return (
     <Modal title={slotTitle(slot)} open onClose={onClose} footer={footer} side={sheet ? 'bottom' : 'center'}>
       <Col padding={{ top: 4, bottom: 12 }}>
-        <Step n={1} title="Connection" value={connectionValue(conn, account)} open={open === 'connection'} done={conn !== undefined} onOpen={() => { setOpen('connection'); }}>
+        <Step n={1} title="Connection" value={connectionValue(conn)} open={open === 'connection'} done={conn !== undefined} onOpen={() => { setOpen('connection'); }}>
           <ConnectionStep connections={scope.connections} draft={draft} empty={scope.empty} onPick={pickConnection} />
         </Step>
         <Step n={2} title="Model" value={modelValue(draft, slot, name)} open={open === 'model' && conn !== undefined} done={conn !== undefined && problem === null} last locked={conn === undefined} onOpen={() => { setOpen('model'); }}>
-          {conn === undefined ? null : <ModelStep conn={conn} slot={slot} model={draft.model} onPick={(model) => { setDraft((d) => ({ ...d, model })); }} />}
+          {conn === undefined ? null : <ModelStep conn={conn} model={draft.model} onPick={(model) => { setDraft((d) => ({ ...d, model })); }} />}
         </Step>
       </Col>
     </Modal>

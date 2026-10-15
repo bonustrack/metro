@@ -1,5 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
-import { isProvider, LOCAL_PREFIX, type Account, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
+import { isProvider, type Account, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
 
 export interface DeliveredRoute {
   primary: Fallback | null;
@@ -27,7 +27,7 @@ function refOf(raw: unknown): Fallback | null {
 function routeOf(raw: unknown): DeliveredRoute | null {
   if (!isRecord(raw)) return null;
   const fallbacks = Array.isArray(raw.fallbacks) ? raw.fallbacks.flatMap((f: unknown) => refOf(f) ?? []) : [];
-  return { primary: refOf(raw.primary), fallbacks: fallbacks.filter((f) => f.model !== '' || f.connection.startsWith(LOCAL_PREFIX)).slice(0, MAX_FALLBACKS) };
+  return { primary: refOf(raw.primary), fallbacks: fallbacks.filter((f) => f.model !== '').slice(0, MAX_FALLBACKS) };
 }
 
 function accountOf(raw: unknown): Account {
@@ -44,16 +44,23 @@ function codexOf(raw: Record<string, unknown>): CodexAccess | null {
   return { method: raw.method, accessToken, expiresAt: numberOf(raw.expiresAt), accountId: maybe(raw.accountId) };
 }
 
-function credentialOf(provider: Provider, raw: unknown): { apiKey: string; codex: CodexAccess | null } {
-  if (!isRecord(raw)) return { apiKey: '', codex: null };
-  return provider === 'codex' ? { apiKey: '', codex: codexOf(raw) } : { apiKey: text(raw.apiKey), codex: null };
+interface Credential {
+  apiKey: string;
+  claudeToken: string;
+  codex: CodexAccess | null;
+}
+
+function credentialOf(provider: Provider, raw: unknown): Credential {
+  if (!isRecord(raw)) return { apiKey: '', claudeToken: '', codex: null };
+  if (provider === 'codex') return { apiKey: '', claudeToken: '', codex: codexOf(raw) };
+  return { apiKey: text(raw.apiKey), claudeToken: provider === 'anthropic' ? text(raw.claudeToken) : '', codex: null };
 }
 
 export function deliveredConnection(raw: unknown): Connection | null {
   if (!isRecord(raw) || !isProvider(raw.provider)) return null;
   const id = text(raw.id);
-  if (id === '' || id.startsWith(LOCAL_PREFIX)) return null;
-  const { apiKey, codex } = credentialOf(raw.provider, raw.credential);
+  if (id === '') return null;
+  const { apiKey, claudeToken, codex } = credentialOf(raw.provider, raw.credential);
   return {
     id,
     provider: raw.provider,
@@ -64,9 +71,9 @@ export function deliveredConnection(raw: unknown): Connection | null {
     zdr: raw.zdr === true,
     revision: numberOf(raw.revision),
     codex,
-    claude: null,
+    claudeToken,
     account: accountOf(raw.account),
-    signedOut: codex === null && apiKey === '',
+    signedOut: codex === null && apiKey === '' && claudeToken === '',
   };
 }
 

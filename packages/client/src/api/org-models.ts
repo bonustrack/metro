@@ -21,7 +21,8 @@ export interface OrgModels {
 export interface NewOrgModel {
   provider: Provider;
   label: string;
-  apiKey: string;
+  apiKey?: string;
+  claudeToken?: string;
   model?: string;
   region?: string;
   zdr?: boolean;
@@ -33,6 +34,7 @@ export interface OrgModelPatch {
   region?: string;
   zdr?: boolean;
   apiKey?: string;
+  claudeToken?: string;
 }
 
 export interface DeviceLogin {
@@ -83,7 +85,8 @@ function idOf(body: unknown): string | null {
 }
 
 export async function addOrgModel(input: NewOrgModel): Promise<string | null> {
-  return idOf(await send('POST', '', { ...input, label: input.label.trim(), apiKey: input.apiKey.trim() }));
+  const credential = input.claudeToken === undefined ? { apiKey: (input.apiKey ?? '').trim() } : { claudeToken: input.claudeToken.trim() };
+  return idOf(await send('POST', '', { ...input, label: input.label.trim(), ...credential }));
 }
 
 export async function updateOrgModel(id: string, patch: OrgModelPatch): Promise<void> {
