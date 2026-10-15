@@ -126,7 +126,6 @@ if (typeof setup?.memoryRoutine === 'boolean') {
   await ok('setClaudeMemoryRoutine on', () => box.setClaudeMemoryRoutine(true));
 }
 await ok('fetchSchedules', () => schedules.fetchSchedules());
-await ok('fetchClaudeAccount', () => claude.fetchClaudeAccount());
 const settings = await ok('fetchClaudeSettings', () => claude.fetchClaudeSettings());
 const first = settings?.[0];
 if (first !== undefined)
@@ -158,7 +157,6 @@ await ok('fetchMemoryFile', () => claude.fetchMemoryFile(project, 'compat.md'));
 
 await ok('fetchModel', () => model.fetchModel());
 await ok('syncModel', () => model.syncModel());
-await ok('claudeModels', () => model.claudeModels());
 
 await ok('setAllowlist', () => attach.setAllowlist(agent, 'threema', account, ['*ABCDEFG']));
 await ok('setAccountEnabled off', () => attach.setAccountEnabled(agent, 'threema', account, false));

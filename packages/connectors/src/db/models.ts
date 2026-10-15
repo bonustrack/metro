@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { newId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
-import { orgConnectionsOf, routeNames, routeOf, routeText, withoutConnection, type ModelRoute } from '../model-route.js';
+import { routeNames, routeOf, routeText, withoutConnection, type ModelRoute } from '../model-route.js';
 import type { Database } from './database.js';
 import { agents, modelConnections, modelHosts, modelRoutes } from './schema.js';
 
@@ -102,7 +102,7 @@ async function setRouteIn(tx: Database, write: RouteWrite): Promise<ModelRoute> 
     const agent = await tx.select({ id: agents.id }).from(agents).where(and(eq(agents.id, write.agent), eq(agents.owner, write.owner))).for('update');
     if (agent.length === 0) throw new ApiError('no such agent in this organization', 404);
   }
-  const named = orgConnectionsOf(write.route);
+  const named = routeNames(write.route);
   if (named.length > 0) {
     const found = await tx.select({ id: modelConnections.id }).from(modelConnections).where(and(eq(modelConnections.owner, write.owner), inArray(modelConnections.id, named))).for('share');
     if (found.length !== named.length) throw new ApiError('A route can only name model connections of this organization.', 400);

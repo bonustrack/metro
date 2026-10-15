@@ -2,13 +2,12 @@ import { type ReactNode } from 'react';
 import { ProviderLogo } from './ProviderLogo.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
-import { connectionDetail, providerInfo, usesSessionLogin } from '@metro-labs/client/api/providers';
+import { connectionDetail, providerInfo } from '@metro-labs/client/api/providers';
 import { Tag } from './Tag.js';
 
-export function connectionNote(conn: ConnectionRow, account: string | null): string {
-  if (account === null || conn.signedOut || conn.provider === 'openrouter' || conn.provider === 'bedrock') return connectionDetail(conn);
-  if (usesSessionLogin(conn)) return `the login Claude Code is signed in with · ${account}`;
-  return `${account}${conn.plan === null ? '' : ` (${conn.plan})`}`;
+export function connectionNote(conn: ConnectionRow): string {
+  if (conn.account === null || conn.signedOut || conn.provider !== 'codex') return connectionDetail(conn);
+  return `${conn.account}${conn.plan === null ? '' : ` (${conn.plan})`}`;
 }
 
 interface ConnectionItemProps {

@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { IncomingMessage, ServerResponse, type OutgoingHttpHeaders } from 'node:http';
 import { Socket } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import * as ids from '@metro-labs/core/ids';
 import * as secureFs from '@metro-labs/core/secure-fs';
 import { setBearerSessions } from '@metro-labs/http/api-http';
@@ -17,35 +14,28 @@ import { codexAccess, makeConnection } from './model-fixture.js';
 const SNAPSHOT = '/api/model/snapshot';
 const AUTH = 'Bearer snapshot-member';
 const AT = '2026-01-01T00:00:00.000Z';
-const LOGINS = [
-  { id: 'loginFirst1', email: 'first@example.com', plan: 'max', savedAt: AT },
-  { id: 'loginOther1', email: 'second@example.com', plan: 'max', savedAt: AT },
-];
-let dir = '';
+const FIRST_TOKEN = `sk-ant-oat01-${'g'.repeat(80)}`;
+const OTHER_TOKEN = `sk-ant-oat01-${'h'.repeat(80)}`;
 let stored: ModelSetup;
 const setup = mock((): ModelSetup => stored);
 const sync = mock((): Promise<void> => Promise.reject(new Error('unexpected sync')));
-const claudeUsage = mock((): Promise<unknown> => Promise.reject(new Error('unexpected Claude usage probe')));
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'metro-model-snapshot-'));
-  writeFileSync(join(dir, 'model.json'), `${JSON.stringify({ version: 3, claude: LOGINS }, null, 4)}\n`);
   spyOn(ids, 'newId');
   spyOn(secureFs, 'writeSecure');
   forgetServed();
   forgetUsage();
   setup.mockClear();
   sync.mockClear();
-  claudeUsage.mockClear();
   setBearerSessions((req) => Promise.resolve(req.headers.authorization === AUTH ? { subject: 'snapshot-owner', role: 'member' } : null));
   spyOn(usageRefresh, 'refreshUsage').mockRejectedValue(new Error('unexpected usage refresh'));
   spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network request'));
   stored = {
-    primary: { connection: 'local:loginFirst1', model: 'claude-opus-5-5' },
-    fallbacks: [{ connection: 'local:loginOther1', model: 'claude-opus-5-5' }],
+    primary: { connection: 'claudeFirst', model: 'claude-opus-5-5' },
+    fallbacks: [{ connection: 'claudeOther', model: 'claude-opus-5-5' }],
     connections: [
-      makeConnection('anthropic', { id: 'local:loginFirst1', claude: 'loginFirst1', account: { email: 'first@example.com', plan: 'max', method: null } }),
-      makeConnection('anthropic', { id: 'local:loginOther1', claude: 'loginOther1', account: { email: 'second@example.com', plan: 'max', method: null } }),
+      makeConnection('anthropic', { id: 'claudeFirst', label: 'First plan', claudeToken: FIRST_TOKEN }),
+      makeConnection('anthropic', { id: 'claudeOther', label: 'Other plan', claudeToken: OTHER_TOKEN }),
       makeConnection('openrouter', { apiKey: 'snapshot-api-secret', model: 'anthropic/claude-opus-5.5' }),
       makeConnection('codex', { model: 'gpt-5.4', codex: codexAccess({ method: 'code', accountId: 'snapshot-account', accessToken: 'snapshot-access-secret' }) }),
     ],
@@ -58,7 +48,6 @@ afterEach(() => {
   setBearerSessions(null);
   forgetServed();
   forgetUsage();
-  rmSync(dir, { recursive: true, force: true });
 });
 
 interface Answer {
@@ -67,7 +56,7 @@ interface Answer {
   body: unknown;
 }
 
-const deps = (): ModelApiDeps => ({ setup, sync, dir: () => dir, claudeUsage, fetchImpl: globalThis.fetch });
+const deps = (): ModelApiDeps => ({ setup, sync, fetchImpl: globalThis.fetch });
 
 function request(method = 'GET', authorization = AUTH, path = SNAPSHOT): Promise<Answer> {
   const req = new IncomingMessage(new Socket());
@@ -88,7 +77,6 @@ function expectReadOnly(): void {
   expect(ids.newId).not.toHaveBeenCalled();
   expect(secureFs.writeSecure).not.toHaveBeenCalled();
   expect(usageRefresh.refreshUsage).not.toHaveBeenCalled();
-  expect(claudeUsage).not.toHaveBeenCalled();
   expect(globalThis.fetch).not.toHaveBeenCalled();
   expect(sync).not.toHaveBeenCalled();
 }
@@ -96,13 +84,12 @@ function expectReadOnly(): void {
 test('snapshot returns only sanitized settings with previously recorded usage and the exact last-served connection', async () => {
   const first = { windows: [{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }], note: null, at: AT };
   const second = { ...first, windows: [{ label: '5-hour window', used: 0.73, resetAt: null, detail: null }] };
-  noteUsage('local:loginFirst1', first);
-  noteUsage('local:loginOther1', second);
-  tallyTokens('local:loginOther1', { input: 120, output: 30, cached: 80 }, new Date(AT));
-  const served = { connection: 'local:loginOther1', provider: 'anthropic', model: 'claude-opus-5-5', at: AT };
+  noteUsage('claudeFirst', first);
+  noteUsage('claudeOther', second);
+  tallyTokens('claudeOther', { input: 120, output: 30, cached: 80 }, new Date(AT));
+  const served = { connection: 'claudeOther', provider: 'anthropic', model: 'claude-opus-5-5', at: AT };
   noteServed(served);
   const before = structuredClone(stored);
-  const raw = readFileSync(join(dir, 'model.json'), 'utf8');
   const expected = settingsBody(deps());
 
   const answer = await request();
@@ -113,34 +100,32 @@ test('snapshot returns only sanitized settings with previously recorded usage an
   expect(answer.body).toEqual(expected);
   expect(answer.body).toMatchObject({
     source: 'organization',
-    route: 'local:loginFirst1',
+    route: 'claudeFirst',
     model: 'claude-opus-5-5',
     lastServed: served,
-    claude: LOGINS,
     usage: {
-      'local:loginFirst1': { ...first, tally: null },
-      'local:loginOther1': { ...second, tally: { requests: 1, input: 120, output: 30, cached: 80, since: AT } },
+      'claudeFirst': { ...first, tally: null },
+      'claudeOther': { ...second, tally: { requests: 1, input: 120, output: 30, cached: 80, since: AT } },
     },
     chain: [
-      { connection: 'local:loginFirst1', model: 'claude-opus-5-5', used: 0.42, hold: null, active: true },
-      { connection: 'local:loginOther1', model: 'claude-opus-5-5', used: 0.73, hold: null, active: false },
+      { connection: 'claudeFirst', model: 'claude-opus-5-5', used: 0.42, hold: null, active: true },
+      { connection: 'claudeOther', model: 'claude-opus-5-5', used: 0.73, hold: null, active: false },
     ],
   });
-  for (const secret of ['snapshot-api-secret', 'snapshot-access-secret', 'snapshot-account', 'apiKey', 'accessToken', 'refreshToken', 'credential']) {
+  for (const secret of ['snapshot-api-secret', 'snapshot-access-secret', 'snapshot-account', FIRST_TOKEN, OTHER_TOKEN, 'claudeToken', 'apiKey', 'accessToken', 'refreshToken', 'credential']) {
     expect(JSON.stringify(answer.body)).not.toContain(secret);
   }
   expect(stored).toEqual(before);
-  expect(readFileSync(join(dir, 'model.json'), 'utf8')).toBe(raw);
-  expect(readdirSync(dir)).toEqual(['model.json']);
   expectReadOnly();
 });
 
-test('snapshot with no route and no recorded usage starts no provider or login probe', async () => {
+test('snapshot with no route and no recorded usage starts no provider probe, and says no model is set up', async () => {
   stored = { primary: null, fallbacks: [], connections: [], source: null };
   const answer = await request('GET', AUTH, `${SNAPSHOT}?refresh=true`);
   expect(answer.status).toBe(200);
   expect(answer.body).toEqual(settingsBody(deps()));
-  expect(answer.body).toMatchObject({ usage: {}, lastServed: null, route: '', ready: true, reason: null, source: null });
+  expect(answer.body).toMatchObject({ usage: {}, lastServed: null, route: '', ready: false, source: null });
+  expect((answer.body as { reason: string }).reason).toContain("organization's Models page");
   expectReadOnly();
 });
 
@@ -177,14 +162,11 @@ test('snapshot matches only its exact path', async () => {
   expectReadOnly();
 });
 
-test('the settings GET refreshes usage, and the model file is never rewritten', async () => {
+test('the settings GET refreshes usage and reaches no provider itself', async () => {
   const refresh = spyOn(usageRefresh, 'refreshUsage').mockResolvedValue(undefined);
-  const before = statSync(join(dir, 'model.json'));
   const answer = await request('GET', AUTH, '/api/model');
   expect(answer.status).toBe(200);
   expect(answer.body).toEqual(settingsBody(deps()));
   expect(refresh).toHaveBeenCalledTimes(1);
-  expect(claudeUsage).not.toHaveBeenCalled();
   expect(globalThis.fetch).not.toHaveBeenCalled();
-  expect(statSync(join(dir, 'model.json'))).toMatchObject({ ino: before.ino, mtimeMs: before.mtimeMs });
 });

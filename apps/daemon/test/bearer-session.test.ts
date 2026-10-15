@@ -90,14 +90,16 @@ describe('a box owned by an organization', () => {
     expect(stopped).toBe(before + 1);
   });
 
-  test('the Claude login, session and setup writes need the admin role; reading them does not; there is no version route', async () => {
+  test('the Claude session and setup writes need the admin role; reading them does not; there is no version or login route', async () => {
     setLocalOwner(ORG, dir);
-    for (const path of ['/api/claude/login', '/api/claude/session', '/api/claude/setup']) {
+    for (const path of ['/api/claude/session', '/api/claude/setup']) {
       expect((await post(path, bearer({ org_id: ORG, role: 'member' }), {})).status).toBe(403);
     }
     expect((await post('/api/claude/setup', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(400);
     expect((await get('/api/claude/version', bearer({ org_id: ORG, role: 'admin' }))).status).toBe(404);
     expect((await post('/api/claude/version', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(405);
+    expect((await post('/api/claude/login', bearer({ org_id: ORG, role: 'admin' }), {})).status).toBe(405);
+    expect((await get('/api/claude/login/abc', bearer({ org_id: ORG, role: 'admin' }))).status).toBe(404);
     expect((await get('/api/claude/skills', bearer({ org_id: ORG, role: 'member' }))).status).toBe(200);
   });
 

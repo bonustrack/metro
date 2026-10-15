@@ -7,11 +7,12 @@ import { codexVersion } from '../src/gateway/codex-version.ts';
 import { userAgent } from '../src/gateway/codex.ts';
 import { usageSeen } from '../src/gateway/usage.ts';
 import { encodeFrame } from '../src/gateway/eventstream.ts';
-import { SESSION_LOGIN, type Connection, type ModelSetup } from '../src/gateway/model-config.ts';
-import { codexAccess, conn, makeConnection, setupOf, use } from './model-fixture.ts';
+import { emptySetup, type Connection, type ModelSetup } from '../src/gateway/model-config.ts';
+import { codexAccess, conn, connectionId, makeConnection, setupOf, use } from './model-fixture.ts';
 import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
-import { refreshLoginModels } from '../src/gateway/provider-models.ts';
-import { recordedClaudeModels } from './claude-models-fixture.ts';
+
+const CLAUDE_TOKEN = `sk-ant-oat01-${'c'.repeat(80)}`;
+const SIGNED_OUT_TOKEN = `sk-ant-oat01-${'d'.repeat(80)}`;
 
 interface Seen {
   url: string;
@@ -92,9 +93,9 @@ const deps: GatewayDeps = {
 
 beforeAll(async () => {
   anthropic = await fake((req, res) => {
-    if (req.url.startsWith('/v1/models')) {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(recordedClaudeModels));
+    if (req.headers.authorization === `Bearer ${SIGNED_OUT_TOKEN}`) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end('{"type":"error","error":{"type":"authentication_error","message":"OAuth token has expired"}}');
     } else if (req.body.includes('"stream":true')) sse(res, ['message_start', 'message_stop']);
     else {
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -137,7 +138,6 @@ beforeAll(async () => {
     },
   };
   deps.anthropicBase = anthropic.base;
-  await refreshLoginModels({ authorization: 'Bearer sk-ant-oat-login' }, anthropic.base);
   deps.bedrockBase = bedrock.base;
   deps.openrouterBase = openrouter.base;
   registry = await fake((_req, res) => {
@@ -162,8 +162,8 @@ afterAll(() => {
 
 beforeEach(() => {
   resetGatewayState();
-  cfg = setupOf(SESSION_LOGIN, [
-    makeConnection('anthropic', { id: SESSION_LOGIN }),
+  cfg = setupOf('anthropic', [
+    makeConnection('anthropic', { claudeToken: CLAUDE_TOKEN }),
     makeConnection('bedrock', { region: 'eu-central-1', apiKey: 'aws-key' }),
     makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-5.2-codex' }),
     makeConnection('codex', { model: 'gpt-5.3-codex', codex: codexAccess() }),
@@ -212,7 +212,7 @@ describe('who the gateway answers', () => {
 });
 
 describe('the session on any connection', () => {
-  test('a request on the Claude login is served, with no Agent SDK guard in the way', async () => {
+  test('a request on a Claude subscription is served, with no Agent SDK guard in the way', async () => {
     expect((await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer claude-login' })).status).toBe(200);
     expect(anthropic.seen).toHaveLength(1);
   });
@@ -225,37 +225,55 @@ describe('the session on any connection', () => {
     expect(anthropic.seen[0]?.headers.authorization).toBeUndefined();
     expect(JSON.parse(anthropic.seen[0]?.body ?? '{}')).toMatchObject({ model: 'claude-opus-5', output_config: { effort: 'low' } });
   });
+
+  test('no model set up for the agent is a 503 that names the Models page, and nothing reaches a provider', async () => {
+    cfg = emptySetup();
+    const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer claude-login' });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("organization's Models page");
+    expect(anthropic.seen).toHaveLength(0);
+  });
 });
 
 describe('the Anthropic route', () => {
-  test('forwards the request as Claude Code sent it: path, query, headers, body bytes, and the login', async () => {
+  test('forwards path, query, headers and body bytes, with the Claude subscription token as the only credential', async () => {
     const res = await post('/gateway/v1/messages?beta=true', message('claude-sonnet-5'), {
       authorization: 'Bearer sk-ant-oat-login',
-      'anthropic-beta': 'oauth-2025-04-20,context-management-2025-06-27',
+      'x-api-key': 'sk-ant-client',
+      'anthropic-beta': 'context-management-2025-06-27',
       'anthropic-version': '2023-06-01',
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { echo: Record<string, unknown>; auth: string; beta: string; key: string | null };
-    expect(body.auth).toBe('Bearer sk-ant-oat-login');
-    expect(body.beta).toBe('oauth-2025-04-20,context-management-2025-06-27');
+    const body = (await res.json()) as { echo: Record<string, unknown>; auth: string; beta: string; key: string | null; apiKey: string | null };
+    expect(body.auth).toBe(`Bearer ${CLAUDE_TOKEN}`);
+    expect(body.beta).toBe('context-management-2025-06-27,oauth-2025-04-20');
     expect(body.key).toBeNull();
+    expect(body.apiKey).toBeNull();
     expect(body.echo).toEqual(message('claude-sonnet-5'));
     expect(anthropic.seen[0]?.url).toBe('/v1/messages?beta=true');
     expect(anthropic.seen[0]?.body).toBe(JSON.stringify(message('claude-sonnet-5')));
   });
 
-  test('metro\'s own key standing in for a login is refused on this route by name, before anything reaches Anthropic', async () => {
-    const before = anthropic.seen.length;
-    const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer mk_ok' });
+  test("metro's own key standing in for a login never reaches Anthropic: the subscription token replaces it", async () => {
+    const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer mk_ok', 'anthropic-beta': 'oauth-2025-04-20' });
+    expect(res.status).toBe(200);
+    expect(anthropic.seen[0]?.headers.authorization).toBe(`Bearer ${CLAUDE_TOKEN}`);
+    expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe('oauth-2025-04-20');
+    expect(JSON.stringify(anthropic.seen[0]?.headers)).not.toContain('mk_ok');
+  });
+
+  test('a token Anthropic refuses is a 403 saying to sign in again on the Models page, never a 401', async () => {
+    conn(cfg, 'anthropic').claudeToken = SIGNED_OUT_TOKEN;
+    const res = await post('/gateway/v1/messages', message('claude-sonnet-5', true));
     expect(res.status).toBe(403);
     const body = (await res.json()) as { error: { type: string; message: string } };
     expect(body.error.type).toBe('permission_error');
-    expect(body.error.message).toContain('Model page');
-    expect(anthropic.seen.length).toBe(before);
+    expect(body.error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Models page');
+    expect(anthropic.seen).toHaveLength(1);
   });
 
   test('a key on the page replaces Claude Code\'s own login, takes the oauth beta off, and pins the model', async () => {
-    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', model: 'claude-opus-5' });
+    Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page', claudeToken: '', model: 'claude-opus-5' });
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), {
       authorization: 'Bearer sk-ant-oat-login',
       'anthropic-beta': 'oauth-2025-04-20,context-management-2025-06-27',
@@ -349,11 +367,11 @@ describe('the Anthropic route', () => {
       res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
     };
     try {
-      expect(usageSeen()[SESSION_LOGIN]).toBeUndefined();
+      expect(usageSeen()[connectionId('anthropic')]).toBeUndefined();
       const res = await post('/gateway/v1/messages', message('claude-opus-4-8', true));
       expect(res.status).toBe(200);
       await res.text();
-      const seen = usageSeen()[SESSION_LOGIN];
+      const seen = usageSeen()[connectionId('anthropic')];
       expect(seen?.windows.map((w) => [w.label, w.used])).toEqual([
         ['5-hour window', 0.34],
         ['Weekly, all models', 0.61],
@@ -458,7 +476,7 @@ describe('the OpenRouter route', () => {
 describe('what the picker can discover', () => {
   test('lists the models of the route under ids the picker keeps', async () => {
     cfg.primary = { connection: conn(cfg, 'bedrock').id, model: 'eu.anthropic.claude-sonnet-4-6' };
-    cfg.fallbacks = [{ connection: conn(cfg, 'openrouter').id, model: 'openai/gpt-5.2-codex' }, { connection: conn(cfg, 'codex').id, model: 'gpt-5.3-codex' }, { connection: SESSION_LOGIN, model: 'claude-sonnet-5' }];
+    cfg.fallbacks = [{ connection: conn(cfg, 'openrouter').id, model: 'openai/gpt-5.2-codex' }, { connection: conn(cfg, 'codex').id, model: 'gpt-5.3-codex' }, { connection: connectionId('anthropic'), model: 'claude-sonnet-5' }];
     const res = await fetch(`${base}/gateway/v1/models?limit=1000`, { headers: { 'x-metro-key': 'mk_ok' } });
     const body = (await res.json()) as { data: { id: string; display_name: string }[] };
     expect(body.data.map((m) => m.id)).toEqual(['bedrock:eu.anthropic.claude-sonnet-4-6', 'openrouter:openai/gpt-5.2-codex', 'codex:gpt-5.3-codex']);
@@ -671,7 +689,7 @@ describe('MCP tool search', () => {
     await post('/gateway/v1/messages?beta=true', afterSearch('claude-sonnet-5'), { authorization: 'Bearer sk-ant-oat-login', 'anthropic-beta': `oauth-2025-04-20,${TOOL_SEARCH_BETAS}` });
     searchedByMetro(JSON.parse(anthropic.seen[0]?.body ?? '{}') as Record<string, never>);
     expect(anthropic.seen[0]?.headers['anthropic-beta']).toBe(`oauth-2025-04-20,${FLAT_BETAS}`);
-    expect(anthropic.seen[0]?.headers.authorization).toBe('Bearer sk-ant-oat-login');
+    expect(anthropic.seen[0]?.headers.authorization).toBe(`Bearer ${CLAUDE_TOKEN}`);
     Object.assign(conn(cfg, 'anthropic'), { apiKey: 'sk-ant-page' });
     await post('/gateway/v1/messages', afterSearch('claude-opus-5-5'), { 'anthropic-beta': TOOL_SEARCH_BETAS });
     searchedByMetro(JSON.parse(anthropic.seen[1]?.body ?? '{}') as Record<string, never>);

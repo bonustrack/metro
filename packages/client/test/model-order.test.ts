@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings } from '../src/api/model.js';
-import { effectiveRoute, modelAccount, modelOrder, routeItems } from '../src/api/model-order.js';
-import { LOCAL_SESSION } from '../src/api/model-route.js';
+import { modelAccount, modelOrder, routeItems } from '../src/api/model-order.js';
 
 const connection = (id: string, email: string | null) => ({ id, provider: 'codex', label: `Connection ${id}`, model: 'gpt-6-astra', account: { email, plan: null, method: 'chatgpt' } });
 const reading = (used: number) => ({ at: '2026-10-06T10:00:00Z', windows: [{ label: 'Weekly', used, resetAt: null }] });
@@ -18,7 +17,7 @@ describe('ranked model accounts and usage', () => {
     const rows = modelOrder(settings());
     expect(rows.map((r) => r.connection?.id)).toEqual(['a', 'b']);
     expect(rows.map((r) => r.slot)).toEqual([{ kind: 'primary' }, { kind: 'fallback', at: 0 }]);
-    expect(rows.map((r) => modelAccount(r, 'unrelated@example.invalid'))).toEqual(['alice@example.invalid', 'bob@example.invalid']);
+    expect(rows.map((r) => modelAccount(r))).toEqual(['alice@example.invalid', 'bob@example.invalid']);
     expect(rows.map((r) => r.usage?.windows[0]?.used)).toEqual([0.47, 0]);
     expect(rows.map((r) => r.row?.active)).toEqual([true, false]);
   });
@@ -32,36 +31,23 @@ describe('ranked model accounts and usage', () => {
     expect(rows[1]?.usage).toBe(value.usage.a);
   });
 
-  test('a removed connection shows as unavailable and exposes no usage or server login', () => {
+  test('a removed connection shows as unavailable and exposes no usage', () => {
     const value = settings();
     value.connections = value.connections.filter((c) => c.id !== 'a');
     value.usage.passthrough = reading(0.9);
     const row = modelOrder(value)[0];
     expect(row?.usage).toBeUndefined();
     if (row === undefined) throw new Error('missing primary row');
-    expect(modelAccount(row, 'server@example.invalid')).toBe('Connection unavailable');
+    expect(modelAccount(row)).toBe('Connection unavailable');
   });
 
-  test('no route means the session login of the server, with its reading and account', () => {
-    const value = toModelSettings({ route: '', source: null, connections: [], usage: { 'local:session': reading(0.3) } });
-    expect(effectiveRoute(value).primary.connection).toBe(LOCAL_SESSION);
-    const row = modelOrder(value)[0];
-    expect(row?.usage?.windows[0]?.used).toBe(0.3);
-    expect(row?.row?.active).toBe(true);
-    if (row === undefined) throw new Error('missing primary row');
-    expect(modelAccount(row, 'server@example.invalid')).toBe('server@example.invalid');
-    expect(modelAccount(row, null)).toBe('Account not reported');
+  test('no route means no model order at all', () => {
+    expect(modelOrder(toModelSettings({ route: '', source: null, connections: [], usage: { 'local:session': reading(0.3) } }))).toEqual([]);
   });
 
-  test('a Claude login of the box names its own account, never the session login', () => {
-    const value = toModelSettings({ route: 'local:login0000001', model: 'claude-sonnet-5-5', fallbacks: [], connections: [], claude: [{ id: 'login0000001', email: 'own@example.invalid' }] });
-    const row = modelOrder(value)[0];
-    if (row === undefined) throw new Error('missing primary row');
-    expect(modelAccount(row, 'server@example.invalid')).toBe('own@example.invalid');
-    const keyed = toModelSettings({ route: 'k', model: 'claude-x', fallbacks: [], connections: [{ id: 'k', provider: 'anthropic', label: 'Key' }] });
-    const first = modelOrder(keyed)[0];
-    if (first === undefined) throw new Error('missing primary row');
-    expect(modelAccount(first, 'server@example.invalid')).toBe('API key');
+  test('a Claude subscription and an Anthropic key say what they hold, since neither reports an account', () => {
+    const value = toModelSettings({ route: 's', model: 'claude-sonnet-5-5', fallbacks: [{ connection: 'k', model: 'claude-x' }], connections: [{ id: 's', provider: 'anthropic', label: 'Max', subscription: true }, { id: 'k', provider: 'anthropic', label: 'Key' }] });
+    expect(modelOrder(value).map((row) => modelAccount(row))).toEqual(['Claude subscription', 'API key']);
   });
 
   test('a fallback uses its chosen model and exact chain entry, not the connection default', () => {

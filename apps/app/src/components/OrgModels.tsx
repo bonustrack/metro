@@ -32,10 +32,10 @@ import { logError } from '../lib/log.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can change the models.';
 const ORDER_NOTE = 'Every agent uses this list, in order, unless it has its own. An agent uses the first model under 95% usage.';
-const NO_ORDER = 'No default yet. Until you choose one, each agent uses the Claude Code login of its server.';
+const NO_ORDER = 'No default yet. Until you choose one, an agent without its own order has no model.';
 const NO_CONNECTION = 'Add a connection below first.';
 const AGENTS_NOTE = 'These agents use their own model order. Change it on the agent’s Model page.';
-const REMOVE_LINES = ['Agents without their own order go back to the Claude Code login of their server.'];
+const REMOVE_LINES = ['Agents without their own order have no model until you choose a new default.'];
 
 function useDefaultScope(list: OrgList): RouteScope {
   const client = useQueryClient();
@@ -116,7 +116,7 @@ function AgentRow({ agent, route, list }: { agent: string; route: ModelRoute; li
   return (
     <ListRow
       title={server === undefined ? agent : serverLabel(server)}
-      detail={`${connection === undefined ? 'A Claude login of its server' : `${model} on ${connection.label}`}${fallbacks}`}
+      detail={`${connection === undefined ? 'A connection that is gone' : `${model} on ${connection.label}`}${fallbacks}`}
       href={routeHash({ kind: 'model', project: agent })}
       icon={<AgentAvatar seed={server?.host ?? agent} src={server?.avatar ?? null} size={28} />}
     />

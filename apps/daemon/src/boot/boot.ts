@@ -62,7 +62,6 @@ import { startCloudWatchPublisher } from '../server/cloudwatch.js';
 import { watchFallbackUsage } from '../gateway/usage-refresh.js';
 import { startOrgModels, stopOrgModels } from '../gateway/org-models.js';
 import { effectiveSetup, watchModelChanges } from '../gateway/effective.js';
-import { readClaudeLogins, retireV2ModelFile } from '../gateway/claude-store.js';
 import { removeModelLeftovers } from '../gateway/model-leftovers.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { METRO_API } from '../connectors/metro-api.js';
@@ -146,7 +145,6 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
 async function main(): Promise<void> {
   removeConnectorLeftovers();
   removeModelLeftovers();
-  retireV2ModelFile();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   watchPolicySnapshot();
@@ -183,7 +181,7 @@ installBearerSessions(agentsDir(), localOwner);
   });
   watchConnectorTools();
   startCloudWatchPublisher();
-  watchFallbackUsage(() => effectiveSetup(), () => readClaudeLogins());
+  watchFallbackUsage(() => effectiveSetup());
   announceLocalEndpoint();
   tunnel?.start();
   log.info(

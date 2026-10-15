@@ -8,6 +8,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { FormField } from './FormField.js';
 import { Modal } from './Modal.js';
 import { Icon } from './Icon.js';
+import { ClaudeConnect } from './ClaudeConnect.js';
 import { CodexConnect } from './CodexConnect.js';
 import { OpenRouterConnect } from './OpenRouterConnect.js';
 import { ProviderChoices } from './ProviderChoices.js';
@@ -132,7 +133,15 @@ function Body({ provider, row, onDone }: { provider: Provider; row: ConnectionRo
         <CodexConnect codex={row} onDone={onDone} />
       </Col>
     );
+  if (provider === 'anthropic' && row?.subscription === true)
+    return (
+      <Col gap={20}>
+        <ConnectionForm provider={provider} row={row} withKey={false} onDone={onDone} />
+        <ClaudeConnect connection={row} onDone={onDone} />
+      </Col>
+    );
   const form = <ConnectionForm provider={provider} row={row} withKey={usesKey(provider)} onDone={onDone} />;
+  if (provider === 'anthropic' && row === null) return <ClaudeConnect connection={null} onDone={onDone}>{form}</ClaudeConnect>;
   if (provider !== 'openrouter') return form;
   return (
     <Col gap={20}>

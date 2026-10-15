@@ -10,12 +10,13 @@ import { ProviderModal, type Editing } from './ProviderModal.js';
 import { SettingsGroup, SettingsPad } from './SettingsSection.js';
 import { afterModelChange } from '../lib/model-queries.js';
 import { orgConnectionDetail } from './model-view.js';
+import { REVOKE_NOTE } from './ClaudeConnect.js';
 
 const NOTE = 'The keys and accounts your agents use. Requests go from each agent straight to the provider.';
-const EMPTY = 'No connection yet. Add OpenRouter, Codex, an Anthropic key or Amazon Bedrock.';
+const EMPTY = 'No connection yet. Add a Claude subscription, an Anthropic key, OpenRouter, Codex or Amazon Bedrock.';
 
 function menuLabel(connection: OrgModelConnection): string {
-  if (connection.provider === 'codex') return 'Sign in again';
+  if (connection.provider === 'codex' || connection.subscription) return 'Sign in again';
   return connection.signedOut ? 'Add a key' : 'Settings and key';
 }
 
@@ -27,7 +28,7 @@ function Remove({ connection, onOpen }: { connection: OrgModelConnection; onOpen
       items={[{ label: menuLabel(connection), onSelect: onOpen }]}
       item="Remove"
       title="Remove this connection?"
-      lines={[`“${connection.label}” and its key or sign-in are removed. Every model order that uses it loses it.`]}
+      lines={[`“${connection.label}” and its key or sign-in are removed. Every model order that uses it loses it.`, ...(connection.subscription ? [`${REVOKE_NOTE} https://claude.ai/settings`] : [])]}
       action="Remove connection"
       failure="Could not remove the connection."
       run={async () => {

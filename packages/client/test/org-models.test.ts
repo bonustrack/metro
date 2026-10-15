@@ -46,7 +46,7 @@ const LIST = {
     { id: 'gem00000001', provider: 'gemini', label: 'Gemini' },
   ],
   default: ROUTE,
-  agents: { agentA00001: { primary: { connection: 'local:session', model: '' }, fallbacks: [] }, broken00001: { fallbacks: [] } },
+  agents: { agentA00001: { primary: { connection: 'orA00000001', model: 'anthropic/claude-opus-5.5' }, fallbacks: [] }, broken00001: { fallbacks: [] } },
 };
 
 beforeAll(() => {
@@ -96,6 +96,16 @@ describe('the organization models client', () => {
     expect(calls[0]).toEqual({ url: `${BASE}/orA00000001`, method: 'DELETE', body: undefined });
     serve({});
     expect(await addOrgModel({ provider: 'bedrock', label: 'AWS', apiKey: 'k', region: 'eu-central-1' })).toBeNull();
+  });
+
+  test('a Claude subscription is added with its token and no key, and signing in again patches the token', async () => {
+    const token = `sk-ant-oat01-${'j'.repeat(80)}`;
+    serve({ connection: { id: 'sub00000001' } }, 201);
+    expect(await addOrgModel({ provider: 'anthropic', label: ' Max plan ', claudeToken: ` ${token}\n` })).toBe('sub00000001');
+    expect(calls[0]).toEqual({ url: BASE, method: 'POST', body: { provider: 'anthropic', label: 'Max plan', claudeToken: token } });
+    serve({});
+    await updateOrgModel('sub00000001', { claudeToken: token });
+    expect(calls[0]).toEqual({ url: `${BASE}/sub00000001`, method: 'PATCH', body: { claudeToken: token } });
   });
 
   test('routes are a PUT with the agent or null, and an override is removed by agent', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import { toSettingsFile } from '../src/api/claude.js';
+import { claudeTokenReady, toSettingsFile } from '../src/api/claude.js';
 import { controlClaudeSession, toClaudeSession } from '../src/api/claude-box.js';
 import { clearAccount } from '../src/auth/account.js';
 import { installTestAccount } from './account-fixture.js';
@@ -40,6 +40,12 @@ test('Start and Stop explicitly set autostart even for an older daemon', async (
     fetch.mockRestore();
     clearAccount();
   }
+});
+
+test('a pasted Claude token is ready only when it has the shape claude setup-token prints', () => {
+  expect(claudeTokenReady(` sk-ant-oat01-${'k'.repeat(80)}\n`)).toBe(true);
+  expect(claudeTokenReady('sk-ant-oat01-short')).toBe(false);
+  expect(claudeTokenReady(`sk-ant-api03-${'k'.repeat(80)}`)).toBe(false);
 });
 
 describe('the settings files a daemon lists', () => {

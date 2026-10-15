@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { modelViewText, setupOf as effective } from '../src/gateway/effective.ts';
-import { notReady, primaryRoute, resolveRoute, routeLabel, runnerModel, SESSION_LOGIN, type ModelSetup } from '../src/gateway/model-config.ts';
+import { notReady, primaryRoute, resolveRoute, routeLabel, runnerModel, type ModelSetup } from '../src/gateway/model-config.ts';
+import { deliveredConnection } from '../src/gateway/delivered.ts';
 import { codexAccess, conn, connectionId, makeConnection, setupOf, use } from './model-fixture.ts';
 
 const configured = (): ModelSetup =>
@@ -10,7 +11,7 @@ const configured = (): ModelSetup =>
     makeConnection('codex', { model: 'gpt-5.3-codex', codex: codexAccess() }),
   ]);
 
-const LOGIN = { id: 'Xyz12345678', email: 'less@example.com', plan: 'max', savedAt: '2026-10-01T00:00:00.000Z' };
+const CLAUDE_TOKEN = `sk-ant-oat01-${'b'.repeat(80)}`;
 
 describe('readiness and resolving a request', () => {
   test('readiness names the missing piece of a route', () => {
@@ -24,7 +25,8 @@ describe('readiness and resolving a request', () => {
     expect(notReady({ connection: makeConnection('bedrock', { apiKey: 'k' }), model: 'x' })).toMatch(/region/);
     expect(notReady({ connection: makeConnection('openrouter', { apiKey: 'k' }), model: '' })).toMatch(/model id/);
     expect(notReady({ connection: makeConnection('codex', { model: 'gpt-5.4' }), model: 'gpt-5.4' })).toMatch(/not signed in/);
-    expect(notReady({ connection: makeConnection('anthropic'), model: 'claude-sonnet-5' })).toMatch(/no API key/);
+    expect(notReady({ connection: makeConnection('anthropic'), model: 'claude-sonnet-5' })).toMatch(/no API key or Claude subscription/);
+    expect(notReady({ connection: makeConnection('anthropic', { claudeToken: CLAUDE_TOKEN }), model: 'claude-sonnet-5' })).toBeNull();
     expect(primaryRoute({ ...configured(), primary: null })).toBeNull();
     expect(primaryRoute({ ...configured(), primary: { connection: 'cn-gone', model: '' } })).toBeNull();
   });
@@ -62,34 +64,31 @@ describe('readiness and resolving a request', () => {
   });
 });
 
-describe('local routes of this box', () => {
-  test('local:<login> is the Claude login of this box with its account, and a login not on the box is named', () => {
-    const setup = effective({ route: { primary: { connection: `local:${LOGIN.id}`, model: 'claude-opus-5' }, fallbacks: [{ connection: 'local:Gone1234567', model: 'claude-sonnet-5' }] }, source: 'agent', connections: [] }, [LOGIN]);
-    const primary = primaryRoute(setup);
-    expect(primary).toMatchObject({ model: 'claude-opus-5', connection: { id: `local:${LOGIN.id}`, provider: 'anthropic', claude: LOGIN.id, account: { email: LOGIN.email, plan: 'max' }, signedOut: false } });
-    expect(primary === null ? 'none' : notReady(primary)).toBeNull();
-    const gone = setup.connections.find((c) => c.id === 'local:Gone1234567');
-    expect(gone === undefined ? 'none' : notReady({ connection: gone, model: 'x' })).toMatch(/not on this box/);
-    expect(setup.source).toBe('agent');
+describe('the setup the organization delivered', () => {
+  test('a Claude subscription arrives as its token, and nothing else turns an Anthropic connection into one', () => {
+    const subscribed = deliveredConnection({ id: 'conn0000001', provider: 'anthropic', label: 'Max plan', revision: 2, credential: { claudeToken: CLAUDE_TOKEN } });
+    expect(subscribed).toMatchObject({ id: 'conn0000001', provider: 'anthropic', apiKey: '', claudeToken: CLAUDE_TOKEN, signedOut: false });
+    expect(deliveredConnection({ id: 'conn0000002', provider: 'anthropic', credential: null })).toMatchObject({ claudeToken: '', signedOut: true });
+    expect(deliveredConnection({ id: 'conn0000003', provider: 'openrouter', credential: { claudeToken: CLAUDE_TOKEN } })).toMatchObject({ apiKey: '', claudeToken: '', signedOut: true });
+    const setup = effective({ route: { primary: { connection: 'conn0000001', model: 'claude-opus-5' }, fallbacks: [] }, source: 'agent', connections: subscribed === null ? [] : [subscribed] });
+    expect(primaryRoute(setup)?.connection.claudeToken).toBe(CLAUDE_TOKEN);
     expect(runnerModel(setup)).toBe('claude-opus-5');
   });
 
-  test('local:session rides the login of the session itself, and no route at all is the same passthrough', () => {
-    const setup = effective({ route: { primary: { connection: SESSION_LOGIN, model: '' }, fallbacks: [] }, source: 'organization', connections: [] }, []);
-    expect(primaryRoute(setup)?.connection).toMatchObject({ id: SESSION_LOGIN, provider: 'anthropic', apiKey: '', claude: null });
-    expect(resolveRoute('claude-sonnet-5', setup)?.model).toBe('claude-sonnet-5');
-    expect(runnerModel(setup)).toBeNull();
-    expect(effective(null, [LOGIN])).toEqual({ primary: null, fallbacks: [], connections: [], source: null });
-    expect(effective({ route: null, source: null, connections: [] }, [])).toMatchObject({ primary: null, connections: [] });
+  test('no delivery or no route means no model at all', () => {
+    expect(effective(null)).toEqual({ primary: null, fallbacks: [], connections: [], source: null });
+    expect(effective({ route: null, source: null, connections: [] })).toMatchObject({ primary: null, connections: [] });
+    expect(resolveRoute('claude-sonnet-5', effective(null))).toBeNull();
   });
 
-  test('the agent view names the primary connection and the route model, a local one as anthropic, and never a credential', () => {
+  test('the agent view names the primary connection and the route model, and never a credential', () => {
     const keyed = configured();
     keyed.primary = { connection: connectionId('openrouter'), model: 'x/y' };
     expect(JSON.parse(modelViewText(keyed) ?? '')).toEqual({ version: 2, route: connectionId('openrouter'), connections: [{ id: connectionId('openrouter'), provider: 'openrouter', model: 'x/y' }] });
     expect(modelViewText(keyed)).not.toContain('or-key');
-    const local = effective({ route: { primary: { connection: `local:${LOGIN.id}`, model: 'claude-opus-5' }, fallbacks: [] }, source: 'agent', connections: [] }, [LOGIN]);
-    expect(JSON.parse(modelViewText(local) ?? '')).toEqual({ version: 2, route: `local:${LOGIN.id}`, connections: [{ id: `local:${LOGIN.id}`, provider: 'anthropic', model: 'claude-opus-5' }] });
+    const subscribed = setupOf('anthropic', [makeConnection('anthropic', { claudeToken: CLAUDE_TOKEN })]);
+    subscribed.primary = { connection: connectionId('anthropic'), model: 'claude-opus-5' };
+    expect(modelViewText(subscribed)).not.toContain(CLAUDE_TOKEN);
     expect(modelViewText({ ...keyed, primary: null })).toBeNull();
   });
 });

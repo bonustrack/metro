@@ -7,7 +7,6 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { KebabMenu } from './KebabMenu.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { CardUsage, useModelName } from './AgentModel.js';
-import { useAccountOf } from '../lib/model-queries.js';
 import { modelAccount, type ModelOrderItem } from '@metro-labs/client/api/model-order';
 import { SettingsGroup } from './SettingsSection.js';
 import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
@@ -78,7 +77,7 @@ function RowIcon({ item, n }: { item: ModelOrderItem; n: number }): ReactNode {
 }
 
 function RowBelow({ item, withUsage }: { item: ModelOrderItem; withUsage: boolean }): ReactNode {
-  const account = modelAccount(item, useAccountOf(item.connection));
+  const account = modelAccount(item);
   return (
     <Col gap={4}>
       <Text size="md" role="secondary" numberOfLines={1}>{account}</Text>

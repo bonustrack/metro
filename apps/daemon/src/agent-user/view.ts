@@ -40,7 +40,7 @@ function agentFile(dir: string): string | null {
   return json({ version: 1, id: file.id, key: file.key });
 }
 
-export function viewFiles(dir = agentsDir(), model: () => string | null = () => modelViewText(effectiveSetup(dir))): Map<string, string | null> {
+export function viewFiles(dir = agentsDir(), model: () => string | null = () => modelViewText(effectiveSetup())): Map<string, string | null> {
   const files = new Map<string, string | null>([
     ['agent.json', agentFile(dir)],
     ['model.json', model()],

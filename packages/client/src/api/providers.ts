@@ -1,6 +1,5 @@
 import { PROVIDERS, usageOf, usesKey, type ConnectionRow, type ModelSettings, type Provider, type ProviderInfo } from './model.js';
 import { matchModels, type ModelOption } from './model-options.js';
-import { LOCAL_SESSION, isLocal } from './model-route.js';
 
 export const providerInfo = (p: Provider | undefined): ProviderInfo | undefined => PROVIDERS.find((x) => x.id === p);
 
@@ -8,22 +7,19 @@ export const providerLabel = (p: Provider): string => providerInfo(p)?.label ?? 
 
 export const DEFAULT_MODEL = 'The model Claude Code asks for';
 
-export const routedConnection = (s: ModelSettings): ConnectionRow | undefined => {
-  const id = s.route?.primary.connection ?? LOCAL_SESSION;
-  return s.connections.find((c) => c.id === id);
-};
+export const routedConnection = (s: ModelSettings): ConnectionRow | undefined => s.connections.find((c) => c.id === s.route?.primary.connection);
 
-export const routedUsage = (s: ModelSettings): ModelSettings['usage'][string] | undefined => usageOf(s, s.route?.primary.connection ?? LOCAL_SESSION);
-
-export const usesSessionLogin = (c: ConnectionRow): boolean => c.id === LOCAL_SESSION;
+export const routedUsage = (s: ModelSettings): ModelSettings['usage'][string] | undefined => (s.route === null ? undefined : usageOf(s, s.route.primary.connection));
 
 const signedAs = (c: ConnectionRow): string => [c.account ?? 'signed in', c.plan === null ? '' : `(${c.plan})`].filter((x) => x !== '').join(' ');
 
+const signedOutNote = (c: ConnectionRow): string => (usesKey(c.provider) && !c.subscription ? 'no key yet, add one' : 'signed out, sign in again');
+
 export function connectionDetail(c: ConnectionRow): string {
-  if (c.signedOut) return usesKey(c.provider) ? 'no key yet, add one' : 'signed out, sign in again';
+  if (c.signedOut) return signedOutNote(c);
+  if (c.subscription) return 'Claude subscription';
   if (c.provider === 'bedrock') return ['API key stored', c.region === '' ? 'no region' : c.region].join(' · ');
   if (c.provider === 'openrouter') return ['API key stored', c.zdr ? 'zero data retention' : ''].filter((x) => x !== '').join(' · ');
-  if (usesSessionLogin(c)) return 'the login Claude Code is signed in with';
   if (c.provider === 'anthropic' && c.hasKey) return 'API key stored';
   return signedAs(c);
 }
@@ -40,10 +36,7 @@ export interface PickInput {
   connection: ConnectionRow;
   query: string;
   current: string;
-  named: boolean;
 }
-
-const DEFAULT_ROW: ModelOption = { id: '', name: DEFAULT_MODEL, price: '', zdr: null };
 
 const rowOf = (input: PickInput, model: ModelOption): PickRow => ({
   ...model,
@@ -56,10 +49,8 @@ const rowOf = (input: PickInput, model: ModelOption): PickRow => ({
 const zdrOnly = (c: ConnectionRow): boolean => c.provider === 'openrouter' && c.zdr;
 
 export function pickRows(input: PickInput): PickRow[] {
-  const blank = !input.named && isLocal(input.connection.id) && input.query === '';
   const models = zdrOnly(input.connection) ? input.models.filter((m) => m.zdr !== false) : input.models;
-  const listed = blank ? [DEFAULT_ROW, ...models] : models;
-  const shown = input.query === '' ? listed : matchModels(listed, input.query);
+  const shown = input.query === '' ? models : matchModels(models, input.query);
   return shown.map((model) => rowOf(input, model));
 }
 

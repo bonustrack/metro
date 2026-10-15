@@ -110,20 +110,21 @@ The agent runs as one Agent SDK session: `metro agent` starts Claude Code throug
 Claude Agent SDK, with the metro MCP server loaded and the agent's key. Chat messages,
 voice calls and background workers share that one conversation. Inference goes through
 the daemon's model gateway, and the organization decides where requests go: its
-**Models** page on metro.box holds the connections (an Anthropic API key, Amazon Bedrock,
-OpenRouter, or Codex: a ChatGPT plan, through OpenAI's Sign in with ChatGPT or the Codex
-app's code sign-in) and the default model order. Every agent uses that order unless an
-admin gives it its own on the agent's **Model** page, which can also use the Claude logins
-signed in on that box. The keys and sign-ins live sealed on metro.box; each box fetches
-what its order needs and calls the provider itself. A model change applies at once, with
-no restart.
+**Models** page on metro.box holds the connections (a Claude subscription, an Anthropic API
+key, Amazon Bedrock, OpenRouter, or Codex: a ChatGPT plan, through OpenAI's Sign in with
+ChatGPT or the Codex app's code sign-in) and the default model order. Every agent uses that
+order unless an admin gives it its own on the agent's **Model** page. A Claude subscription
+is the long-lived token `claude setup-token` prints: run it on your own computer with Claude
+Code installed and paste the token on the Models page. The keys,
+tokens and sign-ins live sealed on metro.box; each box fetches what its order needs and
+calls the provider itself. A model change applies at once, with no restart. With no model
+set up, the session does not start.
 
 You do not type it yourself. Once the box has an agent and a model it can use, the daemon
 starts `metro agent` in a tmux session named `metro`, and starts it again when it exits,
 resuming the same conversation. The Terminal tab on the page opens that tmux session. The Claude Code it
 runs is the one bundled with the Agent SDK, installed by `metro agent` into
-`~/.metro/sdk-runner`; the box installs no Claude Code of its own. The Claude sign-in on
-the agent's Model page and its usage check use that same Claude Code.
+`~/.metro/sdk-runner`; the box installs no Claude Code of its own.
 
 The session follows [docs/SETUP.md](docs/SETUP.md): an orchestrator-only main thread, a
 `worker` subagent, standing rules as a skill, and privacy settings. The daemon applies all

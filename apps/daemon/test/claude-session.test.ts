@@ -1,17 +1,18 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import * as login from '../src/claude/login.js';
 import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
+import { emptySetup } from '../src/gateway/model-config.ts';
 import { makeConnection, setupOf } from './model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const KEY = `mk_${'a'.repeat(43)}`;
+const READY = setupOf('openrouter', [makeConnection('openrouter', { apiKey: 'k', model: 'anthropic/claude' })]);
 
 let dir = '';
 let tmux = '';
@@ -49,7 +50,7 @@ const deps = (over: Partial<SessionDeps> = {}): SessionDeps => ({
   metro: ['true'],
   home: join(dir, 'home'),
   agents: join(dir, 'agents'),
-  signedIn: () => true,
+  model: () => READY,
   ...over,
 });
 
@@ -87,44 +88,36 @@ afterEach(() => {
 });
 
 describe('what stands in the way of a session', () => {
-  test('no agent, then no credential, each named; a signed-in box with an agent is clear', () => {
+  test('no agent, then no model, each named; an agent the organization routes to a ready model is clear', () => {
     expect(sessionBlocked(deps())).toBe('no agent on this machine yet');
     agent();
-    expect(sessionBlocked(deps({ signedIn: () => false }))).toContain('not signed in');
+    expect(sessionBlocked(deps({ model: () => emptySetup() }))).toContain('routes this agent to no model');
     expect(sessionBlocked(deps())).toBeNull();
   });
 
-  test('a route to an Anthropic API key needs no Claude login', () => {
+  test('an Anthropic route needs an API key or a Claude subscription, never a login of the box', () => {
     agent();
     const keyed = setupOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })]);
-    expect(sessionBlocked(deps({ signedIn: () => false, model: () => keyed }))).toBeNull();
-    const session = setupOf('local:session', [makeConnection('anthropic', { id: 'local:session' })]);
-    expect(sessionBlocked(deps({ signedIn: () => false, model: () => session }))).toContain('not signed in');
+    expect(sessionBlocked(deps({ model: () => keyed }))).toBeNull();
+    const subscribed = setupOf('anthropic', [makeConnection('anthropic', { claudeToken: `sk-ant-oat01-${'a'.repeat(80)}` })]);
+    expect(sessionBlocked(deps({ model: () => subscribed }))).toBeNull();
+    const bare = setupOf('anthropic', [makeConnection('anthropic')]);
+    expect(sessionBlocked(deps({ model: () => bare }))).toContain('no API key or Claude subscription');
   });
 
   test('a runner store the boot could not prepare holds nothing back: Start and the watcher run metro agent, which prepares it', () => {
     agent();
-    spyOn(login, 'claudeInstalled').mockReturnValue(false);
-    spyOn(login, 'claudeAccount').mockReturnValue({ signedIn: false, account: null, plan: null });
-    const unprepared = deps({ metro: undefined, signedIn: undefined });
+    const unprepared = deps({ metro: undefined });
     expect(sessionBlocked(unprepared)).toBeNull();
     expect(startSession(unprepared).running).toBe(true);
     expect(recorded().find((c) => c.startsWith('new-session'))).toEndWith(' agent');
   });
 
-  test('with Claude Code in the store, a missing login and an organization that routes nowhere still block the start', () => {
+  test('a delivered route to a ready provider counts, and one that is not ready names what is missing', () => {
     agent();
-    spyOn(login, 'claudeInstalled').mockReturnValue(true);
-    spyOn(login, 'claudeAccount').mockReturnValue({ signedIn: false, account: null, plan: null });
-    expect(sessionBlocked(deps({ metro: undefined, signedIn: undefined }))).toContain('not signed in');
-  });
-
-  test('a delivered route to a ready provider counts as a credential, and one that is not ready does not', () => {
-    agent();
-    const ready = setupOf('openrouter', [makeConnection('openrouter', { apiKey: 'k', model: 'anthropic/claude' })]);
-    expect(sessionBlocked(deps({ signedIn: () => false, model: () => ready }))).toBeNull();
+    expect(sessionBlocked(deps({ model: () => READY }))).toBeNull();
     const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
-    expect(sessionBlocked(deps({ signedIn: () => false, model: () => keyless }))).toContain('routes this agent to no model');
+    expect(sessionBlocked(deps({ model: () => keyless }))).toContain('OpenRouter has no API key');
   });
 });
 
@@ -174,7 +167,7 @@ describe('starting the session', () => {
     expect(autostartEnabled(join(dir, 'agents'))).toBe(false);
     expect(ensureSession(deps())).toBe('off');
     setAutostart(true, join(dir, 'agents'));
-    expect(ensureSession(deps({ signedIn: () => false }))).toBe('blocked');
+    expect(ensureSession(deps({ model: () => emptySetup() }))).toBe('blocked');
   });
 });
 
@@ -192,8 +185,7 @@ describe('whether the runner is up', () => {
 });
 
 describe('preparing the runner store', () => {
-  test('runs metro agent --prepare, names what went wrong when it fails, and forgets the cached install check either way', async () => {
-    const forgot = spyOn(login, 'forgetClaudeChecks');
+  test('runs metro agent --prepare and names what went wrong when it fails', async () => {
     const prior = process.env.METRO_CLI_BIN;
     const cli = join(dir, 'cli.mjs');
     const seen = join(dir, 'args.json');
@@ -202,10 +194,8 @@ describe('preparing the runner store', () => {
     try {
       await prepareRunnerStore();
       expect(JSON.parse(readFileSync(seen, 'utf8'))).toEqual(['agent', '--prepare']);
-      expect(forgot).toHaveBeenCalledTimes(1);
       process.env.FAIL_PREPARE = '1';
       await expect(prepareRunnerStore()).rejects.toThrow('metro agent --prepare failed: no network');
-      expect(forgot).toHaveBeenCalledTimes(2);
     } finally {
       delete process.env.FAIL_PREPARE;
       if (prior === undefined) delete process.env.METRO_CLI_BIN;

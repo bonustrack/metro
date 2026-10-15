@@ -65,7 +65,6 @@ type BoxName =
   | 'claude-skill'
   | 'memory'
   | 'model'
-  | 'connection-models'
   | 'mode'
   | 'session'
   | 'stations'

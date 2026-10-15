@@ -7,7 +7,6 @@ import { FormField } from './FormField.js';
 import { RowButton } from './ModelRowButton.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
 import { pickRows, typedRow, type PickInput, type PickRow } from '@metro-labs/client/api/providers';
-import type { Slot } from '@metro-labs/client/api/route-edit';
 import { queryError } from '../lib/queries.js';
 import { useConnectionModelsQuery } from '../lib/model-queries.js';
 import { GROW } from '../lib/style.js';
@@ -16,7 +15,6 @@ const LIST = { maxHeight: 300 } as const;
 
 interface ModelStepProps {
   conn: ConnectionRow;
-  slot: Slot;
   model: string;
   onPick: (model: string) => void;
 }
@@ -27,11 +25,11 @@ function ListStatus({ loading, empty, error }: { loading: boolean; empty: boolea
   return <Text size="md" role="secondary">{loading ? 'Loading models…' : 'No model matches your search.'}</Text>;
 }
 
-export function ModelStep({ conn, slot, model, onPick }: ModelStepProps): ReactNode {
+export function ModelStep({ conn, model, onPick }: ModelStepProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [query, setQuery] = useState('');
   const models = useConnectionModelsQuery(conn);
-  const input: PickInput = { models: models.data ?? [], connection: conn, query, current: model, named: slot.kind !== 'primary' };
+  const input: PickInput = { models: models.data ?? [], connection: conn, query, current: model };
   const rows = pickRows(input);
   const typed = typedRow(input);
   const pick = (row: PickRow): void => { onPick(row.id); };

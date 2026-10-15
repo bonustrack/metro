@@ -13,17 +13,6 @@ import {
   readClaudeSkill,
   writeClaudeSkill,
 } from './skills.js';
-import {
-  answerClaudeLogin,
-  claudeAccount,
-  claudeInstalled,
-  claudeLoginView,
-  endClaudeLogin,
-  startClaudeLogin,
-  type LoginDeps,
-  type LoginTarget,
-} from './login.js';
-import { claudeLoginTarget, type ClaudeLoginDeps } from '../gateway/claude-logins.js';
 import { setupAnswer, type SetupApiDeps } from './setup-api.js';
 import {
   autostartEnabled,
@@ -58,8 +47,6 @@ const PAGE_MAX = 500;
 
 export interface ClaudeApiDeps extends SetupApiDeps {
   dir?: () => string;
-  login?: LoginDeps;
-  claudeLogins?: ClaudeLoginDeps;
   skillSource?: GitHubSkills;
 }
 
@@ -133,8 +120,7 @@ async function created(req: IncomingMessage, path: string, dir: string): Promise
   return createClaudeSkill(body.name, typeof body.text === 'string' ? body.text : undefined, dir);
 }
 
-const ADMIN_ONLY = /^\/api\/claude\/(login|session|setup|skill-source)(\/|$)/;
-const LOGIN = 'login';
+const ADMIN_ONLY = /^\/api\/claude\/(session|setup|skill-source)(\/|$)/;
 const SESSION = 'session';
 const SETUP = 'setup';
 
@@ -164,26 +150,6 @@ async function sessionAnswer(req: IncomingMessage, deps: ClaudeApiDeps): Promise
   const body = await readJsonBody(req);
   if (!isRecord(body)) throw new ApiError('a body is required', 400);
   return sessionCommand(body, session);
-}
-
-function loginTarget(req: IncomingMessage, deps: ClaudeApiDeps): LoginTarget | null {
-  const asked = new URL(req.url ?? '', 'http://metro').searchParams.get('connection');
-  return asked === null ? null : claudeLoginTarget(asked, deps.claudeLogins);
-}
-
-async function loginAnswer(req: IncomingMessage, id: string, deps: ClaudeApiDeps): Promise<unknown> {
-  const method = req.method ?? 'GET';
-  if (id === '') {
-    if (method === 'POST') return startClaudeLogin(deps.login, Date.now(), loginTarget(req, deps));
-    if (method === 'GET') return { available: claudeInstalled(), ...claudeAccount() };
-    throw new ApiError('method not allowed', 405);
-  }
-  if (method === 'GET') return claudeLoginView(id);
-  if (method === 'DELETE') return endClaudeLogin(id);
-  if (method !== 'POST') throw new ApiError('method not allowed', 405);
-  const body = await readJsonBody(req);
-  if (!isRecord(body) || typeof body.text !== 'string') throw new ApiError('text is required', 400);
-  return answerClaudeLogin(id, body.text);
 }
 
 function removed(rest: string[], query: URLSearchParams, dir: string): unknown {
@@ -236,7 +202,6 @@ function fileAnswer(req: IncomingMessage, path: string, search: string, dir: str
 function routed(req: IncomingMessage, path: string, search: string, deps: ClaudeApiDeps): unknown {
   const dir = (deps.dir ?? claudeDir)();
   const [head = '', item = ''] = parts(path);
-  if (head === LOGIN) return loginAnswer(req, item, deps);
   if (head === 'skill-source' && parts(path).length === 1) return githubSkillsAnswer(req, deps.skillSource);
   if (head === 'skills') return skillsAnswer(req, path, search, dir, sourceOf(deps));
   const single = item === '' ? SINGLETONS[head] : undefined;

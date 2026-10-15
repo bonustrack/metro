@@ -2,8 +2,7 @@ import { filled, isRecord, str } from '../read.js';
 import { call } from './client.js';
 import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
-import { toModelOptions, type ModelOption } from './model-options.js';
-import { LOCAL_SESSION, isLocal, localLogin, toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
+import { toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
 
@@ -15,7 +14,7 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: ProviderInfo[] = [
-  { id: 'anthropic', label: 'Anthropic', site: 'https://anthropic.com', blurb: 'Claude models, with an API key from the Anthropic Console.' },
+  { id: 'anthropic', label: 'Anthropic', site: 'https://anthropic.com', blurb: 'Claude models, with a Claude subscription or an API key from the Anthropic Console.' },
   { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account.' },
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },
   { id: 'codex', label: 'Codex (ChatGPT)', site: 'https://openai.com', blurb: "GPT models on a ChatGPT Plus or Pro plan, with OpenAI's official sign-in." },
@@ -31,17 +30,11 @@ export interface ConnectionRow {
   region: string;
   zdr: boolean;
   hasKey: boolean;
+  subscription: boolean;
   signedOut: boolean;
   account: string | null;
   plan: string | null;
   method: CodexMethod | null;
-}
-
-export interface ClaudeLoginRow {
-  id: string;
-  email: string | null;
-  plan: string | null;
-  savedAt: string;
 }
 
 export interface Served {
@@ -79,13 +72,10 @@ export interface ModelSettings {
   lastServed: Served | null;
   usage: Usage;
   connections: ConnectionRow[];
-  claude: ClaudeLoginRow[];
   chain: ChainRow[];
 }
 
 const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
-export const SESSION_LABEL = 'Claude Code login of the server';
-export const CLAUDE_LOGIN_LABEL = 'Claude subscription';
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
@@ -108,6 +98,7 @@ function accountOf(raw: Record<string, unknown>): Pick<ConnectionRow, 'account' 
 export function toConnection(raw: unknown): ConnectionRow | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '' || !isProvider(raw.provider)) return null;
   const provider = raw.provider;
+  const subscription = raw.subscription === true;
   return {
     id: raw.id,
     provider,
@@ -115,23 +106,11 @@ export function toConnection(raw: unknown): ConnectionRow | null {
     model: str(raw.model),
     region: str(raw.region),
     zdr: raw.zdr === true,
-    hasKey: typeof raw.hasKey === 'boolean' ? raw.hasKey : usesKey(provider) && !isLocal(raw.id),
+    hasKey: typeof raw.hasKey === 'boolean' ? raw.hasKey : usesKey(provider) && !subscription,
+    subscription,
     signedOut: raw.signedOut === true,
     ...accountOf(raw),
   };
-}
-
-function toClaudeLogin(raw: unknown): ClaudeLoginRow | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '') return null;
-  return { id: raw.id, email: filled(raw.email), plan: filled(raw.plan), savedAt: str(raw.savedAt) };
-}
-
-const blank = (id: string, label: string): ConnectionRow => ({
-  id, provider: 'anthropic', label, model: '', region: '', zdr: false, hasKey: false, signedOut: false, account: null, plan: null, method: null,
-});
-
-export function localConnections(claude: ClaudeLoginRow[]): ConnectionRow[] {
-  return [blank(LOCAL_SESSION, SESSION_LABEL), ...claude.map((login) => ({ ...blank(localLogin(login.id), CLAUDE_LOGIN_LABEL), account: login.email, plan: login.plan }))];
 }
 
 function toHold(raw: unknown): Hold | null {
@@ -147,9 +126,7 @@ function toChainRow(raw: unknown): ChainRow | null {
 
 function routeOf(body: Record<string, unknown>): ModelRoute | null {
   const id = str(body.route);
-  const fallbacks = toFallbacks(body.fallbacks);
-  if (id === '') return fallbacks.length === 0 ? null : { primary: { connection: LOCAL_SESSION, model: '' }, fallbacks };
-  return { primary: { connection: id, model: str(body.model) }, fallbacks };
+  return id === '' ? null : { primary: { connection: id, model: str(body.model) }, fallbacks: toFallbacks(body.fallbacks) };
 }
 
 function toSync(raw: unknown): ModelSync | null {
@@ -161,9 +138,6 @@ const listOf = <T>(raw: unknown, make: (item: unknown) => T | null): T[] => (Arr
 
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || typeof body.route !== 'string' || !Array.isArray(body.connections)) throw unexpected();
-  const claude = listOf(body.claude, toClaudeLogin);
-  const listed = listOf(body.connections, toConnection);
-  const connections = [...listed, ...localConnections(claude).filter((row) => !listed.some((c) => c.id === row.id))];
   return {
     route: routeOf(body),
     source: toSource(body.source),
@@ -172,8 +146,7 @@ export function toModelSettings(body: unknown): ModelSettings {
     reason: filled(body.reason),
     lastServed: toServed(body.lastServed),
     usage: toUsage(body.usage),
-    connections,
-    claude,
+    connections: listOf(body.connections, toConnection),
     chain: listOf(body.chain, toChainRow),
   };
 }
@@ -188,14 +161,6 @@ export async function fetchModel(): Promise<ModelSettings> {
 
 export async function syncModel(): Promise<void> {
   await call({ method: 'POST', base: modelUrl(), path: '/sync' });
-}
-
-export async function removeClaudeLogin(id: string): Promise<void> {
-  await call({ method: 'DELETE', base: modelUrl(), path: `/claude/${encodeURIComponent(id)}` });
-}
-
-export async function claudeModels(): Promise<ModelOption[]> {
-  return toModelOptions(await call({ method: 'GET', base: modelUrl(), path: '/claude-models' }));
 }
 
 const CODE_PARAM = /(?:^|[?&])code=[^&\s]/;

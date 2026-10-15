@@ -31,6 +31,12 @@ const HOP_BY_HOP = new Set([
 ]);
 const RESPONSE_DROP = new Set(['content-length', 'content-encoding', 'transfer-encoding', 'connection', 'keep-alive']);
 
+export class SubscriptionRefused extends GatewayError {
+  constructor(label: string) {
+    super(403, 'permission_error', `Anthropic refused the Claude subscription ${label}: sign in again on the Models page`);
+  }
+}
+
 export function sendError(res: ServerResponse, status: number, kind: string, message: string): void {
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ type: 'error', error: { type: kind, message } }));

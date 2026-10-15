@@ -6,16 +6,16 @@ import { RouteLink } from './RouteLink.js';
 import { ProviderLogo } from './ProviderLogo.js';
 import { ModelReadError, UsageBar, UsageUnavailable } from './ModelUsage.js';
 import { limitingWindow, limitNote, modelWindows, usageDetail, usageModel, usageReported, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
-import { SESSION_LABEL, type ConnectionRow, type ModelSettings, type Provider } from '@metro-labs/client/api/model';
+import type { ConnectionRow, ModelSettings, Provider } from '@metro-labs/client/api/model';
 import type { ModelOption } from '@metro-labs/client/api/model-options';
-import { effectiveRoute } from '@metro-labs/client/api/model-order';
 import { DEFAULT_MODEL, providerInfo, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
-import { useAccountOf, useConnectionModelsQuery, useModelQuery } from '../lib/model-queries.js';
+import { useConnectionModelsQuery, useModelQuery } from '../lib/model-queries.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { useNow } from '../lib/use-now.js';
 
 const LOGO_SIZE = 28;
+const NO_MODEL = 'No model yet';
 
 
 export function nameIn(options: ModelOption[] | undefined, model: string): string {
@@ -58,9 +58,9 @@ const CARD = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVerti
 function Card({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
   const palette = useKitPalette();
   const conn = routedConnection(settings);
-  const model = usageModel(settings, effectiveRoute(settings).primary);
+  const model = settings.route === null ? '' : usageModel(settings, settings.route.primary);
   const name = useModelName(conn, model);
-  const account = useAccountOf(conn);
+  const account = conn?.account ?? null;
   const usage = routedUsage(settings);
   const frame = [CARD, { borderColor: palette.border }];
   const hover = { borderColor: palette.sub };
@@ -69,11 +69,13 @@ function Card({ settings, href }: { settings: ModelSettings; href: string }): Re
       <ProviderLogo provider={providerInfo(conn?.provider)} size={LOGO_SIZE} />
       <Col gap={2} flex={1} minWidth={0}>
         <Text size="md" weight="semibold" numberOfLines={1}>
-          {name}
+          {settings.route === null ? NO_MODEL : name}
         </Text>
-        <Text size="md" role="secondary">
-          {[conn?.label ?? SESSION_LABEL, account].filter((part): part is string => part !== null).join(' · ')}
-        </Text>
+        {conn === undefined ? null : (
+          <Text size="md" role="secondary">
+            {[conn.label, account].filter((part): part is string => part !== null).join(' · ')}
+          </Text>
+        )}
         <CardUsage usage={usage} provider={conn?.provider ?? 'anthropic'} model={model} />
         {settings.reason !== null ? (
           <Text size="md" role="danger">

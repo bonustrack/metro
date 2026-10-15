@@ -1,4 +1,4 @@
-import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { agentIdForKey } from '../agents/keys.js';
@@ -12,9 +12,9 @@ import {
 import {
   addBeta,
   anthropicHeaders,
-  forwardedHeaders,
   GatewayError,
   holdLimitRefusal,
+  SubscriptionRefused,
   loginHeaders,
   parseJson,
   pipeResponse,
@@ -22,6 +22,9 @@ import {
   sendError,
   upstreamMessage,
   watchUpstream,
+  type Held,
+  type Watch,
+  type Refusal,
 } from './forward.js';
 import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry } from './fallback.js';
 import {
@@ -36,7 +39,7 @@ import {
   withEffort,
   withThinkingFor,
 } from './effort.js';
-import { notReady, resolveRoute, routeLabel, sessionConnection, type Connection, type ModelSetup, type Route } from './model-config.js';
+import { notReady, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
@@ -44,8 +47,6 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
-import { ANTHROPIC_API, refreshLoginModels } from './provider-models.js';
-import { forgetClaudeTokens, withClaudeLogin, type ClaudeLoginDeps } from './claude-logins.js';
 import { orgModels } from './org-models.js';
 
 const GATEWAY_PREFIX = '/gateway';
@@ -53,6 +54,8 @@ const MESSAGES = '/v1/messages';
 const COUNT = '/v1/messages/count_tokens';
 const MODELS = '/v1/models';
 const HELLO = '/api/hello';
+const ANTHROPIC_API = 'https://api.anthropic.com';
+const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll it with its organization and choose a model on the organization's Models page";
 
 export interface GatewayDeps {
   setup: () => ModelSetup;
@@ -61,7 +64,6 @@ export interface GatewayDeps {
   bedrockBase?: string;
   openrouterBase?: string;
   codex?: Partial<CodexDeps>;
-  claudeLogins?: ClaudeLoginDeps;
 }
 
 const learned: Adaptations = freshAdaptations();
@@ -73,7 +75,6 @@ export function resetGatewayState(): void {
   learned.fields.clear();
   learned.dropBetas = false;
   forgetLearnedThinking();
-  forgetClaudeTokens();
 }
 
 const refreshCodex = (conn: Connection): Promise<Connection | null> => orgModels()?.refresh(conn) ?? Promise.resolve(null);
@@ -101,18 +102,15 @@ function modelsBody(setup: ModelSetup): Record<string, unknown> {
   return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null };
 }
 
-const passthrough = (body: Record<string, unknown>): Route => ({ connection: sessionConnection(), model: requestedModel(body) });
+const noRoute = (): never => {
+  throw new GatewayError(503, 'api_error', NO_ROUTE);
+};
 
 function requestedModel(body: Record<string, unknown>): string {
   const model = body.model;
   if (typeof model !== 'string' || model === '') throw new GatewayError(400, 'invalid_request_error', 'model is required');
   return model;
 }
-
-const standsInFor = (req: IncomingMessage): boolean => {
-  const metroKey = req.headers['x-metro-key'];
-  return typeof metroKey === 'string' && metroKey !== '' && req.headers.authorization === `Bearer ${metroKey}`;
-};
 
 interface Payloads {
   metro: Buffer;
@@ -148,25 +146,11 @@ async function refusedThinkingOff(upstream: Response, shaped: Record<string, unk
   return true;
 }
 
-function listLoginModels(headers: IncomingHttpHeaders, anthropicBase: string): void {
-  refreshLoginModels(headers, anthropicBase).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'gateway: could not list the models of the Claude Code login');
-  });
-}
-
-function sendAnthropic(req: IncomingMessage, conn: Connection, anthropicBase: string, attempt: (base: Record<string, string>) => Promise<Response>, deps: GatewayDeps): Promise<Response> {
-  if (conn.apiKey !== '') return attempt(anthropicHeaders(req, conn.apiKey));
-  if (conn.claude === null) return attempt(forwardedHeaders(req));
-  return withClaudeLogin(conn.claude, deps.claudeLogins ?? {}, (token) => {
-    listLoginModels({ authorization: `Bearer ${token}` }, anthropicBase);
-    return attempt(loginHeaders(req, token));
-  });
-}
-
-async function refusedLogin(conn: Connection, upstream: Response): Promise<void> {
-  if (conn.apiKey !== '' || conn.claude === null || upstream.status !== 401) return;
+async function refusedSubscription(conn: Connection, upstream: Response, watch: Watch): Promise<void> {
+  if (conn.apiKey !== '' || upstream.status !== 401) return;
   await upstream.body?.cancel();
-  throw new GatewayError(403, 'permission_error', `Anthropic refused the Claude login ${conn.label}: sign in again on the Model page`);
+  watch.stop();
+  throw new SubscriptionRefused(conn.label);
 }
 
 async function toAnthropic(
@@ -179,17 +163,8 @@ async function toAnthropic(
   deps: GatewayDeps,
 ): Promise<void> {
   const conn = route.connection;
-  const anthropicBase = deps.anthropicBase ?? ANTHROPIC_API;
-  const url = `${anthropicBase}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
-  const passthrough = conn.apiKey === '' && conn.claude === null;
-  if (passthrough && standsInFor(req))
-    throw new GatewayError(
-      403,
-      'permission_error',
-      "Claude Code on this machine has no Anthropic login of its own; route this agent to a model on the organization's Models page, or sign in a Claude login on the Model page",
-    );
+  const url = `${deps.anthropicBase ?? ANTHROPIC_API}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const watch = watchUpstream(res);
-  if (passthrough) listLoginModels(req.headers, anthropicBase);
   const send = (payload: Buffer, headers: Record<string, string>): Promise<Response> =>
     fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
   const attempt = async (base: Record<string, string>): Promise<Response> => {
@@ -197,12 +172,11 @@ async function toAnthropic(
     const first = await shape();
     return (await refusedThinkingOff(first, shaped, route.model)) ? shape() : first;
   };
-  const upstream = await sendAnthropic(req, conn, anthropicBase, attempt, deps);
-  await refusedLogin(conn, upstream);
+  const upstream = await attempt(conn.apiKey !== '' ? anthropicHeaders(req, conn.apiKey) : loginHeaders(req, conn.claudeToken));
+  await refusedSubscription(conn, upstream, watch);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
-  const scanner = new UsageScanner(conn.id);
-  await pipeResponse(upstream, res, watch, passthrough ? { scanner } : { ownCredential: true, scanner });
+  await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id) });
 }
 
 async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
@@ -289,13 +263,23 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   await toAnthropic(req, res, bytesOf(ask.raw, ask.parsed, ask.sent), ask.sent, body, route, deps);
 }
 
+async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route: Route, deps: GatewayDeps): Promise<Refusal | null> {
+  try {
+    await attempt(req, held.res, ask, route, deps);
+  } catch (err) {
+    if (!(err instanceof SubscriptionRefused)) throw err;
+    return { status: 401, headers: new Headers() };
+  }
+  return held.refusal();
+}
+
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
   const setup = deps.setup();
   const raw = await readBody(req);
   const parsed = parseJson(raw);
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
-  const primary = resolveRoute(requested, setup) ?? passthrough(sent);
+  const primary = resolveRoute(requested, setup) ?? noRoute();
   const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent), setup };
   const routes = routesToTry(chainOf(primary, setup, requested));
   for (const [at, route] of routes.entries()) {
@@ -305,9 +289,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
       await attempt(req, res, ask, route, deps);
       return;
     }
-    const held = holdLimitRefusal(res);
-    await attempt(req, held.res, ask, route, deps);
-    const refusal = held.refusal();
+    const refusal = await heldAttempt(req, holdLimitRefusal(res), ask, route, deps);
     if (refusal === null) return;
     noteRefused(route, refusal.status, refusal.headers, next);
   }

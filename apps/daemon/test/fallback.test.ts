@@ -5,7 +5,7 @@ import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../sr
 import { chainOf, chainStatus, holdOf, routesToTry } from '../src/gateway/fallback.ts';
 import { noteUsage } from '../src/gateway/usage.ts';
 import { lastServed } from '../src/gateway/served.ts';
-import { SESSION_LOGIN, type ModelSetup, type Route } from '../src/gateway/model-config.ts';
+import type { ModelSetup, Route } from '../src/gateway/model-config.ts';
 import { deliveredOf } from '../src/gateway/delivered.ts';
 import { conn, connectionId, makeConnection, setupOf } from './model-fixture.ts';
 
@@ -13,12 +13,13 @@ const NOW = Date.parse('2026-10-03T23:00:00.000Z');
 const LATER = '2026-10-08T07:00:00.000Z';
 const EARLIER = '2026-10-03T22:00:00.000Z';
 
-const LOGIN = SESSION_LOGIN;
+const LOGIN = connectionId('anthropic');
+const CLAUDE_TOKEN = `sk-ant-oat01-${'a'.repeat(80)}`;
 
 const setup = (): ModelSetup =>
   setupOf(
     LOGIN,
-    [makeConnection('anthropic', { id: LOGIN }), makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-6' }), makeConnection('codex', { model: 'gpt-6-luna' })],
+    [makeConnection('anthropic', { claudeToken: CLAUDE_TOKEN }), makeConnection('openrouter', { apiKey: 'or-key', model: 'openai/gpt-6' }), makeConnection('codex', { model: 'gpt-6-luna' })],
     [
       { connection: LOGIN, model: 'claude-fable-5-1' },
       { connection: connectionId('openrouter'), model: 'anthropic/claude-opus-5-5' },
@@ -59,27 +60,13 @@ describe('the order of the models', () => {
     expect(models(chainOf(haiku, cfg, 'claude-haiku-4-5'))).toEqual(['anthropic:claude-haiku-4-5']);
   });
 
-  test('the list comes as the organization delivered it: an unknown connection is left out, and a fallback with no model is dropped on arrival unless it is local', () => {
+  test('the list comes as the organization delivered it: an unknown connection is left out, and a fallback with no model is dropped on arrival', () => {
     const cfg = setup();
     cfg.fallbacks = [...cfg.fallbacks, { connection: 'gone', model: 'x' }];
     expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'anthropic:claude-fable-5-1', 'openrouter:anthropic/claude-opus-5-5']);
     const fallbacks = [{ connection: 'b', model: '' }, { connection: 'c', model: 'n' }, 7, { connection: LOGIN, model: '' }, { connection: 'local:Login123456', model: ' ' }];
     const delivered = deliveredOf({ route: { primary: { connection: 'a', model: 'm' }, fallbacks }, source: 'organization', connections: [] });
-    expect(delivered?.route?.fallbacks).toEqual([{ connection: 'c', model: 'n' }, { connection: LOGIN, model: '' }, { connection: 'local:Login123456', model: '' }]);
-  });
-
-  test('a local fallback with no model answers with the model the request asked for', () => {
-    const cfg = setup();
-    cfg.fallbacks = [{ connection: connectionId('openrouter'), model: 'anthropic/claude-opus-5-5' }, { connection: LOGIN, model: '' }];
-    expect(models(chainOf(opus(cfg), cfg, 'claude-opus-5-5'))).toEqual(['anthropic:claude-opus-5-5', 'openrouter:anthropic/claude-opus-5-5']);
-    const first: Route = { connection: conn(cfg, 'openrouter'), model: 'openai/gpt-6' };
-    expect(models(chainOf(first, cfg, 'claude-fable-5-1'))).toEqual(['openrouter:openai/gpt-6', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-fable-5-1']);
-    expect(models(chainOf(first, cfg, 'anthropic:claude-haiku-4-5'))).toEqual(['openrouter:openai/gpt-6', 'openrouter:anthropic/claude-opus-5-5', 'anthropic:claude-haiku-4-5']);
-    expect(chainStatus({ ...cfg, primary: { connection: connectionId('openrouter'), model: 'openai/gpt-6' } }, NOW).map((row) => [row.connection, row.model])).toEqual([
-      [connectionId('openrouter'), 'openai/gpt-6'],
-      [connectionId('openrouter'), 'anthropic/claude-opus-5-5'],
-      [LOGIN, ''],
-    ]);
+    expect(delivered?.route?.fallbacks).toEqual([{ connection: 'c', model: 'n' }]);
   });
 });
 
@@ -179,6 +166,11 @@ const stream = (res: ServerResponse, from: string): void => {
   res.end(`event: message_start\ndata: {"type":"message_start","from":"${from}"}\n\n`);
 };
 
+const revoked = (res: ServerResponse): void => {
+  res.writeHead(401, { 'content-type': 'application/json' });
+  res.end('{"type":"error","error":{"type":"authentication_error","message":"OAuth token has been revoked"}}');
+};
+
 const limited = (res: ServerResponse): void => {
   res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '120', 'anthropic-ratelimit-unified-status': 'rejected' });
   res.end('{"type":"error","error":{"type":"rate_limit_error","message":"weekly limit reached"}}');
@@ -194,6 +186,7 @@ let openrouterDown = false;
 beforeAll(async () => {
   anthropic = await fake((model, res) => {
     if (model === 'claude-opus-5-5') limited(res);
+    else if (model === 'claude-revoked-1') revoked(res);
     else stream(res, 'anthropic');
   });
   openrouter = await fake((_model, res) => {
@@ -253,14 +246,20 @@ describe('a real limit answer moves the request to the next model', () => {
     expect(openrouter.models).toEqual(['anthropic/claude-opus-5-5']);
   });
 
-  test('a local fallback with no model answers the request with the model it asked for', async () => {
-    openrouterDown = true;
-    cfg = { ...setup(), primary: { connection: connectionId('openrouter'), model: 'openai/gpt-6' }, fallbacks: [{ connection: LOGIN, model: '' }] };
-    const res = await ask('claude-fable-5-1');
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('"from":"anthropic"');
-    expect(openrouter.models).toEqual(['openai/gpt-6']);
-    expect(anthropic.models).toEqual(['claude-fable-5-1']);
+  test('a Claude subscription Anthropic refuses hands the request to the next model, and only a last model shows the 403', async () => {
+    cfg = { ...cfg, primary: { connection: LOGIN, model: 'claude-revoked-1' } };
+    const first = await ask('claude-revoked-1');
+    expect(first.status).toBe(200);
+    expect(await first.text()).toContain('"from":"openrouter"');
+    expect(anthropic.models).toEqual(['claude-revoked-1']);
+    const refused: Route = { connection: conn(cfg, 'anthropic'), model: 'claude-revoked-1' };
+    expect(holdOf(refused)?.reason).toBe('token refused, sign in again');
+    expect(await (await ask('claude-revoked-1')).text()).toContain('"from":"openrouter"');
+    expect(anthropic.models).toEqual(['claude-revoked-1']);
+    cfg = { ...cfg, fallbacks: [] };
+    const alone = await ask('claude-revoked-1');
+    expect(alone.status).toBe(403);
+    expect(((await alone.json()) as { error: { message: string } }).error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Models page');
   });
 
   test('a model that answers is used as it is, and nothing else is asked', async () => {

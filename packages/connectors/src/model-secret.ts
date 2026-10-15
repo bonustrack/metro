@@ -1,3 +1,4 @@
+import { isClaudeToken } from '@metro-labs/core/claude-token';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parsedJson } from './model.js';
 import { openSecret, sealSecret } from './secrets.js';
@@ -19,7 +20,7 @@ export interface CodexSecret {
   accountId?: string;
 }
 
-export type ModelSecret = { kind: 'key'; apiKey: string } | CodexSecret;
+export type ModelSecret = { kind: 'key'; apiKey: string } | { kind: 'claude'; token: string } | CodexSecret;
 
 export interface ModelDetail {
   email?: string;
@@ -29,6 +30,7 @@ export interface ModelDetail {
   signedInAt?: string;
   refreshedAt?: string;
   signedOut?: boolean;
+  subscription?: boolean;
 }
 
 const TOKEN_RE = /^[\x21-\x7e]{1,16384}$/;
@@ -74,6 +76,7 @@ export function modelSecretOf(value: unknown): ModelSecret | null {
     const apiKey = token(value.apiKey);
     return apiKey === null ? null : { kind: 'key', apiKey };
   }
+  if (value.kind === 'claude') return typeof value.token === 'string' && isClaudeToken(value.token) ? { kind: 'claude', token: value.token } : null;
   return value.kind === 'codex' ? codexOf(value) : null;
 }
 
@@ -92,6 +95,7 @@ export function modelDetailOf(text: string | null): ModelDetail {
   }
   if (isCodexMethod(value.method)) out.method = value.method;
   if (value.signedOut === true) out.signedOut = true;
+  if (value.subscription === true) out.subscription = true;
   return out;
 }
 

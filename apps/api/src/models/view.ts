@@ -17,6 +17,7 @@ export interface ConnectionView {
   region: string;
   zdr: boolean;
   account: AccountView;
+  subscription: boolean;
   signedOut: boolean;
   createdAt: string;
 }
@@ -27,7 +28,7 @@ export interface ModelsView {
   agents: Record<string, ModelRoute>;
 }
 
-export type Credential = { apiKey: string } | { accessToken: string; expiresAt: number; method: CodexMethod; accountId: string | null } | null;
+export type Credential = { apiKey: string } | { claudeToken: string } | { accessToken: string; expiresAt: number; method: CodexMethod; accountId: string | null } | null;
 
 export interface AgentConnection {
   id: string;
@@ -53,6 +54,7 @@ export function connectionView(row: ModelConnectionRow): ConnectionView {
     region: row.region,
     zdr: row.zdr,
     account: accountOf(detail),
+    subscription: detail.subscription === true,
     signedOut: detail.signedOut === true || row.secret === null,
     createdAt: row.createdAt,
   };
@@ -61,6 +63,7 @@ export function connectionView(row: ModelConnectionRow): ConnectionView {
 function credentialOf(secret: ModelSecret | null): Credential {
   if (secret === null) return null;
   if (secret.kind === 'key') return { apiKey: secret.apiKey };
+  if (secret.kind === 'claude') return { claudeToken: secret.token };
   return { accessToken: secret.accessToken, expiresAt: secret.expiresAt, method: secret.method, accountId: secret.accountId ?? null };
 }
 
