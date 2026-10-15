@@ -90,16 +90,15 @@ describe('the model tables', () => {
     expect((await held.db.select().from(modelRoutes)).map((row) => row.id).sort()).toEqual(['route000001', 'route000002']);
   });
 
-  test('providers and host ids are checked, and a connection written now leaves the old import columns empty', async () => {
+  test('providers and host ids are checked, and the old import columns are gone', async () => {
     await held.db.insert(modelConnections).values(connection('conn0000001'));
-    expect((await held.client.query('SELECT import_agent, import_id FROM model_connections')).rows).toEqual([{ import_agent: null, import_id: null }]);
+    expect((await held.client.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'model_connections' AND column_name LIKE 'import%'")).rows).toEqual([]);
     await refused(() => held.db.insert(modelConnections).values(connection('conn0000004', TEST_OWNER, { provider: 'gemini' })));
     await refused(() => held.db.execute(sql`INSERT INTO model_hosts (owner, chatgpt_host_id) VALUES ('org_x', 'not-a-urn')`));
   });
 
-  test('leaving an organization drops the agent’s override, not the connections, even one an old import marked', async () => {
+  test('leaving an organization drops the agent’s override, not the connections', async () => {
     await held.db.insert(modelConnections).values(connection('conn0000001'));
-    await held.client.query("UPDATE model_connections SET import_agent = 'agent000001', import_id = 'oldid000001'");
     await held.db.insert(modelRoutes).values(routeRow('route000001', 'agent000001'));
     await held.db.insert(modelRoutes).values(routeRow('route000002', null));
     await held.db.transaction((tx) => leaveOrganization(tx, 'agent000001'));
