@@ -58,6 +58,14 @@ import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors
 import { egressFetch } from '@metro-labs/connectors/egress';
 import type { Handoff, SignInState } from './connectors/sign-in.js';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
+import { orgModelStore } from '@metro-labs/connectors/db/models';
+import { modelDeliveryStore } from '@metro-labs/connectors/db/model-delivery';
+import { handleModelsApiRequest } from './models/api.js';
+import { handleAgentModelsRequest, type AgentModelsDeps } from './models/agent-api.js';
+import { codexLogins, deviceLogins, openrouterLogins, type ModelsDeps } from './models/deps.js';
+import { ListCache } from './models/list-cache.js';
+import { OPENROUTER_CALLBACK } from './models/openrouter-login.js';
 import { randomBytes } from 'node:crypto';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
@@ -157,6 +165,32 @@ const connectorsApi: ConnectorsApiDeps = {
   now: () => Date.now(),
 };
 
+const modelStore = orgModelStore(getDb);
+
+const modelsApi: ModelsDeps = {
+  key: () => connectorsSetup.key,
+  keys,
+  store: modelStore,
+  fetch: (url, init) => fetch(url, init),
+  now: () => Date.now(),
+  openrouterCallback: process.env.METRO_OPENROUTER_CALLBACK ?? OPENROUTER_CALLBACK,
+  codexLogins: codexLogins(),
+  devices: deviceLogins(),
+  openrouterLogins: openrouterLogins(),
+  lists: new ListCache(() => Date.now()),
+};
+
+const agentModelsApi: AgentModelsDeps = {
+  key: () => connectorsSetup.key,
+  identities: enrollmentApi.store,
+  nonces: agentNonceStore(getDb, () => Date.now()),
+  auth: enrollmentApi.auth,
+  store: modelStore,
+  delivery: modelDeliveryStore(getDb),
+  fetch: (url, init) => fetch(url, init),
+  now: () => Date.now(),
+};
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -190,7 +224,9 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
+  (req, res) => handleAgentModelsRequest(req, res, agentModelsApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
+  (req, res) => handleModelsApiRequest(req, res, modelsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];
