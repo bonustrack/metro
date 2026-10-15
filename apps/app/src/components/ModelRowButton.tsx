@@ -3,7 +3,6 @@ import { Pressable } from 'react-native';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { priceLabel } from '@metro-labs/client/api/model';
 import type { PickRow } from '@metro-labs/client/api/providers';
 import { Icon } from './Icon.js';
 import { useHover } from './ui/hover.js';
@@ -14,7 +13,7 @@ function niceName(row: PickRow): string {
   return cut === -1 ? row.name : row.name.slice(cut + 2);
 }
 
-const rowDetail = (row: PickRow): string => [niceName(row) === row.id ? '' : row.id, priceLabel(row)].filter((x) => x !== '').join(' · ');
+const rowDetail = (row: PickRow): string => [niceName(row) === row.id ? '' : row.id, row.price].filter((x) => x !== '').join(' · ');
 
 const PICK_ROW = { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 67, paddingVertical: 9, paddingHorizontal: 16, borderRadius: 4 } as const;
 

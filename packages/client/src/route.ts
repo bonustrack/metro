@@ -21,6 +21,7 @@ const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
 const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
+const ORG_MODELS_PATH = /^#?\/organization\/models$/;
 const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
@@ -61,7 +62,9 @@ const EXACT: [RegExp, Selection][] = [
 function exactSelection(hash: string): Selection | null {
   const exact = EXACT.find(([re]) => re.test(hash))?.[1];
   if (exact !== undefined) return { ...exact };
-  const orgConnector = ORG_CONNECTOR_PATH.exec(hash.split('?')[0] ?? '')?.[1];
+  const path = hash.split('?')[0] ?? '';
+  if (ORG_MODELS_PATH.test(path)) return { kind: 'org-models' };
+  const orgConnector = ORG_CONNECTOR_PATH.exec(path)?.[1];
   return orgConnector === undefined ? null : { kind: 'org-connector', id: orgConnector };
 }
 
@@ -113,6 +116,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   members: 'members',
   organization: 'organization',
   'org-connectors': 'organization/connectors',
+  'org-models': 'organization/models',
 };
 
 function organizationPrefix(): string {

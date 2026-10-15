@@ -10,7 +10,7 @@ import type { Freshness } from './session.js';
 export function selectedModel(settings: ModelSettings | undefined): string {
   if (settings === undefined) return 'Unavailable';
   const connection = routedConnection(settings);
-  const model = connection?.model ?? '';
+  const model = settings.route?.primary.model ?? '';
   return `${connection === undefined ? 'Default route' : providerLabel(connection.provider)} · ${model === '' ? 'Runner default (not reported)' : model}`;
 }
 

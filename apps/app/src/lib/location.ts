@@ -1,4 +1,5 @@
 import { readOrgConnectorReturn, type OrgConnectorReturn } from '@metro-labs/client/api/org-connectors';
+import { readOpenRouterReturn, type OpenRouterReturn } from '@metro-labs/client/api/org-models';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -12,6 +13,13 @@ let routedHash = '#/';
 let returnedSignIn: ReturnedSignIn | null = null;
 let cleanInitialReturn = false;
 let returnedOrgConnector: OrgConnectorReturn | null = null;
+let returnedOpenRouter: OpenRouterReturn | null = null;
+
+export function takeInitialOpenRouterReturn(): OpenRouterReturn | null {
+  const back = returnedOpenRouter;
+  returnedOpenRouter = null;
+  return back;
+}
 
 export function takeInitialOrgConnectorReturn(): OrgConnectorReturn | null {
   const back = returnedOrgConnector;
@@ -64,6 +72,9 @@ export function prepareLocation(): void {
     const connector = readOrgConnectorReturn(window.location.search, window.location.hash);
     returnedOrgConnector = connector.result;
     if (connector.result !== null) window.history.replaceState(null, '', `${window.location.pathname}${connector.search}${connector.hash}`);
+    const openrouter = readOpenRouterReturn(window.location.hash);
+    returnedOpenRouter = openrouter.result;
+    if (openrouter.result !== null) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${openrouter.hash}`);
     returnedSignIn = signInReturn(window.location.search, window.location.hash);
     cleanInitialReturn = returnedSignIn !== null || hasSignInCode(window.location.search, window.location.hash);
     if (cleanInitialReturn) window.history.replaceState(null, '', `${window.location.pathname}#/`);

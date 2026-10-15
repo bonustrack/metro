@@ -346,7 +346,7 @@ describe('passive dashboard network source', () => {
       expect(await network.token('org-a', signal())).toBe(activeAccount()?.accessToken ?? 'missing');
       expect(await network.organizations(signal())).toEqual([]);
       expect(await network.session(row(), 'explicit', signal())).toMatchObject({ running: true, legacyRunner: true });
-      expect(await network.model(row(), 'explicit', signal())).toMatchObject({ connections: [] });
+      expect(await network.model(row(), 'explicit', signal())).toMatchObject({ route: null, chain: [] });
       answer = (request) => new Promise<Response>((_resolve, reject) => {
         request.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
       });

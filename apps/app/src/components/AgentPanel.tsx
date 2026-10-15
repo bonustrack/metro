@@ -45,7 +45,7 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (selection.kind === 'run') return <RunPage key={project} />;
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
-  if (selection.kind === 'model') return <ModelPage />;
+  if (selection.kind === 'model') return <ModelPage project={selection.project} />;
   if (selection.kind === 'voice') return <VoicePage />;
   if (selection.kind === 'stations') return <Stations project={project} />;
   if (selection.kind === 'station') return <StationPage project={project} accountId={selection.accountId} />;

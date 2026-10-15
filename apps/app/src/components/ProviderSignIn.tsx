@@ -17,11 +17,12 @@ interface PasteAddressProps {
   placeholder: string;
   finish: (pasted: string) => Promise<unknown>;
   ready?: (pasted: string) => boolean;
+  onDone?: () => void;
 }
 
-export function PasteAddress({ hint, name, placeholder, finish, ready }: PasteAddressProps): ReactNode {
+export function PasteAddress({ hint, name, placeholder, finish, ready, onDone }: PasteAddressProps): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { busy, error, run } = useModelAction();
+  const { busy, error, run } = useModelAction(onDone);
   const [pasted, setPasted] = useState('');
   const submit = (text: string): void => {
     run(() => finish(text), 'Could not finish the sign-in.');

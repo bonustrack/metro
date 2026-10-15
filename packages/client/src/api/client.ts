@@ -45,7 +45,7 @@ function errorText(body: unknown, status: number): string {
 }
 
 export interface CallInit {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   base?: string;
   path?: string;
   headers?: Record<string, string>;

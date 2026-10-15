@@ -36,15 +36,6 @@ export function UsageBar({ used, blocked = false }: { used: number | null; block
   );
 }
 
-export function UsageShort({ used }: { used: number | null }): ReactNode {
-  if (used === null) return null;
-  return (
-    <Text size="md" role="secondary">
-      {`${String(Math.round(used * 100))}%`}
-    </Text>
-  );
-}
-
 export function ModelReadError({ error, cached }: { error: Error | null; cached: boolean }): ReactNode {
   if (error === null) return null;
   return <Text size="md" role="danger">{cached ? 'Could not refresh model settings. Showing the last reading.' : queryError(error, 'Could not read the model settings.')}</Text>;

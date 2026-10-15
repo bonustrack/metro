@@ -13,7 +13,6 @@ import * as client from '../../packages/client/src/api/client.ts';
 import * as machine from '../../packages/client/src/api/machine.ts';
 import * as mode from '../../packages/client/src/api/mode.ts';
 import * as model from '../../packages/client/src/api/model.ts';
-import * as openrouter from '../../packages/client/src/api/openrouter-login.ts';
 import { olderThan } from '../../packages/client/src/api/version.ts';
 import * as term from '../../packages/client/src/api/terminal.ts';
 import type { Section } from '../../packages/client/src/export/pack.ts';
@@ -158,20 +157,9 @@ await ok('fetchMemory', () => claude.fetchMemory(project));
 await ok('fetchMemoryFile', () => claude.fetchMemoryFile(project, 'compat.md'));
 
 await ok('fetchModel', () => model.fetchModel());
-await ok('fetchModelBundle', () => model.fetchModelBundle());
-if (!olderThan(daemonMode?.version ?? null, openrouter.OPENROUTER_LOGIN_SINCE)) {
-  await refused('beginOpenRouterLogin without a public origin', /public HTTPS/, () => openrouter.beginOpenRouterLogin());
-  const login = { id: 'a'.repeat(32), url: 'https://openrouter.ai/auth', expiresAt: Date.now(), base: baseFromSegment(host), organization: org, user: 'user_01ABC' };
-  await refused('pollOpenRouterLogin unknown', /expired/, () => openrouter.pollOpenRouterLogin(login));
-  await refused('cancelOpenRouterLogin unknown', /expired/, () => openrouter.cancelOpenRouterLogin(login));
-}
-const added = await ok('addConnection', () => model.addConnection({ provider: 'openrouter', apiKey: 'sk-or-compat', model: 'openai/gpt-5' }));
-const cid = added?.connections[0]?.id ?? '';
-await ok('saveConnection', () => model.saveConnection(cid, { label: 'Renamed' }));
-await ok('chooseConnection', () => model.chooseConnection(cid));
-if (added?.fallbacks !== null && added !== undefined) {
-  await ok('saveFallbacks', () => model.saveFallbacks([{ connection: cid, model: 'openai/gpt-5.2' }]));
-  await ok('saveFallbacks clear', () => model.saveFallbacks([]));
+if (!olderThan(daemonMode?.version ?? null, model.ORG_MODELS_SINCE)) {
+  await ok('syncModel', () => model.syncModel());
+  await ok('claudeModels', () => model.claudeModels());
 }
 
 await ok('setAllowlist', () => attach.setAllowlist(agent, 'threema', account, ['*ABCDEFG']));
@@ -198,12 +186,11 @@ await ok('restoreBundle', () => bundle.restoreBundle({ version: 1, mode: 'append
 await refused('restoreBundle foreign agent', /already|agent/i, () =>
   bundle.restoreBundle({ version: 1, mode: 'append', agent: { id: 'zzzzzzzzzzz', name: '', stations: [] } }),
 );
-const everything = new Set<Section>(['channels', 'skills', 'memory', 'sessions', 'model']);
+const everything = new Set<Section>(['channels', 'skills', 'memory', 'sessions']);
 const gathered = await ok('gatherPayload', () => transfer.gatherPayload({ id: agent, name: '' }, everything, new Date().toISOString()));
 if (gathered !== undefined)
   await ok('applyPayload', () => transfer.applyPayload(gathered.payload, everything, 'overwrite', { id: agent, name: '' }));
 
-await ok('dropConnection', () => model.dropConnection(cid));
 if (skill !== undefined) await ok('deleteClaudeSkill', () => claude.deleteClaudeSkill(skill.id));
 await ok('deleteMemoryFile', () => claude.deleteMemoryFile(project, 'compat.md'));
 await ok('deleteClaudeSession', () => claude.deleteClaudeSession(project, sid));

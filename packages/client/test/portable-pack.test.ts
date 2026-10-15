@@ -22,7 +22,6 @@ const PAYLOAD: Payload = {
   skills: [{ place: 'user', name: 'metro', text: '# rules\n' }],
   memory: [{ project: 'proj', name: 'note.md', text: '# note\n', modifiedAt: '2026-09-10T08:00:00.000Z' }],
   sessions: [{ project: 'proj', id: '11111111-2222-4333-8444-555555555555', text: '{"type":"user","message":{"content":"hello, this is private"}}\n' }],
-  model: [{ version: 1, provider: 'openrouter', openrouter: { apiKey: 'sk-or-private-key', model: 'google/gemini-3.8-flash', zdr: true } }],
 };
 
 const PASSPHRASE = 'correct horse battery staple';
@@ -37,12 +36,11 @@ describe('a .metro export file', () => {
     expect(text).not.toContain('secret-token');
     expect(text).not.toContain('Alice');
     expect(text).not.toContain('this is private');
-    expect(text).not.toContain('sk-or-private-key');
     expect(text).not.toContain(PASSPHRASE);
 
     const opened = await openMetroFile(text, PASSPHRASE);
     expect(opened).toEqual(PAYLOAD);
-    expect(sectionsIn(opened)).toEqual(['channels', 'skills', 'memory', 'sessions', 'model']);
+    expect(sectionsIn(opened)).toEqual(['channels', 'skills', 'memory', 'sessions']);
   });
 
   test('a wrong passphrase and a tampered ciphertext are refused', async () => {
@@ -71,7 +69,7 @@ describe('a .metro export file', () => {
   });
 
   test('a section left out of the export stays absent rather than arriving empty', async () => {
-    const only = { ...PAYLOAD, skills: undefined, memory: undefined, sessions: undefined, model: undefined };
+    const only = { ...PAYLOAD, skills: undefined, memory: undefined, sessions: undefined };
     const opened = await openMetroFile(JSON.stringify(await packFile(only, PASSPHRASE)), PASSPHRASE);
     expect(sectionsIn(opened)).toEqual(['channels']);
     expect(opened.skills).toBeUndefined();
@@ -82,7 +80,14 @@ describe('a .metro export file', () => {
     const opened = await openMetroFile(JSON.stringify(await packFile(old, PASSPHRASE)), PASSPHRASE);
     expect(opened).toEqual(PAYLOAD);
     expect(Object.keys(opened)).not.toContain('connectors');
-    expect(sectionsIn(opened)).toEqual(['channels', 'skills', 'memory', 'sessions', 'model']);
+    expect(sectionsIn(opened)).toEqual(['channels', 'skills', 'memory', 'sessions']);
+  });
+
+  test('an older file with a model setup still opens, and the model setup is left out', async () => {
+    const old = { ...PAYLOAD, model: [{ version: 2, route: 'cn-1', connections: [{ id: 'cn-1', provider: 'openrouter', apiKey: 'sk-or-private-key' }] }] };
+    const opened = await openMetroFile(JSON.stringify(await packFile(old, PASSPHRASE)), PASSPHRASE);
+    expect(opened).toEqual(PAYLOAD);
+    expect(JSON.stringify(opened)).not.toContain('sk-or-private-key');
   });
 
   test('gzip actually compresses, and a payload with a bad entry is named', async () => {

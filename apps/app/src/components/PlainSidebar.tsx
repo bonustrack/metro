@@ -11,6 +11,7 @@ export function PlainSidebar({ selection, onSelect }: { selection: Selection; on
       <Col gap={NAV_GAP} padding={{ top: 12 }}>
         <NavRow label="Agents" icon="server" selected={selection.kind === 'servers'} target={{ kind: 'servers' }} onSelect={onSelect} />
         <NavRow label="Connectors" icon="viewGridAdd" selected={ORG_CONNECTOR_PAGES.has(selection.kind)} target={{ kind: 'org-connectors' }} onSelect={onSelect} />
+        <NavRow label="Models" icon="chip" selected={selection.kind === 'org-models'} target={{ kind: 'org-models' }} onSelect={onSelect} />
         <NavRow label="Organization" icon="officeBuilding" selected={selection.kind === 'organization' || selection.kind === 'members'} target={{ kind: 'organization' }} onSelect={onSelect} />
       </Col>
     </Col>

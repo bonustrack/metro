@@ -36,7 +36,7 @@ export const emptyReading = <T>(): DashboardReading<T> => ({ data: null, at: nul
 export const dashboardKey = (organization: string, agent: OrgAgent): string => JSON.stringify([organization, agent.id, agent.host]);
 
 function modelConnection(item: ModelOrderItem): string {
-  const label = filled(item.connection?.label) ?? item.connection?.provider ?? 'Claude Code login';
+  const label = filled(item.connection?.label) ?? item.connection?.provider ?? 'Connection';
   const account = item.connection?.account;
   return account == null ? label : `${label} · ${account}`;
 }
@@ -61,7 +61,7 @@ function routeNote(item: ModelOrderItem): string {
 export function dashboardModel(settings: ModelSettings, now = Date.now()): { model: string; connection: string; usage: string; used: number | null; report: string | null; note: string | null } {
   const order = modelOrder(settings);
   const item = order.find((row) => row.row?.active) ?? order[0];
-  if (item === undefined || (item.connection === undefined && !item.passthrough))
+  if (item?.connection === undefined)
     return { model: 'Model unavailable', connection: 'Connection unavailable', usage: 'Usage unavailable', used: null, report: null, note: null };
   return {
     model: filled(item.model) ?? 'Model not reported',
