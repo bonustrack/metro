@@ -114,8 +114,8 @@ the daemon's model gateway, and the organization decides where requests go: its
 key, Amazon Bedrock, OpenRouter, or Codex: a ChatGPT plan, through OpenAI's Sign in with
 ChatGPT or the Codex app's code sign-in) and the default model order. Every agent uses that
 order unless an admin gives it its own on the agent's **Model** page. A Claude subscription
-is the long-lived token `claude setup-token` prints: the Models page can run that sign-in on
-an agent's server, or take a token you made on any computer with Claude Code. The keys,
+is the long-lived token `claude setup-token` prints: run it on your own computer with Claude
+Code installed and paste the token on the Models page. The keys,
 tokens and sign-ins live sealed on metro.box; each box fetches what its order needs and
 calls the provider itself. A model change applies at once, with no restart. With no model
 set up, the session does not start.
@@ -124,8 +124,7 @@ You do not type it yourself. Once the box has an agent and a model it can use, t
 starts `metro agent` in a tmux session named `metro`, and starts it again when it exits,
 resuming the same conversation. The Terminal tab on the page opens that tmux session. The Claude Code it
 runs is the one bundled with the Agent SDK, installed by `metro agent` into
-`~/.metro/sdk-runner`; the box installs no Claude Code of its own. The Claude subscription
-sign-in on the Models page runs that same Claude Code.
+`~/.metro/sdk-runner`; the box installs no Claude Code of its own.
 
 The session follows [docs/SETUP.md](docs/SETUP.md): an orchestrator-only main thread, a
 `worker` subagent, standing rules as a skill, and privacy settings. The daemon applies all

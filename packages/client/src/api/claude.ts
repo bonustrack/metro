@@ -250,66 +250,7 @@ export async function saveClaudeSettings(id: string, content: string, seenAt: st
   return file;
 }
 
-type LoginState = 'pending' | 'done' | 'failed';
-
-export const CLAUDE_TOKEN_SINCE = '0.1.0-beta.311';
-
 export const claudeTokenReady = (text: string): boolean => isClaudeToken(text.trim());
-
-export interface ClaudeLogin {
-  id: string;
-  state: LoginState;
-  url: string | null;
-  output: string;
-  error: string | null;
-  token: string | null;
-}
-
-const isState = (value: unknown): value is LoginState => value === 'pending' || value === 'done' || value === 'failed';
-
-function toLogin(body: unknown): ClaudeLogin {
-  if (!isRecord(body) || typeof body.id !== 'string' || !isState(body.state)) throw unexpected();
-  return {
-    id: body.id,
-    state: body.state,
-    url: filled(body.url),
-    output: typeof body.output === 'string' ? body.output : '',
-    error: filled(body.error),
-    token: filled(body.token),
-  };
-}
-
-const loginBase = (box?: string): string => (box === undefined ? base() : `${box}/api/claude`);
-
-export async function claudeAvailable(box?: string): Promise<boolean> {
-  const body = await call({ base: loginBase(box), path: '/login', method: 'GET' });
-  if (!isRecord(body)) throw unexpected();
-  return body.available === true;
-}
-
-export async function startClaudeLogin(box?: string): Promise<ClaudeLogin> {
-  return toLogin(await call({ base: loginBase(box), path: '/login', method: 'POST' }));
-}
-
-export async function pollClaudeLogin(id: string, box?: string): Promise<ClaudeLogin> {
-  return toLogin(await call({ base: loginBase(box), path: `/login/${encodeURIComponent(id)}`, method: 'GET' }));
-}
-
-export async function answerClaudeLogin(id: string, code: string, box?: string): Promise<ClaudeLogin> {
-  return toLogin(
-    await call({
-      base: loginBase(box),
-      path: `/login/${encodeURIComponent(id)}`,
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: code }),
-    }),
-  );
-}
-
-export async function cancelClaudeLogin(id: string, box?: string): Promise<void> {
-  await call({ base: loginBase(box), path: `/login/${encodeURIComponent(id)}`, method: 'DELETE' });
-}
 
 export async function claudeCall(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<unknown> {
   return call({

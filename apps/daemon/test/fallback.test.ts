@@ -166,6 +166,11 @@ const stream = (res: ServerResponse, from: string): void => {
   res.end(`event: message_start\ndata: {"type":"message_start","from":"${from}"}\n\n`);
 };
 
+const revoked = (res: ServerResponse): void => {
+  res.writeHead(401, { 'content-type': 'application/json' });
+  res.end('{"type":"error","error":{"type":"authentication_error","message":"OAuth token has been revoked"}}');
+};
+
 const limited = (res: ServerResponse): void => {
   res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '120', 'anthropic-ratelimit-unified-status': 'rejected' });
   res.end('{"type":"error","error":{"type":"rate_limit_error","message":"weekly limit reached"}}');
@@ -181,6 +186,7 @@ let openrouterDown = false;
 beforeAll(async () => {
   anthropic = await fake((model, res) => {
     if (model === 'claude-opus-5-5') limited(res);
+    else if (model === 'claude-revoked-1') revoked(res);
     else stream(res, 'anthropic');
   });
   openrouter = await fake((_model, res) => {
@@ -238,6 +244,22 @@ describe('a real limit answer moves the request to the next model', () => {
     expect(await res.text()).toContain('rate_limit_error');
     expect(anthropic.models).toEqual(['claude-opus-5-5']);
     expect(openrouter.models).toEqual(['anthropic/claude-opus-5-5']);
+  });
+
+  test('a Claude subscription Anthropic refuses hands the request to the next model, and only a last model shows the 403', async () => {
+    cfg = { ...cfg, primary: { connection: LOGIN, model: 'claude-revoked-1' } };
+    const first = await ask('claude-revoked-1');
+    expect(first.status).toBe(200);
+    expect(await first.text()).toContain('"from":"openrouter"');
+    expect(anthropic.models).toEqual(['claude-revoked-1']);
+    const refused: Route = { connection: conn(cfg, 'anthropic'), model: 'claude-revoked-1' };
+    expect(holdOf(refused)?.reason).toBe('token refused, sign in again');
+    expect(await (await ask('claude-revoked-1')).text()).toContain('"from":"openrouter"');
+    expect(anthropic.models).toEqual(['claude-revoked-1']);
+    cfg = { ...cfg, fallbacks: [] };
+    const alone = await ask('claude-revoked-1');
+    expect(alone.status).toBe(403);
+    expect(((await alone.json()) as { error: { message: string } }).error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Models page');
   });
 
   test('a model that answers is used as it is, and nothing else is asked', async () => {

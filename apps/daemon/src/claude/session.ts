@@ -13,7 +13,6 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
 import { notReady, primaryRoute, type ModelSetup } from '../gateway/model-config.js';
 import { effectiveSetup } from '../gateway/effective.js';
-import { forgetClaudeChecks } from './login.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
@@ -121,12 +120,8 @@ export function prepareRunnerStore(): Promise<void> {
     child.stderr.on('data', (chunk: Buffer) => {
       said = (said + chunk.toString('utf8')).slice(-2000);
     });
-    child.on('error', (err) => {
-      forgetClaudeChecks();
-      reject(err);
-    });
+    child.on('error', reject);
     child.on('close', (code) => {
-      forgetClaudeChecks();
       if (code === 0) resolve();
       else reject(new Error(`metro agent --prepare failed: ${said.trim() || `exit ${String(code)}`}`));
     });

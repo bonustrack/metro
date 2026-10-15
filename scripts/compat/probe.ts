@@ -126,7 +126,6 @@ if (typeof setup?.memoryRoutine === 'boolean') {
   await ok('setClaudeMemoryRoutine on', () => box.setClaudeMemoryRoutine(true));
 }
 await ok('fetchSchedules', () => schedules.fetchSchedules());
-await ok('claudeAvailable', () => claude.claudeAvailable());
 const settings = await ok('fetchClaudeSettings', () => claude.fetchClaudeSettings());
 const first = settings?.[0];
 if (first !== undefined)

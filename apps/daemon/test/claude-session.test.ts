@@ -1,11 +1,10 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import * as login from '../src/claude/login.js';
 import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
 import { emptySetup } from '../src/gateway/model-config.ts';
@@ -108,17 +107,10 @@ describe('what stands in the way of a session', () => {
 
   test('a runner store the boot could not prepare holds nothing back: Start and the watcher run metro agent, which prepares it', () => {
     agent();
-    spyOn(login, 'claudeInstalled').mockReturnValue(false);
     const unprepared = deps({ metro: undefined });
     expect(sessionBlocked(unprepared)).toBeNull();
     expect(startSession(unprepared).running).toBe(true);
     expect(recorded().find((c) => c.startsWith('new-session'))).toEndWith(' agent');
-  });
-
-  test('with Claude Code in the store, an organization that routes nowhere still blocks the start', () => {
-    agent();
-    spyOn(login, 'claudeInstalled').mockReturnValue(true);
-    expect(sessionBlocked(deps({ metro: undefined, model: () => emptySetup() }))).toContain('routes this agent to no model');
   });
 
   test('a delivered route to a ready provider counts, and one that is not ready names what is missing', () => {
@@ -193,8 +185,7 @@ describe('whether the runner is up', () => {
 });
 
 describe('preparing the runner store', () => {
-  test('runs metro agent --prepare, names what went wrong when it fails, and forgets the cached install check either way', async () => {
-    const forgot = spyOn(login, 'forgetClaudeChecks');
+  test('runs metro agent --prepare and names what went wrong when it fails', async () => {
     const prior = process.env.METRO_CLI_BIN;
     const cli = join(dir, 'cli.mjs');
     const seen = join(dir, 'args.json');
@@ -203,10 +194,8 @@ describe('preparing the runner store', () => {
     try {
       await prepareRunnerStore();
       expect(JSON.parse(readFileSync(seen, 'utf8'))).toEqual(['agent', '--prepare']);
-      expect(forgot).toHaveBeenCalledTimes(1);
       process.env.FAIL_PREPARE = '1';
       await expect(prepareRunnerStore()).rejects.toThrow('metro agent --prepare failed: no network');
-      expect(forgot).toHaveBeenCalledTimes(2);
     } finally {
       delete process.env.FAIL_PREPARE;
       if (prior === undefined) delete process.env.METRO_CLI_BIN;

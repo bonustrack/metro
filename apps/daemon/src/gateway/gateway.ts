@@ -14,6 +14,7 @@ import {
   anthropicHeaders,
   GatewayError,
   holdLimitRefusal,
+  SubscriptionRefused,
   loginHeaders,
   parseJson,
   pipeResponse,
@@ -21,6 +22,9 @@ import {
   sendError,
   upstreamMessage,
   watchUpstream,
+  type Held,
+  type Watch,
+  type Refusal,
 } from './forward.js';
 import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry } from './fallback.js';
 import {
@@ -142,10 +146,11 @@ async function refusedThinkingOff(upstream: Response, shaped: Record<string, unk
   return true;
 }
 
-async function refusedSubscription(conn: Connection, upstream: Response): Promise<void> {
+async function refusedSubscription(conn: Connection, upstream: Response, watch: Watch): Promise<void> {
   if (conn.apiKey !== '' || upstream.status !== 401) return;
   await upstream.body?.cancel();
-  throw new GatewayError(403, 'permission_error', `Anthropic refused the Claude subscription ${conn.label}: sign in again on the Models page`);
+  watch.stop();
+  throw new SubscriptionRefused(conn.label);
 }
 
 async function toAnthropic(
@@ -168,7 +173,7 @@ async function toAnthropic(
     return (await refusedThinkingOff(first, shaped, route.model)) ? shape() : first;
   };
   const upstream = await attempt(conn.apiKey !== '' ? anthropicHeaders(req, conn.apiKey) : loginHeaders(req, conn.claudeToken));
-  await refusedSubscription(conn, upstream);
+  await refusedSubscription(conn, upstream, watch);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
   await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id) });
@@ -258,6 +263,16 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   await toAnthropic(req, res, bytesOf(ask.raw, ask.parsed, ask.sent), ask.sent, body, route, deps);
 }
 
+async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route: Route, deps: GatewayDeps): Promise<Refusal | null> {
+  try {
+    await attempt(req, held.res, ask, route, deps);
+  } catch (err) {
+    if (!(err instanceof SubscriptionRefused)) throw err;
+    return { status: 401, headers: new Headers() };
+  }
+  return held.refusal();
+}
+
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
   const setup = deps.setup();
   const raw = await readBody(req);
@@ -274,9 +289,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
       await attempt(req, res, ask, route, deps);
       return;
     }
-    const held = holdLimitRefusal(res);
-    await attempt(req, held.res, ask, route, deps);
-    const refusal = held.refusal();
+    const refusal = await heldAttempt(req, holdLimitRefusal(res), ask, route, deps);
     if (refusal === null) return;
     noteRefused(route, refusal.status, refusal.headers, next);
   }

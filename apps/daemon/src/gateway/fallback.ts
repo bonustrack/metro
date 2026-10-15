@@ -90,9 +90,10 @@ function coolUntil(headers: Headers, now: number): number {
 }
 
 export function noteRefused(route: Route, status: number, headers: Headers, next: Route | undefined, now = Date.now()): void {
-  const reason = `answered ${String(status)}`;
-  cooling.set(keyOf(route), { until: coolUntil(headers, now), reason });
-  log.warn({ from: routeLabel(route), to: next === undefined ? null : routeLabel(next), status }, 'gateway: the model hit its limit, so the request goes to the next fallback model');
+  const signedOut = status === 401;
+  cooling.set(keyOf(route), { until: coolUntil(headers, now), reason: signedOut ? 'token refused, sign in again' : `answered ${String(status)}` });
+  const why = signedOut ? 'gateway: Anthropic refused the Claude subscription, so the request goes to the next fallback model' : 'gateway: the model hit its limit, so the request goes to the next fallback model';
+  log.warn({ from: routeLabel(route), to: next === undefined ? null : routeLabel(next), status }, why);
 }
 
 export function noteChoice(primary: Route, chosen: Route, now = Date.now()): void {

@@ -8,7 +8,6 @@ import { setBearerSessions } from '@metro-labs/http/api-http';
 import * as secureFs from '@metro-labs/core/secure-fs';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { sessionSnapshot, type SessionDeps } from '../src/claude/session.js';
-import * as login from '../src/claude/login.js';
 import * as effective from '../src/gateway/effective.js';
 
 const SNAPSHOT = '/api/claude/session/snapshot';
@@ -36,7 +35,6 @@ beforeEach(() => {
   deps = { tmux, home, agents, model };
   model.mockClear();
   setBearerSessions((req) => Promise.resolve(req.headers.authorization === AUTH ? { subject: 'snapshot-owner', role: 'member' } : null));
-  spyOn(login, 'claudeInstalled').mockImplementation(unexpected);
   spyOn(effective, 'effectiveSetup').mockImplementation(unexpected);
   spyOn(secureFs, 'writeJson').mockImplementation(unexpected);
   spyOn(globalThis, 'fetch').mockImplementation(unexpected);
@@ -66,7 +64,6 @@ function activity(over: Record<string, unknown> = {}): void {
 
 function expectPassive(): void {
   expect(model).not.toHaveBeenCalled();
-  expect(login.claudeInstalled).not.toHaveBeenCalled();
   expect(effective.effectiveSetup).not.toHaveBeenCalled();
   expect(secureFs.writeJson).not.toHaveBeenCalled();
   expect(globalThis.fetch).not.toHaveBeenCalled();

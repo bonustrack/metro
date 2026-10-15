@@ -11,6 +11,8 @@ const THEIRS = 'agent000003';
 const SECRET = 'sk-or-v1-very-secret-key';
 const CLAUDE_TOKEN = `sk-ant-oat01-${'Ab3_-'.repeat(19)}AA`;
 const NEW_TOKEN = `sk-ant-oat01-${'Zy9-_'.repeat(19)}AA`;
+const REVOKED_TOKEN = `sk-ant-oat01-${'Rv0-_'.repeat(19)}AA`;
+const COUNT = 'POST https://api.anthropic.com/v1/messages/count_tokens';
 
 let held: TestDb;
 let api: Api;
@@ -140,6 +142,14 @@ describe('connections', () => {
 });
 
 describe('Claude subscriptions', () => {
+  beforeEach(() => {
+    vendor.replies.set(COUNT, (sent) => {
+      const auth = sent.headers.get('authorization');
+      if (auth === `Bearer ${REVOKED_TOKEN}`) return json({ type: 'error', error: { type: 'authentication_error', message: 'Invalid bearer token' } }, 401);
+      return auth === `Bearer ${CLAUDE_TOKEN}` || auth === `Bearer ${NEW_TOKEN}` ? json({ input_tokens: 8 }) : json({ error: 'unexpected' }, 400);
+    });
+  });
+
   const subscribe = async (body: Record<string, unknown> = {}): Promise<View> => {
     const res = await call('POST', '/api/models', { provider: 'anthropic', claudeToken: CLAUDE_TOKEN, ...body });
     expect(res.status).toBe(201);
@@ -158,6 +168,32 @@ describe('Claude subscriptions', () => {
     if (row?.secret === null || row === undefined || key === null) throw new Error('not stored');
     expect(row.secret).not.toContain(CLAUDE_TOKEN);
     expect(openSecret(key, TEST_OWNER, made.id, row.secret, 'model')).toEqual({ kind: 'claude', token: CLAUDE_TOKEN });
+  });
+
+  test('a token is checked with one free count_tokens call before it is kept, as a bearer with the oauth beta and no key', async () => {
+    await subscribe();
+    const checks = vendor.sent.filter((sent) => sent.url.endsWith('/v1/messages/count_tokens'));
+    expect(checks).toHaveLength(1);
+    expect(checks[0]?.method).toBe('POST');
+    expect(checks[0]?.headers.get('authorization')).toBe(`Bearer ${CLAUDE_TOKEN}`);
+    expect(checks[0]?.headers.get('anthropic-beta')).toBe('oauth-2025-04-20');
+    expect(checks[0]?.headers.has('x-api-key')).toBe(false);
+    expect(JSON.parse(checks[0]?.body ?? '{}')).toEqual({ model: 'claude-haiku-4-5', messages: [{ role: 'user', content: 'hi' }] });
+  });
+
+  test('a token Anthropic refuses is not saved, and neither is one Metro could not check', async () => {
+    const refused = await call('POST', '/api/models', { provider: 'anthropic', claudeToken: REVOKED_TOKEN });
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: string }).error).toBe('Anthropic refused this token, so it was not saved. Run claude setup-token again and paste the new token. (401)');
+    vendor.replies.set(COUNT, () => json({ error: 'overloaded' }, 529));
+    const busy = await call('POST', '/api/models', { provider: 'anthropic', claudeToken: CLAUDE_TOKEN });
+    expect(busy.status).toBe(503);
+    expect(((await busy.json()) as { error: string }).error).toContain('could not check this token');
+    vendor.replies.set(COUNT, () => Promise.reject(new Error('connection reset')));
+    const down = await call('POST', '/api/models', { provider: 'anthropic', claudeToken: CLAUDE_TOKEN });
+    expect(down.status).toBe(503);
+    expect(JSON.stringify(await down.json())).not.toContain(CLAUDE_TOKEN);
+    expect(await held.db.$count(modelConnections)).toBe(0);
   });
 
   test('anything but a whole sk-ant-oat01- token is refused, and only on Anthropic', async () => {
@@ -179,6 +215,7 @@ describe('Claude subscriptions', () => {
     const made = await subscribe();
     expect((await call('PATCH', `/api/models/${made.id}`, { claudeToken: 'sk-ant-oat01-short' })).status).toBe(400);
     expect((await call('PATCH', `/api/models/${made.id}`, { apiKey: 'sk-ant-key' })).status).toBe(400);
+    expect((await call('PATCH', `/api/models/${made.id}`, { claudeToken: REVOKED_TOKEN })).status).toBe(400);
     expect(await revisionOf(made.id)).toBe(1);
     const replaced = await call('PATCH', `/api/models/${made.id}`, { claudeToken: NEW_TOKEN, label: 'Max plan' });
     expect(await data<{ connection: View }>(replaced)).toMatchObject({ connection: { label: 'Max plan', subscription: true } });

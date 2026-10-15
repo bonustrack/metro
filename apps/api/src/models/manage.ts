@@ -7,6 +7,7 @@ import { MODEL_ID_MAX, type ModelRoute } from '@metro-labs/connectors/model-rout
 import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealModelSecret, type ModelDetail, type ModelProvider, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { isoNow, modelKey, MODELS_MAX, userActor, type Caller, type ModelsDeps } from './deps.js';
 import { apiKeyOf, claudeTokenOf, creator, flagOf, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
+import { checkClaudeToken } from './provider-lists.js';
 import { connectionView, type ConnectionView, type ModelsView } from './view.js';
 
 const PATCH_FIELDS = ['label', 'model', 'region', 'zdr', 'apiKey', 'claudeToken'];
@@ -56,6 +57,7 @@ export async function createModel(deps: ModelsDeps, caller: Caller, body: unknow
   const region = regionOf(input.region);
   const zdr = flagOf(input.zdr, 'zero data retention');
   const taken = await roomFor(deps, caller.owner);
+  if (secret.kind === 'claude') await checkClaudeToken(secret.token, deps.fetch);
   const at = isoNow(deps);
   const row = { ...newModelRow(creator(caller), provider, labelFor(taken, provider, label, subscription), at), model, region, zdr };
   const made: ModelConnectionRow = { ...row, secret: sealModelSecret(key, row, secret), detail: subscription ? modelDetailText(subscriptionDetail(at)) : null };
@@ -93,9 +95,16 @@ function tokenEdit(key: Buffer, change: ModelChange, token: string, at: string):
   };
 }
 
-function credentialEdit(deps: ModelsDeps, input: Record<string, unknown>, change: ModelChange): (row: ModelConnectionRow) => ModelEdit {
+async function checkedTokenEdit(deps: ModelsDeps, raw: unknown, change: ModelChange): Promise<(row: ModelConnectionRow) => ModelEdit> {
+  const key = modelKey(deps);
+  const token = claudeTokenOf(raw);
+  await checkClaudeToken(token, deps.fetch);
+  return tokenEdit(key, change, token, isoNow(deps));
+}
+
+async function credentialEdit(deps: ModelsDeps, input: Record<string, unknown>, change: ModelChange): Promise<(row: ModelConnectionRow) => ModelEdit> {
   if (Object.hasOwn(input, 'apiKey') && Object.hasOwn(input, 'claudeToken')) throw bad('Send an API key or a Claude subscription token, not both.');
-  if (Object.hasOwn(input, 'claudeToken')) return tokenEdit(modelKey(deps), change, claudeTokenOf(input.claudeToken), isoNow(deps));
+  if (Object.hasOwn(input, 'claudeToken')) return checkedTokenEdit(deps, input.claudeToken, change);
   if (Object.hasOwn(input, 'apiKey')) return keyEdit(modelKey(deps), change, apiKeyOf(input.apiKey));
   return () => ({ change });
 }
@@ -104,7 +113,8 @@ export async function patchModel(deps: ModelsDeps, caller: Caller, id: string, b
   const input = isRecord(body) ? body : {};
   const fields = Object.keys(input);
   if (fields.length === 0 || fields.some((field) => !PATCH_FIELDS.includes(field))) throw bad(`Send ${PATCH_FIELDS.join(', ')} to change.`);
-  const saved = await deps.store.edit(caller.owner, id, isoNow(deps), credentialEdit(deps, input, plainChange(input)));
+  const edit = await credentialEdit(deps, input, plainChange(input));
+  const saved = await deps.store.edit(caller.owner, id, isoNow(deps), edit);
   log.info({ owner: caller.owner, id, fields }, 'models: connection changed');
   return { connection: connectionView(saved) };
 }

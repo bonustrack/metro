@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { arch, platform, release } from 'node:os';
 import { isRecord } from '@metro-labs/core/is-record';
+import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { stringOf } from '@metro-labs/http/api-http';
@@ -17,6 +18,9 @@ const CODEX_BACKEND = 'https://chatgpt.com/backend-api/codex';
 const LIST_MAX = 1000;
 const OPENROUTER_MAX = 2000;
 const LIST_TIMEOUT_MS = 10_000;
+const CHECK_MODEL = 'claude-haiku-4-5';
+const TOKEN_REFUSED = 'Anthropic refused this token, so it was not saved. Run claude setup-token again and paste the new token.';
+const TOKEN_UNCHECKED = 'Metro could not check this token with Anthropic, so it was not saved. Try again in a moment.';
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
 
 export const KNOWN_CLAUDE: ListedModel[] = [
@@ -66,8 +70,32 @@ async function listAnthropic(auth: Record<string, string>, fetchImpl: FetchLike)
 
 export const anthropicModels = (apiKey: string, fetchImpl: FetchLike): Promise<ListedModel[]> => listAnthropic({ 'x-api-key': apiKey }, fetchImpl);
 
-export const subscriptionModels = (token: string, fetchImpl: FetchLike): Promise<ListedModel[]> =>
-  listAnthropic({ authorization: `Bearer ${token}`, 'anthropic-beta': OAUTH_BETA }, fetchImpl);
+const subscriptionAuth = (token: string): Record<string, string> => ({ authorization: `Bearer ${token}`, 'anthropic-beta': OAUTH_BETA });
+
+export const subscriptionModels = (token: string, fetchImpl: FetchLike): Promise<ListedModel[]> => listAnthropic(subscriptionAuth(token), fetchImpl);
+
+async function countWith(token: string, fetchImpl: FetchLike): Promise<Response> {
+  try {
+    return await fetchImpl(`${ANTHROPIC_API}/v1/messages/count_tokens`, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json', 'anthropic-version': ANTHROPIC_VERSION, ...subscriptionAuth(token) },
+      body: JSON.stringify({ model: CHECK_MODEL, messages: [{ role: 'user', content: 'hi' }] }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(LIST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    log.warn({ err: errMsg(err) }, 'models: Anthropic could not be reached to check a Claude subscription token');
+    throw new ApiError(TOKEN_UNCHECKED, 503);
+  }
+}
+
+export async function checkClaudeToken(token: string, fetchImpl: FetchLike): Promise<void> {
+  const res = await countWith(token, fetchImpl);
+  await res.body?.cancel();
+  if (res.ok) return;
+  if (res.status === 401 || res.status === 403) throw new ApiError(`${TOKEN_REFUSED} (${String(res.status)})`, 400);
+  throw new ApiError(`${TOKEN_UNCHECKED} (Anthropic answered ${String(res.status)})`, 503);
+}
 
 function bedrockEntry(entry: unknown): Dated[] {
   if (!isRecord(entry)) return [];
