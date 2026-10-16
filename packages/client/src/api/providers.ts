@@ -20,7 +20,7 @@ export function connectionDetail(c: ConnectionRow): string {
   if (c.subscription) return 'Claude subscription';
   if (c.provider === 'bedrock') return ['API key stored', c.region === '' ? 'no region' : c.region].join(' · ');
   if (c.provider === 'openrouter') return ['API key stored', c.zdr ? 'zero data retention' : ''].filter((x) => x !== '').join(' · ');
-  if (c.provider === 'anthropic' && c.hasKey) return 'API key stored';
+  if (usesKey(c.provider) && c.hasKey) return 'API key stored';
   return signedAs(c);
 }
 

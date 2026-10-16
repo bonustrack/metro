@@ -1,4 +1,4 @@
-export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex'] as const;
+export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export type CodexMethod = 'chatgpt' | 'code';
 export type RouteSource = 'agent' | 'organization';
@@ -50,7 +50,7 @@ export interface Route {
 
 export const CODEX_SIGN_IN = "Codex is not signed in: sign in again on the organization's Models page.";
 
-const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex):(.+)$/;
+const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|routeway):(.+)$/;
 const SMALL_RE = /haiku/i;
 
 export const isProvider = (value: unknown): value is Provider => typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
@@ -60,10 +60,12 @@ export const emptySetup = (): ModelSetup => ({ primary: null, fallbacks: [], con
 export const connectionOf = (setup: ModelSetup, id: string): Connection | null => setup.connections.find((c) => c.id === id) ?? null;
 
 export function primaryRoute(setup: ModelSetup): Route | null {
-  const primary = setup.primary;
-  const conn = primary === null ? null : connectionOf(setup, primary.connection);
-  if (primary === null || conn === null) return null;
-  return { connection: conn, model: primary.model === '' ? conn.model : primary.model };
+  const steps = setup.primary === null ? [] : [setup.primary, ...setup.fallbacks];
+  for (const step of steps) {
+    const conn = connectionOf(setup, step.connection);
+    if (conn !== null) return { connection: conn, model: step.model === '' ? conn.model : step.model };
+  }
+  return null;
 }
 
 const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {
@@ -80,6 +82,10 @@ const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {
     [(r) => r.connection.codex === null, CODEX_SIGN_IN],
     [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Models page."],
   ],
+  routeway: [
+    [(r) => r.connection.apiKey === '', "Routeway has no API key: add it on the organization's Models page."],
+    [(r) => r.model === '', "Routeway needs a model id: choose one on the organization's Models page."],
+  ],
 };
 
 export const notReady = (route: Route): string | null => CHECKS[route.connection.provider].find(([missing]) => missing(route))?.[1] ?? null;
@@ -90,6 +96,7 @@ const DEFAULTS: Record<Provider, (requested: string, model: string) => string> =
   openrouter: (requested, model) => (requested.includes('/') ? requested : model),
   bedrock: (requested, model) => (model === '' ? requested : model),
   codex: (requested, model) => (requested.startsWith('gpt-') ? requested : model),
+  routeway: (_requested, model) => model,
   anthropic: (requested, model) => (model === '' || isSmallModel(requested) ? requested : model),
 };
 

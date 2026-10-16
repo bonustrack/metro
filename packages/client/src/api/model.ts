@@ -4,7 +4,7 @@ import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
 import { toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
 
-export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex';
+export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'routeway';
 
 export interface ProviderInfo {
   id: Provider;
@@ -18,6 +18,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: 'bedrock', label: 'Amazon Bedrock', site: 'https://aws.amazon.com', blurb: 'Claude models billed to your AWS account.' },
   { id: 'openrouter', label: 'OpenRouter', site: 'https://openrouter.ai', blurb: 'Any model OpenRouter serves, through one key.' },
   { id: 'codex', label: 'Codex (ChatGPT)', site: 'https://openai.com', blurb: "GPT models on a ChatGPT Plus or Pro plan, with OpenAI's official sign-in." },
+  { id: 'routeway', label: 'Routeway', site: 'https://routeway.ai', blurb: 'Models from many labs, some of them free, through one key.' },
 ];
 
 export type CodexMethod = 'chatgpt' | 'code';
@@ -75,7 +76,7 @@ export interface ModelSettings {
   chain: ChainRow[];
 }
 
-const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter'];
+const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter', 'routeway'];
 
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
@@ -169,5 +170,7 @@ const STATE_PARAM = /(?:^|[?&])state=[^&\s]/;
 export const carriesCodeAndState = (pasted: string): boolean => CODE_PARAM.test(pasted.trim()) && STATE_PARAM.test(pasted.trim());
 
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
+export const ROUTEWAY_KEYS_URL = 'https://routeway.ai/dashboard/api-keys';
+export const ROUTEWAY_USAGE_URL = 'https://routeway.ai/dashboard';
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 export const ANTHROPIC_KEYS_URL = 'https://console.anthropic.com/settings/keys';

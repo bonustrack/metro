@@ -13,7 +13,7 @@ function niceName(row: PickRow): string {
   return cut === -1 ? row.name : row.name.slice(cut + 2);
 }
 
-const rowDetail = (row: PickRow): string => [niceName(row) === row.id ? '' : row.id, row.price].filter((x) => x !== '').join(' · ');
+const rowDetail = (row: PickRow): string => [niceName(row) === row.id ? '' : row.id, row.price, row.context ?? ''].filter((x) => x !== '').join(' · ');
 
 const PICK_ROW = { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 67, paddingVertical: 9, paddingHorizontal: 16, borderRadius: 4 } as const;
 

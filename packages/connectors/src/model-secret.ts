@@ -3,9 +3,9 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { parsedJson } from './model.js';
 import { openSecret, sealSecret } from './secrets.js';
 
-export const MODEL_PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex'] as const;
+export const MODEL_PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'] as const;
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
-export const KEY_PROVIDERS: readonly ModelProvider[] = ['anthropic', 'bedrock', 'openrouter'];
+export const KEY_PROVIDERS: readonly ModelProvider[] = ['anthropic', 'bedrock', 'openrouter', 'routeway'];
 
 export type CodexMethod = 'chatgpt' | 'code';
 

@@ -43,7 +43,11 @@ describe('what a connection card says', () => {
     expect(connectionDetail(row({ id: 'a', provider: 'codex', account: 'less@x' }))).toBe('less@x');
     expect(connectionDetail(row({ id: 'a', provider: 'codex', signedOut: true }))).toBe('signed out, sign in again');
     expect(connectionDetail(row({ id: 'a', provider: 'anthropic', hasKey: true, signedOut: true }))).toBe('no key yet, add one');
+    expect(connectionDetail(row({ id: 'a', provider: 'routeway', hasKey: true }))).toBe('API key stored');
+    expect(connectionDetail(row({ id: 'a', provider: 'routeway', signedOut: true }))).toBe('no key yet, add one');
     expect(providerLabel('codex')).toBe('Codex (ChatGPT)');
+    expect(providerLabel('routeway')).toBe('Routeway');
+    expect(usesKey('routeway')).toBe(true);
     expect(usesKey('openrouter')).toBe(true);
     expect(usesKey('codex')).toBe(false);
   });

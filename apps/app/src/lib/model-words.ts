@@ -1,4 +1,5 @@
 import { usesKey, type ConnectionRow } from '@metro-labs/client/api/model';
+import { providerLabel } from '@metro-labs/client/api/providers';
 import { routeSteps, type ModelRoute } from '@metro-labs/client/api/model-route';
 
 export const DEFAULT_MODEL_WORD = 'Default model';
@@ -45,7 +46,7 @@ export function accountKind(connection: ConnectionRow): string {
   if (connection.subscription) return 'Claude subscription';
   if (connection.provider === 'codex') return 'ChatGPT';
   if (connection.provider === 'anthropic') return 'Anthropic key';
-  return connection.provider === 'bedrock' ? 'Amazon Bedrock' : 'OpenRouter';
+  return providerLabel(connection.provider);
 }
 
 export const usesConnection = (route: ModelRoute | null, id: string): boolean => routeSteps(route).some((step) => step.connection === id);

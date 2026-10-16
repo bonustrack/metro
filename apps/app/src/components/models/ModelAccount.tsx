@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@stage-labs/kit/react-native/switch';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { ROUTEWAY_USAGE_URL } from '@metro-labs/client/api/model';
 import { deleteOrgModel, updateOrgModel, type OrgModelConnection, type OrgModels } from '@metro-labs/client/api/org-models';
 import { providerInfo } from '@metro-labs/client/api/providers';
 import { serverLabel } from '@metro-labs/client/api/servers';
@@ -27,6 +28,7 @@ import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
+import { openExternal } from '../../lib/open.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 
 const ZDR_NOTE = 'Only OpenRouter providers that keep no prompts. A model with no such provider stops answering.';
@@ -76,6 +78,7 @@ function Manage({ connection }: { connection: OrgModelConnection }): ReactNode {
       <Item title="Name" value={connection.label} onPress={() => { setRenaming(true); }} />
       <Item title={sign.title} subtitle={sign.subtitle} href={routeHash({ kind: 'org-model-sign-in', id: connection.id })} />
       {connection.provider === 'openrouter' ? <ZeroRetention connection={connection} /> : null}
+      {connection.provider === 'routeway' ? <Item title="Usage" subtitle="Usage shows on routeway.ai" onPress={() => { openExternal(ROUTEWAY_USAGE_URL); }} /> : null}
       <Item title={`Remove ${connection.label}`} subtitle={connection.subscription ? 'Revoke the token at claude.ai too' : 'Every route that uses it loses it'} danger chevron={false} onPress={removing.show} />
       <NameModal key={connection.label} title="Rename the account" action="Rename" placeholder={connection.label} initial={connection.label} failure="Could not rename the account." open={renaming}
         onClose={() => { setRenaming(false); }} onSubmit={async (label) => { await updateOrgModel(connection.id, { label }); await afterModelChange(client); }} />
@@ -95,7 +98,7 @@ function Body({ id }: { id: string }): ReactNode {
   const connection = data?.connections.find((c) => c.id === id);
   useDocumentTitle(connection?.label ?? 'Account');
   if (data === undefined) return error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not load the models" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />;
-  if (connection === undefined) return <StateBlock icon="sparkle" title="This account is gone" text="It is not in this organization any more." />;
+  if (connection === undefined) return <StateBlock icon="processor" title="This account is gone" text="It is not in this organization any more." />;
   return (
     <Groups>
       <PageHeader title={connection.label} subtitle={headerLine(connection)} leading={<ProviderLogo provider={providerInfo(connection.provider)} size={AVATAR_SIZE.header} />} />

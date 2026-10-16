@@ -29,7 +29,7 @@ import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can change the models.';
-const NO_ACCOUNT = 'Add a Claude subscription, ChatGPT, OpenRouter, an Anthropic key or Amazon Bedrock first. Then choose the model every agent uses.';
+const NO_ACCOUNT = 'Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock first. Then choose the model every agent uses.';
 
 function useScope(list: OrgModels): RouteScope {
   const client = useQueryClient();
@@ -88,7 +88,7 @@ function RemoveMenu(): ReactNode {
 }
 
 function NoAccount({ admin }: { admin: boolean }): ReactNode {
-  return <StateBlock icon="sparkle" title="No account yet" text={NO_ACCOUNT} action={admin ? { label: 'Add an account', primary: true, onPress: () => { go({ kind: 'org-model-add' }); } } : undefined} />;
+  return <StateBlock icon="processor" title="No account yet" text={NO_ACCOUNT} action={admin ? { label: 'Add an account', primary: true, onPress: () => { go({ kind: 'org-model-add' }); } } : undefined} />;
 }
 
 function Body(): ReactNode {

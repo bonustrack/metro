@@ -35,6 +35,7 @@ const BY_DOMAIN: Record<string, string> = {
   'slack.com': 'slack',
   'github.com': 'github',
   'openrouter.ai': 'openrouter',
+  'routeway.ai': 'routeway',
   'openai.com': 'openai',
   'mistral.ai': 'mistral',
   'qwen.ai': 'qwen',
@@ -57,9 +58,10 @@ const BY_DOMAIN: Record<string, string> = {
 };
 
 const WITH_DARK = new Set(['github', 'openrouter', 'aws', 'openai', 'grok']);
+const RASTER = new Set(['routeway']);
 
 function logoOf(slug: string): BrandLogo {
-  const light = `/brands/${slug}.svg`;
+  const light = `/brands/${slug}.${RASTER.has(slug) ? 'png' : 'svg'}`;
   return WITH_DARK.has(slug) ? { light, dark: `/brands/${slug}-dark.svg` } : { light };
 }
 

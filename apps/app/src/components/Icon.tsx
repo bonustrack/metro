@@ -31,6 +31,7 @@ import { IconMicrophone } from '@central-icons-react-native/round-outlined-radiu
 import { IconMoon } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMoon';
 import { IconPeople } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPeople';
 import { IconPlusLarge } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlusLarge';
+import { IconProcessor } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconProcessor';
 import { IconServer } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconServer';
 import { IconSettingsGear2 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSettingsGear2';
 import { IconShield } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconShield';
@@ -87,6 +88,7 @@ const ICONS = {
   moon: IconMoon,
   officeBuilding: IconBuildings,
   plus: IconPlusLarge,
+  processor: IconProcessor,
   selector: IconChevronGrabberVertical,
   server: IconServer,
   shield: IconShield,

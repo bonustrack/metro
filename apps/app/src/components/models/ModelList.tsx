@@ -89,7 +89,7 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
       <Group>
         <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={agentsWord(count)} href={href} />
       </Group>
-      <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>
+      <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>
     </Col>
   );
 }

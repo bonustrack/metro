@@ -30,7 +30,11 @@ export function usageModel(settings: ModelSettings, step: RouteStep): string {
   return settings.lastServed?.connection === step.connection ? settings.lastServed.model : '';
 }
 
+const ELSEWHERE: Partial<Record<Provider, string>> = { routeway: 'Usage shows on routeway.ai.' };
+
 export function missingUsage(provider: Provider): string {
+  const elsewhere = ELSEWHERE[provider];
+  if (elsewhere !== undefined) return elsewhere;
   if (provider === 'bedrock') return 'Usage limits are not reported by Bedrock.';
   if (provider === 'codex') return 'Usage unavailable. ChatGPT has not reported a limit.';
   return 'Usage unavailable. No reading reported yet.';
@@ -41,7 +45,7 @@ export function usageDetail(usage: ModelSettings['usage'][string], provider: Pro
   if (credit != null) return credit;
   const previous = modelWindows(usage.windows, provider, model, Number.NEGATIVE_INFINITY);
   const reset = previous.some((w) => w.resetAt !== null && Date.parse(w.resetAt) <= now);
-  const note = reset ? 'Usage window reset. Waiting for a new reading.' : 'No current usage limit reported.';
+  const note = reset ? 'Usage window reset. Waiting for a new reading.' : (ELSEWHERE[provider] ?? 'No current usage limit reported.');
   if (usage.tally !== null) return `${tallyLine(usage.tally)} · ${note}`;
   return reset ? note : missingUsage(provider);
 }

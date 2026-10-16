@@ -42,6 +42,7 @@ describe('usage for the selected model', () => {
     expect(missingUsage('codex')).toContain('ChatGPT has not reported a limit');
     expect(missingUsage('bedrock')).toContain('not reported by Bedrock');
     expect(missingUsage('anthropic')).toContain('No reading reported yet');
+    expect(missingUsage('routeway')).toBe('Usage shows on routeway.ai.');
     const usage = { at: new Date(NOW).toISOString(), windows: [window('Weekly', 0.7, new Date(NOW).toISOString())], note: null, tally: null };
     expect(usageDetail(usage, 'codex', 'gpt-6-astra', NOW)).toContain('Usage window reset');
     const withTally = { ...usage, tally: { requests: 2, input: 10, output: 5, cached: 0, since: usage.at } };
@@ -60,6 +61,7 @@ describe('usage for the selected model', () => {
     expect(usageReported({ ...usage, windows: [] }, NOW)).toBeNull();
     const tally = { requests: 2, input: 10, output: 5, cached: 0, since: usage.at };
     expect(usageDetail({ ...usage, windows: [], tally }, 'bedrock', '', NOW)).toContain('No current usage limit reported');
+    expect(usageDetail({ ...usage, windows: [], tally }, 'routeway', 'claude-sonnet-5.5', NOW)).toEndWith(' · Usage shows on routeway.ai.');
     expect(usageDetail({ ...usage, windows: [{ ...window('Credits', null), detail: '$4 remaining' }] }, 'openrouter', '', NOW)).toBe('$4 remaining');
   });
 

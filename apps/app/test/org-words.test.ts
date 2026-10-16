@@ -23,6 +23,9 @@ describe('model accounts and routes in plain words', () => {
     expect(accountLine(row({ provider: 'anthropic', subscription: true, signedOut: true }))).toEqual({ text: 'Signed out', bad: true });
     expect(accountKind(row({ provider: 'anthropic', subscription: true }))).toBe('Claude subscription');
     expect(accountKind(row({ provider: 'codex' }))).toBe('ChatGPT');
+    expect(accountKind(row({ provider: 'routeway', label: 'Work' }))).toBe('Routeway');
+    expect(accountKind(row({}))).toBe('OpenRouter');
+    expect(accountLine(row({ provider: 'routeway' }))).toEqual({ text: 'Key saved', bad: false });
   });
 
   test('agent names join with and', () => {
