@@ -33,7 +33,7 @@ export function requireAdmin(session: ApiSession): void {
 export function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
-    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'access-control-allow-headers': 'Authorization, Content-Type',
     'access-control-allow-private-network': 'true',
     'access-control-max-age': '86400',
