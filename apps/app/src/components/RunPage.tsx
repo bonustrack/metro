@@ -75,9 +75,13 @@ function AgentNotice({ error, pending }: { error: Error | null; pending: boolean
   return <Text size="xs" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
 }
 
-function RunFacts({ agent, data }: { agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources> }): ReactNode {
-  if (!useTechnicalDetails()) return null;
-  return <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>;
+function RunFacts({ agent, data, agentError, agentPending }: { agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources>; agentError: Error | null; agentPending: boolean }): ReactNode {
+  const technical = useTechnicalDetails();
+  if (!technical && agent !== undefined) return null;
+  return <Col gap={10}>
+    {technical && <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>}
+    {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
+  </Col>;
 }
 
 function RunData({ project, agent, agentError, agentPending }: { project: string; agent: AgentSummary | undefined; agentError: Error | null; agentPending: boolean }): ReactNode {
@@ -90,10 +94,7 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
   const initialWorker = focus.scope === data.scope ? focus.worker : 'All';
   const explain = <Text size="xs" onPress={() => { setCoverage(true); }} accessibilityRole="button">What is shown here?</Text>;
   return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" action={explain}><Col gap={40} testID="run-page">
-    <Col gap={10}>
-      <RunFacts agent={agent} data={data} />
-      {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
-    </Col>
+    <RunFacts agent={agent} data={data} agentError={agentError} agentPending={agentPending} />
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
       onWorker={(worker) => { setFocus((current) => ({ worker, revision: current.revision + 1, scope: data.scope })); }} />
     <RunTimeline key={`${data.scope}:${String(focus.revision)}`} initialWorker={initialWorker} entries={data.entries} now={now}

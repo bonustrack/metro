@@ -6,7 +6,9 @@ import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { SaveField, useSave } from './SaveField.js';
-import { EmptyCard, SettingsGroup, SettingsSection } from './SettingsSection.js';
+import { Block, Control, NoteRow } from './settings/rows.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
 import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
 import { olderThan } from '@metro-labs/client/api/version';
 import {
@@ -44,9 +46,18 @@ function useVoice(): { voice: VoiceSettings | undefined; error: unknown; set: Se
   };
 }
 
-function Link({ href }: { href: string }): ReactNode {
+function FieldBlock({ title, note, href, children }: { title: string; note: string; href: string; children: ReactNode }): ReactNode {
   return (
-    <TextLink url={href}>{href.replace(/^https:\/\//, '')}</TextLink>
+    <Block>
+      <Col gap={2}>
+        <Text size="md">{title}</Text>
+        <Text size="xs" role="secondary">
+          {note}
+        </Text>
+      </Col>
+      <TextLink url={href}>{href.replace(/^https:\/\//, '')}</TextLink>
+      {children}
+    </Block>
   );
 }
 
@@ -75,10 +86,9 @@ function ChoiceSetting<T extends string>({ title, note, value, options, patch, s
       });
   };
   return (
-    <SettingsSection title={title} note={note}>
+    <Control title={title} note={note} error={error}>
       <Choice label={title} value={value} options={options} disabled={busy} onChange={pick} />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </SettingsSection>
+    </Control>
   );
 }
 
@@ -121,20 +131,18 @@ function ApiKey({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
   });
   const saving = useSave({ initial: '', valid: (v) => v !== '', run: (apiKey) => save({ apiKey }), failure: 'Could not save the key.' });
   return (
-    <SettingsSection title={`${providerName(voice.provider)} API key`} note={KEY_NOTE}>
-      <Link href={ELEVENLABS_KEYS_URL} />
-      <SaveField saving={saving} name="voice-api-key" label="API key" placeholder={voice.hasKey ? 'stored on the daemon, paste to replace' : 'paste the key'} secret />
-    </SettingsSection>
+    <FieldBlock title={`${providerName(voice.provider)} API key`} note={KEY_NOTE} href={ELEVENLABS_KEYS_URL}>
+      <SaveField saving={saving} name="voice-api-key" label="API key" placeholder={voice.hasKey ? 'Saved. Paste a new key to replace it.' : 'Paste the key'} secret />
+    </FieldBlock>
   );
 }
 
 function VoiceId({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
   const saving = useSave({ initial: voice.voiceId, valid: () => true, run: (voiceId) => saver(set)({ voiceId }), failure: 'Could not save the voice.' });
   return (
-    <SettingsSection title="Voice" note={VOICE_NOTE}>
-      <Link href={ELEVENLABS_VOICES_URL} />
+    <FieldBlock title="Voice" note={VOICE_NOTE} href={ELEVENLABS_VOICES_URL}>
       <SaveField saving={saving} name="voice-id" label="Voice ID" placeholder={voice.defaults.voiceId} />
-    </SettingsSection>
+    </FieldBlock>
   );
 }
 
@@ -143,26 +151,24 @@ function VoiceBody(): ReactNode {
   if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
   if (voice === undefined) return <Loading />;
   return (
-    <Col gap={32}>
-      <SettingsGroup>
+    <>
+      <Group label="Calls">
         <AnswerCalls voice={voice} set={set} />
-        <SettingsSection title="Provider" compact>
-          <Text size="md" role="secondary">{providerName(voice.provider)}</Text>
-        </SettingsSection>
+        <Item title="Provider" value={providerName(voice.provider)} />
         <ApiKey voice={voice} set={set} />
-      </SettingsGroup>
-      <SettingsGroup>
+      </Group>
+      <Group label="Voice">
         <VoiceId voice={voice} set={set} />
         {voice.language === null ? null : <VoiceLanguage voice={voice} set={set} />}
-      </SettingsGroup>
-    </Col>
+      </Group>
+    </>
   );
 }
 
 function VoiceGate(): ReactNode {
   const mode = useModeQuery();
   if (mode.data === undefined) return mode.error === null ? <Loading /> : <VoiceBody />;
-  if (olderThan(mode.data.version, VOICE_SINCE)) return <EmptyCard text={`Needs metro ${VOICE_SINCE}. Update first, from the Server page.`} />;
+  if (olderThan(mode.data.version, VOICE_SINCE)) return <NoteRow text={`Needs Metro ${VOICE_SINCE}. Update it first, in Settings, Server.`} />;
   return <VoiceBody />;
 }
 

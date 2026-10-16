@@ -1,5 +1,20 @@
 # Metro history
 
+## 2026-10-16: The v2 redesign of the app
+
+The app had grown one page per feature: a sidebar with sixteen entries per agent (Dashboard, Channels, Run, Harness, Server, Scheduled, Secrets, Voice and more), the same facts on several pages and technical words everywhere. The owner chose a redesign with one rule, "simple by default, everything one step away", from mockups he approved (Less, 2026-10-16, the version 2 refinements). His decisions:
+
+- **Rail, list and detail on a computer; a floating tab bar on a phone.** Four sections only: Agents, Connectors, Models, Organization. On a wide screen a narrow rail of icons, a 320 px list and the detail; on a phone each section is a tab root with a large title and a floating pill tab bar, with the label under the active icon only. The sidebar and its drawer are gone from the main app (the operator's admin pages keep them).
+- **Five tabs per agent: Home, Chats, Memory, Tools, Settings.** Every old page has a place: Run became Home's Right now and its full view, Voice and Conversations went to Chats, Skills and Files to Memory, Scheduled and Secrets to Tools (Routines, Secret keys), Harness, Server, Model and Terminal to Settings. A page below a tab opens with crumbs ("Emma › Chats › Telegram bot") instead of the agent header.
+- **Approvals live only on the agent's Home**, as a card with the real content and big Deny and Approve buttons. The count shows once: the white pill on the agent's row and on the phone tab bar's Agents icon, nowhere else.
+- **One status line in words** ("Waiting for you: send an email", "Offline", "Updating to beta.312", "Setting up: 2 of 5"), the same in the agents list and the agent header; those who need you come first.
+- **Plain words, with a technical details switch.** Backups instead of fallbacks, people who can write instead of allowlist, Asks first and Not allowed instead of ask and block, helpers instead of workers, accounts instead of connections. "Show technical details", in the account menu and remembered per device, brings back hosts, versions, CPU and memory, ids, tool names and raw logs.
+- **Fewer surfaces**: plain rows on the page background with thin lines, the approval card the only raised surface, two columns (group name, rows) on settings-type pages on a computer, one white button per screen at most. **Agent avatars are full circles.**
+- **Jump (⌘K)** opens any agent, any page of any agent or an action; lists answer to J, K and Enter.
+- **Login and sign-up stay exactly as they were.**
+
+Known gaps at the merge: no "Replying to X" source on Right now, no offline duration ("Offline for 12 min"), invitations cannot be resent, no API for an organization picture, and no usage on the organization's default route.
+
 ## 2026-10-16: Claude subscriptions belong to the organization
 
 Until this release a Claude subscription was a login of one box: the agent's Model page drove `claude auth login` into a per-login Claude Code folder (`<agent home>/.metro/claude-logins/<id>`), Metro's `model.json` version 3 listed those logins, and an agent's own order named one as `local:<id>`, or `local:session` for the login the session itself carried. Only that box could use it, it had to be signed in again on every box, and Claude Code renewed each folder's token on its own. The owner's decision (Less, 2026-10-16): **Claude subscriptions move to the organization like the other model connections.**

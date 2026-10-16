@@ -62,18 +62,6 @@ export function SettingsPad({ row = false, children }: { row?: boolean; children
   );
 }
 
-export function EmptyCard({ text }: { text: string }): ReactNode {
-  return (
-    <SettingsGroup>
-      <SettingsPad>
-        <Text size="md" role="secondary">
-          {text}
-        </Text>
-      </SettingsPad>
-    </SettingsGroup>
-  );
-}
-
 interface SettingsSectionProps {
   title: string;
   note?: string;
