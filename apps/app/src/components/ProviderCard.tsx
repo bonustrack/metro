@@ -1,32 +1,7 @@
-import { type ReactNode } from 'react';
-import { ProviderLogo } from './ProviderLogo.js';
-import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
-import { connectionDetail, providerInfo } from '@metro-labs/client/api/providers';
-import { Tag } from './Tag.js';
+import { connectionDetail } from '@metro-labs/client/api/providers';
 
 export function connectionNote(conn: ConnectionRow): string {
   if (conn.account === null || conn.signedOut || conn.provider !== 'codex') return connectionDetail(conn);
   return `${conn.account}${conn.plan === null ? '' : ` (${conn.plan})`}`;
-}
-
-interface ConnectionItemProps {
-  connection: ConnectionRow;
-  detail: string;
-  trailing?: ReactNode;
-  onOpen?: () => void;
-}
-
-export function ConnectionItem({ connection, detail, trailing, onOpen }: ConnectionItemProps): ReactNode {
-  return (
-    <ListRow
-      title={connection.label}
-      detail={detail}
-      icon={<ProviderLogo provider={providerInfo(connection.provider)} size={LIST_ICON_SIZE} />}
-      muted={connection.signedOut}
-      extra={connection.signedOut ? <Tag label="Signed out" /> : connection.provider === 'openrouter' && connection.zdr ? <Tag label="Zero data retention" /> : undefined}
-      onPress={onOpen}
-      trailing={trailing}
-    />
-  );
 }

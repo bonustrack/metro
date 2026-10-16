@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
@@ -15,6 +15,8 @@ import { SECTION_ICONS } from './section-icons.js';
 import { SHELL_SECTIONS, type ShellSection, type ShellSectionId } from '../../lib/shell-sections.js';
 import { setTechnicalDetails, useTechnicalDetails } from '../../lib/technical.js';
 import { hoverColor } from '../../lib/theme.js';
+import { openJump } from '../../lib/jump-store.js';
+import { useHover } from '../ui/hover.js';
 import { side } from '../ui/edges.js';
 import { webOnly } from '../../lib/style.js';
 
@@ -44,6 +46,19 @@ function RailItem({ section, active }: { section: ShellSection; active: boolean 
 
 const noop = (): void => undefined;
 
+function RailJump(): ReactNode {
+  const palette = useKitPalette();
+  const [hovered, hover] = useHover();
+  const frame = StyleSheet.flatten([styles.item, hovered ? { backgroundColor: hoverColor(palette) } : null]);
+  return (
+    <RailTip label="Jump (⌘K)">
+      <Pressable accessibilityRole="button" accessibilityLabel="Jump" onPress={openJump} {...hover} style={frame}>
+        <Icon name="search" size={ICON} color={palette.sub} />
+      </Pressable>
+    </RailTip>
+  );
+}
+
 function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
   const account = activeAccount();
   const technical = useTechnicalDetails();
@@ -68,7 +83,10 @@ export function Rail({ section, onLock }: { section: ShellSectionId | null; onLo
         <RailItem key={s.id} section={s} active={s.id === section} />
       ))}
       <Col flex={1} />
-      <RailAccount onLock={onLock} />
+      <RailJump />
+      <Col margin={{ top: 10 }}>
+        <RailAccount onLock={onLock} />
+      </Col>
     </Col>
   );
 }

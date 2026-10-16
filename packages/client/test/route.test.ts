@@ -149,7 +149,12 @@ describe('the first segment is the daemon', () => {
     expect(routeHash({ kind: 'org-models' })).toEndWith('/organization/models');
     expect(routeSelection('#/organization/models/x').kind).toBe('none');
     expect(routeSelection('#/organization/models?openrouter=orA00000001')).toEqual({ kind: 'org-models' });
+    expect(routeSelection('#/organization/models/default')).toEqual({ kind: 'org-route' });
+    expect(routeSelection('#/organization/models/aB3-_xYz9Qw')).toEqual({ kind: 'org-model', id: 'aB3-_xYz9Qw' });
     storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeHash({ kind: 'org-route' })).toBe('#/stage-labs/organization/models/default');
+    expect(routeHash({ kind: 'org-model', id: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/organization/models/aB3-_xYz9Qw');
+    expect(routeSelection('#/stage-labs/organization/models/aB3-_xYz9Qw')).toEqual({ kind: 'org-model', id: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/stage-labs/organization/models')).toEqual({ kind: 'org-models' });
     expect(routeHash({ kind: 'org-models' })).toBe('#/stage-labs/organization/models');
     expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/model')).toEqual({ kind: 'model', project: 'aB3-_xYz9Qw' });

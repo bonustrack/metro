@@ -41,6 +41,14 @@ import { IconPlugin1 } from '@central-icons-react-native/round-outlined-radius-1
 import { IconSparkle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparkle';
 import { IconChevronLeft } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronLeft';
 import { IconChevronDownSmall } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronDownSmall';
+import { IconAnimatePath } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconAnimatePath';
+import { IconArrowRotateClockwise } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowRotateClockwise';
+import { IconArrowUpCircle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowUpCircle';
+import { IconConsole } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconConsole';
+import { IconCrossMedium } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCrossMedium';
+import { IconMagnifyingGlass } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMagnifyingGlass';
+import { IconSquareBehindSquare1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquareBehindSquare1';
+import { IconUserAdd } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconUserAdd';
 import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
@@ -86,6 +94,14 @@ const ICONS = {
   users: IconGroup1,
   viewGrid: IconGrid,
   viewGridAdd: IconSquarePlus,
+  close: IconCrossMedium,
+  copy: IconSquareBehindSquare1,
+  refresh: IconArrowRotateClockwise,
+  route: IconAnimatePath,
+  search: IconMagnifyingGlass,
+  terminal: IconConsole,
+  update: IconArrowUpCircle,
+  userAdd: IconUserAdd,
 };
 
 export type IconName = keyof typeof ICONS;

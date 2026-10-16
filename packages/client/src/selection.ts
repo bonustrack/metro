@@ -14,6 +14,8 @@ export type Selection =
   | { kind: 'org-connectors' }
   | { kind: 'org-connector'; id: string }
   | { kind: 'org-models' }
+  | { kind: 'org-route' }
+  | { kind: 'org-model'; id: string }
   | { kind: 'home'; project: string }
   | { kind: 'run'; project: string }
   | { kind: 'agent-settings'; project: string }

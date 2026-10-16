@@ -23,6 +23,8 @@ const ORGANIZATION_PATH = /^#?\/organization$/;
 const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
 const ORG_MODELS_PATH = /^#?\/organization\/models$/;
 const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})$`);
+const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
+const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const RUN_PATH = new RegExp(`^#?/(${HOST})/run$`);
@@ -63,6 +65,9 @@ function exactSelection(hash: string): Selection | null {
   if (exact !== undefined) return { ...exact };
   const path = hash.split('?')[0] ?? '';
   if (ORG_MODELS_PATH.test(path)) return { kind: 'org-models' };
+  if (ORG_ROUTE_PATH.test(path)) return { kind: 'org-route' };
+  const orgModel = ORG_MODEL_PATH.exec(path)?.[1];
+  if (orgModel !== undefined) return { kind: 'org-model', id: orgModel };
   const orgConnector = ORG_CONNECTOR_PATH.exec(path)?.[1];
   return orgConnector === undefined ? null : { kind: 'org-connector', id: orgConnector };
 }
@@ -115,6 +120,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   organization: 'organization',
   'org-connectors': 'organization/connectors',
   'org-models': 'organization/models',
+  'org-route': 'organization/models/default',
 };
 
 function organizationPrefix(): string {
@@ -184,6 +190,7 @@ export function routeHash(selection: Selection): string {
   const page = ORGANIZATION_PAGES[selection.kind];
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
   if (selection.kind === 'org-connector') return `${prefix}organization/connectors/${selection.id}`;
+  if (selection.kind === 'org-model') return `${prefix}organization/models/${selection.id}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);
   return `${prefix}${agentSegment(selection.project)}${suffix(selection)}`;

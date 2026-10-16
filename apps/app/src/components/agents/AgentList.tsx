@@ -22,6 +22,8 @@ import { agentLine, technicalLine } from '../../lib/agent-line.js';
 import { useWaitingOn } from '../../lib/agent-status.js';
 import { queryError, useLatestUsageQuery, useServerStatus, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
+import { useListKeys } from '../../lib/list-keys.js';
+import { openJump } from '../../lib/jump-store.js';
 import { useBootingState } from '../../lib/use-launch.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
@@ -70,8 +72,25 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
     ) : (
       <NoAgents />
     );
-  const rows = data.map((server) => <AgentRow key={server.id} server={server} pane={pane} selected={server.id === selected || server.slug === selected} />);
-  return pane ? <Col>{rows}</Col> : <Rows>{rows}</Rows>;
+  return pane ? <PaneRows servers={data} selected={selected} /> : <Rows>{data.map((server) => <AgentRow key={server.id} server={server} pane={false} selected={false} />)}</Rows>;
+}
+
+function PaneRows({ servers, selected }: { servers: Server[]; selected: string | null }): ReactNode {
+  const start = servers.findIndex((server) => server.id === selected || server.slug === selected);
+  const cursor = useListKeys(servers.length, start, (at) => {
+    const server = servers[at];
+    if (server !== undefined) go({ kind: 'home', project: server.id });
+  }, true);
+  return <Col>{servers.map((server, at) => <AgentRow key={server.id} server={server} pane selected={cursor === null ? at === start : at === cursor} />)}</Col>;
+}
+
+function SearchAgents(): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <RoundButton label="Jump" size={40} onPress={openJump}>
+      <Icon name="search" size={PLUS} color={palette.link} />
+    </RoundButton>
+  );
 }
 
 function NewAgent({ size }: { size: number }): ReactNode {
@@ -96,7 +115,7 @@ export function AgentList({ pane, selected = null }: { pane: boolean; selected?:
 function AgentsRoot(): ReactNode {
   useDocumentTitle('Agents');
   return (
-    <TabRoot title="Agents" action={<NewAgent size={40} />}>
+    <TabRoot title="Agents" action={<><SearchAgents /><NewAgent size={40} /></>}>
       <Body pane={false} selected={null} />
     </TabRoot>
   );
