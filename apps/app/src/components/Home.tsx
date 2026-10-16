@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
 import { fetchClaudeProjects } from '@metro-labs/client/api/claude';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import type { StationsView } from '@metro-labs/client/api/client';
@@ -13,7 +14,8 @@ import { RightNow } from './home/RightNow.js';
 import { SetupChecklist } from './home/SetupChecklist.js';
 import { rightNow } from '../lib/right-now.js';
 import { setupOf } from '../lib/setup-steps.js';
-import { queryError, useApprovalsQuery, useBoxQuery, useClaudeSessionQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
+import { useBoxApprovals } from '../lib/agent-status.js';
+import { queryError, useBoxQuery, useClaudeSessionQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
 import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
@@ -33,10 +35,12 @@ function useConversations(): number | undefined {
 }
 
 function Approvals({ context }: { context: ApprovalContext }): ReactNode {
-  const approvals = useApprovalsQuery().data ?? [];
-  if (approvals.length === 0) return null;
+  const { data, error } = useBoxApprovals();
+  const approvals = data ?? [];
+  if (approvals.length === 0 && error === null) return null;
   return (
     <Col gap={CARD_GAP}>
+      {error === null ? null : <Text size="xs" role="danger">{queryError(error, 'Could not check for new approvals.')}</Text>}
       {approvals.map((approval) => (
         <ApprovalCardView key={approval.id} approval={approval} context={context} />
       ))}
@@ -55,22 +59,18 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
   const model = useModelQuery().data;
   const conversations = useConversations();
   const setup = setupOf({ name, project, model, groups: view.groups, conversations });
-  const context: ApprovalContext = { agentId, groups: view.groups, tools: view.tools };
   return (
-    <Groups>
-      <Approvals context={context} />
+    <>
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
       <AtAGlance project={project} serverId={serverId} groups={view.groups} />
-    </Groups>
+    </>
   );
 }
 
-export function Home({ project }: { project: string }): ReactNode {
+function HomeState({ project, name, serverId }: { project: string; name: string; serverId: string | null }): ReactNode {
   const stations = useStationsQuery();
   const agent = stations.data?.agent;
-  const { name, serverId } = useAgentName(agent?.name);
-  useDocumentTitle(name);
   if (stations.data === undefined && stations.error !== null)
     return (
       <StateBlock icon="exclamationCircle" danger title={`Could not load ${name}`} text={queryError(stations.error, 'The agent did not answer.')}
@@ -79,4 +79,17 @@ export function Home({ project }: { project: string }): ReactNode {
   if (stations.data === undefined) return <HomeSkeleton />;
   if (agent === undefined) return <StateBlock spinner title={`${name} is getting ready`} text="Its agent shows here within seconds." />;
   return <HomeBody project={project} name={name} serverId={serverId} agentId={agent.id} view={stations.data} />;
+}
+
+export function Home({ project }: { project: string }): ReactNode {
+  const stations = useStationsQuery().data;
+  const { name, serverId } = useAgentName(stations?.agent?.name);
+  useDocumentTitle(name);
+  const context: ApprovalContext = { agentId: stations?.agent?.id ?? '', groups: stations?.groups ?? [], tools: stations?.tools ?? {} };
+  return (
+    <Groups>
+      <Approvals context={context} />
+      <HomeState project={project} name={name} serverId={serverId} />
+    </Groups>
+  );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { GroupedTool, ToolPolicy } from '@metro-labs/client/api/policy';
 import {
-  choiceOf, exceptionSummary, exceptionTools, overriddenTools, promptPreview, ruleRows, ruleTarget, ruleTitle, sameAs, toolTarget, withChoice,
+  choiceOf, exceptionSummary, exceptionTools, isDeleteTool, mixedNote, overriddenTools, promptPreview, ruleRows, ruleTarget, ruleTitle, sameAs, toolTarget, withChoice,
 } from '../src/lib/channel-rules.ts';
 
 const W = (name: string): GroupedTool => ({ name, group: 'write' });
@@ -34,6 +34,26 @@ describe('the rows of What the agent may do', () => {
 
   test('two delete tools with different rules read as Mixed', () => {
     expect(ruleRows({ tools: { delete: 'deny', remove_members: 'ask' } }, WHATSAPP)[2]?.shown).toBe('mixed');
+  });
+
+  test('one delete tool with its own rule and one that follows read as Mixed, even when both end up the same', () => {
+    const policy: ToolPolicy = { write: 'deny', tools: { delete: 'deny' } };
+    expect(ruleRows(policy, WHATSAPP)[2]).toEqual({ target: 'delete', label: 'Delete', shown: 'mixed', follows: false });
+    expect(choiceOf(policy, WHATSAPP, 'delete')).toBeNull();
+    expect(mixedNote(choiceOf(policy, WHATSAPP, 'delete'))).toContain('Mixed');
+    expect(mixedNote(choiceOf({ tools: { delete: 'ask', remove_members: 'ask' } }, WHATSAPP, 'delete'))).toBeUndefined();
+  });
+
+  test('the Delete row covers delete, remove_members and close_channel, nothing else', () => {
+    expect(['delete', 'remove_members', 'close_channel'].every(isDeleteTool)).toBe(true);
+    expect(['send', 'unreact', 'set_channel_metadata', 'create_group', 'deleteMessage'].some(isDeleteTool)).toBe(false);
+  });
+
+  test('a Mixed Delete is only overwritten by an explicit choice, which then sets every delete tool', () => {
+    const policy: ToolPolicy = { write: 'allow', tools: { delete: 'deny', remove_members: 'ask', typing: 'allow' } };
+    expect(ruleRows(policy, WHATSAPP)).toEqual(ruleRows({ ...policy }, WHATSAPP));
+    expect(policy.tools).toEqual({ delete: 'deny', remove_members: 'ask', typing: 'allow' });
+    expect(withChoice(policy, WHATSAPP, 'delete', 'ask').tools).toEqual({ delete: 'ask', remove_members: 'ask', typing: 'allow' });
   });
 
   test('a station with nothing to delete has no Delete row', () => {

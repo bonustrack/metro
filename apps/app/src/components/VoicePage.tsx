@@ -6,11 +6,12 @@ import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { SaveField, useSave } from './SaveField.js';
-import { Block, Control, NoteRow } from './settings/rows.js';
+import { Block, Control } from './settings/rows.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
 import { olderThan } from '@metro-labs/client/api/version';
+import { routeHash } from '@metro-labs/client/route';
 import {
   ELEVENLABS_KEYS_URL,
   ELEVENLABS_VOICES_URL,
@@ -165,10 +166,11 @@ function VoiceBody(): ReactNode {
   );
 }
 
-function VoiceGate(): ReactNode {
+function VoiceGate({ project }: { project: string }): ReactNode {
   const mode = useModeQuery();
   if (mode.data === undefined) return mode.error === null ? <Loading /> : <VoiceBody />;
-  if (olderThan(mode.data.version, VOICE_SINCE)) return <NoteRow text={`Needs Metro ${VOICE_SINCE}. Update it first, in Settings, Server.`} />;
+  if (olderThan(mode.data.version, VOICE_SINCE))
+    return <Item title={`Needs Metro ${VOICE_SINCE}`} subtitle="Update it first: open Settings, then Metro version under Server." href={routeHash({ kind: 'agent-settings', project })} />;
   return <VoiceBody />;
 }
 
@@ -176,7 +178,7 @@ export function VoicePage({ project }: { project: string }): ReactNode {
   useDocumentTitle('Voice calls');
   return (
     <AgentDeepPage project={project} tab="chats" trail={[{ label: 'Voice calls' }]} title="Voice calls" lead={INTRO}>
-      <VoiceGate />
+      <VoiceGate project={project} />
     </AgentDeepPage>
   );
 }

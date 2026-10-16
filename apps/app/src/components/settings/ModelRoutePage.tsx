@@ -27,7 +27,7 @@ import { useDocumentTitle } from '../../lib/title.js';
 
 const NO_CONNECTION = 'No account yet. Add one on the organization’s Models page, a Claude subscription included.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
-const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it has no model. Enroll it on the Server page.';
+const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it has no model.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
 
 interface Editing {
@@ -99,15 +99,17 @@ function ReadOnlyModels({ settings, org, orgError, name }: { settings: ModelSett
   return <RouteOrder items={modelOrder(settings)} who={name} mainNote={note} error={error} />;
 }
 
-function Problems({ settings, error }: { settings: ModelSettings; error: Error | null }): ReactNode {
+function Problems({ settings, error, project }: { settings: ModelSettings; error: Error | null; project: string }): ReactNode {
+  const enrolled = settings.sync === null || settings.sync.enrolled;
   const lines = [
     error === null ? null : 'Could not refresh the model settings. Showing the last reading.',
-    settings.sync === null ? null : !settings.sync.enrolled ? NOT_ENROLLED : settings.sync.error === null ? null : `${SYNC_FAILED} ${settings.sync.error}`,
+    settings.sync === null || !enrolled || settings.sync.error === null ? null : `${SYNC_FAILED} ${settings.sync.error}`,
     settings.reason,
   ].filter((line): line is string => line !== null);
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && enrolled) return null;
   return (
     <Group label="Needs attention">
+      {enrolled ? null : <Item title="Enroll it on the Server page" subtitle={NOT_ENROLLED} subtitleTone="danger" href={routeHash({ kind: 'server', project })} />}
       {lines.map((line) => (
         <NoteRow key={line} text={line} danger />
       ))}
@@ -125,7 +127,7 @@ function Editable({ org, agent, settings, name }: { org: OrgModels; agent: strin
   );
 }
 
-export function ModelRoutePage(): ReactNode {
+export function ModelRoutePage({ project }: { project: string }): ReactNode {
   useDocumentTitle('Model');
   const model = useModelQuery();
   const org = useOrgModelsQuery();
@@ -138,7 +140,7 @@ export function ModelRoutePage(): ReactNode {
   const admin = org.data?.admin === true && agent !== null;
   return (
     <Groups>
-      <Problems settings={model.data} error={model.error} />
+      <Problems settings={model.data} error={model.error} project={project} />
       {admin && org.data !== undefined && agent !== null ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
       <Group label="Organization">
         <Item title="Accounts and the default route" subtitle="On the organization’s Models page" href={routeHash({ kind: 'org-models' })} />

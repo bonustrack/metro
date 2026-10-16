@@ -9,8 +9,8 @@ import type { ModelSettings } from '@metro-labs/client/api/model';
 import { serverLabel, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { agentLine, orderAgents, type AgentLine } from './agent-line.js';
-import { approvalsOptions } from './agent-status.js';
-import { serverStatusOptions } from './queries.js';
+import { useApprovalLists, waitingCount } from './agent-status.js';
+import { useServerStatuses } from './queries.js';
 import { setupOf, type Setup } from './setup-steps.js';
 import { stillBooting } from './use-launch.js';
 import { useNow } from './use-now.js';
@@ -66,8 +66,10 @@ function knownSetup(name: string, model: ModelSettings | undefined, stations: St
 
 export function useAgentRows(servers: Server[]): AgentRow[] {
   const now = useNow(CLOCK_MS);
-  const statuses = useQueries({ queries: servers.map((server) => serverStatusOptions(server.host)) });
-  const approvals = useQueries({ queries: servers.map((server, i) => approvalsOptions(server.host, statuses[i]?.data?.state === 'live')) });
+  const hosts = servers.map((server) => server.host);
+  const statuses = useServerStatuses(hosts);
+  const live = statuses.map((status) => status.data?.state === 'live');
+  const approvals = useApprovalLists(hosts, live);
   const booting = useBooting(servers, statuses);
   const client = useCacheChanges();
   const sessions = cached<ClaudeSessionStatus>(client, 'claude-session', servers);
@@ -76,12 +78,12 @@ export function useAgentRows(servers: Server[]): AgentRow[] {
   const projects = cached<ClaudeProject[]>(client, 'claude-projects', servers);
   const rows = servers.map((server, i): AgentRow => {
     const name = serverLabel(server);
-    const waiting = approvals[i]?.data ?? [];
-    const first = waiting[0];
+    const count = waitingCount(approvals[i], live[i] === true) ?? 0;
+    const first = count > 0 ? approvals[i]?.data?.[0] : undefined;
     const status = statuses[i]?.data;
     const setup = knownSetup(name, models[i], stations[i], projects[i]);
-    const line = agentLine({ status, booting: booting[i] ?? null, waiting: waiting.length, ask: first === undefined ? null : approvalCard(first).ask, setup, session: sessions[i], now });
-    return { server, name, line, waiting: waiting.length, status };
+    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, session: sessions[i], now });
+    return { server, name, line, waiting: count, status };
   });
   return orderAgents(rows);
 }

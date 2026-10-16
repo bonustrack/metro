@@ -59,10 +59,11 @@ function AgentRowView({ row, pane, selected }: { row: AgentRow; pane: boolean; s
 function AgentRows({ servers, pane, selected }: { servers: Server[]; pane: boolean; selected: string | null }): ReactNode {
   const rows = useAgentRows(servers);
   const start = rows.findIndex((row) => row.server.id === selected || row.server.slug === selected);
+  const order = rows.map((row) => row.server.id).join(' ');
   const cursor = useListKeys(rows.length, start, (at) => {
     const row = rows[at];
     if (row !== undefined) go({ kind: 'home', project: row.server.id });
-  }, pane);
+  }, pane, order);
   const views = rows.map((row, at) => <AgentRowView key={row.server.id} row={row} pane={pane} selected={cursor === null ? at === start : at === cursor} />);
   return pane ? <Col>{views}</Col> : <Rows>{views}</Rows>;
 }

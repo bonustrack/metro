@@ -80,9 +80,9 @@ function RuleModal({ connector, peers, admin, onClose }: { connector: OrgConnect
   );
 }
 
-function Body({ connectors, admin }: { connectors: OrgConnector[]; admin: boolean }): ReactNode {
+function Body({ connectors, admin, first }: { connectors: OrgConnector[]; admin: boolean; first: string | null }): ReactNode {
   const name = useAgentName();
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(first);
   const shown = connectors.find((row) => row.id === open);
   if (connectors.length === 0)
     return (
@@ -103,18 +103,18 @@ function Body({ connectors, admin }: { connectors: OrgConnector[]; admin: boolea
   );
 }
 
-function Contents(): ReactNode {
+function Contents({ open }: { open: string | null }): ReactNode {
   const { connectors, admin, error } = useAssignedConnectors();
-  if (connectors !== undefined) return <Body connectors={connectors} admin={admin} />;
+  if (connectors !== undefined) return <Body connectors={connectors} admin={admin} first={open} />;
   if (error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not load the connectors" text={queryError(error, 'Try again in a moment.')} />;
   return <Loading />;
 }
 
-export function ToolConnectors(): ReactNode {
+export function ToolConnectors({ open = null }: { open?: string | null }): ReactNode {
   const organization = activeAccount()?.organizationName ?? 'your organization';
   return (
     <Group label="Connectors" note={`From ${organization}. Admins pick who gets them.`}>
-      <Contents />
+      <Contents open={open} />
     </Group>
   );
 }

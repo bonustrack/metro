@@ -24,7 +24,7 @@ export function UpdateButton({ u }: { u: MetroUpdate }): ReactNode {
 function CheckButton({ u }: { u: MetroUpdate }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const busy = u.busy || u.release.isFetching || u.mode.isFetching || u.check.isFetching;
-  return <Button size="sm" color="secondary" dark={dark} label="Check again" disabled={busy} onPress={u.refresh} />;
+  return <Button size="sm" color="secondary" dark={dark} label="Check for updates" disabled={busy} onPress={u.refresh} />;
 }
 
 export function VersionRow(): ReactNode {
@@ -33,8 +33,8 @@ export function VersionRow(): ReactNode {
   const facts = versionFacts(u);
   const offered = updateOffered(facts, u);
   const note = noteOf(u, facts, offered);
-  const recheck = !offered && (facts.availability.kind === 'stale' || facts.availability.kind === 'unavailable');
   const version = technical ? (facts.version ?? 'Unknown') : shortVersion(facts.version);
-  const trailing = offered || u.busy ? <UpdateButton u={u} /> : recheck ? <CheckButton u={u} /> : undefined;
-  return <Item title="Metro version" subtitle={note.text} subtitleTone={note.danger ? 'danger' : 'secondary'} value={version} trailing={trailing} chevron={false} />;
+  const trailing = offered || u.busy ? <UpdateButton u={u} /> : <CheckButton u={u} />;
+  const detail = u.check.isError ? 'Could not check the installed package version.' : undefined;
+  return <Item title="Metro version" subtitle={note.text} subtitleTone={note.danger ? 'danger' : 'secondary'} detail={detail} value={version} trailing={trailing} chevron={false} />;
 }

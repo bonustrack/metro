@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { groupJump, isJumpKey, jumpScore, moveCursor, rankJump, tokensOf, type JumpEntry } from '../src/lib/jump.ts';
-import { listStep } from '../src/lib/list-keys.ts';
+import { dialogOpen, listStep, plainKey } from '../src/lib/list-keys.ts';
 
 const entry = (key: string, group: JumpEntry<null>['group'], crumbs: string[], extra: Partial<JumpEntry<null>> = {}): JumpEntry<null> => ({ key, group, crumbs, payload: null, ...extra });
 
@@ -82,5 +82,21 @@ describe('J and K in a list', () => {
     expect(listStep(1, 'Escape', 3, 0)).toEqual({ cursor: null, open: null });
     expect(listStep(null, 'j', 0, 0)).toBeNull();
     expect(listStep(0, 'x', 3, 0)).toBeNull();
+  });
+
+  test('a key with Shift, Meta, Control or Alt is not a list key', () => {
+    const press = { key: 'j', shiftKey: false, metaKey: false, ctrlKey: false, altKey: false };
+    expect(plainKey(press)).toBe('j');
+    expect(plainKey({ ...press, key: 'J', shiftKey: true })).toBeNull();
+    expect(plainKey({ ...press, metaKey: true })).toBeNull();
+    expect(plainKey({ ...press, key: 'Enter', ctrlKey: true })).toBeNull();
+    expect(plainKey({ ...press, altKey: true })).toBeNull();
+  });
+
+  test('an open dialog or modal takes the keys away from the list', () => {
+    const page = (open: boolean): { querySelector: (selector: string) => unknown } => ({ querySelector: (selector) => (open && selector === '[aria-modal="true"]' ? {} : null) });
+    expect(dialogOpen(page(true))).toBe(true);
+    expect(dialogOpen(page(false))).toBe(false);
+    expect(dialogOpen(undefined)).toBe(false);
   });
 });

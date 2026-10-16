@@ -11,7 +11,7 @@ import { channelTitle } from './ChannelRow.js';
 import { RulePreview } from './RulePreview.js';
 import { Section } from './Section.js';
 import {
-  ACCESS_WORD, RULE_ACCESS, choiceOf, offersSame, ruleText, ruleTitle, sameAs, targetTool, withChoice, type RuleChoice, type RuleTarget,
+  ACCESS_WORD, RULE_ACCESS, choiceOf, mixedNote, offersSame, ruleText, ruleTitle, sameAs, targetTool, withChoice, type RuleChoice, type RuleTarget,
 } from '../../lib/channel-rules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError } from '../../lib/queries.js';
@@ -67,7 +67,7 @@ export function RulePage(props: ChannelProps & { target: RuleTarget; channelHref
   const trail = [{ label: stationLabel(found.station), href: channelHref }, ...(tool === null ? [] : [{ label: 'Exceptions', href: `${channelHref}/exceptions` }]), { label: title }];
   return (
     <AgentDeepPage project={project} tab="chats" trail={trail} title={title} subtitle={technical && tool !== null ? tool : undefined} lead={ruleText(target, name).lead}>
-      <Section error={saving.error}>
+      <Section error={saving.error} note={mixedNote(current)}>
         {optionsOf(props, target, name).map((option) => (
           <Item
             key={option.choice}

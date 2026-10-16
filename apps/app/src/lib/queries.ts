@@ -3,6 +3,7 @@ import { activeAccount } from '@metro-labs/client/auth/account';
 import {
   QueryCache,
   QueryClient,
+  useQueries,
   useQuery,
   useQueryClient,
   type UseQueryOptions,
@@ -11,7 +12,6 @@ import {
 import { daemonBase } from '@metro-labs/client/auth/daemon';
 import { carryForward, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { AuthError, StoppedError, fetchSession, fetchStations, type StationsView } from '@metro-labs/client/api/client';
-import { fetchApprovals, type Approval } from '@metro-labs/client/api/approvals';
 import {
   fetchClaudeProjects,
   fetchClaudeSessions,
@@ -43,6 +43,7 @@ import { fetchSchedules, type Schedules } from '@metro-labs/client/api/schedules
 import { currentOrganization } from '@metro-labs/client/auth/org-route';
 import { readItem, writeItem } from '@metro-labs/client/platform';
 import { clearDeniedRunCache } from './run-cache.js';
+import { useSharedPoll } from './shared-poll.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -223,15 +224,24 @@ const storagePoll = (data: StorageView | null | undefined): number | false => {
 export const useStorageQuery = (serverId: string): UseQueryResult<StorageView | null> =>
   useQuery({ queryKey: orgKey('storage', serverId), queryFn: () => fetchStorage(serverId), staleTime: 30_000, retry: false, refetchInterval: (query) => storagePoll(query.state.data) });
 
-export const serverStatusOptions = (host: string): UseQueryOptions<ServerStatus, Error, ServerStatus, string[]> => ({
-  queryKey: ['server-status', host],
+const statusKey = (host: string): string[] => ['server-status', host];
+
+const serverStatusOptions = (host: string): UseQueryOptions<ServerStatus, Error, ServerStatus, string[]> => ({
+  queryKey: statusKey(host),
   queryFn: () => probeServer(host),
-  refetchInterval: STATUS_POLL_MS,
   staleTime: 5_000,
   retry: false,
 });
 
-export const useServerStatus = (host: string): UseQueryResult<ServerStatus> => useQuery(serverStatusOptions(host));
+export function useServerStatuses(hosts: string[]): UseQueryResult<ServerStatus>[] {
+  useSharedPoll(hosts.map(statusKey), STATUS_POLL_MS);
+  return useQueries({ queries: hosts.map(serverStatusOptions) });
+}
+
+export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
+  useSharedPoll([statusKey(host)], STATUS_POLL_MS);
+  return useQuery(serverStatusOptions(host));
+}
 
 export function refreshServers(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: serversKey() });
@@ -255,9 +265,6 @@ export const useClaudeSetupQuery = (): UseQueryResult<ClaudeSetup> => useBoxQuer
 
 export const useSchedulesQuery = (): UseQueryResult<Schedules> => useBoxQuery('schedules', fetchSchedules, { staleTime: 15_000, retry: false });
 
-export const useApprovalsQuery = (): UseQueryResult<Approval[]> =>
-  useBoxQuery('approvals', fetchApprovals, { staleTime: 5_000, refetchInterval: 15_000 });
-
 export const useModeQuery = ({ live = false }: { live?: boolean } = {}): UseQueryResult<ModeInfo> =>
   useBoxQuery('mode', fetchMode, { staleTime: 60_000, ...(live ? { refetchInterval: 60_000, refetchOnMount: true, refetchOnWindowFocus: true, retry: false } : {}) });
 
@@ -279,8 +286,8 @@ export function useStationsQuery(): UseQueryResult<StationsView> {
 export const useClaudeProjectsQuery = (): UseQueryResult<ClaudeProject[]> =>
   useBoxQuery('claude-projects', fetchClaudeProjects, { refetchInterval: LIVE_MS });
 
-export const useClaudeSessionsQuery = (project: string): UseQueryResult<ClaudeSession[]> =>
-  useBoxQuery(['claude-sessions', project], () => fetchClaudeSessions(project), { refetchInterval: LIVE_MS });
+export const useClaudeSessionsQuery = (project: string, pollMs = LIVE_MS): UseQueryResult<ClaudeSession[]> =>
+  useBoxQuery(['claude-sessions', project], () => fetchClaudeSessions(project), { refetchInterval: pollMs });
 
 export async function removeClaudeSession(client: QueryClient, project: string, id: string): Promise<void> {
   await deleteClaudeSession(project, id);

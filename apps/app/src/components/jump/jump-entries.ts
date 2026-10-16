@@ -1,4 +1,3 @@
-import { useQueries } from '@tanstack/react-query';
 import { releaseAvailability } from '@metro-labs/client/api/metro-release';
 import { serverLabel, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { connectorLabel } from '@metro-labs/client/api/connectors';
@@ -9,7 +8,7 @@ import { AGENT_TABS, type AgentPage, type AgentTabId } from '../../lib/agent-tab
 import type { JumpEntry } from '../../lib/jump.js';
 import { useMetroRelease } from '../../lib/metro-release.js';
 import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
-import { serverStatusOptions, useServersQuery } from '../../lib/queries.js';
+import { useServerStatuses, useServersQuery } from '../../lib/queries.js';
 import { SHELL_SECTIONS } from '../../lib/shell-sections.js';
 
 export type JumpAction =
@@ -71,7 +70,7 @@ function sectionEntries(): JumpItem[] {
 
 export function useJumpEntries(): JumpItem[] {
   const servers = useServersQuery().data ?? [];
-  const statuses = useQueries({ queries: servers.map((server) => serverStatusOptions(server.host)) });
+  const statuses = useServerStatuses(servers.map((server) => server.host));
   const latest = useMetroRelease().data?.latest ?? null;
   const connectors = useOrgConnectorsQuery().data?.connectors ?? [];
   const agents = servers.map((server, at): JumpItem => {

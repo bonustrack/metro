@@ -54,6 +54,21 @@ describe('an approval reads as a card in words', () => {
       connector: 'notion', title: 'Notion search', ask: 'use Notion search on notion', fields: [{ label: 'Query', value: 'March offer' }],
     });
     expect(approvalCard(approval('granola.list_meetings', { limit: 5 }))).toMatchObject({ connector: 'granola', title: 'List meetings', fields: [{ label: 'Limit', value: '5' }] });
+    expect(approvalCard(approval('Google_Drive.search', { q: 'offer' }))).toMatchObject({ connector: 'Google_Drive', title: 'Search' });
+    expect(approvalCard(approval('my-crm_2.find_contact', {}))).toMatchObject({ connector: 'my-crm_2', title: 'Find contact' });
+  });
+
+  test('a file Claude Code shortened still shows its size, counted from the elided part', () => {
+    const head = `data:application/pdf;base64,${'A'.repeat(1971)}`;
+    const preview = `{"line":"metro://outlook/o1/a@b.ch","text":"Hi","attachments":[{"data":"${head}\\n⋯ 245000 code points elided ⋯\\n${'B'.repeat(1497)}==","name":"offer.pdf"}]}`;
+    const parsed = approval('mcp__metro__send', preview);
+    expect(parsed.fileBytes).toEqual([Math.floor(((1971 + 245000 + 1499) * 3) / 4) - 2]);
+    expect(approvalCard(parsed).file).toEqual({ name: 'offer.pdf', size: '182 KB' });
+    expect(parsed.input?.attachments).toEqual([{ data: `${head}…${'B'.repeat(1497)}==`, name: 'offer.pdf' }]);
+  });
+
+  test('a file sent by upload, url or path has no size the page can know', () => {
+    expect(approval('mcp__metro__send', { line: 'metro://telegram-bot/t1/1', attachments: [{ upload: 'u1' }, { path: '/tmp/a.txt' }] }).fileBytes).toEqual([null, null]);
   });
 
   test('an unknown shape keeps the tool name and a short preview', () => {

@@ -6,13 +6,14 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { BootView, Launched } from '@metro-labs/client/api/launch';
 import { AgentAvatar } from '../AgentAvatar.js';
+import { canDeleteServer, DeleteServerDialog } from '../DeleteServer.js';
 import { Icon } from '../Icon.js';
 import { Spinner } from '../Spinner.js';
 import { Rows } from '../ui/Group.js';
 import { allSides } from '../ui/edges.js';
 import { TechnicalLog } from './LaunchFrame.js';
 import { LaunchError } from './LaunchError.js';
-import { launchOutcome, plainSteps, stepTimes, timeLeftLine, type PlainStep } from '../../lib/launch-steps.js';
+import { failedLaunchNote, launchOutcome, plainSteps, stepTimes, timeLeftLine, type PlainStep } from '../../lib/launch-steps.js';
 import { useServerStatus } from '../../lib/queries.js';
 import { useLaunchWatch } from '../../lib/use-launch.js';
 import { useNow } from '../../lib/use-now.js';
@@ -30,6 +31,7 @@ export interface LaunchSubject {
   launched: Launched;
   name: string;
   avatar: string | null;
+  pictureError: string | null;
   place: string | null;
   startedAt: number;
 }
@@ -87,20 +89,29 @@ function Ready({ subject }: { subject: LaunchSubject }): ReactNode {
   );
 }
 
-function useLaunchState(subject: LaunchSubject): { steps: PlainStep[]; boot: BootView | null; error: string | null } {
+function useLaunchState(subject: LaunchSubject): { steps: PlainStep[]; boot: BootView | null; instance: string | null; error: string | null } {
   const status = useServerStatus(subject.launched.host);
   const live = status.data?.state === 'live';
   const watch = useLaunchWatch(subject.launched.server.id, live);
   const boot = watch.boot;
   const steps = plainSteps({ name: subject.name, place: subject.place, instance: watch.instance, live, steps: boot?.steps ?? [], finished: boot?.finished === true, failed: boot?.failed === true });
-  return { steps, boot, error: watch.error };
+  return { steps, boot, instance: watch.instance, error: watch.error };
 }
 
-function Failed({ subject, steps, lines }: { subject: LaunchSubject; steps: PlainStep[]; lines: string[] }): ReactNode {
+function Failed({ subject, steps, instance, lines }: { subject: LaunchSubject; steps: PlainStep[]; instance: string | null; lines: string[] }): ReactNode {
+  const [deleting, setDeleting] = useState(false);
+  const server = subject.launched.server;
+  const admin = canDeleteServer(server);
   const stopped = steps.find((s) => s.state === 'failed')?.label ?? 'a step';
+  const reason = `It stopped at “${stopped}”. ${failedLaunchNote(instance, admin)}`;
+  const action = admin
+    ? { label: `Delete ${subject.name}`, onPress: () => { setDeleting(true); } }
+    : { label: 'Back to your agents', onPress: () => { go({ kind: 'servers' }); } };
   return (
-    <LaunchError title={`${subject.name} could not finish setting up`} reason={`It stopped at “${stopped}”. The server is still in AWS, so remove it from the agent list when you no longer need it.`} lines={lines} charged
-      action={{ label: 'Back to your agents', onPress: () => { go({ kind: 'servers' }); } }} />
+    <>
+      <LaunchError title={`${subject.name} could not finish setting up`} reason={reason} lines={lines} action={action} />
+      {deleting ? <DeleteServerDialog server={server} onClose={() => { setDeleting(false); }} /> : null}
+    </>
   );
 }
 
@@ -118,15 +129,16 @@ function Headline({ subject, ready }: { subject: LaunchSubject; ready: boolean }
 }
 
 export function LaunchWatch({ subject }: { subject: LaunchSubject }): ReactNode {
-  const { steps, boot, error } = useLaunchState(subject);
+  const { steps, boot, instance, error } = useLaunchState(subject);
   const times = stepTimes(steps, useSeen(steps, boot), subject.startedAt);
   const outcome = launchOutcome(steps);
   const lines = boot?.lines ?? [];
-  if (outcome === 'failed') return <Failed subject={subject} steps={steps} lines={lines} />;
+  if (outcome === 'failed') return <Failed subject={subject} steps={steps} instance={instance} lines={lines} />;
   return (
     <>
       <Headline subject={subject} ready={outcome === 'ready'} />
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {subject.pictureError === null ? null : <Text size="md" role="danger">{`${subject.pictureError} Add it later in ${subject.name}’s Settings, Profile.`}</Text>}
       <Rows>{steps.map((step, i) => <StepLine key={step.key} step={step} at={times[i] ?? null} />)}</Rows>
       {outcome === 'ready' ? <Ready subject={subject} /> : null}
       <TechnicalLog lines={lines} />

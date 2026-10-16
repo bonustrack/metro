@@ -16,12 +16,11 @@ export interface ErrorAction {
 interface LaunchErrorProps {
   title: string;
   reason: string;
-  charged: boolean;
   action: ErrorAction;
   lines: string[];
 }
 
-export function LaunchError({ title, reason, charged, action, lines }: LaunchErrorProps): ReactNode {
+export function LaunchError({ title, reason, action, lines }: LaunchErrorProps): ReactNode {
   const palette = useKitPalette();
   const dark = useKitScheme() === 'dark';
   return (
@@ -30,7 +29,7 @@ export function LaunchError({ title, reason, charged, action, lines }: LaunchErr
         <Icon name="exclamationCircle" size={30} color={palette.danger} />
         <Col gap={8} padding={{ top: 8 }}>
           <Text accessibilityRole="header" size="2xl" weight="semibold">{title}</Text>
-          <Text size="md" role="secondary">{charged ? reason : `${reason} Nothing was charged.`}</Text>
+          <Text size="md" role="secondary">{reason}</Text>
         </Col>
       </Col>
       <Col gap={12} align="start">

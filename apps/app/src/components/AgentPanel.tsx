@@ -19,7 +19,12 @@ import { ToolsPage } from './tools/ToolsPage.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { agentPageOf } from '../lib/agent-tabs.js';
 
-const TOOLS_PAGES = new Set<Selection['kind']>(['tools', 'scheduled', 'secrets']);
+function toolsPage(project: string, selection: Selection): ReactNode {
+  if (selection.kind === 'tools') return <ToolsPage project={project} connector={selection.connector ?? null} />;
+  if (selection.kind === 'scheduled') return <ToolsPage project={project} focus="routines" />;
+  if (selection.kind === 'secrets') return <ToolsPage project={project} focus="secret-keys" />;
+  return null;
+}
 
 function claudeRoutes(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'sessions') return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} />;
@@ -32,7 +37,7 @@ function claudeRoutes(project: string, selection: Selection): ReactNode {
 }
 
 function settingsPage(project: string, selection: Selection): ReactNode {
-  if (selection.kind === 'model') return <ModelRoutePage />;
+  if (selection.kind === 'model') return <ModelRoutePage project={project} />;
   if (selection.kind === 'server') return <ServerDetails />;
   if (selection.kind === 'claude') return <ClaudeSettings project={project} />;
   return null;
@@ -48,7 +53,8 @@ function SettingsPage({ project, selection, children }: { project: string; selec
 }
 
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
-  if (TOOLS_PAGES.has(selection.kind)) return <ToolsPage project={project} />;
+  const tools = toolsPage(project, selection);
+  if (tools !== null) return tools;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
   const settings = settingsPage(project, selection);

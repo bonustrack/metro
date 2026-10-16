@@ -15,7 +15,7 @@ import { AgentHeader } from './AgentHeader.js';
 import { AgentSubPages, AgentTabs } from './AgentTabs.js';
 import { isDeepPage, isPageRoot } from '../../lib/agent-tabs.js';
 import { useIsNarrow } from '../../lib/media.js';
-import { useSessionQuery } from '../../lib/queries.js';
+import { useServerStatus, useSessionQuery } from '../../lib/queries.js';
 import { noteTitle } from '../../lib/title.js';
 import { webOnly } from '../../lib/style.js';
 
@@ -65,23 +65,24 @@ function useBoxState(): { error: Error | null; retry: () => void } {
   return { error, retry };
 }
 
-function blocked(error: Error | null, retry: () => void, onLock: () => void): ReactNode {
+function blocked(error: Error | null, stopped: boolean, retry: () => void, onLock: () => void): ReactNode {
   if (error instanceof AuthError && error.refused)
     return <Notice text={`${daemonHost(daemonBase())} refused this account: ${error.message}`} onRetry={onLock} retryLabel="Log in with another account" />;
-  if (error instanceof StoppedError) return <StoppedNotice onStarted={retry} />;
+  if (stopped || error instanceof StoppedError) return <StoppedNotice onStarted={retry} />;
   return null;
 }
 
-function replacement(selection: Selection, error: Error | null, retry: () => void, onLock: () => void): ReactNode {
-  const notice = blocked(error, retry, onLock);
+function replacement(selection: Selection, error: Error | null, stopped: boolean, retry: () => void, onLock: () => void): ReactNode {
+  const notice = blocked(error, stopped, retry, onLock);
   if (notice !== null || error === null) return notice;
   return selection.kind === 'terminal' || !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : null;
 }
 
 export function AgentScreen({ server, selection, onLock }: AgentScreenProps): ReactNode {
   const { error, retry } = useBoxState();
+  const stopped = useServerStatus(server.host).data?.state === 'stopped';
   useRememberAgent(selection);
-  const replaced = replacement(selection, error, retry, onLock);
+  const replaced = replacement(selection, error, stopped, retry, onLock);
   if (selection.kind === 'terminal') return replaced ?? <TerminalPage />;
   if (replaced === null && isDeepPage(selection)) return <AgentPanel selection={selection} />;
   return (

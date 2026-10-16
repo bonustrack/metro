@@ -12,6 +12,7 @@ import { useHomeProject } from '../../lib/agent-hooks.js';
 import { queryError, useClaudeSessionsQuery } from '../../lib/queries.js';
 
 const SHOWN = 5;
+const POLL_MS = 30_000;
 const MARK = 24;
 const LABEL = 'Recent conversations';
 
@@ -29,7 +30,7 @@ function ShowAll({ project }: { project: string }): ReactNode {
 
 function Recent({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
   const palette = useKitPalette();
-  const { data, error } = useClaudeSessionsQuery(claudeProject);
+  const { data, error } = useClaudeSessionsQuery(claudeProject, POLL_MS);
   if (error !== null)
     return (
       <Section label={LABEL} error={queryError(error, 'Could not list the conversations.')}>

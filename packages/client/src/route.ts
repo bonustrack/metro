@@ -10,7 +10,7 @@ const ID = '[A-Za-z0-9_-]{11}';
 const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const CLAUDE = '[A-Za-z0-9._-]+';
 const SKILL = '[A-Za-z0-9._:%-]+';
-const RULE = '(?:read|write|delete|exceptions(?:/[A-Za-z0-9_-]{1,64})?)';
+const RULE = '(?:read|write|delete|exceptions(?:/[A-Za-z0-9._~!*\'()%:-]{1,192})?)';
 
 const SERVERS_PATH = /^#?\/?$/;
 const SETTINGS_PATH = /^#?\/settings$/;
@@ -41,7 +41,8 @@ const SCHEDULED_JOB_PATH = new RegExp(`^#?/(${HOST})/scheduled/([^/]+)$`);
 const SKILL_PATH = new RegExp(`^#?/(${HOST})/skill/(${SKILL})$`);
 const CHATS_PATH = new RegExp(`^#?/(${HOST})/(?:chats|channels)$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})(?:/(${RULE}))?$`);
-const TOOLS_PATH = new RegExp(`^#?/(${HOST})/(?:tools|connectors|connector/${ID})$`);
+const TOOLS_PATH = new RegExp(`^#?/(${HOST})/(?:tools|connectors)$`);
+const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}))?)?$`);
 const FILES_PATH = new RegExp(`^#?/(${HOST})/files(?:/(.*))?$`);
@@ -88,12 +89,26 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [SCHEDULED_JOB_PATH, (project, id) => ({ kind: 'scheduled-job', project, id: decodeURIComponent(id) })],
   [SKILL_PATH, (project, id) => ({ kind: 'skill', project, id: decodeURIComponent(id) })],
   [CHATS_PATH, (project) => ({ kind: 'chats', project })],
-  [STATION_PATH, (project, accountId, rule) => ({ kind: 'station', project, accountId, ...(rule === '' ? {} : { rule }) })],
+  [STATION_PATH, (project, accountId, rule) => ({ kind: 'station', project, accountId, ...(rule === '' ? {} : { rule: ruleOf(rule) }) })],
   [TOOLS_PATH, (project) => ({ kind: 'tools', project })],
+  [CONNECTOR_PATH, (project, connector) => ({ kind: 'tools', project, connector })],
   [SESSIONS_PATH, (project, cp, id) => ({ kind: 'sessions', project, claudeProject: cp === '' ? null : cp, id: id === '' ? null : id })],
   [FILES_PATH, (project, path) => ({ kind: 'files', project, path: pathSegmentsOf(path) })],
   [MEMORY_PATH, (project, cp, file) => ({ kind: 'memory', project, claudeProject: cp === '' ? null : cp, file: file === '' ? null : file })],
 ];
+
+const EXCEPTION = 'exceptions/';
+
+function ruleOf(raw: string): string {
+  if (!raw.startsWith(EXCEPTION)) return raw;
+  try {
+    return `${EXCEPTION}${decodeURIComponent(raw.slice(EXCEPTION.length))}`;
+  } catch {
+    return raw;
+  }
+}
+
+const ruleSegment = (rule: string): string => (rule.startsWith(EXCEPTION) ? `${EXCEPTION}${encodeURIComponent(rule.slice(EXCEPTION.length))}` : rule);
 
 function pathSegmentsOf(raw: string): string {
   try {
@@ -171,8 +186,8 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   'scheduled-job': (s) => `/scheduled/${s.kind === 'scheduled-job' ? encodeURIComponent(s.id) : ''}`,
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
   chats: () => '/chats',
-  station: (s) => (s.kind === 'station' ? `/channel/${s.accountId}${s.rule === undefined ? '' : `/${s.rule}`}` : ''),
-  tools: () => '/tools',
+  station: (s) => (s.kind === 'station' ? `/channel/${s.accountId}${s.rule === undefined ? '' : `/${ruleSegment(s.rule)}`}` : ''),
+  tools: (s) => (s.kind === 'tools' && s.connector !== undefined ? `/connector/${s.connector}` : '/tools'),
   sessions: (s) =>
     s.kind === 'sessions'
       ? `/sessions${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.id === null ? '' : `/${s.id}`}`

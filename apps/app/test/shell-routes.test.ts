@@ -42,12 +42,21 @@ describe('every page of an agent has a place under one of its five tabs', () => 
   });
 
   test('the old Channels and Connectors addresses land on the Chats and Tools tabs', () => {
-    for (const [old, tab, page] of [['/channels', 'chats', 'Chats'], ['/connectors', 'tools', 'Tools'], [`/connector/${AGENT}`, 'tools', 'Tools']] as const) {
+    for (const [old, tab, page] of [['/channels', 'chats', 'Chats'], ['/connectors', 'tools', 'Tools']] as const) {
       const selection = routeSelection(`#/${AGENT}${old}`);
       expect(agentTabOf(selection.kind).id).toBe(tab);
       expect(agentPageOf(selection.kind)?.label).toBe(page);
       expect(routeHash(selection)).toEndWith(`/${AGENT}/${tab}`);
     }
+  });
+
+  test('an old link to one connector, to Secrets or to Scheduled opens on the Tools tab with its target', () => {
+    const connector = routeSelection(`#/${AGENT}/connector/${AGENT}`);
+    expect(connector).toEqual({ kind: 'tools', project: AGENT, connector: AGENT });
+    expect(agentTabOf(connector.kind).id).toBe('tools');
+    expect(routeHash(connector)).toEndWith(`/${AGENT}/connector/${AGENT}`);
+    for (const old of ['/secrets', '/scheduled']) expect(agentTabOf(routeSelection(`#/${AGENT}${old}`).kind).id).toBe('tools');
+    expect(routeSelection(`#/${AGENT}/scheduled/timer%3Amemory-daily.timer`)).toEqual({ kind: 'scheduled-job', project: AGENT, id: 'timer:memory-daily.timer' });
   });
 
   test('a tab opens its first page, and only that first page hides its own title', () => {

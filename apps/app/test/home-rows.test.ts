@@ -86,6 +86,17 @@ describe('the note under an approval card', () => {
     expect(ruleLine(approvalCard(read), read.tool, groups, tools)).toBeNull();
   });
 
+  test('names the rule for a call on the whole station and for a connector', () => {
+    const group = approvalOf({ id: 'cdefg', tool: 'mcp__metro__create_group', preview: '{"station":"outlook","name":"Team"}', line: '' });
+    const server = approvalOf({ id: 'defgh', tool: 'granola.list_meetings', preview: '{"limit":5}', line: '' });
+    const plugin = approvalOf({ id: 'efghi', tool: 'mcp__plugin_metro_notion__notion-search', preview: '{"query":"x"}', line: '' });
+    if (group === null || server === null || plugin === null) throw new Error('not an approval');
+    expect(ruleLine(approvalCard(group), group.tool, groups, tools)).toBe('Outlook asks first.');
+    expect(ruleLine(approvalCard(group), group.tool, [], tools)).toBeNull();
+    expect(ruleLine(approvalCard(server), server.tool, groups, tools)).toBe('Granola asks first.');
+    expect(ruleLine(approvalCard(plugin), plugin.tool, groups, tools)).toBe('Notion asks first.');
+  });
+
   test('says who else can answer in the chat, by name when every name is known', () => {
     expect(othersLine(['2'], [{ id: '2', name: 'Silvan' }])).toBe('Silvan can answer too.');
     expect(othersLine(['1', '2', '3', '4'], ['1', '2', '3', '4'].map((id) => ({ id, name: `P${id}` })))).toBe('P1, P2 and 2 others can answer too.');

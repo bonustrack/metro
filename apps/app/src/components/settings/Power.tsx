@@ -74,7 +74,7 @@ export function usePower(): Power {
   };
 }
 
-const STOP_LINES = ['Your agent stops answering on every channel until Metro starts again.', 'You can start it again from the agent list.'];
+const STOP_LINES = ['Your agent stops answering on every channel until Metro starts again.', 'To start it again, open the agent from the agent list and press Start on its page.'];
 
 export function PowerDialogs({ power, name }: { power: Power; name: string }): ReactNode {
   return (

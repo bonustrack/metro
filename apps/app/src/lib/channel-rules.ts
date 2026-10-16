@@ -47,12 +47,13 @@ export function ruleRows(policy: ToolPolicy, tools: GroupedTool[]): RuleRow[] {
     .map((group) => ({ target: group, label: GROUP_TITLE[group], shown: groupAccess(policy, group), follows: false }));
   const deleting = deleteTools(policy, tools);
   if (deleting.length === 0) return rows;
+  const mixed = choiceOf(policy, tools, 'delete') === null;
   return [
     ...rows,
     {
       target: 'delete',
       label: ROW_TITLE.delete,
-      shown: together(deleting.map((tool) => effectiveAccess(policy, tool))),
+      shown: mixed ? 'mixed' : together(deleting.map((tool) => effectiveAccess(policy, tool))),
       follows: deleting.every((tool) => toolOverride(policy, tool.name) === undefined),
     },
   ];
@@ -117,6 +118,9 @@ export function choiceOf(policy: ToolPolicy, tools: GroupedTool[], target: RuleT
   const first = overrides[0];
   return first !== undefined && overrides.every((access) => access === first) ? first : null;
 }
+
+export const mixedNote = (choice: RuleChoice | null): string | undefined =>
+  choice === null ? 'Now Mixed: the delete tools have different rules. Nothing changes until you pick one, and then it applies to all of them.' : undefined;
 
 export function withChoice(policy: ToolPolicy, tools: GroupedTool[], target: RuleTarget, choice: RuleChoice): ToolPolicy {
   const access = choice === 'same' ? undefined : choice;

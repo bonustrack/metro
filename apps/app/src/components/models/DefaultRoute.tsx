@@ -1,8 +1,8 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
-import { clearModelRoute, setModelRoute, type OpenRouterReturn, type OrgModels } from '@metro-labs/client/api/org-models';
+import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
 import { routeItems } from '@metro-labs/client/api/model-order';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
@@ -19,31 +19,15 @@ import { PageHeader } from '../ui/PageHeader.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { AvatarStack, serverNames } from './RouteParts.js';
 import { RouteOrder } from './RouteOrder.js';
+import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
 import { afterModelChange, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { agentsWord, namesLine, routeSummary } from '../../lib/model-words.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
 import { queryError, useServersQuery } from '../../lib/queries.js';
-import { takeInitialOpenRouterReturn } from '../../lib/location.js';
 import { useDocumentTitle } from '../../lib/title.js';
-import { logError } from '../../lib/log.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can change the models.';
 const NO_ACCOUNT = 'Add a Claude subscription, ChatGPT, OpenRouter, an Anthropic key or Amazon Bedrock first. Then choose the model every agent uses.';
-
-function useOpenRouterReturn(): OpenRouterReturn | null {
-  const client = useQueryClient();
-  const [back] = useState(takeInitialOpenRouterReturn);
-  useEffect(() => {
-    if (back !== null) afterModelChange(client).catch(logError('org-models'));
-  }, [back, client]);
-  return back;
-}
-
-function ReturnNote({ back }: { back: OpenRouterReturn | null }): ReactNode {
-  if (back === null) return null;
-  if (back.kind === 'error') return <Text size="md" role="danger">{back.error}</Text>;
-  return <Text size="md" role="secondary">OpenRouter is connected. Pick one of its models below.</Text>;
-}
 
 function useScope(list: OrgModels): RouteScope {
   const client = useQueryClient();
@@ -120,7 +104,7 @@ function Body(): ReactNode {
   return (
     <Groups>
       <PageHeader title="Default route" subtitle={data.admin ? undefined : MEMBER_NOTE} action={data.admin && data.default !== null ? <RemoveMenu /> : undefined} />
-      <ReturnNote back={back} />
+      <OpenRouterNote back={back} />
       {data.connections.length === 0 && data.default === null ? <NoAccount admin={data.admin} /> : <Route list={data} />}
       <Agents list={data} />
     </Groups>

@@ -16,6 +16,7 @@ import { Item } from '../ui/Item.js';
 import { ListPaneRow } from '../ui/ListPaneRow.js';
 import { ListPane } from '../shell/ListPane.js';
 import { TabRoot } from '../shell/TabRoot.js';
+import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
 import { technicalLine } from '../../lib/agent-line.js';
 import { accountLine, agentsWord, routeSummary } from '../../lib/model-words.js';
 import { useOrgModelsQuery } from '../../lib/model-queries.js';
@@ -100,6 +101,16 @@ function Body({ pane, pick }: { pane: boolean; pick: ModelPick }): ReactNode {
   return <Lists list={data} pane={pane} pick={pick} />;
 }
 
+function PageBody(): ReactNode {
+  const back = useOpenRouterReturn();
+  return (
+    <Col gap={24}>
+      <OpenRouterNote back={back} />
+      <Body pane={false} pick={null} />
+    </Col>
+  );
+}
+
 export function AddAccount({ size }: { size: number }): ReactNode {
   const palette = useKitPalette();
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -114,8 +125,7 @@ export function AddAccount({ size }: { size: number }): ReactNode {
 }
 
 function useAdmin(): boolean {
-  const { data } = useOrgModelsQuery();
-  return data === undefined || data.admin;
+  return useOrgModelsQuery().data?.admin === true;
 }
 
 export function ModelList({ pane, pick = null }: { pane: boolean; pick?: ModelPick }): ReactNode {
@@ -134,7 +144,7 @@ function ModelsRoot({ scope, admin }: { scope: number; admin: boolean }): ReactN
   useDocumentTitle('Models');
   return (
     <TabRoot title="Models" action={admin ? <AddAccount size={40} /> : undefined}>
-      <Body key={scope} pane={false} pick={null} />
+      <PageBody key={scope} />
     </TabRoot>
   );
 }

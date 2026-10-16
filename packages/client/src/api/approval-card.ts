@@ -32,7 +32,7 @@ interface Target {
 
 const EMAIL = new Set(['outlook', 'gmail']);
 const PLUGIN_TOOL = /^mcp__plugin_metro_(.+?)__(.+)$/;
-const SERVER_TOOL = /^([a-z0-9][a-z0-9-]*)\.([^.\s]+)$/;
+const SERVER_TOOL = /^([A-Za-z0-9][A-Za-z0-9_-]*)\.([^.\s]+)$/;
 const PLACE = new Set(['line', 'account', 'station', 'text', 'subject', 'attachments']);
 const BODY_MAX = 600;
 const VALUE_MAX = 120;
@@ -111,22 +111,16 @@ function argFields(input: Record<string, unknown> | null): CardField[] {
 
 const baseName = (path: string): string => path.split(/[/\\]/).filter((part) => part !== '').pop() ?? '';
 
-function dataBytes(data: string): number {
-  const encoded = data.replace(/^data:[^,]*,/, '').replace(/\s/g, '');
-  const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
-  return Math.max(0, Math.floor((encoded.length * 3) / 4) - padding);
-}
-
-function fileOf(raw: unknown): CardFile {
-  if (!isRecord(raw)) return { name: 'A file', size: null };
+function fileOf(raw: unknown, bytes: number | null): CardFile {
+  const size = bytes === null ? null : sizeLabel(bytes);
+  if (!isRecord(raw)) return { name: 'A file', size };
   const name = text(raw.name) || baseName(text(raw.path)) || baseName(text(raw.url).split('?')[0] ?? '') || 'A file';
-  const data = text(raw.data);
-  return { name, size: data === '' || data.includes('…') ? null : sizeLabel(dataBytes(data)) };
+  return { name, size };
 }
 
-function filesOf(input: Record<string, unknown> | null): Pick<ApprovalCard, 'file' | 'moreFiles'> {
+function filesOf(input: Record<string, unknown> | null, bytes: (number | null)[]): Pick<ApprovalCard, 'file' | 'moreFiles'> {
   const list = Array.isArray(input?.attachments) ? input.attachments : [];
-  return { file: list.length === 0 ? null : fileOf(list[0]), moreFiles: Math.max(0, list.length - 1) };
+  return { file: list.length === 0 ? null : fileOf(list[0], bytes[0] ?? null), moreFiles: Math.max(0, list.length - 1) };
 }
 
 function metroTitle(tool: string, target: Target | null): string {
@@ -163,11 +157,11 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): A
     ask: lowerFirst(title),
     fields: email.length > 0 || messaging ? email : argFields(input),
     body: bodyOf(approval.tool, input),
-    ...filesOf(input),
+    ...filesOf(input, approval.fileBytes),
   };
 }
 
-function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null): ApprovalCard {
+function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null, bytes: (number | null)[]): ApprovalCard {
   const title = humanize(tool);
   return {
     station: null,
@@ -177,7 +171,7 @@ function connectorCard(connector: string, tool: string, input: Record<string, un
     ask: `use ${title} on ${connector}`,
     fields: argFields(input),
     body: bodyOf('', input),
-    ...filesOf(input),
+    ...filesOf(input, bytes),
   };
 }
 
@@ -199,6 +193,6 @@ function otherCard(approval: Approval): ApprovalCard {
 export function approvalCard(approval: Approval): ApprovalCard {
   if (approval.tool !== approval.name) return metroCard(approval, approval.input);
   const plugin = PLUGIN_TOOL.exec(approval.name) ?? SERVER_TOOL.exec(approval.name);
-  if (plugin?.[1] !== undefined && plugin[2] !== undefined) return connectorCard(plugin[1], plugin[2], approval.input);
+  if (plugin?.[1] !== undefined && plugin[2] !== undefined) return connectorCard(plugin[1], plugin[2], approval.input, approval.fileBytes);
   return otherCard(approval);
 }

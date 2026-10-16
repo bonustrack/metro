@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { HttpError } from '@metro-labs/client/api/client';
 import { launchServer, type LaunchOverview } from '@metro-labs/client/api/launch';
 import { setServerAvatar } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -12,13 +13,12 @@ import { LaunchError } from './LaunchError.js';
 import { LaunchFrame, type FocusStep } from './LaunchFrame.js';
 import { ConfirmStep, NameStep, PlaceStep, seedOf } from './LaunchSteps.js';
 import { LaunchWatch, type LaunchSubject } from './LaunchWatch.js';
-import { cityOf, closestRegion, launchFailure } from '../../lib/launch-steps.js';
+import { cityOf, closestRegion, refusalOf } from '../../lib/launch-steps.js';
 import { queryError, refreshServers, useLaunchOverviewQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
-import { logError } from '../../lib/log.js';
 
-type Phase = { kind: FocusStep } | { kind: 'watch'; subject: LaunchSubject } | { kind: 'refused'; message: string; region: string; at: Date };
+type Phase = { kind: FocusStep } | { kind: 'watch'; subject: LaunchSubject } | { kind: 'refused'; message: string; status: number | null; region: string; at: Date };
 
 const OFF = 'Launching is off here. Add your own server from the agent list instead.';
 const OFF_IDENTITY = 'To turn it on, set the AWS and Tailscale secrets on this deployment.';
@@ -35,6 +35,16 @@ function Off({ text }: { text: string }): ReactNode {
       {organization === null ? null : <CopyBlock label={OFF_IDENTITY} value={organization} />}
     </>
   );
+}
+
+function pictureFailure(err: unknown): string {
+  const why = queryError(err, '').replace(/\.$/, '');
+  return why === '' ? 'The picture did not upload.' : `The picture did not upload: ${why}.`;
+}
+
+function uploadPicture(serverId: string, avatar: string | null): Promise<string | null> {
+  if (avatar === null) return Promise.resolve(null);
+  return setServerAvatar(serverId, avatar).then(() => null, pictureFailure);
 }
 
 function startOf(launchedAt: string | null): number {
@@ -59,24 +69,39 @@ function useLauncher(regions: string[]): {
     setBusy(true);
     launchServer(label, where)
       .then(async (launched) => {
-        if (avatar !== null) await setServerAvatar(launched.server.id, avatar).catch(logError('launch avatar'));
+        const pictureError = await uploadPicture(launched.server.id, avatar);
         await refreshServers(client);
-        setPhase({ kind: 'watch', subject: { launched, name: launched.server.name ?? label, avatar, place: cityIn(launched.region === '' ? where : launched.region), startedAt: startOf(launched.server.launchedAt) } });
+        const subject = { launched, name: launched.server.name ?? label, avatar: pictureError === null ? avatar : null, pictureError, place: cityIn(launched.region === '' ? where : launched.region), startedAt: startOf(launched.server.launchedAt) };
+        setPhase({ kind: 'watch', subject });
       })
-      .catch((err: unknown) => { setPhase({ kind: 'refused', message: queryError(err, 'AWS did not start the server.'), region: where, at: new Date() }); })
+      .catch((err: unknown) => {
+        setPhase({ kind: 'refused', message: queryError(err, 'The launch did not finish.'), status: err instanceof HttpError ? err.status : null, region: where, at: new Date() });
+      })
       .finally(() => { setBusy(false); });
   };
   return { phase, setPhase, name, setName, region, setRegion, avatar, picker, busy, launch };
 }
 
-function Refused({ name, message, region, at, regions, busy, onLaunch }: { name: string; message: string; region: string; at: Date; regions: string[]; busy: boolean; onLaunch: (region: string) => void }): ReactNode {
-  const failure = launchFailure(message, cityIn(region));
+interface RefusedProps {
+  name: string;
+  message: string;
+  status: number | null;
+  region: string;
+  at: Date;
+  regions: string[];
+  busy: boolean;
+  onLaunch: (region: string) => void;
+}
+
+function Refused({ name, message, status, region, at, regions, busy, onLaunch }: RefusedProps): ReactNode {
+  const failure = refusalOf(message, cityIn(region), status);
   const other = failure.elsewhere ? closestRegion(regions.filter((code) => code !== region), timeZone()) : null;
   const action = other === null
     ? { label: 'Try again', busy, onPress: () => { onLaunch(region); } }
     : { label: `Try again in ${cityIn(other)}`, note: 'The closest other place. Same size and price.', busy, onPress: () => { onLaunch(other); } };
-  const lines = [`${clock(at)}  launch  ${region} · ${name}`, `${clock(at)}  error   ${message}`, `${clock(at)}  launch  stopped, no server was kept`];
-  return <LaunchError title={`${name} could not start`} reason={failure.text} charged={false} action={action} lines={lines} />;
+  const lines = [`${clock(at)}  launch  ${region} · ${name}`, `${clock(at)}  error   ${message}`, ...(failure.refused ? [`${clock(at)}  launch  stopped, no server was started`] : [])];
+  const back = { label: 'Back to your agents', onPress: () => { go({ kind: 'servers' }); } };
+  return <LaunchError title={`${name} could not start`} reason={failure.text} action={failure.refused ? action : back} lines={lines} />;
 }
 
 function Flow({ overview }: { overview: LaunchOverview }): ReactNode {
@@ -94,7 +119,7 @@ function Flow({ overview }: { overview: LaunchOverview }): ReactNode {
       ) : null}
       {phase.kind === 'launch' ? <ConfirmStep name={l.name} avatar={l.avatar} region={l.region} busy={l.busy} onLaunch={() => { l.launch(l.region); }} onBack={() => { l.setPhase({ kind: 'place' }); }} /> : null}
       {phase.kind === 'watch' ? <LaunchWatch subject={phase.subject} /> : null}
-      {phase.kind === 'refused' ? <Refused name={label} message={phase.message} region={phase.region} at={phase.at} regions={regions} busy={l.busy} onLaunch={l.launch} /> : null}
+      {phase.kind === 'refused' ? <Refused name={label} message={phase.message} status={phase.status} region={phase.region} at={phase.at} regions={regions} busy={l.busy} onLaunch={l.launch} /> : null}
     </LaunchFrame>
   );
 }

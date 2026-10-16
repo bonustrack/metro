@@ -5,6 +5,18 @@ export interface ListStep {
   open: number | null;
 }
 
+interface KeyPress {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+}
+
+interface Page {
+  querySelector: (selector: string) => unknown;
+}
+
 function moved(cursor: number | null, by: number, count: number, start: number): number {
   if (cursor === null && start < 0) return 0;
   return Math.min(count - 1, Math.max(0, (cursor ?? start) + by));
@@ -18,30 +30,45 @@ export function listStep(cursor: number | null, key: string, count: number, star
   return key === 'Escape' ? { cursor: null, open: null } : null;
 }
 
+export const plainKey = (press: KeyPress): string | null => (press.shiftKey || press.metaKey || press.ctrlKey || press.altKey ? null : press.key);
+
+export const dialogOpen = (page: Page | undefined): boolean => page !== undefined && page.querySelector('[aria-modal="true"]') !== null;
+
 function typing(target: EventTarget | null): boolean {
   if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
 
-export function useListKeys(count: number, start: number, onOpen: (at: number) => void, enabled: boolean): number | null {
-  const [cursor, setCursor] = useState<number | null>(null);
-  const latest = useRef({ cursor, count, start, onOpen });
+const currentPage = (): Page | undefined => (typeof document === 'undefined' ? undefined : document);
+
+export function useListKeys(count: number, start: number, onOpen: (at: number) => void, enabled: boolean, order: string): number | null {
+  const [mark, setMark] = useState<{ at: number | null; order: string }>({ at: null, order });
+  const cursor = mark.order === order ? mark.at : null;
+  const latest = useRef({ cursor, count, start, onOpen, order });
   useEffect(() => {
-    latest.current = { cursor, count, start, onOpen };
+    latest.current = { cursor, count, start, onOpen, order };
   });
   useEffect(() => {
     if (!enabled || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
     const onKey = (event: KeyboardEvent): void => {
-      if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+      const key = plainKey(event);
+      if (key === null || typing(event.target) || dialogOpen(currentPage())) return;
       const now = latest.current;
-      const step = listStep(now.cursor, event.key.length === 1 ? event.key.toLowerCase() : event.key, now.count, now.start);
+      const step = listStep(now.cursor, key.length === 1 ? key.toLowerCase() : key, now.count, now.start);
       if (step === null) return;
       event.preventDefault();
-      setCursor(step.open === null ? step.cursor : null);
+      setMark({ at: step.open === null ? step.cursor : null, order: now.order });
       if (step.open !== null) now.onOpen(step.open);
     };
+    const onPointer = (): void => {
+      setMark({ at: null, order: latest.current.order });
+    };
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); };
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
   }, [enabled]);
   return cursor;
 }

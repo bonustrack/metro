@@ -79,7 +79,6 @@ function Block({ label, note, text, empty }: { label: string; note: string | nul
 }
 
 function Routine({ job, error }: { job: JobDetail; error: string | null }): ReactNode {
-  const technical = useTechnicalDetails();
   return (
     <>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
@@ -87,7 +86,7 @@ function Routine({ job, error }: { job: JobDetail; error: string | null }): Reac
       <Details job={job} />
       {job.script === null ? null : <Block label="Script" note={job.script.path} text={job.script.text} empty="The script is empty." />}
       <Block label="Recent output" note={job.logSource} text={job.logs} empty={job.logSource === null ? 'This routine writes no log Metro can find.' : 'Nothing written yet.'} />
-      {technical ? <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." /> : null}
+      <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." />
     </>
   );
 }

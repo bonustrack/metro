@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cityOf, clockOf, closestRegion, launchFailure, launchOutcome, minutesLeft, plainSteps, stepTimes, timeLeftLine, type LaunchFacts } from '../src/lib/launch-steps.ts';
+import { cityOf, clockOf, closestRegion, failedLaunchNote, launchFailure, launchOutcome, minutesLeft, plainSteps, refusalOf, stepTimes, timeLeftLine, type LaunchFacts } from '../src/lib/launch-steps.ts';
 
 const SETUP = ['packages', 'node', 'bun', 'user', 'tailscale', 'metro', 'service'];
 
@@ -106,5 +106,20 @@ describe('places', () => {
     expect(launchFailure('InsufficientInstanceCapacity: not enough t3.large capacity', 'Zurich')).toEqual({ text: 'AWS has no free servers of this size in Zurich right now.', elsewhere: true });
     expect(launchFailure('RequestLimitExceeded', 'Zurich').elsewhere).toBe(false);
     expect(launchFailure('the region is an AWS region name', 'Zurich').text).toBe('the region is an AWS region name.');
+  });
+
+  test('only a refusal the api answered says nothing was charged; anything else shows its own words', () => {
+    expect(refusalOf('InsufficientInstanceCapacity', 'Zurich', 400)).toEqual({ text: 'AWS has no free servers of this size in Zurich right now. No server was started, so nothing was charged.', elsewhere: true, refused: true });
+    expect(refusalOf('UnauthorizedOperation: not allowed', 'Zurich', 503).refused).toBe(true);
+    expect(refusalOf('Failed to reach Metro.', 'Zurich', null)).toEqual({ text: 'Failed to reach Metro. Check your agents before you try again.', elsewhere: false, refused: false });
+    expect(refusalOf('internal error', 'Zurich', 500).text).toBe('internal error. Check your agents before you try again.');
+    expect(refusalOf('a launch for this organization is already running', 'Zurich', 409).text).not.toContain('charged');
+  });
+
+  test('a launch that stopped during setup says what AWS still bills and points to Delete', () => {
+    expect(failedLaunchNote('running', true)).toBe('The server is still running in AWS and is billed until you delete it. Delete removes the server and its disk from AWS.');
+    expect(failedLaunchNote(null, false)).toBe('The server is still running in AWS and is billed until you delete it. Ask an admin of the organization to delete it.');
+    expect(failedLaunchNote('stopped', true)).toContain('its disk is billed until you delete it');
+    expect(failedLaunchNote('terminated', true)).toBe('AWS ended the server, so it is no longer billed. Delete removes it from your agents.');
   });
 });

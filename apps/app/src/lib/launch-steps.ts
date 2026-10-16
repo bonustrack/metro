@@ -121,6 +121,8 @@ export function cityOf(regionName: string): string {
   return /\(([^)]+)\)/.exec(regionName)?.[1] ?? regionName;
 }
 
+const sentence = (text: string): string => (/[.!?]$/.test(text) ? text : `${text}.`);
+
 export interface LaunchFailure {
   text: string;
   elsewhere: boolean;
@@ -131,5 +133,27 @@ export function launchFailure(message: string, place: string): LaunchFailure {
   if (/Unsupported|not supported in your requested Availability Zone/i.test(message)) return { text: `AWS does not offer this server size in ${place}.`, elsewhere: true };
   if (/VcpuLimitExceeded|InstanceLimitExceeded/i.test(message)) return { text: 'AWS will not start more servers for this account right now.', elsewhere: false };
   if (/RequestLimitExceeded|Throttl/i.test(message)) return { text: 'AWS is busy. Try again in a minute.', elsewhere: false };
-  return { text: message.endsWith('.') ? message : `${message}.`, elsewhere: false };
+  return { text: sentence(message), elsewhere: false };
+}
+
+const launchRefused = (status: number | null): boolean => status === 400 || status === 503;
+
+interface LaunchRefusal extends LaunchFailure {
+  refused: boolean;
+}
+
+export function refusalOf(message: string, place: string, status: number | null): LaunchRefusal {
+  if (!launchRefused(status)) return { text: `${sentence(message)} Check your agents before you try again.`, elsewhere: false, refused: false };
+  const failure = launchFailure(message, place);
+  return { text: `${failure.text} No server was started, so nothing was charged.`, elsewhere: failure.elsewhere, refused: true };
+}
+
+const ENDED = new Set(['terminated', 'shutting-down']);
+const PAUSED = new Set(['stopped', 'stopping']);
+
+export function failedLaunchNote(instance: string | null, canDelete: boolean): string {
+  const state = instance ?? '';
+  if (ENDED.has(state)) return `AWS ended the server, so it is no longer billed. ${canDelete ? 'Delete removes it from your agents.' : 'Ask an admin of the organization to remove it from your agents.'}`;
+  const billed = PAUSED.has(state) ? 'The server is stopped in AWS, but its disk is billed until you delete it.' : 'The server is still running in AWS and is billed until you delete it.';
+  return `${billed} ${canDelete ? 'Delete removes the server and its disk from AWS.' : 'Ask an admin of the organization to delete it.'}`;
 }

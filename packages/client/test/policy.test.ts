@@ -67,6 +67,7 @@ describe('Claude Code permission prompts on the page', () => {
       line: 'metro://discord-bot/d1/42',
       requestedAt: '2026-09-24T10:00:00.000Z',
       inChat: true,
+      fileBytes: [],
     });
   });
 
@@ -80,6 +81,7 @@ describe('Claude Code permission prompts on the page', () => {
       line: '',
       requestedAt: '',
       inChat: false,
+      fileBytes: [],
     });
     expect(approvalOf({ id: 'broken' })).toBeNull();
   });

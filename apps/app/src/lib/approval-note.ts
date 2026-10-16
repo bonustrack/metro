@@ -11,11 +11,19 @@ export function accountRow(groups: AccountGroup[], station: string | null, accou
   return flattenAccounts(groups).find((a) => a.station === station && a.row.id === account)?.row;
 }
 
+const capitalized = (name: string): string => `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+
+function ruleRows(groups: AccountGroup[], station: string, account: string | null): AccountRow[] {
+  if (account !== null) return flattenAccounts(groups).filter((a) => a.station === station && a.row.id === account).map((a) => a.row);
+  return flattenAccounts(groups).filter((a) => a.station === station).map((a) => a.row);
+}
+
 export function ruleLine(card: ApprovalCard, tool: string, groups: AccountGroup[], tools: Record<string, GroupedTool[]>): string | null {
-  const row = accountRow(groups, card.station, card.account);
-  if (row === undefined || card.station === null) return null;
+  if (card.connector !== null) return `${capitalized(card.connector)} asks first.`;
+  if (card.station === null) return null;
   const group = tools[card.station]?.find((t) => t.name === tool)?.group ?? 'write';
-  return effectiveAccess(row.policy, { name: tool, group }) === 'ask' ? `${stationLabel(card.station)} asks first.` : null;
+  const asks = ruleRows(groups, card.station, card.account).some((row) => effectiveAccess(row.policy, { name: tool, group }) === 'ask');
+  return asks ? `${stationLabel(card.station)} asks first.` : null;
 }
 
 export function joinNames(names: string[]): string {
