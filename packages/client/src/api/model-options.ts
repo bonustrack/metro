@@ -5,10 +5,12 @@ export interface ModelOption {
   name: string;
   price: string;
   zdr: boolean | null;
+  context?: string;
 }
 
 const MATCH_MAX = 40;
 const PER_MILLION = 1_000_000;
+const THOUSAND = 1000;
 
 const amount = (perToken: number): string => {
   const each = perToken * PER_MILLION;
@@ -19,6 +21,12 @@ export function priceLabel(prompt: unknown, completion: unknown): string {
   if (typeof prompt !== 'number' || typeof completion !== 'number') return '';
   if (prompt === 0 && completion === 0) return 'Free';
   return `${amount(prompt)} in · ${amount(completion)} out per 1M`;
+}
+
+export function contextLabel(tokens: unknown): string {
+  if (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens <= 0) return '';
+  if (tokens >= PER_MILLION) return `${String(Number((tokens / PER_MILLION).toFixed(2)))}M context`;
+  return `${String(Math.max(1, Math.round(tokens / THOUSAND)))}K context`;
 }
 
 function priceOf(raw: Record<string, unknown>): string {
@@ -32,7 +40,8 @@ export function toModelOptions(body: unknown): ModelOption[] {
   return body.models.flatMap((m: unknown) => {
     if (typeof m === 'string' && m !== '') return [{ id: m, name: m, price: '', zdr: null }];
     if (!isRecord(m) || typeof m.id !== 'string' || m.id === '') return [];
-    return [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id, price: priceOf(m), zdr: typeof m.zdr === 'boolean' ? m.zdr : null }];
+    const context = contextLabel(m.context);
+    return [{ id: m.id, name: typeof m.name === 'string' && m.name !== '' ? m.name : m.id, price: priceOf(m), zdr: typeof m.zdr === 'boolean' ? m.zdr : null, ...(context === '' ? {} : { context }) }];
   });
 }
 

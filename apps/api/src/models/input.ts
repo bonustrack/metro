@@ -17,6 +17,7 @@ const LABELS: Record<ModelProvider, string> = {
   bedrock: 'Amazon Bedrock',
   openrouter: 'OpenRouter',
   codex: 'Codex (ChatGPT)',
+  routeway: 'Routeway',
 };
 const SUBSCRIPTION_LABEL = 'Claude subscription';
 

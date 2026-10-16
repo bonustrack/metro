@@ -1,5 +1,17 @@
 # Metro history
 
+## 2026-10-17: Routeway joins the model providers
+
+Less asked for Routeway (https://routeway.ai), "a bit like OpenRouter, with different models", with its model list loaded from Routeway. Checked on 2026-10-17: Routeway speaks the OpenAI API and also the Anthropic Messages API at `https://api.routeway.ai/v1/messages` (and `/v1/messages/count_tokens`), takes the key as `x-api-key` or a bearer, and lists 290 models at a public `GET /v1/models`, 140 of them available, on the Messages endpoint and with tools. Cloudflare sits in front: an unknown path or a request with no key gets a challenge page (HTML 403), and many failed keys from one address get a 429.
+
+- **A key provider like OpenRouter.** `routeway` joins `MODEL_PROVIDERS` and `KEY_PROVIDERS`, and `0016_routeway_provider` replaces the provider check of `model_connections` without touching a row. The secret is `{kind: 'key', apiKey}`.
+- **The key is checked before it is kept**, like a Claude subscription token: one free `count_tokens` call. A JSON 401 or 403 refuses it; any other JSON 4xx but 429 keeps it, since Routeway reads the key first; a 429, a 5xx, a web page or no answer is "could not check". Routeway's account calls need a separate management key, so they cannot check a normal key.
+- **The model list is Routeway's own**, public and kept one hour: only available tool models of the Messages endpoint, newest first, with the price per token and the context window. The picker now shows the context after the price when a list gives it.
+- **The gateway sends the request almost as it came** (`toRouteway`): the Anthropic route's shape with the routed model, the effort policy and its 400 retry, `x-api-key` instead of the client's credential, no Anthropic thinking binding, pings, 401 as 403, and 402 and 429 handed to the next model. A web page instead of the API is a 502, never a refused key. There is no free usage call, so the page says "Usage shows on routeway.ai".
+- **The Models section icon** is a processor instead of a sparkle (rail, tab bar and the Models empty and refusal states), from the same central icons set.
+
+Rollout: the api deploy (with `0016`) must land before anyone adds a Routeway account; a box needs the release with the gateway change before a route that names Routeway works there (an older box drops a connection whose provider it does not know: a Routeway backup is skipped, and a route whose first model is Routeway has no model there, so the gateway answers 503).
+
 ## 2026-10-17: The v3 redesign of the app
 
 After using the v2 app for a day, Less found that sibling pages looked different, that the detail pane left an empty gutter on a wide screen, that the same choice (allow, ask, block) had three names and three controls, and that most setup steps opened in a modal too small for them. He approved the v3 mockups (`DESIGN-v3.md`) with these decisions:

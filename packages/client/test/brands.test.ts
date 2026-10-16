@@ -40,6 +40,11 @@ describe('brand logos', () => {
     expect(brandLogo('not a url')).toBeNull();
   });
 
+  test('Routeway uses its own picture, a png, in both themes', () => {
+    for (const dark of [false, true]) expect(brandSrc('https://routeway.ai', dark)).toBe('/brands/routeway.png');
+    expect(brandSrc('https://api.routeway.ai/v1', false)).toBe('/brands/routeway.png');
+  });
+
   test('dark mode picks the dark variant only where one exists', () => {
     expect(brandSrc('https://github.com', true)).toBe('/brands/github-dark.svg');
     expect(brandSrc('https://github.com', false)).toBe('/brands/github.svg');
@@ -47,7 +52,7 @@ describe('brand logos', () => {
   });
 
   test('every mapped logo ships in public/brands', () => {
-    const urls = ['https://xmtp.org', 'https://whatsapp.com', 'https://telegram.org', 'https://discord.com', 'https://threema.ch', 'https://outlook.com', 'https://microsoft.com', 'https://sharepoint.com', 'https://linear.app', 'https://notion.so', 'https://claude.ai', 'https://slack.com', 'https://github.com', 'https://openrouter.ai', 'https://openai.com', 'https://mistral.ai', 'https://qwen.ai', 'https://gemini.google.com', 'https://x.ai', 'https://aws.amazon.com', 'https://atlassian.com', 'https://hubspot.com', 'https://stripe.com', 'https://sentry.io', 'https://asana.com', 'https://intercom.com', 'https://cloudflare.com', 'https://figma.com', 'https://box.com', 'https://zapier.com', 'https://mail.google.com', 'https://drive.google.com'];
+    const urls = ['https://xmtp.org', 'https://whatsapp.com', 'https://telegram.org', 'https://discord.com', 'https://threema.ch', 'https://outlook.com', 'https://microsoft.com', 'https://sharepoint.com', 'https://linear.app', 'https://notion.so', 'https://claude.ai', 'https://slack.com', 'https://github.com', 'https://openrouter.ai', 'https://routeway.ai', 'https://openai.com', 'https://mistral.ai', 'https://qwen.ai', 'https://gemini.google.com', 'https://x.ai', 'https://aws.amazon.com', 'https://atlassian.com', 'https://hubspot.com', 'https://stripe.com', 'https://sentry.io', 'https://asana.com', 'https://intercom.com', 'https://cloudflare.com', 'https://figma.com', 'https://box.com', 'https://zapier.com', 'https://mail.google.com', 'https://drive.google.com'];
     for (const url of urls) {
       for (const dark of [false, true]) {
         const src = brandSrc(url, dark);

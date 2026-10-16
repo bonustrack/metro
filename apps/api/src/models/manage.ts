@@ -8,6 +8,7 @@ import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealMod
 import { isoNow, modelKey, MODELS_MAX, userActor, type Caller, type ModelsDeps } from './deps.js';
 import { apiKeyOf, claudeTokenOf, creator, flagOf, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
 import { checkClaudeToken } from './provider-lists.js';
+import { checkRoutewayKey } from './routeway.js';
 import { connectionView, type ConnectionView, type ModelsView } from './view.js';
 
 const PATCH_FIELDS = ['label', 'model', 'region', 'zdr', 'apiKey', 'claudeToken'];
@@ -47,6 +48,11 @@ function credentialInput(provider: ModelProvider, input: Record<string, unknown>
 
 const subscriptionDetail = (at: string): ModelDetail => ({ subscription: true, signedInAt: at });
 
+async function checkCredential(deps: ModelsDeps, provider: string, secret: ModelSecret): Promise<void> {
+  if (secret.kind === 'claude') await checkClaudeToken(secret.token, deps.fetch);
+  if (secret.kind === 'key' && provider === 'routeway') await checkRoutewayKey(secret.apiKey, deps.fetch);
+}
+
 export async function createModel(deps: ModelsDeps, caller: Caller, body: unknown): Promise<{ connection: ConnectionView }> {
   const key = modelKey(deps);
   const input = isRecord(body) ? body : {};
@@ -57,7 +63,7 @@ export async function createModel(deps: ModelsDeps, caller: Caller, body: unknow
   const region = regionOf(input.region);
   const zdr = flagOf(input.zdr, 'zero data retention');
   const taken = await roomFor(deps, caller.owner);
-  if (secret.kind === 'claude') await checkClaudeToken(secret.token, deps.fetch);
+  await checkCredential(deps, provider, secret);
   const at = isoNow(deps);
   const row = { ...newModelRow(creator(caller), provider, labelFor(taken, provider, label, subscription), at), model, region, zdr };
   const made: ModelConnectionRow = { ...row, secret: sealModelSecret(key, row, secret), detail: subscription ? modelDetailText(subscriptionDetail(at)) : null };
@@ -102,10 +108,18 @@ async function checkedTokenEdit(deps: ModelsDeps, raw: unknown, change: ModelCha
   return tokenEdit(key, change, token, isoNow(deps));
 }
 
-async function credentialEdit(deps: ModelsDeps, input: Record<string, unknown>, change: ModelChange): Promise<(row: ModelConnectionRow) => ModelEdit> {
+async function checkedKeyEdit(deps: ModelsDeps, caller: Caller, id: string, raw: unknown, change: ModelChange): Promise<(row: ModelConnectionRow) => ModelEdit> {
+  const key = modelKey(deps);
+  const apiKey = apiKeyOf(raw);
+  const row = await deps.store.find(caller.owner, id);
+  if (row !== null) await checkCredential(deps, row.provider, { kind: 'key', apiKey });
+  return keyEdit(key, change, apiKey);
+}
+
+async function credentialEdit(deps: ModelsDeps, caller: Caller, id: string, input: Record<string, unknown>, change: ModelChange): Promise<(row: ModelConnectionRow) => ModelEdit> {
   if (Object.hasOwn(input, 'apiKey') && Object.hasOwn(input, 'claudeToken')) throw bad('Send an API key or a Claude subscription token, not both.');
   if (Object.hasOwn(input, 'claudeToken')) return checkedTokenEdit(deps, input.claudeToken, change);
-  if (Object.hasOwn(input, 'apiKey')) return keyEdit(modelKey(deps), change, apiKeyOf(input.apiKey));
+  if (Object.hasOwn(input, 'apiKey')) return checkedKeyEdit(deps, caller, id, input.apiKey, change);
   return () => ({ change });
 }
 
@@ -113,7 +127,7 @@ export async function patchModel(deps: ModelsDeps, caller: Caller, id: string, b
   const input = isRecord(body) ? body : {};
   const fields = Object.keys(input);
   if (fields.length === 0 || fields.some((field) => !PATCH_FIELDS.includes(field))) throw bad(`Send ${PATCH_FIELDS.join(', ')} to change.`);
-  const edit = await credentialEdit(deps, input, plainChange(input));
+  const edit = await credentialEdit(deps, caller, id, input, plainChange(input));
   const saved = await deps.store.edit(caller.owner, id, isoNow(deps), edit);
   log.info({ owner: caller.owner, id, fields }, 'models: connection changed');
   return { connection: connectionView(saved) };

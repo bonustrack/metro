@@ -43,6 +43,7 @@ import { notReady, resolveRoute, routeLabel, type Connection, type ModelSetup, t
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
+import { refusedWithPage, ROUTEWAY_BASE, routewayHeaders } from './routeway.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
@@ -63,6 +64,7 @@ export interface GatewayDeps {
   anthropicBase?: string;
   bedrockBase?: string;
   openrouterBase?: string;
+  routewayBase?: string;
   codex?: Partial<CodexDeps>;
 }
 
@@ -118,13 +120,21 @@ interface Payloads {
   bound: boolean;
 }
 
-function anthropicPayloads(raw: Buffer, sent: Record<string, unknown>, shaped: Record<string, unknown>, model: string): Payloads {
+interface Shaped {
+  raw: Buffer;
+  sent: Record<string, unknown>;
+  shaped: Record<string, unknown>;
+  bind: boolean;
+}
+
+function anthropicPayloads({ raw, sent, shaped, bind }: Shaped, model: string): Payloads {
   const runnable = withThinkingFor(sent, model);
   const rewrite = runnable !== sent || (typeof sent.model === 'string' && sent.model !== model);
   const asSent = rewrite ? Buffer.from(JSON.stringify({ ...runnable, model })) : raw;
-  const bound = withBlockBinding(withThinkingFor(shaped, model));
+  const fitted = withThinkingFor(shaped, model);
+  const bound = bind ? withBlockBinding(fitted) : fitted;
   if (bound === sent) return { metro: asSent, asSent: null, bound: false };
-  return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bound !== shaped };
+  return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bind && bound !== shaped };
 }
 
 type Send = (payload: Buffer, headers: Record<string, string>) => Promise<Response>;
@@ -153,30 +163,36 @@ async function refusedSubscription(conn: Connection, upstream: Response, watch: 
   throw new SubscriptionRefused(conn.label);
 }
 
-async function toAnthropic(
-  req: IncomingMessage,
-  res: ServerResponse,
-  raw: Buffer,
-  sent: Record<string, unknown>,
-  shaped: Record<string, unknown>,
-  route: Route,
-  deps: GatewayDeps,
-): Promise<void> {
+async function shapedAttempt(send: Send, base: Record<string, string>, body: Shaped, route: Route): Promise<Response> {
+  const shape = (): Promise<Response> => asAnthropicWants(send, base, anthropicPayloads(body, route.model), route.connection.label, route.model);
+  const first = await shape();
+  return (await refusedThinkingOff(first, body.shaped, route.model)) ? shape() : first;
+}
+
+const sender = (url: string, watch: Watch): Send => (payload, headers) =>
+  fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
+
+const upstreamPath = (req: IncomingMessage): string => (req.url ?? '').slice(GATEWAY_PREFIX.length);
+
+async function toAnthropic(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: GatewayDeps): Promise<void> {
   const conn = route.connection;
-  const url = `${deps.anthropicBase ?? ANTHROPIC_API}${(req.url ?? '').slice(GATEWAY_PREFIX.length)}`;
   const watch = watchUpstream(res);
-  const send = (payload: Buffer, headers: Record<string, string>): Promise<Response> =>
-    fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
-  const attempt = async (base: Record<string, string>): Promise<Response> => {
-    const shape = (): Promise<Response> => asAnthropicWants(send, base, anthropicPayloads(raw, sent, shaped, route.model), conn.label, route.model);
-    const first = await shape();
-    return (await refusedThinkingOff(first, shaped, route.model)) ? shape() : first;
-  };
-  const upstream = await attempt(conn.apiKey !== '' ? anthropicHeaders(req, conn.apiKey) : loginHeaders(req, conn.claudeToken));
+  const send = sender(`${deps.anthropicBase ?? ANTHROPIC_API}${upstreamPath(req)}`, watch);
+  const upstream = await shapedAttempt(send, conn.apiKey !== '' ? anthropicHeaders(req, conn.apiKey) : loginHeaders(req, conn.claudeToken), body, route);
   await refusedSubscription(conn, upstream, watch);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
   await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id) });
+}
+
+async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: GatewayDeps): Promise<void> {
+  const conn = route.connection;
+  const watch = watchUpstream(res);
+  const send = sender(`${deps.routewayBase ?? ROUTEWAY_BASE}${upstreamPath(req)}`, watch);
+  const upstream = await shapedAttempt(send, routewayHeaders(req, conn.apiKey), { ...body, bind: false }, route);
+  noteRefusal(conn.label, route.model, upstream);
+  await refusedWithPage(upstream, watch);
+  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id) });
 }
 
 async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
@@ -260,7 +276,8 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
     await toCodex(req, res, path, body, route, deps);
     return;
   }
-  await toAnthropic(req, res, bytesOf(ask.raw, ask.parsed, ask.sent), ask.sent, body, route, deps);
+  const shaped: Shaped = { raw: bytesOf(ask.raw, ask.parsed, ask.sent), sent: ask.sent, shaped: body, bind: true };
+  await (conn.provider === 'routeway' ? toRouteway : toAnthropic)(req, res, shaped, route, deps);
 }
 
 async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route: Route, deps: GatewayDeps): Promise<Refusal | null> {

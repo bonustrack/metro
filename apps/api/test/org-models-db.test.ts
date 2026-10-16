@@ -78,6 +78,31 @@ test('0014 is journaled after 0013 and only adds the three model tables to exist
   }
 }, PGLITE_START_MS);
 
+test('0016 is journaled after 0015 and lets Routeway in without touching the connections already stored', async () => {
+  const journal = JSON.parse(readFileSync(join(DIR, 'meta', '_journal.json'), 'utf8')) as { entries: { idx: number; tag: string; when: number }[] };
+  const entry = journal.entries.find((e) => e.idx === 16);
+  expect(entry).toMatchObject({ tag: '0016_routeway_provider' });
+  expect(entry?.when ?? 0).toBeGreaterThan(journal.entries.find((e) => e.idx === 15)?.when ?? Infinity);
+  const folder = mkdtempSync(join(tmpdir(), 'metro-routeway-'));
+  const client = new PGlite();
+  const db = drizzle(client, { schema });
+  try {
+    cpSync(DIR, folder, { recursive: true });
+    writeFileSync(join(folder, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.filter((e) => e.idx <= 15) }));
+    await migrate(db, { migrationsFolder: folder });
+    await db.insert(modelConnections).values(connection('conn0000001', TEST_OWNER, { secret: 'v1.sealed', revision: 3 }));
+    await refused(() => db.insert(modelConnections).values(connection('conn0000002', TEST_OWNER, { provider: 'routeway' })));
+    await migrate(db, { migrationsFolder: DIR });
+    await db.insert(modelConnections).values(connection('conn0000002', TEST_OWNER, { provider: 'routeway', label: 'Routeway' }));
+    await refused(() => db.insert(modelConnections).values(connection('conn0000003', TEST_OWNER, { provider: 'gemini' })));
+    const rows = await db.select().from(modelConnections).orderBy(modelConnections.id);
+    expect(rows.map((row) => [row.id, row.provider, row.secret, row.revision])).toEqual([['conn0000001', 'openrouter', 'v1.sealed', 3], ['conn0000002', 'routeway', null, 1]]);
+  } finally {
+    await client.close();
+    rmSync(folder, { recursive: true, force: true });
+  }
+}, PGLITE_START_MS);
+
 describe('the model tables', () => {
   test('one default per organization, one override per agent, and an override goes with its agent', async () => {
     await held.db.insert(modelRoutes).values(routeRow('route000001', null));

@@ -9,6 +9,7 @@ export interface ListedModel {
   name: string;
   price?: { prompt: number | null; completion: number | null };
   zdr?: boolean;
+  context?: number;
 }
 
 export class ListCache {

@@ -16,7 +16,7 @@ import { Rows } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
-import { ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, usesKey, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
+import { ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, ROUTEWAY_KEYS_URL, usesKey, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
 import { addOrgModel, updateOrgModel } from '@metro-labs/client/api/org-models';
 import { connectionPatch, type KeyDraft } from './model-view.js';
 import { providerInfo, providerLabel } from '@metro-labs/client/api/providers';
@@ -36,6 +36,7 @@ const STEPS: FocusStep[] = [
 function KeyHelp({ provider }: { provider: Provider }): ReactNode {
   if (provider === 'openrouter') return <TextLink size="xs" url={OPENROUTER_KEYS_URL}>Get a key from OpenRouter</TextLink>;
   if (provider === 'anthropic') return <TextLink size="xs" url={ANTHROPIC_KEYS_URL}>Get a key from the Anthropic Console</TextLink>;
+  if (provider === 'routeway') return <TextLink size="xs" url={ROUTEWAY_KEYS_URL}>Get a key from Routeway</TextLink>;
   return null;
 }
 
@@ -156,7 +157,7 @@ function Gate({ title, onClose, children }: { title: string; onClose: () => void
       ) : data === undefined ? (
         <RowsSkeleton rows={4} />
       ) : (
-        <StateBlock icon="sparkle" title="Admins only" text={MEMBER_NOTE} action={{ label: 'Back to Models', onPress: onClose }} />
+        <StateBlock icon="processor" title="Admins only" text={MEMBER_NOTE} action={{ label: 'Back to Models', onPress: onClose }} />
       )}
     </FocusFrame>
   );
@@ -192,7 +193,7 @@ function SignIn({ id, onClose }: { id: string; onClose: () => void }): ReactNode
   if (connection === undefined)
     return (
       <FocusFrame title="Model account" onClose={onClose}>
-        <StateBlock icon="sparkle" title="This account is gone" text="It is not in this organization any more." action={{ label: 'Back to Models', onPress: () => { go({ kind: 'org-models' }); } }} />
+        <StateBlock icon="processor" title="This account is gone" text="It is not in this organization any more." action={{ label: 'Back to Models', onPress: () => { go({ kind: 'org-models' }); } }} />
       </FocusFrame>
     );
   const sign = signInTitle(connection);

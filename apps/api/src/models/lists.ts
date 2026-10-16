@@ -7,6 +7,7 @@ import { modelKey, refreshDeps, type Caller, type ModelsDeps } from './deps.js';
 import { learnCodexVersion } from './codex-version.js';
 import { fingerprint, type ListedModel } from './list-cache.js';
 import { anthropicModels, bedrockModels, codexModels, KNOWN_CLAUDE, openrouterModels, subscriptionModels } from './provider-lists.js';
+import { routewayModels } from './routeway.js';
 
 const SIGNED_OUT = 'This Codex connection is signed out. Sign in again on the Models page.';
 
@@ -53,6 +54,7 @@ export async function listConnectionModels(deps: ModelsDeps, caller: Caller, id:
   const row = await deps.store.find(caller.owner, id);
   if (row === null) throw new ApiError('no such model connection', 404);
   if (row.provider === 'openrouter') return { models: await deps.lists.get('openrouter', () => openrouterModels(deps.fetch)) };
+  if (row.provider === 'routeway') return { models: await deps.lists.get('routeway', () => routewayModels(deps.fetch)) };
   if (row.provider === 'codex') return { models: await codexList(deps, key, row) };
   return { models: await keyedList(deps, key, row) };
 }

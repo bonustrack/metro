@@ -4,7 +4,7 @@ import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import { carriesCodeAndState, PROVIDERS, syncModel, toModelSettings, toServed, usageOf } from '../src/api/model.js';
-import { matchModels, priceLabel, toModelOptions } from '../src/api/model-options.js';
+import { contextLabel, matchModels, priceLabel, toModelOptions } from '../src/api/model-options.js';
 import { toRoute } from '../src/api/model-route.js';
 import { installTestAccount } from './account-fixture.js';
 
@@ -95,12 +95,12 @@ describe('what the Model page reads from the box', () => {
     expect(toModelSettings({ route: '', source: null, sync: { enrolled: false }, connections: [] }).sync).toEqual({ enrolled: false, at: null, error: null });
   });
 
-  test('a body without the route id and the connections list is refused, and the four providers are the known list', () => {
+  test('a body without the route id and the connections list is refused, and the five providers are the known list', () => {
     expect(() => toModelSettings({ ready: true })).toThrow(/unexpected/);
     expect(() => toModelSettings({ route: null, connections: [] })).toThrow(/unexpected/);
     expect(() => toModelSettings({ route: { primary: { connection: 'a', model: 'm' }, fallbacks: [] }, connections: [] })).toThrow(/unexpected/);
     expect(() => toModelSettings({ route: '' })).toThrow(/unexpected/);
-    expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex']);
+    expect(PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway']);
   });
 
   test('a route needs a primary, and every fallback needs a named model', () => {
@@ -165,6 +165,18 @@ describe('model lists', () => {
       { id: 'e', name: 'e', price: '$3 in · $15 out per 1M', zdr: null },
     ]);
     expect(() => toModelOptions({})).toThrow(/unexpected/);
+  });
+
+  test('a context window reads in thousands or millions of tokens, and only when the list gives one', () => {
+    expect(contextLabel(1_050_000)).toBe('1.05M context');
+    expect(contextLabel(1_000_000)).toBe('1M context');
+    expect(contextLabel(131_072)).toBe('131K context');
+    expect(contextLabel(0)).toBe('');
+    expect(contextLabel('200000')).toBe('');
+    expect(toModelOptions({ models: [{ id: 'claude-sonnet-5.5', name: 'Claude Sonnet 5.5', price: { prompt: 0.000002, completion: 0.00001 }, context: 1_000_000 }, { id: 'x' }] })).toEqual([
+      { id: 'claude-sonnet-5.5', name: 'Claude Sonnet 5.5', price: '$2 in · $10 out per 1M', zdr: null, context: '1M context' },
+      { id: 'x', name: 'x', price: '', zdr: null },
+    ]);
   });
 });
 

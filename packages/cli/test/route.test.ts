@@ -45,6 +45,8 @@ describe('the model route metro tells Claude Code about', () => {
     expect(currentModel(dir)).toBe('claude-opus-5-5');
     write('c1', [{ id: 'c1', provider: 'bedrock', model: 'eu.anthropic.claude-sonnet-5-5' }]);
     expect(currentModel(dir)).toBe('bedrock:eu.anthropic.claude-sonnet-5-5');
+    write('c1', [{ id: 'c1', provider: 'routeway', model: 'deepseek-v4-flash:free' }]);
+    expect(currentModel(dir)).toBe('routeway:deepseek-v4-flash:free');
     write('c1', [{ id: 'c1', provider: 'anthropic', model: '' }]);
     expect(currentModel(dir)).toBeNull();
     write('c1', [{ id: 'c1', provider: 'mars', model: 'x' }]);
