@@ -1,11 +1,10 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { type Selection } from '@metro-labs/client/selection';
-import { BootLog } from './BootLog.js';
 import { DeleteServerSection } from './DeleteServer.js';
 import { Icon } from './Icon.js';
 import { ServerResources } from './ServerResources.js';
@@ -16,8 +15,9 @@ import { shortVersion } from '../lib/agent-line.js';
 import { useLatestUsageQuery, useServerStatus, useServersQuery } from '../lib/queries.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 import { useBootingState } from '../lib/use-launch.js';
+import { go } from '../lib/nav.js';
 
-const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings'];
+const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings', 'launch-log'];
 
 export const worksOffline = (kind: Selection['kind']): boolean => OFFLINE_PAGES.includes(kind);
 
@@ -53,14 +53,10 @@ function useChecks(server: Server | undefined): Check[] {
 }
 
 function GettingReady({ server, state }: { server: Server; state: string }): ReactNode {
-  const [log, setLog] = useState<Server | null>(null);
   const step = state === 'running' ? 'Installing Metro' : 'Starting the server';
   return (
-    <>
-      <StateBlock spinner title={`${serverLabel(server)} is getting ready`} text={`${step}. You can close this page.`}
-        action={{ label: 'See progress', onPress: () => { setLog(server); } }} />
-      <BootLog server={log} onClose={() => { setLog(null); }} />
-    </>
+    <StateBlock spinner title={`${serverLabel(server)} is getting ready`} text={`${step}. You can close this page.`}
+      action={{ label: 'See progress', onPress: () => { go({ kind: 'launch-log', project: server.id }); } }} />
   );
 }
 

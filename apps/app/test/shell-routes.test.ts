@@ -4,6 +4,7 @@ import type { Selection } from '@metro-labs/client/selection';
 import { configurePlatform, memoryKeyValue } from '@metro-labs/client/platform';
 import { AGENT_TABS, agentPageOf, agentTabOf, isDeepPage, isPageRoot, shallowPages, type AgentTabId } from '../src/lib/agent-tabs.ts';
 import { isTabRoot, phoneBackOf, phoneTabOf, shellSectionOf } from '../src/lib/shell-sections.ts';
+import { isFocusPage } from '../src/lib/focus-pages.ts';
 import { setTechnicalDetails, technicalDetails } from '../src/lib/technical.ts';
 
 const AGENT = 'aB3-_xYz9Qw';
@@ -30,6 +31,14 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/server', 'settings', 'Server'],
   ['/terminal', 'settings', 'Terminal'],
   ['/run', 'home', 'Right now'],
+  ['/run/event/e04bd134128bfb68', 'home', 'Right now'],
+  ['/chats/add', 'chats', 'Add a chat'],
+  ['/chats/add/telegram-bot', 'chats', 'Add a chat'],
+  ['/skills/github', 'memory', 'GitHub skills'],
+  ['/secrets/recent', 'tools', 'Recent use'],
+  ['/profile', 'settings', 'Profile'],
+  ['/backup', 'settings', 'Backup'],
+  ['/launch-log', 'settings', 'Launch log'],
 ];
 
 describe('every page of an agent has a place under one of its five tabs', () => {
@@ -91,6 +100,13 @@ describe('every page of an agent has a place under one of its five tabs', () => 
       { kind: 'claude', project: AGENT },
       { kind: 'server', project: AGENT },
       { kind: 'run', project: AGENT },
+      { kind: 'run', project: AGENT, view: 'helper', id: 'task-1' },
+      { kind: 'backup', project: AGENT },
+      { kind: 'agent-profile', project: AGENT },
+      { kind: 'launch-log', project: AGENT },
+      { kind: 'skills-github', project: AGENT },
+      { kind: 'secrets-recent', project: AGENT },
+      { kind: 'add-chat', project: AGENT },
     ];
     for (const selection of deep) expect(isDeepPage(selection)).toBe(true);
     const shallow: Selection[] = [
@@ -134,6 +150,30 @@ describe('the shell knows its section and what a phone shows', () => {
     expect(phoneBackOf({ kind: 'org-model', id: AGENT })).toEqual({ kind: 'org-models' });
     expect(shellSectionOf({ kind: 'org-model', id: AGENT })).toBe('models');
     expect(phoneBackOf({ kind: 'settings' })).toEqual({ kind: 'organization' });
+  });
+});
+
+describe('setup flows open full screen, like the launch', () => {
+  test('adding a chat, a model account or an AWS account is a focus page, and nothing else is', () => {
+    const focus: Selection[] = [
+      { kind: 'add-chat', project: AGENT },
+      { kind: 'add-chat', project: AGENT, station: 'xmtp' },
+      { kind: 'org-model-add' },
+      { kind: 'org-model-add', provider: 'codex' },
+      { kind: 'org-model-sign-in', id: AGENT },
+      { kind: 'org-aws' },
+    ];
+    for (const selection of focus) expect(isFocusPage(selection)).toBe(true);
+    const shell: Selection[] = [{ kind: 'chats', project: AGENT }, { kind: 'backup', project: AGENT }, { kind: 'run', project: AGENT, view: 'session' }, { kind: 'org-models' }, { kind: 'organization' }, { kind: 'launch' }];
+    for (const selection of shell) expect(isFocusPage(selection)).toBe(false);
+  });
+
+  test('a focus page belongs to its section and goes back to where it was opened from', () => {
+    expect(shellSectionOf({ kind: 'org-model-add' })).toBe('models');
+    expect(shellSectionOf({ kind: 'org-aws' })).toBe('organization');
+    expect(phoneBackOf({ kind: 'org-model-add', provider: 'codex' })).toEqual({ kind: 'org-models' });
+    expect(phoneBackOf({ kind: 'org-model-sign-in', id: AGENT })).toEqual({ kind: 'org-model', id: AGENT });
+    expect(phoneBackOf({ kind: 'org-aws' })).toEqual({ kind: 'organization' });
   });
 });
 

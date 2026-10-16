@@ -25,6 +25,9 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   'org-models': 'models',
   'org-route': 'models',
   'org-model': 'models',
+  'org-model-add': 'models',
+  'org-model-sign-in': 'models',
+  'org-aws': 'organization',
   organization: 'organization',
   members: 'organization',
 };
@@ -50,6 +53,7 @@ export function phoneBackOf(selection: Selection): Selection | null {
   if (isTabRoot(selection)) return null;
   if ('project' in selection) return { kind: 'servers' };
   if (selection.kind === 'org-connector') return { kind: 'org-connectors' };
-  if (selection.kind === 'org-route' || selection.kind === 'org-model') return { kind: 'org-models' };
+  if (selection.kind === 'org-model-sign-in') return { kind: 'org-model', id: selection.id };
+  if (selection.kind === 'org-route' || selection.kind === 'org-model' || selection.kind === 'org-model-add') return { kind: 'org-models' };
   return { kind: 'organization' };
 }

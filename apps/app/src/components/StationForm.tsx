@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../lib/style.js';
@@ -14,6 +13,7 @@ import {
 import { gmailConnectFields, gmailForm, type GmailMode } from '@metro-labs/client/api/gmail';
 import { Choice } from './Choice.js';
 import { LinkedText } from './LinkedText.js';
+import { Actions } from './ui/Actions.js';
 
 const inputType = (field: AttachField): 'password' | 'number' | 'tel' | 'text' =>
   field.secret ? 'password' : field.kind;
@@ -63,9 +63,9 @@ export function StationForm(props: StationFormProps): ReactNode {
   };
 
   return (
-    <Col gap={14}>
-      <Col gap={2}>
-        <Text size="md" weight="semibold">{stationLabel(station)}</Text>
+    <Col gap={24}>
+      <Col gap={8}>
+        <Text accessibilityRole="header" size="2xl" weight="semibold">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
       </Col>
       {station !== 'gmail' || !gmailManaged ? null : (
@@ -94,28 +94,11 @@ export function StationForm(props: StationFormProps): ReactNode {
               onSubmit={submit}
               style={GROW}
             />
-            {field.hint === undefined ? null : <Text size="md" role="secondary">{field.hint}</Text>}
+            {field.hint === undefined ? null : <Text size="xs" role="secondary">{field.hint}</Text>}
           </Col>
         ))}
       </Col>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
-      <Row justify="between" align="center" gap={12} wrap>
-        <Button
-          color="secondary"
-          dark={dark}
-          onPress={onBack}
-          disabled={busy}
-          label="Back"
-        />
-        <Button size="lg"
-          color="primary"
-          dark={dark}
-          onPress={submit}
-          loading={busy}
-          disabled={busy || !complete}
-          label={submitLabel(form)}
-        />
-      </Row>
+      <Actions error={error} cancel={{ label: 'Back', onPress: onBack, disabled: busy }} main={{ label: submitLabel(form), busy, disabled: !complete, onPress: submit }} />
     </Col>
   );
 }

@@ -1,36 +1,41 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { Col } from '@stage-labs/kit/react-native/box';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Switch } from '@stage-labs/kit/react-native/switch';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { FormField } from './FormField.js';
-import { Modal } from './Modal.js';
-import { Icon } from './Icon.js';
 import { ClaudeConnect } from './ClaudeConnect.js';
 import { CodexConnect } from './CodexConnect.js';
 import { OpenRouterConnect } from './OpenRouterConnect.js';
 import { ProviderChoices } from './ProviderChoices.js';
 import { TextLink } from './TextLink.js';
-import { ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, usesKey, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
+import { Actions } from './ui/Actions.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { FocusFrame, FocusIntro, type FocusStep } from './ui/FocusFrame.js';
+import { Rows } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { StateBlock } from './ui/StateBlock.js';
+import { ANTHROPIC_KEYS_URL, OPENROUTER_KEYS_URL, PROVIDERS, usesKey, type ConnectionRow, type Provider } from '@metro-labs/client/api/model';
 import { addOrgModel, updateOrgModel } from '@metro-labs/client/api/org-models';
 import { connectionPatch, type KeyDraft } from './model-view.js';
 import { providerInfo, providerLabel } from '@metro-labs/client/api/providers';
 import { queryError } from '../lib/queries.js';
-import { afterModelChange } from '../lib/model-queries.js';
+import { afterModelChange, useOrgModelsQuery } from '../lib/model-queries.js';
+import { signInTitle } from '../lib/model-words.js';
+import { go } from '../lib/nav.js';
 import { GROW } from '../lib/style.js';
 
 const ZDR_NOTE = 'Only OpenRouter providers that keep no prompts. A model with no such provider stops answering.';
-
-export interface Editing {
-  provider: Provider | null;
-  connection: ConnectionRow | null;
-}
+const MEMBER_NOTE = 'Only an admin of the organization can change the accounts.';
+const STEPS: FocusStep[] = [
+  { id: 'provider', label: 'Provider' },
+  { id: 'connect', label: 'Connect' },
+];
 
 function KeyHelp({ provider }: { provider: Provider }): ReactNode {
-  if (provider === 'openrouter') return <TextLink size="md" url={OPENROUTER_KEYS_URL}>Get a key from OpenRouter</TextLink>;
-  if (provider === 'anthropic') return <TextLink size="md" url={ANTHROPIC_KEYS_URL}>Get a key from the Anthropic Console</TextLink>;
+  if (provider === 'openrouter') return <TextLink size="xs" url={OPENROUTER_KEYS_URL}>Get a key from OpenRouter</TextLink>;
+  if (provider === 'anthropic') return <TextLink size="xs" url={ANTHROPIC_KEYS_URL}>Get a key from the Anthropic Console</TextLink>;
   return null;
 }
 
@@ -80,17 +85,13 @@ const draftOf = (row: ConnectionRow | null): KeyDraft => ({ label: row?.label ??
 const keyStored = (row: ConnectionRow | null): boolean => row !== null && !row.signedOut;
 
 function ConnectionForm({ provider, row, withKey, onDone }: { provider: Provider; row: ConnectionRow | null; withKey: boolean; onDone: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState<KeyDraft>(() => draftOf(row));
   const { busy, error, save } = useSaveDraft(provider, row, onDone);
   const missingKey = row === null && withKey && draft.key.trim() === '';
   return (
-    <Col gap={12}>
+    <Col gap={16}>
       <KeyFields provider={provider} stored={keyStored(row)} withKey={withKey} draft={draft} setDraft={setDraft} />
-      <Row gap={12} align="center" wrap>
-        <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || missingKey} onPress={() => { save(draft); }} />
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      </Row>
+      <Actions error={error} main={{ label: busy ? 'Saving…' : 'Save', busy, disabled: missingKey, onPress: () => { save(draft); } }} />
     </Col>
   );
 }
@@ -111,31 +112,23 @@ function ZdrSwitch({ row }: { row: ConnectionRow }): ReactNode {
       });
   };
   return (
-    <Col gap={6} padding={12} radius={10} surface="raised">
-      <Row align="center" gap={12}>
-        <Icon name="shieldCheck" size={18} color={useKitPalette().link} />
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text size="xs" weight="medium">Zero data retention</Text>
-          <Text size="md" role="secondary">{ZDR_NOTE}</Text>
-        </Col>
-        <Switch name="Zero data retention" checked={on} dark={dark} onChange={change} />
-      </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </Col>
+    <Rows>
+      <Item title="Zero data retention" subtitle={error ?? ZDR_NOTE} subtitleTone={error === null ? 'secondary' : 'danger'} trailing={<Switch name="Zero data retention" checked={on} dark={dark} onChange={change} />} />
+    </Rows>
   );
 }
 
 function Body({ provider, row, onDone }: { provider: Provider; row: ConnectionRow | null; onDone: () => void }): ReactNode {
   if (provider === 'codex')
     return (
-      <Col gap={20}>
+      <Col gap={32}>
         {row === null ? null : <ConnectionForm provider={provider} row={row} withKey={false} onDone={onDone} />}
         <CodexConnect codex={row} onDone={onDone} />
       </Col>
     );
   if (provider === 'anthropic' && row?.subscription === true)
     return (
-      <Col gap={20}>
+      <Col gap={32}>
         <ConnectionForm provider={provider} row={row} withKey={false} onDone={onDone} />
         <ClaudeConnect connection={row} onDone={onDone} />
       </Col>
@@ -144,43 +137,80 @@ function Body({ provider, row, onDone }: { provider: Provider; row: ConnectionRo
   if (provider === 'anthropic' && row === null) return <ClaudeConnect connection={null} onDone={onDone}>{form}</ClaudeConnect>;
   if (provider !== 'openrouter') return form;
   return (
-    <Col gap={20}>
+    <Col gap={32}>
       {row === null ? null : <ZdrSwitch row={row} />}
       <OpenRouterConnect connection={row} onDone={onDone}>{form}</OpenRouterConnect>
     </Col>
   );
 }
 
-function AddFlow({ onDone }: { onDone: () => void }): ReactNode {
-  const [provider, setProvider] = useState<Provider | null>(null);
-  if (provider === null) return <ProviderChoices onPick={setProvider} />;
+const knownProvider = (raw: string | undefined): Provider | null => PROVIDERS.find((p) => p.id === raw)?.id ?? null;
+
+function Gate({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }): ReactNode {
+  const { data, error, refetch } = useOrgModelsQuery();
+  if (data !== undefined && data.admin) return children;
   return (
-    <Col gap={16}>
-      <Text size="xs" weight="medium">{providerLabel(provider)}</Text>
-      <Text size="md" role="secondary">{providerInfo(provider)?.blurb ?? ''}</Text>
-      <Body provider={provider} row={null} onDone={onDone} />
-      <Row>
-        <TextLink size="md" onPress={() => { setProvider(null); }}>Choose another provider</TextLink>
-      </Row>
-    </Col>
+    <FocusFrame title={title} onClose={onClose}>
+      {error !== null ? (
+        <ErrorState title="Could not load the models" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
+      ) : data === undefined ? (
+        <RowsSkeleton rows={4} />
+      ) : (
+        <StateBlock icon="sparkle" title="Admins only" text={MEMBER_NOTE} action={{ label: 'Back to Models', onPress: onClose }} />
+      )}
+    </FocusFrame>
   );
 }
 
-export function ProviderModal({ editing, onClose }: { editing: Editing | null; onClose: () => void }): ReactNode {
-  if (editing === null) return null;
-  const { provider, connection } = editing;
-  if (provider === null || connection === null)
-    return (
-      <Modal title="Add an account" open onClose={onClose}>
-        <AddFlow onDone={onClose} />
-      </Modal>
-    );
+export function AddModelAccountPage({ provider: raw }: { provider?: string }): ReactNode {
+  const provider = knownProvider(raw);
+  const close = (): void => {
+    go({ kind: 'org-models' });
+  };
   return (
-    <Modal title={connection.label === '' ? providerLabel(provider) : connection.label} open onClose={onClose}>
-      <Col gap={16}>
-        <Text size="md" role="secondary">{providerInfo(provider)?.blurb ?? ''}</Text>
-        <Body key={connection.id} provider={provider} row={connection} onDone={onClose} />
-      </Col>
-    </Modal>
+    <Gate title="Add a model account" onClose={close}>
+      <FocusFrame title="Add a model account" onClose={close} steps={STEPS} step={provider === null ? 'provider' : 'connect'} onStep={() => { go({ kind: 'org-model-add' }); }}>
+          {provider === null ? (
+            <>
+              <FocusIntro title="Where do the models come from?" text="Pick a provider. Every agent of the organization can use the account." />
+              <ProviderChoices />
+            </>
+          ) : (
+            <>
+              <FocusIntro title={providerLabel(provider)} text={providerInfo(provider)?.blurb} />
+              <Body provider={provider} row={null} onDone={close} />
+            </>
+          )}
+      </FocusFrame>
+    </Gate>
+  );
+}
+
+function SignIn({ id, onClose }: { id: string; onClose: () => void }): ReactNode {
+  const { data } = useOrgModelsQuery();
+  const connection = data?.connections.find((c) => c.id === id);
+  if (connection === undefined)
+    return (
+      <FocusFrame title="Model account" onClose={onClose}>
+        <StateBlock icon="sparkle" title="This account is gone" text="It is not in this organization any more." action={{ label: 'Back to Models', onPress: () => { go({ kind: 'org-models' }); } }} />
+      </FocusFrame>
+    );
+  const sign = signInTitle(connection);
+  return (
+    <FocusFrame title={connection.label === '' ? providerLabel(connection.provider) : connection.label} onClose={onClose}>
+      <FocusIntro title={sign.title} text={sign.subtitle} />
+      <Body key={connection.id} provider={connection.provider} row={connection} onDone={onClose} />
+    </FocusFrame>
+  );
+}
+
+export function ModelSignInPage({ id }: { id: string }): ReactNode {
+  const close = (): void => {
+    go({ kind: 'org-model', id });
+  };
+  return (
+    <Gate title="Model account" onClose={close}>
+      <SignIn id={id} onClose={close} />
+    </Gate>
   );
 }

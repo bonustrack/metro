@@ -51,3 +51,15 @@ export function relatedEntries(entry: RunEntry, entries: RunEntry[]): RunEntry[]
     || (other.replyTo !== undefined && ids.has(other.replyTo))
   )).sort((a, b) => a.at - b.at);
 }
+
+const FNV_PRIME = 0x01000193;
+
+function fnv(text: string, seed: number): string {
+  let hash = seed;
+  for (let at = 0; at < text.length; at += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(at), FNV_PRIME) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+export const runKey = (id: string): string => `${fnv(id, 0x811c9dc5)}${fnv(id, 0x9e3779b9)}`;

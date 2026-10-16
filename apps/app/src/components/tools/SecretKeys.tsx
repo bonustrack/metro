@@ -4,12 +4,14 @@ import { Switch } from '@stage-labs/kit/react-native/switch';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { changeVault, fetchVault, type Vault, type VaultSecret } from '@metro-labs/client/api/vault';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { currentServer } from '@metro-labs/client/auth/daemon';
+import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
 import { Loading } from '../Loading.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { StateBlock } from '../ui/StateBlock.js';
-import { KeyModal, RecentModal, useDeleteKey } from './KeyModals.js';
+import { KeyModal, useDeleteKey } from './KeyModals.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError, useBoxQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
@@ -88,7 +90,6 @@ function AddRow({ onPress }: { onPress: () => void }): ReactNode {
 
 function Keys({ vault, set }: { vault: Vault; set: (v: Vault) => void }): ReactNode {
   const [form, setForm] = useState<VaultSecret | 'new' | null>(null);
-  const [recent, setRecent] = useState(false);
   const removal = useDeleteKey(set);
   const saved = (v: Vault): void => {
     set(v);
@@ -99,11 +100,10 @@ function Keys({ vault, set }: { vault: Vault; set: (v: Vault) => void }): ReactN
       <ProtectRow vault={vault} onChanged={set} />
       {vault.secrets.map((s) => <KeyRow key={s.id} vault={vault} secret={s} onOpen={() => { setForm(s); }} />)}
       <AddRow onPress={() => { setForm('new'); }} />
-      {vault.enabled && vault.recent.length > 0 ? <Item title="Recent use" subtitle="What went out through Metro lately" onPress={() => { setRecent(true); }} /> : null}
+      {vault.enabled && vault.recent.length > 0 ? <Item title="Recent use" subtitle="What went out through Metro lately" href={routeHash({ kind: 'secrets-recent', project: currentServer()?.id ?? '' })} /> : null}
       {form === null ? null : (
         <KeyModal editing={form} onSaved={saved} onClose={() => { setForm(null); }} onDelete={(secret) => { setForm(null); removal.ask(secret); }} />
       )}
-      {recent ? <RecentModal vault={vault} onClose={() => { setRecent(false); }} /> : null}
       {removal.dialog}
     </>
   );

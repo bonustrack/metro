@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { awaitRestart, awaitStopped, restartDaemon, stopDaemon } from '@metro-labs/client/api/control';
-import { ConfirmModal } from '../ConfirmModal.js';
 import { Item } from '../ui/Item.js';
 import { AskDialog } from './AskDialog.js';
 import { queryError } from '../../lib/queries.js';
@@ -74,7 +73,8 @@ export function usePower(): Power {
   };
 }
 
-const STOP_LINES = ['Your agent stops answering on every channel until Metro starts again.', 'To start it again, open the agent from the agent list and press Start on its page.'];
+const RESTART_LINES = ['Metro turns off and on again, and your agent is back in about a minute.'];
+const STOP_LINES = ['Your agent stops answering on every channel until you press Start on its page.'];
 
 export function PowerDialogs({ power, name }: { power: Power; name: string }): ReactNode {
   return (
@@ -82,19 +82,18 @@ export function PowerDialogs({ power, name }: { power: Power; name: string }): R
       <AskDialog
         open={power.asking === 'restart'}
         title={`Restart ${name}?`}
-        lines={['Metro turns off and on again. Your agent is back in about a minute.']}
+        lines={RESTART_LINES}
         action="Restart"
         busy={power.phase === 'restarting'}
         error={power.asking === 'restart' ? power.error : null}
         onClose={power.close}
         onConfirm={power.restart}
       />
-      <ConfirmModal
+      <AskDialog
         open={power.asking === 'stop'}
-        title={`Stop ${name}`}
+        title={`Stop ${name}?`}
         lines={STOP_LINES}
-        confirmWord="stop"
-        confirmLabel="Stop Metro"
+        action="Stop"
         busy={power.phase === 'stopping'}
         error={power.asking === 'stop' ? power.error : null}
         onClose={power.close}

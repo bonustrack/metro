@@ -56,6 +56,7 @@ function Backups({ items, who, edit }: { items: ModelOrderItem[]; who: string; e
 }
 
 export function RouteOrder({ items, who, mainNote, error = null, edit }: RouteOrderProps): ReactNode {
+  if (edit !== undefined && edit.control.slot !== null) return <RouteEditor scope={edit.scope} slot={edit.control.slot} onClose={edit.control.close} />;
   const [main, ...backups] = items;
   const problem = edit?.control.error ?? error;
   return (
@@ -65,7 +66,6 @@ export function RouteOrder({ items, who, mainNote, error = null, edit }: RouteOr
         {problem === null ? null : <NoteRow text={problem} danger />}
       </Group>
       {main === undefined ? null : <Backups items={backups} who={who} edit={edit} />}
-      {edit === undefined ? null : <RouteEditor scope={edit.scope} slot={edit.control.slot} onClose={edit.control.close} />}
     </>
   );
 }
