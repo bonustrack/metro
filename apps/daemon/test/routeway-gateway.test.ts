@@ -6,7 +6,7 @@ import { BINDING_BETA } from '../src/gateway/effort.ts';
 import { resolveRoute, runnerModel, type ModelSetup } from '../src/gateway/model-config.ts';
 import { connectionId, makeConnection, setupOf } from './model-fixture.ts';
 
-const KEY = 'sk-routeway-test-key';
+const KEY = 'routeway-test-key';
 const ROUTEWAY = connectionId('routeway');
 
 interface Seen {
@@ -144,7 +144,7 @@ describe('a Routeway connection', () => {
   });
 
   test('a key Routeway refuses is answered 403, never 401', async () => {
-    cfg.connections[0] = makeConnection('routeway', { apiKey: 'sk-revoked', model: 'claude-sonnet-5.5' });
+    cfg.connections[0] = makeConnection('routeway', { apiKey: 'routeway-revoked-key', model: 'claude-sonnet-5.5' });
     const res = await send('/v1/messages', ask('routeway:claude-sonnet-5.5'));
     expect(res.status).toBe(403);
     expect(((await res.json()) as { error: { message: string } }).error.message).toBe('Invalid API key');

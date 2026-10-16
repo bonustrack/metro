@@ -6,8 +6,8 @@ import { auth, TEST_OWNER } from './identity-helper.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { json, provider, startApi, type Api, type Provider, type Reply } from './org-models-fixture.ts';
 
-const KEY = 'sk-routeway-0123456789abcdef0123456789';
-const NEW_KEY = 'sk-routeway-fedcba9876543210fedcba9876';
+const KEY = 'routeway-test-key';
+const NEW_KEY = 'routeway-other-key';
 const COUNT = 'POST https://api.routeway.ai/v1/messages/count_tokens';
 const MODELS = 'GET https://api.routeway.ai/v1/models';
 const TOKENS = { input_tokens: 8 };
