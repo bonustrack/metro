@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
-import { Text } from '@stage-labs/kit/react-native/text';
+import { Actions } from './ui/Actions.js';
 import { changeVault, envNameOf, hostsOf, type Vault, type VaultSecret } from '@metro-labs/client/api/vault';
 import { queryError } from '../lib/queries.js';
 
@@ -70,11 +69,9 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
         dark={dark}
         onChangeText={edit('value')}
       />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      <Row gap={8} wrap>
-        <Button size="lg" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
-        <Button size="lg" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
-      </Row>
+      <Col margin={{ top: 8 }}>
+        <Actions error={error} cancel={{ onPress: onCancel, disabled: busy }} main={{ label: busy ? 'Saving…' : 'Save', busy, disabled: !complete(editing, draft), onPress: save }} />
+      </Col>
     </Col>
   );
 }

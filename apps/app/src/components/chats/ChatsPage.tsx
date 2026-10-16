@@ -1,9 +1,7 @@
-import { type ReactNode, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { flattenAccounts, type FlatAccount } from '@metro-labs/client/api/accounts';
-import { ConnectStation } from '../ConnectStation.js';
 import { Icon } from '../Icon.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
@@ -14,7 +12,8 @@ import { ChannelRow } from './ChannelRow.js';
 import { RecentConversations } from './RecentConversations.js';
 import { useReceive } from './use-receive.js';
 import { VoiceRow } from './VoiceRow.js';
-import { queryError, refreshAgents, useStationsQuery } from '../../lib/queries.js';
+import { go } from '../../lib/nav.js';
+import { queryError, useStationsQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 
@@ -64,9 +63,7 @@ function Channels({ project, agentId, accounts, onAdd }: ChannelsProps): ReactNo
 }
 
 export function ChatsPage({ project }: { project: string }): ReactNode {
-  const client = useQueryClient();
   const { data, error, refetch } = useStationsQuery();
-  const [adding, setAdding] = useState(false);
   useDocumentTitle('Chats');
   if (data === undefined)
     return (
@@ -79,17 +76,9 @@ export function ChatsPage({ project }: { project: string }): ReactNode {
   const accounts = flattenAccounts(data.groups);
   return (
     <Groups>
-      <Channels project={project} agentId={agent.id} accounts={accounts} onAdd={() => { setAdding(true); }} />
+      <Channels project={project} agentId={agent.id} accounts={accounts} onAdd={() => { go({ kind: 'add-chat', project }); }} />
       <VoiceRow project={project} agentId={agent.id} accounts={accounts} />
       <RecentConversations project={project} />
-      <ConnectStation
-        agentId={agent.id}
-        attachable={data.attachable}
-        features={data.features}
-        open={adding}
-        onClose={() => { setAdding(false); }}
-        onChanged={() => { refreshAgents(client); }}
-      />
     </Groups>
   );
 }

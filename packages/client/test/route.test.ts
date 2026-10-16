@@ -177,6 +177,57 @@ describe('the first segment is the daemon', () => {
   });
 });
 
+describe('pages that replaced dialogs have their own addresses', () => {
+  const agent = 'aB3-_xYz9Qw';
+
+  test('every agent page round-trips', () => {
+    const cases: Selection[] = [
+      { kind: 'add-chat', project: agent },
+      { kind: 'add-chat', project: agent, station: 'telegram-bot' },
+      { kind: 'backup', project: agent },
+      { kind: 'agent-profile', project: agent },
+      { kind: 'launch-log', project: agent },
+      { kind: 'skills-github', project: agent },
+      { kind: 'secrets-recent', project: agent },
+      { kind: 'run', project: agent, view: 'session' },
+      { kind: 'run', project: agent, view: 'about' },
+      { kind: 'run', project: agent, view: 'helper', id: 'task-1' },
+      { kind: 'run', project: agent, view: 'event', id: '3f9a2b1c7d4e5f60' },
+    ];
+    for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
+    expect(routeHash({ kind: 'run', project: agent, view: 'event', id: 'k_9-x' })).toEndWith(`/${agent}/run/event/k_9-x`);
+    expect(routeHash({ kind: 'add-chat', project: agent, station: 'xmtp' })).toEndWith(`/${agent}/chats/add/xmtp`);
+  });
+
+  test('a run detail without what it names opens the run page', () => {
+    expect(routeSelection(`#/${agent}/run/helper`)).toEqual({ kind: 'run', project: agent });
+    expect(routeSelection(`#/${agent}/run/session/x`)).toEqual({ kind: 'run', project: agent });
+    expect(routeSelection(`#/${agent}/run/event/a%20b`)).toEqual({ kind: 'none' });
+    expect(routeSelection(`#/${agent}/run/other`)).toEqual({ kind: 'none' });
+    expect(routeSelection(`#/${agent}/chats/add/Bad Station`)).toEqual({ kind: 'none' });
+  });
+
+  test('the organization pages round-trip', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const cases: Selection[] = [{ kind: 'org-model-add' }, { kind: 'org-model-add', provider: 'codex' }, { kind: 'org-model-sign-in', id: agent }, { kind: 'org-aws' }];
+    for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
+    expect(routeHash({ kind: 'org-aws' })).toBe('#/stage-labs/organization/aws');
+    expect(routeHash({ kind: 'org-model-add', provider: 'openrouter' })).toBe('#/stage-labs/organization/models/add/openrouter');
+    expect(routeHash({ kind: 'org-model-sign-in', id: agent })).toBe(`#/stage-labs/organization/models/${agent}/sign-in`);
+    expect(routeSelection('#/stage-labs/organization/models/add')).toEqual({ kind: 'org-model-add' });
+    routeSelection('#/settings');
+  });
+
+  test('switching agents from one of them lands on its tab', () => {
+    const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));
+    expect(on({ kind: 'add-chat', project: agent, station: 'xmtp' })).toBe('#/suzy00000001/chats');
+    expect(on({ kind: 'backup', project: agent })).toBe('#/suzy00000001/settings');
+    expect(on({ kind: 'skills-github', project: agent })).toBe('#/suzy00000001/skills');
+    expect(on({ kind: 'secrets-recent', project: agent })).toBe('#/suzy00000001/tools');
+    expect(on({ kind: 'run', project: agent, view: 'helper', id: 'x' })).toBe('#/suzy00000001/run');
+  });
+});
+
 describe('switching server keeps the page', () => {
   test('a page of the box carries over, and anything that names a thing on the old box falls back to its list', () => {
     const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));

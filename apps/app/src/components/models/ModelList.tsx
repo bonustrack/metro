@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -8,7 +8,6 @@ import { providerInfo } from '@metro-labs/client/api/providers';
 import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
 import { ProviderLogo } from '../ProviderLogo.js';
-import { ProviderModal, type Editing } from '../ProviderModal.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { RoundButton } from '../ui/RoundButton.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
@@ -25,6 +24,7 @@ import { useConnectorScope } from '../../lib/org-connector-queries.js';
 import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { go } from '../../lib/nav.js';
 
 const ICON = 24;
 
@@ -117,13 +117,7 @@ function PageBody(): ReactNode {
 }
 
 export function AddAccount(): ReactNode {
-  const [editing, setEditing] = useState<Editing | null>(null);
-  return (
-    <>
-      <RoundButton label="Add an account" icon="plus" onPress={() => { setEditing({ provider: null, connection: null }); }} />
-      <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
-    </>
-  );
+  return <RoundButton label="Add an account" icon="plus" onPress={() => { go({ kind: 'org-model-add' }); }} />;
 }
 
 function useAdmin(): boolean {

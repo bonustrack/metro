@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
@@ -9,7 +9,6 @@ import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { KebabMenu } from '../KebabMenu.js';
-import { ProviderModal, type Editing } from '../ProviderModal.js';
 import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl } from '../route-actions.js';
 import { Group, Groups } from '../ui/Group.js';
@@ -27,6 +26,7 @@ import { agentsWord, namesLine, routeSummary } from '../../lib/model-words.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
 import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { go } from '../../lib/nav.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can change the models.';
 const NO_ACCOUNT = 'Add a Claude subscription, ChatGPT, OpenRouter, an Anthropic key or Amazon Bedrock first. Then choose the model every agent uses.';
@@ -88,13 +88,7 @@ function RemoveMenu(): ReactNode {
 }
 
 function NoAccount({ admin }: { admin: boolean }): ReactNode {
-  const [editing, setEditing] = useState<Editing | null>(null);
-  return (
-    <>
-      <StateBlock icon="sparkle" title="No account yet" text={NO_ACCOUNT} action={admin ? { label: 'Add an account', primary: true, onPress: () => { setEditing({ provider: null, connection: null }); } } : undefined} />
-      <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
-    </>
-  );
+  return <StateBlock icon="sparkle" title="No account yet" text={NO_ACCOUNT} action={admin ? { label: 'Add an account', primary: true, onPress: () => { go({ kind: 'org-model-add' }); } } : undefined} />;
 }
 
 function Body(): ReactNode {

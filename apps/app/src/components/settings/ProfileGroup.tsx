@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react';
+import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Switch } from '@stage-labs/kit/react-native/switch';
@@ -10,7 +11,6 @@ import { activeAccount } from '@metro-labs/client/auth/account';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
-import { ProfileModal } from './ProfileModal.js';
 import { queryError, refresh, useClaudeSetupQuery } from '../../lib/queries.js';
 import { SHRINK } from '../../lib/style.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
@@ -74,25 +74,10 @@ function NameValue({ server }: { server: Server }): ReactNode {
 }
 
 export function ProfileGroup({ server }: { server: Server }): ReactNode {
-  const [open, setOpen] = useState(false);
   return (
     <Group label="Profile">
-      <Item
-        title="Name and picture"
-        trailing={<NameValue server={server} />}
-        chevron
-        onPress={() => {
-          setOpen(true);
-        }}
-      />
+      <Item title="Name, picture and web address" trailing={<NameValue server={server} />} chevron href={routeHash({ kind: 'agent-profile', project: server.id })} />
       <PauseRow />
-      <ProfileModal
-        server={server}
-        open={open}
-        onClose={() => {
-          setOpen(false);
-        }}
-      />
     </Group>
   );
 }

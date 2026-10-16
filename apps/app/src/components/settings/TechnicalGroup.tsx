@@ -1,6 +1,6 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { type Server } from '@metro-labs/client/api/servers';
-import { BootLog } from '../BootLog.js';
+import { routeHash } from '@metro-labs/client/route';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { Fact } from './rows.js';
@@ -22,25 +22,8 @@ function Runner(): ReactNode {
 }
 
 function LaunchLog({ server }: { server: Server }): ReactNode {
-  const [open, setOpen] = useState(false);
   if (server.instanceId === null) return null;
-  return (
-    <>
-      <Item
-        title="Launch log"
-        subtitle="What the server printed while it set itself up"
-        onPress={() => {
-          setOpen(true);
-        }}
-      />
-      <BootLog
-        server={open ? server : null}
-        onClose={() => {
-          setOpen(false);
-        }}
-      />
-    </>
-  );
+  return <Item title="Launch log" subtitle="What the server printed while it set itself up" href={routeHash({ kind: 'launch-log', project: server.id })} />;
 }
 
 export function TechnicalGroup({ server }: { server: Server }): ReactNode {

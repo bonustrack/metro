@@ -21,9 +21,11 @@ import {
 import { STATION_FORMS, stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
 import { DeviceSignIn } from './DeviceSignIn.js';
 import { BrowserSignIn } from './BrowserSignIn.js';
+import { Actions } from './ui/Actions.js';
 import { logError } from '../lib/log.js';
 
 const POLL_MS = 2_000;
+const UNSAVED = 'Nothing is saved until you finish signing in. An unfinished sign-in expires after a few minutes.';
 
 interface AttachSessionProps {
   agentId: string;
@@ -185,7 +187,6 @@ function StepBody({
 
 export function AttachSession(props: AttachSessionProps): ReactNode {
   const { agentId, base, identity, session, onUpdate, onDone, onClose } = props;
-  const dark = useKitScheme() === 'dark';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(true);
@@ -239,40 +240,19 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
       });
   };
 
+  const failed = session.status === 'failed' ? (session.error ?? 'That sign-in failed.') : null;
   return (
-    <Col gap={14}>
-        <Col gap={4}>
-          <Text size="sm" weight="medium">
-            Connecting {stationLabel(session.station)}
-          </Text>
-          <Text size="md" role="secondary">
-            {session.prompt}
-          </Text>
-        </Col>
-        <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
-        {session.status === 'failed' ? (
-          <Text size="md" role="danger">
-            {session.error ?? 'That sign-in failed.'}
-          </Text>
-        ) : null}
-        {error !== null ? (
-          <Text size="md" role="danger">
-            {error}
-          </Text>
-        ) : null}
-        <Row justify="between" align="center" gap={12} wrap>
-          <Text size="md" role="secondary">
-            Nothing is saved until you finish signing in. An unfinished
-            sign-in expires after a few minutes.
-          </Text>
-          <Button
-            size="md"
-            color="secondary"
-            dark={dark}
-            onPress={onClose}
-            label={session.status === 'pending' ? 'Cancel' : 'Close'}
-          />
-        </Row>
+    <Col gap={24}>
+      <Col gap={8}>
+        <Text accessibilityRole="header" size="xl" weight="semibold">
+          {`Connecting ${stationLabel(session.station)}`}
+        </Text>
+        <Text size="md" role="secondary">
+          {session.prompt}
+        </Text>
+      </Col>
+      <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
+      <Actions error={failed ?? error} note={UNSAVED} cancel={{ label: session.status === 'pending' ? 'Cancel' : 'Close', onPress: onClose }} />
     </Col>
   );
 }

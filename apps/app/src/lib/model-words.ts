@@ -49,3 +49,9 @@ export function accountKind(connection: ConnectionRow): string {
 }
 
 export const usesConnection = (route: ModelRoute | null, id: string): boolean => routeSteps(route).some((step) => step.connection === id);
+
+export function signInTitle(connection: ConnectionRow): { title: string; subtitle: string } {
+  if (connection.subscription) return { title: 'Paste a new token', subtitle: 'A new Claude subscription token, or another account' };
+  if (connection.provider === 'codex') return { title: connection.signedOut ? 'Sign in' : 'Sign in again', subtitle: 'Another ChatGPT account, or renew access' };
+  return { title: connection.signedOut ? 'Add a key' : 'Replace the key', subtitle: connection.provider === 'bedrock' ? 'The key and the AWS region' : 'Paste a new key from the provider' };
+}

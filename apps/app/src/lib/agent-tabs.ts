@@ -31,6 +31,7 @@ const CHATS: AgentPage[] = [
   { label: 'Channel', kinds: ['station'], target: chats, deep: true },
   { label: 'Voice calls', kinds: ['voice'], target: (project) => ({ kind: 'voice', project }), deep: true },
   { label: 'Conversations', kinds: ['sessions'], target: (project) => ({ kind: 'sessions', project, claudeProject: null, id: null }), deep: true },
+  { label: 'Add a chat', kinds: ['add-chat'], target: (project) => ({ kind: 'add-chat', project }), deep: true },
 ];
 
 const MEMORY: AgentPage[] = [
@@ -38,11 +39,13 @@ const MEMORY: AgentPage[] = [
   { label: 'Files', kinds: ['files'], target: (project) => ({ kind: 'files', project, path: '' }) },
   { label: 'Skills', kinds: ['skills'], target: (project) => ({ kind: 'skills', project }) },
   { label: 'Skill', kinds: ['skill'], target: (project) => ({ kind: 'skills', project }), deep: true },
+  { label: 'GitHub skills', kinds: ['skills-github'], target: (project) => ({ kind: 'skills-github', project }), deep: true },
 ];
 
 const TOOLS: AgentPage[] = [
   { label: 'Tools', kinds: ['tools', 'scheduled', 'secrets'], target: tools },
   { label: 'Routine', kinds: ['scheduled-job'], target: tools, deep: true },
+  { label: 'Recent use', kinds: ['secrets-recent'], target: (project) => ({ kind: 'secrets-recent', project }), deep: true },
 ];
 
 const SETTINGS: AgentPage[] = [
@@ -50,6 +53,9 @@ const SETTINGS: AgentPage[] = [
   { label: 'Model', kinds: ['model'], target: (project) => ({ kind: 'model', project }), deep: true },
   { label: 'Agent SDK setup', kinds: ['claude'], target: (project) => ({ kind: 'claude', project }), deep: true },
   { label: 'Server', kinds: ['server'], target: (project) => ({ kind: 'server', project }), deep: true },
+  { label: 'Profile', kinds: ['agent-profile'], target: (project) => ({ kind: 'agent-profile', project }), deep: true },
+  { label: 'Backup', kinds: ['backup'], target: (project) => ({ kind: 'backup', project }), deep: true },
+  { label: 'Launch log', kinds: ['launch-log'], target: (project) => ({ kind: 'launch-log', project }), deep: true },
   { label: 'Terminal', kinds: ['terminal'], target: (project) => ({ kind: 'terminal', project }), newTab: true, deep: true },
 ];
 

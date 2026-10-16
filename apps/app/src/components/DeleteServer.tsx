@@ -9,7 +9,7 @@ import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { go } from '../lib/nav.js';
 
-const NOTE = 'Removes the server and everything on it';
+const NOTE = 'Stops and removes the server in AWS.';
 const READING = 'Reading what AWS holds for this server…';
 
 const readyOf = (view: DeletionView | undefined): Deletable | null => (view?.deletable === true ? view : null);

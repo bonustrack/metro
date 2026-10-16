@@ -10,10 +10,10 @@ import { type MenuItem } from '../Dropdown.js';
 import { KebabMenu } from '../KebabMenu.js';
 import { Modal } from '../Modal.js';
 import { updateOffered, useMetroUpdate, versionFacts, type MetroUpdate } from '../MetroVersion.js';
-import { TransferDialogs, type Transfer } from '../settings/AdvancedGroup.js';
 import { RemoveDialog, useRemoveFromList } from '../settings/DangerGroup.js';
 import { PowerDialogs, usePower } from '../settings/Power.js';
 import { usePausing } from '../settings/ProfileGroup.js';
+import { go } from '../../lib/nav.js';
 import { useStationsQuery } from '../../lib/queries.js';
 import { openTerminal } from '../../lib/open-terminal.js';
 import { shortVersion } from '../../lib/settings-values.js';
@@ -59,7 +59,6 @@ export function AgentMenu({ server }: { server: Server }): ReactNode {
   const updating = useUpdating();
   const exportable = useStationsQuery().data?.agent !== undefined;
   const admin = activeAccount()?.role === 'admin';
-  const [transfer, setTransfer] = useState<Transfer>(null);
   const [deleting, setDeleting] = useState(false);
   const name = serverLabel(server);
   const items: MenuItem[] = [
@@ -67,17 +66,16 @@ export function AgentMenu({ server }: { server: Server }): ReactNode {
     ...updating.items,
     ...(pausing.shown && admin ? [{ label: pausing.paused ? 'Resume messages' : 'Pause messages', icon: pausing.paused ? ('play' as const) : ('pause' as const), onSelect: () => { pausing.toggle(!pausing.paused); } }] : []),
     { label: 'Terminal', icon: 'desktop', onSelect: () => { openTerminal(server.id); } },
-    ...(exportable ? [{ label: 'Export', icon: 'folder' as const, onSelect: () => { setTransfer('export'); } }] : []),
+    ...(exportable ? [{ label: 'Backup', icon: 'folder' as const, onSelect: () => { go({ kind: 'backup', project: server.id }); } }] : []),
     canDeleteServer(server)
       ? { label: `Delete ${name}`, danger: true, onSelect: () => { setDeleting(true); } }
-      : { label: `Remove ${name} from the list`, danger: true, onSelect: removing.show },
+      : { label: 'Remove from Metro', danger: true, onSelect: removing.show },
   ];
   return (
     <>
       <KebabMenu items={items} label={`Actions for ${name}`} />
       <PowerDialogs power={power} name={name} />
       <UpdateDialog updating={updating} name={name} />
-      <TransferDialogs server={server} step={transfer} onStep={setTransfer} />
       {deleting ? <DeleteServerDialog server={server} onClose={() => { setDeleting(false); }} /> : null}
       <RemoveDialog server={server} confirming={removing} />
     </>

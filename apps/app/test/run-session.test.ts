@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { toClaudeSession } from '@metro-labs/client/api/claude-box';
 import { freshness, sdkEntries, sessionView } from '../src/components/run/session.js';
-import { clock, sameTimeRange, stamp } from '../src/components/run/model.js';
+import { clock, runKey, sameTimeRange, stamp } from '../src/components/run/model.js';
 import { eventBuckets } from '../src/components/run/filters.js';
 import { WORKER_STATE } from '../src/components/run/worker-state.js';
 
@@ -206,5 +206,15 @@ describe('Run chart interval selection', () => {
     expect(sameTimeRange(selected, updated)).toBe(true);
     expect(sameTimeRange(null, updated)).toBe(false);
     expect(sameTimeRange({ ...selected, start: 1 }, updated)).toBe(false);
+  });
+});
+
+describe('a run detail is addressed by a short key', () => {
+  test('the key is stable, safe in an address and differs between ids', () => {
+    const ids = ['sdk-Process%204242%3Aunknown-legacy-%5B1%2C%22w2%22%5D-0', 'event-one', 'event-two', 'worker-one', 'a/b c?d#e', ''];
+    const keys = ids.map(runKey);
+    for (const key of keys) expect(key).toMatch(/^[0-9a-f]{16}$/);
+    expect(new Set(keys).size).toBe(ids.length);
+    expect(runKey('event-one')).toBe(keys[1] ?? '');
   });
 });

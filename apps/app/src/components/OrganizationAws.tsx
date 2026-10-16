@@ -6,15 +6,21 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { connectAws, disconnectAws, startAwsLink, type AwsConnection, type AwsOverview } from '@metro-labs/client/api/aws';
 import { activeAccount } from '@metro-labs/client/auth/account';
+import { routeHash } from '@metro-labs/client/route';
 import { DeleteMenu } from './DeleteMenu.js';
 import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
-import { Modal } from './Modal.js';
 import { SignInLink } from './ProviderSignIn.js';
 import { useSignInTab } from './sign-in-tab.js';
+import { Actions } from './ui/Actions.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { FocusFrame, FocusIntro, type FocusStep } from './ui/FocusFrame.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { StateBlock } from './ui/StateBlock.js';
 import { refreshAws, useAwsQuery } from '../lib/aws-queries.js';
+import { go } from '../lib/nav.js';
 import { queryError } from '../lib/queries.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 
@@ -22,61 +28,82 @@ const NOTE = 'See charts, size and storage of servers in your own AWS account. N
 const STEP_ONE = 'Opens AWS with the setup ready. Tick the IAM box and create the stack. In an AWS Organization, sign in to the member account first.';
 const STEP_TWO = 'When the stack is done, copy RoleArn from its Outputs tab and paste it here.';
 const ROLE_RE = /^arn:aws:iam::\d{12}:role\/\S+$/;
+const STEPS: FocusStep[] = [
+  { id: 'create', label: 'Create the role' },
+  { id: 'paste', label: 'Paste the role' },
+];
 
 function ConnectionRow({ connection, admin }: { connection: AwsConnection; admin: boolean }): ReactNode {
   const client = useQueryClient();
   const technical = useTechnicalDetails();
+  const name = `AWS account ${connection.accountId}`;
   const menu = admin ? (
-    <DeleteMenu label={`AWS account ${connection.accountId}`} action="Disconnect" title={`Disconnect AWS account ${connection.accountId}?`} word="disconnect" failure="Could not disconnect the account."
-      lines={['Metro stops reading this account. Its servers lose their charts, size and storage here.', 'Nothing changes in AWS. To remove the role, delete the metro-access stack in that account.']}
+    <DeleteMenu label={name} action="Disconnect" title={`Disconnect ${name}?`} word={connection.accountId} failure="Could not disconnect the account."
+      lines={['Metro stops reading this account, and its servers lose their charts, size and storage here. To remove the role, delete the metro-access stack in AWS.']}
       run={async () => { await disconnectAws(connection.id); await refreshAws(client); }} />
   ) : undefined;
-  return <Item title={`AWS account ${connection.accountId}`} subtitle={technical ? connection.roleArn : 'Connected'} trailing={menu} />;
+  return <Item title={name} subtitle={technical ? connection.roleArn : 'Connected'} trailing={menu} />;
 }
 
-function ConnectModal({ view, onClose }: { view: AwsOverview; onClose: () => void }): ReactNode {
+function ConnectSteps({ view }: { view: AwsOverview }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const tab = useSignInTab(startAwsLink, (begun) => begun.url, 'Could not make the AWS link.');
   const [role, setRole] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const close = (): void => {
+    go({ kind: 'organization' });
+  };
   const save = (): void => {
     setBusy(true);
     setError(null);
     connectAws(role.trim())
       .then(() => refreshAws(client))
-      .then(onClose)
+      .then(close)
       .catch((err: unknown) => { setError(queryError(err, 'Could not connect the account.')); })
       .finally(() => { setBusy(false); });
   };
   const second = tab.started !== null || view.externalId !== null;
   return (
-    <Modal title="Connect an AWS account" open onClose={onClose}>
-      <Col gap={20}>
-        <Col gap={10}>
-          <Text size="md" weight="semibold">1. Create the role in AWS</Text>
-          <Text size="md" role="secondary">{STEP_ONE}</Text>
-          <Row>
-            <SignInLink link={tab.link} label="Open AWS">
-              <Button size="md" color="secondary" dark={dark} label="Open AWS" loading={tab.starting} disabled={tab.starting} onPress={tab.start} />
-            </SignInLink>
-          </Row>
-          {tab.error === null ? null : <Text size="md" role="danger">{tab.error}</Text>}
-        </Col>
-        {second ? (
-          <Col gap={10}>
-            <Text size="md" weight="semibold">2. Paste the role</Text>
-            <Text size="md" role="secondary">{STEP_TWO}</Text>
-            <FormField label="Role ARN" name="aws-role" value={role} placeholder="arn:aws:iam::123456789012:role/metro-access" dark={dark} disabled={busy} onChangeText={setRole} />
-            {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-            <Row justify="end">
-              <Button size="lg" color="primary" dark={dark} label={busy ? 'Checking…' : 'Connect'} loading={busy} disabled={busy || !ROLE_RE.test(role.trim())} onPress={save} />
-            </Row>
-          </Col>
-        ) : null}
+    <FocusFrame title="Connect an AWS account" onClose={close} steps={STEPS} step={second ? 'paste' : 'create'}>
+      <Col gap={16}>
+        <FocusIntro title="Create the role in AWS" text={STEP_ONE} />
+        <Row>
+          <SignInLink link={tab.link} label="Open AWS">
+            <Button size="md" color={second ? 'secondary' : 'primary'} dark={dark} label="Open AWS" loading={tab.starting} disabled={tab.starting} onPress={tab.start} />
+          </SignInLink>
+        </Row>
+        {tab.error === null ? null : <Text size="xs" role="danger">{tab.error}</Text>}
       </Col>
-    </Modal>
+      {second ? (
+        <Col gap={16}>
+          <FocusIntro title="Paste the role" text={STEP_TWO} />
+          <FormField label="Role ARN" name="aws-role" value={role} placeholder="arn:aws:iam::123456789012:role/metro-access" dark={dark} disabled={busy} onChangeText={setRole} />
+          <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: busy ? 'Checking…' : 'Connect', busy, disabled: !ROLE_RE.test(role.trim()), onPress: save }} />
+        </Col>
+      ) : null}
+    </FocusFrame>
+  );
+}
+
+export function ConnectAwsPage(): ReactNode {
+  const aws = useAwsQuery();
+  const close = (): void => {
+    go({ kind: 'organization' });
+  };
+  const view = aws.data;
+  if (view !== undefined && view.ready && activeAccount()?.role === 'admin') return <ConnectSteps view={view} />;
+  return (
+    <FocusFrame title="Connect an AWS account" onClose={close}>
+      {aws.error !== null ? (
+        <ErrorState title="Could not read the AWS accounts" text={queryError(aws.error, 'Metro did not answer.')} onRetry={aws.refetch} />
+      ) : view === undefined ? (
+        <RowsSkeleton rows={2} leading={false} />
+      ) : (
+        <StateBlock icon="server" title="You cannot connect an account here" text={view.ready ? 'Only an admin can connect one.' : (view.reason ?? 'Metro cannot connect an AWS account yet.')} action={{ label: 'Back to the organization', onPress: close }} />
+      )}
+    </FocusFrame>
   );
 }
 
@@ -88,16 +115,13 @@ function awsNote(view: AwsOverview, admin: boolean): string {
 export function OrganizationAws(): ReactNode {
   const palette = useKitPalette();
   const aws = useAwsQuery();
-  const [connecting, setConnecting] = useState(false);
   const admin = activeAccount()?.role === 'admin';
   const view = aws.data;
   if (view === undefined || (!view.ready && view.connections.length === 0)) return null;
-  const note = awsNote(view, admin);
   return (
-    <Group label="AWS accounts" note={note}>
+    <Group label="AWS accounts" note={awsNote(view, admin)}>
       {view.connections.map((c) => <ConnectionRow key={c.id} connection={c} admin={admin} />)}
-      {view.ready && admin ? <Item title="Connect an AWS account" leading={<Icon name="plus" size={22} color={palette.link} />} chevron={false} onPress={() => { setConnecting(true); }} /> : null}
-      {connecting ? <ConnectModal view={view} onClose={() => { setConnecting(false); }} /> : null}
+      {view.ready && admin ? <Item title="Connect an AWS account" leading={<Icon name="plus" size={22} color={palette.link} />} href={routeHash({ kind: 'org-aws' })} /> : null}
     </Group>
   );
 }

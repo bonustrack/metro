@@ -1,15 +1,23 @@
 import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { changeVault, type Vault, type VaultSecret } from '@metro-labs/client/api/vault';
+import { changeVault, fetchVault, type Vault, type VaultSecret } from '@metro-labs/client/api/vault';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { AgentDeepPage } from '../agent/AgentDeepPage.js';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
-import { Modal } from '../Modal.js';
+import { Modal, ModalText } from '../Modal.js';
 import { SecretForm } from '../SecretForm.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { Group } from '../ui/Group.js';
+import { Item } from '../ui/Item.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
+import { StateBlock } from '../ui/StateBlock.js';
+import { queryError, useBoxQuery } from '../../lib/queries.js';
+import { useDocumentTitle } from '../../lib/title.js';
 
 const RECENT_MAX = 40;
+const KEY_NOTE = 'The agent sees a stand-in, and the real key goes only to the websites you list.';
 
 interface KeyModalProps {
   editing: VaultSecret | 'new';
@@ -23,7 +31,8 @@ export function KeyModal({ editing, onSaved, onDelete, onClose }: KeyModalProps)
   const secret = editing === 'new' ? null : editing;
   return (
     <Modal title={secret === null ? 'Add a key' : secret.name} open onClose={onClose}>
-      <Col gap={20} padding={{ bottom: 8 }}>
+      <Col gap={20}>
+        <ModalText>{KEY_NOTE}</ModalText>
         <SecretForm key={secret?.id ?? 'new'} editing={secret} onSaved={onSaved} onCancel={onClose} />
         {secret === null ? null : (
           <Col align="start">
@@ -48,33 +57,45 @@ export function useDeleteKey(onRemoved: (vault: Vault) => void): { ask: (secret:
     target === null ? null : (
       <ConfirmDialog
         confirming={confirming}
-        title="Delete this key?"
+        title={`Delete ${target.name}?`}
         action="Delete key"
-        lines={[`The value of ${target.env} is removed from this machine. Requests that use its stand-in stop working.`]}
+        word={target.name}
+        lines={[`The value of ${target.env} is removed from this machine, and requests that use its stand-in stop working.`]}
       />
     );
   return { ask, dialog };
 }
 
-function requestLine(vault: Vault, at: number): { text: string; used: boolean } {
+function requestRow(vault: Vault, at: number): { title: string; subtitle: string } {
   const r = vault.recent[at];
-  if (r === undefined) return { text: '', used: false };
+  if (r === undefined) return { title: '', subtitle: '' };
   const envOf = (id: string): string => vault.secrets.find((s) => s.id === id)?.env ?? 'a deleted key';
-  const used = r.swapped.length > 0 ? ` · used ${r.swapped.map(envOf).join(', ')}` : '';
-  return { text: `${whenLabel(r.at)} · ${r.method} ${r.host}${r.path} · ${r.status === null ? '…' : String(r.status)}${used}`, used: r.swapped.length > 0 };
+  const used = r.swapped.length > 0 ? ` · used ${r.swapped.map(envOf).join(', ')}` : ' · no key used';
+  return { title: `${r.host}${r.path}`, subtitle: `${whenLabel(r.at)} · ${r.method} · ${r.status === null ? 'waiting' : String(r.status)}${used}` };
 }
 
-export function RecentModal({ vault, onClose }: { vault: Vault; onClose: () => void }): ReactNode {
-  const lines = vault.recent.slice(0, RECENT_MAX).map((_, at) => requestLine(vault, at));
+function Recent(): ReactNode {
+  const query = useBoxQuery('vault', fetchVault, { refetchInterval: 10_000 });
+  const vault = query.data;
+  if (query.error !== null) return <ErrorState title="Could not read the keys" text={queryError(query.error, 'Try again in a moment.')} onRetry={query.refetch} />;
+  if (vault === undefined) return <RowsSkeleton rows={6} leading={false} />;
+  if (!vault.available) return <StateBlock icon="key" title="Not on this server" text="Secret keys need a Linux server where the agent runs as its own user." />;
+  if (!vault.enabled || vault.recent.length === 0) return <StateBlock icon="key" title="Nothing went out lately" text="Requests show here once Protect secret keys is on and the agent uses the web." />;
   return (
-    <Modal title="Recent use" open onClose={onClose}>
-      <Col gap={6} padding={{ bottom: 8 }}>
-        {lines.map((line, at) => (
-          <Text key={`${String(at)}:${line.text}`} size="xs" role={line.used ? 'default' : 'secondary'}>
-            {line.text}
-          </Text>
-        ))}
-      </Col>
-    </Modal>
+    <Group wide label={`Last ${String(Math.min(vault.recent.length, RECENT_MAX))} requests`}>
+      {vault.recent.slice(0, RECENT_MAX).map((_, at) => {
+        const row = requestRow(vault, at);
+        return <Item key={`${String(at)}:${row.title}:${row.subtitle}`} title={row.title} subtitle={row.subtitle} />;
+      })}
+    </Group>
+  );
+}
+
+export function RecentUsePage({ project }: { project: string }): ReactNode {
+  useDocumentTitle('Recent use');
+  return (
+    <AgentDeepPage project={project} tab="tools" trail={[{ label: 'Recent use' }]} title="Recent use of secret keys" subtitle="What went out through Metro lately.">
+      <Recent />
+    </AgentDeepPage>
   );
 }

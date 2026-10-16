@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { claudeTokenReady } from '@metro-labs/client/api/claude';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
@@ -10,11 +9,11 @@ import { addOrgModel, updateOrgModel } from '@metro-labs/client/api/org-models';
 import { FormField } from './FormField.js';
 import { FieldLabel } from './FieldLabel.js';
 import { TextLink } from './TextLink.js';
+import { Actions } from './ui/Actions.js';
 import { GROW } from '../lib/style.js';
 import { queryError } from '../lib/queries.js';
 import { afterModelChange } from '../lib/model-queries.js';
 
-const FIELD_WIDTH = 420;
 const PLAN_NOTE = 'Needs a Claude Pro or Max plan. The token lasts about a year, and every agent of the organization can use it.';
 const AGAIN_NOTE = 'Paste a new token to replace the one this account holds. The routes stay.';
 const HOW = 'On your computer, with Claude Code installed, run claude setup-token, sign in, then paste the token here.';
@@ -42,8 +41,8 @@ function useSaveToken(connection: ConnectionRow | null, onDone: () => void): { b
 function RevokeNote(): ReactNode {
   return (
     <Col gap={2}>
-      <Text size="md" role="secondary">{REVOKE_NOTE}</Text>
-      <TextLink size="md" url={CLAUDE_SETTINGS_URL}>{CLAUDE_SETTINGS_URL}</TextLink>
+      <Text size="xs" role="secondary">{REVOKE_NOTE}</Text>
+      <TextLink size="xs" url={CLAUDE_SETTINGS_URL}>{CLAUDE_SETTINGS_URL}</TextLink>
     </Col>
   );
 }
@@ -54,14 +53,11 @@ function PasteToken({ connection, onDone }: { connection: ConnectionRow | null; 
   const { busy, error, save } = useSaveToken(connection, onDone);
   const ready = claudeTokenReady(draft);
   return (
-    <Col gap={8} maxWidth={FIELD_WIDTH}>
+    <Col gap={12}>
       <Text size="md">{HOW}</Text>
       <FormField label="Claude token" name="claude-token" inputType="password" value={draft} placeholder="sk-ant-oat01-…" dark={dark} onChangeText={setDraft} style={GROW} inputProps={INPUT} />
-      {draft.trim() === '' || ready ? null : <Text size="md" role="danger">This is not a Claude token. It starts with sk-ant-oat01-.</Text>}
-      <Row gap={12} align="center" wrap>
-        <Button size="lg" dark={dark} label={busy ? 'Checking…' : 'Save'} loading={busy} disabled={busy || !ready} onPress={() => { save(draft.trim()); }} />
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      </Row>
+      {draft.trim() === '' || ready ? null : <Text size="xs" role="danger">This is not a Claude token. It starts with sk-ant-oat01-.</Text>}
+      <Actions error={error} main={{ label: busy ? 'Checking…' : 'Save', busy, disabled: !ready, onPress: () => { save(draft.trim()); } }} />
     </Col>
   );
 }

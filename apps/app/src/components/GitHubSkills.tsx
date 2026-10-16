@@ -1,4 +1,6 @@
 import { type ReactNode, useState } from 'react';
+import { currentServer } from '@metro-labs/client/auth/daemon';
+import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { changeSkillSource, type GitHubSkillSource } from '@metro-labs/client/api/skill-source';
@@ -8,7 +10,6 @@ import { queryError, refreshClaudeSkills } from '../lib/queries.js';
 import { openExternal } from '../lib/open.js';
 import { ConfirmDialog, useConfirm } from './DeleteMenu.js';
 import { GitHubMark } from './GitHubMark.js';
-import { GitHubSourceEditor } from './GitHubSourceEditor.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { ICON_SIZE } from './ui/sizes.js';
@@ -83,19 +84,19 @@ function LoadedRow({ view }: { view: GitHubSkillSource }): ReactNode {
   return <Item title="Last loaded" value={`${view.loaded.repository}@${view.loaded.commit.slice(0, 12)}`} onPress={() => { openExternal(url); }} />;
 }
 
-function SourceRow({ view, onEdit }: { view: GitHubSkillSource; onEdit: (() => void) | undefined }): ReactNode {
+function SourceRow({ view, edit }: { view: GitHubSkillSource; edit: string | undefined }): ReactNode {
   const palette = useKitPalette();
   if (view.source === null) return null;
   const { repository, ref, folder } = view.source;
-  return <Item title={repository} subtitle={`${ref} · ${folder || 'repository root'}`} value={checkedLabel(view)} leading={<GitHubMark size={MARK} color={palette.text} />} onPress={onEdit} />;
+  return <Item title={repository} subtitle={`${ref} · ${folder || 'repository root'}`} value={checkedLabel(view)} leading={<GitHubMark size={MARK} color={palette.text} />} href={edit} />;
 }
 
-function SourceRows({ view, onEdit }: { view: GitHubSkillSource; onEdit: (() => void) | undefined }): ReactNode {
+function SourceRows({ view, edit }: { view: GitHubSkillSource; edit: string | undefined }): ReactNode {
   const syncing = useSync();
   const idle = !syncing.busy && !view.checking && view.supported;
   return (
     <>
-      <SourceRow view={view} onEdit={onEdit} />
+      <SourceRow view={view} edit={edit} />
       <Notes view={view} extra={syncing.error} />
       {view.source === null ? null : <Item title="Sync now" subtitle="Check GitHub for changes" value={syncing.busy ? 'Syncing…' : undefined} chevron={false} onPress={idle ? syncing.sync : undefined} />}
       <LoadedRow view={view} />
@@ -106,17 +107,12 @@ function SourceRows({ view, onEdit }: { view: GitHubSkillSource; onEdit: (() => 
 
 function Rows({ view }: { view: GitHubSkillSource }): ReactNode {
   const palette = useKitPalette();
-  const [editing, setEditing] = useState(false);
-  const edit = (): void => {
-    setEditing(true);
-  };
-  const open = view.supported && !view.checking ? edit : undefined;
+  const edit = view.supported && !view.checking ? routeHash({ kind: 'skills-github', project: currentServer()?.id ?? '' }) : undefined;
   return (
     <>
       {view.supported ? null : <Item title="Not available yet" subtitle="Update Metro on this server to use GitHub sync." />}
-      {view.supported && view.source === null ? <Item title="Add GitHub sync" subtitle="Only an admin can connect a source." leading={<GitHubMark size={MARK} color={palette.text} />} onPress={open} /> : null}
-      <SourceRows view={view} onEdit={open} />
-      {editing ? <GitHubSourceEditor view={view} onClose={() => { setEditing(false); }} /> : null}
+      {view.supported && view.source === null ? <Item title="Add GitHub sync" subtitle="Only an admin can connect a source." leading={<GitHubMark size={MARK} color={palette.text} />} href={edit} /> : null}
+      <SourceRows view={view} edit={edit} />
     </>
   );
 }

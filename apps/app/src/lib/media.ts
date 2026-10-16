@@ -1,6 +1,7 @@
 import { Platform, useWindowDimensions } from 'react-native';
 
 const NARROW_MAX = 1011;
+const STACK_MAX = 720;
 
 export function useIsNarrow(): boolean {
   const { width } = useWindowDimensions();
@@ -10,4 +11,8 @@ export function useIsNarrow(): boolean {
 export function useIsTouch(): boolean {
   if (Platform.OS !== 'web') return true;
   return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+}
+
+export function useIsStacked(): boolean {
+  return useWindowDimensions().width <= STACK_MAX;
 }

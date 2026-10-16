@@ -15,11 +15,14 @@ import { LaunchFlow } from './launch/LaunchFlow.js';
 import { DefaultRoute } from './models/DefaultRoute.js';
 import { ModelAccount } from './models/ModelAccount.js';
 import { ModelList, type ModelPick } from './models/ModelList.js';
+import { AddModelAccountPage, ModelSignInPage } from './ModelAccountSetup.js';
+import { ConnectAwsPage } from './OrganizationAws.js';
 import { YourAccount } from './shell/YourAccount.js';
 import { Groups } from './ui/Group.js';
 import { AppShell } from './shell/AppShell.js';
 import { TabRoot } from './shell/TabRoot.js';
 import { isAdminSelection, shellSectionOf } from '../lib/shell-sections.js';
+import { isFocusPage } from '../lib/focus-pages.js';
 import { useIsNarrow } from '../lib/media.js';
 
 interface PageProps {
@@ -78,11 +81,19 @@ function listOf(selection: Selection): ReactNode {
   return null;
 }
 
+function FocusPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+  if (selection.kind === 'org-model-add') return <AddModelAccountPage provider={selection.provider} />;
+  if (selection.kind === 'org-model-sign-in') return <ModelSignInPage id={selection.id} />;
+  if (selection.kind === 'org-aws') return <ConnectAwsPage />;
+  return <ServerGate selection={selection} onLock={onLock} />;
+}
+
 export function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const narrow = useIsNarrow();
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
   if (selection.kind === 'launch') return <LaunchFlow />;
   if (selection.kind === 'terminal') return <ServerGate selection={selection} onLock={onLock} />;
+  if (isFocusPage(selection)) return <FocusPage selection={selection} onLock={onLock} />;
   return (
     <>
       <AppShell selection={selection} onLock={onLock} list={narrow ? null : listOf(selection)}>

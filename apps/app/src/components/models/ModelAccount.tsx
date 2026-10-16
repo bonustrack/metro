@@ -14,7 +14,6 @@ import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { Icon } from '../Icon.js';
 import { NameModal } from '../NameModal.js';
 import { ProviderLogo } from '../ProviderLogo.js';
-import { ProviderModal, type Editing } from '../ProviderModal.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { PageHeader } from '../ui/PageHeader.js';
@@ -22,7 +21,7 @@ import { ErrorState } from '../ui/ErrorState.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { afterModelChange, useOrgModelsQuery } from '../../lib/model-queries.js';
-import { accountKind, accountLine, routeSummary, usesConnection } from '../../lib/model-words.js';
+import { accountKind, accountLine, routeSummary, signInTitle, usesConnection } from '../../lib/model-words.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
 import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
@@ -31,12 +30,6 @@ import { go } from '../../lib/nav.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 
 const ZDR_NOTE = 'Only OpenRouter providers that keep no prompts. A model with no such provider stops answering.';
-
-function signInTitle(connection: OrgModelConnection): { title: string; subtitle: string } {
-  if (connection.subscription) return { title: 'Paste a new token', subtitle: 'A new Claude subscription token, or another account' };
-  if (connection.provider === 'codex') return { title: connection.signedOut ? 'Sign in' : 'Sign in again', subtitle: 'Another ChatGPT account, or renew access' };
-  return { title: connection.signedOut ? 'Add a key' : 'Replace the key', subtitle: connection.provider === 'bedrock' ? 'The key and the AWS region' : 'Paste a new key from the provider' };
-}
 
 function headerLine(connection: OrgModelConnection): string {
   const kind = accountKind(connection);
@@ -71,7 +64,6 @@ function UsedIn({ list, connection }: { list: OrgModels; connection: OrgModelCon
 
 function Manage({ connection }: { connection: OrgModelConnection }): ReactNode {
   const client = useQueryClient();
-  const [editing, setEditing] = useState<Editing | null>(null);
   const [renaming, setRenaming] = useState(false);
   const removing = useConfirm(async () => {
     await deleteOrgModel(connection.id);
@@ -82,10 +74,9 @@ function Manage({ connection }: { connection: OrgModelConnection }): ReactNode {
   return (
     <Group label="Account">
       <Item title="Name" value={connection.label} onPress={() => { setRenaming(true); }} />
-      <Item title={sign.title} subtitle={sign.subtitle} onPress={() => { setEditing({ provider: connection.provider, connection }); }} />
+      <Item title={sign.title} subtitle={sign.subtitle} href={routeHash({ kind: 'org-model-sign-in', id: connection.id })} />
       {connection.provider === 'openrouter' ? <ZeroRetention connection={connection} /> : null}
       <Item title={`Remove ${connection.label}`} subtitle={connection.subscription ? 'Revoke the token at claude.ai too' : 'Every route that uses it loses it'} danger chevron={false} onPress={removing.show} />
-      <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
       <NameModal key={connection.label} title="Rename the account" action="Rename" placeholder={connection.label} initial={connection.label} failure="Could not rename the account." open={renaming}
         onClose={() => { setRenaming(false); }} onSubmit={async (label) => { await updateOrgModel(connection.id, { label }); await afterModelChange(client); }} />
       <ConfirmDialog confirming={removing} title="Remove this account?" lines={lines} action="Remove account" />

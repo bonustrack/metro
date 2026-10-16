@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { activeAccount } from '@metro-labs/client/auth/account';
 import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Choice } from './Choice.js';
@@ -11,7 +12,8 @@ import { Dropdown, type MenuItem } from './Dropdown.js';
 import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
 import { KebabMenu } from './KebabMenu.js';
-import { Modal } from './Modal.js';
+import { Modal, ModalText } from './Modal.js';
+import { Actions } from './ui/Actions.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
@@ -117,18 +119,18 @@ function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
       .catch((err: unknown) => { setError(queryError(err, 'Could not send the invitation.')); })
       .finally(() => { setBusy(false); });
   };
+  const organization = activeAccount()?.organizationName ?? null;
   return (
     <Modal title="Invite someone" open onClose={onClose}>
-      <Col gap={14}>
-        <Text size="md" role="secondary">They get an email with a link. They can sign in with Google, Microsoft, GitHub or a code by email.</Text>
+      <Col gap={20}>
+        <ModalText>{organization === null ? 'They get an email with a link to join.' : `They get an email with a link to join ${organization}.`}</ModalText>
         <FormField label="Email address" name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} onSubmit={send} inputProps={NO_ASSIST} />
-        <Choice<Role> label="Role" value={role} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} onChange={setRole} />
-        <Text size="xs" role="secondary">{ROLES_NOTE}</Text>
+        <Col gap={8}>
+          <Choice<Role> label="Role" value={role} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} onChange={setRole} />
+          <Text size="xs" role="secondary">{ROLES_NOTE}</Text>
+        </Col>
         {sent === null ? null : <Text size="md" role="success">{`An invitation went to ${sent}.`}</Text>}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-        <Row justify="end">
-          <Button size="lg" color="primary" dark={dark} label={busy ? 'Sending…' : 'Send the invitation'} loading={busy} disabled={busy || email.trim() === ''} onPress={send} />
-        </Row>
+        <Actions error={error} cancel={{ label: sent === null ? 'Cancel' : 'Done', onPress: onClose, disabled: busy }} main={{ label: busy ? 'Sending…' : 'Send invite', busy, disabled: email.trim() === '', onPress: send }} />
       </Col>
     </Modal>
   );

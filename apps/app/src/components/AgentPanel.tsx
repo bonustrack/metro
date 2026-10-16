@@ -17,6 +17,12 @@ import { VoicePage } from './VoicePage.js';
 import { RoutinePage } from './tools/RoutinePage.js';
 import { ToolsPage } from './tools/ToolsPage.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
+import { AddChatPage } from './AddChatPage.js';
+import { GitHubSourcePage } from './GitHubSourcePage.js';
+import { LaunchLogPage } from './LaunchLogPage.js';
+import { BackupPage } from './settings/BackupPage.js';
+import { ProfilePage } from './settings/ProfilePage.js';
+import { RecentUsePage } from './tools/KeyModals.js';
 import { agentPageOf } from '../lib/agent-tabs.js';
 
 function toolsPage(project: string, selection: Selection): ReactNode {
@@ -52,6 +58,16 @@ function SettingsPage({ project, selection, children }: { project: string; selec
   );
 }
 
+function replacedDialog(project: string, selection: Selection): ReactNode {
+  if (selection.kind === 'add-chat') return <AddChatPage project={project} station={selection.station} />;
+  if (selection.kind === 'backup') return <BackupPage project={project} />;
+  if (selection.kind === 'agent-profile') return <ProfilePage project={project} />;
+  if (selection.kind === 'launch-log') return <LaunchLogPage project={project} />;
+  if (selection.kind === 'skills-github') return <GitHubSourcePage project={project} />;
+  if (selection.kind === 'secrets-recent') return <RecentUsePage project={project} />;
+  return null;
+}
+
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
   const tools = toolsPage(project, selection);
   if (tools !== null) return tools;
@@ -59,7 +75,9 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (claude !== null) return claude;
   const settings = settingsPage(project, selection);
   if (settings !== null) return <SettingsPage project={project} selection={selection}>{settings}</SettingsPage>;
-  if (selection.kind === 'run') return <RunPage key={project} project={project} />;
+  const replaced = replacedDialog(project, selection);
+  if (replaced !== null) return replaced;
+  if (selection.kind === 'run') return <RunPage key={project} project={project} view={selection.view} id={selection.id} />;
   if (selection.kind === 'agent-settings') return <AgentSettings project={project} />;
   if (selection.kind === 'voice') return <VoicePage project={project} />;
   if (selection.kind === 'chats') return <ChatsPage project={project} />;

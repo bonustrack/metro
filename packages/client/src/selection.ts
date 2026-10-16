@@ -18,8 +18,11 @@ export type Selection =
   | { kind: 'org-models' }
   | { kind: 'org-route' }
   | { kind: 'org-model'; id: string }
+  | { kind: 'org-model-add'; provider?: string }
+  | { kind: 'org-model-sign-in'; id: string }
+  | { kind: 'org-aws' }
   | { kind: 'home'; project: string }
-  | { kind: 'run'; project: string }
+  | { kind: 'run'; project: string; view?: RunView; id?: string }
   | { kind: 'agent-settings'; project: string }
   | { kind: 'server'; project: string }
   | { kind: 'terminal'; project: string }
@@ -36,7 +39,15 @@ export type Selection =
   | { kind: 'files'; project: string; path: string }
   | { kind: 'secrets'; project: string }
   | { kind: 'voice'; project: string }
-  | { kind: 'skill'; project: string; id: string };
+  | { kind: 'skill'; project: string; id: string }
+  | { kind: 'add-chat'; project: string; station?: string }
+  | { kind: 'backup'; project: string }
+  | { kind: 'agent-profile'; project: string }
+  | { kind: 'launch-log'; project: string }
+  | { kind: 'skills-github'; project: string }
+  | { kind: 'secrets-recent'; project: string };
+
+export type RunView = 'session' | 'about' | 'helper' | 'event';
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
@@ -65,6 +76,12 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   files: 'files',
   secrets: 'secrets',
   voice: 'voice',
+  'add-chat': 'chats',
+  backup: 'agent-settings',
+  'agent-profile': 'agent-settings',
+  'launch-log': 'agent-settings',
+  'skills-github': 'skills',
+  'secrets-recent': 'tools',
 };
 
 export function sameViewOn(selection: Selection, project: string): Selection {

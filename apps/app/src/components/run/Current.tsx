@@ -2,12 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Badge } from '@stage-labs/kit/react-native/badge';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { LEGACY_RUNNER_NOTE } from '@metro-labs/client/api/runner';
-import { Modal } from '../Modal.js';
 import { Icon } from '../Icon.js';
 import { Dropdown } from '../Dropdown.js';
 import { Item } from '../ui/Item.js';
@@ -25,9 +23,8 @@ interface Props {
   status: ClaudeSessionStatus | undefined;
   now: number;
   disconnected: boolean;
-  narrow: boolean;
   onSession: () => void;
-  onWorker: (id: string) => void;
+  onHelper: (id: string) => void;
 }
 
 function unavailableNote(status: ClaudeSessionStatus | undefined, disconnected: boolean): string {
@@ -39,7 +36,7 @@ function unavailableNote(status: ClaudeSessionStatus | undefined, disconnected: 
 }
 
 type SessionView = ReturnType<typeof sessionView>;
-type Worker = NonNullable<SessionView>['workers'][number];
+export type Worker = NonNullable<SessionView>['workers'][number];
 
 const MAIN_DOT: Record<Activity['mainPhase'], NowDot> = {
   starting: 'quiet', idle: 'quiet', working: 'success', approval: 'white', compacting: 'success', stopped: 'quiet', error: 'danger',
@@ -149,28 +146,10 @@ function WorkerControls({ filter, expanded, count, onFilter, onExpand }: WorkerC
   );
 }
 
-function WorkerDetails({ worker, narrow, onClose, onWorker }: { worker: Worker | undefined; narrow: boolean; onClose: () => void; onWorker: Props['onWorker'] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return (
-    <Modal open={worker !== undefined} onClose={onClose} title="Helper details" side={narrow ? 'bottom' : 'center'}>
-      {worker === undefined ? null : (
-        <Col gap={16}>
-          <Text size="sm" selectable>{worker.details}</Text>
-          <Row>
-            <Button dark={dark} color="secondary" label="Show its activity" onPress={() => { onWorker(worker.id); onClose(); }} />
-          </Row>
-        </Col>
-      )}
-    </Modal>
-  );
-}
-
-function CurrentWorkers({ workers, observed, narrow, onWorker }: Pick<Props, 'narrow' | 'onWorker'> & { workers: Worker[]; observed: boolean }): ReactNode {
+function CurrentWorkers({ workers, observed, onHelper }: Pick<Props, 'onHelper'> & { workers: Worker[]; observed: boolean }): ReactNode {
   const technical = useTechnicalDetails();
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState<WorkerFilter>('all');
-  const [workerId, setWorkerId] = useState<string | null>(null);
-  const worker = workers.find((row) => row.id === workerId);
   const { matching, shown } = workerSelection(workers, filter, expanded);
   if (workers.length === 0 && filter === 'all') return null;
   return (
@@ -179,25 +158,24 @@ function CurrentWorkers({ workers, observed, narrow, onWorker }: Pick<Props, 'na
         onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} />}>
         {shown.map((row) => (
           <Item key={row.id} title={row.title} subtitle={technical ? `${row.stateLabel} · ${row.tools}` : TASK_WORD[row.status]} subtitleTone={row.danger ? 'danger' : 'secondary'} detail={technical ? row.progress : undefined}
-            leading={<StateMark row={row} />} onPress={() => { setWorkerId(row.id); }} label={`Details for helper ${row.id}`} />
+            leading={<StateMark row={row} />} onPress={() => { onHelper(row.id); }} label={`Details for helper ${row.id}`} />
         ))}
       </Group>
       <Text size="xs" role="secondary" accessibilityLiveRegion="polite">
         {matching.length === 0 ? 'No helpers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}, finished ones included.`}
       </Text>
-      <WorkerDetails worker={worker} narrow={narrow} onClose={() => { setWorkerId(null); }} onWorker={onWorker} />
     </Col>
   );
 }
 
-export function RunCurrent({ status, now, disconnected, narrow, onSession, onWorker }: Props): ReactNode {
+export function RunCurrent({ status, now, disconnected, onSession, onHelper }: Props): ReactNode {
   const state = freshness(status, now, disconnected);
   const view = status === undefined ? null : sessionView(status, now, disconnected);
   const observed = state === 'Fresh' || state === 'Stale' || state === 'Disconnected';
   return (
     <Col gap={40} testID="current-status">
       <MainThread status={status} disconnected={disconnected} view={view} state={state} observed={observed} onSession={onSession} />
-      <CurrentWorkers workers={view?.workers ?? []} observed={observed} narrow={narrow} onWorker={onWorker} />
+      <CurrentWorkers workers={view?.workers ?? []} observed={observed} onHelper={onHelper} />
     </Col>
   );
 }

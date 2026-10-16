@@ -30,7 +30,7 @@ const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
 const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
-const RUN_PATH = new RegExp(`^#?/(${HOST})/run$`);
+const RUN_PATH = new RegExp(`^#?/(${HOST})/run(?:/(session|about|helper|event)(?:/([A-Za-z0-9_-]{1,64}))?)?$`);
 const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
@@ -48,6 +48,15 @@ const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}))?)?$`);
 const FILES_PATH = new RegExp(`^#?/(${HOST})/files(?:/(.*))?$`);
+const ADD_CHAT_PATH = new RegExp(`^#?/(${HOST})/chats/add(?:/([a-z][a-z0-9-]{0,31}))?$`);
+const BACKUP_PATH = new RegExp(`^#?/(${HOST})/backup$`);
+const PROFILE_PATH = new RegExp(`^#?/(${HOST})/profile$`);
+const LAUNCH_LOG_PATH = new RegExp(`^#?/(${HOST})/launch-log$`);
+const SKILLS_GITHUB_PATH = new RegExp(`^#?/(${HOST})/skills/github$`);
+const SECRETS_RECENT_PATH = new RegExp(`^#?/(${HOST})/secrets/recent$`);
+const ORG_MODEL_ADD_PATH = /^#?\/organization\/models\/add(?:\/([a-z]{1,32}))?$/;
+const ORG_MODEL_SIGN_IN_PATH = new RegExp(`^#?/organization/models/(${ID})/sign-in$`);
+const ORG_AWS_PATH = /^#?\/organization\/aws$/;
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
@@ -62,6 +71,7 @@ const EXACT: [RegExp, Selection][] = [
   [MEMBERS_PATH, { kind: 'members' }],
   [ORGANIZATION_PATH, { kind: 'organization' }],
   [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
+  [ORG_AWS_PATH, { kind: 'org-aws' }],
 ];
 
 function adminSelection(path: string): Selection | null {
@@ -81,16 +91,25 @@ function exactSelection(hash: string): Selection | null {
 function organizationSelection(path: string): Selection | null {
   if (ORG_MODELS_PATH.test(path)) return { kind: 'org-models' };
   if (ORG_ROUTE_PATH.test(path)) return { kind: 'org-route' };
-  const orgModel = ORG_MODEL_PATH.exec(path)?.[1];
-  if (orgModel !== undefined) return { kind: 'org-model', id: orgModel };
+  const orgModel = orgModelSelection(path);
+  if (orgModel !== null) return orgModel;
   const orgConnector = ORG_CONNECTOR_PATH.exec(path)?.[1];
   return orgConnector === undefined ? null : { kind: 'org-connector', id: orgConnector };
+}
+
+function orgModelSelection(path: string): Selection | null {
+  const orgModel = ORG_MODEL_PATH.exec(path)?.[1];
+  if (orgModel !== undefined) return { kind: 'org-model', id: orgModel };
+  const added = ORG_MODEL_ADD_PATH.exec(path);
+  if (added !== null) return added[1] === undefined ? { kind: 'org-model-add' } : { kind: 'org-model-add', provider: added[1] };
+  const signIn = ORG_MODEL_SIGN_IN_PATH.exec(path)?.[1];
+  return signIn === undefined ? null : { kind: 'org-model-sign-in', id: signIn };
 }
 
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
   [HOME_PATH, (project) => ({ kind: 'home', project })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
-  [RUN_PATH, (project) => ({ kind: 'run', project })],
+  [RUN_PATH, (project, view, id) => runSelection(project, view, id)],
   [AGENT_SETTINGS_PATH, (project) => ({ kind: 'agent-settings', project })],
   [TERMINAL_PATH, (project) => ({ kind: 'terminal', project })],
   [MODEL_PATH, (project) => ({ kind: 'model', project })],
@@ -108,7 +127,25 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [SESSIONS_PATH, (project, cp, id) => ({ kind: 'sessions', project, claudeProject: cp === '' ? null : cp, id: id === '' ? null : id })],
   [FILES_PATH, (project, path) => ({ kind: 'files', project, path: pathSegmentsOf(path) })],
   [MEMORY_PATH, (project, cp, file) => ({ kind: 'memory', project, claudeProject: cp === '' ? null : cp, file: file === '' ? null : file })],
+  [ADD_CHAT_PATH, (project, station) => (station === '' ? { kind: 'add-chat', project } : { kind: 'add-chat', project, station })],
+  [BACKUP_PATH, (project) => ({ kind: 'backup', project })],
+  [PROFILE_PATH, (project) => ({ kind: 'agent-profile', project })],
+  [LAUNCH_LOG_PATH, (project) => ({ kind: 'launch-log', project })],
+  [SKILLS_GITHUB_PATH, (project) => ({ kind: 'skills-github', project })],
+  [SECRETS_RECENT_PATH, (project) => ({ kind: 'secrets-recent', project })],
 ];
+
+function runSelection(project: string, view: string, id: string): Selection {
+  if (view === 'session' || view === 'about') return id === '' ? { kind: 'run', project, view } : { kind: 'run', project };
+  if ((view === 'helper' || view === 'event') && id !== '') return { kind: 'run', project, view, id };
+  return { kind: 'run', project };
+}
+
+function runSuffix(s: Selection): string {
+  if (s.kind !== 'run' || s.view === undefined) return '/run';
+  if (s.view === 'session' || s.view === 'about') return `/run/${s.view}`;
+  return s.id === undefined || s.id === '' ? '/run' : `/run/${s.view}/${s.id}`;
+}
 
 const EXCEPTION = 'exceptions/';
 
@@ -150,6 +187,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   'org-connectors': 'organization/connectors',
   'org-models': 'organization/models',
   'org-route': 'organization/models/default',
+  'org-aws': 'organization/aws',
 };
 
 function adminHash(selection: Selection): string | undefined {
@@ -191,7 +229,7 @@ function plainSelection(bare: string): Selection {
 
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
-  run: () => '/run',
+  run: runSuffix,
   server: () => '/server',
   'agent-settings': () => '/settings',
   terminal: () => '/terminal',
@@ -215,7 +253,20 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
     s.kind === 'memory'
       ? `/memory${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.file === null ? '' : `/${s.file}`}`
       : '',
+  'add-chat': (s) => (s.kind === 'add-chat' && s.station !== undefined ? `/chats/add/${s.station}` : '/chats/add'),
+  backup: () => '/backup',
+  'agent-profile': () => '/profile',
+  'launch-log': () => '/launch-log',
+  'skills-github': () => '/skills/github',
+  'secrets-recent': () => '/secrets/recent',
 };
+
+function orgItemPath(selection: Selection): string | null {
+  if (selection.kind === 'org-connector') return `organization/connectors/${selection.id}`;
+  if (selection.kind === 'org-model') return `organization/models/${selection.id}`;
+  if (selection.kind === 'org-model-add') return `organization/models/add${selection.provider === undefined ? '' : `/${selection.provider}`}`;
+  return selection.kind === 'org-model-sign-in' ? `organization/models/${selection.id}/sign-in` : null;
+}
 
 export function routeHash(selection: Selection): string {
   const global = GLOBAL[selection.kind] ?? adminHash(selection);
@@ -223,8 +274,8 @@ export function routeHash(selection: Selection): string {
   const prefix = organizationPrefix();
   const page = ORGANIZATION_PAGES[selection.kind];
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
-  if (selection.kind === 'org-connector') return `${prefix}organization/connectors/${selection.id}`;
-  if (selection.kind === 'org-model') return `${prefix}organization/models/${selection.id}`;
+  const org = orgItemPath(selection);
+  if (org !== null) return `${prefix}${org}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);
   return `${prefix}${agentSegment(selection.project)}${suffix(selection)}`;
