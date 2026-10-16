@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { clearModelRoute, setModelRoute, type OpenRouterReturn, type OrgModels } from '@metro-labs/client/api/org-models';
-import { canAddFallback } from '@metro-labs/client/api/route-edit';
+import { routeItems } from '@metro-labs/client/api/model-order';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -11,13 +11,14 @@ import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { KebabMenu } from '../KebabMenu.js';
 import { Loading } from '../Loading.js';
 import { ProviderModal, type Editing } from '../ProviderModal.js';
-import { RouteEditor, type RouteScope } from '../RouteEditor.js';
+import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl } from '../route-actions.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { PageHeader } from '../ui/PageHeader.js';
 import { StateBlock } from '../ui/StateBlock.js';
-import { AddRow, AvatarStack, StepRow, serverNames } from './RouteParts.js';
+import { AvatarStack, serverNames } from './RouteParts.js';
+import { RouteOrder } from './RouteOrder.js';
 import { afterModelChange, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { agentsWord, namesLine, routeSummary } from '../../lib/model-words.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
@@ -26,7 +27,6 @@ import { takeInitialOpenRouterReturn } from '../../lib/location.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { logError } from '../../lib/log.js';
 
-const BACKUP_NOTE = 'An agent moves on when a model passes 95% of its use or is full, and comes back when it resets.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the models.';
 const NO_ACCOUNT = 'Add a Claude subscription, ChatGPT, OpenRouter, an Anthropic key or Amazon Bedrock first. Then choose the model every agent uses.';
 
@@ -61,28 +61,8 @@ function useScope(list: OrgModels): RouteScope {
 function Route({ list }: { list: OrgModels }): ReactNode {
   const scope = useScope(list);
   const control = useRouteControl(scope.route, scope.save);
-  const actions = list.admin ? control.actions : undefined;
-  const route = list.default;
-  return (
-    <>
-      <Group label="Main model">
-        {route === null ? (
-          <AddRow title="Choose the main model" disabled={!list.admin} onPress={() => { control.actions.edit({ kind: 'primary' }); }} />
-        ) : (
-          <StepRow step={route.primary} slot={{ kind: 'primary' }} count={route.fallbacks.length} connections={list.connections} busy={control.busy} actions={actions} />
-        )}
-      </Group>
-      {route === null ? null : (
-        <Group label="Backups, in order" note={control.error ?? BACKUP_NOTE}>
-          {route.fallbacks.map((step, at) => (
-            <StepRow key={`${String(at)}:${step.connection}:${step.model}`} step={step} slot={{ kind: 'fallback', at }} count={route.fallbacks.length} connections={list.connections} busy={control.busy} actions={actions} />
-          ))}
-          {list.admin && canAddFallback(route) ? <AddRow title="Add a backup" disabled={control.busy} onPress={() => { control.actions.edit({ kind: 'new' }); }} /> : null}
-        </Group>
-      )}
-      <RouteEditor scope={scope} slot={control.slot} onClose={control.close} />
-    </>
-  );
+  const items = list.default === null ? [] : routeItems(list.default, list.connections);
+  return <RouteOrder items={items} who="An agent" edit={list.admin ? { control, scope } : undefined} />;
 }
 
 function Agents({ list }: { list: OrgModels }): ReactNode {

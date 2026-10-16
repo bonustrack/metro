@@ -1,16 +1,14 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { ProjectGate } from './ProjectGate.js';
 import { Loading } from './Loading.js';
 import { SessionMenu } from './SessionMenu.js';
 import { Transcript } from './Transcript.js';
 import { OtherFolders } from './OtherFolders.js';
-import { DeepNav } from './chats/DeepNav.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { sessionTitle } from './chats/RecentConversations.js';
 import { Section } from './chats/Section.js';
 import { Item } from './ui/Item.js';
-import { PageHeader } from './ui/PageHeader.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { type ClaudeSession } from '@metro-labs/client/api/claude';
@@ -45,24 +43,20 @@ function SessionView({ project, claudeProject, id }: { project: string; claudePr
   const found = data?.find((s) => s.id === id);
   const title = found === undefined ? 'Conversation' : sessionTitle(found);
   useDocumentTitle(title);
+  const menu = (
+    <SessionMenu
+      claudeProject={claudeProject}
+      id={id}
+      title={title}
+      onDeleted={() => {
+        go(list);
+      }}
+    />
+  );
   return (
-    <>
-      <DeepNav project={project} trail={[{ label: LABEL, href: routeHash(list) }, { label: title }]} />
-      <Col gap={16}>
-        <Row justify="between" align="center" gap={12}>
-          <PageHeader title={title} />
-          <SessionMenu
-            claudeProject={claudeProject}
-            id={id}
-            title={title}
-            onDeleted={() => {
-              go(list);
-            }}
-          />
-        </Row>
-        <Transcript project={claudeProject} id={id} />
-      </Col>
-    </>
+    <AgentDeepPage project={project} tab="chats" trail={[{ label: LABEL, href: routeHash(list) }, { label: title }]} title={title} action={menu}>
+      <Transcript project={claudeProject} id={id} />
+    </AgentDeepPage>
   );
 }
 
@@ -76,22 +70,22 @@ const NONE = 'No Claude Code session on this box yet.';
 
 export function Sessions({ project, claudeProject, id }: SessionsProps): ReactNode {
   useDocumentTitle(LABEL);
+  const list = (picked: string): ReactNode => (
+    <>
+      <SessionList project={project} claudeProject={picked} />
+      <OtherFolders project={project} shown={picked} />
+    </>
+  );
+  const gate = <ProjectGate title={LABEL} claudeProject={claudeProject} none={NONE}>{list}</ProjectGate>;
+  if (id === null)
+    return (
+      <AgentDeepPage project={project} tab="chats" trail={[{ label: LABEL }]} title={LABEL}>
+        {gate}
+      </AgentDeepPage>
+    );
   return (
     <ProjectGate title={LABEL} claudeProject={claudeProject} none={NONE}>
-      {(picked) =>
-        id === null ? (
-          <>
-            <DeepNav project={project} trail={[{ label: LABEL }]} />
-            <Col gap={24}>
-              <PageHeader title={LABEL} />
-              <SessionList project={project} claudeProject={picked} />
-              <OtherFolders project={project} shown={picked} />
-            </Col>
-          </>
-        ) : (
-          <SessionView project={project} claudeProject={picked} id={id} />
-        )
-      }
+      {(picked) => <SessionView project={project} claudeProject={picked} id={id} />}
     </ProjectGate>
   );
 }

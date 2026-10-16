@@ -14,7 +14,7 @@ import { GitHubMark } from './GitHubMark.js';
 import { Loading } from './Loading.js';
 import { Rows } from './ui/Group.js';
 import { Item } from './ui/Item.js';
-import { Crumbs, PageHeader } from './ui/PageHeader.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { GROW } from '../lib/style.js';
 import { go } from '../lib/nav.js';
@@ -146,42 +146,53 @@ function useSkillEditor(skill: (ClaudeSkill & { text: string }) | undefined): Ed
   };
 }
 
-export function SkillPage({ project, id }: SkillPageProps): ReactNode {
+function SkillBody({ skill, edit }: { skill: ClaudeSkill; edit: ReturnType<typeof useSkillEditor> }): ReactNode {
   const dark = useKitScheme() === 'dark';
+  return (
+    <Col gap={20}>
+      <Managed skill={skill} />
+      <FormField label="Skill contents"
+        name="skill"
+        value={edit.shown}
+        dark={dark}
+        disabled={edit.busy || !skill.editable}
+        onChangeText={edit.setDraft}
+        style={[GROW, EDITOR]}
+        inputProps={NO_ASSIST}
+      />
+      {skill.managed === true ? null : <Actions
+        busy={edit.busy}
+        changed={edit.changed}
+        note={edit.note}
+        failure={edit.failure}
+        onSave={edit.save}
+        onRevert={edit.revert}
+      />}
+    </Col>
+  );
+}
+
+export function SkillPage({ project, id }: SkillPageProps): ReactNode {
   const { data, error } = useClaudeSkillQuery(id);
   const edit = useSkillEditor(data);
-  useDocumentTitle(data?.title ?? 'Skill');
-
+  const title = data?.title ?? 'Skill';
+  useDocumentTitle(title);
   return (
-    <Col gap={8}>
-      <Crumbs items={[{ label: 'Skills', href: routeHash({ kind: 'skills', project }) }, { label: data?.title ?? 'Skill' }]} />
+    <AgentDeepPage
+      project={project}
+      tab="memory"
+      trail={[{ label: 'Skills', href: routeHash({ kind: 'skills', project }) }, { label: title }]}
+      title={title}
+      subtitle={data === undefined ? undefined : skillFacts(data)}
+      action={data === undefined ? undefined : <DeleteSkill skill={data} project={project} />}
+    >
       {error !== null ? (
         <StateBlock icon="exclamationCircle" danger title="Could not read that skill" text={queryError(error, 'Try again in a moment.')} />
       ) : data === undefined ? (
         <Loading />
       ) : (
-        <Col gap={20}>
-          <PageHeader title={data.title} subtitle={skillFacts(data)} action={<DeleteSkill skill={data} project={project} />} />
-          <Managed skill={data} />
-          <FormField label="Skill contents"
-            name="skill"
-            value={edit.shown}
-            dark={dark}
-            disabled={edit.busy || !data.editable}
-            onChangeText={edit.setDraft}
-            style={[GROW, EDITOR]}
-            inputProps={NO_ASSIST}
-          />
-          {data.managed === true ? null : <Actions
-            busy={edit.busy}
-            changed={edit.changed}
-            note={edit.note}
-            failure={edit.failure}
-            onSave={edit.save}
-            onRevert={edit.revert}
-          />}
-        </Col>
+        <SkillBody skill={data} edit={edit} />
       )}
-    </Col>
+    </AgentDeepPage>
   );
 }

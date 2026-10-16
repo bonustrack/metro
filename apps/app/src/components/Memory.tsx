@@ -12,9 +12,10 @@ import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { folderAt, memoryTree, noteLink, noteTitle, parentOf, type MemoryFolder } from './memory-tree.js';
 import { Group, Groups } from './ui/Group.js';
-import { PageHeader } from './ui/PageHeader.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { useHomeProject } from '../lib/agent-hooks.js';
+import { isNoteFile } from '../lib/agent-tabs.js';
 import { go } from '../lib/nav.js';
 import { queryError, refresh, useMemoryFileQuery, useMemoryQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
@@ -23,14 +24,12 @@ const NOTE_LINE = 26;
 const EMPTY = 'The agent writes notes here as it learns about you and your work.';
 const NONE = 'No Claude Code memory on this box yet. It fills in as Claude works.';
 
-const isFile = (path: string | null): path is string => path?.endsWith('.md') === true;
-
 const target = (project: string, claudeProject: string, path: string): Selection => ({ kind: 'memory', project, claudeProject, file: path === '' ? null : path });
 
 function memoryCrumbs(project: string, claudeProject: string, path: string): Crumb[] {
   const parts = path.split('/').filter((p) => p !== '');
   return ['Notes', ...parts].map((label, at) => ({
-    label: at === parts.length && isFile(path) ? noteTitle(label) : label,
+    label: at === parts.length && isNoteFile(path) ? noteTitle(label) : label,
     href: routeHash(target(project, claudeProject, parts.slice(0, at).join('/'))),
   }));
 }
@@ -96,9 +95,16 @@ function NoteView({ project, claudeProject, file }: { project: string; claudePro
   const { data, error } = useMemoryFileQuery(claudeProject, file);
   const listing = useMemoryQuery(claudeProject);
   const changed = listing.data?.files.find((f) => f.name === file)?.modifiedAt ?? '';
+  const trail = memoryCrumbs(project, claudeProject, file).slice(1).map((crumb, at, all) => (at === all.length - 1 ? { label: crumb.label } : crumb));
   return (
-    <Col gap={20}>
-      <PageHeader title={noteTitle(file)} subtitle={changed === '' ? undefined : `Updated ${whenLabel(changed)}`} action={<DeleteNote project={project} claudeProject={claudeProject} file={file} />} />
+    <AgentDeepPage
+      project={project}
+      tab="memory"
+      trail={trail}
+      title={noteTitle(file)}
+      subtitle={changed === '' ? undefined : `Updated ${whenLabel(changed)}`}
+      action={<DeleteNote project={project} claudeProject={claudeProject} file={file} />}
+    >
       {error !== null ? (
         <StateBlock icon="exclamationCircle" danger title="Could not read the note" text={queryError(error, 'Try again in a moment.')} />
       ) : data === undefined ? (
@@ -114,7 +120,7 @@ function NoteView({ project, claudeProject, file }: { project: string; claudePro
           }}
         />
       )}
-    </Col>
+    </AgentDeepPage>
   );
 }
 
@@ -127,12 +133,16 @@ interface MemoryProps {
 export function Memory({ project, claudeProject, file }: MemoryProps): ReactNode {
   const home = useHomeProject();
   const picked = claudeProject ?? home.project;
-  useDocumentTitle(isFile(file) ? noteTitle(file) : 'Notes');
-  if (picked === null) return home.loading ? <Loading /> : <StateBlock icon="documentText" title="No notes yet" text={NONE} />;
+  useDocumentTitle(isNoteFile(file) ? noteTitle(file) : 'Notes');
+  if (picked === null) {
+    const empty = home.loading ? <Loading /> : <StateBlock icon="documentText" title="No notes yet" text={NONE} />;
+    return isNoteFile(file) ? <AgentDeepPage project={project} tab="memory" trail={[{ label: noteTitle(file) }]}>{empty}</AgentDeepPage> : empty;
+  }
+  if (isNoteFile(file)) return <NoteView project={project} claudeProject={picked} file={file} />;
   return (
     <Col gap={8}>
       <Crumbs crumbs={memoryCrumbs(project, picked, file ?? '')} />
-      {isFile(file) ? <NoteView project={project} claudeProject={picked} file={file} /> : <FolderView project={project} claudeProject={picked} path={file ?? ''} />}
+      <FolderView project={project} claudeProject={picked} path={file ?? ''} />
     </Col>
   );
 }

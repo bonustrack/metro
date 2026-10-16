@@ -10,7 +10,6 @@ import { hoverColor } from '../lib/theme.js';
 import { SHRINK } from '../lib/style.js';
 
 const ROW_HEIGHT = 67;
-export const LIST_ICON_SIZE = 24;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: ROW_HEIGHT },

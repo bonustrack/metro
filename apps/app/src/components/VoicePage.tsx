@@ -4,8 +4,7 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { Loading } from './Loading.js';
-import { PageHeader } from './ui/PageHeader.js';
-import { DeepNav } from './chats/DeepNav.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { SaveField, useSave } from './SaveField.js';
 import { EmptyCard, SettingsGroup, SettingsSection } from './SettingsSection.js';
 import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
@@ -170,13 +169,8 @@ function VoiceGate(): ReactNode {
 export function VoicePage({ project }: { project: string }): ReactNode {
   useDocumentTitle('Voice calls');
   return (
-    <>
-      <DeepNav project={project} trail={[{ label: 'Voice calls' }]} />
-      <Col gap={32}>
-        <PageHeader title="Voice calls" />
-        <Text size="md" role="secondary">{INTRO}</Text>
-        <VoiceGate />
-      </Col>
-    </>
+    <AgentDeepPage project={project} tab="chats" trail={[{ label: 'Voice calls' }]} title="Voice calls" lead={INTRO}>
+      <VoiceGate />
+    </AgentDeepPage>
   );
 }

@@ -1,5 +1,7 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { Groups } from '../ui/Group.js';
 import { Crumbs, PageHeader, type Crumb } from '../ui/PageHeader.js';
@@ -16,6 +18,7 @@ interface AgentDeepPageProps {
   trail: Crumb[];
   title?: string;
   subtitle?: string;
+  lead?: string;
   leading?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
@@ -36,13 +39,29 @@ function DeepCrumbs({ project, tab, trail }: { project: string; tab: AgentTabId;
   return back === undefined ? null : <Crumbs items={[back]} />;
 }
 
-export function AgentDeepPage({ project, tab, trail, title, subtitle, leading, action, children }: AgentDeepPageProps): ReactNode {
+type TitleProps = Pick<AgentDeepPageProps, 'subtitle' | 'lead' | 'leading' | 'action'> & { title: string };
+
+function DeepTitle({ title, subtitle, lead, leading, action }: TitleProps): ReactNode {
+  const palette = useKitPalette();
+  const header = <PageHeader title={title} subtitle={subtitle} leading={leading} action={action} />;
+  if (lead === undefined) return header;
+  return (
+    <Col gap={6}>
+      {header}
+      <Text size="md" color={palette.text}>
+        {lead}
+      </Text>
+    </Col>
+  );
+}
+
+export function AgentDeepPage({ project, tab, trail, title, subtitle, lead, leading, action, children }: AgentDeepPageProps): ReactNode {
   return (
     <Col gap={24}>
       <DeepCrumbs project={project} tab={tab} trail={trail} />
       <Tabbed.Provider value>
         <Groups>
-          {title === undefined ? null : <PageHeader title={title} subtitle={subtitle} leading={leading} action={action} />}
+          {title === undefined ? null : <DeepTitle title={title} subtitle={subtitle} lead={lead} leading={leading} action={action} />}
           {children}
         </Groups>
       </Tabbed.Provider>

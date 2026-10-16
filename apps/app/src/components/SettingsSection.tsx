@@ -4,7 +4,6 @@ import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { CountBadge } from './CountBadge.js';
-import { TextLink } from './TextLink.js';
 import { allSides } from './ui/edges.js';
 
 const InCard = createContext(false);
@@ -120,18 +119,3 @@ export function SettingsSection({ title, note, count, leading, sub = false, chil
 
 const TEXT_BASIS = { flexBasis: 280, flexGrow: 1, flexShrink: 1 } as const;
 const CONTROL = { flexGrow: 0, flexShrink: 1 } as const;
-
-export function FactRow({ label, value, href, danger = false }: { label: string; value: string; href?: string; danger?: boolean }): ReactNode {
-  return (
-    <SettingsSection title={label} compact>
-      {href === undefined ? (
-        <Text size="md" role={danger ? 'danger' : 'secondary'} numberOfLines={1}>
-          {value}
-        </Text>
-      ) : (
-        <TextLink url={href}>{value}</TextLink>
-      )}
-    </SettingsSection>
-  );
-}
-

@@ -36,7 +36,9 @@ describe('the route editor starts from what the slot holds', () => {
     expect(draftOf(route, { kind: 'fallback', at: 0 })).toEqual({ connection: 'or', model: 'anthropic/claude-sonnet-4.6' });
     expect(draftOf(route, { kind: 'new' })).toEqual({ connection: '', model: '' });
     expect(draftOf(null, { kind: 'primary' })).toEqual({ connection: '', model: '' });
-    expect(slotTitle({ kind: 'fallback', at: 1 })).toBe('Fallback 2');
+    expect(slotTitle({ kind: 'fallback', at: 1 })).toBe('Backup 2');
+    expect(slotTitle({ kind: 'primary' })).toBe('Main model');
+    expect(slotTitle({ kind: 'new' })).toBe('Add a backup');
   });
 
   test('picking a connection takes its default model', () => {
@@ -72,7 +74,7 @@ describe('what the footer says will change', () => {
 describe('what keeps Save off', () => {
   test('a connection is needed, and a fallback needs a named model', () => {
     expect(problemOf(route, connections, { kind: 'new' }, { connection: '', model: '' })).toBe('Choose a connection.');
-    expect(problemOf(route, connections, { kind: 'new' }, { connection: 'max', model: '' })).toBe('Choose a named model for a fallback.');
+    expect(problemOf(route, connections, { kind: 'new' }, { connection: 'max', model: '' })).toBe('Choose a named model for a backup.');
     expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'max', model: '' })).toBe('Choose a model.');
     expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'or', model: '' })).toBe('Choose a model.');
     expect(problemOf(route, connections, { kind: 'primary' }, { connection: 'local:session', model: '' })).toBe('Choose a connection.');

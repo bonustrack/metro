@@ -59,7 +59,7 @@ export function AdvancedGroup({ server, project }: { server: Server; project: st
           openTerminal(project);
         }}
       />
-      <Item title="Live view" subtitle={`What ${name} and its helpers do right now`} href={routeHash({ kind: 'run', project })} />
+      <Item title="Right now" subtitle={`What ${name} and its helpers are doing`} href={routeHash({ kind: 'run', project })} />
       {agent === undefined ? null : (
         <Item
           title="Export or import"

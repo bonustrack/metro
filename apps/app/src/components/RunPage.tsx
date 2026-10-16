@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Modal } from './Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { AgentSummary } from '@metro-labs/client/api/client';
@@ -14,8 +14,7 @@ import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { useNow } from '../lib/use-now.js';
 import { runAccessDenied } from '../lib/run-cache.js';
-import { Crumbs } from './ui/PageHeader.js';
-import { routeHash } from '@metro-labs/client/route';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 import { RunCoverage } from './run/Coverage.js';
 import { RunCurrent } from './run/Current.js';
@@ -76,15 +75,9 @@ function AgentNotice({ error, pending }: { error: Error | null; pending: boolean
   return <Text size="xs" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
 }
 
-function RunHead({ project, agent, data, onCoverage }: { project: string; agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources>; onCoverage: () => void }): ReactNode {
-  const technical = useTechnicalDetails();
-  return <Col gap={8}>
-    <Row gap={12} align="center" justify="between">
-      <Crumbs items={[{ label: 'Home', href: routeHash({ kind: 'home', project }) }, { label: 'Right now' }]} />
-      <Text size="xs" onPress={onCoverage} accessibilityRole="button">What is shown here?</Text>
-    </Row>
-    {technical && <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>}
-  </Col>;
+function RunFacts({ agent, data }: { agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources> }): ReactNode {
+  if (!useTechnicalDetails()) return null;
+  return <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>;
 }
 
 function RunData({ project, agent, agentError, agentPending }: { project: string; agent: AgentSummary | undefined; agentError: Error | null; agentPending: boolean }): ReactNode {
@@ -95,9 +88,10 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
   const [details, setDetails] = useState(false);
   const [focus, setFocus] = useState({ worker: 'All', revision: 0, scope: '' });
   const initialWorker = focus.scope === data.scope ? focus.worker : 'All';
-  return <Col gap={40} testID="run-page">
+  const explain = <Text size="xs" onPress={() => { setCoverage(true); }} accessibilityRole="button">What is shown here?</Text>;
+  return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" action={explain}><Col gap={40} testID="run-page">
     <Col gap={10}>
-      <RunHead project={project} agent={agent} data={data} onCoverage={() => { setCoverage(true); }} />
+      <RunFacts agent={agent} data={data} />
       {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
     </Col>
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
@@ -106,7 +100,7 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
       notice={<FeedNotice unsupported={data.unsupported} pending={data.feed.isPending} error={data.feed.error} updatedAt={data.feed.dataUpdatedAt} catchingUp={data.feedData?.hasMore === true} />} />
     <Modal open={coverage} onClose={() => { setCoverage(false); }} title="What is shown here" side={narrow ? 'bottom' : 'center'}><RunCoverage /></Modal>
     <Modal open={details} onClose={() => { setDetails(false); }} title="Session details" side={narrow ? 'bottom' : 'center'}><RunSessionDetails status={data.status} model={data.settings} state={data.state} /></Modal>
-  </Col>;
+  </Col></AgentDeepPage>;
 }
 
 export function RunPage({ project }: { project: string }): ReactNode {

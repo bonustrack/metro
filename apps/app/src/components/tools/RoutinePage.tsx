@@ -6,12 +6,11 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { fetchScheduleDetail, runSchedule, type JobDetail } from '@metro-labs/client/api/schedules';
 import { whenLabel } from '@metro-labs/client/api/when';
-import { routeHash } from '@metro-labs/client/route';
 import { Loading } from '../Loading.js';
-import { Group, Groups } from '../ui/Group.js';
+import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { LogBlock } from '../ui/LogBlock.js';
-import { Crumbs, PageHeader } from '../ui/PageHeader.js';
+import { AgentDeepPage } from '../agent/AgentDeepPage.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { queryError, refresh, useBoxQuery } from '../../lib/queries.js';
 import { routineTitle, scheduleWords } from '../../lib/routine-words.js';
@@ -79,43 +78,42 @@ function Block({ label, note, text, empty }: { label: string; note: string | nul
   );
 }
 
-function Routine({ job }: { job: JobDetail }): ReactNode {
-  const dark = useKitScheme() === 'dark';
+function Routine({ job, error }: { job: JobDetail; error: string | null }): ReactNode {
   const technical = useTechnicalDetails();
-  const running = useRun(job.id);
   return (
-    <Col gap={24}>
-      <PageHeader
-        title={routineTitle(job.name)}
-        subtitle={scheduleWords(job.schedule)}
-        action={<Button size="md" dark={dark} label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
-      />
-      {running.error === null ? null : <Text size="md" role="danger">{running.error}</Text>}
-      <Groups>
-        <Runs job={job} />
-        <Details job={job} />
-        {job.script === null ? null : <Block label="Script" note={job.script.path} text={job.script.text} empty="The script is empty." />}
-        <Block label="Recent output" note={job.logSource} text={job.logs} empty={job.logSource === null ? 'This routine writes no log Metro can find.' : 'Nothing written yet.'} />
-        {technical ? <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." /> : null}
-      </Groups>
-    </Col>
+    <>
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      <Runs job={job} />
+      <Details job={job} />
+      {job.script === null ? null : <Block label="Script" note={job.script.path} text={job.script.text} empty="The script is empty." />}
+      <Block label="Recent output" note={job.logSource} text={job.logs} empty={job.logSource === null ? 'This routine writes no log Metro can find.' : 'Nothing written yet.'} />
+      {technical ? <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." /> : null}
+    </>
   );
 }
 
 export function RoutinePage({ project, id }: { project: string; id: string }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const running = useRun(id);
   const detail = useBoxQuery(['schedule', id], () => fetchScheduleDetail(id), { staleTime: 5_000, refetchInterval: 15_000, retry: false });
   const title = detail.data === undefined ? 'Routine' : routineTitle(detail.data.name);
   useDocumentTitle(title);
   return (
-    <Col gap={8}>
-      <Crumbs items={[{ label: 'Tools', href: routeHash({ kind: 'tools', project }) }, { label: title }]} />
+    <AgentDeepPage
+      project={project}
+      tab="tools"
+      trail={[{ label: title }]}
+      title={title}
+      subtitle={detail.data === undefined ? undefined : scheduleWords(detail.data.schedule)}
+      action={detail.data === undefined ? undefined : <Button size="md" dark={dark} label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
+    >
       {detail.error !== null ? (
         <StateBlock icon="exclamationCircle" danger title="Could not read that routine" text={queryError(detail.error, 'Try again in a moment.')} />
       ) : detail.data === undefined ? (
         <Loading />
       ) : (
-        <Routine job={detail.data} />
+        <Routine job={detail.data} error={running.error} />
       )}
-    </Col>
+    </AgentDeepPage>
   );
 }

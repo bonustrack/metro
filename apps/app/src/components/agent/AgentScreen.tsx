@@ -72,13 +72,17 @@ function blocked(error: Error | null, retry: () => void, onLock: () => void): Re
   return null;
 }
 
+function replacement(selection: Selection, error: Error | null, retry: () => void, onLock: () => void): ReactNode {
+  const notice = blocked(error, retry, onLock);
+  if (notice !== null || error === null) return notice;
+  return selection.kind === 'terminal' || !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : null;
+}
+
 export function AgentScreen({ server, selection, onLock }: AgentScreenProps): ReactNode {
   const { error, retry } = useBoxState();
   useRememberAgent(selection);
-  const notice = blocked(error, retry, onLock);
-  const offline = error !== null && notice === null;
-  if (selection.kind === 'terminal') return notice ?? (offline ? <OfflinePanel onRetry={retry} /> : <TerminalPage />);
-  const replaced = notice ?? (offline && !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : null);
+  const replaced = replacement(selection, error, retry, onLock);
+  if (selection.kind === 'terminal') return replaced ?? <TerminalPage />;
   if (replaced === null && isDeepPage(selection)) return <AgentPanel selection={selection} />;
   return (
     <AgentDetail server={server} selection={selection}>

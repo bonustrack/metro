@@ -16,13 +16,14 @@ import { Files } from './Files.js';
 import { VoicePage } from './VoicePage.js';
 import { RoutinePage } from './tools/RoutinePage.js';
 import { ToolsPage } from './tools/ToolsPage.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
+import { agentPageOf } from '../lib/agent-tabs.js';
 
 const TOOLS_PAGES = new Set<Selection['kind']>(['tools', 'scheduled', 'secrets']);
 
 function claudeRoutes(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'sessions') return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} />;
   if (selection.kind === 'memory') return <Memory project={project} claudeProject={selection.claudeProject} file={selection.file} />;
-  if (selection.kind === 'claude') return <ClaudeSettings project={project} />;
   if (selection.kind === 'files') return <Files project={project} path={selection.path} />;
   if (selection.kind === 'scheduled-job') return <RoutinePage project={project} id={selection.id} />;
   if (selection.kind === 'skills') return <Skills project={project} />;
@@ -30,14 +31,30 @@ function claudeRoutes(project: string, selection: Selection): ReactNode {
   return null;
 }
 
+function settingsPage(project: string, selection: Selection): ReactNode {
+  if (selection.kind === 'model') return <ModelRoutePage />;
+  if (selection.kind === 'server') return <ServerDetails />;
+  if (selection.kind === 'claude') return <ClaudeSettings project={project} />;
+  return null;
+}
+
+function SettingsPage({ project, selection, children }: { project: string; selection: Selection; children: ReactNode }): ReactNode {
+  const title = agentPageOf(selection.kind)?.label ?? 'Settings';
+  return (
+    <AgentDeepPage project={project} tab="settings" trail={[{ label: title }]} title={title}>
+      {children}
+    </AgentDeepPage>
+  );
+}
+
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
   if (TOOLS_PAGES.has(selection.kind)) return <ToolsPage project={project} />;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
+  const settings = settingsPage(project, selection);
+  if (settings !== null) return <SettingsPage project={project} selection={selection}>{settings}</SettingsPage>;
   if (selection.kind === 'run') return <RunPage key={project} project={project} />;
-  if (selection.kind === 'server') return <ServerDetails />;
   if (selection.kind === 'agent-settings') return <AgentSettings project={project} />;
-  if (selection.kind === 'model') return <ModelRoutePage />;
   if (selection.kind === 'voice') return <VoicePage project={project} />;
   if (selection.kind === 'chats') return <ChatsPage project={project} />;
   if (selection.kind === 'station') return <ChannelPage project={project} accountId={selection.accountId} rule={selection.rule} />;

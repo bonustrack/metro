@@ -1,13 +1,8 @@
 import type { ReactNode } from 'react';
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import type { Provider } from '@metro-labs/client/api/model';
-import { missingUsage } from '@metro-labs/client/api/model-usage';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { useIsFetching } from '@tanstack/react-query';
-import { boxKey, queryError } from '../lib/queries.js';
-
 
 function Meter({ used, warn }: { used: number; warn: boolean }): ReactNode {
   const palette = useKitPalette();
@@ -31,19 +26,5 @@ export function UsageBar({ used, blocked = false }: { used: number | null; block
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
-  );
-}
-
-export function ModelReadError({ error, cached }: { error: Error | null; cached: boolean }): ReactNode {
-  if (error === null) return null;
-  return <Text size="md" role="danger">{cached ? 'Could not refresh model settings. Showing the last reading.' : queryError(error, 'Could not read the model settings.')}</Text>;
-}
-
-export function UsageUnavailable({ provider }: { provider: Provider }): ReactNode {
-  const fetching = useIsFetching({ queryKey: boxKey('model'), exact: true }) > 0;
-  return (
-    <Text size="md" role="secondary">
-      {fetching ? 'Checking usage...' : missingUsage(provider)}
-    </Text>
   );
 }

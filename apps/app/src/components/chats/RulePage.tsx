@@ -1,15 +1,13 @@
 import { type ReactNode, useRef, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { stationFields } from '@metro-labs/client/api/accounts';
 import { setPolicy, stationLabel } from '@metro-labs/client/api/attach';
 import { Icon } from '../Icon.js';
-import { Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
+import { AgentDeepPage } from '../agent/AgentDeepPage.js';
 import { type ChannelProps } from './channel-props.js';
 import { channelTitle } from './ChannelRow.js';
-import { DeepNav } from './DeepNav.js';
 import { RulePreview } from './RulePreview.js';
 import { Section } from './Section.js';
 import {
@@ -56,26 +54,11 @@ function useSaveRule({ agentId, found, view, onSaved }: ChannelProps, target: Ru
   return { busy, error, pick };
 }
 
-function Heading({ title, lead, tool }: { title: string; lead: string; tool: string | null }): ReactNode {
-  const palette = useKitPalette();
-  const technical = useTechnicalDetails();
-  return (
-    <Col gap={6}>
-      <Text accessibilityRole="header" size="2xl" weight="semibold">
-        {title}
-      </Text>
-      <Text size="md" color={palette.text}>
-        {lead}
-      </Text>
-      {technical && tool !== null ? <Text size="xs" role="secondary">{tool}</Text> : null}
-    </Col>
-  );
-}
-
 export function RulePage(props: ChannelProps & { target: RuleTarget; channelHref: string }): ReactNode {
   const { project, found, view, target, channelHref } = props;
   const palette = useKitPalette();
   const name = useAgentName();
+  const technical = useTechnicalDetails();
   const title = ruleTitle(target);
   const tool = targetTool(target);
   const saving = useSaveRule(props, target);
@@ -83,24 +66,20 @@ export function RulePage(props: ChannelProps & { target: RuleTarget; channelHref
   const current = choiceOf(found.row.policy, view.tools[found.station] ?? [], target);
   const trail = [{ label: stationLabel(found.station), href: channelHref }, ...(tool === null ? [] : [{ label: 'Exceptions', href: `${channelHref}/exceptions` }]), { label: title }];
   return (
-    <>
-      <DeepNav project={project} trail={trail} />
-      <Groups>
-        <Heading title={title} lead={ruleText(target, name).lead} tool={tool} />
-        <Section error={saving.error}>
-          {optionsOf(props, target, name).map((option) => (
-            <Item
-              key={option.choice}
-              title={option.title}
-              subtitle={option.text}
-              chevron={false}
-              trailing={<Row width={MARK}>{current === option.choice ? <Icon name="check" size={MARK} color={palette.link} /> : null}</Row>}
-              onPress={() => { if (!saving.busy && current !== option.choice) saving.pick(option.choice); }}
-            />
-          ))}
-        </Section>
-        <RulePreview agentId={props.agentId} found={found} handle={stationFields(found.row).handle ?? channelTitle(found)} target={target} channelHref={channelHref} />
-      </Groups>
-    </>
+    <AgentDeepPage project={project} tab="chats" trail={trail} title={title} subtitle={technical && tool !== null ? tool : undefined} lead={ruleText(target, name).lead}>
+      <Section error={saving.error}>
+        {optionsOf(props, target, name).map((option) => (
+          <Item
+            key={option.choice}
+            title={option.title}
+            subtitle={option.text}
+            chevron={false}
+            trailing={<Row width={MARK}>{current === option.choice ? <Icon name="check" size={MARK} color={palette.link} /> : null}</Row>}
+            onPress={() => { if (!saving.busy && current !== option.choice) saving.pick(option.choice); }}
+          />
+        ))}
+      </Section>
+      <RulePreview agentId={props.agentId} found={found} handle={stationFields(found.row).handle ?? channelTitle(found)} target={target} channelHref={channelHref} />
+    </AgentDeepPage>
   );
 }

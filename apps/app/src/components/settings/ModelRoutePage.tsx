@@ -6,25 +6,23 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { ModelSettings } from '@metro-labs/client/api/model';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
-import { modelOrder, type ModelOrderItem } from '@metro-labs/client/api/model-order';
+import { modelOrder } from '@metro-labs/client/api/model-order';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
-import { canAddFallback } from '@metro-labs/client/api/route-edit';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { Loading } from '../Loading.js';
-import { RouteEditor, type RouteScope } from '../RouteEditor.js';
+import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl, type RouteControl } from '../route-actions.js';
 import { sourceLine, withRoute } from '../model-view.js';
-import { AddRow, ModelRow, backupMenu } from './RouteRows.js';
+import { RouteOrder } from '../models/RouteOrder.js';
 import { NoteRow } from './rows.js';
 import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { queryError } from '../../lib/queries.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { routeSummary } from '../../lib/settings-values.js';
-import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
 const NO_CONNECTION = 'No account yet. Add one on the organization’s Models page, a Claude subscription included.';
@@ -90,55 +88,15 @@ function RouteChoice({ editing, name }: { editing: Editing; name: string }): Rea
 }
 
 function EditableModels({ editing, settings, name }: { editing: Editing; settings: ModelSettings; name: string }): ReactNode {
-  const technical = useTechnicalDetails();
   const { control, scope, own } = editing;
   const items = modelOrder(withRoute(settings, scope.route, scope.connections));
-  const [main, ...backups] = items;
-  const busy = control.busy;
-  return (
-    <>
-      <Group label="Main model" note={own ? undefined : `Changing a model gives ${name} its own route.`}>
-        {main === undefined ? (
-          <AddRow label="Choose a model" disabled={busy} onPress={() => { control.actions.edit({ kind: 'primary' }); }} />
-        ) : (
-          <ModelRow item={main} technical={technical} onPress={busy ? undefined : () => { control.actions.edit({ kind: 'primary' }); }} />
-        )}
-        {control.error === null ? null : <NoteRow text={control.error} danger />}
-      </Group>
-      {main === undefined ? null : (
-        <Group label="Backups, in order" note={`${name} moves on when a model passes 95% or is full, and comes back when it resets.`}>
-          {backups.map((item, at) => (
-            <ModelRow key={rowKey(item)} item={item} technical={technical} menu={busy ? undefined : backupMenu(at, at === backups.length - 1, control.actions)} />
-          ))}
-          <AddRow label="Add a backup" disabled={busy || !canAddFallback(scope.route)} onPress={() => { control.actions.edit({ kind: 'new' }); }} />
-        </Group>
-      )}
-      <RouteEditor scope={scope} slot={control.slot} onClose={control.close} />
-    </>
-  );
+  return <RouteOrder items={items} who={name} mainNote={own ? undefined : `Changing a model gives ${name} its own route.`} edit={{ control, scope }} />;
 }
 
-const rowKey = (item: ModelOrderItem): string => (item.slot.kind === 'fallback' ? `${String(item.slot.at)}:${item.step.connection}:${item.model}` : 'main');
-
 function ReadOnlyModels({ settings, org, orgError, name }: { settings: ModelSettings; org: OrgModels | undefined; orgError: Error | null; name: string }): ReactNode {
-  const technical = useTechnicalDetails();
-  const [main, ...backups] = modelOrder(settings);
   const note = [sourceLine(settings.source, settings.route), org === undefined ? '' : MEMBER_NOTE].filter((part) => part !== '').join(' ');
-  return (
-    <>
-      <Group label="Main model" note={note}>
-        {main === undefined ? <Item title="No model yet" /> : <ModelRow item={main} technical={technical} />}
-        {orgError === null ? null : <NoteRow text={queryError(orgError, 'Could not read the organization’s models.')} danger />}
-      </Group>
-      {backups.length === 0 ? null : (
-        <Group label="Backups, in order" note={`${name} moves on when a model passes 95% or is full, and comes back when it resets.`}>
-          {backups.map((item) => (
-            <ModelRow key={rowKey(item)} item={item} technical={technical} />
-          ))}
-        </Group>
-      )}
-    </>
-  );
+  const error = orgError === null ? null : queryError(orgError, 'Could not read the organization’s models.');
+  return <RouteOrder items={modelOrder(settings)} who={name} mainNote={note} error={error} />;
 }
 
 function Problems({ settings, error }: { settings: ModelSettings; error: Error | null }): ReactNode {

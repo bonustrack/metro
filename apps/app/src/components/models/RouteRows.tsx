@@ -13,8 +13,9 @@ import { KebabMenu } from '../KebabMenu.js';
 import { UsageBar } from '../ModelUsage.js';
 import { ProviderLogo } from '../ProviderLogo.js';
 import type { MenuItem } from '../Dropdown.js';
-import type { RouteActions } from '../ModelRouting.js';
+import type { RouteActions } from '../route-actions.js';
 import { useIsNarrow } from '../../lib/media.js';
+import { accountLine as connectionLine } from '../../lib/model-words.js';
 import { shownWindow } from '../../lib/settings-values.js';
 import { SHRINK } from '../../lib/style.js';
 import { useNow } from '../../lib/use-now.js';
@@ -46,11 +47,19 @@ function accountLine(item: ModelOrderItem): string {
   return [...new Set(parts)].join(' · ');
 }
 
+function trouble(item: ModelOrderItem): string | null {
+  if (item.connection === undefined) return null;
+  const line = connectionLine(item.connection);
+  return line.bad ? line.text : null;
+}
+
 function Status({ item }: { item: ModelOrderItem }): ReactNode {
   const hold = item.row?.hold ?? null;
+  const problem = trouble(item);
   return (
-    <Text size="xs" role="secondary" numberOfLines={2}>
+    <Text size="xs" role={item.connection === undefined ? 'danger' : 'secondary'} numberOfLines={2}>
       {accountLine(item)}
+      {problem === null ? null : <Text size="xs" role="danger">{` · ${problem}`}</Text>}
       {item.row?.active === true ? <Text size="xs" role="success">{' · In use'}</Text> : null}
       {hold === null ? null : <Text size="xs" role="danger">{` · Skipped: ${holdLine(hold)}`}</Text>}
     </Text>

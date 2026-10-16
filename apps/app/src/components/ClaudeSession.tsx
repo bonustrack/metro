@@ -63,7 +63,7 @@ function Rows({ status, project }: { status: ClaudeSessionStatus; project: strin
       <Control title="Start by itself" note={AUTOSTART} inline>
         <Switch name="Start by itself" checked={status.autostart} disabled={busy} dark={dark} onChange={(on) => { send({ autostart: on }); }} />
       </Control>
-      <Item title="Live view" subtitle="What the agent and its helpers do right now" href={routeHash({ kind: 'run', project })} />
+      <Item title="Right now" subtitle="What the agent and its helpers are doing" href={routeHash({ kind: 'run', project })} />
       <Item title="Conversations" subtitle="Saved turns and tool results" href={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })} />
       {status.running ? <Item title="Terminal" subtitle="The session process and its output" onPress={() => { openTerminal(project); }} /> : null}
     </>

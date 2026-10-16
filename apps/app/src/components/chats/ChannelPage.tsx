@@ -9,16 +9,14 @@ import { DeleteMenu } from '../DeleteMenu.js';
 import { detachLines } from './detach-lines.js';
 import { Loading } from '../Loading.js';
 import { StationIcon } from '../StationIcon.js';
-import { Groups } from '../ui/Group.js';
+import { AgentDeepPage } from '../agent/AgentDeepPage.js';
 import { Item } from '../ui/Item.js';
-import { PageHeader } from '../ui/PageHeader.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { type ChannelProps } from './channel-props.js';
 import { ChannelPeople } from './ChannelPeople.js';
 import { ChannelRules } from './ChannelRules.js';
 import { channelTitle } from './ChannelRow.js';
 import { ChannelDetails, ChannelSetup } from './ChannelSetup.js';
-import { DeepNav } from './DeepNav.js';
 import { ExceptionsPage } from './ExceptionsPage.js';
 import { GmailAccess } from './GmailAccess.js';
 import { RulePage } from './RulePage.js';
@@ -80,29 +78,31 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
   const title = channelTitle(found);
   const id = row.id;
   return (
-    <>
-      <DeepNav project={project} trail={[{ label: stationLabel(station) }]} />
-      <Groups>
-        <PageHeader title={title} leading={<StationIcon station={station} size={ICON} />} action={<ChannelMenu project={project} agentId={agentId} found={found} />} />
-        <Receive agentId={agentId} found={found} />
-        {id === null || row.allowlist === null ? null : (
-          <ChannelPeople agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle ?? ''} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />
-        )}
-        {station === 'gmail' ? <GmailAccess key={`${agentId}/${id ?? ''}`} agentId={agentId} row={row} features={view.features} onSaved={onSaved} /> : null}
-        {id === null ? null : <ChannelRules project={project} accountId={id} policy={row.policy} tools={view.tools[station] ?? []} verbs={view.capabilities[station] ?? []} />}
-        <ChannelSetup station={station} row={row} agentId={agentId} />
-        <ChannelDetails station={station} row={row} />
-      </Groups>
-    </>
+    <AgentDeepPage
+      project={project}
+      tab="chats"
+      trail={[{ label: stationLabel(station) }]}
+      title={title}
+      leading={<StationIcon station={station} size={ICON} />}
+      action={<ChannelMenu project={project} agentId={agentId} found={found} />}
+    >
+      <Receive agentId={agentId} found={found} />
+      {id === null || row.allowlist === null ? null : (
+        <ChannelPeople agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle ?? ''} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />
+      )}
+      {station === 'gmail' ? <GmailAccess key={`${agentId}/${id ?? ''}`} agentId={agentId} row={row} features={view.features} onSaved={onSaved} /> : null}
+      {id === null ? null : <ChannelRules project={project} accountId={id} policy={row.policy} tools={view.tools[station] ?? []} verbs={view.capabilities[station] ?? []} />}
+      <ChannelSetup station={station} row={row} agentId={agentId} />
+      <ChannelDetails station={station} row={row} />
+    </AgentDeepPage>
   );
 }
 
 function Gone({ project }: { project: string }): ReactNode {
   return (
-    <>
-      <DeepNav project={project} trail={[{ label: 'Channel' }]} />
+    <AgentDeepPage project={project} tab="chats" trail={[{ label: 'Channel' }]}>
       <StateBlock icon="exclamationCircle" title="This channel is gone" text="It is not connected to the agent anymore." action={{ label: 'Back to Chats', onPress: () => { go({ kind: 'chats', project }); } }} />
-    </>
+    </AgentDeepPage>
   );
 }
 

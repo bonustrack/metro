@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { agentLine, orderAgents, shortVersion, technicalLine, type LineFacts } from '../src/lib/agent-line.ts';
-import { agentHealth } from '../src/lib/agent-health.ts';
+import { healthFix } from '../src/lib/agent-health.ts';
 import type { Setup } from '../src/lib/setup-steps.ts';
 
 type RunnerActivity = NonNullable<ClaudeSessionStatus['activity']>;
@@ -75,13 +75,10 @@ describe('the one line under an agent in the list', () => {
 
 describe('the status under the agent name in its header', () => {
   test('a stopped or blocked agent links to the page that fixes it', () => {
-    expect(agentHealth('stopped', undefined, 'emma').fix).toEqual({ kind: 'server', project: 'emma' });
-    expect(agentHealth('live', session({ running: false, blocked: 'no model' }), 'emma')).toEqual({
-      text: 'Online, but not ready: no model', dot: 'danger', fix: { kind: 'claude', project: 'emma' },
-    });
-    expect(agentHealth('live', session({}), 'emma')).toEqual({ text: 'Online and ready', dot: 'success' });
-    expect(agentHealth('offline', undefined, 'emma').dot).toBe('danger');
-    expect(agentHealth('updating', undefined, 'emma').dot).toBeNull();
-    expect(agentHealth(undefined, undefined, 'emma').text).toBe('Checking…');
+    expect(healthFix('stopped', undefined, 'emma')).toEqual({ kind: 'server', project: 'emma' });
+    expect(healthFix('live', session({ running: false, blocked: 'no model' }), 'emma')).toEqual({ kind: 'claude', project: 'emma' });
+    expect(healthFix('live', session({}), 'emma')).toBeUndefined();
+    expect(healthFix('offline', undefined, 'emma')).toBeUndefined();
+    expect(healthFix(undefined, undefined, 'emma')).toBeUndefined();
   });
 });
