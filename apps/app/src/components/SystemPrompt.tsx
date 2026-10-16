@@ -37,7 +37,7 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   };
   return (
     <Col gap={10}>
-      <Text size="md" role="secondary">{NOTE}</Text>
+      <Text size="xs" role="secondary">{NOTE}</Text>
       <FormField label="System prompt"
         name="system-prompt"
         value={draft}

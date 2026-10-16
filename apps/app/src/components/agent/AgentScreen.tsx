@@ -11,9 +11,10 @@ import { OfflinePanel, worksOffline } from '../Offline.js';
 import { StoppedNotice } from '../StoppedNotice.js';
 import { TerminalPage } from '../Terminal.js';
 import { Tabbed } from '../tabbed.js';
+import { AgentDeepPage } from './AgentDeepPage.js';
 import { AgentHeader } from './AgentHeader.js';
 import { AgentSubPages, AgentTabs } from './AgentTabs.js';
-import { isPageRoot } from '../../lib/agent-tabs.js';
+import { deepPageOf, isPageRoot } from '../../lib/agent-tabs.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { useSessionQuery } from '../../lib/queries.js';
 import { noteTitle } from '../../lib/title.js';
@@ -54,6 +55,16 @@ function AgentDetail({ server, selection, children }: { server: Server; selectio
   );
 }
 
+function AgentFrame({ server, selection, children }: { server: Server; selection: Selection; children: ReactNode }): ReactNode {
+  const deep = deepPageOf(selection);
+  if (deep === undefined) return <AgentDetail server={server} selection={selection}>{children}</AgentDetail>;
+  return (
+    <AgentDeepPage server={server} project={selectionProject(selection) ?? server.id} page={deep} selection={selection}>
+      {children}
+    </AgentDeepPage>
+  );
+}
+
 function useBoxState(): { error: Error | null; retry: () => void } {
   const { data: subject, error, refetch } = useSessionQuery();
   useEffect(() => {
@@ -80,8 +91,8 @@ export function AgentScreen({ server, selection, onLock }: AgentScreenProps): Re
   if (selection.kind === 'terminal') return notice ?? (offline ? <OfflinePanel onRetry={retry} /> : <TerminalPage />);
   const page = offline && !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : <AgentPanel selection={selection} />;
   return (
-    <AgentDetail server={server} selection={selection}>
+    <AgentFrame server={server} selection={selection}>
       {notice ?? page}
-    </AgentDetail>
+    </AgentFrame>
   );
 }

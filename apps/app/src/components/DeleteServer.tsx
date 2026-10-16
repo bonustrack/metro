@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { SettingsGroup, SettingsSection } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { orgKey, queryError, refreshServers } from '../lib/queries.js';
 import { deleteServer, deletionLines, fetchDeletion, type Deletable, type DeletionScope, type DeletionView } from '@metro-labs/client/api/deletion';
@@ -10,7 +9,7 @@ import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { go } from '../lib/nav.js';
 
-const NOTE = 'Terminates the server in AWS and deletes its disk, with the agent and everything on it.';
+const NOTE = 'Removes the server and everything on it';
 const READING = 'Reading what AWS holds for this server…';
 
 const readyOf = (view: DeletionView | undefined): Deletable | null => (view?.deletable === true ? view : null);
@@ -64,38 +63,54 @@ export function DeleteDialog({ id, label, scope, onDeleted, onClose }: DeleteDia
   );
 }
 
-export function DeleteServerSection({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
+export function DeleteServerDialog({ server, onClose }: { server: Server; onClose: () => void }): ReactNode {
   const client = useQueryClient();
-  const [open, setOpen] = useState(false);
-  if (server.instanceId === null || activeAccount()?.role !== 'admin') return null;
   return (
-    <SettingsGroup title="Danger zone">
-      <SettingsSection title="Delete this server" note={NOTE}>
-        <Button
-          size="md"
-          color="danger"
-          dark={dark}
-          label="Delete"
-          onPress={() => {
-            setOpen(true);
+    <DeleteDialog
+      id={server.id}
+      label={serverLabel(server)}
+      scope="organization"
+      onDeleted={async () => {
+        await refreshServers(client);
+        go({ kind: 'servers' });
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+export const canDeleteServer = (server: Server): boolean => server.instanceId !== null && activeAccount()?.role === 'admin';
+
+export function DeleteServerRow({ server }: { server: Server }): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Item
+        title={`Delete ${serverLabel(server)}`}
+        subtitle={NOTE}
+        danger
+        chevron={false}
+        onPress={() => {
+          setOpen(true);
+        }}
+      />
+      {open ? (
+        <DeleteServerDialog
+          server={server}
+          onClose={() => {
+            setOpen(false);
           }}
         />
-        {open ? (
-          <DeleteDialog
-            id={server.id}
-            label={serverLabel(server)}
-            scope="organization"
-            onDeleted={async () => {
-              await refreshServers(client);
-              go({ kind: 'servers' });
-            }}
-            onClose={() => {
-              setOpen(false);
-            }}
-          />
-        ) : null}
-      </SettingsSection>
-    </SettingsGroup>
+      ) : null}
+    </>
+  );
+}
+
+export function DeleteServerSection({ server }: { server: Server }): ReactNode {
+  if (!canDeleteServer(server)) return null;
+  return (
+    <Group label="Danger">
+      <DeleteServerRow server={server} />
+    </Group>
   );
 }

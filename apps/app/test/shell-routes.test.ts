@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
 import { configurePlatform, memoryKeyValue } from '@metro-labs/client/platform';
-import { AGENT_TABS, agentPageOf, agentTabOf, isPageRoot, type AgentTabId } from '../src/lib/agent-tabs.ts';
+import { AGENT_TABS, agentPageOf, agentTabOf, deepPageOf, isPageRoot, shallowPages, type AgentTabId } from '../src/lib/agent-tabs.ts';
 import { isTabRoot, phoneBackOf, phoneTabOf, shellSectionOf } from '../src/lib/shell-sections.ts';
 import { setTechnicalDetails, technicalDetails } from '../src/lib/technical.ts';
 
@@ -22,12 +22,12 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/scheduled', 'tools', 'Scheduled tasks'],
   ['/scheduled/cron-agent%3A1', 'tools', 'Scheduled tasks'],
   ['/secrets', 'tools', 'Secrets'],
-  ['/settings', 'settings', 'General'],
+  ['/settings', 'settings', 'Settings'],
   ['/model', 'settings', 'Model'],
-  ['/harness', 'settings', 'Harness'],
+  ['/harness', 'settings', 'Agent SDK setup'],
   ['/server', 'settings', 'Server'],
   ['/terminal', 'settings', 'Terminal'],
-  ['/run', 'settings', 'Run'],
+  ['/run', 'settings', 'Live view'],
 ];
 
 describe('every page of an agent has a place under one of its five tabs', () => {
@@ -59,6 +59,15 @@ describe('every page of an agent has a place under one of its five tabs', () => 
     expect(isPageRoot({ kind: 'skill', project: AGENT, id: 'user:x' })).toBe(false);
     expect(isPageRoot({ kind: 'home', project: AGENT })).toBe(false);
     expect(isPageRoot({ kind: 'servers' })).toBe(false);
+  });
+
+  test('Settings pages open deeper with a back link, not as segments', () => {
+    const settings = AGENT_TABS.find((tab) => tab.id === 'settings');
+    expect(settings === undefined ? [] : shallowPages(settings).map((page) => page.label)).toEqual(['Settings']);
+    for (const kind of ['model', 'claude', 'server', 'run'] as const) expect(deepPageOf({ kind, project: AGENT })?.label).toBe(agentPageOf(kind)?.label);
+    expect(deepPageOf({ kind: 'agent-settings', project: AGENT })).toBeUndefined();
+    expect(deepPageOf({ kind: 'memory', project: AGENT, claudeProject: null, file: null })).toBeUndefined();
+    expect(deepPageOf({ kind: 'servers' })).toBeUndefined();
   });
 
   test('the five tabs come in the order of the design', () => {

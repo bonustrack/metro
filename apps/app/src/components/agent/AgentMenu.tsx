@@ -1,48 +1,50 @@
 import { type ReactNode, useState } from 'react';
-import { Platform } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
-import { removeServer, serverLabel, type Server } from '@metro-labs/client/api/servers';
-import { routeHash } from '@metro-labs/client/route';
-import { BootLog } from '../BootLog.js';
-import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
+import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { canDeleteServer, DeleteServerDialog } from '../DeleteServer.js';
 import { type MenuItem } from '../Dropdown.js';
 import { KebabMenu } from '../KebabMenu.js';
-import { refreshServers } from '../../lib/queries.js';
-import { openExternal } from '../../lib/open.js';
-import { go } from '../../lib/nav.js';
+import { updateOffered, useMetroUpdate, versionFacts } from '../MetroVersion.js';
+import { TransferDialogs, type Transfer } from '../settings/AdvancedGroup.js';
+import { RemoveDialog, useRemoveFromList } from '../settings/DangerGroup.js';
+import { PowerDialogs, usePower } from '../settings/Power.js';
+import { usePausing } from '../settings/ProfileGroup.js';
+import { useStationsQuery } from '../../lib/queries.js';
+import { openTerminal } from '../../lib/open-terminal.js';
+import { shortVersion } from '../../lib/settings-values.js';
 
-function openTerminal(project: string): void {
-  const target = { kind: 'terminal', project } as const;
-  if (Platform.OS === 'web') openExternal(`${window.location.pathname}${routeHash(target)}`);
-  else go(target);
+function useUpdateItem(): MenuItem[] {
+  const u = useMetroUpdate();
+  const latest = u.release.data?.latest;
+  if (!updateOffered(versionFacts(u), u) || latest === undefined || u.busy) return [];
+  return [{ label: `Update to ${shortVersion(latest)}`, icon: 'arrowUp', onSelect: u.update }];
 }
 
 export function AgentMenu({ server }: { server: Server }): ReactNode {
-  const client = useQueryClient();
-  const [bootLog, setBootLog] = useState<Server | null>(null);
+  const power = usePower();
+  const pausing = usePausing();
+  const removing = useRemoveFromList(server);
+  const update = useUpdateItem();
+  const exportable = useStationsQuery().data?.agent !== undefined;
+  const [transfer, setTransfer] = useState<Transfer>(null);
+  const [deleting, setDeleting] = useState(false);
   const name = serverLabel(server);
-  const removing = useConfirm(
-    async () => {
-      await removeServer(server.id);
-      await refreshServers(client);
-    },
-    'Could not remove the agent.',
-    () => {
-      go({ kind: 'servers' });
-    },
-  );
   const items: MenuItem[] = [
-    { label: 'Restart or update', icon: 'server', onSelect: () => { go({ kind: 'server', project: server.id }); } },
+    { label: 'Restart', icon: 'server', onSelect: () => { power.ask('restart'); } },
+    ...update,
+    ...(pausing.shown ? [{ label: pausing.paused ? 'Resume messages' : 'Pause messages', icon: pausing.paused ? ('play' as const) : ('pause' as const), onSelect: () => { pausing.toggle(!pausing.paused); } }] : []),
     { label: 'Terminal', icon: 'desktop', onSelect: () => { openTerminal(server.id); } },
-    { label: 'Back up or restore', icon: 'folder', onSelect: () => { go({ kind: 'agent-settings', project: server.id }); } },
-    ...(server.instanceId === null ? [] : [{ label: 'Boot log', icon: 'documentText' as const, onSelect: () => { setBootLog(server); } }]),
-    { label: `Remove ${name} from the list`, danger: true, onSelect: removing.show },
+    ...(exportable ? [{ label: 'Export', icon: 'folder' as const, onSelect: () => { setTransfer('export'); } }] : []),
+    canDeleteServer(server)
+      ? { label: `Delete ${name}`, danger: true, onSelect: () => { setDeleting(true); } }
+      : { label: `Remove ${name} from the list`, danger: true, onSelect: removing.show },
   ];
   return (
     <>
       <KebabMenu items={items} label={`Actions for ${name}`} size="lg" />
-      <BootLog server={bootLog} onClose={() => { setBootLog(null); }} />
-      <ConfirmDialog confirming={removing} title="Remove this agent?" lines={[`${name} leaves your list. The server keeps running and nothing on it is deleted.`]} action="Remove agent" />
+      <PowerDialogs power={power} name={name} />
+      <TransferDialogs server={server} step={transfer} onStep={setTransfer} />
+      {deleting ? <DeleteServerDialog server={server} onClose={() => { setDeleting(false); }} /> : null}
+      <RemoveDialog server={server} confirming={removing} />
     </>
   );
 }

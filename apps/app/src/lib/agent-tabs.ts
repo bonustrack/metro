@@ -9,6 +9,7 @@ export interface AgentPage {
   kinds: readonly Kind[];
   target: (project: string) => Selection;
   newTab?: boolean;
+  deep?: boolean;
 }
 
 export interface AgentTab {
@@ -37,12 +38,12 @@ const TOOLS: AgentPage[] = [
 ];
 
 const SETTINGS: AgentPage[] = [
-  { label: 'General', kinds: ['agent-settings'], target: (project) => ({ kind: 'agent-settings', project }) },
-  { label: 'Model', kinds: ['model'], target: (project) => ({ kind: 'model', project }) },
-  { label: 'Harness', kinds: ['claude'], target: (project) => ({ kind: 'claude', project }) },
-  { label: 'Server', kinds: ['server'], target: (project) => ({ kind: 'server', project }) },
-  { label: 'Terminal', kinds: ['terminal'], target: (project) => ({ kind: 'terminal', project }), newTab: true },
-  { label: 'Run', kinds: ['run'], target: (project) => ({ kind: 'run', project }) },
+  { label: 'Settings', kinds: ['agent-settings'], target: (project) => ({ kind: 'agent-settings', project }) },
+  { label: 'Model', kinds: ['model'], target: (project) => ({ kind: 'model', project }), deep: true },
+  { label: 'Agent SDK setup', kinds: ['claude'], target: (project) => ({ kind: 'claude', project }), deep: true },
+  { label: 'Server', kinds: ['server'], target: (project) => ({ kind: 'server', project }), deep: true },
+  { label: 'Terminal', kinds: ['terminal'], target: (project) => ({ kind: 'terminal', project }), newTab: true, deep: true },
+  { label: 'Live view', kinds: ['run'], target: (project) => ({ kind: 'run', project }), deep: true },
 ];
 
 const HOME: AgentTab = { id: 'home', label: 'Home', target: (project) => ({ kind: 'home', project }), pages: [] };
@@ -68,3 +69,11 @@ export function isPageRoot(selection: Selection): boolean {
   const page = agentPageOf(selection.kind);
   return page !== undefined && page.target(selection.project).kind === selection.kind;
 }
+
+export function deepPageOf(selection: Selection): AgentPage | undefined {
+  if (!('project' in selection)) return undefined;
+  const page = agentPageOf(selection.kind);
+  return page?.deep === true ? page : undefined;
+}
+
+export const shallowPages = (tab: AgentTab): AgentPage[] => tab.pages.filter((page) => page.deep !== true);

@@ -27,7 +27,7 @@ async function untilVersion(version: string, base: string): Promise<void> {
   throw new Error(`Metro is not back on ${version} yet. Check the machine.`);
 }
 
-function useMetroUpdate() {
+export function useMetroUpdate() {
   const client = useQueryClient();
   const mode = useModeQuery({ live: true });
   const check = useUpdateQuery();
@@ -69,10 +69,10 @@ function UpdateButtons({ u, newer }: { u: ReturnType<typeof useMetroUpdate>; new
   </Row>;
 }
 
-type MetroUpdate = ReturnType<typeof useMetroUpdate>;
+export type MetroUpdate = ReturnType<typeof useMetroUpdate>;
 const staleQuery = (query: { isError: boolean; dataUpdatedAt: number }, now: number): boolean => query.isError || now - query.dataUpdatedAt > 120_000 || query.dataUpdatedAt > now;
 
-function versionFacts(u: MetroUpdate) {
+export function versionFacts(u: MetroUpdate) {
   const now = Date.now();
   const version = u.mode.data?.version ?? null;
   const modeStale = staleQuery(u.mode, now);
@@ -90,7 +90,7 @@ function versionNote(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): st
   return `${version === null ? 'Version unavailable.' : `Running ${version}.`} ${state}.${latest}${restart ? ` Installed ${installed}; restart Metro to run it.` : ''}`;
 }
 
-function updateOffered(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): boolean {
+export function updateOffered(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): boolean {
   return !facts.modeStale && facts.availability.kind === 'newer' && (facts.installed === null || olderThan(facts.installed, u.release.data?.latest ?? ''));
 }
 

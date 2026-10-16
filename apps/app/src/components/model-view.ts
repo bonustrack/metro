@@ -12,7 +12,6 @@ export interface KeyDraft {
 const OWN = 'This agent uses its own model order.';
 const ORGANIZATION = 'This agent uses the organization’s default model order.';
 const NONE = 'No model order is set yet, so this agent has no model.';
-const EDIT_NOTE = 'Changing the list gives this agent its own model order.';
 
 export function routesUsing(list: OrgModels, id: string): number {
   const routes = [...(list.default === null ? [] : [list.default]), ...Object.values(list.agents)];
@@ -29,8 +28,6 @@ export function sourceLine(source: ModelSettings['source'], route: ModelRoute | 
   if (source === 'agent') return OWN;
   return source === null && route === null ? NONE : ORGANIZATION;
 }
-
-export const editNote = (own: boolean, route: ModelRoute | null): string => (own ? OWN : `${route === null ? NONE : ORGANIZATION} ${EDIT_NOTE}`);
 
 export function withRoute(settings: ModelSettings, route: ModelRoute | null, choices: ConnectionRow[]): ModelSettings {
   const known = new Set(settings.connections.map((c) => c.id));

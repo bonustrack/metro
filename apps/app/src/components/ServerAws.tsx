@@ -2,10 +2,10 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { Loading } from './Loading.js';
 import { Dropdown } from './Dropdown.js';
-import { FactRow, SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Control, Fact, NoteRow } from './settings/rows.js';
 import { queryError } from '../lib/queries.js';
 import { instanceLabel, linkServer, unlinkServer, type FoundInstance } from '@metro-labs/client/api/aws';
 import { refreshAws, useInstancesQuery, useServerLinkQuery } from '../lib/aws-queries.js';
@@ -41,13 +41,7 @@ function useBusy(): Busy {
   return { busy, error, run };
 }
 
-const Note = ({ text, danger = false }: { text: string; danger?: boolean }): ReactNode => (
-  <SettingsPad>
-    <Text size="md" role={danger ? 'danger' : 'secondary'}>
-      {text}
-    </Text>
-  </SettingsPad>
-);
+const Note = ({ text, danger = false }: { text: string; danger?: boolean }): ReactNode => <NoteRow text={text} danger={danger} />;
 
 function candidates(found: FoundInstance[], server: Server): FoundInstance[] {
   const node = server.host.split('.')[0] ?? '';
@@ -62,7 +56,7 @@ function Picker({ server }: { server: Server }): ReactNode {
   const action = useBusy();
   if (!open) {
     return (
-      <SettingsSection title="Link to its AWS server" note={PICK_NOTE}>
+      <Control title="Link to its AWS server" note={PICK_NOTE}>
         <Button
           size="md"
           color="secondary"
@@ -72,7 +66,7 @@ function Picker({ server }: { server: Server }): ReactNode {
             setOpen(true);
           }}
         />
-      </SettingsSection>
+      </Control>
     );
   }
   if (found.data === undefined) return found.error === null ? <Loading /> : <Note text={queryError(found.error, 'Could not list the servers in AWS.')} danger />;
@@ -82,7 +76,7 @@ function Picker({ server }: { server: Server }): ReactNode {
       {found.data.errors.map((e) => (
         <Note key={e.accountId} text={`AWS account ${e.accountId}: ${e.error}`} danger />
       ))}
-      <SettingsSection title="Link to its AWS server" note={list.length === 0 ? 'No free server in the connected accounts.' : PICK_NOTE}>
+      <Control title="Link to its AWS server" note={list.length === 0 ? 'No free server in the connected accounts.' : PICK_NOTE}>
         {list.length === 0 || action.busy ? null : (
           <Dropdown
             label="AWS servers"
@@ -95,7 +89,7 @@ function Picker({ server }: { server: Server }): ReactNode {
             }))}
           />
         )}
-      </SettingsSection>
+      </Control>
       {action.error === null ? null : <Note text={action.error} danger />}
     </>
   );
@@ -105,11 +99,11 @@ function Linked({ server, accountId, region, instanceId }: { server: Server; acc
   const dark = useKitScheme() === 'dark';
   const action = useBusy();
   return (
-    <SettingsGroup title={TITLE}>
-      <FactRow label="AWS account" value={accountId ?? 'Unknown'} />
-      <FactRow label="Instance" value={`${instanceId} · ${region}`} />
+    <Group label={TITLE}>
+      <Fact label="AWS account" value={accountId ?? 'Unknown'} />
+      <Fact label="Instance" value={`${instanceId} · ${region}`} />
       {activeAccount()?.role === 'admin' ? (
-        <SettingsSection title="Unlink" note="Metro forgets which instance this is. Nothing changes in AWS.">
+        <Control title="Unlink" note="Metro forgets which instance this is. Nothing changes in AWS.">
           <Button
             size="md"
             color="secondary"
@@ -121,10 +115,10 @@ function Linked({ server, accountId, region, instanceId }: { server: Server; acc
               action.run(() => unlinkServer(server.id), 'Could not unlink the server.');
             }}
           />
-        </SettingsSection>
+        </Control>
       ) : null}
       {action.error === null ? null : <Note text={action.error} danger />}
-    </SettingsGroup>
+    </Group>
   );
 }
 
@@ -134,5 +128,5 @@ export function ServerAwsSection({ server }: { server: Server }): ReactNode {
   if (view === undefined || view.mode === 'metro') return null;
   if (view.mode === 'linked') return <Linked server={server} accountId={view.accountId} region={view.region} instanceId={view.instanceId} />;
   if (view.connections === 0) return null;
-  return <SettingsGroup title={TITLE}>{activeAccount()?.role === 'admin' ? <Picker server={server} /> : <Note text={MEMBER_NOTE} />}</SettingsGroup>;
+  return <Group label={TITLE}>{activeAccount()?.role === 'admin' ? <Picker server={server} /> : <Note text={MEMBER_NOTE} />}</Group>;
 }
