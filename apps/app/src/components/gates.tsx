@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { addServer, probeServer } from '@metro-labs/client/api/servers';
 import { fetchOrganizations, switchOrganization } from '@metro-labs/client/api/auth';
@@ -60,7 +60,7 @@ function ListedServer({ id, selection, onLock }: { id: string; selection: Select
   const { data, error, isPending, refetch } = useServersQuery();
   const server = data?.find((s) => s.id === id || s.slug === id);
   const [ready, setReady] = useState<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setCurrentServer(server === undefined ? null : { id: server.id, host: server.host });
     setReady(server?.id ?? null);
     return () => {
