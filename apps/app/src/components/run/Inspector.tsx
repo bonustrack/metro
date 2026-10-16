@@ -7,6 +7,8 @@ import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { clock, relatedEntries, stamp, type RunEntry } from './model.js';
+import { entryText, entryTime, statusWord } from './words.js';
+import { useTechnicalDetails } from '../../lib/technical.js';
 
 interface Props {
   entry: RunEntry;
@@ -29,6 +31,7 @@ function EntryMetadata({ entry }: { entry: RunEntry }): ReactNode {
 
 function EntryTrace({ entry, entries, onSelect }: Omit<Props, 'visible'>): ReactNode {
   const palette = useKitPalette();
+  const technical = useTechnicalDetails();
   const related = relatedEntries(entry, entries);
   const linked = related.length > 1;
   return <Col gap={12}>
@@ -36,9 +39,9 @@ function EntryTrace({ entry, entries, onSelect }: Omit<Props, 'visible'>): React
       ? 'Same task or tool call in this session.'
       : 'Messages and replies in the same chat. They do not show which worker answered.'}</Text>
     {!linked && <Text size="sm">No other linked event is retained.</Text>}
-    {related.map((row) => <Pressable key={row.id} accessibilityRole="button" accessibilityLabel={`Inspect ${row.title} at ${clock(row.at)}`} onPress={() => { onSelect(row.id); }}>
+    {related.map((row) => <Pressable key={row.id} accessibilityRole="button" accessibilityLabel={`Inspect ${row.title}, ${entryTime(row.at, technical)}`} onPress={() => { onSelect(row.id); }}>
       <Col gap={4} padding={{ y: 10 }} border={{ bottom: { width: 1, color: palette.border } }}>
-        <Row gap={8} wrap><Text size="md" role="secondary">{clock(row.at)} UTC</Text><Badge label={row.status} /></Row>
+        <Row gap={8} wrap><Text size="md" role="secondary">{technical ? `${clock(row.at)} UTC` : entryTime(row.at, false)}</Text><Badge label={statusWord(row.status, technical)} /></Row>
         <Text size="sm" weight="semibold">{row.title}</Text><Text size="sm" numberOfLines={2}>{row.text}</Text>
       </Col>
     </Pressable>)}
@@ -47,16 +50,17 @@ function EntryTrace({ entry, entries, onSelect }: Omit<Props, 'visible'>): React
 
 export function RunInspector({ entry, entries, onSelect, visible }: Props): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const technical = useTechnicalDetails();
   const [tab, setTab] = useState('details');
   const [metadata, setMetadata] = useState(false);
   return <Col gap={16} testID="event-inspector">
-    <Col gap={6}><Row gap={8} wrap><Badge label={entry.kind} /><Badge label={entry.status} color={entry.status === 'Failed' ? 'danger' : undefined} /></Row>
-      <Text weight="semibold">{entry.title}</Text><Text size="md" role="secondary">{stamp(entry.at)}</Text>
+    <Col gap={6}><Row gap={8} wrap><Badge label={entry.kind} /><Badge label={statusWord(entry.status, technical)} color={entry.status === 'Failed' ? 'danger' : undefined} /></Row>
+      <Text weight="semibold">{entry.title}</Text><Text size="md" role="secondary">{technical ? stamp(entry.at) : entryTime(entry.at, false)}</Text>
       {!visible && <Text size="md" role="secondary">This event is outside the current filters.</Text>}
     </Col>
     <Tabs variant="underline" value={tab} options={[{ value: 'details', label: 'Details' }, { value: 'trace', label: 'Trace' }]} onChange={setTab} />
     {tab === 'trace' ? <EntryTrace entry={entry} entries={entries} onSelect={onSelect} /> : <Col gap={16}>
-      <Text size="sm" selectable>{entry.text}</Text>
+      <Text size="sm" selectable>{entryText(entry, technical)}</Text>
       {entry.truncated && <Text size="md" role="secondary">This message is cut short. Open its conversation to read it all.</Text>}
       {entry.session !== null && <Text size="sm" role="secondary">Tool input and output, prompts and reasoning are not shown here. See Conversations for the transcript.</Text>}
       {entry.session === null && <Text size="md" role="secondary">A Metro event. It does not show which turn or worker got it.</Text>}

@@ -29,7 +29,7 @@ function WideRow({ input, header = false }: { input: ToolInput; header?: boolean
   return (
     <Row align="start" gap={16} padding={{ y: 10 }} border={{ bottom: side(palette.border) }}>
       <Col flex={NAME} minWidth={0}>
-        <Text size={header ? 'xs' : 'md'} role={header ? 'secondary' : undefined} style={header ? undefined : MONO}>
+        <Text size="xs" role={header ? 'secondary' : undefined} style={header ? undefined : MONO}>
           {input.name}
         </Text>
       </Col>
@@ -60,7 +60,7 @@ function NarrowRow({ input }: { input: ToolInput }): ReactNode {
   const palette = useKitPalette();
   return (
     <Col gap={4} padding={{ y: 10 }} border={{ bottom: side(palette.border) }}>
-      <Text size="md" style={MONO}>
+      <Text size="sm" style={MONO}>
         {input.name}
       </Text>
       <Row gap={8} align="center">
