@@ -10,8 +10,9 @@ import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import { namesList, peopleOf, approverNames } from '../../lib/channel-people.js';
 import { useBoxQuery, useModeQuery } from '../../lib/queries.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
-const MARK = 24;
+const MARK = ICON_SIZE.lg;
 
 function useCallers(agentId: string, stage: FlatAccount | undefined): string | null {
   const approvers = stage?.row.approvers ?? [];

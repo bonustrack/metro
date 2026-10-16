@@ -45,7 +45,7 @@ function Upgrade({ agentId, accountId, onClose, onSaved }: UpgradeProps): ReactN
       {done ? (
         <Col gap={14}>
           <Text size="xs">Sending authorized with Google.</Text>
-          <Text size="md" role="secondary">Metro's rule is unchanged. Set Send and reply to Allowed or Asks first to let the agent send.</Text>
+          <Text size="md" role="secondary">Metro's rule is unchanged. Set Write to Allow or Ask to let the agent send.</Text>
           <Button color="secondary" dark={dark} label="Done" onPress={close} />
         </Col>
       ) : session !== null ? (

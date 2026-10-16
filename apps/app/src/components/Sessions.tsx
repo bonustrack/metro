@@ -1,13 +1,14 @@
 import { type ReactNode } from 'react';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { ProjectGate } from './ProjectGate.js';
-import { Loading } from './Loading.js';
 import { SessionMenu } from './SessionMenu.js';
 import { Transcript } from './Transcript.js';
 import { OtherFolders } from './OtherFolders.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { sessionTitle } from './chats/RecentConversations.js';
+import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { StateBlock } from './ui/StateBlock.js';
 import { Item } from './ui/Item.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
@@ -24,10 +25,10 @@ function SessionRow({ session, target }: { session: ClaudeSession; target: Selec
 }
 
 function SessionList({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
-  const { data, error } = useClaudeSessionsQuery(claudeProject);
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
-  if (data === undefined) return <Loading />;
-  if (data.length === 0) return <Text size="md" role="secondary">No conversation yet.</Text>;
+  const { data, error, refetch } = useClaudeSessionsQuery(claudeProject);
+  if (data === undefined)
+    return error === null ? <RowsSkeleton rows={4} leading={false} /> : <ErrorState title="Could not list the conversations" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />;
+  if (data.length === 0) return <StateBlock icon="chat" title="No conversation yet" text="Conversations show here once someone writes to the agent." />;
   return (
     <Group>
       {data.map((s) => (

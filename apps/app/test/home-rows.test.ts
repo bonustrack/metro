@@ -6,8 +6,8 @@ import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { toMachine } from '@metro-labs/client/api/machine';
 import { toModelSettings } from '@metro-labs/client/api/model';
 import { othersLine, ruleLine } from '../src/lib/approval-note.ts';
-import { chatsGlance, modelGlance, serverGlance, uptimeWords } from '../src/lib/glance.ts';
-import { rightNow, sinceLabel } from '../src/lib/right-now.ts';
+import { chatsGlance, modelGlance, serverGlance, uptimeGlance, uptimeWords, versionGlance } from '../src/lib/glance.ts';
+import { rightNow, runSummary, sinceLabel } from '../src/lib/right-now.ts';
 
 type Activity = NonNullable<ClaudeSessionStatus['activity']>;
 type Task = Activity['tasks'][number];
@@ -37,6 +37,19 @@ describe('Right now on Home', () => {
     expect(sinceLabel(view.helpers[0]?.since ?? null, NOW)).toBe('1 min');
   });
 
+  test('the Run page sums it up in words', () => {
+    const busy = session({
+      mainPhase: 'approval',
+      approvals: 1,
+      tasks: [task('a', 'running'), task('b', 'running'), task('c', 'running'), task('d', 'completed')],
+      events: [{ at: NOW - 30_000, kind: 'approval_waiting', tool: 'mcp__metro__send', taskId: 'c' }],
+    });
+    expect(runSummary(rightNow(busy, NOW))).toBe('Working on 2 tasks. Waiting for you on 1.');
+    expect(runSummary(rightNow(session({ mainPhase: 'working' }), NOW))).toBe('Working on 1 task.');
+    expect(runSummary(rightNow(session({ mainPhase: 'idle' }), NOW))).toBe('Waiting for messages.');
+    expect(runSummary(rightNow(session(null, { running: false, blocked: 'No model yet' }), NOW))).toBe('Not running.');
+  });
+
   test('without a live Agent SDK report it only says the session runs, or why not', () => {
     expect(rightNow(session(null), NOW).main).toMatchObject({ title: 'Running', subtitle: 'Main thread' });
     expect(rightNow(session(null, { running: false, blocked: 'No model yet' }), NOW).main).toMatchObject({ title: 'Not running', subtitle: 'No model yet', dot: 'danger' });
@@ -50,12 +63,12 @@ describe('At a glance on Home', () => {
     connections: [{ id: 'c1', provider: 'anthropic', label: 'Claude subscription', subscription: true }],
   });
 
-  test('the model shows its use this week, else its fullest window, else nothing', () => {
+  test('the model shows its name, then its use this week, else its fullest window, else nothing', () => {
     const at = new Date(NOW).toISOString();
     const week = { c1: { at, windows: [{ label: '5-hour', used: 0.2 }, { label: 'Weekly', used: 0.62 }] } };
-    expect(modelGlance(routed(week), NOW)).toEqual({ subtitle: 'Claude subscription', value: '62% this week' });
-    expect(modelGlance(routed({ c1: { at, windows: [{ label: '5-hour', used: 0.2 }] } }), NOW).value).toBe('20% used');
-    expect(modelGlance(routed({}), NOW).value).toBeNull();
+    expect(modelGlance(routed(week), NOW)).toEqual({ subtitle: 'Claude subscription · 62% this week', value: 'claude-sonnet-5-5' });
+    expect(modelGlance(routed({ c1: { at, windows: [{ label: '5-hour', used: 0.2 }] } }), NOW).subtitle).toBe('Claude subscription · 20% used');
+    expect(modelGlance(routed({}), NOW)).toEqual({ subtitle: 'Claude subscription', value: 'claude-sonnet-5-5' });
     expect(modelGlance(routed({}, false), NOW)).toEqual({ subtitle: 'Signed out', value: 'Not ready', tone: 'danger' });
   });
 
@@ -71,6 +84,19 @@ describe('At a glance on Home', () => {
     expect(serverGlance(machine, { cpu: 12, memory: 94, disk: 30 })).toEqual({ subtitle: 'Up 3 days', value: 'Memory 94%', tone: 'danger' });
     expect(serverGlance(undefined, undefined)).toEqual({ subtitle: 'Online', value: null });
     expect([uptimeWords(30), uptimeWords(20 * 60), uptimeWords(5 * 3_600), uptimeWords(86_400)]).toEqual(['1 min', '20 min', '5 h', '1 day']);
+  });
+
+  test('the server line shows where it runs and how big it is when known', () => {
+    const machine = toMachine({ hostname: 'emma', uptimeSeconds: 3 * 86_400, disk: null });
+    expect(serverGlance(machine, { cpu: 12, memory: 40, disk: 20 }, 'Zurich · 2 CPUs · 8 GB')).toEqual({ subtitle: 'Zurich · 2 CPUs · 8 GB', value: 'All good', tone: 'success' });
+    expect(uptimeGlance(machine)).toEqual({ subtitle: 'Since the last restart', value: '3 days' });
+    expect(uptimeGlance(undefined)).toBeUndefined();
+  });
+
+  test('the Metro version says when an update is ready', () => {
+    expect(versionGlance('0.1.0-beta.311', '0.1.0-beta.312')).toEqual({ subtitle: 'Update to beta.312', value: 'beta.311' });
+    expect(versionGlance('0.1.0-beta.312', '0.1.0-beta.312')).toEqual({ subtitle: 'Up to date', value: 'beta.312' });
+    expect(versionGlance(null, '0.1.0-beta.312')).toBeUndefined();
   });
 });
 

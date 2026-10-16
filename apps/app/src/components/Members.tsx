@@ -12,10 +12,12 @@ import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
 import { KebabMenu } from './KebabMenu.js';
 import { Modal } from './Modal.js';
+import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { orgKey, queryError } from '../lib/queries.js';
-import { AVATAR_SIZE } from './ui/sizes.js';
+import { AVATAR_SIZE, ICON_SIZE } from './ui/sizes.js';
 
 const ROLES_NOTE = 'Admins launch agents, add connectors, change models and invite. Members check on agents and approve.';
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
@@ -46,7 +48,7 @@ function RoleMenu({ member, self, onError }: { member: Member; self: boolean; on
   return (
     <Dropdown items={items} label={`Role of ${member.email ?? member.userId}`} style={ROLE_TRIGGER} hoverStyle={hover}>
       <Text size="md">{ROLE_WORD[member.role]}</Text>
-      <Icon name="chevronDown" size={18} color={palette.sub} />
+      <Icon name="chevronDown" size={ICON_SIZE.sm} color={palette.sub} />
     </Dropdown>
   );
 }
@@ -71,13 +73,17 @@ function InvitationRow({ invitation, org, onError }: { invitation: Invitation; o
 }
 
 export function MembersGroups(): ReactNode {
-  const { data, error, isPending } = useOrganizationQuery();
+  const { data, error, refetch } = useOrganizationQuery();
   const [failed, setFailed] = useState<string | null>(null);
-  if (isPending) return <Group label="Members"><Item title="Loading the members…" /></Group>;
-  if (error !== null) return <Group label="Members" note={queryError(error, 'Could not read the organization.')}>{null}</Group>;
+  if (data === undefined)
+    return (
+      <Group label="Members">
+        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the members" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
+      </Group>
+    );
   return (
     <>
-      <Group label="Members" note={failed ?? ROLES_NOTE}>
+      <Group label="Members" note={ROLES_NOTE} error={failed}>
         {data.members.map((m) => <MemberRow key={m.membershipId} member={m} org={data} onError={setFailed} />)}
       </Group>
       {data.invitations.length === 0 ? null : (
@@ -134,7 +140,7 @@ export function InviteButton({ compact = false }: { compact?: boolean }): ReactN
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="md" color="primary" dark={dark} label={compact ? 'Invite' : 'Invite someone'} iconStart={<Icon name="userAdd" size={20} color={palette.bg} />} onPress={() => { setOpen(true); }} />
+      <Button size="md" color="secondary" dark={dark} label={compact ? 'Invite' : 'Invite someone'} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
       {open ? <InviteModal onClose={() => { setOpen(false); }} /> : null}
     </>
   );

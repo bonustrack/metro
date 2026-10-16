@@ -11,8 +11,9 @@ import { GitHubMark } from './GitHubMark.js';
 import { GitHubSourceEditor } from './GitHubSourceEditor.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
+import { ICON_SIZE } from './ui/sizes.js';
 
-const MARK = 22;
+const MARK = ICON_SIZE.md;
 const NOTE = 'One source, checked about once a minute. Local skills stay editable and win.';
 
 function pendingLine(view: GitHubSkillSource): string {

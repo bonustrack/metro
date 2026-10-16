@@ -1,6 +1,5 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { fetchClaudeProjects } from '@metro-labs/client/api/claude';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import type { StationsView } from '@metro-labs/client/api/client';
@@ -8,10 +7,10 @@ import { currentServer } from '@metro-labs/client/auth/daemon';
 import { Groups } from './ui/Group.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { WithRail } from './ui/Layout.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { ApprovalCardView, type ApprovalContext } from './home/ApprovalCard.js';
 import { AtAGlance } from './home/Glance.js';
-import { HomeSkeleton } from './home/HomeSkeleton.js';
 import { RightNow } from './home/RightNow.js';
 import { SetupChecklist } from './home/SetupChecklist.js';
 import { rightNow } from '../lib/right-now.js';
@@ -38,12 +37,12 @@ function useConversations(): number | undefined {
 }
 
 function Approvals({ context }: { context: ApprovalContext }): ReactNode {
-  const { data, error } = useBoxApprovals();
+  const { data, error, refetch } = useBoxApprovals();
   const approvals = data ?? [];
   if (approvals.length === 0 && error === null) return null;
   return (
     <Col gap={CARD_GAP}>
-      {error === null ? null : <Text size="xs" role="danger">{queryError(error, 'Could not check for new approvals.')}</Text>}
+      {error === null ? null : <ErrorState title="Could not check for new approvals" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
       {approvals.map((approval) => (
         <ApprovalCardView key={approval.id} approval={approval} context={context} />
       ))}
@@ -67,7 +66,7 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
     <>
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
-      {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} /> : null}
+      {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} name={name} /> : null}
     </>
   );
 }
@@ -84,7 +83,7 @@ function HomeState({ project, name, serverId }: { project: string; name: string;
   const agent = stations.data?.agent;
   if (stations.data === undefined && stations.error !== null)
     return <ErrorState title={`Could not load ${name}`} text={queryError(stations.error, 'The agent did not answer.')} onRetry={stations.refetch} />;
-  if (stations.data === undefined) return <HomeSkeleton />;
+  if (stations.data === undefined) return <RowsSkeleton rows={3} />;
   if (agent === undefined) return <StateBlock spinner title={`${name} is getting ready`} text="Its agent shows here within seconds." />;
   return <HomeBody project={project} name={name} serverId={serverId} agentId={agent.id} view={stations.data} />;
 }

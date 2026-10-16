@@ -8,11 +8,12 @@ import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
 import { DeleteMenu } from './DeleteMenu.js';
-import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { folderAt, memoryTree, noteLink, noteTitle, parentOf, type MemoryFolder } from './memory-tree.js';
 import { Group, Groups } from './ui/Group.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { useHomeProject } from '../lib/agent-hooks.js';
 import { isNoteFile } from '../lib/agent-tabs.js';
@@ -61,10 +62,10 @@ function FolderRows({ project, claudeProject, folder }: { project: string; claud
 }
 
 function FolderView({ project, claudeProject, path }: { project: string; claudeProject: string; path: string }): ReactNode {
-  const { data, error } = useMemoryQuery(claudeProject);
+  const { data, error, refetch } = useMemoryQuery(claudeProject);
   const tree = useMemo(() => memoryTree(data?.files ?? []), [data]);
-  if (error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not read the notes" text={queryError(error, 'Try again in a moment.')} />;
-  if (data === undefined) return <Loading />;
+  if (data === undefined)
+    return error === null ? <RowsSkeleton rows={4} trailing={false} /> : <ErrorState title="Could not read the notes" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />;
   if (data.files.length === 0) return <StateBlock icon="documentText" title="No notes yet" text={EMPTY} />;
   const folder = folderAt(tree, path);
   if (folder === null) return <StateBlock icon="folder" title="That folder is gone" text="The agent moved or removed it." />;
@@ -92,7 +93,7 @@ function DeleteNote({ project, claudeProject, file }: { project: string; claudeP
 }
 
 function NoteView({ project, claudeProject, file }: { project: string; claudeProject: string; file: string }): ReactNode {
-  const { data, error } = useMemoryFileQuery(claudeProject, file);
+  const { data, error, refetch } = useMemoryFileQuery(claudeProject, file);
   const listing = useMemoryQuery(claudeProject);
   const changed = listing.data?.files.find((f) => f.name === file)?.modifiedAt ?? '';
   const trail = memoryCrumbs(project, claudeProject, file).slice(1).map((crumb, at, all) => (at === all.length - 1 ? { label: crumb.label } : crumb));
@@ -105,10 +106,8 @@ function NoteView({ project, claudeProject, file }: { project: string; claudePro
       subtitle={changed === '' ? undefined : `Updated ${whenLabel(changed)}`}
       action={<DeleteNote project={project} claudeProject={claudeProject} file={file} />}
     >
-      {error !== null ? (
-        <StateBlock icon="exclamationCircle" danger title="Could not read the note" text={queryError(error, 'Try again in a moment.')} />
-      ) : data === undefined ? (
-        <Loading />
+      {data === undefined ? (
+        error === null ? <RowsSkeleton rows={3} leading={false} trailing={false} /> : <ErrorState title="Could not read the note" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />
       ) : (
         <MarkdownBlock
           text={data}
@@ -135,7 +134,7 @@ export function Memory({ project, claudeProject, file }: MemoryProps): ReactNode
   const picked = claudeProject ?? home.project;
   useDocumentTitle(isNoteFile(file) ? noteTitle(file) : 'Notes');
   if (picked === null) {
-    const empty = home.loading ? <Loading /> : <StateBlock icon="documentText" title="No notes yet" text={NONE} />;
+    const empty = home.loading ? <RowsSkeleton rows={4} trailing={false} /> : <StateBlock icon="documentText" title="No notes yet" text={NONE} />;
     return isNoteFile(file) ? <AgentDeepPage project={project} tab="memory" trail={[{ label: noteTitle(file) }]}>{empty}</AgentDeepPage> : empty;
   }
   if (isNoteFile(file)) return <NoteView project={project} claudeProject={picked} file={file} />;

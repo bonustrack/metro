@@ -3,11 +3,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
-import { Loading } from './Loading.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { SaveField, useSave } from './SaveField.js';
 import { Block, Control } from './settings/rows.js';
+import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Item } from './ui/Item.js';
 import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
 import { olderThan } from '@metro-labs/client/api/version';
@@ -35,12 +36,13 @@ const LANGUAGE_NOTE = 'The language you speak on calls. Detect lets ElevenLabs g
 
 type Set = (next: VoiceSettings) => void;
 
-function useVoice(): { voice: VoiceSettings | undefined; error: unknown; set: Set } {
+function useVoice(): { voice: VoiceSettings | undefined; error: Error | null; retry: () => unknown; set: Set } {
   const client = useQueryClient();
   const query = useBoxQuery('voice', fetchVoice);
   return {
     voice: query.data,
     error: query.error,
+    retry: query.refetch,
     set: (next) => {
       client.setQueriesData({ predicate: (q) => q.queryKey.includes('voice') }, next);
     },
@@ -148,9 +150,9 @@ function VoiceId({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode 
 }
 
 function VoiceBody(): ReactNode {
-  const { voice, error, set } = useVoice();
-  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
-  if (voice === undefined) return <Loading />;
+  const { voice, error, retry, set } = useVoice();
+  if (voice === undefined)
+    return error === null ? <RowsSkeleton rows={3} leading={false} /> : <ErrorState title="Could not read the voice settings" text={queryError(error, 'The agent did not answer.')} onRetry={retry} />;
   return (
     <>
       <Group label="Calls">
@@ -168,7 +170,7 @@ function VoiceBody(): ReactNode {
 
 function VoiceGate({ project }: { project: string }): ReactNode {
   const mode = useModeQuery();
-  if (mode.data === undefined) return mode.error === null ? <Loading /> : <VoiceBody />;
+  if (mode.data === undefined) return mode.error === null ? <RowsSkeleton rows={3} leading={false} /> : <VoiceBody />;
   if (olderThan(mode.data.version, VOICE_SINCE))
     return <Item title={`Needs Metro ${VOICE_SINCE}`} subtitle="Update it first: open Settings, then Metro version under Server." href={routeHash({ kind: 'agent-settings', project })} />;
   return <VoiceBody />;

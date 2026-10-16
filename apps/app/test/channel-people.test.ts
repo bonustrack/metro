@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, namesList, peopleHeading, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
+  approverNames, approvesInChat, entriesOf, keptApprovers, channelLine, namesList, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
 } from '../src/lib/channel-people.ts';
 
 const CARDS = [
@@ -27,10 +27,11 @@ describe('who can write', () => {
     expect(writersSummary(null)).toBeNull();
   });
 
-  test('the people heading counts people, or says People with a domain in the list', () => {
-    expect(peopleHeading(['1', '2'])).toBe('2 people');
-    expect(peopleHeading([])).toBe('People');
-    expect(peopleHeading(['@anderra.ch'])).toBe('People');
+  test('the channel header says who can write next to the kind of channel', () => {
+    expect(channelLine('Telegram bot', ['1', '2', '3', '4'])).toBe('Telegram bot · 4 people can write');
+    expect(channelLine('Telegram bot', ['*'])).toBe('Telegram bot · Anyone can write');
+    expect(channelLine('Webhook', null)).toBe('Webhook');
+    expect(channelLine('Telegram bot', [])).toBe('Telegram bot · Anyone can write');
   });
 });
 

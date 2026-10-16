@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Spinner } from './Spinner.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Dropdown } from './Dropdown.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { Group } from './ui/Group.js';
@@ -69,10 +70,10 @@ function confirmLines(view: Resizable, picked: ServerSize): string[] {
   ];
 }
 
-function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
+function Notice({ text }: { text: string }): ReactNode {
   return (
     <Group label={TITLE}>
-      <NoteRow text={text} danger={danger} />
+      <NoteRow text={text} />
     </Group>
   );
 }
@@ -175,8 +176,11 @@ export function ServerSizeSection({ serverId, launchedOnly = false }: { serverId
   if (size.data === null) return null;
   if (launchedOnly && size.data?.resizable !== true) return null;
   if (size.data === undefined) {
-    if (size.error === null) return <Loading />;
-    return <Notice text={queryError(size.error, 'Could not read the size of this server.')} danger />;
+    return (
+      <Group label={TITLE}>
+        {size.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the size of this server" text={queryError(size.error, 'Metro did not answer.')} onRetry={size.refetch} />}
+      </Group>
+    );
   }
   if (!size.data.resizable) return <Notice text={size.data.reason} />;
   return <ResizableSize serverId={serverId} view={size.data} />;

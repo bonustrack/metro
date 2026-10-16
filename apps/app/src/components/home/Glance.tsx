@@ -6,22 +6,54 @@ import { routeHash } from '@metro-labs/client/route';
 import { Item } from '../ui/Item.js';
 import { Group } from '../ui/Group.js';
 import { Fact } from '../ui/Layout.js';
-import { chatsGlance, modelGlance, serverGlance, type Glance } from '../../lib/glance.js';
+import { chatsGlance, modelGlance, serverGlance, uptimeGlance, versionGlance, type Glance } from '../../lib/glance.js';
+import { useMetroRelease } from '../../lib/metro-release.js';
 import { useModelQuery } from '../../lib/model-queries.js';
-import { useLatestUsageQuery, useMachineQuery } from '../../lib/queries.js';
+import { useLatestUsageQuery, useMachineQuery, useModeQuery, useSizeQuery } from '../../lib/queries.js';
+import { regionShort, sizeValue } from '../../lib/settings-values.js';
 import { useNow } from '../../lib/use-now.js';
 
 const CLOCK_MS = 60_000;
 
-function GlanceItem({ title, glance, href }: { title: string; glance: Glance | undefined; href: string }): ReactNode {
+interface GlanceRow {
+  title: string;
+  glance: Glance | undefined;
+  href: string;
+}
+
+function GlanceItem({ title, glance, href }: GlanceRow): ReactNode {
   return <Item title={title} subtitle={glance?.subtitle} value={glance?.value ?? undefined} valueTone={glance?.tone} href={href} />;
 }
 
 const PENDING: Glance = { subtitle: '…', value: null };
 
-function GlanceFact({ title, glance = PENDING, href, last = false }: { title: string; glance: Glance | undefined; href: string; last?: boolean }): ReactNode {
+function GlanceFact({ title, glance = PENDING, href, last = false }: GlanceRow & { last?: boolean }): ReactNode {
   if (glance.value === null) return <Fact label={title} value={glance.subtitle} href={href} last={last} />;
   return <Fact label={title} value={glance.value} valueTone={glance.tone} detail={glance.subtitle} href={href} last={last} />;
+}
+
+function usePlace(serverId: string | null): string | null {
+  const size = useSizeQuery(serverId ?? '').data;
+  if (serverId === null || size?.resizable !== true) return null;
+  return [size.region === '' ? '' : regionShort(size.region), sizeValue(size.current)].filter((part) => part !== '').join(' · ');
+}
+
+function useRows(project: string, serverId: string | null, groups: AccountGroup[]): GlanceRow[] {
+  const now = useNow(CLOCK_MS);
+  const model = useModelQuery().data;
+  const machine = useMachineQuery().data;
+  const usage = useLatestUsageQuery().data?.[serverId ?? ''];
+  const version = useModeQuery().data?.version;
+  const latest = useMetroRelease().data?.latest;
+  const place = usePlace(serverId);
+  const server = routeHash({ kind: 'server', project });
+  return [
+    { title: 'Model', glance: model === undefined ? undefined : modelGlance(model, now), href: routeHash({ kind: 'model', project }) },
+    { title: 'Metro version', glance: versionGlance(version, latest), href: routeHash({ kind: 'agent-settings', project }) },
+    { title: 'Server', glance: serverGlance(machine, usage, place), href: server },
+    { title: 'Up for', glance: uptimeGlance(machine), href: server },
+    { title: 'Chats', glance: chatsGlance(groups), href: routeHash({ kind: 'chats', project }) },
+  ];
 }
 
 interface AtAGlanceProps {
@@ -33,18 +65,10 @@ interface AtAGlanceProps {
 }
 
 export function AtAGlance({ project, serverId, groups, name, rail = false }: AtAGlanceProps): ReactNode {
-  const now = useNow(CLOCK_MS);
-  const model = useModelQuery().data;
-  const machine = useMachineQuery().data;
-  const usage = useLatestUsageQuery().data?.[serverId ?? ''];
-  const rows = [
-    { title: 'Model', glance: model === undefined ? undefined : modelGlance(model, now), href: routeHash({ kind: 'model', project }) },
-    { title: 'Chats', glance: chatsGlance(groups), href: routeHash({ kind: 'chats', project }) },
-    { title: 'Server', glance: serverGlance(machine, usage), href: routeHash({ kind: 'server', project }) },
-  ];
+  const rows = useRows(project, serverId, groups);
   if (!rail)
     return (
-      <Group>
+      <Group label={name === undefined ? 'About this agent' : `About ${name}`}>
         {rows.map((row) => <GlanceItem key={row.title} {...row} />)}
       </Group>
     );

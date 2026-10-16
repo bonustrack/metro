@@ -14,8 +14,9 @@ import { Dropdown, type MenuItem } from './Dropdown.js';
 import { useOrganizationsQuery } from '../lib/queries.js';
 import { prefetchOrganization } from '../lib/organization.js';
 import { SHRINK } from '../lib/style.js';
+import { ICON_SIZE } from './ui/sizes.js';
 
-const CHEVRON = 18;
+const CHEVRON = ICON_SIZE.sm;
 
 const styles = StyleSheet.create({
   trigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },

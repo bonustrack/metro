@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { ResourceChart } from './ResourceChart.js';
 import { Group } from './ui/Group.js';
 import { Block } from './settings/rows.js';
@@ -48,7 +49,7 @@ export function ServerResources({ serverId }: { serverId: string }): ReactNode {
   if (data === null) return null;
   const body =
     data === undefined ? (
-      query.error === null ? <Loading /> : <Note text={queryError(query.error, 'Could not read the usage of this server.')} danger />
+      query.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the usage of this server" text={queryError(query.error, 'Metro did not answer.')} onRetry={query.refetch} />
     ) : data.available ? (
       <Charts usage={data} range={range} />
     ) : (

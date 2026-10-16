@@ -13,10 +13,11 @@ import { joinNames } from '../../lib/approval-note.js';
 import { useBoxQuery } from '../../lib/queries.js';
 import type { Setup, SetupStep, StepId } from '../../lib/setup-steps.js';
 import { go } from '../../lib/nav.js';
+import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 
 const MARK = 28;
-const CHECK = 22;
-const FACE = 28;
+const CHECK = ICON_SIZE.md;
+const FACE = AVATAR_SIZE.row;
 const FACES_MAX = 3;
 
 const ACTION: Record<StepId, string> = {

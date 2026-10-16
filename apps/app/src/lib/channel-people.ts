@@ -85,9 +85,9 @@ export function writersSummary(allowlist: string[] | null): string | null {
   return parts.filter((part) => part !== '').join(', ');
 }
 
-export function peopleHeading(entries: string[]): string {
-  if (entries.length === 0 || entries.some(isDomain)) return 'People';
-  return count(entries.length, 'person', 'people');
+export function channelLine(label: string, allowlist: string[] | null): string {
+  const who = writersSummary(allowlist);
+  return who === null || who === '' ? label : `${label} · ${who} can write`;
 }
 
 export function namesList(names: string[]): string {

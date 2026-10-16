@@ -5,26 +5,29 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { changeVault, fetchVault, type Vault, type VaultSecret } from '@metro-labs/client/api/vault';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { Icon } from '../Icon.js';
-import { Loading } from '../Loading.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 import { KeyModal, RecentModal, useDeleteKey } from './KeyModals.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError, useBoxQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { keyLastUsed } from '../../lib/tools-view.js';
 
-const PLUS = 22;
+const PLUS = ICON_SIZE.md;
 const ON_NOTE = 'All web traffic goes through Metro. Other traffic, like git over SSH, is blocked.';
 const OFF_NOTE = 'Off: the agent cannot use the keys below.';
 
-function useVault(): { vault: Vault | undefined; error: unknown; set: (v: Vault) => void } {
+function useVault(): { vault: Vault | undefined; error: Error | null; retry: () => unknown; set: (v: Vault) => void } {
   const client = useQueryClient();
   const query = useBoxQuery('vault', fetchVault, { refetchInterval: 10_000 });
   return {
     vault: query.data,
     error: query.error,
+    retry: query.refetch,
     set: (v) => {
       client.setQueriesData({ predicate: (q) => q.queryKey.includes('vault') }, v);
     },
@@ -110,9 +113,9 @@ function Keys({ vault, set }: { vault: Vault; set: (v: Vault) => void }): ReactN
 }
 
 function Contents(): ReactNode {
-  const { vault, error, set } = useVault();
-  if (error !== null && error !== undefined) return <StateBlock icon="exclamationCircle" danger title="Could not read the keys" text={queryError(error, 'Try again in a moment.')} />;
-  if (vault === undefined) return <Loading />;
+  const { vault, error, retry, set } = useVault();
+  if (vault === undefined)
+    return error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the keys" text={queryError(error, 'The agent did not answer.')} onRetry={retry} />;
   if (!vault.available) return <StateBlock icon="key" title="Not on this server" text="Secret keys need a Linux server where the agent runs as its own user." />;
   return <Keys vault={vault} set={set} />;
 }

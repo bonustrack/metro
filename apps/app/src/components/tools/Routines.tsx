@@ -6,9 +6,10 @@ import { setClaudeMemoryRoutine, type MemoryJob } from '@metro-labs/client/api/c
 import { type ScheduledJob } from '@metro-labs/client/api/schedules';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { routeHash } from '@metro-labs/client/route';
-import { Loading } from '../Loading.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { technicalLine } from '../../lib/agent-line.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
@@ -16,6 +17,7 @@ import { go } from '../../lib/nav.js';
 import { queryError, refresh, useClaudeSetupQuery, useSchedulesQuery } from '../../lib/queries.js';
 import { routineTitle, scheduleWords } from '../../lib/routine-words.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
+import { timeOf } from '../../lib/when-words.js';
 
 const MEMORY_JOB = 'memory-routine';
 const MEMORY_SCHEDULE = '0 0,12 * * *';
@@ -30,7 +32,7 @@ function RoutineRow({ job, project, agentUser }: { job: ScheduledJob; project: s
   const technical = useTechnicalDetails();
   const last = lastRun(job);
   const other = job.runsAs !== agentUser ? ` · runs as ${job.runsAs}` : '';
-  const next = job.next === null ? null : `next ${new Date(job.next).toLocaleString()}`;
+  const next = job.next === null ? null : `next ${timeOf(job.next, technical)}`;
   return (
     <Item
       title={routineTitle(job.name)}
@@ -91,8 +93,8 @@ function NoRoutine(): ReactNode {
 function Jobs({ project }: { project: string }): ReactNode {
   const schedules = useSchedulesQuery();
   const setup = useClaudeSetupQuery();
-  if (schedules.error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not read the routines" text={queryError(schedules.error, 'Try again in a moment.')} />;
-  if (schedules.data === undefined) return <Loading />;
+  if (schedules.data === undefined)
+    return schedules.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the routines" text={queryError(schedules.error, 'The agent did not answer.')} onRetry={schedules.refetch} />;
   const memoryOn = setup.data?.memoryRoutine ?? null;
   const routine = schedules.data.jobs.find((job) => job.name === MEMORY_JOB);
   const jobs = schedules.data.jobs.filter((job) => memoryOn === null || job !== routine);

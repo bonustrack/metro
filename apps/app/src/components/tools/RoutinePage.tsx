@@ -5,22 +5,20 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { fetchScheduleDetail, runSchedule, type JobDetail } from '@metro-labs/client/api/schedules';
-import { whenLabel } from '@metro-labs/client/api/when';
-import { Loading } from '../Loading.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { LogBlock } from '../ui/LogBlock.js';
 import { AgentDeepPage } from '../agent/AgentDeepPage.js';
-import { StateBlock } from '../ui/StateBlock.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { queryError, refresh, useBoxQuery } from '../../lib/queries.js';
 import { routineTitle, scheduleWords } from '../../lib/routine-words.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { timeOf } from '../../lib/when-words.js';
 
 const KIND: Record<JobDetail['kind'], string> = { timer: 'A systemd timer', 'cron-agent': 'The agent’s crontab' };
 
-const exact = (iso: string): string => new Date(iso).toLocaleString();
-const relative = (iso: string | null): string => (iso === null ? 'Not known' : whenLabel(iso));
 
 function useRun(id: string): { busy: boolean; error: string | null; run: () => void } {
   const client = useQueryClient();
@@ -41,19 +39,26 @@ function useRun(id: string): { busy: boolean; error: string | null; run: () => v
   return { busy, error, run };
 }
 
-function Runs({ job }: { job: JobDetail }): ReactNode {
+function resultWord(job: JobDetail, technical: boolean): string {
+  if (job.lastResult === null) return 'Not known';
+  if (job.lastResult === 'success') return 'Worked';
+  return technical ? `Failed (${job.lastResult})` : 'Failed';
+}
+
+function Runs({ job, error }: { job: JobDetail; error: string | null }): ReactNode {
+  const technical = useTechnicalDetails();
   const failed = job.lastResult !== null && job.lastResult !== 'success';
   if (job.kind !== 'timer')
     return (
-      <Group label="Runs">
-        <Item title="Run times" subtitle="Cron does not keep them. The output below shows what it wrote." />
+      <Group label="Runs" error={error}>
+        <Item title="Run times" subtitle="This kind of routine does not keep them. The output below shows what it wrote." />
       </Group>
     );
   return (
-    <Group label="Runs">
-      <Item title="Next run" value={job.next === null ? 'Not planned' : exact(job.next)} />
-      <Item title="Last run" subtitle={job.last === null ? undefined : exact(job.last)} value={relative(job.last)} />
-      <Item title="Last result" value={job.lastResult === null ? 'Not known' : failed ? `Failed (${job.lastResult})` : 'Worked'} valueTone={failed ? 'danger' : undefined} />
+    <Group label="Runs" error={error}>
+      <Item title="Next run" value={job.next === null ? 'Not planned' : timeOf(job.next, technical)} />
+      <Item title="Last run" value={job.last === null ? 'Not known' : timeOf(job.last, technical)} />
+      <Item title="Last result" value={resultWord(job, technical)} valueTone={failed ? 'danger' : undefined} />
     </Group>
   );
 }
@@ -79,14 +84,14 @@ function Block({ label, note, text, empty }: { label: string; note: string | nul
 }
 
 function Routine({ job, error }: { job: JobDetail; error: string | null }): ReactNode {
+  const technical = useTechnicalDetails();
   return (
     <>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      <Runs job={job} />
+      <Runs job={job} error={error} />
       <Details job={job} />
-      {job.script === null ? null : <Block label="Script" note={job.script.path} text={job.script.text} empty="The script is empty." />}
-      <Block label="Recent output" note={job.logSource} text={job.logs} empty={job.logSource === null ? 'This routine writes no log Metro can find.' : 'Nothing written yet.'} />
-      <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." />
+      {job.script === null ? null : <Block label="What it does" note={technical ? job.script.path : null} text={job.script.text} empty="The script is empty." />}
+      <Block label="Recent output" note={technical ? job.logSource : null} text={job.logs} empty={job.logSource === null ? 'This routine writes no log Metro can find.' : 'Nothing written yet.'} />
+      {technical ? <Block label="Definition" note={null} text={job.definition} empty="Nothing to show." /> : null}
     </>
   );
 }
@@ -104,12 +109,10 @@ export function RoutinePage({ project, id }: { project: string; id: string }): R
       trail={[{ label: title }]}
       title={title}
       subtitle={detail.data === undefined ? undefined : scheduleWords(detail.data.schedule)}
-      action={detail.data === undefined ? undefined : <Button size="md" dark={dark} label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
+      action={detail.data === undefined ? undefined : <Button size="md" color="secondary" dark={dark} label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
     >
-      {detail.error !== null ? (
-        <StateBlock icon="exclamationCircle" danger title="Could not read that routine" text={queryError(detail.error, 'Try again in a moment.')} />
-      ) : detail.data === undefined ? (
-        <Loading />
+      {detail.data === undefined ? (
+        detail.error === null ? <RowsSkeleton rows={3} leading={false} /> : <ErrorState title="Could not read that routine" text={queryError(detail.error, 'The agent did not answer.')} onRetry={detail.refetch} />
       ) : (
         <Routine job={detail.data} error={running.error} />
       )}

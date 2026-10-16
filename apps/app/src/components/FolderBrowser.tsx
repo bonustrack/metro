@@ -3,13 +3,14 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from './Icon.js';
 import { Item } from './ui/Item.js';
 import { Crumbs as Trail } from './ui/PageHeader.js';
+import { ICON_SIZE } from './ui/sizes.js';
 
 export interface Crumb {
   label: string;
   href: string;
 }
 
-const ICON = 22;
+const ICON = ICON_SIZE.md;
 
 export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
   if (crumbs.length <= 1) return null;

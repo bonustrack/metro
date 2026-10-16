@@ -11,11 +11,12 @@ import { deleteClaudeSkill, saveClaudeSkill, type ClaudeSkill } from '@metro-lab
 import { DeleteMenu } from './DeleteMenu.js';
 import { FormField } from './FormField.js';
 import { GitHubMark } from './GitHubMark.js';
-import { Loading } from './Loading.js';
-import { Rows } from './ui/Group.js';
+import { Group, Rows } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
-import { StateBlock } from './ui/StateBlock.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { ICON_SIZE } from './ui/sizes.js';
 import { GROW } from '../lib/style.js';
 import { go } from '../lib/nav.js';
 import { openExternal } from '../lib/open.js';
@@ -29,13 +30,13 @@ const SAVED = 'Saved. The next Claude Code session on this machine reads it.';
 function Managed({ skill }: { skill: ClaudeSkill }): ReactNode {
   const palette = useKitPalette();
   const url = githubSkillUrl(skill);
-  if (skill.managed !== true) return skill.editable ? null : <Text size="md" role="danger">That skill is too large to edit here.</Text>;
+  if (skill.managed !== true) return skill.editable ? null : <Text size="xs" role="secondary">This skill is too large to edit here.</Text>;
   return (
     <Rows>
       <Item
         title="From GitHub, read-only"
         subtitle={`Edit the repository, not this copy.${skill.shadowed === true ? ' A local skill with this name takes priority.' : ''}`}
-        leading={<GitHubMark size={20} color={palette.text} />}
+        leading={<GitHubMark size={ICON_SIZE.md} color={palette.text} />}
         onPress={url === null ? undefined : () => { openExternal(url); }}
       />
     </Rows>
@@ -45,12 +46,13 @@ function Managed({ skill }: { skill: ClaudeSkill }): ReactNode {
 const skillFacts = (skill: ClaudeSkill): string | undefined =>
   [skill.description, skill.updatedAt === null ? '' : `Changed ${whenLabel(skill.updatedAt)}.`].filter((part) => part !== '').join(' ') || undefined;
 
-function DeleteSkill({ skill, project }: { skill: ClaudeSkill; project: string }): ReactNode {
+function DeleteSkill({ skill, project, edit }: { skill: ClaudeSkill; project: string; edit: Editing }): ReactNode {
   const client = useQueryClient();
   if (skill.managed === true) return null;
   return (
     <DeleteMenu
       label={`Actions for ${skill.name}`}
+      items={edit.changed ? [{ label: 'Revert changes', onSelect: edit.revert }] : []}
       item="Delete"
       action="Delete skill"
       title="Delete skill"
@@ -68,23 +70,17 @@ function DeleteSkill({ skill, project }: { skill: ClaudeSkill; project: string }
   );
 }
 
-interface ActionsProps {
-  busy: boolean;
-  changed: boolean;
-  note: string | null;
-  failure: string | null;
-  onSave: () => void;
-  onRevert: () => void;
+function SaveButton({ edit }: { edit: Editing }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return <Button size="md" color="secondary" dark={dark} label={edit.busy ? 'Saving…' : 'Save'} loading={edit.busy} disabled={edit.busy || !edit.changed} onPress={edit.save} />;
 }
 
-function Actions({ busy, changed, note, failure, onSave, onRevert }: ActionsProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
+function HeaderActions({ skill, project, edit }: { skill: ClaudeSkill; project: string; edit: Editing }): ReactNode {
+  if (skill.managed === true) return null;
   return (
-    <Row gap={12} align="center" wrap>
-      <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={onSave} />
-      <Button size="lg" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
-      {note === null ? null : <Text size="md" role="secondary">{note}</Text>}
-      {failure === null ? null : <Text size="md" role="danger">{failure}</Text>}
+    <Row gap={12} align="center">
+      {skill.editable ? <SaveButton edit={edit} /> : null}
+      <DeleteSkill skill={skill} project={project} edit={edit} />
     </Row>
   );
 }
@@ -146,34 +142,28 @@ function useSkillEditor(skill: (ClaudeSkill & { text: string }) | undefined): Ed
   };
 }
 
-function SkillBody({ skill, edit }: { skill: ClaudeSkill; edit: ReturnType<typeof useSkillEditor> }): ReactNode {
+function SkillBody({ skill, edit }: { skill: ClaudeSkill; edit: Editing }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <Col gap={20}>
       <Managed skill={skill} />
-      <FormField label="Skill contents"
-        name="skill"
-        value={edit.shown}
-        dark={dark}
-        disabled={edit.busy || !skill.editable}
-        onChangeText={edit.setDraft}
-        style={[GROW, EDITOR]}
-        inputProps={NO_ASSIST}
-      />
-      {skill.managed === true ? null : <Actions
-        busy={edit.busy}
-        changed={edit.changed}
-        note={edit.note}
-        failure={edit.failure}
-        onSave={edit.save}
-        onRevert={edit.revert}
-      />}
+      <Group wide note={edit.note ?? undefined} error={edit.failure}>
+        <FormField label="Skill contents"
+          name="skill"
+          value={edit.shown}
+          dark={dark}
+          disabled={edit.busy || !skill.editable}
+          onChangeText={edit.setDraft}
+          style={[GROW, EDITOR]}
+          inputProps={NO_ASSIST}
+        />
+      </Group>
     </Col>
   );
 }
 
 export function SkillPage({ project, id }: SkillPageProps): ReactNode {
-  const { data, error } = useClaudeSkillQuery(id);
+  const { data, error, refetch } = useClaudeSkillQuery(id);
   const edit = useSkillEditor(data);
   const title = data?.title ?? 'Skill';
   useDocumentTitle(title);
@@ -184,12 +174,10 @@ export function SkillPage({ project, id }: SkillPageProps): ReactNode {
       trail={[{ label: 'Skills', href: routeHash({ kind: 'skills', project }) }, { label: title }]}
       title={title}
       subtitle={data === undefined ? undefined : skillFacts(data)}
-      action={data === undefined ? undefined : <DeleteSkill skill={data} project={project} />}
+      action={data === undefined ? undefined : <HeaderActions skill={data} project={project} edit={edit} />}
     >
-      {error !== null ? (
-        <StateBlock icon="exclamationCircle" danger title="Could not read that skill" text={queryError(error, 'Try again in a moment.')} />
-      ) : data === undefined ? (
-        <Loading />
+      {data === undefined ? (
+        error === null ? <RowsSkeleton rows={3} leading={false} trailing={false} /> : <ErrorState title="Could not read that skill" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />
       ) : (
         <SkillBody skill={data} edit={edit} />
       )}

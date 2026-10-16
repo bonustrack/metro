@@ -7,18 +7,19 @@ import { routeHash } from '@metro-labs/client/route';
 import { GitHubMark } from './GitHubMark.js';
 import { GitHubSkills } from './GitHubSkills.js';
 import { Icon } from './Icon.js';
-import { Loading } from './Loading.js';
 import { NameModal } from './NameModal.js';
 import { Group, Groups } from './ui/Group.js';
 import { Item } from './ui/Item.js';
-import { StateBlock } from './ui/StateBlock.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { ICON_SIZE } from './ui/sizes.js';
 import { go } from '../lib/nav.js';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
-const ICON = 22;
+const ICON = ICON_SIZE.md;
 
 function skillLine(skill: ClaudeSkill): string | undefined {
   if (skill.managed === true) return skill.shadowed === true ? 'From GitHub · a local skill takes priority' : 'From GitHub, read-only';
@@ -39,10 +40,17 @@ function SkillRow({ skill, project }: { skill: ClaudeSkill; project: string }): 
   );
 }
 
-function Listing({ error, data, project, onNew }: { error: unknown; data: SkillListing | undefined; project: string; onNew: () => void }): ReactNode {
+interface ListingProps {
+  error: Error | null;
+  data: SkillListing | undefined;
+  project: string;
+  onNew: () => void;
+  onRetry: () => unknown;
+}
+
+function Listing({ error, data, project, onNew, onRetry }: ListingProps): ReactNode {
   const palette = useKitPalette();
-  if (error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not read the skills" text={queryError(error, 'Try again in a moment.')} />;
-  if (data === undefined) return <Loading />;
+  if (data === undefined) return error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the skills" text={queryError(error, 'The agent did not answer.')} onRetry={onRetry} />;
   return (
     <>
       {data.skills.map((skill) => <SkillRow key={skill.id} skill={skill} project={project} />)}
@@ -53,13 +61,13 @@ function Listing({ error, data, project, onNew }: { error: unknown; data: SkillL
 
 export function Skills({ project }: { project: string }): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useClaudeSkillsQuery();
+  const { data, error, refetch } = useClaudeSkillsQuery();
   const [naming, setNaming] = useState(false);
   useDocumentTitle('Skills');
   return (
     <Groups>
       <Group label="Skills" note="A skill teaches the agent how to do a task your way.">
-        <Listing error={error} data={data} project={project} onNew={() => { setNaming(true); }} />
+        <Listing error={error} data={data} project={project} onNew={() => { setNaming(true); }} onRetry={refetch} />
       </Group>
       {data === undefined ? null : <GitHubSkills view={data.skillSource} />}
       <NameModal

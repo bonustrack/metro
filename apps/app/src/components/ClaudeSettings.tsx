@@ -6,7 +6,8 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
 import { ClaudeSession } from './ClaudeSession.js';
 import { Group, Groups } from './ui/Group.js';
@@ -16,6 +17,7 @@ import { saveClaudeSettings, type ClaudeSettingsFile } from '@metro-labs/client/
 import { queryError, refresh, useClaudeSettingsQuery } from '../lib/queries.js';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 
 const WHAT = 'Claude Code’s own settings files, for advanced changes. They apply at the next start.';
 const NO_FILE = 'Claude Code has left no settings file on this machine.';
@@ -58,12 +60,15 @@ function FilePicker({ files, chosen, onPick }: { files: ClaudeSettingsFile[]; ch
 }
 
 function FileNote({ file }: { file: ClaudeSettingsFile }): ReactNode {
+  const technical = useTechnicalDetails();
   return (
     <Col gap={2}>
       <FieldLabel>{scopeLabel(file)}</FieldLabel>
-      <Text size="md" role="secondary">
-        {file.path}
-      </Text>
+      {technical ? (
+        <Text size="md" role="secondary">
+          {file.path}
+        </Text>
+      ) : null}
       <Text size="md" role="secondary">
         {file.modifiedAt === null ? 'No file yet. Saving writes one.' : `Last changed ${whenLabel(file.modifiedAt)}.`}
       </Text>
@@ -187,8 +192,8 @@ function FileEditor({ files }: { files: ClaudeSettingsFile[] }): ReactNode {
       />
       <FileNote file={file} />
       {file.editable ? null : (
-        <Text size="xs" role="danger">
-          That file is too large to edit here.
+        <Text size="xs" role="secondary">
+          This file is too large to edit here.
         </Text>
       )}
       <Editor
@@ -213,10 +218,8 @@ export function ClaudeSettings({ project }: { project: string }): ReactNode {
       <ClaudeSession project={project} />
       <ClaudeSetup project={project} />
       <Group label="Claude Code settings" note={WHAT}>
-        {settings.error !== null ? (
-          <NoteRow text={queryError(settings.error, 'Could not read the settings files.')} danger />
-        ) : settings.data === undefined ? (
-          <Loading />
+        {settings.data === undefined ? (
+          settings.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the settings files" text={queryError(settings.error, 'The agent did not answer.')} onRetry={settings.refetch} />
         ) : (
           <FileEditor files={settings.data} />
         )}
