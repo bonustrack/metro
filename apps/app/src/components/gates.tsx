@@ -93,7 +93,7 @@ export function ServerGate({ selection, onLock }: { selection: Selection; onLock
   return <ListedServer id={project} selection={selection} onLock={onLock} />;
 }
 
-export const GLOBAL_KINDS = new Set<Selection['kind']>(['settings', 'admin', 'admin-users', 'admin-organizations', 'admin-agents']);
+export const GLOBAL_KINDS = new Set<Selection['kind']>(['settings', 'admin', 'admin-users', 'admin-organizations', 'admin-agents', 'admin-user', 'admin-organization']);
 
 export function OrganizationGate({ selection, onLock, children }: { selection: Selection; onLock: () => void; children: ReactNode }): ReactNode {
   const wanted = routedOrganization();

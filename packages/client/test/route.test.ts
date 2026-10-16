@@ -66,6 +66,11 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/admin/users')).toEqual({ kind: 'admin-users' });
     expect(routeSelection('#/admin/organizations')).toEqual({ kind: 'admin-organizations' });
     expect(routeHash({ kind: 'admin-agents' })).toBe('#/admin/agents');
+    expect(routeSelection('#/admin/users/user_01HXYZ')).toEqual({ kind: 'admin-user', id: 'user_01HXYZ' });
+    expect(routeHash({ kind: 'admin-user', id: 'user_01HXYZ' })).toBe('#/admin/users/user_01HXYZ');
+    expect(routeSelection('#/admin/organizations/org_01FIXTUREORG00000')).toEqual({ kind: 'admin-organization', id: 'org_01FIXTUREORG00000' });
+    expect(routeHash({ kind: 'admin-organization', id: 'org_01FIXTUREORG00000' })).toBe('#/admin/organizations/org_01FIXTUREORG00000');
+    expect(routeSelection('#/admin/users/a/b')).toEqual({ kind: 'none' });
     expect(routeSelection('#/connect')).toEqual({ kind: 'none' });
     expect(routeSelection('#/connect/http%3A%2F%2F127.0.0.1%3A8420')).toEqual({ kind: 'none' });
     expect(routeSelection('#/login')).toEqual({ kind: 'none' });

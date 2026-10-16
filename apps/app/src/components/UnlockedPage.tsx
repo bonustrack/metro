@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { selectionProject, type Selection } from '@metro-labs/client/selection';
-import { AdminArea } from './AdminArea.js';
+import { AdminArea } from './admin/AdminArea.js';
 import { InviteButton } from './Members.js';
 import { Organization, OrganizationGroups } from './Organization.js';
 import { ConnectorsIdle, OrgConnectorList } from './OrgConnectors.js';

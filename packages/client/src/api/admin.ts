@@ -1,6 +1,8 @@
-import { builtInDaemon } from '../auth/daemon.js';
+import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
 import { type Account } from '../auth/account.js';
-import { accessToken } from './auth.js';
+import { accessToken, scopedOrganizationAccessToken } from './auth.js';
+import { callBearer } from './client.js';
+import { toLatestUsage, type LatestUsage } from './latest-usage.js';
 import { isRecord } from '../read.js';
 
 const OPERATOR_EMAIL = 'admin@stage.box';
@@ -114,4 +116,14 @@ export async function fetchAllAgents(): Promise<AgentRow[]> {
         ]
       : [],
   );
+}
+
+export async function fetchOrganizationUsage(organization: string): Promise<Record<string, LatestUsage>> {
+  const token = await scopedOrganizationAccessToken(organization);
+  return toLatestUsage(await callBearer({ method: 'GET', base: `${builtInDaemon()}/api/servers/usage` }, token));
+}
+
+export async function restartAgentIn(organization: string, host: string): Promise<void> {
+  const token = await scopedOrganizationAccessToken(organization);
+  await callBearer({ method: 'POST', base: `${baseFromSegment(host)}/api/restart` }, token);
 }

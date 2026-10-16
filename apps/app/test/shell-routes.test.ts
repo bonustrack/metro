@@ -135,6 +135,15 @@ describe('the shell knows its section and what a phone shows', () => {
     expect(shellSectionOf({ kind: 'org-model', id: AGENT })).toBe('models');
     expect(phoneBackOf({ kind: 'settings' })).toEqual({ kind: 'organization' });
   });
+
+  test('the operator pages draw their own back link and sit under the Organization tab on a phone', () => {
+    const pages: Selection[] = [{ kind: 'admin' }, { kind: 'admin-agents' }, { kind: 'admin-users' }, { kind: 'admin-user', id: 'user_1' }, { kind: 'admin-organization', id: 'org_1' }];
+    for (const page of pages) {
+      expect(phoneBackOf(page)).toBeNull();
+      expect(phoneTabOf(page)).toBe('organization');
+      expect(shellSectionOf(page)).toBeNull();
+    }
+  });
 });
 
 describe('the technical details switch', () => {

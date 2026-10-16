@@ -17,5 +17,3 @@ type WebStyle = Record<string, string | number | undefined>;
 export const css = (style: WebStyle): ViewStyle => style;
 
 export const webOnly = (style: WebStyle): ViewStyle => (WEB ? css(style) : {});
-
-export const ABSOLUTE_FILL = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } as const;

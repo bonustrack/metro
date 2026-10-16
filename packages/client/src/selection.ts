@@ -8,6 +8,8 @@ export type Selection =
   | { kind: 'admin-users' }
   | { kind: 'admin-organizations' }
   | { kind: 'admin-agents' }
+  | { kind: 'admin-user'; id: string }
+  | { kind: 'admin-organization'; id: string }
   | { kind: 'launch' }
   | { kind: 'members' }
   | { kind: 'organization' }

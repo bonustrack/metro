@@ -25,9 +25,10 @@ function signupsByDay(users: { createdAt: string | null }[], now: number, days =
   return counts;
 }
 
-export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
+export const signupTotal = (users: { createdAt: string | null }[], now: number): number => signupsByDay(users, now).reduce((a, b) => a + b, 0);
+
+export function SignupChart({ users, now }: { users: UserRow[]; now: number }): ReactNode {
   const palette = useKitPalette();
-  const now = Date.now();
   const counts = signupsByDay(users, now);
   const total = counts.reduce((a, b) => a + b, 0);
   const peak = Math.max(1, ...counts);
@@ -35,15 +36,7 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
   const from = new Date(dayStart(now) - (DAYS - 1) * DAY_MS).toLocaleDateString();
   const to = new Date(now).toLocaleDateString();
   return (
-    <Col gap={6} padding={{ bottom: 8 }}>
-      <Row justify="between" align="center">
-        <Text size="md" weight="semibold">
-          Sign-ups, last {String(DAYS)} days
-        </Text>
-        <Text size="md" role="secondary">
-          {String(total)} new
-        </Text>
-      </Row>
+    <Col gap={8} padding={{ top: 8 }}>
       <Svg width="100%" height={HEIGHT} viewBox={`0 0 100 ${String(HEIGHT)}`} preserveAspectRatio="none" accessibilityLabel={`${String(total)} sign-ups in the last ${String(DAYS)} days`}>
         {counts.map((count, i) => {
           const h = count === 0 ? 1 : Math.max(2, (count / peak) * (HEIGHT - 4));
@@ -51,10 +44,10 @@ export function SignupChart({ users }: { users: UserRow[] }): ReactNode {
         })}
       </Svg>
       <Row justify="between">
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {from}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="2xs" role="secondary">
           {to}
         </Text>
       </Row>

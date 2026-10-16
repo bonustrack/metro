@@ -29,9 +29,9 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   members: 'organization',
 };
 
-export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
+export type AdminSelection = Extract<Selection, { kind: 'admin' | 'admin-users' | 'admin-organizations' | 'admin-agents' | 'admin-user' | 'admin-organization' }>;
 
-const ADMIN_KINDS = new Set<Kind>(['admin', 'admin-users', 'admin-organizations', 'admin-agents']);
+const ADMIN_KINDS = new Set<Kind>(['admin', 'admin-users', 'admin-organizations', 'admin-agents', 'admin-user', 'admin-organization']);
 
 export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KINDS.has(s.kind);
 
@@ -47,7 +47,7 @@ export const phoneTabOf = (selection: Selection): ShellSectionId => shellSection
 export const isTabRoot = (selection: Selection): boolean => TAB_ROOTS.has(selection.kind);
 
 export function phoneBackOf(selection: Selection): Selection | null {
-  if (isTabRoot(selection)) return null;
+  if (isTabRoot(selection) || isAdminSelection(selection)) return null;
   if ('project' in selection) return { kind: 'servers' };
   if (selection.kind === 'org-connector') return { kind: 'org-connectors' };
   if (selection.kind === 'org-route' || selection.kind === 'org-model') return { kind: 'org-models' };

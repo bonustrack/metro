@@ -18,6 +18,8 @@ const ADMIN_PATH = /^#?\/admin$/;
 const ADMIN_USERS_PATH = /^#?\/admin\/users$/;
 const ADMIN_ORGANIZATIONS_PATH = /^#?\/admin\/organizations$/;
 const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
+const ADMIN_USER_PATH = /^#?\/admin\/users\/([A-Za-z0-9_]{1,64})$/;
+const ADMIN_ORGANIZATION_PATH = /^#?\/admin\/organizations\/([A-Za-z0-9_]{1,64})$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
@@ -62,10 +64,21 @@ const EXACT: [RegExp, Selection][] = [
   [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
 ];
 
+function adminSelection(path: string): Selection | null {
+  const user = ADMIN_USER_PATH.exec(path)?.[1];
+  if (user !== undefined) return { kind: 'admin-user', id: user };
+  const organization = ADMIN_ORGANIZATION_PATH.exec(path)?.[1];
+  return organization === undefined ? null : { kind: 'admin-organization', id: organization };
+}
+
 function exactSelection(hash: string): Selection | null {
   const exact = EXACT.find(([re]) => re.test(hash))?.[1];
   if (exact !== undefined) return { ...exact };
   const path = hash.split('?')[0] ?? '';
+  return adminSelection(path) ?? organizationSelection(path);
+}
+
+function organizationSelection(path: string): Selection | null {
   if (ORG_MODELS_PATH.test(path)) return { kind: 'org-models' };
   if (ORG_ROUTE_PATH.test(path)) return { kind: 'org-route' };
   const orgModel = ORG_MODEL_PATH.exec(path)?.[1];
@@ -139,6 +152,11 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   'org-route': 'organization/models/default',
 };
 
+function adminHash(selection: Selection): string | undefined {
+  if (selection.kind === 'admin-user') return `#/admin/users/${selection.id}`;
+  return selection.kind === 'admin-organization' ? `#/admin/organizations/${selection.id}` : undefined;
+}
+
 function organizationPrefix(): string {
   const organization = organizationSegment();
   return organization === null ? '#/' : `#/${organization}/`;
@@ -200,7 +218,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
 };
 
 export function routeHash(selection: Selection): string {
-  const global = GLOBAL[selection.kind];
+  const global = GLOBAL[selection.kind] ?? adminHash(selection);
   if (global !== undefined) return global;
   const prefix = organizationPrefix();
   const page = ORGANIZATION_PAGES[selection.kind];
