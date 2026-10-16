@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Platform, useColorScheme } from 'react-native';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { semanticPalette } from '@stage-labs/kit/tokens';
-import { resolveBadgeStyle, withAlpha } from '@stage-labs/kit/badge';
+import { withAlpha } from '@stage-labs/kit/badge';
 import { DROPDOWN_MENU } from '@stage-labs/kit/react-native/menu';
 import { readItem, writeItem } from '@metro-labs/client/platform';
 
@@ -39,8 +39,6 @@ export function buildPalette(scheme: Scheme): KitPalette {
     toolbarBg: s.toolbarBgColor,
   };
 }
-
-export const statusColor = (color: 'info' | 'success' | 'danger', scheme: Scheme): string => resolveBadgeStyle(color, undefined, undefined, scheme).background;
 
 export const hoverColor = (palette: KitPalette): string => withAlpha(palette.link, DROPDOWN_MENU.hoverAlpha);
 

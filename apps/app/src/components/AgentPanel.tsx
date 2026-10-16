@@ -34,7 +34,7 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (TOOLS_PAGES.has(selection.kind)) return <ToolsPage project={project} />;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
-  if (selection.kind === 'run') return <RunPage key={project} />;
+  if (selection.kind === 'run') return <RunPage key={project} project={project} />;
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'model') return <ModelPage project={selection.project} />;

@@ -6,33 +6,39 @@ export type Decision = 'allow' | 'deny';
 
 export interface Approval {
   id: string;
+  name: string;
   tool: string;
-  channel: string;
   preview: string;
+  input: Record<string, unknown> | null;
+  line: string;
   requestedAt: string;
   inChat: boolean;
 }
 
 const METRO_TOOL = /^mcp__metro__(.+)$/;
 const PREVIEW_MAX = 300;
+const CODE_POINTS = /(?:\\n|\n)⋯ \d+ code points elided ⋯(?:\\n|\n)/g;
+const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[\s\S]*$/;
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const toolLabel = (tool: string): string => METRO_TOOL.exec(tool)?.[1] ?? tool;
 
-const stationOfLine = (line: string): string => (line.startsWith('metro://') ? (line.split('/')[2] ?? '') : '');
-
-function channelOf(line: string, input: Record<string, unknown> | null): string {
-  return stationOfLine(text(input?.line)) || text(input?.station) || stationOfLine(line);
-}
-
-function parsed(preview: string): Record<string, unknown> | null {
+function record(json: string): Record<string, unknown> | null {
   try {
-    const value: unknown = JSON.parse(preview);
+    const value: unknown = JSON.parse(json);
     return isRecord(value) ? value : null;
   } catch {
     return null;
   }
+}
+
+function previewInput(preview: string): Record<string, unknown> | null {
+  const shown = preview.replace(CODE_POINTS, '…');
+  const whole = record(shown);
+  if (whole !== null || !shown.includes('⋯')) return whole;
+  const head = shown.replace(FIELD_BLOCK, '').replace(/[\s,]*$/, '');
+  return record(`${head}}`) ?? record(head);
 }
 
 function previewOf(preview: string, input: Record<string, unknown> | null): string {
@@ -43,13 +49,15 @@ function previewOf(preview: string, input: Record<string, unknown> | null): stri
 
 export function approvalOf(raw: unknown): Approval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string') return null;
-  const input = parsed(text(raw.preview));
+  const input = previewInput(text(raw.preview));
   const line = text(raw.line);
   return {
     id: raw.id,
+    name: raw.tool,
     tool: toolLabel(raw.tool),
-    channel: channelOf(line, input),
     preview: previewOf(text(raw.preview), input),
+    input,
+    line,
     requestedAt: text(raw.requestedAt),
     inChat: line !== '',
   };

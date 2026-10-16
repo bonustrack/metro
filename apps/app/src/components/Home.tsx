@@ -1,110 +1,82 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { CountBadge } from './CountBadge.js';
-import { PageTitle } from './PageTitle.js';
-import { Loading } from './Loading.js';
-import { MetroVersion } from './MetroVersion.js';
-import { ChannelCards, ConnectorIcons } from './AgentOverview.js';
-import { Item } from './ui/Item.js';
-import { routeHash } from '@metro-labs/client/route';
-import { Checklist } from './Checklist.js';
-import { AgentRoute } from './AgentModel.js';
-import { Approvals } from './Approvals.js';
-import { LatestUsageLine } from './LatestUsage.js';
-import { flattenAccounts, type AccountGroup } from '@metro-labs/client/api/accounts';
-import { queryError, useServersQuery, useStationsQuery } from '../lib/queries.js';
-import { useAssignedConnectors } from './AgentOrgConnectors.js';
-import { currentServer } from '@metro-labs/client/auth/daemon';
+import { Col } from '@stage-labs/kit/react-native/box';
+import { fetchClaudeProjects } from '@metro-labs/client/api/claude';
 import { serverLabel } from '@metro-labs/client/api/servers';
-import { type AgentSummary } from '@metro-labs/client/api/client';
-import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
+import type { StationsView } from '@metro-labs/client/api/client';
+import { currentServer } from '@metro-labs/client/auth/daemon';
+import { Groups } from './ui/Group.js';
+import { StateBlock } from './ui/StateBlock.js';
+import { ApprovalCardView, type ApprovalContext } from './home/ApprovalCard.js';
+import { AtAGlance } from './home/Glance.js';
+import { HomeSkeleton } from './home/HomeSkeleton.js';
+import { RightNow } from './home/RightNow.js';
+import { SetupChecklist } from './home/SetupChecklist.js';
+import { rightNow } from '../lib/right-now.js';
+import { setupOf } from '../lib/setup-steps.js';
+import { queryError, useApprovalsQuery, useBoxQuery, useClaudeSessionQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
+import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 
-const FALLBACK = 'Could not read this machine.';
+const CARD_GAP = 16;
 
-function SectionHead({ label, count }: { label: string; count: number }): ReactNode {
-  return (
-    <Row gap={8} align="center">
-      <Text size="xl" weight="semibold">{label}</Text>
-      <CountBadge count={count} />
-    </Row>
-  );
+function useAgentName(fallback: string | undefined): { name: string; serverId: string | null } {
+  const servers = useServersQuery();
+  const here = currentServer();
+  const server = servers.data?.find((s) => s.id === here?.id);
+  if (server !== undefined) return { name: serverLabel(server), serverId: server.id };
+  return { name: fallback === undefined || fallback === '' ? 'This agent' : fallback, serverId: here?.id ?? null };
 }
 
-function NoAgent(): ReactNode {
+function useConversations(): number | undefined {
+  const projects = useBoxQuery('claude-projects', fetchClaudeProjects, { staleTime: 60_000, retry: false });
+  return projects.data?.reduce((sum, project) => sum + project.sessions, 0);
+}
+
+function Approvals({ context }: { context: ApprovalContext }): ReactNode {
+  const approvals = useApprovalsQuery().data ?? [];
+  if (approvals.length === 0) return null;
   return (
-    <Col gap={16}>
-      <PageTitle>This box</PageTitle>
-      <Text size="md" role="secondary">
-        Setting up this box… its agent shows here within seconds.
-      </Text>
+    <Col gap={CARD_GAP}>
+      {approvals.map((approval) => (
+        <ApprovalCardView key={approval.id} approval={approval} context={context} />
+      ))}
     </Col>
   );
 }
 
-function useBoxName(agent: AgentSummary | undefined): string {
-  const servers = useServersQuery();
-  const here = currentServer();
-  const server = servers.data?.find((s) => s.id === here?.id);
-  if (server !== undefined) return serverLabel(server);
-  return agent === undefined || agent.name === '' ? 'This box' : agent.name;
+function NowSection({ project, setupOpen }: { project: string; setupOpen: boolean }): ReactNode {
+  const session = useClaudeSessionQuery().data;
+  if (session === undefined) return null;
+  if (setupOpen && rightNow(session, Date.now()).active === 0) return null;
+  return <RightNow session={session} project={project} />;
 }
 
-interface SectionsProps {
-  groups: AccountGroup[];
-  project: string;
-  connectors: OrgConnector[] | undefined;
-}
-
-function Sections({ groups, project, connectors }: SectionsProps): ReactNode {
-  const channels = flattenAccounts(groups).length;
+function HomeBody({ project, name, serverId, agentId, view }: { project: string; name: string; serverId: string | null; agentId: string; view: StationsView }): ReactNode {
+  const model = useModelQuery().data;
+  const conversations = useConversations();
+  const setup = setupOf({ name, project, model, groups: view.groups, conversations });
+  const context: ApprovalContext = { agentId, groups: view.groups, tools: view.tools };
   return (
-    <>
-      {channels === 0 ? null : (
-        <Col gap={8}>
-          <SectionHead label="Channels" count={channels} />
-          <ChannelCards groups={groups} project={project} />
-        </Col>
-      )}
-      {connectors === undefined || connectors.length === 0 ? null : (
-        <Col gap={12}>
-          <SectionHead label="Connectors" count={connectors.length} />
-          <ConnectorIcons connectors={connectors} />
-        </Col>
-      )}
-    </>
+    <Groups>
+      <Approvals context={context} />
+      <NowSection project={project} setupOpen={setup.open !== null} />
+      <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
+      <AtAGlance project={project} serverId={serverId} groups={view.groups} />
+    </Groups>
   );
 }
 
 export function Home({ project }: { project: string }): ReactNode {
-  const { data, error } = useStationsQuery();
-  const servers = useServersQuery();
-  const here = currentServer();
-  const server = servers.data?.find((s) => s.id === here?.id);
-  const agent = data?.agent;
-  const name = useBoxName(agent);
-  const connectors = useAssignedConnectors().connectors;
+  const stations = useStationsQuery();
+  const agent = stations.data?.agent;
+  const { name, serverId } = useAgentName(agent?.name);
   useDocumentTitle(name);
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, FALLBACK)}</Text>;
-  if (data === undefined) return <Loading />;
-  if (agent === undefined) return <NoAgent />;
-  return (
-    <Col gap={32}>
-      <Col gap={8}>
-        <Item title="Right now" subtitle="What the agent and its helpers are doing" href={routeHash({ kind: 'run', project })} />
-        {server === undefined ? null : <LatestUsageLine serverId={server.id} />}
-        <MetroVersion quiet />
-      </Col>
-      <Checklist
-        name={name}
-        project={project}
-        channels={flattenAccounts(data.groups).length}
-        connectors={connectors?.length}
-      />
-      <Approvals />
-      <AgentRoute project={project} />
-      <Sections groups={data.groups} project={project} connectors={connectors} />
-    </Col>
-  );
+  if (stations.data === undefined && stations.error !== null)
+    return (
+      <StateBlock icon="exclamationCircle" danger title={`Could not load ${name}`} text={queryError(stations.error, 'The agent did not answer.')}
+        action={{ label: 'Retry', onPress: () => { stations.refetch().catch(() => undefined); } }} />
+    );
+  if (stations.data === undefined) return <HomeSkeleton />;
+  if (agent === undefined) return <StateBlock spinner title={`${name} is getting ready`} text="Its agent shows here within seconds." />;
+  return <HomeBody project={project} name={name} serverId={serverId} agentId={agent.id} view={stations.data} />;
 }

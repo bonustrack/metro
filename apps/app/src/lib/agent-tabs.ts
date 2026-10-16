@@ -34,7 +34,6 @@ const SETTINGS: AgentPage[] = [
   { label: 'Harness', kinds: ['claude'], target: (project) => ({ kind: 'claude', project }) },
   { label: 'Server', kinds: ['server'], target: (project) => ({ kind: 'server', project }) },
   { label: 'Terminal', kinds: ['terminal'], target: (project) => ({ kind: 'terminal', project }), newTab: true },
-  { label: 'Run', kinds: ['run'], target: (project) => ({ kind: 'run', project }) },
 ];
 
 const HOME: AgentTab = { id: 'home', label: 'Home', target: (project) => ({ kind: 'home', project }), pages: [] };

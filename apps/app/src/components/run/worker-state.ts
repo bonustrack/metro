@@ -12,9 +12,9 @@ export const WORKER_FILTERS = [
   { value: 'paused', label: 'Paused' }, { value: 'unknown', label: 'Unknown' },
 ] as const;
 
-export function workerSelection<T extends { status: WorkerStatus }>(workers: T[], filter: WorkerFilter, expanded: boolean, narrow: boolean): { matching: T[]; shown: T[] } {
+export function workerSelection<T extends { status: WorkerStatus }>(workers: T[], filter: WorkerFilter, expanded: boolean): { matching: T[]; shown: T[] } {
   const matching = filter === 'all' ? workers : workers.filter((worker) => worker.status === filter);
-  return { matching, shown: expanded ? matching : narrow ? [] : matching.slice(0, 3) };
+  return { matching, shown: expanded ? matching : matching.slice(0, 3) };
 }
 
 export const WORKER_STATE: Record<WorkerStatus, Mark> = {

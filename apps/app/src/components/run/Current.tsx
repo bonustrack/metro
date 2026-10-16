@@ -1,22 +1,22 @@
 import { useState, type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { Badge } from '@stage-labs/kit/react-native/badge';
-import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Card } from '@stage-labs/kit/react-native/card';
-import { Modal } from '../Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { statusColor } from '../../lib/theme.js';
-import { Icon } from '../Icon.js';
-import { Dropdown } from '../Dropdown.js';
-import { Grid } from '../ui/Grid.js';
-import { WORKER_FILTERS, WORKER_STATE, workerSelection, type WorkerFilter } from './worker-state.js';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { LEGACY_RUNNER_NOTE } from '@metro-labs/client/api/runner';
+import { Modal } from '../Modal.js';
+import { Icon } from '../Icon.js';
+import { Dropdown } from '../Dropdown.js';
+import { Item } from '../ui/Item.js';
+import { Section, StatusDot } from '../home/Section.js';
+import { WORKER_FILTERS, WORKER_STATE, workerSelection, type WorkerFilter } from './worker-state.js';
 import { freshness, sessionView, type Activity, type Freshness } from './session.js';
+import type { NowDot } from '../../lib/right-now.js';
 
-const styles = StyleSheet.create({ title: { flex: 1, minWidth: 0 }, controls: { maxWidth: '100%' } });
+const STATE_ICON = 20;
 
 interface Props {
   status: ClaudeSessionStatus | undefined;
@@ -38,113 +38,135 @@ function unavailableNote(status: ClaudeSessionStatus | undefined, disconnected: 
 type SessionView = ReturnType<typeof sessionView>;
 type Worker = NonNullable<SessionView>['workers'][number];
 
-interface MainSessionProps extends Pick<Props, 'status' | 'disconnected'> {
-  view: SessionView;
-  state: Freshness;
-  observed: boolean;
-  dark: boolean;
+const MAIN_DOT: Record<Activity['mainPhase'], NowDot> = {
+  starting: 'quiet', idle: 'quiet', working: 'success', approval: 'white', compacting: 'success', stopped: 'quiet', error: 'danger',
+};
+
+function mainDot(activity: Activity | null | undefined, state: Freshness): NowDot {
+  if (activity === null || activity === undefined) return 'quiet';
+  return state === 'Fresh' ? MAIN_DOT[activity.mainPhase] : 'quiet';
 }
 
-function CurrentHeader({ state, dark, onSession }: { state: Freshness; dark: boolean; onSession: Props['onSession'] }): ReactNode {
-  const title = state === 'Fresh' ? 'Right now' : state === 'Stale' || state === 'Disconnected' ? 'Last observed state' : 'Session status';
-  return <Row justify="between" align="center" wrap gap={8}>
-    <Row gap={8} align="center"><Text weight="semibold">{title}</Text><Badge label={state} color={state === 'Stale' || state === 'Disconnected' ? 'warning' : undefined} /></Row>
-    <Button dark={dark} color="secondary" label="Session details" onPress={onSession} />
-  </Row>;
+function sectionTitle(state: Freshness): string {
+  return state === 'Fresh' ? 'Main thread' : state === 'Stale' || state === 'Disconnected' ? 'Last observed state' : 'Session status';
 }
 
-function MainPhaseBadge({ activity, state }: { activity: Activity | null | undefined; state: Freshness }): ReactNode {
-  if (!activity) return null;
-  return <Badge label={activity.mainPhase === 'approval' ? 'Waiting for approval' : `${activity.mainPhase}${state === 'Fresh' ? '' : ' at last report'}`} color={state === 'Fresh' && activity.mainPhase === 'error' ? 'danger' : undefined} />;
+function MainNotes({ activity, view, state, observed, disconnected }: { activity: Activity | null | undefined; view: SessionView; state: Freshness; observed: boolean; disconnected: boolean }): ReactNode {
+  const counts = activity && observed ? `${state === 'Fresh' ? '' : 'At last report: '}${String(activity.pending)} queued · ${String(activity.workers)} helpers · ${String(activity.approvals)} approvals` : null;
+  const notes = [counts, view === null || disconnected ? null : view.note, (activity?.approvals ?? 0) > 0 ? 'Answer approvals on Home or in the chat.' : null];
+  return (
+    <>
+      {notes.map((note) => (note === null ? null : <Text key={note} size="xs" role="secondary">{note}</Text>))}
+      {view?.failures.map((failure) => (
+        <Text key={failure.text} size="xs" role={failure.danger ? 'danger' : 'secondary'}>
+          {failure.text}
+        </Text>
+      ))}
+    </>
+  );
 }
 
-function MainSessionReport({ status, disconnected, view, state, observed }: Omit<MainSessionProps, 'dark'>): ReactNode {
+function MainThread({ status, disconnected, view, state, observed, onSession }: Pick<Props, 'status' | 'disconnected' | 'onSession'> & { view: SessionView; state: Freshness; observed: boolean }): ReactNode {
   const activity = status?.activity;
-  return <>
-    {activity && observed && <Text size="sm" role="secondary">{state === 'Fresh' ? '' : 'At last report: '}{activity.pending} queued · {activity.workers} active workers · {activity.approvals} approvals</Text>}
-    <Text size="md" role="secondary">{disconnected || view === null ? unavailableNote(status, disconnected) : view.note}</Text>
-    {view?.failures.map((failure) => <Text key={failure.text} size="sm" role={failure.danger ? 'danger' : 'secondary'}>{failure.text}</Text>)}
-  </>;
-}
-
-function MainSessionCard({ status, disconnected, view, state, observed, dark }: MainSessionProps): ReactNode {
-  const activity = status?.activity;
-  return <Card dark={dark}><Col gap={12}>
-    <Row gap={8} align="center" wrap><Text size="sm" weight="semibold">Main session</Text>
-      <MainPhaseBadge activity={activity} state={state} />
+  const action = (
+    <Row gap={10} align="center">
+      <Badge label={state} color={state === 'Stale' || state === 'Disconnected' ? 'warning' : undefined} />
+      <Text size="xs" onPress={onSession} accessibilityRole="button">Details</Text>
     </Row>
-    <Text size="sm">{view?.main ?? unavailableNote(status, disconnected)}</Text>
-    {view !== null && <Text size="sm" role="secondary">{view.tools}</Text>}
-    <MainSessionReport status={status} disconnected={disconnected} view={view} state={state} observed={observed} />
-    {activity?.approvals !== undefined && activity.approvals > 0 && <Text size="md" role="secondary">Answer approvals in chat or on the Home page, not here.</Text>}
-  </Col></Card>;
+  );
+  return (
+    <Col gap={10}>
+      <Section label={sectionTitle(state)} action={action}>
+        <Item title={view?.main ?? unavailableNote(status, disconnected)} subtitle={view?.tools} leading={<StatusDot tone={mainDot(activity, state)} />} />
+      </Section>
+      <MainNotes activity={activity} view={view} state={state} observed={observed} disconnected={disconnected} />
+    </Col>
+  );
 }
 
-function WorkerCard({ row, dark, onDetails, onWorker }: { row: Worker; dark: boolean; onDetails: (id: string) => void; onWorker: Props['onWorker'] }): ReactNode {
+function StateMark({ row }: { row: Worker }): ReactNode {
   const palette = useKitPalette();
   const mark = WORKER_STATE[row.status];
-  const color = mark.color === null ? palette.text : statusColor(mark.color, dark ? 'dark' : 'light');
-  return <Box testID={`worker-card-${row.id}`}><Card dark={dark}><Col gap={8}>
-    <Text size="sm" weight="semibold" numberOfLines={1} testID="worker-title">{row.title}</Text>
-    <Text size="md" role="secondary" numberOfLines={1} testID="worker-model">Last observed model: {row.lastObservedModel}</Text>
-    <Row gap={8} align="center"><Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={mark.icon} size={18} color={color} /></Box><Text size="sm" style={styles.title} numberOfLines={1} testID="worker-state">{row.stateLabel}</Text></Row>
-    <Text size="md" role="secondary" numberOfLines={1} testID="worker-tools">{row.tools}</Text>
-    <Text size="md" role="secondary" numberOfLines={1} testID="worker-progress">{row.progress}</Text>
-    <Row gap={8} wrap testID="worker-actions"><Button dark={dark} color="secondary" label="Details" accessibilityLabel={`Details for worker ${row.id}`} onPress={() => { onDetails(row.id); }} />
-      <Button dark={dark} color="secondary" label="Activity" accessibilityLabel={`Filter activity for worker ${row.id}`} onPress={() => { onWorker(row.id); }} /></Row>
-  </Col></Card></Box>;
+  const color = mark.color === 'danger' ? palette.danger : mark.color === null ? palette.sub : palette.success;
+  return (
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Icon name={mark.icon} size={STATE_ICON} color={color} />
+    </View>
+  );
 }
 
 interface WorkerControlsProps {
   filter: WorkerFilter;
   expanded: boolean;
   count: number;
-  narrow: boolean;
-  dark: boolean;
   onFilter: (filter: WorkerFilter) => void;
   onExpand: () => void;
 }
 
-function WorkerControls({ filter, expanded, count, narrow, dark, onFilter, onExpand }: WorkerControlsProps): ReactNode {
+function WorkerControls({ filter, expanded, count, onFilter, onExpand }: WorkerControlsProps): ReactNode {
   const label = WORKER_FILTERS.find((option) => option.value === filter)?.label ?? 'All';
-  return <Row gap={8} wrap style={styles.controls}>
-    <Dropdown label="Filter worker status" button={{ label: `Status: ${label}`, color: 'secondary' }} items={WORKER_FILTERS.map((option) => ({
-      label: option.label, selected: option.value === filter, onSelect: () => { onFilter(option.value); },
-    }))} />
-    {count > (narrow ? 0 : 3) && <Button dark={dark} color="secondary" label={expanded ? 'Show fewer workers' : `Show all workers (${String(count)})`} onPress={onExpand} accessibilityState={{ expanded }} />}
-  </Row>;
+  return (
+    <Row gap={12} align="center">
+      <Dropdown label="Filter helper status" button={{ label: `${label} helpers`, color: 'secondary', size: 'sm' }} items={WORKER_FILTERS.map((option) => ({
+        label: option.label, selected: option.value === filter, onSelect: () => { onFilter(option.value); },
+      }))} />
+      {count > 3 ? (
+        <Text size="xs" onPress={onExpand} accessibilityRole="button" accessibilityState={{ expanded }}>
+          {expanded ? 'Show fewer' : `Show all (${String(count)})`}
+        </Text>
+      ) : null}
+    </Row>
+  );
 }
 
-function CurrentWorkers({ workers, observed, dark, narrow, onWorker }: Pick<Props, 'narrow' | 'onWorker'> & { workers: Worker[]; observed: boolean; dark: boolean }): ReactNode {
+function WorkerDetails({ worker, narrow, onClose, onWorker }: { worker: Worker | undefined; narrow: boolean; onClose: () => void; onWorker: Props['onWorker'] }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  return (
+    <Modal open={worker !== undefined} onClose={onClose} title="Helper details" side={narrow ? 'bottom' : 'center'}>
+      {worker === undefined ? null : (
+        <Col gap={16}>
+          <Text size="sm" selectable>{worker.details}</Text>
+          <Row>
+            <Button dark={dark} color="secondary" label="Show its activity" onPress={() => { onWorker(worker.id); onClose(); }} />
+          </Row>
+        </Col>
+      )}
+    </Modal>
+  );
+}
+
+function CurrentWorkers({ workers, observed, narrow, onWorker }: Pick<Props, 'narrow' | 'onWorker'> & { workers: Worker[]; observed: boolean }): ReactNode {
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState<WorkerFilter>('all');
   const [workerId, setWorkerId] = useState<string | null>(null);
   const worker = workers.find((row) => row.id === workerId);
-  const { matching, shown } = workerSelection(workers, filter, expanded, narrow);
-  return <>
-    {(workers.length > 0 || filter !== 'all') && <Col gap={10} testID="current-workers">
-      <Row justify="between" align="center" wrap gap={8}><Text size="sm" weight="semibold">{observed ? 'Workers' : 'Last reported workers'}</Text>
-        <WorkerControls filter={filter} expanded={expanded} count={matching.length} narrow={narrow} dark={dark}
-          onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} /></Row>
-      <Text size="md" role="secondary" accessibilityLiveRegion="polite">Showing {shown.length} of {matching.length} {filter === 'all' ? 'workers' : `matching workers (${String(workers.length)} total)`}</Text>
-      {matching.length === 0 && <Text size="sm" role="secondary">No workers with this status.</Text>}
-      <Grid min={240} gap={12}>{shown.map((row) => <WorkerCard key={row.id} row={row} dark={dark} onDetails={setWorkerId} onWorker={onWorker} />)}</Grid>
-      <Text size="md" role="secondary">Up to 30 recent tasks in this session, finished and background ones included.</Text>
-    </Col>}
-    <Modal open={worker !== undefined} onClose={() => { setWorkerId(null); }} title="Worker details" side={narrow ? 'bottom' : 'center'}>
-      {worker !== undefined && <Text size="sm" selectable>{worker.details}</Text>}
-    </Modal>
-  </>;
+  const { matching, shown } = workerSelection(workers, filter, expanded);
+  if (workers.length === 0 && filter === 'all') return null;
+  return (
+    <Col gap={10} testID="current-workers">
+      <Section label={observed ? 'Helpers' : 'Last reported helpers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
+        onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} />}>
+        {shown.map((row) => (
+          <Item key={row.id} title={row.title} subtitle={`${row.stateLabel} · ${row.tools}`} subtitleTone={row.danger ? 'danger' : 'secondary'} detail={row.progress}
+            leading={<StateMark row={row} />} onPress={() => { setWorkerId(row.id); }} label={`Details for helper ${row.id}`} />
+        ))}
+      </Section>
+      <Text size="xs" role="secondary" accessibilityLiveRegion="polite">
+        {matching.length === 0 ? 'No helpers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}. Up to 30 recent tasks in this session, finished ones included.`}
+      </Text>
+      <WorkerDetails worker={worker} narrow={narrow} onClose={() => { setWorkerId(null); }} onWorker={onWorker} />
+    </Col>
+  );
 }
 
 export function RunCurrent({ status, now, disconnected, narrow, onSession, onWorker }: Props): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const state = freshness(status, now, disconnected);
   const view = status === undefined ? null : sessionView(status, now, disconnected);
   const observed = state === 'Fresh' || state === 'Stale' || state === 'Disconnected';
-  return <Col gap={12} testID="current-status">
-    <CurrentHeader state={state} dark={dark} onSession={onSession} />
-    <MainSessionCard status={status} disconnected={disconnected} view={view} state={state} observed={observed} dark={dark} />
-    <CurrentWorkers workers={view?.workers ?? []} observed={observed} dark={dark} narrow={narrow} onWorker={onWorker} />
-  </Col>;
+  return (
+    <Col gap={40} testID="current-status">
+      <MainThread status={status} disconnected={disconnected} view={view} state={state} observed={observed} onSession={onSession} />
+      <CurrentWorkers workers={view?.workers ?? []} observed={observed} narrow={narrow} onWorker={onWorker} />
+    </Col>
+  );
 }
