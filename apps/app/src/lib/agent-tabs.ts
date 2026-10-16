@@ -30,11 +30,7 @@ const MEMORY: AgentPage[] = [
   { label: 'Skills', kinds: ['skills', 'skill'], target: (project) => ({ kind: 'skills', project }) },
 ];
 
-const TOOLS: AgentPage[] = [
-  { label: 'Connectors', kinds: ['tools'], target: (project) => ({ kind: 'tools', project }) },
-  { label: 'Scheduled tasks', kinds: ['scheduled', 'scheduled-job'], target: (project) => ({ kind: 'scheduled', project }) },
-  { label: 'Secrets', kinds: ['secrets'], target: (project) => ({ kind: 'secrets', project }) },
-];
+const TOOLS: AgentPage[] = [{ label: 'Tools', kinds: ['tools', 'scheduled', 'scheduled-job', 'secrets'], target: (project) => ({ kind: 'tools', project }) }];
 
 const SETTINGS: AgentPage[] = [
   { label: 'General', kinds: ['agent-settings'], target: (project) => ({ kind: 'agent-settings', project }) },

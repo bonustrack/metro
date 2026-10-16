@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
 
 export interface ItemProps {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   subtitleTone?: Tone;
   detail?: string;
   leading?: ReactNode;

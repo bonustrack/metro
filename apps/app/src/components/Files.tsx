@@ -1,16 +1,18 @@
 import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
-import { Loading } from './Loading.js';
-import { PageTitle } from './PageTitle.js';
-import { SettingsGroup, SettingsPad } from './SettingsSection.js';
-import { LogBlock } from './ui/LogBlock.js';
+import { fetchAgentPath, joinPath, pathSegments, type AgentPath, type FileEntry } from '@metro-labs/client/api/files';
+import { sizeLabel, whenLabel } from '@metro-labs/client/api/when';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
-import { fetchAgentPath, joinPath, pathSegments, type AgentPath, type FileEntry } from '@metro-labs/client/api/files';
+import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
+import { Loading } from './Loading.js';
+import { Group, Groups } from './ui/Group.js';
+import { LogBlock } from './ui/LogBlock.js';
+import { PageHeader } from './ui/PageHeader.js';
+import { StateBlock } from './ui/StateBlock.js';
+import { useAgentName } from '../lib/agent-hooks.js';
 import { queryError, useBoxQuery } from '../lib/queries.js';
-import { sizeLabel, whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
 
 interface FilesProps {
@@ -18,8 +20,8 @@ interface FilesProps {
   path: string;
 }
 
-const EMPTY = 'This folder is empty.';
-const INTRO = "The agent's own folder, read with the agent's rights: only what the agent itself can open. Metro's files and the channel credentials are not here.";
+type FolderAnswer = Extract<AgentPath, { kind: 'folder' }>;
+type FileAnswer = Extract<AgentPath, { kind: 'file' }>;
 
 function crumbsOf(project: string, root: string, path: string): Crumb[] {
   const parts = pathSegments(path);
@@ -31,70 +33,70 @@ function crumbsOf(project: string, root: string, path: string): Crumb[] {
 
 const detailOf = (entry: FileEntry): string => {
   const when = entry.modifiedAt === '' ? '' : whenLabel(entry.modifiedAt);
-  if (entry.kind === 'folder') return when === '' ? 'Folder' : `Folder · ${when}`;
+  if (entry.kind === 'folder') return when;
   if (entry.kind === 'other') return 'Link or special file';
   return when === '' ? sizeLabel(entry.bytes) : `${sizeLabel(entry.bytes)} · ${when}`;
 };
 
-function FolderList({ project, answer }: { project: string; answer: Extract<AgentPath, { kind: 'folder' }> }): ReactNode {
-  if (answer.entries.length === 0) return <Text size="md" role="secondary">{EMPTY}</Text>;
+function EntryGroup({ label, project, answer, entries, note }: { label: string; project: string; answer: FolderAnswer; entries: FileEntry[]; note?: string }): ReactNode {
+  if (entries.length === 0) return null;
+  const parent = answer.path.replace(/^\/+|\/+$/g, '');
   return (
-    <SettingsGroup>
-      {answer.entries.map((entry) => {
-        const target: Selection = { kind: 'files', project, path: joinPath(answer.path.replace(/^\/+|\/+$/g, ''), entry.name) };
-        return (
-          <EntryRow
-            key={entry.name}
-            name={entry.name}
-            detail={detailOf(entry)}
-            folder={entry.kind === 'folder'}
-            href={routeHash(target)}
-          />
-        );
-      })}
-      {answer.more ? (
-        <SettingsPad>
-          <Text size="md" role="secondary">Only the first 2,000 entries are shown.</Text>
-        </SettingsPad>
-      ) : null}
-    </SettingsGroup>
+    <Group label={label} note={note}>
+      {entries.map((entry) => (
+        <EntryRow key={entry.name} name={entry.name} detail={detailOf(entry)} folder={entry.kind === 'folder'} href={routeHash({ kind: 'files', project, path: joinPath(parent, entry.name) })} />
+      ))}
+    </Group>
   );
 }
 
-function FileView({ answer }: { answer: Extract<AgentPath, { kind: 'file' }> }): ReactNode {
+function FolderList({ project, answer }: { project: string; answer: FolderAnswer }): ReactNode {
+  if (answer.entries.length === 0) return <StateBlock icon="folder" title="Empty folder" text="Nothing in here yet." />;
+  const more = answer.more ? 'Only the first 2,000 entries are shown.' : undefined;
+  const files = answer.entries.filter((entry) => entry.kind !== 'folder');
+  return (
+    <Groups>
+      <EntryGroup label="Folders" project={project} answer={answer} entries={answer.entries.filter((entry) => entry.kind === 'folder')} note={files.length === 0 ? more : undefined} />
+      <EntryGroup label="Files" project={project} answer={answer} entries={files} note={more} />
+    </Groups>
+  );
+}
+
+function FileView({ answer }: { answer: FileAnswer }): ReactNode {
   const facts = `${sizeLabel(answer.bytes)}${answer.modifiedAt === '' ? '' : ` · changed ${whenLabel(answer.modifiedAt)}`}`;
   return (
-    <Col gap={12}>
-      <Text size="md" role="secondary">{facts}</Text>
+    <Col gap={16}>
+      <PageHeader title={pathSegments(answer.path).pop() ?? answer.path} subtitle={facts} />
       {answer.text === null ? (
-        <Text size="md" role="secondary">This file is not text, so it cannot be shown here.</Text>
+        <StateBlock icon="documentText" title="Not a text file" text="It cannot be shown here." />
       ) : (
         <LogBlock text={answer.text} maxHeight={null} />
       )}
-      {answer.truncated ? <Text size="md" role="secondary">Only the first 256 KB are shown.</Text> : null}
+      {answer.truncated ? <Text size="xs" role="secondary">Only the first 256 KB are shown.</Text> : null}
     </Col>
   );
 }
 
-function FilesBody({ project, path }: FilesProps): ReactNode {
-  const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
-  if (query.error !== null) return <Text size="md" role="danger">{queryError(query.error, 'Could not read that path.')}</Text>;
-  if (query.data === undefined) return <Loading />;
+function Intro({ path }: { path: string }): ReactNode {
+  const name = useAgentName();
+  if (path !== '') return null;
   return (
-    <Col gap={16}>
-      <Crumbs crumbs={crumbsOf(project, query.data.root === '' ? 'Agent folder' : query.data.root, path)} />
-      {query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} /> : <FileView answer={query.data} />}
-    </Col>
+    <Text size="xs" role="secondary">
+      {`${name}’s own folder, as ${name} sees it. Metro’s files and the chat keys are not here.`}
+    </Text>
   );
 }
 
 export function Files({ project, path }: FilesProps): ReactNode {
+  const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
   useDocumentTitle('Files');
+  if (query.error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not read that path" text={queryError(query.error, 'Try again in a moment.')} />;
+  if (query.data === undefined) return <Loading />;
   return (
     <Col gap={16}>
-      <PageTitle>Files</PageTitle>
-      <Text size="md" role="secondary">{INTRO}</Text>
-      <FilesBody project={project} path={path} />
+      <Intro path={path} />
+      <Crumbs crumbs={crumbsOf(project, query.data.root === '' ? 'Agent folder' : query.data.root, path)} />
+      {query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} /> : <FileView answer={query.data} />}
     </Col>
   );
 }

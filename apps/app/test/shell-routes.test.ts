@@ -18,10 +18,10 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/files', 'memory', 'Files'],
   ['/skills', 'memory', 'Skills'],
   ['/skill/user%3Ax', 'memory', 'Skills'],
-  ['/tools', 'tools', 'Connectors'],
-  ['/scheduled', 'tools', 'Scheduled tasks'],
-  ['/scheduled/cron-agent%3A1', 'tools', 'Scheduled tasks'],
-  ['/secrets', 'tools', 'Secrets'],
+  ['/tools', 'tools', 'Tools'],
+  ['/scheduled', 'tools', 'Tools'],
+  ['/scheduled/cron-agent%3A1', 'tools', 'Tools'],
+  ['/secrets', 'tools', 'Tools'],
   ['/settings', 'settings', 'General'],
   ['/model', 'settings', 'Model'],
   ['/harness', 'settings', 'Harness'],
@@ -40,7 +40,7 @@ describe('every page of an agent has a place under one of its five tabs', () => 
   });
 
   test('the old Channels and Connectors addresses land on the Chats and Tools tabs', () => {
-    for (const [old, tab, page] of [['/channels', 'chats', 'Channels'], ['/connectors', 'tools', 'Connectors'], [`/connector/${AGENT}`, 'tools', 'Connectors']] as const) {
+    for (const [old, tab, page] of [['/channels', 'chats', 'Channels'], ['/connectors', 'tools', 'Tools'], [`/connector/${AGENT}`, 'tools', 'Tools']] as const) {
       const selection = routeSelection(`#/${AGENT}${old}`);
       expect(agentTabOf(selection.kind).id).toBe(tab);
       expect(agentPageOf(selection.kind)?.label).toBe(page);
@@ -59,6 +59,10 @@ describe('every page of an agent has a place under one of its five tabs', () => 
     expect(isPageRoot({ kind: 'skill', project: AGENT, id: 'user:x' })).toBe(false);
     expect(isPageRoot({ kind: 'home', project: AGENT })).toBe(false);
     expect(isPageRoot({ kind: 'servers' })).toBe(false);
+  });
+
+  test('Tools is one page, so it shows no page switch', () => {
+    expect(AGENT_TABS.find((tab) => tab.id === 'tools')?.pages).toHaveLength(1);
   });
 
   test('the five tabs come in the order of the design', () => {

@@ -47,7 +47,7 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
     changeVault(bodyOf(editing, draft, variable))
       .then(onSaved)
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not save the secret.'));
+        setError(queryError(err, 'Could not save the key.'));
       })
       .finally(() => {
         setBusy(false);
@@ -55,14 +55,13 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
   };
   return (
     <Col gap={12}>
-      <Text size="md" weight="semibold">{editing === null ? 'Add a secret' : `Edit ${editing.name}`}</Text>
       <FormField label="Name" name="secret-name" value={name} placeholder="OpenAI" disabled={busy} dark={dark} onChangeText={edit('name')} />
       {editing === null ? (
-        <FormField label="Variable the agent sees" name="secret-env" value={variable} placeholder="OPENAI_API_KEY" disabled={busy} dark={dark} onChangeText={edit('env')} />
+        <FormField label="Stand-in the agent sees" name="secret-env" value={variable} placeholder="OPENAI_API_KEY" disabled={busy} dark={dark} onChangeText={edit('env')} />
       ) : null}
       <FormField label="Websites it may be sent to" name="secret-hosts" value={hosts} placeholder="api.openai.com, *.openai.com" disabled={busy} dark={dark} onChangeText={edit('hosts')} />
       <FormField
-        label={editing === null ? 'Value' : 'New value (leave empty to keep the current one)'}
+        label={editing === null ? 'Key' : 'New key (leave empty to keep the current one)'}
         name="secret-value"
         value={value}
         placeholder="sk-…"
@@ -71,11 +70,11 @@ export function SecretForm({ editing, onSaved, onCancel }: SecretFormProps): Rea
         dark={dark}
         onChangeText={edit('value')}
       />
-      <Row gap={8}>
-        <Button size="lg" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
-        <Button size="md" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
-      </Row>
       {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      <Row gap={8} wrap>
+        <Button size="lg" dark={dark} disabled={busy || !complete(editing, draft)} label={busy ? 'Saving…' : 'Save'} onPress={save} />
+        <Button size="lg" color="secondary" dark={dark} disabled={busy} label="Cancel" onPress={onCancel} />
+      </Row>
     </Col>
   );
 }
