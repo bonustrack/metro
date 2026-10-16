@@ -223,22 +223,18 @@ const storagePoll = (data: StorageView | null | undefined): number | false => {
 export const useStorageQuery = (serverId: string): UseQueryResult<StorageView | null> =>
   useQuery({ queryKey: orgKey('storage', serverId), queryFn: () => fetchStorage(serverId), staleTime: 30_000, retry: false, refetchInterval: (query) => storagePoll(query.state.data) });
 
-export function useServerStatus(host: string): UseQueryResult<ServerStatus> {
-  return useQuery({
-    queryKey: ['server-status', host],
-    queryFn: () => probeServer(host),
-    refetchInterval: STATUS_POLL_MS,
-    staleTime: 5_000,
-    retry: false,
-  });
-}
+export const serverStatusOptions = (host: string): UseQueryOptions<ServerStatus, Error, ServerStatus, string[]> => ({
+  queryKey: ['server-status', host],
+  queryFn: () => probeServer(host),
+  refetchInterval: STATUS_POLL_MS,
+  staleTime: 5_000,
+  retry: false,
+});
+
+export const useServerStatus = (host: string): UseQueryResult<ServerStatus> => useQuery(serverStatusOptions(host));
 
 export function refreshServers(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ queryKey: serversKey() });
-}
-
-export function refreshServerStatus(client: QueryClient, host: string): Promise<void> {
-  return client.invalidateQueries({ queryKey: ['server-status', host] });
 }
 
 export const useUpdateQuery = (): UseQueryResult<UpdateCheck> => useBoxQuery('update', fetchUpdate, { staleTime: 60_000, refetchInterval: 60_000, refetchOnMount: true, refetchOnWindowFocus: true, retry: false });

@@ -55,10 +55,10 @@ export function approvalOf(raw: unknown): Approval | null {
   };
 }
 
-const base = (): string => `${daemonBase()}/api/approvals`;
+const base = (daemon = daemonBase()): string => `${daemon}/api/approvals`;
 
-export async function fetchApprovals(): Promise<Approval[]> {
-  const body = await call({ method: 'GET', base: base() });
+export async function fetchApprovals(daemon?: string): Promise<Approval[]> {
+  const body = await call({ method: 'GET', base: base(daemon) });
   if (!isRecord(body) || !Array.isArray(body.approvals)) throw new Error('Metro returned an unexpected response.');
   return body.approvals
     .flatMap((raw) => {

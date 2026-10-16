@@ -65,7 +65,7 @@ export function Checklist({ name, project, channels, connectors }: ChecklistProp
       title: 'Connect a channel',
       hint: `Choose where your team writes to ${name}: WhatsApp, Outlook, Telegram…`,
       done: channels > 0,
-      target: { kind: 'stations', project },
+      target: { kind: 'chats', project },
     },
     {
       title: 'Add a connector',

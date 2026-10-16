@@ -3,7 +3,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { PageTitle } from './PageTitle.js';
+import { PageHeader } from './ui/PageHeader.js';
 import { THEME_MODES, useThemeMode } from '../lib/theme.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { AccountSettings } from './AccountSettings.js';
@@ -14,9 +14,7 @@ export function Settings(): ReactNode {
   useDocumentTitle('Settings');
   return (
     <Col gap={16}>
-      <Col gap={8}>
-        <PageTitle>Settings</PageTitle>
-      </Col>
+      <PageHeader title="Settings" />
       <AccountSettings />
       <Col gap={12}>
           <Col gap={2}>

@@ -53,7 +53,7 @@ interface StationDetailProps {
 function Header({ station, project, row }: { station: string; project: string; row: AccountRow }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const { handle, url } = stationFields(row);
-  const back = routeHash({ kind: 'stations', project });
+  const back = routeHash({ kind: 'chats', project });
   return (
     <Col gap={16}>
       <BackLink label="Channels" href={back} />
@@ -157,7 +157,7 @@ function Remove({ station, id, project, managed, onDetach }: { station: string; 
     () => onDetach(station, id),
     'Could not delete the channel.',
     () => {
-      go({ kind: 'stations', project });
+      go({ kind: 'chats', project });
     },
   );
   return (

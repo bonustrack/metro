@@ -11,7 +11,6 @@ import { ModelPage } from './ModelPage.js';
 import { ClaudeSettings } from './ClaudeSettings.js';
 import { Skills } from './Skills.js';
 import { SkillPage } from './SkillPage.js';
-import { Settings } from './Settings.js';
 import { StationPage } from './StationPage.js';
 import { Stations } from './Stations.js';
 import { ScheduledJobs } from './ScheduledJobs.js';
@@ -19,11 +18,6 @@ import { ScheduledJobPage } from './ScheduledJobPage.js';
 import { Files } from './Files.js';
 import { Secrets } from './Secrets.js';
 import { VoicePage } from './VoicePage.js';
-import { SectionTabs } from './SectionTabs.js';
-import { sectionOf } from './sections.js';
-import { Tabbed } from './tabbed.js';
-
-const CONNECTOR_PAGES: ReadonlySet<Selection['kind']> = new Set(['connectors', 'connector']);
 
 function claudeRoutes(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'sessions') return <Sessions project={project} claudeProject={selection.claudeProject} id={selection.id} />;
@@ -39,7 +33,7 @@ function claudeRoutes(project: string, selection: Selection): ReactNode {
 }
 
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
-  if (CONNECTOR_PAGES.has(selection.kind)) return <Connectors />;
+  if (selection.kind === 'tools') return <Connectors />;
   const claude = claudeRoutes(project, selection);
   if (claude !== null) return claude;
   if (selection.kind === 'run') return <RunPage key={project} />;
@@ -47,21 +41,12 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'model') return <ModelPage project={selection.project} />;
   if (selection.kind === 'voice') return <VoicePage />;
-  if (selection.kind === 'stations') return <Stations project={project} />;
+  if (selection.kind === 'chats') return <Stations project={project} />;
   if (selection.kind === 'station') return <StationPage project={project} accountId={selection.accountId} />;
   return <Home project={project} />;
 }
 
 export function AgentPanel({ selection }: { selection: Selection }): ReactNode {
-  if (selection.kind === 'settings') return <Settings />;
   if (!('project' in selection)) return null;
-  const tabbed = sectionOf(selection.kind)?.tabs !== undefined;
-  return (
-    <>
-      <SectionTabs project={selection.project} selection={selection} />
-      <Tabbed.Provider value={tabbed}>
-        <ScopedPanel project={selection.project} selection={selection} />
-      </Tabbed.Provider>
-    </>
-  );
+  return <ScopedPanel project={selection.project} selection={selection} />;
 }

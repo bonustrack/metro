@@ -44,6 +44,20 @@ export const statusColor = (color: 'info' | 'success' | 'danger', scheme: Scheme
 
 export const hoverColor = (palette: KitPalette): string => withAlpha(palette.link, DROPDOWN_MENU.hoverAlpha);
 
+const SELECTED_ALPHA = 0.05;
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+const channels = (hex: string): number[] => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+function blend(top: string, bottom: string, alpha: number): string {
+  if (!HEX.test(top) || !HEX.test(bottom)) return withAlpha(top, alpha);
+  const under = channels(bottom);
+  const mixed = channels(top).map((c, i) => Math.round(c * alpha + (under[i] ?? 0) * (1 - alpha)));
+  return `#${mixed.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+export const selectedColor = (palette: KitPalette): string => blend(palette.link, palette.bg, SELECTED_ALPHA);
+
 function cssVars(palette: KitPalette): Record<string, string> {
   return { '--metro-bg': palette.bg, '--metro-border': palette.border };
 }

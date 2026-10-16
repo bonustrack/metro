@@ -36,10 +36,9 @@ const VOICE_PATH = new RegExp(`^#?/(${HOST})/voice$`);
 const SCHEDULED_PATH = new RegExp(`^#?/(${HOST})/scheduled$`);
 const SCHEDULED_JOB_PATH = new RegExp(`^#?/(${HOST})/scheduled/([^/]+)$`);
 const SKILL_PATH = new RegExp(`^#?/(${HOST})/skill/(${SKILL})$`);
-const STATIONS_PATH = new RegExp(`^#?/(${HOST})/channels$`);
+const CHATS_PATH = new RegExp(`^#?/(${HOST})/(?:chats|channels)$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})$`);
-const CONNECTORS_PATH = new RegExp(`^#?/(${HOST})/connectors$`);
-const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
+const TOOLS_PATH = new RegExp(`^#?/(${HOST})/(?:tools|connectors|connector/${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
 const MEMORY_PATH = new RegExp(`^#?/(${HOST})/memory(?:/(${CLAUDE})(?:/((?:${CLAUDE}/)*${CLAUDE}))?)?$`);
 const FILES_PATH = new RegExp(`^#?/(${HOST})/files(?:/(.*))?$`);
@@ -82,10 +81,9 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [VOICE_PATH, (project) => ({ kind: 'voice', project })],
   [SCHEDULED_JOB_PATH, (project, id) => ({ kind: 'scheduled-job', project, id: decodeURIComponent(id) })],
   [SKILL_PATH, (project, id) => ({ kind: 'skill', project, id: decodeURIComponent(id) })],
-  [STATIONS_PATH, (project) => ({ kind: 'stations', project })],
+  [CHATS_PATH, (project) => ({ kind: 'chats', project })],
   [STATION_PATH, (project, accountId) => ({ kind: 'station', project, accountId })],
-  [CONNECTORS_PATH, (project) => ({ kind: 'connectors', project })],
-  [CONNECTOR_PATH, (project, id) => ({ kind: 'connector', project, id })],
+  [TOOLS_PATH, (project) => ({ kind: 'tools', project })],
   [SESSIONS_PATH, (project, cp, id) => ({ kind: 'sessions', project, claudeProject: cp === '' ? null : cp, id: id === '' ? null : id })],
   [FILES_PATH, (project, path) => ({ kind: 'files', project, path: pathSegmentsOf(path) })],
   [MEMORY_PATH, (project, cp, file) => ({ kind: 'memory', project, claudeProject: cp === '' ? null : cp, file: file === '' ? null : file })],
@@ -165,10 +163,9 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   voice: () => '/voice',
   'scheduled-job': (s) => `/scheduled/${s.kind === 'scheduled-job' ? encodeURIComponent(s.id) : ''}`,
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
-  stations: () => '/channels',
+  chats: () => '/chats',
   station: (s) => `/channel/${s.kind === 'station' ? s.accountId : ''}`,
-  connectors: () => '/connectors',
-  connector: (s) => `/connector/${s.kind === 'connector' ? s.id : ''}`,
+  tools: () => '/tools',
   sessions: (s) =>
     s.kind === 'sessions'
       ? `/sessions${s.claudeProject === null ? '' : `/${s.claudeProject}`}${s.id === null ? '' : `/${s.id}`}`

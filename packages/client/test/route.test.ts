@@ -21,10 +21,9 @@ describe('the first segment is the daemon', () => {
       const cases: Selection[] = [
         { kind: 'home', project },
         { kind: 'run', project },
-        { kind: 'stations', project },
+        { kind: 'chats', project },
         { kind: 'station', project, accountId: 'a1-e5036b5f' },
-        { kind: 'connectors', project },
-        { kind: 'connector', project, id: 'aB3-_xYz9Qw' },
+        { kind: 'tools', project },
         { kind: 'sessions', project, claudeProject: null, id: null },
         { kind: 'sessions', project, claudeProject: '-home-me-proj', id: null },
         { kind: 'sessions', project, claudeProject: '-home-me-proj', id: '11111111-2222-4333-8444-555555555555' },
@@ -46,7 +45,7 @@ describe('the first segment is the daemon', () => {
       ];
       for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     }
-    expect(routeHash({ kind: 'connectors', project: 'x.tail1234.ts.net' })).toBe('#/x.tail1234.ts.net/connectors');
+    expect(routeHash({ kind: 'tools', project: 'x.tail1234.ts.net' })).toBe('#/x.tail1234.ts.net/tools');
     expect(routeHash({ kind: 'home', project: '127.0.0.1:8420' })).toBe('#/127.0.0.1:8420');
     expect(routeSelection('#/127.0.0.1:8420/')).toEqual({ kind: 'home', project: '127.0.0.1:8420' });
   });
@@ -68,14 +67,14 @@ describe('the first segment is the daemon', () => {
     for (const root of ['#/', '#', '', '/']) expect(routeSelection(root)).toEqual({ kind: 'servers' });
     expect(routeHash({ kind: 'servers' })).toBe('#/');
     expect(routeSelection('#/aB3-_xYz9Qw')).toEqual({ kind: 'home', project: 'aB3-_xYz9Qw' });
-    expect(routeSelection('#/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/aB3-_xYz9Qw/channels')).toEqual({ kind: 'chats', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/aB3-_xYz9Qw/server')).toEqual({ kind: 'server', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/aB3-_xYz9Qw/settings')).toEqual({ kind: 'agent-settings', project: 'aB3-_xYz9Qw' });
     expect(routeHash({ kind: 'agent-settings', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/settings');
     expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/server');
     expect(routeSelection('#/aB3-_xYz9Qw/terminal')).toEqual({ kind: 'terminal', project: 'aB3-_xYz9Qw' });
     expect(routeHash({ kind: 'terminal', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/terminal');
-    expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/connectors');
+    expect(routeHash({ kind: 'tools', project: 'aB3-_xYz9Qw' })).toBe('#/aB3-_xYz9Qw/tools');
   });
 
   test('Run stays scoped through slugs and agent switching', () => {
@@ -141,7 +140,7 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/stage-labs/organization/connectors')).toEqual({ kind: 'org-connectors' });
     expect(routeSelection('#/stage-labs/organization/connectors/aB3-_xYz9Qw')).toEqual({ kind: 'org-connector', id: 'aB3-_xYz9Qw' });
     expect(routeHash({ kind: 'org-connector', id: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/organization/connectors/aB3-_xYz9Qw');
-    expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'connectors', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'tools', project: 'aB3-_xYz9Qw' });
   });
 
   test('the organization Models page is an organization page, and an agent keeps its own Model page', () => {
@@ -165,8 +164,8 @@ describe('switching server keeps the page', () => {
     expect(on({ kind: 'claude', project: 'lisa000000001' })).toBe('#/suzy00000001/harness');
     expect(routeSelection('#/suzy00000001/claude')).toEqual({ kind: 'claude', project: 'suzy00000001' });
     expect(on({ kind: 'home', project: 'lisa000000001' })).toBe('#/suzy00000001');
-    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/channels');
-    expect(on({ kind: 'connector', project: 'lisa000000001', id: 'c1' })).toBe('#/suzy00000001/connectors');
+    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/chats');
+    expect(on({ kind: 'tools', project: 'lisa000000001' })).toBe('#/suzy00000001/tools');
     expect(on({ kind: 'skill', project: 'lisa000000001', id: 'user:x' })).toBe('#/suzy00000001/skills');
     expect(on({ kind: 'sessions', project: 'lisa000000001', claudeProject: 'p', id: 's' })).toBe('#/suzy00000001/sessions');
     expect(on({ kind: 'memory', project: 'lisa000000001', claudeProject: 'p', file: 'f.md' })).toBe('#/suzy00000001/memory');
@@ -182,7 +181,7 @@ describe('the organization rides in front of every scoped route', () => {
     expect(splitOrganization('#/x.tail1234.ts.net')).toEqual({ organization: null, rest: '#/x.tail1234.ts.net' });
     expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members')).toEqual({ kind: 'members' });
     expect(routedOrganization()).toBe('org_01ABCDEFGHIJKLMNOPQRSTUVWX');
-    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/channels')).toEqual({ kind: 'stations', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/channels')).toEqual({ kind: 'chats', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/settings')).toEqual({ kind: 'settings' });
     expect(routedOrganization()).toBeNull();
     expect(routedDaemon('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server')).toBeNull();
@@ -204,7 +203,7 @@ describe('the organization rides in front of every scoped route', () => {
     routeSelection('#/settings');
     installTestAccount();
     expect(routeHash({ kind: 'servers' })).toBe(`#/${TEST_ORGANIZATION}`);
-    expect(routeHash({ kind: 'connectors', project: 'aB3-_xYz9Qw' })).toBe(`#/${TEST_ORGANIZATION}/aB3-_xYz9Qw/connectors`);
+    expect(routeHash({ kind: 'tools', project: 'aB3-_xYz9Qw' })).toBe(`#/${TEST_ORGANIZATION}/aB3-_xYz9Qw/tools`);
   });
 
   test('a slug is an organization segment too, and the account slug wins over the id in every hash', () => {
@@ -227,9 +226,32 @@ describe('the organization rides in front of every scoped route', () => {
     rememberAgents([{ id: 'aB3-_xYz9Qw', slug: 'tony' }, { id: 'zz9-_xYz9Qw', slug: null }]);
     expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/tony/server');
     expect(routeHash({ kind: 'home', project: 'zz9-_xYz9Qw' })).toBe('#/stage-labs/zz9-_xYz9Qw');
-    expect(routeSelection('#/stage-labs/tony/channels')).toEqual({ kind: 'stations', project: 'tony' });
+    expect(routeSelection('#/stage-labs/tony/channels')).toEqual({ kind: 'chats', project: 'tony' });
     forgetAgents();
     expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/stage-labs/aB3-_xYz9Qw/server');
+    routeSelection('#/settings');
+  });
+});
+
+describe('the agent tabs have their own addresses, and the old ones lead to them', () => {
+  test('Chats and Tools round-trip, with and without an organization in front', () => {
+    expect(routeSelection('#/aB3-_xYz9Qw/chats')).toEqual({ kind: 'chats', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/aB3-_xYz9Qw/tools')).toEqual({ kind: 'tools', project: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/stage-labs/tony/chats')).toEqual({ kind: 'chats', project: 'tony' });
+    expect(routeSelection('#/stage-labs/tony/tools')).toEqual({ kind: 'tools', project: 'tony' });
+    expect(splitOrganization('#/tony/chats').organization).toBeNull();
+    expect(splitOrganization('#/tony/tools').organization).toBeNull();
+  });
+
+  test('the old Channels and Connectors addresses open the tab, and the address is rewritten to it', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const rewritten = (hash: string): string => routeHash(routeSelection(hash));
+    expect(rewritten('#/stage-labs/tony/channels')).toBe('#/stage-labs/tony/chats');
+    expect(rewritten('#/tony/channels')).toBe('#/stage-labs/tony/chats');
+    expect(rewritten('#/stage-labs/tony/connectors')).toBe('#/stage-labs/tony/tools');
+    expect(rewritten('#/stage-labs/tony/connector/aB3-_xYz9Qw')).toBe('#/stage-labs/tony/tools');
+    expect(rewritten('#/stage-labs/tony/channel/a1')).toBe('#/stage-labs/tony/channel/a1');
+    expect(rewritten('#/stage-labs/tony/settings')).toBe('#/stage-labs/tony/settings');
     routeSelection('#/settings');
   });
 });
@@ -238,8 +260,8 @@ describe('a connector link the daemon builds without an organization or an agent
   test('opens that connector on the agent this device used last, not a "not a member" page', () => {
     configurePlatform({ kv: memoryKeyValue({ 'metro.server': 'agent000001' }) });
     expect(splitOrganization('#/connector/conn0000001').organization).toBeNull();
-    expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'connector', project: 'agent000001', id: 'conn0000001' });
-    expect(routeSelection('#/connectors')).toEqual({ kind: 'connectors', project: 'agent000001' });
+    expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'tools', project: 'agent000001' });
+    expect(routeSelection('#/connectors')).toEqual({ kind: 'tools', project: 'agent000001' });
     configurePlatform({ kv: memoryKeyValue() });
     expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'none' });
   });

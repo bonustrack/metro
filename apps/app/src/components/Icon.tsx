@@ -36,6 +36,11 @@ import { IconShieldCheck } from '@central-icons-react-native/round-outlined-radi
 import { IconSparklesThree } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparklesThree';
 import { IconSquarePlus } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquarePlus';
 import { IconSun } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSun';
+import { IconRobot } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconRobot';
+import { IconPlugin1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlugin1';
+import { IconSparkle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparkle';
+import { IconChevronLeft } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronLeft';
+import { IconChevronDownSmall } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronDownSmall';
 import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
@@ -48,13 +53,17 @@ const ICONS = {
   chartBar: IconChart3,
   chat: IconBubble3,
   check: IconCheckmark1,
+  chevronDown: IconChevronDownSmall,
+  chevronLeft: IconChevronLeft,
   chevronRight: IconChevronRight,
   chip: IconChip,
   cog: IconSettingsGear2,
   clock: IconClock,
   pause: IconPause,
+  plug: IconPlugin1,
   play: IconPlay,
   question: IconQuestionmarkCircle,
+  robot: IconRobot,
   desktop: IconImac,
   documentText: IconFileText,
   dotsHorizontal: IconDotGrid1x3Horizontal,
@@ -70,6 +79,7 @@ const ICONS = {
   selector: IconChevronGrabberVertical,
   server: IconServer,
   shieldCheck: IconShieldCheck,
+  sparkle: IconSparkle,
   sparkles: IconSparklesThree,
   sun: IconSun,
   user: IconPeople,

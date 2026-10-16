@@ -1,47 +1,21 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { AuthError, StoppedError } from '@metro-labs/client/api/client';
 import { addServer, probeServer } from '@metro-labs/client/api/servers';
 import { fetchOrganizations, switchOrganization } from '@metro-labs/client/api/auth';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { currentOrganization, isCurrentOrganization, resolveOrganization, routedOrganization } from '@metro-labs/client/auth/org-route';
 import { hostHash, hostTarget } from '@metro-labs/client/auth/host-link';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
-import { daemonBase, daemonHost, looksLikeHost, setCurrentServer, storedServerId } from '@metro-labs/client/auth/daemon';
+import { looksLikeHost, setCurrentServer, storedServerId } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import { selectionProject, type Selection } from '@metro-labs/client/selection';
 import { location } from '@metro-labs/client/platform';
-import { BootLoading } from './BootLoading.js';
 import { Notice } from './Notice.js';
-import { Frame } from './Shell.js';
-import { PlainSidebar } from './PlainSidebar.js';
+import { AppShell } from './shell/AppShell.js';
+import { AgentScreen } from './agent/AgentScreen.js';
 import { Loading } from './Loading.js';
-import { StoppedNotice } from './StoppedNotice.js';
-import { Dashboard } from './Dashboard.js';
-import { refreshServers, useServersQuery, useSessionQuery } from '../lib/queries.js';
-import { noteTitle } from '../lib/title.js';
+import { refreshServers, useServersQuery } from '../lib/queries.js';
 import { go } from '../lib/nav.js';
-
-function Gate({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
-  const { data: subject, error, refetch } = useSessionQuery();
-  useEffect(() => {
-    if (subject === undefined) noteTitle(null);
-  }, [subject]);
-  if (error instanceof AuthError && error.refused)
-    return <Notice text={`${daemonHost(daemonBase())} refused this account: ${error.message}`} onRetry={onLock} retryLabel="Log in with another account" />;
-  if (error instanceof StoppedError)
-    return (
-      <StoppedNotice
-        onStarted={() => {
-          refetch().catch(() => undefined);
-        }}
-      />
-    );
-  const retry = (): void => {
-    refetch().catch(() => undefined);
-  };
-  return <Dashboard selection={selection} onLock={onLock} offline={error === null ? null : { retry }} />;
-}
 
 async function openHost(host: string, client: QueryClient): Promise<string> {
   const [organizations, status] = await Promise.all([fetchOrganizations(), probeServer(host)]);
@@ -79,7 +53,7 @@ function HostRedirect({ host }: { host: string }): ReactNode {
         retryLabel="Try again"
       />
     );
-  return <BootLoading />;
+  return <Loading />;
 }
 
 function ListedServer({ id, selection, onLock }: { id: string; selection: Selection; onLock: () => void }): ReactNode {
@@ -93,7 +67,7 @@ function ListedServer({ id, selection, onLock }: { id: string; selection: Select
       setCurrentServer(null);
     };
   }, [server?.id, server?.host]);
-  if (isPending) return <BootLoading />;
+  if (isPending) return <Loading />;
   if (error !== null)
     return (
       <Notice
@@ -105,8 +79,8 @@ function ListedServer({ id, selection, onLock }: { id: string; selection: Select
       />
     );
   if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Log in with another account" />;
-  if (ready !== server.id) return <BootLoading />;
-  return <Gate selection={selection} onLock={onLock} />;
+  if (ready !== server.id) return <Loading />;
+  return <AgentScreen server={server} selection={selection} onLock={onLock} />;
 }
 
 export function ServerGate({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
@@ -147,6 +121,6 @@ export function OrganizationGate({ selection, onLock, children }: { selection: S
     if (location().hash() !== wantedHash) location().replace(wantedHash);
   }, [selection, mismatch]);
   if (refused !== null) return <Notice text={`${wanted ?? ''}: ${refused}`} onRetry={onLock} retryLabel="Log in with another account" />;
-  if (mismatch) return <Frame sidebar={(close) => <PlainSidebar selection={selection} onSelect={close} />} onLock={onLock}><Loading /></Frame>;
+  if (mismatch) return <AppShell selection={selection} onLock={onLock}><Loading /></AppShell>;
   return children;
 }

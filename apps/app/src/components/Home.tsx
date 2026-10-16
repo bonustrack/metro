@@ -5,7 +5,9 @@ import { CountBadge } from './CountBadge.js';
 import { PageTitle } from './PageTitle.js';
 import { Loading } from './Loading.js';
 import { MetroVersion } from './MetroVersion.js';
-import { AgentPicture, ChannelCards, ConnectorIcons, StatusLine } from './AgentOverview.js';
+import { ChannelCards, ConnectorIcons } from './AgentOverview.js';
+import { Item } from './ui/Item.js';
+import { routeHash } from '@metro-labs/client/route';
 import { Checklist } from './Checklist.js';
 import { AgentRoute } from './AgentModel.js';
 import { Approvals } from './Approvals.js';
@@ -89,15 +91,9 @@ export function Home({ project }: { project: string }): ReactNode {
   if (agent === undefined) return <NoAgent />;
   return (
     <Col gap={32}>
-      <Col gap={16}>
-        <Row align="center" gap={16}>
-          <AgentPicture server={server} seed={agent.id} />
-          <Col gap={6} flex={1} minWidth={0}>
-            <PageTitle>{name}</PageTitle>
-            <StatusLine host={here?.host ?? null} project={project} />
-            {server === undefined ? null : <LatestUsageLine serverId={server.id} />}
-          </Col>
-        </Row>
+      <Col gap={8}>
+        <Item title="Right now" subtitle="What the agent and its helpers are doing" href={routeHash({ kind: 'run', project })} />
+        {server === undefined ? null : <LatestUsageLine serverId={server.id} />}
         <MetroVersion quiet />
       </Col>
       <Checklist

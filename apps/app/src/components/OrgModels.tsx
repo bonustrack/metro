@@ -10,8 +10,6 @@ import { clearModelRoute, setModelRoute, type OpenRouterReturn, type OrgModels a
 import { canAddFallback } from '@metro-labs/client/api/route-edit';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
-import { Frame } from './Shell.js';
-import { PlainSidebar } from './PlainSidebar.js';
 import { ListHeader } from './ListHeader.js';
 import { ListRow } from './ListRow.js';
 import { Loading } from './Loading.js';
@@ -155,12 +153,8 @@ function Body(): ReactNode {
   );
 }
 
-export function OrgModels({ onLock }: { onLock: () => void }): ReactNode {
+export function OrgModels(): ReactNode {
   const scope = useConnectorScope();
   useDocumentTitle('Models');
-  return (
-    <Frame sidebar={(closeMenu) => <PlainSidebar selection={{ kind: 'org-models' }} onSelect={closeMenu} />} onLock={onLock}>
-      <Body key={scope} />
-    </Frame>
-  );
+  return <Body key={scope} />;
 }

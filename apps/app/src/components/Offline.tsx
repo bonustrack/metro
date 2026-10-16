@@ -1,18 +1,15 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { PageTitle } from './PageTitle.js';
-import { Badge } from '@stage-labs/kit/react-native/badge';
-import { AgentPicture } from './AgentOverview.js';
 import { ServerSizeSection } from './ServerSize.js';
 import { ServerStorageSection } from './ServerStorage.js';
 import { ServerResources } from './ServerResources.js';
 import { DeleteServerSection } from './DeleteServer.js';
 import { useServersQuery } from '../lib/queries.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 import { currentServer } from '@metro-labs/client/auth/daemon';
-import { serverLabel } from '@metro-labs/client/api/servers';
 import { type Selection } from '@metro-labs/client/selection';
 
 const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings'];
@@ -26,23 +23,14 @@ export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
   const servers = useServersQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
-  const name = server === undefined ? 'This agent' : serverLabel(server);
+  const technical = useTechnicalDetails();
   return (
     <Col gap={20}>
-      <Row align="center" gap={16}>
-        <AgentPicture server={server} seed={here?.host ?? name} />
-        <Col gap={4} flex={1} minWidth={0}>
-          <PageTitle>{name}</PageTitle>
-          <Row gap={8} align="center" wrap>
-            <Badge label="Offline" color="secondary" variant="soft" />
-            {here === null ? null : (
-              <Text size="md" role="secondary" numberOfLines={1}>
-                {here.host}
-              </Text>
-            )}
-          </Row>
-        </Col>
-      </Row>
+      {technical && here !== null ? (
+        <Text size="xs" role="secondary" numberOfLines={1}>
+          {here.host}
+        </Text>
+      ) : null}
       <Text size="md" role="secondary">
         {WHY}
       </Text>

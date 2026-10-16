@@ -14,21 +14,25 @@ const AVATAR = 28;
 const MORE = 18;
 const TRIGGER = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, paddingVertical: 6, marginHorizontal: -8, borderRadius: 8 } as const;
 
-export function AccountMenu({ onLock, onNavigate }: { onLock: () => void; onNavigate: () => void }): ReactNode {
-  const palette = useKitPalette();
-  const account = activeAccount();
-  const name = account?.user.name ?? account?.user.email ?? 'Account';
+export function accountItems(onLock: () => void, onNavigate: () => void, extra: MenuItem[] = []): MenuItem[] {
   const open = (kind: 'settings' | 'admin') => (): void => {
     onNavigate();
     go({ kind });
   };
-  const items: MenuItem[] = [
+  return [
     { label: 'Account settings', icon: 'user', onSelect: open('settings') },
-    ...(isOperator(account) ? [{ label: 'Admin', icon: 'shieldCheck' as const, onSelect: open('admin') }] : []),
+    ...(isOperator(activeAccount()) ? [{ label: 'Admin', icon: 'shieldCheck' as const, onSelect: open('admin') }] : []),
+    ...extra,
     { label: 'Log out', danger: true, onSelect: onLock },
   ];
+}
+
+export function AccountMenu({ onLock, onNavigate }: { onLock: () => void; onNavigate: () => void }): ReactNode {
+  const palette = useKitPalette();
+  const account = activeAccount();
+  const name = account?.user.name ?? account?.user.email ?? 'Account';
   return (
-    <Dropdown label="Account menu" align="start" items={items} style={TRIGGER}>
+    <Dropdown label="Account menu" align="start" items={accountItems(onLock, onNavigate)} style={TRIGGER}>
       <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={AVATAR} />
       <Row flex={1} minWidth={0}>
         <Text size="md" numberOfLines={1} style={SHRINK}>
@@ -39,4 +43,3 @@ export function AccountMenu({ onLock, onNavigate }: { onLock: () => void; onNavi
     </Dropdown>
   );
 }
-

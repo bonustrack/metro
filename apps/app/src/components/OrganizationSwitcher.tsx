@@ -27,14 +27,17 @@ function switchingTo(rows: OrganizationRow[] | undefined): OrganizationRow | und
   return rows?.find((row) => row.id === routed || row.slug === routed);
 }
 
-export function OrganizationSwitcher({ onNavigate }: { onNavigate: () => void }): ReactNode {
-  const palette = useKitPalette();
+export interface OrganizationMenu {
+  name: string;
+  items: MenuItem[];
+  modal: ReactNode;
+}
+
+export function useOrganizationMenu(onNavigate: () => void): OrganizationMenu {
   const client = useQueryClient();
   const orgs = useOrganizationsQuery();
   const [creating, setCreating] = useState(false);
   const account = activeAccount();
-  const fill = [styles.trigger, { backgroundColor: palette.border }];
-  const hover = { backgroundColor: palette.inputBg };
   const current = account?.organization ?? null;
   const switching = switchingTo(orgs.data);
   const enter = (row: OrganizationRow): void => {
@@ -45,30 +48,41 @@ export function OrganizationSwitcher({ onNavigate }: { onNavigate: () => void })
     ...(orgs.data ?? []).map((row) => ({ label: row.name ?? row.slug ?? row.id, selected: row.id === (switching?.id ?? current), onSelect: () => { enter(row); } })),
     { label: 'New organization', icon: 'plus' as const, separated: (orgs.data ?? []).length > 0, onSelect: () => { setCreating(true); } },
   ];
+  const modal = (
+    <NameModal
+      title="New organization"
+      action="Create"
+      placeholder="Acme"
+      failure="Could not create the organization."
+      open={creating}
+      onClose={() => {
+        setCreating(false);
+      }}
+      onSubmit={async (made) => {
+        const created = await createOrganization(made);
+        if (created.organization !== null) await enterOrganization(created.organization, prefetchOrganization(client));
+        onNavigate();
+        return made;
+      }}
+    />
+  );
+  return { name: switching?.name ?? account?.organizationName ?? 'Organization', items, modal };
+}
+
+export function OrganizationSwitcher({ onNavigate }: { onNavigate: () => void }): ReactNode {
+  const palette = useKitPalette();
+  const menu = useOrganizationMenu(onNavigate);
+  const fill = [styles.trigger, { backgroundColor: palette.border }];
+  const hover = { backgroundColor: palette.inputBg };
   return (
     <>
-      <Dropdown items={items} label="Switch organization" align="start" matchWidth style={fill} hoverStyle={hover}>
+      <Dropdown items={menu.items} label="Switch organization" align="start" matchWidth style={fill} hoverStyle={hover}>
         <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
-          {switching?.name ?? account?.organizationName ?? 'Organization'}
+          {menu.name}
         </Text>
         <Icon name="selector" size={CHEVRON} color={palette.sub} />
       </Dropdown>
-      <NameModal
-        title="New organization"
-        action="Create"
-        placeholder="Acme"
-        failure="Could not create the organization."
-        open={creating}
-        onClose={() => {
-          setCreating(false);
-        }}
-        onSubmit={async (made) => {
-          const created = await createOrganization(made);
-          if (created.organization !== null) await enterOrganization(created.organization, prefetchOrganization(client));
-          onNavigate();
-          return made;
-        }}
-      />
+      {menu.modal}
     </>
   );
 }

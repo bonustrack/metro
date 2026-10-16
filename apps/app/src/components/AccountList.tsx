@@ -47,7 +47,7 @@ function StationRow({ station, row, stale, project, onDetach }: StationRowProps)
     <ListRow
       title={label}
       detail={handle ?? id ?? '-'}
-      href={id === null ? routeHash({ kind: 'stations', project }) : routeHash({ kind: 'station', project, accountId: id })}
+      href={id === null ? routeHash({ kind: 'chats', project }) : routeHash({ kind: 'station', project, accountId: id })}
       icon={<StationIcon station={station} size={LIST_ICON_SIZE} />}
       extra={<Extra enabled={row.enabled} stale={stale} />}
       muted={!row.enabled}

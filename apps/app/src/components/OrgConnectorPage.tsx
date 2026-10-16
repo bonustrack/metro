@@ -6,10 +6,6 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { connectorHost } from '@metro-labs/client/api/connectors';
 import { completeOrgConnectorSignIn, signInOrgConnector, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
-import { routeHash } from '@metro-labs/client/route';
-import { Frame } from './Shell.js';
-import { PlainSidebar } from './PlainSidebar.js';
-import { BackLink } from './BackLink.js';
 import { PageTitle } from './PageTitle.js';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { Loading } from './Loading.js';
@@ -74,7 +70,6 @@ function Header({ connector, admin, onError }: { connector: OrgConnector; admin:
   };
   return (
     <Col gap={16}>
-      <BackLink label="Connectors" href={routeHash({ kind: 'org-connectors' })} />
       <Row justify="between" align="center" gap={16}>
         <Row gap={14} align="center" style={SHRINK}>
           <ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />
@@ -129,11 +124,7 @@ function Body({ id }: { id: string }): ReactNode {
   );
 }
 
-export function OrgConnectorPage({ id, onLock }: { id: string; onLock: () => void }): ReactNode {
+export function OrgConnectorPage({ id }: { id: string }): ReactNode {
   const scope = useConnectorScope();
-  return (
-    <Frame sidebar={(closeMenu) => <PlainSidebar selection={{ kind: 'org-connector', id }} onSelect={closeMenu} />} onLock={onLock}>
-      <Body key={`${String(scope)}:${id}`} id={id} />
-    </Frame>
-  );
+  return <Body key={`${String(scope)}:${id}`} id={id} />;
 }

@@ -20,10 +20,9 @@ export type Selection =
   | { kind: 'server'; project: string }
   | { kind: 'terminal'; project: string }
   | { kind: 'model'; project: string }
-  | { kind: 'stations'; project: string }
+  | { kind: 'chats'; project: string }
   | { kind: 'station'; project: string; accountId: string }
-  | { kind: 'connectors'; project: string }
-  | { kind: 'connector'; project: string; id: string }
+  | { kind: 'tools'; project: string }
   | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
   | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
   | { kind: 'claude'; project: string }
@@ -39,7 +38,7 @@ export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
 }
 
-type PlainKind = 'home' | 'run' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'stations' | 'connectors' | 'claude' | 'skills' | 'scheduled' | 'secrets' | 'voice';
+type PlainKind = 'home' | 'run' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'chats' | 'tools' | 'claude' | 'skills' | 'scheduled' | 'secrets' | 'voice';
 type LandingKind = PlainKind | 'sessions' | 'memory' | 'files';
 
 const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
@@ -49,10 +48,9 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   server: 'server',
   terminal: 'terminal',
   model: 'model',
-  stations: 'stations',
-  station: 'stations',
-  connectors: 'connectors',
-  connector: 'connectors',
+  chats: 'chats',
+  station: 'chats',
+  tools: 'tools',
   claude: 'claude',
   skills: 'skills',
   scheduled: 'scheduled',
