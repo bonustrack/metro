@@ -1,12 +1,10 @@
-import { type ReactNode, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { connectorHost, connectorLabel } from '@metro-labs/client/api/connectors';
-import { addOrgConnector, orgConnectorCallbackUrl, type NewOrgConnector, type OrgConnector, type OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
+import type { OrgConnector, OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
 import { routeHash } from '@metro-labs/client/route';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
-import { ConnectorModal, type AddedConnector } from './AddConnector.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { RoundButton } from './ui/RoundButton.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
@@ -19,15 +17,13 @@ import { ListPane } from './shell/ListPane.js';
 import { TabRoot } from './shell/TabRoot.js';
 import { technicalLine } from '../lib/agent-line.js';
 import { queryError } from '../lib/queries.js';
-import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
+import { useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 import { useDocumentTitle } from '../lib/title.js';
-import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
 
 const MEMBER_NOTE = 'Only an admin of the organization can add or change connectors.';
 const EMPTY = 'Connectors give agents tools, like a calendar, Notion or GitHub.';
-const HINT = 'Use a public https address. Leave the header empty for a server you sign in to.';
 const ICON = 32;
 
 function ConnectorRow({ connector, peers, pane, selected }: { connector: OrgConnector; peers: OrgConnector[]; pane: boolean; selected: boolean }): ReactNode {
@@ -55,42 +51,14 @@ function List({ list, pane, selected }: { list: OrgList; pane: boolean; selected
   return pane ? <Col>{rows}</Col> : <Rows>{rows}</Rows>;
 }
 
-const createInOrganization = async (values: NewOrgConnector): Promise<AddedConnector> => {
-  const result = await addOrgConnector(values);
-  return { id: result.connector.id, authorizeUrl: result.kind === 'oauth' ? result.authorizeUrl : null };
-};
-
-function useAddConnector(): { open: () => void; modal: ReactNode } {
-  const client = useQueryClient();
-  const [adding, setAdding] = useState(false);
-  const added = (id: string): void => {
-    refreshOrgConnectors(client).catch(logError('org-connectors'));
-    go({ kind: 'org-connector', id });
-  };
-  const modal = (
-    <ConnectorModal title="Add connector" hint={HINT} callbackUrl={orgConnectorCallbackUrl()} allowPublicOAuthResource create={createInOrganization} open={adding} onClose={() => { setAdding(false); }} onAdded={added} />
-  );
-  return { open: () => { setAdding(true); }, modal };
-}
+const addConnector = (): void => { go({ kind: 'org-connector-new' }); };
 
 function AddConnector(): ReactNode {
-  const adding = useAddConnector();
-  return (
-    <>
-      <RoundButton label="Add connector" icon="plus" onPress={adding.open} />
-      {adding.modal}
-    </>
-  );
+  return <RoundButton label="Add a connector" icon="plus" onPress={addConnector} />;
 }
 
 function NoConnectors({ admin }: { admin: boolean }): ReactNode {
-  const adding = useAddConnector();
-  return (
-    <>
-      <StateBlock icon="plug" title="No connector yet" text={EMPTY} action={admin ? { label: 'Add a connector', primary: true, onPress: adding.open } : undefined} />
-      {adding.modal}
-    </>
-  );
+  return <StateBlock icon="plug" title="No connector yet" text={EMPTY} action={admin ? { label: 'Add a connector', primary: true, onPress: addConnector } : undefined} />;
 }
 
 function Body({ pane, selected }: { pane: boolean; selected: string | null }): ReactNode {

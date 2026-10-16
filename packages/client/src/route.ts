@@ -1,4 +1,4 @@
-import { type Selection } from './selection.js';
+import { type ConnectorTab, type Selection } from './selection.js';
 import { storedServerId } from './auth/daemon.js';
 import { RESERVED_SEGMENTS } from './auth/org-segment.js';
 import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
@@ -23,7 +23,8 @@ const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
 const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
 const ORG_MODELS_PATH = /^#?\/organization\/models$/;
-const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})$`);
+const ORG_CONNECTOR_NEW_PATH = /^#?\/organization\/connectors\/new$/;
+const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})(?:/(settings)|/(agents)(?:/(${ID}))?)?$`);
 const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
 const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
@@ -60,6 +61,7 @@ const EXACT: [RegExp, Selection][] = [
   [MEMBERS_PATH, { kind: 'members' }],
   [ORGANIZATION_PATH, { kind: 'organization' }],
   [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
+  [ORG_CONNECTOR_NEW_PATH, { kind: 'org-connector-new' }],
 ];
 
 function exactSelection(hash: string): Selection | null {
@@ -70,8 +72,21 @@ function exactSelection(hash: string): Selection | null {
   if (ORG_ROUTE_PATH.test(path)) return { kind: 'org-route' };
   const orgModel = ORG_MODEL_PATH.exec(path)?.[1];
   if (orgModel !== undefined) return { kind: 'org-model', id: orgModel };
-  const orgConnector = ORG_CONNECTOR_PATH.exec(path)?.[1];
-  return orgConnector === undefined ? null : { kind: 'org-connector', id: orgConnector };
+  return orgConnectorSelection(path);
+}
+
+function orgConnectorSelection(path: string): Selection | null {
+  const found = ORG_CONNECTOR_PATH.exec(path);
+  const id = found?.[1];
+  if (found === null || id === undefined) return null;
+  const tab: ConnectorTab | undefined = found[2] === 'settings' ? 'settings' : found[3] === 'agents' ? 'agents' : undefined;
+  const agent = found[4];
+  return { kind: 'org-connector', id, ...(tab === undefined ? {} : { tab }), ...(agent === undefined ? {} : { agent }) };
+}
+
+function orgConnectorHash(selection: { id: string; tab?: ConnectorTab; agent?: string }): string {
+  if (selection.agent !== undefined) return `organization/connectors/${selection.id}/agents/${selection.agent}`;
+  return `organization/connectors/${selection.id}${selection.tab === undefined ? '' : `/${selection.tab}`}`;
 }
 
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
@@ -135,6 +150,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   members: 'members',
   organization: 'organization',
   'org-connectors': 'organization/connectors',
+  'org-connector-new': 'organization/connectors/new',
   'org-models': 'organization/models',
   'org-route': 'organization/models/default',
 };
@@ -205,7 +221,7 @@ export function routeHash(selection: Selection): string {
   const prefix = organizationPrefix();
   const page = ORGANIZATION_PAGES[selection.kind];
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
-  if (selection.kind === 'org-connector') return `${prefix}organization/connectors/${selection.id}`;
+  if (selection.kind === 'org-connector') return `${prefix}${orgConnectorHash(selection)}`;
   if (selection.kind === 'org-model') return `${prefix}organization/models/${selection.id}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);

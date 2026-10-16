@@ -24,13 +24,26 @@ export interface ConnectorTool {
   title: string;
   description: string;
   readOnly: boolean;
+  destructive: boolean;
+  openWorld: boolean;
+  inputSchema: Record<string, unknown> | null;
+}
+
+function toolOf(raw: unknown): ConnectorTool[] {
+  if (!isRecord(raw) || typeof raw.name !== 'string') return [];
+  const title = str(raw.title);
+  return [{
+    name: raw.name,
+    title: title === '' ? raw.name : title,
+    description: str(raw.description),
+    readOnly: raw.readOnly === true,
+    destructive: raw.destructive === true,
+    openWorld: raw.openWorld === true,
+    inputSchema: isRecord(raw.inputSchema) ? raw.inputSchema : null,
+  }];
 }
 
 export function connectorToolsOf(body: unknown): ConnectorTool[] {
   if (!isRecord(body) || !Array.isArray(body.tools)) throw new Error('Metro returned an unexpected response.');
-  return body.tools.flatMap((t: unknown) =>
-    isRecord(t) && typeof t.name === 'string'
-      ? [{ name: t.name, title: str(t.title) === '' ? t.name : str(t.title), description: str(t.description), readOnly: t.readOnly === true }]
-      : [],
-  );
+  return body.tools.flatMap(toolOf);
 }

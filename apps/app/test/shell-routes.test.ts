@@ -91,6 +91,7 @@ describe('every page of an agent has a place under one of its five tabs', () => 
       { kind: 'claude', project: AGENT },
       { kind: 'server', project: AGENT },
       { kind: 'run', project: AGENT },
+      { kind: 'tools', project: AGENT, connector: AGENT },
     ];
     for (const selection of deep) expect(isDeepPage(selection)).toBe(true);
     const shallow: Selection[] = [
@@ -130,6 +131,8 @@ describe('the shell knows its section and what a phone shows', () => {
     }
     expect(phoneBackOf({ kind: 'home', project: AGENT })).toEqual({ kind: 'servers' });
     expect(phoneBackOf({ kind: 'org-connector', id: AGENT })).toEqual({ kind: 'org-connectors' });
+    expect(phoneBackOf({ kind: 'org-connector', id: AGENT, tab: 'settings' })).toEqual({ kind: 'org-connectors' });
+    expect(phoneBackOf({ kind: 'org-connector', id: AGENT, tab: 'agents', agent: AGENT })).toBeNull();
     expect(phoneBackOf({ kind: 'org-route' })).toEqual({ kind: 'org-models' });
     expect(phoneBackOf({ kind: 'org-model', id: AGENT })).toEqual({ kind: 'org-models' });
     expect(shellSectionOf({ kind: 'org-model', id: AGENT })).toBe('models');

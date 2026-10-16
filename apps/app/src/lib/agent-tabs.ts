@@ -77,6 +77,7 @@ export const isNoteFile = (path: string | null): path is string => path?.endsWit
 
 export function isDeepPage(selection: Selection): boolean {
   if (selection.kind === 'memory') return isNoteFile(selection.file);
+  if (selection.kind === 'tools') return selection.connector !== undefined;
   return 'project' in selection && agentPageOf(selection.kind)?.deep === true;
 }
 
