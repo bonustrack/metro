@@ -9,32 +9,33 @@ import { Crumbs } from '../ui/PageHeader.js';
 import { Rail } from './Rail.js';
 import { RailTipLayer } from './RailTipLayer.js';
 import { TAB_BAR_ROOM, TabBar } from './TabBar.js';
-import { SHELL_SECTIONS, phoneBackOf, phoneTabOf, shellSectionOf } from '../../lib/shell-sections.js';
+import { SHELL_SECTIONS, isAdminSelection, phoneBackOf, phoneTabOf, shellSectionOf } from '../../lib/shell-sections.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { side } from '../ui/edges.js';
+import { PAGE_PAD, PAGE_TOP, WIDE_WIDTH } from '../ui/sizes.js';
 import { webOnly } from '../../lib/style.js';
 
 const LIST_WIDTH = 320;
-const DETAIL_MAX = 760;
-const DETAIL_PAD = 40;
+const DETAIL_MAX = WIDE_WIDTH + 2 * PAGE_PAD;
+const DETAIL_BOTTOM = 96;
 const PHONE_PAD = 20;
 const TAB_BAR_GAP = 16;
 
 const STICKY_LIST = webOnly({ position: 'sticky', top: 0, height: '100vh', zIndex: 2 });
-const CENTERED = { alignSelf: 'center' } as const;
 
 interface AppShellProps {
   selection: Selection;
   onLock: () => void;
   list?: ReactNode;
+  fluid?: boolean;
   children: ReactNode;
 }
 
-function DesktopShell({ selection, onLock, list, children }: AppShellProps): ReactNode {
+function DesktopShell({ selection, onLock, list, fluid = false, children }: AppShellProps): ReactNode {
   const palette = useKitPalette();
   return (
     <Row flex={1} align="start">
-      <Rail section={shellSectionOf(selection)} onLock={onLock} />
+      <Rail section={shellSectionOf(selection)} admin={isAdminSelection(selection)} onLock={onLock} />
       {list === undefined || list === null ? null : (
         <Col width={LIST_WIDTH} border={{ right: side(palette.border) }} style={STICKY_LIST}>
           {list}
@@ -42,7 +43,7 @@ function DesktopShell({ selection, onLock, list, children }: AppShellProps): Rea
       )}
       <Col flex={1} minWidth={0}>
         <PageScroll>
-          <Col width="100%" maxWidth={DETAIL_MAX} gap={24} padding={{ x: DETAIL_PAD, top: 28, bottom: 96 }} style={CENTERED}>
+          <Col width="100%" maxWidth={fluid ? undefined : DETAIL_MAX} gap={24} padding={{ x: PAGE_PAD, top: PAGE_TOP, bottom: DETAIL_BOTTOM }}>
             {children}
           </Col>
         </PageScroll>

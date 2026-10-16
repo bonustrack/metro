@@ -29,6 +29,12 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   members: 'organization',
 };
 
+export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
+
+const ADMIN_KINDS = new Set<Kind>(['admin', 'admin-users', 'admin-organizations', 'admin-agents']);
+
+export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KINDS.has(s.kind);
+
 const TAB_ROOTS = new Set<Kind>(['servers', 'none', 'org-connectors', 'org-models', 'organization', 'members']);
 
 export function shellSectionOf(selection: Selection): ShellSectionId | null {

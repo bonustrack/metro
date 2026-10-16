@@ -6,7 +6,7 @@ import { Item } from '../ui/Item.js';
 import { AgentDeepPage } from '../agent/AgentDeepPage.js';
 import { AccessValue } from './AccessValue.js';
 import { type ChannelProps } from './channel-props.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { exceptionTools, toolTarget } from '../../lib/channel-rules.js';
 import { toolLabel } from '../../lib/tool-labels.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
@@ -42,7 +42,7 @@ export function ExceptionsPage({ project, found, view }: ChannelProps): ReactNod
         const inGroup = tools.filter((tool) => tool.group === group);
         if (inGroup.length === 0) return null;
         return (
-          <Section key={group} label={label}>
+          <Group key={group} label={label}>
             {inGroup.map((tool) => (
               <Item
                 key={tool.name}
@@ -53,7 +53,7 @@ export function ExceptionsPage({ project, found, view }: ChannelProps): ReactNod
                 href={routeHash({ kind: 'station', project, accountId: id, rule: toolTarget(tool.name) })}
               />
             ))}
-          </Section>
+          </Group>
         );
       })}
     </AgentDeepPage>

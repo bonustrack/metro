@@ -8,7 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import calibreMedium from '../../assets/fonts/Calibre-Medium-Custom.ttf';
 import calibreSemibold from '../../assets/fonts/Calibre-Semibold-Custom.ttf';
-import { ThemeModeProvider, useThemeMode } from '../lib/theme.js';
+import { ThemeProvider } from '../lib/theme.js';
 import { Screen } from '../components/Screen.js';
 import { prepareLocation } from '../lib/location.js';
 import { prepareStorage } from '../lib/storage.js';
@@ -20,16 +20,6 @@ const styles = StyleSheet.create({ fill: { flex: 1 } });
 
 prepareLocation();
 preventAutoHideAsync().catch(logError('splash'));
-
-function Themed(): ReactNode {
-  const { scheme } = useThemeMode();
-  return (
-    <>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <Screen />
-    </>
-  );
-}
 
 export default function RootLayout(): ReactNode {
   const [fonts, fontError] = useFonts(FONTS);
@@ -49,9 +39,10 @@ export default function RootLayout(): ReactNode {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={styles.fill}>
-        <ThemeModeProvider>
-          <Themed />
-        </ThemeModeProvider>
+        <ThemeProvider>
+          <StatusBar style="light" />
+          <Screen />
+        </ThemeProvider>
         <Slot />
       </GestureHandlerRootView>
     </SafeAreaProvider>

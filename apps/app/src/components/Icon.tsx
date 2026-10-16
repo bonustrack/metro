@@ -12,6 +12,7 @@ import { IconChevronGrabberVertical } from '@central-icons-react-native/round-ou
 import { IconChevronRight } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronRight';
 import { IconChip } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChip';
 import { IconCircleBanSign } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCircleBanSign';
+import { IconCircleCheck } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCircleCheck';
 import { IconClock } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconClock';
 import { IconPause } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPause';
 import { IconPlay } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlay';
@@ -32,6 +33,7 @@ import { IconPeople } from '@central-icons-react-native/round-outlined-radius-1-
 import { IconPlusLarge } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlusLarge';
 import { IconServer } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconServer';
 import { IconSettingsGear2 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSettingsGear2';
+import { IconShield } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconShield';
 import { IconShieldCheck } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconShieldCheck';
 import { IconSparklesThree } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparklesThree';
 import { IconSquarePlus } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquarePlus';
@@ -61,6 +63,7 @@ const ICONS = {
   chartBar: IconChart3,
   chat: IconBubble3,
   check: IconCheckmark1,
+  checkCircle: IconCircleCheck,
   chevronDown: IconChevronDownSmall,
   chevronLeft: IconChevronLeft,
   chevronRight: IconChevronRight,
@@ -86,6 +89,7 @@ const ICONS = {
   plus: IconPlusLarge,
   selector: IconChevronGrabberVertical,
   server: IconServer,
+  shield: IconShield,
   shieldCheck: IconShieldCheck,
   sparkle: IconSparkle,
   sparkles: IconSparklesThree,

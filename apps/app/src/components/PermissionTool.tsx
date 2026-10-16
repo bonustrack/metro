@@ -5,7 +5,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { ACCESS_CHOICES, ACCESS_LABEL, GROUP_LABEL, effectiveAccess, groupAccess, inheritedToolAccess, toolOverride, withTool, type GroupedTool, type ToolPolicy } from '@metro-labs/client/api/policy';
 import { Icon } from './Icon.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
-import { SHRINK } from '../lib/style.js';
+import { MONO, SHRINK } from '../lib/style.js';
 
 const ACCESS = { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8, paddingRight: 2, marginVertical: -4, marginLeft: -8, marginRight: -2, borderRadius: 6 } as const;
 
@@ -45,7 +45,7 @@ export function PermissionTool({ tool, title, description, policy, organization,
     <Row align="center" justify="between" gap={24} padding={{ x: 16, y: 10 }}>
       <Col gap={2} style={SHRINK}>
         <Text size="md">{name}</Text>
-        {name === tool.name ? null : <Text size="md" role="secondary">{tool.name}</Text>}
+        {name === tool.name ? null : <Text size="xs" role="secondary" style={MONO}>{tool.name}</Text>}
         {description === undefined || description === '' ? null : <Text size="md" role="secondary">{description}</Text>}
         <Text size="md" role="secondary">{permissionNote(policy, organization, tool)}</Text>
       </Col>

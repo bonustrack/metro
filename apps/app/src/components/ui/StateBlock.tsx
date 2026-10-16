@@ -5,15 +5,25 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Icon, type IconName } from '../Icon.js';
 import { Spinner } from '../Spinner.js';
+import { ICON_SIZE } from './sizes.js';
 
-const ICON = 24;
+const ICON = ICON_SIZE.lg;
 const TEXT_WIDTH = 420;
 
 interface StateAction {
   label: string;
   onPress: () => void;
+  icon?: IconName;
   busy?: boolean;
   primary?: boolean;
+}
+
+function ActionButton({ action }: { action: StateAction }): ReactNode {
+  const palette = useKitPalette();
+  const dark = useKitScheme() === 'dark';
+  const primary = action.primary === true;
+  const icon = action.icon === undefined ? undefined : <Icon name={action.icon} size={ICON_SIZE.md} color={primary ? palette.bg : palette.link} />;
+  return <Button size="md" color={primary ? 'primary' : 'secondary'} dark={dark} label={action.label} icon={icon} loading={action.busy} disabled={action.busy} onPress={action.onPress} />;
 }
 
 interface StateBlockProps {
@@ -34,7 +44,6 @@ function Mark({ icon, spinner, danger }: Pick<StateBlockProps, 'icon' | 'spinner
 }
 
 export function StateBlock({ icon, spinner, danger, title, text, action, children }: StateBlockProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Col gap={8} align="start">
       <Col margin={{ bottom: 6 }}>
@@ -53,7 +62,7 @@ export function StateBlock({ icon, spinner, danger, title, text, action, childre
       {children}
       {action === undefined ? null : (
         <Col margin={{ top: 8 }}>
-          <Button size="md" color={action.primary === true ? 'primary' : 'secondary'} dark={dark} label={action.label} loading={action.busy} disabled={action.busy} onPress={action.onPress} />
+          <ActionButton action={action} />
         </Col>
       )}
     </Col>

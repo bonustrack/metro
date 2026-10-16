@@ -8,7 +8,7 @@ import { stationLabel } from '@metro-labs/client/api/attach';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { StationIcon } from '../StationIcon.js';
 import { Item } from '../ui/Item.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import { approvesInChat, entriesOf, namesList, peopleOf, questionsGoTo, type Person } from '../../lib/channel-people.js';
 import { promptPreview, type RuleTarget } from '../../lib/channel-rules.js';
@@ -64,16 +64,16 @@ export function RulePreview({ agentId, found, handle, target, channelHref }: Rul
   const cards = useSenderCards(agentId, station, row.id ?? '', entries);
   if (!approvesInChat(station))
     return (
-      <Section label="What they get" note="Email is not used for approval questions. They show on Home, where you answer them.">
+      <Group label="What they get" note="Email is not used for approval questions. They show on Home, where you answer them.">
         {null}
-      </Section>
+      </Group>
     );
   const approvers = peopleOf({ station, entries, approvers: row.approvers, cards, seen: [], technical: false }).filter((person) => person.approves === true);
   const names = approvers.map((person) => person.title);
   const where = names.length === 0 ? 'Only on Home, since nobody here can approve' : `${questionsGoTo(names, handle).title} with ${handle}`;
   return (
     <>
-      <Section label="What they get" note="No answer in 24 hours means no. You can also answer on Home.">
+      <Group label="What they get" note="No answer in 24 hours means no. You can also answer on Home.">
         <Col gap={12} padding={{ top: 8 }}>
           <Row gap={8} align="center">
             <StationIcon station={station} size={PLACE} />
@@ -83,15 +83,15 @@ export function RulePreview({ agentId, found, handle, target, channelHref }: Rul
           </Row>
           <Bubble station={station} target={target} />
         </Col>
-      </Section>
-      <Section label="Who can answer">
+      </Group>
+      <Group label="Who can answer">
         <Item
           title={names.length === 0 ? 'Nobody yet' : namesList(names)}
           subtitle={names.length === 0 ? 'Turn on Can approve for someone in this channel.' : undefined}
           leading={<Faces people={approvers} />}
           href={channelHref}
         />
-      </Section>
+      </Group>
     </>
   );
 }

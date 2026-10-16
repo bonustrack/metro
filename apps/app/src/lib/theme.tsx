@@ -1,28 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { useEffect, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { semanticPalette } from '@stage-labs/kit/tokens';
 import { withAlpha } from '@stage-labs/kit/badge';
 import { DROPDOWN_MENU } from '@stage-labs/kit/react-native/menu';
-import { readItem, writeItem } from '@metro-labs/client/platform';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
-export type Scheme = 'light' | 'dark';
+type Scheme = 'light' | 'dark';
 
-const STORAGE_KEY = 'metro.theme';
-
-export const THEME_MODES: { mode: ThemeMode; label: string }[] = [
-  { mode: 'system', label: 'System' },
-  { mode: 'light', label: 'Light' },
-  { mode: 'dark', label: 'Dark' },
-];
-
-const isMode = (value: string | null): value is ThemeMode => value === 'system' || value === 'light' || value === 'dark';
-
-function storedMode(): ThemeMode {
-  const raw = readItem(STORAGE_KEY);
-  return isMode(raw) ? raw : 'system';
-}
+const SCHEME: Scheme = 'dark';
 
 export function buildPalette(scheme: Scheme): KitPalette {
   const s = semanticPalette(scheme);
@@ -41,6 +26,13 @@ export function buildPalette(scheme: Scheme): KitPalette {
 }
 
 export const hoverColor = (palette: KitPalette): string => withAlpha(palette.link, DROPDOWN_MENU.hoverAlpha);
+
+const FILL_ALPHA = 0.16;
+const SHAPE_ALPHA = 0.08;
+
+export const fillColor = (color: string): string => withAlpha(color, FILL_ALPHA);
+
+export const shapeColor = (palette: KitPalette): string => withAlpha(palette.link, SHAPE_ALPHA);
 
 const SELECTED_ALPHA = 0.05;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -69,47 +61,15 @@ function paintDocument(scheme: Scheme, palette: KitPalette): void {
   for (const [name, value] of Object.entries(cssVars(palette))) root.style.setProperty(name, value);
 }
 
-interface ThemeModeValue {
-  mode: ThemeMode;
-  scheme: Scheme;
-  setMode: (mode: ThemeMode) => void;
-}
+const PALETTE = buildPalette(SCHEME);
 
-const ThemeModeContext = createContext<ThemeModeValue | null>(null);
-
-export function useThemeMode(): ThemeModeValue {
-  const ctx = useContext(ThemeModeContext);
-  if (ctx === null) throw new Error('useThemeMode used outside ThemeModeProvider');
-  return ctx;
-}
-
-export function ThemeModeProvider({ children }: { children: ReactNode }): ReactNode {
-  const [mode, setModeState] = useState<ThemeMode>(storedMode);
-  const system: Scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const scheme: Scheme = mode === 'system' ? system : mode;
-  const palette = useMemo(() => buildPalette(scheme), [scheme]);
-
+export function ThemeProvider({ children }: { children: ReactNode }): ReactNode {
   useEffect(() => {
-    paintDocument(scheme, palette);
-  }, [scheme, palette]);
-
-  const value = useMemo<ThemeModeValue>(
-    () => ({
-      mode,
-      scheme,
-      setMode: (next: ThemeMode) => {
-        writeItem(STORAGE_KEY, next);
-        setModeState(next);
-      },
-    }),
-    [mode, scheme],
-  );
-
+    paintDocument(SCHEME, PALETTE);
+  }, []);
   return (
-    <ThemeModeContext.Provider value={value}>
-      <KitThemeProvider value={palette} scheme={scheme}>
-        {children}
-      </KitThemeProvider>
-    </ThemeModeContext.Provider>
+    <KitThemeProvider value={PALETTE} scheme={SCHEME}>
+      {children}
+    </KitThemeProvider>
   );
 }

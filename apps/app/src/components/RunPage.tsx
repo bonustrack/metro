@@ -15,6 +15,7 @@ import { useDocumentTitle } from '../lib/title.js';
 import { useNow } from '../lib/use-now.js';
 import { runAccessDenied } from '../lib/run-cache.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
+import { Wide } from './ui/Layout.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 import { RunCoverage } from './run/Coverage.js';
 import { RunCurrent } from './run/Current.js';
@@ -93,7 +94,7 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
   const [focus, setFocus] = useState({ worker: 'All', revision: 0, scope: '' });
   const initialWorker = focus.scope === data.scope ? focus.worker : 'All';
   const explain = <Text size="xs" onPress={() => { setCoverage(true); }} accessibilityRole="button">What is shown here?</Text>;
-  return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" action={explain}><Col gap={40} testID="run-page">
+  return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" action={explain}><Wide gap={40}>
     <RunFacts agent={agent} data={data} agentError={agentError} agentPending={agentPending} />
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
       onWorker={(worker) => { setFocus((current) => ({ worker, revision: current.revision + 1, scope: data.scope })); }} />
@@ -101,7 +102,7 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
       notice={<FeedNotice unsupported={data.unsupported} pending={data.feed.isPending} error={data.feed.error} updatedAt={data.feed.dataUpdatedAt} catchingUp={data.feedData?.hasMore === true} />} />
     <Modal open={coverage} onClose={() => { setCoverage(false); }} title="What is shown here" side={narrow ? 'bottom' : 'center'}><RunCoverage /></Modal>
     <Modal open={details} onClose={() => { setDetails(false); }} title="Session details" side={narrow ? 'bottom' : 'center'}><RunSessionDetails status={data.status} model={data.settings} state={data.state} /></Modal>
-  </Col></AgentDeepPage>;
+  </Wide></AgentDeepPage>;
 }
 
 export function RunPage({ project }: { project: string }): ReactNode {

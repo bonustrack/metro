@@ -27,8 +27,8 @@ import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 
-const LOGO = 32;
 const ZDR_NOTE = 'Only OpenRouter providers that keep no prompts. A model with no such provider stops answering.';
 
 function signInTitle(connection: OrgModelConnection): { title: string; subtitle: string } {
@@ -107,7 +107,7 @@ function Body({ id }: { id: string }): ReactNode {
   if (connection === undefined) return <StateBlock icon="sparkle" title="This account is gone" text="It is not in this organization any more." />;
   return (
     <Groups>
-      <PageHeader title={connection.label} subtitle={headerLine(connection)} leading={<ProviderLogo provider={providerInfo(connection.provider)} size={LOGO} />} />
+      <PageHeader title={connection.label} subtitle={headerLine(connection)} leading={<ProviderLogo provider={providerInfo(connection.provider)} size={AVATAR_SIZE.header} />} />
       {data.admin ? <Manage connection={connection} /> : <Text size="md" role="secondary">Only an admin of the organization can change the accounts.</Text>}
       <UsedIn list={data} connection={connection} />
       {technical ? <Facts connection={connection} /> : null}

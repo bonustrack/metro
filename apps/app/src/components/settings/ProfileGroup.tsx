@@ -13,8 +13,8 @@ import { Item } from '../ui/Item.js';
 import { ProfileModal } from './ProfileModal.js';
 import { queryError, refresh, useClaudeSetupQuery } from '../../lib/queries.js';
 import { SHRINK } from '../../lib/style.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 
-const AVATAR = 28;
 const PAUSE_NOTE = 'Tools keep working.';
 
 export interface Pausing {
@@ -65,7 +65,7 @@ function PauseRow(): ReactNode {
 function NameValue({ server }: { server: Server }): ReactNode {
   return (
     <Row align="center" gap={10} style={SHRINK}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR} />
+      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />
       <Text size="md" numberOfLines={1} style={SHRINK}>
         {serverLabel(server)}
       </Text>

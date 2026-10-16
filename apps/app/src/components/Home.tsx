@@ -6,6 +6,8 @@ import { serverLabel } from '@metro-labs/client/api/servers';
 import type { StationsView } from '@metro-labs/client/api/client';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { Groups } from './ui/Group.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { WithRail } from './ui/Layout.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { ApprovalCardView, type ApprovalContext } from './home/ApprovalCard.js';
 import { AtAGlance } from './home/Glance.js';
@@ -18,6 +20,7 @@ import { useBoxApprovals } from '../lib/agent-status.js';
 import { queryError, useBoxQuery, useClaudeSessionQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
 import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
+import { useIsNarrow } from '../lib/media.js';
 
 const CARD_GAP = 16;
 
@@ -58,24 +61,29 @@ function NowSection({ project, setupOpen }: { project: string; setupOpen: boolea
 function HomeBody({ project, name, serverId, agentId, view }: { project: string; name: string; serverId: string | null; agentId: string; view: StationsView }): ReactNode {
   const model = useModelQuery().data;
   const conversations = useConversations();
+  const narrow = useIsNarrow();
   const setup = setupOf({ name, project, model, groups: view.groups, conversations });
   return (
     <>
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
-      <AtAGlance project={project} serverId={serverId} groups={view.groups} />
+      {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} /> : null}
     </>
   );
+}
+
+function GlanceRail({ project, name, serverId }: { project: string; name: string; serverId: string | null }): ReactNode {
+  const stations = useStationsQuery().data;
+  const narrow = useIsNarrow();
+  if (narrow || stations?.agent === undefined) return null;
+  return <AtAGlance project={project} serverId={serverId} groups={stations.groups} name={name} rail />;
 }
 
 function HomeState({ project, name, serverId }: { project: string; name: string; serverId: string | null }): ReactNode {
   const stations = useStationsQuery();
   const agent = stations.data?.agent;
   if (stations.data === undefined && stations.error !== null)
-    return (
-      <StateBlock icon="exclamationCircle" danger title={`Could not load ${name}`} text={queryError(stations.error, 'The agent did not answer.')}
-        action={{ label: 'Retry', onPress: () => { stations.refetch().catch(() => undefined); } }} />
-    );
+    return <ErrorState title={`Could not load ${name}`} text={queryError(stations.error, 'The agent did not answer.')} onRetry={stations.refetch} />;
   if (stations.data === undefined) return <HomeSkeleton />;
   if (agent === undefined) return <StateBlock spinner title={`${name} is getting ready`} text="Its agent shows here within seconds." />;
   return <HomeBody project={project} name={name} serverId={serverId} agentId={agent.id} view={stations.data} />;
@@ -87,9 +95,11 @@ export function Home({ project }: { project: string }): ReactNode {
   useDocumentTitle(name);
   const context: ApprovalContext = { agentId: stations?.agent?.id ?? '', groups: stations?.groups ?? [], tools: stations?.tools ?? {} };
   return (
-    <Groups>
-      <Approvals context={context} />
-      <HomeState project={project} name={name} serverId={serverId} />
-    </Groups>
+    <WithRail rail={<GlanceRail project={project} name={name} serverId={serverId} />}>
+      <Groups>
+        <Approvals context={context} />
+        <HomeState project={project} name={name} serverId={serverId} />
+      </Groups>
+    </WithRail>
   );
 }

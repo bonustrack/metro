@@ -3,7 +3,8 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { routeHash } from '@metro-labs/client/route';
 import { Item } from '../ui/Item.js';
-import { Section, SectionLink, StatusDot } from './Section.js';
+import { Group } from '../ui/Group.js';
+import { SectionLink, StatusDot } from './SectionParts.js';
 import { rightNow, sinceLabel, type NowRow } from '../../lib/right-now.js';
 import { useNow } from '../../lib/use-now.js';
 
@@ -29,8 +30,8 @@ export function RightNow({ session, project }: { session: ClaudeSessionStatus; p
   const view = rightNow(session, now);
   const fix = session.running ? undefined : routeHash({ kind: 'claude', project });
   return (
-    <Section label="Right now" action={<SectionLink to={routeHash({ kind: 'run', project })} label="Show all" />}>
+    <Group label="Right now" wide action={<SectionLink to={routeHash({ kind: 'run', project })} label="Show all" />}>
       {view.helpers.length === 0 ? <NowItem row={view.main} now={now} href={fix} /> : view.helpers.map((row) => <NowItem key={row.id} row={row} now={now} />)}
-    </Section>
+    </Group>
   );
 }

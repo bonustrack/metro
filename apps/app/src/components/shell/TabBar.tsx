@@ -10,9 +10,9 @@ import { SECTION_ICONS } from './section-icons.js';
 import { SHELL_SECTIONS, type ShellSection, type ShellSectionId } from '../../lib/shell-sections.js';
 import { useWaitingTotal } from '../../lib/agent-status.js';
 import { WEB, css } from '../../lib/style.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const BAR = 60;
-const ICON = 24;
 const SIDE = 20;
 export const TAB_BAR_ROOM = 128;
 
@@ -31,7 +31,7 @@ function Tab({ section, active, waiting }: { section: ShellSection; active: bool
   return (
     <RouteLink to={routeHash(section.target)} label={section.label} style={frame}>
       <View style={styles.icon}>
-        <Icon name={SECTION_ICONS[section.id]} size={ICON} color={active ? palette.link : palette.sub} />
+        <Icon name={SECTION_ICONS[section.id]} size={ICON_SIZE.lg} color={active ? palette.link : palette.sub} />
         {section.id === 'agents' && waiting > 0 ? (
           <View style={StyleSheet.flatten([styles.count, { borderColor: active ? palette.border : palette.inputBg }])}>
             <CountPill count={waiting} />

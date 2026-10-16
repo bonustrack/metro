@@ -6,7 +6,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../Icon.js';
 import { PageScroll } from '../PageScroll.js';
-import { RoundButton } from '../RoundButton.js';
+import { RoundButton } from '../ui/RoundButton.js';
 import { LogBlock } from '../ui/LogBlock.js';
 import { allSides } from '../ui/edges.js';
 import { copyText } from '../../lib/clipboard.js';
@@ -61,12 +61,7 @@ function Stepper({ step, onStep }: { step: FocusStep; onStep?: (step: FocusStep)
 }
 
 function Close(): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <RoundButton label="Close" size={44} onPress={() => { go({ kind: 'servers' }); }}>
-      <Icon name="close" size={20} color={palette.link} />
-    </RoundButton>
-  );
+  return <RoundButton label="Close" icon="close" onPress={() => { go({ kind: 'servers' }); }} />;
 }
 
 export function LaunchFrame({ step, onStep, children }: { step: FocusStep; onStep?: (step: FocusStep) => void; children: ReactNode }): ReactNode {

@@ -74,7 +74,7 @@ export function AgentMenu({ server }: { server: Server }): ReactNode {
   ];
   return (
     <>
-      <KebabMenu items={items} label={`Actions for ${name}`} size="lg" />
+      <KebabMenu items={items} label={`Actions for ${name}`} />
       <PowerDialogs power={power} name={name} />
       <UpdateDialog updating={updating} name={name} />
       <TransferDialogs server={server} step={transfer} onStep={setTransfer} />

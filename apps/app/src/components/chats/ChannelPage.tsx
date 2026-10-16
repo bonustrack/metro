@@ -20,15 +20,15 @@ import { ChannelDetails, ChannelSetup } from './ChannelSetup.js';
 import { ExceptionsPage } from './ExceptionsPage.js';
 import { GmailAccess } from './GmailAccess.js';
 import { RulePage } from './RulePage.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { useReceive } from './use-receive.js';
 import { ruleTarget } from '../../lib/channel-rules.js';
 import { go } from '../../lib/nav.js';
 import { openExternal } from '../../lib/open.js';
 import { dropAccount, queryError, refresh, useStationsQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 
-const ICON = 28;
 const RECEIVE_NOTE = 'Off stops new messages. Tools keep working.';
 
 function ChannelMenu({ project, agentId, found }: Pick<ChannelProps, 'project' | 'agentId' | 'found'>): ReactNode {
@@ -63,13 +63,13 @@ function Receive({ agentId, found }: { agentId: string; found: FlatAccount }): R
   const id = row.id;
   if (id === null) return null;
   return (
-    <Section error={receive.error}>
+    <Group error={receive.error}>
       <Item
         title="Receive messages"
         subtitle={RECEIVE_NOTE}
         trailing={<Switch checked={receive.receiving(station, id, row.enabled)} disabled={receive.busy(station, id)} dark={dark} name="Receive messages" onChange={(next) => { receive.toggle(station, id, next); }} />}
       />
-    </Section>
+    </Group>
   );
 }
 
@@ -83,7 +83,7 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       tab="chats"
       trail={[{ label: stationLabel(station) }]}
       title={title}
-      leading={<StationIcon station={station} size={ICON} />}
+      leading={<StationIcon station={station} size={AVATAR_SIZE.header} />}
       action={<ChannelMenu project={project} agentId={agentId} found={found} />}
     >
       <Receive agentId={agentId} found={found} />

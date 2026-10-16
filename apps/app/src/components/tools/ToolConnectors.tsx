@@ -22,8 +22,8 @@ import { go } from '../../lib/nav.js';
 import { queryError } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { connectorRule, exceptionsLabel, RULE_WORD, type ConnectorRule } from '../../lib/tools-view.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
-const ICON = 24;
 const TONE: Record<Access, 'success' | 'link' | 'danger'> = { allow: 'success', ask: 'link', deny: 'danger' };
 
 function RuleLine({ rule }: { rule: ConnectorRule }): ReactNode {
@@ -59,7 +59,7 @@ function ConnectorRow({ connector, peers, admin, onOpen }: RowProps): ReactNode 
       subtitle={rule.signedOut ? signedOut : <RuleLine rule={rule} />}
       subtitleTone={rule.signedOut ? 'danger' : 'secondary'}
       detail={technical ? technicalLine([connectorHost(connector.url), connector.id]) : undefined}
-      leading={<ConnectorFavicon name={connector.name} url={connector.url} size={ICON} radius={6} />}
+      leading={<ConnectorFavicon name={connector.name} url={connector.url} size={ICON_SIZE.lg} radius={6} />}
       onPress={onOpen}
     />
   );

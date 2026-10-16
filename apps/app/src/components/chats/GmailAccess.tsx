@@ -11,7 +11,7 @@ import { useAttach } from '../../lib/use-attach.js';
 import { logError } from '../../lib/log.js';
 import { AttachSession } from '../AttachSession.js';
 import { Item } from '../ui/Item.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 
 interface UpgradeProps {
   agentId: string;
@@ -74,7 +74,7 @@ export function GmailAccess({ agentId, row, features, onSaved }: GmailAccessProp
   const supported = features.includes(GMAIL_MANAGED);
   const access = gmailAccess(supported, row.sendEnabled);
   return (
-    <Section label="Gmail access">
+    <Group label="Gmail access">
       <Item
         title={access.title}
         subtitle={access.note}
@@ -83,6 +83,6 @@ export function GmailAccess({ agentId, row, features, onSaved }: GmailAccessProp
       {!open || !supported || row.id === null ? null : (
         <Upgrade key={`${agentsUrl()}/${agentId}/${row.id}`} agentId={agentId} accountId={row.id} onSaved={onSaved} onClose={() => { setOpen(false); }} />
       )}
-    </Section>
+    </Group>
   );
 }

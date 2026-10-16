@@ -6,12 +6,11 @@ import { flattenAccounts, type FlatAccount } from '@metro-labs/client/api/accoun
 import { ConnectStation } from '../ConnectStation.js';
 import { Icon } from '../Icon.js';
 import { Loading } from '../Loading.js';
-import { Groups } from '../ui/Group.js';
+import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { ChannelRow } from './ChannelRow.js';
 import { RecentConversations } from './RecentConversations.js';
-import { Section } from './Section.js';
 import { useReceive } from './use-receive.js';
 import { VoiceRow } from './VoiceRow.js';
 import { queryError, refreshAgents, useStationsQuery } from '../../lib/queries.js';
@@ -37,12 +36,12 @@ function Channels({ project, agentId, accounts, onAdd }: ChannelsProps): ReactNo
   const receive = useReceive(agentId);
   if (accounts.length === 0)
     return (
-      <Section label="Channels" right={<AddChat onPress={onAdd} />}>
+      <Group label="Channels" action={<AddChat onPress={onAdd} />}>
         <Item title="No chat yet" subtitle="Add one, so people can write to the agent." onPress={onAdd} chevron={false} />
-      </Section>
+      </Group>
     );
   return (
-    <Section label="Channels" right={<AddChat onPress={onAdd} />} note={RECEIVE_NOTE} error={receive.error}>
+    <Group label="Channels" action={<AddChat onPress={onAdd} />} note={RECEIVE_NOTE} error={receive.error}>
       {accounts.map((item) => {
         const id = item.row.id ?? '';
         return (
@@ -58,7 +57,7 @@ function Channels({ project, agentId, accounts, onAdd }: ChannelsProps): ReactNo
           />
         );
       })}
-    </Section>
+    </Group>
   );
 }
 

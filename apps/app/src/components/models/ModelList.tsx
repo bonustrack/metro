@@ -7,10 +7,11 @@ import type { OrgModelConnection, OrgModels } from '@metro-labs/client/api/org-m
 import { providerInfo } from '@metro-labs/client/api/providers';
 import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
-import { Loading } from '../Loading.js';
 import { ProviderLogo } from '../ProviderLogo.js';
 import { ProviderModal, type Editing } from '../ProviderModal.js';
-import { RoundButton } from '../RoundButton.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RoundButton } from '../ui/RoundButton.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { ListPaneRow } from '../ui/ListPaneRow.js';
@@ -26,7 +27,6 @@ import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
 const ICON = 24;
-const PLUS = 20;
 
 const styles = StyleSheet.create({ mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' } });
 
@@ -95,9 +95,14 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
 }
 
 function Body({ pane, pick }: { pane: boolean; pick: ModelPick }): ReactNode {
-  const { data, error } = useOrgModelsQuery();
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load the models.')}</Text>;
-  if (data === undefined) return <Loading />;
+  const { data, error, refetch } = useOrgModelsQuery();
+  if (error !== null)
+    return (
+      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+        <ErrorState title="Could not load the models" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
+      </Col>
+    );
+  if (data === undefined) return <RowsSkeleton rows={3} pane={pane} trailing={false} />;
   return <Lists list={data} pane={pane} pick={pick} />;
 }
 
@@ -111,14 +116,11 @@ function PageBody(): ReactNode {
   );
 }
 
-export function AddAccount({ size }: { size: number }): ReactNode {
-  const palette = useKitPalette();
+export function AddAccount(): ReactNode {
   const [editing, setEditing] = useState<Editing | null>(null);
   return (
     <>
-      <RoundButton label="Add an account" size={size} onPress={() => { setEditing({ provider: null, connection: null }); }}>
-        <Icon name="plus" size={PLUS} color={palette.link} />
-      </RoundButton>
+      <RoundButton label="Add an account" icon="plus" onPress={() => { setEditing({ provider: null, connection: null }); }} />
       <ProviderModal editing={editing} onClose={() => { setEditing(null); }} />
     </>
   );
@@ -133,7 +135,7 @@ export function ModelList({ pane, pick = null }: { pane: boolean; pick?: ModelPi
   const admin = useAdmin();
   if (pane)
     return (
-      <ListPane title="Models" action={admin ? <AddAccount size={36} /> : undefined}>
+      <ListPane title="Models" action={admin ? <AddAccount /> : undefined}>
         <Body key={scope} pane pick={pick} />
       </ListPane>
     );
@@ -143,7 +145,7 @@ export function ModelList({ pane, pick = null }: { pane: boolean; pick?: ModelPi
 function ModelsRoot({ scope, admin }: { scope: number; admin: boolean }): ReactNode {
   useDocumentTitle('Models');
   return (
-    <TabRoot title="Models" action={admin ? <AddAccount size={40} /> : undefined}>
+    <TabRoot title="Models" action={admin ? <AddAccount /> : undefined}>
       <PageBody key={scope} />
     </TabRoot>
   );

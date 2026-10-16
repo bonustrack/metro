@@ -16,8 +16,8 @@ import { useConnectorTools } from './ConnectorRule.js';
 import { ownRuleLine } from '../../lib/rule-words.js';
 import { queryError, useServerStatus, useServersQuery } from '../../lib/queries.js';
 import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 
-const AVATAR = 32;
 const PLUS = 22;
 
 function AgentFace({ server }: { server: Server }): ReactNode {
@@ -25,7 +25,7 @@ function AgentFace({ server }: { server: Server }): ReactNode {
   const dot = data?.state === 'live' ? 'success' : data?.state === 'offline' ? 'danger' : null;
   return (
     <AvatarDot dot={dot}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR} />
+      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />
     </AvatarDot>
   );
 }
@@ -98,7 +98,7 @@ function AddAgentModal({ connector, servers, onClose }: { connector: OrgConnecto
         {servers.length === 0 ? <Text size="md" role="secondary">Every agent has it already.</Text> : (
           <Rows>
             {servers.map((server) => (
-              <Item key={server.id} title={serverLabel(server)} leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR} />} chevron={false}
+              <Item key={server.id} title={serverLabel(server)} leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />} chevron={false}
                 onPress={adding.busy ? undefined : () => { adding.run(() => assignOrgConnector(connector.id, server.id)); }} />
             ))}
           </Rows>

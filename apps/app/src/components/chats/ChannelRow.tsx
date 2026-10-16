@@ -12,8 +12,8 @@ import { RouteLink } from '../RouteLink.js';
 import { StationIcon } from '../StationIcon.js';
 import { side } from '../ui/edges.js';
 import { writersSummary } from '../../lib/channel-people.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
-const ICON = 24;
 const CHEVRON = 20;
 
 const styles = StyleSheet.create({
@@ -49,7 +49,7 @@ export function ChannelRow({ item, project, receiving, busy, onToggle }: Channel
   return (
     <Row align="center" gap={14} minHeight={60} border={{ bottom: side(palette.border) }}>
       <RouteLink to={href} label={title} style={styles.link}>
-        <StationIcon station={item.station} size={ICON} />
+        <StationIcon station={item.station} size={ICON_SIZE.lg} />
         <Col flex={1} minWidth={0} gap={2}>
           <Text size="md" numberOfLines={1}>
             {title}

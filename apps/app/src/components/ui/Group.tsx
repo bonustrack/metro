@@ -2,14 +2,11 @@ import { type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
+import { READABLE_WIDTH } from './sizes.js';
 import { useIsNarrow } from '../../lib/media.js';
 
-const LABEL_WIDTH = 180;
-const COLUMN_GAP = 32;
-const LABEL_TOP = 17;
-const NOTE_WIDTH = 560;
-const GAP_WIDE = 48;
-const GAP_NARROW = 40;
+const GAP_WIDE = 40;
+const GAP_NARROW = 36;
 
 const CLIP = { overflow: 'hidden' } as const;
 const TUCK = { marginBottom: -1 } as const;
@@ -30,50 +27,38 @@ interface GroupProps {
   label?: string;
   note?: string;
   action?: ReactNode;
+  right?: ReactNode;
+  error?: string | null;
+  wide?: boolean;
   children: ReactNode;
 }
 
-function Note({ text }: { text: string | undefined }): ReactNode {
-  if (text === undefined) return null;
+function Line({ text, role }: { text: string | null | undefined; role: 'secondary' | 'danger' }): ReactNode {
+  if (text === undefined || text === null) return null;
   return (
-    <Col margin={{ top: 6 }} maxWidth={NOTE_WIDTH}>
-      <Text size="xs" role="secondary">
+    <Col margin={{ top: 6 }}>
+      <Text size="xs" role={role}>
         {text}
       </Text>
     </Col>
   );
 }
 
-export function Group({ label, note, action, children }: GroupProps): ReactNode {
-  const stacked = useIsNarrow();
-  const heading = label === undefined ? null : (
-    <Text size="xs" role="secondary">
-      {label}
-    </Text>
-  );
-  if (stacked)
-    return (
-      <Col>
-        {heading === null && action === undefined ? null : (
-          <Row align="center" justify="between" gap={12} minHeight={32}>
-            {heading}
-            {action}
-          </Row>
-        )}
-        <Rows>{children}</Rows>
-        <Note text={note} />
-      </Col>
-    );
+export function Group({ label, note, action, right, error, wide = false, children }: GroupProps): ReactNode {
+  const trailing = action ?? right;
   return (
-    <Row align="start" gap={COLUMN_GAP}>
-      <Col width={LABEL_WIDTH} gap={8} padding={{ top: LABEL_TOP }}>
-        {heading}
-        {action}
-      </Col>
-      <Col flex={1} minWidth={0}>
-        <Rows>{children}</Rows>
-        <Note text={note} />
-      </Col>
-    </Row>
+    <Col width="100%" maxWidth={wide ? undefined : READABLE_WIDTH}>
+      {label === undefined && trailing === undefined ? null : (
+        <Row align="center" justify="between" gap={12} minHeight={32}>
+          <Text size="xs" role="secondary" numberOfLines={1}>
+            {label ?? ''}
+          </Text>
+          {trailing}
+        </Row>
+      )}
+      <Rows>{children}</Rows>
+      <Line text={note} role="secondary" />
+      <Line text={error} role="danger" />
+    </Col>
   );
 }

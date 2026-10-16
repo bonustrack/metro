@@ -86,7 +86,7 @@ export function DeleteMenu({ label, item, items = [], failure, run, onDone, ...d
   const confirming = useConfirm(run, failure, onDone);
   return (
     <>
-      <KebabMenu label={label} size="lg" items={[...items, { label: item ?? dialog.action, danger: true, onSelect: confirming.show }]} />
+      <KebabMenu label={label} items={[...items, { label: item ?? dialog.action, danger: true, onSelect: confirming.show }]} />
       <ConfirmDialog confirming={confirming} {...dialog} />
     </>
   );

@@ -6,7 +6,7 @@ import { fetchVoice, VOICE_SINCE } from '@metro-labs/client/api/voice';
 import { olderThan } from '@metro-labs/client/api/version';
 import { Icon } from '../Icon.js';
 import { Item } from '../ui/Item.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import { namesList, peopleOf, approverNames } from '../../lib/channel-people.js';
 import { useBoxQuery, useModeQuery } from '../../lib/queries.js';
@@ -36,7 +36,7 @@ export function VoiceRow({ project, agentId, accounts }: { project: string; agen
   const voice = useBoxQuery('voice', fetchVoice, { enabled: !old, retry: false });
   const value = voice.data === undefined ? undefined : voice.data.enabled && voice.data.hasKey ? 'On' : 'Off';
   return (
-    <Section>
+    <Group>
       <Item
         title="Voice calls"
         subtitle={subtitleOf(stage, callers, old)}
@@ -44,6 +44,6 @@ export function VoiceRow({ project, agentId, accounts }: { project: string; agen
         value={value}
         href={routeHash({ kind: 'voice', project })}
       />
-    </Section>
+    </Group>
   );
 }

@@ -1,12 +1,13 @@
 import { type ReactNode, useRef, useState } from 'react';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Choice } from './Choice.js';
 import { PermissionTool } from './PermissionTool.js';
+import { PermissionControl } from './ui/PermissionControl.js';
 import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
 import {
-  ACCESS_CHOICES, ACCESS_LABEL, GROUP_LABEL, groupAccess, stricterAccess, toolsIn, withGroup,
+  ACCESS_LABEL, GROUP_LABEL, groupAccess, stricterAccess, toolsIn, withGroup,
   type Access, type GroupedTool, type ToolGroup, type ToolPolicy,
 } from '@metro-labs/client/api/policy';
+import { accessOfChoice, choiceOfAccess, type PermissionChoice } from '../lib/permission-words.js';
 import { queryError } from '../lib/queries.js';
 
 const SAVE_FAILED = 'Could not save the permissions.';
@@ -17,10 +18,23 @@ const GROUP_NOTE: Record<ToolGroup, string> = {
 };
 const ASK_NOTE = 'Ask first asks you in chat or on the Home page, then waits.';
 const INHERITED_NOTE = 'For each tool, the stricter of the organization and agent rule wins.';
-const OPTIONS = ACCESS_CHOICES.map((access) => ({ value: access, label: ACCESS_LABEL[access] }));
 const toolText = (values: Record<string, string> | undefined, name: string): string | undefined => values !== undefined && Object.hasOwn(values, name) ? values[name] : undefined;
 
-type GroupChoice = Access | 'inherit';
+interface GroupControl {
+  value: PermissionChoice;
+  atLeast: PermissionChoice | null;
+  next: (choice: PermissionChoice) => ToolPolicy;
+}
+
+function groupControl(policy: ToolPolicy, organization: ToolPolicy | undefined, group: ToolGroup): GroupControl {
+  if (organization === undefined) return { value: choiceOfAccess(groupAccess(policy, group)), atLeast: null, next: (choice) => withGroup(policy, group, accessOfChoice(choice)) };
+  const inherited: Access = groupAccess(organization, group);
+  return {
+    value: choiceOfAccess(stricterAccess(policy[group] ?? inherited, inherited)),
+    atLeast: choiceOfAccess(inherited),
+    next: (choice) => withGroup(policy, group, accessOfChoice(choice) === inherited ? undefined : accessOfChoice(choice)),
+  };
+}
 
 interface PermissionsProps {
   title: string;
@@ -62,16 +76,15 @@ export function Permissions({ title, policy, tools, store, onSaved, titles, desc
       .finally(() => { pending.current = false; setBusy(false); });
   };
   const listed = withSavedTools(tools, [policy, organization]);
-  const options: { value: GroupChoice; label: string }[] = organization === undefined ? OPTIONS : [{ value: 'inherit', label: 'Organization' }, ...OPTIONS];
   return (
     <SettingsGroup title={title} note={organization === undefined ? ASK_NOTE : `${INHERITED_NOTE} ${ASK_NOTE}`}>
       {GROUPS.flatMap((group) => {
         const inGroup = toolsIn(listed, group);
-        const value: GroupChoice = organization !== undefined && policy[group] === undefined ? 'inherit' : groupAccess(policy, group);
+        const control = groupControl(policy, organization, group);
         return [
           <SettingsSection key={group} title={GROUP_LABEL[group]} count={inGroup.length} note={groupNote(policy, organization, group)}>
-            <Choice<GroupChoice> label={`${title}: ${GROUP_LABEL[group]}`} value={value} options={options} disabled={busy || disabled}
-              onChange={(access) => { save(withGroup(policy, group, access === 'inherit' ? undefined : access)); }} />
+            <PermissionControl label={`${title}: ${GROUP_LABEL[group]}`} value={control.value} atLeast={control.atLeast} disabled={busy || disabled}
+              onChange={(choice) => { save(control.next(choice)); }} />
           </SettingsSection>,
           ...inGroup.map((tool) => <PermissionTool key={tool.name} tool={tool} title={toolText(titles, tool.name)} description={toolText(descriptions, tool.name) ?? (tools.some((known) => known.name === tool.name) ? undefined : 'Saved rule for a tool not in the list now. It counts as Write.')} policy={policy} organization={organization} disabled={busy || disabled} onSave={save} />),
         ];

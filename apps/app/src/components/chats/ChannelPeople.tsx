@@ -8,7 +8,7 @@ import { Item } from '../ui/Item.js';
 import { AddPerson } from './AddPerson.js';
 import { PersonRow } from './PersonRow.js';
 import { SAVE_FAILED } from './people-text.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import {
   approverNames, approvesInChat, entriesOf, keptApprovers, peopleHeading, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
@@ -45,9 +45,9 @@ function anyoneNote(chat: boolean, name: string): string {
 function Questions({ people, handle }: { people: Person[]; handle: string }): ReactNode {
   const goes = questionsGoTo(approverNames(people), handle);
   return (
-    <Section label="Approval questions go to">
+    <Group label="Approval questions go to">
       <Item title={goes.title} subtitle={goes.subtitle} chevron={false} />
-    </Section>
+    </Group>
   );
 }
 
@@ -66,9 +66,9 @@ function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, o
   const palette = useKitPalette();
   const name = useAgentName();
   return (
-    <Section
+    <Group
       label={heading}
-      right={chat ? <Text size="xs" role="secondary">Can approve</Text> : undefined}
+      action={chat ? <Text size="xs" role="secondary">Can approve</Text> : undefined}
       note={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
       error={error}
     >
@@ -76,7 +76,7 @@ function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, o
         <PersonRow key={person.id} person={person} busy={busy} onApprove={(yes) => { onApprove(person.id, yes); }} onRemove={() => { onRemove(person.id); }} />
       ))}
       <Item title="Add a person" leading={<Icon name="plus" size={MARK} color={palette.link} />} chevron={false} onPress={onAdd} />
-    </Section>
+    </Group>
   );
 }
 
@@ -136,10 +136,10 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
 
   return (
     <>
-      <Section label="Who can write" note={whoNote(editing, entries.length === 0, chat, name)} error={editing ? null : error}>
+      <Group label="Who can write" note={whoNote(editing, entries.length === 0, chat, name)} error={editing ? null : error}>
         <Item title="Only these people" trailing={<Check on={editing} />} chevron={false} onPress={() => { setError(null); setRestricting(true); }} />
         <Item title="Anyone" trailing={<Check on={!editing} />} chevron={false} onPress={anyone} />
-      </Section>
+      </Group>
       {editing ? (
         <PeopleList
           people={people}

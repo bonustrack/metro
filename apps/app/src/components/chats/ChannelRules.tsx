@@ -4,7 +4,7 @@ import { type GroupedTool, type ToolPolicy } from '@metro-labs/client/api/policy
 import { routeHash } from '@metro-labs/client/route';
 import { Item } from '../ui/Item.js';
 import { AccessValue } from './AccessValue.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { exceptionSummary, overriddenTools, ruleRows } from '../../lib/channel-rules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 
@@ -21,15 +21,15 @@ export function ChannelRules({ project, accountId, policy, tools, verbs }: Chann
   const label = `What ${name} may do`;
   if (verbs.length === 0)
     return (
-      <Section label={label}>
+      <Group label={label}>
         <Item title="Nothing" subtitle={`This channel only brings messages in. ${name} cannot write here.`} chevron={false} />
-      </Section>
+      </Group>
     );
   if (tools.length === 0) return null;
   const href = (rule: string): string => routeHash({ kind: 'station', project, accountId, rule });
   const own = overriddenTools(policy, tools).length;
   return (
-    <Section label={label}>
+    <Group label={label}>
       {ruleRows(policy, tools).map((row) => (
         <Item
           key={row.target}
@@ -47,6 +47,6 @@ export function ChannelRules({ project, accountId, policy, tools, verbs }: Chann
         chevron
         href={href('exceptions')}
       />
-    </Section>
+    </Group>
   );
 }

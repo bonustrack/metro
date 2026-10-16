@@ -7,7 +7,7 @@ import { Transcript } from './Transcript.js';
 import { OtherFolders } from './OtherFolders.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { sessionTitle } from './chats/RecentConversations.js';
-import { Section } from './chats/Section.js';
+import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
@@ -29,11 +29,11 @@ function SessionList({ project, claudeProject }: { project: string; claudeProjec
   if (data === undefined) return <Loading />;
   if (data.length === 0) return <Text size="md" role="secondary">No conversation yet.</Text>;
   return (
-    <Section>
+    <Group>
       {data.map((s) => (
         <SessionRow key={s.id} session={s} target={{ kind: 'sessions', project, claudeProject, id: s.id }} />
       ))}
-    </Section>
+    </Group>
   );
 }
 

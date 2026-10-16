@@ -15,8 +15,8 @@ import { Modal } from './Modal.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { orgKey, queryError } from '../lib/queries.js';
+import { AVATAR_SIZE } from './ui/sizes.js';
 
-const AVATAR = 32;
 const ROLES_NOTE = 'Admins launch agents, add connectors, change models and invite. Members check on agents and approve.';
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const ROLE_WORD: Record<Role, string> = { admin: 'Admin', member: 'Member' };
@@ -56,7 +56,7 @@ function MemberRow({ member, org, onError }: { member: Member; org: Organization
   const email = member.email ?? member.userId;
   const subtitle = [member.name === null ? null : email, self ? 'you' : null].filter((part): part is string => part !== null).join(' · ');
   return (
-    <Item title={member.name ?? email} subtitle={subtitle === '' ? undefined : subtitle} leading={<AgentAvatar seed={member.userId} src={member.picture} size={AVATAR} />}
+    <Item title={member.name ?? email} subtitle={subtitle === '' ? undefined : subtitle} leading={<AgentAvatar seed={member.userId} src={member.picture} size={AVATAR_SIZE.row} />}
       value={org.role === 'admin' ? undefined : ROLE_WORD[member.role]} trailing={org.role === 'admin' ? <RoleMenu member={member} self={self} onError={onError} /> : undefined} />
   );
 }
@@ -65,8 +65,8 @@ function InvitationRow({ invitation, org, onError }: { invitation: Invitation; o
   const run = useRun(onError, 'Could not revoke that invitation.');
   const role = invitation.role === null ? 'Invited' : ROLE_WORD[invitation.role];
   return (
-    <Item title={invitation.email} subtitle={`${role} · not accepted yet`} leading={<AgentAvatar seed={invitation.email} size={AVATAR} />}
-      trailing={org.role === 'admin' ? <KebabMenu label={`Actions for the invitation of ${invitation.email}`} items={[{ label: 'Revoke the invitation', danger: true, onSelect: () => { run(revokeInvitation(invitation.id)); } }]} /> : undefined} />
+    <Item title={invitation.email} subtitle={`${role} · not accepted yet`} leading={<AgentAvatar seed={invitation.email} size={AVATAR_SIZE.row} />}
+      trailing={org.role === 'admin' ? <KebabMenu ghost label={`Actions for the invitation of ${invitation.email}`} items={[{ label: 'Revoke the invitation', danger: true, onSelect: () => { run(revokeInvitation(invitation.id)); } }]} /> : undefined} />
   );
 }
 

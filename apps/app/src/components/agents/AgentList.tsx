@@ -6,9 +6,10 @@ import { type Server } from '@metro-labs/client/api/servers';
 import { latestParts } from '@metro-labs/client/api/latest-usage';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
-import { Icon } from '../Icon.js';
-import { Loading } from '../Loading.js';
-import { RoundButton } from '../RoundButton.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RoundButton } from '../ui/RoundButton.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 import { Spinner } from '../Spinner.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
 import { CountPill } from '../ui/CountPill.js';
@@ -27,10 +28,6 @@ import { openJump } from '../../lib/jump-store.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
 
-const PANE_AVATAR = 36;
-const PAGE_AVATAR = 44;
-const PLUS = 20;
-
 function useDetail(row: AgentRow): string | undefined {
   const technical = useTechnicalDetails();
   const usage = useLatestUsageQuery().data?.[row.server.id];
@@ -48,11 +45,11 @@ function AgentRowView({ row, pane, selected }: { row: AgentRow; pane: boolean; s
   if (pane)
     return (
       <ListPaneRow title={row.name} line={line.text} lineTone={line.tone} detail={detail} dot={line.dot} trailing={trailing} selected={selected} href={href}
-        avatar={<AgentAvatar seed={server.host} src={server.avatar} size={PANE_AVATAR} />} />
+        avatar={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.list} />} />
     );
   return (
     <Item title={row.name} subtitle={line.text} subtitleTone={line.tone} detail={detail} href={href} trailing={trailing} chevron={false}
-      leading={<AvatarDot dot={line.dot}><AgentAvatar seed={server.host} src={server.avatar} size={PAGE_AVATAR} /></AvatarDot>} />
+      leading={<AvatarDot dot={line.dot}><AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.list} /></AvatarDot>} />
   );
 }
 
@@ -69,13 +66,13 @@ function AgentRows({ servers, pane, selected }: { servers: Server[]; pane: boole
 }
 
 function Body({ pane, selected }: { pane: boolean; selected: string | null }): ReactNode {
-  const { data, error, isPending } = useServersQuery();
-  if (isPending) return <Loading />;
+  const { data, error, isPending, refetch } = useServersQuery();
+  if (isPending) return <RowsSkeleton rows={4} pane={pane} trailing={false} />;
   if (error !== null)
     return (
-      <Text size="md" role="danger">
-        {queryError(error, 'Could not list your agents.')}
-      </Text>
+      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+        <ErrorState title="Could not list your agents" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
+      </Col>
     );
   if (data.length === 0)
     return pane ? (
@@ -89,27 +86,17 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
 }
 
 function SearchAgents(): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <RoundButton label="Jump" size={40} onPress={openJump}>
-      <Icon name="search" size={PLUS} color={palette.link} />
-    </RoundButton>
-  );
+  return <RoundButton label="Jump" icon="search" onPress={openJump} />;
 }
 
-function NewAgent({ size }: { size: number }): ReactNode {
-  const palette = useKitPalette();
-  return (
-    <RoundButton label="New agent" size={size} onPress={() => { go({ kind: 'launch' }); }}>
-      <Icon name="plus" size={PLUS} color={palette.link} />
-    </RoundButton>
-  );
+function NewAgent(): ReactNode {
+  return <RoundButton label="New agent" icon="plus" onPress={() => { go({ kind: 'launch' }); }} />;
 }
 
 export function AgentList({ pane, selected = null }: { pane: boolean; selected?: string | null }): ReactNode {
   if (pane)
     return (
-      <ListPane title="Agents" action={<NewAgent size={36} />}>
+      <ListPane title="Agents" action={<NewAgent />}>
         <Body pane selected={selected} />
       </ListPane>
     );
@@ -119,7 +106,7 @@ export function AgentList({ pane, selected = null }: { pane: boolean; selected?:
 function AgentsRoot(): ReactNode {
   useDocumentTitle('Agents');
   return (
-    <TabRoot title="Agents" action={<><SearchAgents /><NewAgent size={40} /></>}>
+    <TabRoot title="Agents" action={<><SearchAgents /><NewAgent /></>}>
       <Body pane={false} selected={null} />
     </TabRoot>
   );

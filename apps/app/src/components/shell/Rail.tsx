@@ -4,9 +4,10 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { activeAccount } from '@metro-labs/client/auth/account';
+import { isOperator } from '@metro-labs/client/api/admin';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Dropdown } from '../Dropdown.js';
-import { Icon } from '../Icon.js';
+import { Icon, type IconName } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { accountItems } from '../AccountMenu.js';
 import { RailOrgSwitch } from './OrgSwitch.js';
@@ -19,10 +20,11 @@ import { openJump } from '../../lib/jump-store.js';
 import { useHover } from '../ui/hover.js';
 import { side } from '../ui/edges.js';
 import { webOnly } from '../../lib/style.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const RAIL_WIDTH = 72;
 const ITEM = 44;
-const ICON = 24;
+const ICON = ICON_SIZE.lg;
 const ME = 32;
 
 const styles = StyleSheet.create({
@@ -31,15 +33,24 @@ const styles = StyleSheet.create({
 
 const STICKY = webOnly({ position: 'sticky', top: 0, height: '100vh', zIndex: 5 });
 
-function RailItem({ section, active }: { section: ShellSection; active: boolean }): ReactNode {
+function RailLink({ to, label, icon, active }: { to: string; label: string; icon: IconName; active: boolean }): ReactNode {
   const palette = useKitPalette();
   const lit = { backgroundColor: hoverColor(palette) };
   const frame = StyleSheet.flatten([styles.item, active ? lit : null]);
   return (
-    <RouteLink to={routeHash(section.target)} label={section.label} style={frame} hoverStyle={lit} {...railTip(section.label)} onPress={hideRailTip}>
-      <Icon name={SECTION_ICONS[section.id]} size={ICON} color={active ? palette.link : palette.sub} />
+    <RouteLink to={to} label={label} style={frame} hoverStyle={lit} {...railTip(label)} onPress={hideRailTip}>
+      <Icon name={icon} size={ICON} color={active ? palette.link : palette.sub} />
     </RouteLink>
   );
+}
+
+function RailItem({ section, active }: { section: ShellSection; active: boolean }): ReactNode {
+  return <RailLink to={routeHash(section.target)} label={section.label} icon={SECTION_ICONS[section.id]} active={active} />;
+}
+
+function RailAdmin({ active }: { active: boolean }): ReactNode {
+  if (!isOperator(activeAccount())) return null;
+  return <RailLink to={routeHash({ kind: 'admin' })} label="Admin" icon="shield" active={active} />;
 }
 
 const noop = (): void => undefined;
@@ -69,7 +80,7 @@ function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
   );
 }
 
-export function Rail({ section, onLock }: { section: ShellSectionId | null; onLock: () => void }): ReactNode {
+export function Rail({ section, admin = false, onLock }: { section: ShellSectionId | null; admin?: boolean; onLock: () => void }): ReactNode {
   const palette = useKitPalette();
   return (
     <Col width={RAIL_WIDTH} align="center" gap={6} padding={{ y: 20 }} border={{ right: side(palette.border) }} style={STICKY}>
@@ -80,6 +91,7 @@ export function Rail({ section, onLock }: { section: ShellSectionId | null; onLo
         <RailItem key={s.id} section={s} active={s.id === section} />
       ))}
       <Col flex={1} />
+      <RailAdmin active={admin} />
       <RailJump />
       <Col margin={{ top: 10 }}>
         <RailAccount onLock={onLock} />

@@ -2,15 +2,14 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { connectorHost, connectorLabel } from '@metro-labs/client/api/connectors';
 import { addOrgConnector, orgConnectorCallbackUrl, type NewOrgConnector, type OrgConnector, type OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
 import { routeHash } from '@metro-labs/client/route';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
 import { ConnectorModal, type AddedConnector } from './AddConnector.js';
-import { Icon } from './Icon.js';
-import { Loading } from './Loading.js';
-import { RoundButton } from './RoundButton.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RoundButton } from './ui/RoundButton.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { connectorLine, orgConnectorStatus } from './org-connector-status.js';
 import { Rows } from './ui/Group.js';
 import { Item } from './ui/Item.js';
@@ -30,7 +29,6 @@ const MEMBER_NOTE = 'Only an admin of the organization can add or change connect
 const EMPTY = 'Connectors give agents tools, like a calendar, Notion or GitHub.';
 const HINT = 'Use a public https address. Leave the header empty for a server you sign in to.';
 const ICON = 32;
-const PLUS = 20;
 
 function ConnectorRow({ connector, peers, pane, selected }: { connector: OrgConnector; peers: OrgConnector[]; pane: boolean; selected: boolean }): ReactNode {
   const technical = useTechnicalDetails();
@@ -75,14 +73,11 @@ function useAddConnector(): { open: () => void; modal: ReactNode } {
   return { open: () => { setAdding(true); }, modal };
 }
 
-function AddConnector({ size }: { size: number }): ReactNode {
-  const palette = useKitPalette();
+function AddConnector(): ReactNode {
   const adding = useAddConnector();
   return (
     <>
-      <RoundButton label="Add connector" size={size} onPress={adding.open}>
-        <Icon name="plus" size={PLUS} color={palette.link} />
-      </RoundButton>
+      <RoundButton label="Add connector" icon="plus" onPress={adding.open} />
       {adding.modal}
     </>
   );
@@ -99,9 +94,14 @@ function NoConnectors({ admin }: { admin: boolean }): ReactNode {
 }
 
 function Body({ pane, selected }: { pane: boolean; selected: string | null }): ReactNode {
-  const { data, error } = useOrgConnectorsQuery();
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load the connectors.')}</Text>;
-  if (data === undefined) return <Loading />;
+  const { data, error, refetch } = useOrgConnectorsQuery();
+  if (error !== null)
+    return (
+      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+        <ErrorState title="Could not load the connectors" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
+      </Col>
+    );
+  if (data === undefined) return <RowsSkeleton rows={3} pane={pane} trailing={false} />;
   return (
     <Col gap={16}>
       <List list={data} pane={pane} selected={selected} />
@@ -124,7 +124,7 @@ export function OrgConnectorList({ pane, selected = null }: { pane: boolean; sel
   const admin = useAdmin();
   if (pane)
     return (
-      <ListPane title="Connectors" action={admin ? <AddConnector size={36} /> : undefined}>
+      <ListPane title="Connectors" action={admin ? <AddConnector /> : undefined}>
         <Body key={scope} pane selected={selected} />
       </ListPane>
     );
@@ -134,7 +134,7 @@ export function OrgConnectorList({ pane, selected = null }: { pane: boolean; sel
 function ConnectorsRoot({ scope, admin }: { scope: number; admin: boolean }): ReactNode {
   useDocumentTitle('Connectors');
   return (
-    <TabRoot title="Connectors" action={admin ? <AddConnector size={40} /> : undefined}>
+    <TabRoot title="Connectors" action={admin ? <AddConnector /> : undefined}>
       <Body key={scope} pane={false} selected={null} />
     </TabRoot>
   );

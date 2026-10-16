@@ -79,7 +79,7 @@ function RemoveMenu(): ReactNode {
   }, 'Could not remove the default route.');
   return (
     <>
-      <KebabMenu size="lg" label="Default route menu" items={[{ label: 'Remove the default route', danger: true, onSelect: removing.show }]} />
+      <KebabMenu label="Default route menu" items={[{ label: 'Remove the default route', danger: true, onSelect: removing.show }]} />
       <ConfirmDialog confirming={removing} title="Remove the default route?" lines={['Agents without their own route have no model until you choose a new one.']} action="Remove" />
     </>
   );

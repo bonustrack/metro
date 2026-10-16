@@ -9,6 +9,8 @@ import { AgentAvatar } from '../AgentAvatar.js';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
+import { PageHeader } from '../ui/PageHeader.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 import { AgentMenu } from './AgentMenu.js';
 import { healthFix } from '../../lib/agent-health.js';
 import { useAgentRows } from '../../lib/agent-rows.js';
@@ -16,8 +18,6 @@ import { useClaudeSessionQuery, useServerStatus } from '../../lib/queries.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { SHRINK } from '../../lib/style.js';
 
-const WIDE_AVATAR = 48;
-const NARROW_AVATAR = 40;
 const BACK = 26;
 const SELF = { alignSelf: 'flex-start', maxWidth: '100%' } as const;
 
@@ -35,31 +35,39 @@ function Status({ text, fix }: { text: string; fix: Selection | undefined }): Re
   );
 }
 
-export function AgentHeader({ server, project }: { server: Server; project: string }): ReactNode {
+function CompactHeader({ server, avatar, status, tabs }: { server: Server; avatar: ReactNode; status: ReactNode; tabs: ReactNode }): ReactNode {
   const palette = useKitPalette();
+  return (
+    <Col gap={20}>
+      <Row align="center" gap={12}>
+        <RouteLink to={routeHash({ kind: 'servers' })} label="All agents">
+          <Icon name="chevronLeft" size={BACK} color={palette.link} />
+        </RouteLink>
+        {avatar}
+        <Col flex={1} minWidth={0} gap={2}>
+          <Text accessibilityRole="header" size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+            {serverLabel(server)}
+          </Text>
+          {status}
+        </Col>
+        <AgentMenu server={server} />
+      </Row>
+      {tabs}
+    </Col>
+  );
+}
+
+export function AgentHeader({ server, project, tabs }: { server: Server; project: string; tabs: ReactNode }): ReactNode {
   const narrow = useIsNarrow();
   const status = useServerStatus(server.host);
   const session = useClaudeSessionQuery();
   const row = useAgentRows([server])[0];
-  const dot = row?.line.dot ?? null;
-  const size = narrow ? NARROW_AVATAR : WIDE_AVATAR;
-  return (
-    <Row align="center" gap={narrow ? 12 : 14}>
-      {narrow ? (
-        <RouteLink to={routeHash({ kind: 'servers' })} label="All agents">
-          <Icon name="chevronLeft" size={BACK} color={palette.link} />
-        </RouteLink>
-      ) : null}
-      <AvatarDot dot={dot}>
-        <AgentAvatar seed={server.host} src={server.avatar} size={size} />
-      </AvatarDot>
-      <Col flex={1} minWidth={0} gap={2}>
-        <Text accessibilityRole="header" size={narrow ? 'md' : '2xl'} weight="semibold" numberOfLines={1} style={SHRINK}>
-          {serverLabel(server)}
-        </Text>
-        <Status text={row?.line.text ?? 'Checking…'} fix={healthFix(status.data?.state, session.data, project)} />
-      </Col>
-      <AgentMenu server={server} />
-    </Row>
+  const avatar = (
+    <AvatarDot dot={row?.line.dot ?? null}>
+      <AgentAvatar seed={server.host} src={server.avatar} size={narrow ? AVATAR_SIZE.list : AVATAR_SIZE.header} />
+    </AvatarDot>
   );
+  const line = <Status text={row?.line.text ?? 'Checking…'} fix={healthFix(status.data?.state, session.data, project)} />;
+  if (narrow) return <CompactHeader server={server} avatar={avatar} status={line} tabs={tabs} />;
+  return <PageHeader title={serverLabel(server)} subtitle={line} leading={avatar} action={<AgentMenu server={server} />} tabs={tabs} />;
 }

@@ -8,7 +8,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { findAccount, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { fetchRecentSenders } from '@metro-labs/client/api/attach';
 import { Icon } from '../Icon.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { joinNames } from '../../lib/approval-note.js';
 import { useBoxQuery } from '../../lib/queries.js';
 import type { Setup, SetupStep, StepId } from '../../lib/setup-steps.js';
@@ -119,7 +119,7 @@ function StepRow({ step, index }: { step: SetupStep; index: number }): ReactNode
 export function SetupChecklist({ setup, agentId, groups }: { setup: Setup; agentId: string; groups: AccountGroup[] }): ReactNode {
   if (setup.open === null) return null;
   return (
-    <Section label="Finish setting up">
+    <Group label="Finish setting up" wide>
       {setup.steps.map((step, index) =>
         step === setup.open ? (
           <OpenStep key={step.id} step={step} index={index} agentId={agentId} groups={groups} />
@@ -127,6 +127,6 @@ export function SetupChecklist({ setup, agentId, groups }: { setup: Setup; agent
           <StepRow key={step.id} step={step} index={index} />
         ),
       )}
-    </Section>
+    </Group>
   );
 }

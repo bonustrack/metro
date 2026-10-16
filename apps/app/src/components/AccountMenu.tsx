@@ -3,7 +3,6 @@ import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { activeAccount } from '@metro-labs/client/auth/account';
-import { isOperator } from '@metro-labs/client/api/admin';
 import { Icon } from './Icon.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Dropdown, type MenuItem } from './Dropdown.js';
@@ -15,13 +14,12 @@ const MORE = 18;
 const TRIGGER = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, paddingVertical: 6, marginHorizontal: -8, borderRadius: 8 } as const;
 
 export function accountItems(onLock: () => void, onNavigate: () => void, extra: MenuItem[] = []): MenuItem[] {
-  const open = (kind: 'settings' | 'admin') => (): void => {
+  const settings = (): void => {
     onNavigate();
-    go({ kind });
+    go({ kind: 'settings' });
   };
   return [
-    { label: 'Account settings', icon: 'user', onSelect: open('settings') },
-    ...(isOperator(activeAccount()) ? [{ label: 'Admin', icon: 'shieldCheck' as const, onSelect: open('admin') }] : []),
+    { label: 'Account settings', icon: 'user', onSelect: settings },
     ...extra,
     { label: 'Log out', danger: true, onSelect: onLock },
   ];

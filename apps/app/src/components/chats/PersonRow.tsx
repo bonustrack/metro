@@ -9,8 +9,8 @@ import { Dropdown, type MenuItem } from '../Dropdown.js';
 import { side } from '../ui/edges.js';
 import { type Person } from '../../lib/channel-people.js';
 import { openExternal } from '../../lib/open.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 
-const AVATAR = 36;
 
 const styles = StyleSheet.create({
   trigger: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
@@ -38,7 +38,7 @@ export function PersonRow({ person, busy, onApprove, onRemove }: PersonRowProps)
     <Row align="center" gap={14} minHeight={60} border={{ bottom: side(palette.border) }}>
       <Col flex={1} minWidth={0}>
         <Dropdown items={menuOf(person, busy, onRemove)} label={`Actions for ${person.title}`} align="start" style={styles.trigger}>
-          <AgentAvatar seed={person.id} src={person.avatar} size={AVATAR} />
+          <AgentAvatar seed={person.id} src={person.avatar} size={AVATAR_SIZE.row} />
           <Col flex={1} minWidth={0} gap={2}>
             <Text size="md" numberOfLines={1}>
               {person.title}

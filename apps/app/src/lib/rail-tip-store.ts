@@ -3,8 +3,9 @@ import { useSyncExternalStore } from 'react';
 export interface RailTipState {
   label: string;
   shortcut?: string;
-  left: number;
-  centerY: number;
+  x: number;
+  y: number;
+  side: 'right' | 'top';
 }
 
 let current: RailTipState | null = null;

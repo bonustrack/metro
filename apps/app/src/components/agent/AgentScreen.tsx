@@ -44,9 +44,8 @@ function AgentDetail({ server, selection, children }: { server: Server; selectio
   const top = narrow ? null : { backgroundColor: palette.bg };
   return (
     <Col gap={24}>
-      <Col gap={20} style={narrow ? undefined : [STICKY, top]}>
-        <AgentHeader server={server} project={project} />
-        <AgentTabs selection={selection} project={project} />
+      <Col style={narrow ? undefined : [STICKY, top]}>
+        <AgentHeader server={server} project={project} tabs={<AgentTabs selection={selection} project={project} />} />
       </Col>
       <AgentSubPages selection={selection} project={project} />
       <Tabbed.Provider value={isPageRoot(selection)}>{children}</Tabbed.Provider>

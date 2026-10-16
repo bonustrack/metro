@@ -7,13 +7,7 @@ import { AdminUsers } from './AdminUsers.js';
 import { AdminOverview } from './AdminOverview.js';
 import { AdminOrganizations } from './AdminLists.js';
 import { AdminAgents } from './AdminAgents.js';
-import { type Selection } from '@metro-labs/client/selection';
-
-export type AdminSelection = { kind: 'admin' } | { kind: 'admin-users' } | { kind: 'admin-organizations' } | { kind: 'admin-agents' };
-
-const ADMIN_KINDS = new Set<Selection['kind']>(['admin', 'admin-users', 'admin-organizations', 'admin-agents']);
-
-export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KINDS.has(s.kind);
+import { type AdminSelection } from '../lib/shell-sections.js';
 
 function AdminSidebar({ selection, onSelect }: { selection: AdminSelection; onSelect: () => void }): ReactNode {
   return (

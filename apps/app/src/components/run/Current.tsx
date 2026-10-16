@@ -11,7 +11,8 @@ import { Modal } from '../Modal.js';
 import { Icon } from '../Icon.js';
 import { Dropdown } from '../Dropdown.js';
 import { Item } from '../ui/Item.js';
-import { Section, StatusDot } from '../home/Section.js';
+import { StatusDot } from '../home/SectionParts.js';
+import { Group } from '../ui/Group.js';
 import { WORKER_FILTERS, WORKER_STATE, workerSelection, type WorkerFilter } from './worker-state.js';
 import { freshness, sessionView, type Activity, type Freshness } from './session.js';
 import type { NowDot } from '../../lib/right-now.js';
@@ -76,9 +77,9 @@ function MainThread({ status, disconnected, view, state, observed, onSession }: 
   );
   return (
     <Col gap={10}>
-      <Section label={sectionTitle(state)} action={action}>
+      <Group wide label={sectionTitle(state)} action={action}>
         <Item title={view?.main ?? unavailableNote(status, disconnected)} subtitle={view?.tools} leading={<StatusDot tone={mainDot(activity, state)} />} />
-      </Section>
+      </Group>
       <MainNotes activity={activity} view={view} state={state} observed={observed} disconnected={disconnected} />
     </Col>
   );
@@ -144,13 +145,13 @@ function CurrentWorkers({ workers, observed, narrow, onWorker }: Pick<Props, 'na
   if (workers.length === 0 && filter === 'all') return null;
   return (
     <Col gap={10} testID="current-workers">
-      <Section label={observed ? 'Helpers' : 'Last reported helpers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
+      <Group wide label={observed ? 'Helpers' : 'Last reported helpers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
         onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} />}>
         {shown.map((row) => (
           <Item key={row.id} title={row.title} subtitle={`${row.stateLabel} · ${row.tools}`} subtitleTone={row.danger ? 'danger' : 'secondary'} detail={row.progress}
             leading={<StateMark row={row} />} onPress={() => { setWorkerId(row.id); }} label={`Details for helper ${row.id}`} />
         ))}
-      </Section>
+      </Group>
       <Text size="xs" role="secondary" accessibilityLiveRegion="polite">
         {matching.length === 0 ? 'No helpers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}. Up to 30 recent tasks in this session, finished ones included.`}
       </Text>

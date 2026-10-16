@@ -9,7 +9,7 @@ import { StationName } from '../StationName.js';
 import { factLabel, factValue } from '../channel-facts.js';
 import { side } from '../ui/edges.js';
 import { Item } from '../ui/Item.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { copyText } from '../../lib/clipboard.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 
@@ -56,11 +56,11 @@ export function ChannelSetup({ station, row, agentId }: { station: string; row: 
   const named = station === 'xmtp' && id !== null;
   if (endpoint === undefined && callback === undefined && !named) return null;
   return (
-    <Section label="Setup">
+    <Group label="Setup">
       {callback === undefined ? null : <CopyItem title="Callback URL" note={CALLBACK_NOTE} value={callback} />}
       {endpoint === undefined ? null : <CopyItem title="Webhook URL" note={ENDPOINT_NOTE} value={endpoint} />}
       {named ? <NameItem agentId={agentId} station={station} accountId={id} /> : null}
-    </Section>
+    </Group>
   );
 }
 
@@ -70,12 +70,12 @@ export function ChannelDetails({ station, row }: { station: string; row: Account
   const ids = technical && row.id !== null;
   if (!ids && details.length === 0) return null;
   return (
-    <Section label="Details">
+    <Group label="Details">
       {ids ? <Item title="Channel id" subtitle={row.id ?? ''} /> : null}
       {ids ? <Item title="Address for the agent" subtitle={`metro://${station}/${row.id ?? ''}`} /> : null}
       {details.map((field) => (
         <Item key={field.label} title={factLabel(field.label)} subtitle={factValue(field.value)} />
       ))}
-    </Section>
+    </Group>
   );
 }

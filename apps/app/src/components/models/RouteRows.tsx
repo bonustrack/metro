@@ -110,7 +110,7 @@ export function ModelRow({ item, technical, onPress, menu }: ModelRowProps): Rea
           <UsageBar used={usage.bar.used} blocked={usage.bar.blocked} />
         </View>
       )}
-      {menu === undefined ? null : <KebabMenu label={`${name} menu`} items={menu} />}
+      {menu === undefined ? null : <KebabMenu ghost label={`${name} menu`} items={menu} />}
       {menu === undefined && onPress !== undefined ? <Icon name="chevronRight" size={CHEVRON} color={palette.sub} /> : null}
     </>
   );

@@ -21,8 +21,8 @@ import { useTechnicalDetails } from '../lib/technical.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { logError } from '../lib/log.js';
 import { takeInitialOrgConnectorReturn } from '../lib/location.js';
+import { AVATAR_SIZE } from './ui/sizes.js';
 
-const ICON = 32;
 
 interface Outcome {
   busy: boolean;
@@ -62,10 +62,10 @@ function useSubtitle(connector: OrgConnector): string {
 function Header({ connector, admin, onChanged }: { connector: OrgConnector; admin: boolean; onChanged: () => void }): ReactNode {
   const [renaming, setRenaming] = useState(false);
   const subtitle = useSubtitle(connector);
-  const menu = admin ? <KebabMenu size="lg" label={`Actions for ${connector.name}`} items={[{ label: 'Rename', onSelect: () => { setRenaming(true); } }]} /> : undefined;
+  const menu = admin ? <KebabMenu label={`Actions for ${connector.name}`} items={[{ label: 'Rename', onSelect: () => { setRenaming(true); } }]} /> : undefined;
   return (
     <>
-      <PageHeader title={connector.name} subtitle={subtitle} leading={<ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />} action={menu} />
+      <PageHeader title={connector.name} subtitle={subtitle} leading={<ConnectorFavicon name={connector.name} url={connector.url} size={AVATAR_SIZE.header} />} action={menu} />
       <NameModal key={connector.name} title="Rename connector" action="Rename" placeholder={connector.name} initial={connector.name} failure="Could not rename the connector." open={renaming}
         onClose={() => { setRenaming(false); }} onSubmit={async (name) => { const row = await renameOrgConnector(connector.id, name); onChanged(); return row; }} />
     </>

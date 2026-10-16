@@ -7,7 +7,7 @@ import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { Item } from '../ui/Item.js';
-import { Section } from './Section.js';
+import { Group } from '../ui/Group.js';
 import { useHomeProject } from '../../lib/agent-hooks.js';
 import { queryError, useClaudeSessionsQuery } from '../../lib/queries.js';
 
@@ -33,19 +33,19 @@ function Recent({ project, claudeProject }: { project: string; claudeProject: st
   const { data, error } = useClaudeSessionsQuery(claudeProject, POLL_MS);
   if (error !== null)
     return (
-      <Section label={LABEL} error={queryError(error, 'Could not list the conversations.')}>
+      <Group label={LABEL} error={queryError(error, 'Could not list the conversations.')}>
         {null}
-      </Section>
+      </Group>
     );
   if (data === undefined) return null;
   if (data.length === 0)
     return (
-      <Section label={LABEL} note="No conversation yet.">
+      <Group label={LABEL} note="No conversation yet.">
         {null}
-      </Section>
+      </Group>
     );
   return (
-    <Section label={LABEL} right={<ShowAll project={project} />}>
+    <Group label={LABEL} action={<ShowAll project={project} />}>
       {newest(data).map((session) => (
         <Item
           key={session.id}
@@ -56,7 +56,7 @@ function Recent({ project, claudeProject }: { project: string; claudeProject: st
           chevron={false}
         />
       ))}
-    </Section>
+    </Group>
   );
 }
 
