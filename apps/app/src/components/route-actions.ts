@@ -2,7 +2,13 @@ import { useState } from 'react';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { movedFallback, promotedFallback, removedFallback, type Slot } from '@metro-labs/client/api/route-edit';
 import { queryError } from '../lib/queries.js';
-import type { RouteActions } from './ModelRouting.js';
+
+export interface RouteActions {
+  edit: (slot: Slot) => void;
+  move: (at: number, by: number) => void;
+  promote: (at: number) => void;
+  remove: (at: number) => void;
+}
 
 export interface RouteControl {
   busy: boolean;
@@ -40,7 +46,7 @@ export function useRouteControl(route: ModelRoute | null, save: (route: ModelRou
     actions: {
       edit: setSlot,
       move: (at, by) => { change((r) => movedFallback(r, at, by), 'Could not move the model.'); },
-      promote: (at) => { change((r) => promotedFallback(r, at), 'Could not make it the primary model.'); },
+      promote: (at) => { change((r) => promotedFallback(r, at), 'Could not make it the main model.'); },
       remove: (at) => { change((r) => removedFallback(r, at), 'Could not remove the model.'); },
     },
   };

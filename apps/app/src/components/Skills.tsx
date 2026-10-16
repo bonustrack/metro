@@ -1,99 +1,74 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Loading } from './Loading.js';
-import { GitHubSkills } from './GitHubSkills.js';
-import { GitHubMark } from './GitHubMark.js';
-import { ListHeader } from './ListHeader.js';
-import { NameModal } from './NameModal.js';
-import { DeleteMenu } from './DeleteMenu.js';
-import { ListRow } from './ListRow.js';
-import { EmptyCard, SettingsGroup } from './SettingsSection.js';
-import { routeHash } from '@metro-labs/client/route';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { createClaudeSkill, type ClaudeSkill, type SkillListing } from '@metro-labs/client/api/claude';
 import { whenLabel } from '@metro-labs/client/api/when';
-import { createClaudeSkill, deleteClaudeSkill, type ClaudeSkill, type SkillListing } from '@metro-labs/client/api/claude';
+import { routeHash } from '@metro-labs/client/route';
+import { GitHubMark } from './GitHubMark.js';
+import { GitHubSkills } from './GitHubSkills.js';
+import { Icon } from './Icon.js';
+import { NameModal } from './NameModal.js';
+import { Group, Groups } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { ICON_SIZE } from './ui/sizes.js';
+import { go } from '../lib/nav.js';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery } from '../lib/queries.js';
 import { useDocumentTitle } from '../lib/title.js';
-import { go } from '../lib/nav.js';
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const NAME_HELP = 'A skill name is lowercase letters, digits and dashes, like write-as-less.';
+const ICON = ICON_SIZE.md;
+
+function skillLine(skill: ClaudeSkill): string | undefined {
+  if (skill.managed === true) return skill.shadowed === true ? 'From GitHub · a local skill takes priority' : 'From GitHub, read-only';
+  return skill.description === '' ? undefined : skill.description;
+}
 
 function SkillRow({ skill, project }: { skill: ClaudeSkill; project: string }): ReactNode {
-  const client = useQueryClient();
   const palette = useKitPalette();
+  const icon = skill.managed === true ? <GitHubMark size={ICON} color={palette.text} /> : <Icon name="sparkle" size={ICON} color={palette.sub} />;
   return (
-    <ListRow
+    <Item
       title={skill.title}
-      icon={skill.managed ? <GitHubMark size={24} color={palette.text} /> : undefined}
-      detail={skill.managed ? (skill.shadowed ? 'GitHub · local skill takes priority' : 'GitHub · read-only') : skill.updatedAt === null ? '' : whenLabel(skill.updatedAt)}
+      subtitle={skillLine(skill)}
+      value={skill.updatedAt === null ? undefined : whenLabel(skill.updatedAt)}
+      leading={icon}
       href={routeHash({ kind: 'skill', project, id: skill.id })}
-      trailing={skill.managed ? null :
-        <DeleteMenu
-          label={`Actions for ${skill.name}`}
-          items={[{ label: 'Edit', onSelect: () => { go({ kind: 'skill', project, id: skill.id }); } }]}
-          item="Delete"
-          action="Delete skill"
-          title="Delete skill"
-          lines={["This removes the skill's folder on that machine, and everything in it.", 'Claude Code stops loading it at once.']}
-          word={skill.name}
-          failure="Could not delete that skill."
-          run={async () => {
-            await deleteClaudeSkill(skill.id);
-            await refreshClaudeSkills(client);
-          }}
-        />
-      }
     />
   );
 }
 
 interface ListingProps {
-  error: unknown;
+  error: Error | null;
   data: SkillListing | undefined;
   project: string;
+  onNew: () => void;
+  onRetry: () => unknown;
 }
 
-function Listing({ error, data, project }: ListingProps): ReactNode {
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the skills on this machine.')}</Text>;
-  if (data === undefined) return <Loading />;
-  if (data.skills.length === 0) return <EmptyCard text="No skill yet. A skill teaches your agent how to do a task your way." />;
+function Listing({ error, data, project, onNew, onRetry }: ListingProps): ReactNode {
+  const palette = useKitPalette();
+  if (data === undefined) return error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the skills" text={queryError(error, 'The agent did not answer.')} onRetry={onRetry} />;
   return (
-    <SettingsGroup>
-      {data.skills.map((skill) => (
-        <SkillRow key={skill.id} skill={skill} project={project} />
-      ))}
-    </SettingsGroup>
+    <>
+      {data.skills.map((skill) => <SkillRow key={skill.id} skill={skill} project={project} />)}
+      <Item title="New skill" leading={<Icon name="plus" size={ICON} color={palette.link} />} chevron={false} onPress={onNew} />
+    </>
   );
 }
 
 export function Skills({ project }: { project: string }): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useClaudeSkillsQuery();
-  const dark = useKitScheme() === 'dark';
+  const { data, error, refetch } = useClaudeSkillsQuery();
   const [naming, setNaming] = useState(false);
   useDocumentTitle('Skills');
-
   return (
-    <Col gap={16}>
-      <ListHeader
-        title="Skills"
-        count={data?.skills.length}
-        action={
-          <Button
-            color="primary"
-            dark={dark}
-            label="New skill"
-            onPress={() => {
-              setNaming(true);
-            }}
-          />
-        }
-      />
-      <Listing error={error} data={data} project={project} />
+    <Groups>
+      <Group label="Skills" note="A skill teaches the agent how to do a task your way.">
+        <Listing error={error} data={data} project={project} onNew={() => { setNaming(true); }} onRetry={refetch} />
+      </Group>
       {data === undefined ? null : <GitHubSkills view={data.skillSource} />}
       <NameModal
         title="New skill"
@@ -112,6 +87,6 @@ export function Skills({ project }: { project: string }): ReactNode {
           return made.id;
         }}
       />
-    </Col>
+    </Groups>
   );
 }

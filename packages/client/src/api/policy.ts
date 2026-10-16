@@ -6,17 +6,6 @@ export type ToolGroup = 'read' | 'write';
 
 export const ACCESS_CHOICES: readonly Access[] = ['allow', 'ask', 'deny'];
 
-export const ACCESS_LABEL: Record<Access, string> = {
-  allow: 'Allow',
-  ask: 'Ask first',
-  deny: 'Block',
-};
-
-export const GROUP_LABEL: Record<ToolGroup, string> = {
-  read: 'Read',
-  write: 'Write',
-};
-
 export interface ToolPolicy {
   read?: Access;
   write?: Access;

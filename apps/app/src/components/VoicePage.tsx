@@ -3,12 +3,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
-import { Loading } from './Loading.js';
-import { PageTitle } from './PageTitle.js';
+import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { SaveField, useSave } from './SaveField.js';
-import { EmptyCard, SettingsGroup, SettingsSection } from './SettingsSection.js';
+import { Block, Control } from './settings/rows.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { Group } from './ui/Group.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { Item } from './ui/Item.js';
 import { queryError, useBoxQuery, useModeQuery } from '../lib/queries.js';
 import { olderThan } from '@metro-labs/client/api/version';
+import { routeHash } from '@metro-labs/client/route';
 import {
   ELEVENLABS_KEYS_URL,
   ELEVENLABS_VOICES_URL,
@@ -32,21 +36,31 @@ const LANGUAGE_NOTE = 'The language you speak on calls. Detect lets ElevenLabs g
 
 type Set = (next: VoiceSettings) => void;
 
-function useVoice(): { voice: VoiceSettings | undefined; error: unknown; set: Set } {
+function useVoice(): { voice: VoiceSettings | undefined; error: Error | null; retry: () => unknown; set: Set } {
   const client = useQueryClient();
   const query = useBoxQuery('voice', fetchVoice);
   return {
     voice: query.data,
     error: query.error,
+    retry: query.refetch,
     set: (next) => {
       client.setQueriesData({ predicate: (q) => q.queryKey.includes('voice') }, next);
     },
   };
 }
 
-function Link({ href }: { href: string }): ReactNode {
+function FieldBlock({ title, note, href, children }: { title: string; note: string; href: string; children: ReactNode }): ReactNode {
   return (
-    <TextLink url={href}>{href.replace(/^https:\/\//, '')}</TextLink>
+    <Block>
+      <Col gap={2}>
+        <Text size="md">{title}</Text>
+        <Text size="xs" role="secondary">
+          {note}
+        </Text>
+      </Col>
+      <TextLink url={href}>{href.replace(/^https:\/\//, '')}</TextLink>
+      {children}
+    </Block>
   );
 }
 
@@ -75,10 +89,9 @@ function ChoiceSetting<T extends string>({ title, note, value, options, patch, s
       });
   };
   return (
-    <SettingsSection title={title} note={note}>
+    <Control title={title} note={note} error={error}>
       <Choice label={title} value={value} options={options} disabled={busy} onChange={pick} />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </SettingsSection>
+    </Control>
   );
 }
 
@@ -121,58 +134,53 @@ function ApiKey({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
   });
   const saving = useSave({ initial: '', valid: (v) => v !== '', run: (apiKey) => save({ apiKey }), failure: 'Could not save the key.' });
   return (
-    <SettingsSection title={`${providerName(voice.provider)} API key`} note={KEY_NOTE}>
-      <Link href={ELEVENLABS_KEYS_URL} />
-      <SaveField saving={saving} name="voice-api-key" label="API key" placeholder={voice.hasKey ? 'stored on the daemon, paste to replace' : 'paste the key'} secret />
-    </SettingsSection>
+    <FieldBlock title={`${providerName(voice.provider)} API key`} note={KEY_NOTE} href={ELEVENLABS_KEYS_URL}>
+      <SaveField saving={saving} name="voice-api-key" label="API key" placeholder={voice.hasKey ? 'Saved. Paste a new key to replace it.' : 'Paste the key'} secret />
+    </FieldBlock>
   );
 }
 
 function VoiceId({ voice, set }: { voice: VoiceSettings; set: Set }): ReactNode {
   const saving = useSave({ initial: voice.voiceId, valid: () => true, run: (voiceId) => saver(set)({ voiceId }), failure: 'Could not save the voice.' });
   return (
-    <SettingsSection title="Voice" note={VOICE_NOTE}>
-      <Link href={ELEVENLABS_VOICES_URL} />
+    <FieldBlock title="Voice" note={VOICE_NOTE} href={ELEVENLABS_VOICES_URL}>
       <SaveField saving={saving} name="voice-id" label="Voice ID" placeholder={voice.defaults.voiceId} />
-    </SettingsSection>
+    </FieldBlock>
   );
 }
 
 function VoiceBody(): ReactNode {
-  const { voice, error, set } = useVoice();
-  if (error !== null && error !== undefined) return <Text size="md" role="danger">{queryError(error, 'Could not read the voice settings.')}</Text>;
-  if (voice === undefined) return <Loading />;
+  const { voice, error, retry, set } = useVoice();
+  if (voice === undefined)
+    return error === null ? <RowsSkeleton rows={3} leading={false} /> : <ErrorState title="Could not read the voice settings" text={queryError(error, 'The agent did not answer.')} onRetry={retry} />;
   return (
-    <Col gap={32}>
-      <SettingsGroup>
+    <>
+      <Group label="Calls">
         <AnswerCalls voice={voice} set={set} />
-        <SettingsSection title="Provider" compact>
-          <Text size="md" role="secondary">{providerName(voice.provider)}</Text>
-        </SettingsSection>
+        <Item title="Provider" value={providerName(voice.provider)} />
         <ApiKey voice={voice} set={set} />
-      </SettingsGroup>
-      <SettingsGroup>
+      </Group>
+      <Group label="Voice">
         <VoiceId voice={voice} set={set} />
         {voice.language === null ? null : <VoiceLanguage voice={voice} set={set} />}
-      </SettingsGroup>
-    </Col>
+      </Group>
+    </>
   );
 }
 
-function VoiceGate(): ReactNode {
+function VoiceGate({ project }: { project: string }): ReactNode {
   const mode = useModeQuery();
-  if (mode.data === undefined) return mode.error === null ? <Loading /> : <VoiceBody />;
-  if (olderThan(mode.data.version, VOICE_SINCE)) return <EmptyCard text={`Needs metro ${VOICE_SINCE}. Update first, from the Server page.`} />;
+  if (mode.data === undefined) return mode.error === null ? <RowsSkeleton rows={3} leading={false} /> : <VoiceBody />;
+  if (olderThan(mode.data.version, VOICE_SINCE))
+    return <Item title={`Needs Metro ${VOICE_SINCE}`} subtitle="Update it first: open Settings, then Metro version under Server." href={routeHash({ kind: 'agent-settings', project })} />;
   return <VoiceBody />;
 }
 
-export function VoicePage(): ReactNode {
-  useDocumentTitle('Voice');
+export function VoicePage({ project }: { project: string }): ReactNode {
+  useDocumentTitle('Voice calls');
   return (
-    <Col gap={32}>
-      <PageTitle>Voice</PageTitle>
-      <Text size="md" role="secondary">{INTRO}</Text>
-      <VoiceGate />
-    </Col>
+    <AgentDeepPage project={project} tab="chats" trail={[{ label: 'Voice calls' }]} title="Voice calls" lead={INTRO}>
+      <VoiceGate project={project} />
+    </AgentDeepPage>
   );
 }

@@ -2,9 +2,11 @@ import { type ReactNode, useState } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { ResourceChart } from './ResourceChart.js';
-import { SettingsGroup, SettingsPad } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Block } from './settings/rows.js';
 import { queryError, useUsageQuery } from '../lib/queries.js';
 import { creditsLabel, healthOf, percentLabel, RESOURCE_RANGES, type ResourceRange, type Series, type UsageCharts } from '@metro-labs/client/api/resources';
 
@@ -12,7 +14,7 @@ const WARN = 90;
 
 function Note({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
-    <Text size="md" role={danger ? 'danger' : 'secondary'}>
+    <Text size="xs" role={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   );
@@ -47,7 +49,7 @@ export function ServerResources({ serverId }: { serverId: string }): ReactNode {
   if (data === null) return null;
   const body =
     data === undefined ? (
-      query.error === null ? <Loading /> : <Note text={queryError(query.error, 'Could not read the usage of this server.')} danger />
+      query.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the usage of this server" text={queryError(query.error, 'Metro did not answer.')} onRetry={query.refetch} />
     ) : data.available ? (
       <Charts usage={data} range={range} />
     ) : (
@@ -55,8 +57,8 @@ export function ServerResources({ serverId }: { serverId: string }): ReactNode {
     );
   const choice = data?.available === false ? undefined : <Choice label="Time range" value={range} options={RESOURCE_RANGES} onChange={setRange} />;
   return (
-    <SettingsGroup title="Usage" action={choice}>
-      <SettingsPad>{body}</SettingsPad>
-    </SettingsGroup>
+    <Group label="Usage" action={choice}>
+      <Block>{body}</Block>
+    </Group>
   );
 }

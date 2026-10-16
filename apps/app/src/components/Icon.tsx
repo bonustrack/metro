@@ -12,6 +12,7 @@ import { IconChevronGrabberVertical } from '@central-icons-react-native/round-ou
 import { IconChevronRight } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronRight';
 import { IconChip } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChip';
 import { IconCircleBanSign } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCircleBanSign';
+import { IconCircleCheck } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCircleCheck';
 import { IconClock } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconClock';
 import { IconPause } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPause';
 import { IconPlay } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlay';
@@ -32,10 +33,24 @@ import { IconPeople } from '@central-icons-react-native/round-outlined-radius-1-
 import { IconPlusLarge } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlusLarge';
 import { IconServer } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconServer';
 import { IconSettingsGear2 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSettingsGear2';
+import { IconShield } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconShield';
 import { IconShieldCheck } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconShieldCheck';
 import { IconSparklesThree } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparklesThree';
 import { IconSquarePlus } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquarePlus';
 import { IconSun } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSun';
+import { IconRobot } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconRobot';
+import { IconPlugin1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPlugin1';
+import { IconSparkle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSparkle';
+import { IconChevronLeft } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronLeft';
+import { IconChevronDownSmall } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChevronDownSmall';
+import { IconAnimatePath } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconAnimatePath';
+import { IconArrowRotateClockwise } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowRotateClockwise';
+import { IconArrowUpCircle } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowUpCircle';
+import { IconConsole } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconConsole';
+import { IconCrossMedium } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCrossMedium';
+import { IconMagnifyingGlass } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMagnifyingGlass';
+import { IconSquareBehindSquare1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquareBehindSquare1';
+import { IconUserAdd } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconUserAdd';
 import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
@@ -48,13 +63,18 @@ const ICONS = {
   chartBar: IconChart3,
   chat: IconBubble3,
   check: IconCheckmark1,
+  checkCircle: IconCircleCheck,
+  chevronDown: IconChevronDownSmall,
+  chevronLeft: IconChevronLeft,
   chevronRight: IconChevronRight,
   chip: IconChip,
   cog: IconSettingsGear2,
   clock: IconClock,
   pause: IconPause,
+  plug: IconPlugin1,
   play: IconPlay,
   question: IconQuestionmarkCircle,
+  robot: IconRobot,
   desktop: IconImac,
   documentText: IconFileText,
   dotsHorizontal: IconDotGrid1x3Horizontal,
@@ -69,13 +89,23 @@ const ICONS = {
   plus: IconPlusLarge,
   selector: IconChevronGrabberVertical,
   server: IconServer,
+  shield: IconShield,
   shieldCheck: IconShieldCheck,
+  sparkle: IconSparkle,
   sparkles: IconSparklesThree,
   sun: IconSun,
   user: IconPeople,
   users: IconGroup1,
   viewGrid: IconGrid,
   viewGridAdd: IconSquarePlus,
+  close: IconCrossMedium,
+  copy: IconSquareBehindSquare1,
+  refresh: IconArrowRotateClockwise,
+  route: IconAnimatePath,
+  search: IconMagnifyingGlass,
+  terminal: IconConsole,
+  update: IconArrowUpCircle,
+  userAdd: IconUserAdd,
 };
 
 export type IconName = keyof typeof ICONS;

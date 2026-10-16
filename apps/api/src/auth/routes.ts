@@ -290,8 +290,15 @@ async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDe
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
   const mine = await userOrganizations(cfg, session.userId);
   if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
-  log.info({ user: session.userId, organization }, 'auth: switched organization');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
+  try {
+    const payload = await tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
+    log.info({ user: session.userId, organization }, 'auth: switched organization');
+    return payload;
+  } catch (err) {
+    log.warn({ user: session.userId, organization, err: errMsg(err) }, 'auth: the organization switch failed');
+    if (err instanceof WorkosError) throw refreshRefusal(err);
+    throw err;
+  }
 }
 
 async function agentsPayload(deps: AuthApiDeps, organization: string): Promise<{ agents?: Record<string, unknown>[] }> {

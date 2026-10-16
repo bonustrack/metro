@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import { Link } from 'expo-router';
 import { pathOfHash } from '../lib/location.js';
 import { useHover } from './ui/hover.js';
@@ -12,25 +12,39 @@ interface RouteLinkProps {
   disabled?: boolean;
   replace?: boolean;
   onPress?: (event: { preventDefault: () => void }) => void;
-  onHoverIn?: () => void;
+  onHoverIn?: (event: { currentTarget: unknown }) => void;
+  onHoverOut?: () => void;
   children: ReactNode;
 }
 
-export function RouteLink({ to, label, style, hoverStyle, disabled = false, replace = false, onPress, onHoverIn, children }: RouteLinkProps): ReactNode {
+type LinkPressProps = PressableProps & { onClick?: PressableProps['onPress'] };
+
+function LinkPress({ onClick, onPress, ...props }: LinkPressProps): ReactNode {
+  return <Pressable {...props} onPress={onClick ?? onPress} />;
+}
+
+export function RouteLink({ to, label, style, hoverStyle, disabled = false, replace = false, onPress, onHoverIn, onHoverOut, children }: RouteLinkProps): ReactNode {
   const [hovered, hover] = useHover();
-  const enter = (): void => {
+  const enter = (event: { currentTarget: unknown }): void => {
     hover.onHoverIn();
-    onHoverIn?.();
+    onHoverIn?.(event);
   };
-  const body = (
-    <Pressable accessibilityLabel={label} disabled={disabled} onHoverIn={enter} onHoverOut={hover.onHoverOut} style={StyleSheet.flatten([style, hovered && !disabled ? hoverStyle : null])}>
-      {children}
-    </Pressable>
-  );
-  if (disabled) return body;
+  const leave = (): void => {
+    hover.onHoverOut();
+    onHoverOut?.();
+  };
+  const frame = StyleSheet.flatten([style, hovered && !disabled ? hoverStyle : null]);
+  if (disabled)
+    return (
+      <Pressable accessibilityLabel={label} disabled onHoverIn={enter} onHoverOut={leave} style={frame}>
+        {children}
+      </Pressable>
+    );
   return (
     <Link href={pathOfHash(to)} asChild push={!replace} replace={replace} onPress={onPress}>
-      {body}
+      <LinkPress accessibilityLabel={label} onHoverIn={enter} onHoverOut={leave} style={frame}>
+        {children}
+      </LinkPress>
     </Link>
   );
 }

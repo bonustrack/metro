@@ -1,12 +1,14 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { Spinner } from './Spinner.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Dropdown } from './Dropdown.js';
 import { ConfirmModal } from './ConfirmModal.js';
-import { FactRow, SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { Control, Fact, NoteRow } from './settings/rows.js';
 import { orgKey, queryError, useStorageQuery } from '../lib/queries.js';
 import { applying, diskText, growDisk, growRunning, growText, monthlyDisk, type GrowJob, type StorageView } from '@metro-labs/client/api/storage';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -67,15 +69,11 @@ function confirmLines(view: Growable, sizeGib: number): string[] {
   ];
 }
 
-function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
+function Notice({ text }: { text: string }): ReactNode {
   return (
-    <SettingsGroup title={TITLE}>
-      <SettingsPad>
-        <Text size="md" role={danger ? 'danger' : 'secondary'}>
-          {text}
-        </Text>
-      </SettingsPad>
-    </SettingsGroup>
+    <Group label={TITLE}>
+      <NoteRow text={text} />
+    </Group>
   );
 }
 
@@ -83,25 +81,26 @@ function JobRow({ job }: { job: GrowJob }): ReactNode {
   const palette = useKitPalette();
   const running = growRunning(job);
   return (
-    <SettingsSection title={running ? 'Growing' : 'Last change'} leading={running ? <Spinner color={palette.link} /> : undefined}>
-      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
-        {growText(job)}
-      </Text>
-    </SettingsSection>
+    <Item
+      title={running ? 'Growing' : 'Last change'}
+      subtitle={growText(job)}
+      subtitleTone={job.phase === 'failed' ? 'danger' : 'secondary'}
+      trailing={running ? <Spinner color={palette.link} /> : undefined}
+    />
   );
 }
 
 function Controls({ view, onPick }: { view: Growable; onPick: (sizeGib: number) => void }): ReactNode {
   if (growRunning(view.job)) return null;
-  if (activeAccount()?.role !== 'admin') return <SettingsSection title={GROW_TITLE} note={MEMBER_NOTE}>{null}</SettingsSection>;
+  if (activeAccount()?.role !== 'admin') return <Control title={GROW_TITLE} note={MEMBER_NOTE} />;
   if (applying(view.modification)) {
     const progress = view.modification?.progress ?? 0;
-    return <SettingsSection title={GROW_TITLE} note={`AWS is still applying the last change (${String(progress)}%). You can grow it again after.`}>{null}</SettingsSection>;
+    return <Control title={GROW_TITLE} note={`AWS is still applying the last change (${String(progress)}%). You can grow it again after.`} />;
   }
-  if (view.state !== 'running' && view.state !== 'stopped') return <SettingsSection title={GROW_TITLE} note={WAIT_NOTE}>{null}</SettingsSection>;
-  if (view.options.length === 0) return <SettingsSection title={GROW_TITLE} note={NO_BIGGER}>{null}</SettingsSection>;
+  if (view.state !== 'running' && view.state !== 'stopped') return <Control title={GROW_TITLE} note={WAIT_NOTE} />;
+  if (view.options.length === 0) return <Control title={GROW_TITLE} note={NO_BIGGER} />;
   return (
-    <SettingsSection title={GROW_TITLE} note={GROW_NOTE}>
+    <Control title={GROW_TITLE} note={GROW_NOTE}>
       <Dropdown
         label="Disk sizes"
         button={{ label: 'Choose a size', color: 'secondary', size: 'sm' }}
@@ -112,7 +111,7 @@ function Controls({ view, onPick }: { view: Growable; onPick: (sizeGib: number) 
           },
         }))}
       />
-    </SettingsSection>
+    </Control>
   );
 }
 
@@ -125,8 +124,8 @@ function GrowableStorage({ serverId, view }: { serverId: string; view: Growable 
     grow.clear();
   };
   return (
-    <SettingsGroup title={TITLE}>
-      <FactRow label="Disk" value={diskText(view.sizeGib, view.type, view.gbMonthUsd)} />
+    <Group label={TITLE}>
+      <Fact label="Disk" value={diskText(view.sizeGib, view.type, view.gbMonthUsd)} />
       {view.job === null ? null : <JobRow job={view.job} />}
       <Controls view={view} onPick={setPicked} />
       {picked === null ? null : (
@@ -146,7 +145,7 @@ function GrowableStorage({ serverId, view }: { serverId: string; view: Growable 
           }}
         />
       )}
-    </SettingsGroup>
+    </Group>
   );
 }
 
@@ -155,8 +154,11 @@ export function ServerStorageSection({ serverId, launchedOnly = false }: { serve
   if (storage.data === null) return null;
   if (launchedOnly && storage.data?.growable !== true) return null;
   if (storage.data === undefined) {
-    if (storage.error === null) return <Loading />;
-    return <Notice text={queryError(storage.error, 'Could not read the disk of this server.')} danger />;
+    return (
+      <Group label={TITLE}>
+        {storage.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the disk of this server" text={queryError(storage.error, 'Metro did not answer.')} onRetry={storage.refetch} />}
+      </Group>
+    );
   }
   if (!storage.data.growable) return <Notice text={storage.data.reason} />;
   return <GrowableStorage serverId={serverId} view={storage.data} />;

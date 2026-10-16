@@ -1,17 +1,18 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
-import { Text } from '@stage-labs/kit/react-native/text';
+import { Modal, ModalText } from './Modal.js';
+import { Actions } from './ui/Actions.js';
 import { GROW } from '../lib/style.js';
-import { Modal } from './Modal.js';
 import { queryError } from '../lib/queries.js';
 
 interface NameModalProps {
   title: string;
   action: string;
   placeholder: string;
+  text?: string;
+  field?: string;
   initial?: string;
   failure: string;
   open: boolean;
@@ -19,16 +20,7 @@ interface NameModalProps {
   onSubmit: (name: string) => Promise<unknown>;
 }
 
-export function NameModal({
-  title,
-  action,
-  placeholder,
-  initial = '',
-  failure,
-  open,
-  onClose,
-  onSubmit,
-}: NameModalProps): ReactNode {
+export function NameModal({ title, action, placeholder, text, field = 'Name', initial = '', failure, open, onClose, onSubmit }: NameModalProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [name, setName] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -59,39 +51,10 @@ export function NameModal({
 
   return (
     <Modal title={title} open={open} onClose={close}>
-      <Col gap={14}>
-        <FormField label="Name"
-          name="name"
-          value={name}
-          placeholder={placeholder}
-          disabled={busy}
-          dark={dark}
-          onChangeText={setName}
-          onSubmit={submit}
-          style={GROW}
-        />
-        {error === null ? null : (
-          <Text size="md" role="danger">
-            {error}
-          </Text>
-        )}
-        <Row justify="between" align="center" gap={12} wrap>
-          <Button
-            color="secondary"
-            dark={dark}
-            disabled={busy}
-            onPress={close}
-            label="Cancel"
-          />
-          <Button size="lg"
-            color="primary"
-            dark={dark}
-            onPress={submit}
-            loading={busy}
-            disabled={busy || name.trim() === ''}
-            label={action}
-          />
-        </Row>
+      <Col gap={20}>
+        {text === undefined ? null : <ModalText>{text}</ModalText>}
+        <FormField label={field} name="name" value={name} placeholder={placeholder} disabled={busy} dark={dark} onChangeText={setName} onSubmit={submit} style={GROW} />
+        <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: action, busy, disabled: name.trim() === '', onPress: submit }} />
       </Col>
     </Modal>
   );

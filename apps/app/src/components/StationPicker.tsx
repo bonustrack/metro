@@ -1,43 +1,28 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { stationLabel } from '@metro-labs/client/api/attach';
+import { STATION_FORMS, stationLabel } from '@metro-labs/client/api/attach';
 import { StationIcon } from './StationIcon.js';
-
-const ICON_SIZE = 22;
-const ICON_GAP_EXTRA = 4;
-const FULL_WIDTH = { alignSelf: 'stretch' } as const;
+import { Rows } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { ICON_SIZE } from './ui/sizes.js';
 
 interface StationPickerProps {
   stations: string[];
-  disabled: boolean;
-  onPick: (station: string) => void;
+  hrefOf: (station: string) => string;
 }
 
-export function StationPicker({ stations, disabled, onPick }: StationPickerProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
+const lineOf = (station: string): string | undefined => {
+  const form = STATION_FORMS[station];
+  if (form === undefined) return undefined;
+  if (form.interactive) return `Sign in with ${form.provider ?? stationLabel(station)}`;
+  return form.fields.length === 0 ? 'Metro makes the address for you' : 'Paste its details';
+};
+
+export function StationPicker({ stations, hrefOf }: StationPickerProps): ReactNode {
   return (
-    <Col gap={10}>
+    <Rows>
       {stations.map((station) => (
-        <Button
-          key={station}
-          size="lg"
-          color="secondary"
-          dark={dark}
-          disabled={disabled}
-          label={stationLabel(station)}
-          icon={
-            <Row padding={{ right: ICON_GAP_EXTRA }}>
-              <StationIcon station={station} size={ICON_SIZE} />
-            </Row>
-          }
-          style={FULL_WIDTH}
-          onPress={() => {
-            onPick(station);
-          }}
-        />
+        <Item key={station} title={stationLabel(station)} subtitle={lineOf(station)} leading={<StationIcon station={station} size={ICON_SIZE.lg} />} href={hrefOf(station)} />
       ))}
-    </Col>
+    </Rows>
   );
 }

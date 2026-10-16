@@ -54,10 +54,11 @@ interface ConfirmDialogProps {
   title: string;
   lines: string[];
   action: string;
+  name?: string;
   word?: string;
 }
 
-export function ConfirmDialog({ confirming, title, lines, action, word = DELETE_WORD }: ConfirmDialogProps): ReactNode {
+export function ConfirmDialog({ confirming, title, lines, action, name, word = name ?? DELETE_WORD }: ConfirmDialogProps): ReactNode {
   return (
     <ConfirmModal
       open={confirming.open}
@@ -86,7 +87,7 @@ export function DeleteMenu({ label, item, items = [], failure, run, onDone, ...d
   const confirming = useConfirm(run, failure, onDone);
   return (
     <>
-      <KebabMenu label={label} size="lg" items={[...items, { label: item ?? dialog.action, danger: true, onSelect: confirming.show }]} />
+      <KebabMenu label={label} items={[...items, { label: item ?? dialog.action, danger: true, onSelect: confirming.show }]} />
       <ConfirmDialog confirming={confirming} {...dialog} />
     </>
   );

@@ -23,12 +23,16 @@ export async function fetchLatestUsage(): Promise<Record<string, LatestUsage>> {
   return toLatestUsage(await call({ method: 'GET', base: `${builtInDaemon()}/api/servers/usage` }));
 }
 
-export function latestLine(usage: LatestUsage): string {
+export function latestParts(usage: LatestUsage | undefined): string[] {
+  if (usage === undefined) return [];
   const parts: [string, number | null][] = [
     ['CPU', usage.cpu],
     ['Mem', usage.memory],
-    ['Disk', usage.disk],
   ];
-  const shown = parts.flatMap(([label, value]) => (value === null ? [] : [`${label} ${percentLabel(value)}`]));
+  return parts.flatMap(([label, value]) => (value === null ? [] : [`${label} ${percentLabel(value)}`]));
+}
+
+export function latestLine(usage: LatestUsage): string {
+  const shown = [...latestParts(usage), ...(usage.disk === null ? [] : [`Disk ${percentLabel(usage.disk)}`])];
   return shown.length === 0 ? 'No data' : shown.join(' · ');
 }

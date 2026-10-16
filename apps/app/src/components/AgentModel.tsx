@@ -1,22 +1,7 @@
-import { type ReactNode } from 'react';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { RouteLink } from './RouteLink.js';
-import { ProviderLogo } from './ProviderLogo.js';
-import { ModelReadError, UsageBar, UsageUnavailable } from './ModelUsage.js';
-import { limitingWindow, limitNote, modelWindows, usageDetail, usageModel, usageReported, USAGE_LIMIT } from '@metro-labs/client/api/model-usage';
-import type { ConnectionRow, ModelSettings, Provider } from '@metro-labs/client/api/model';
+import type { ConnectionRow } from '@metro-labs/client/api/model';
 import type { ModelOption } from '@metro-labs/client/api/model-options';
-import { DEFAULT_MODEL, providerInfo, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
-import { useConnectionModelsQuery, useModelQuery } from '../lib/model-queries.js';
-import { routeHash } from '@metro-labs/client/route';
-import { type Selection } from '@metro-labs/client/selection';
-import { useNow } from '../lib/use-now.js';
-
-const LOGO_SIZE = 28;
-const NO_MODEL = 'No model yet';
-
+import { DEFAULT_MODEL } from '@metro-labs/client/api/providers';
+import { useConnectionModelsQuery } from '../lib/model-queries.js';
 
 export function nameIn(options: ModelOption[] | undefined, model: string): string {
   if (model === '') return DEFAULT_MODEL;
@@ -29,74 +14,4 @@ export function nameIn(options: ModelOption[] | undefined, model: string): strin
 export function useModelName(conn: ConnectionRow | undefined, model: string): string {
   const models = useConnectionModelsQuery(conn);
   return conn === undefined ? DEFAULT_MODEL : nameIn(models.data, model);
-}
-
-export function CardUsage({ usage, provider, model }: { usage: ModelSettings['usage'][string] | undefined; provider: Provider; model: string }): ReactNode {
-  const now = useNow(15_000);
-  if (usage === undefined) return <UsageUnavailable provider={provider} />;
-  const window = limitingWindow(modelWindows(usage.windows, provider, model, now));
-  const blocked = (window?.used ?? 0) > USAGE_LIMIT;
-  const reported = usageReported(usage, now);
-  return (
-    <Col gap={4} margin={{ top: 4 }}>
-      {window === null ? (
-        <Text size="md" role="secondary">{usageDetail(usage, provider, model, now)}</Text>
-      ) : (
-        <Row gap={10} align="center" wrap>
-          <UsageBar used={window.used} blocked={blocked} />
-          <Text size="md" role="secondary">{limitNote(window)}</Text>
-          {blocked ? <Text size="md" role="secondary">Over the 95% switch limit</Text> : null}
-        </Row>
-      )}
-      {reported === null ? null : <Text size="md" role="secondary">{reported}</Text>}
-    </Col>
-  );
-}
-
-const CARD = { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderRadius: 8 } as const;
-
-function Card({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
-  const palette = useKitPalette();
-  const conn = routedConnection(settings);
-  const model = settings.route === null ? '' : usageModel(settings, settings.route.primary);
-  const name = useModelName(conn, model);
-  const account = conn?.account ?? null;
-  const usage = routedUsage(settings);
-  const frame = [CARD, { borderColor: palette.border }];
-  const hover = { borderColor: palette.sub };
-  return (
-    <RouteLink to={href} label="Model" style={frame} hoverStyle={hover}>
-      <ProviderLogo provider={providerInfo(conn?.provider)} size={LOGO_SIZE} />
-      <Col gap={2} flex={1} minWidth={0}>
-        <Text size="md" weight="semibold" numberOfLines={1}>
-          {settings.route === null ? NO_MODEL : name}
-        </Text>
-        {conn === undefined ? null : (
-          <Text size="md" role="secondary">
-            {[conn.label, account].filter((part): part is string => part !== null).join(' · ')}
-          </Text>
-        )}
-        <CardUsage usage={usage} provider={conn?.provider ?? 'anthropic'} model={model} />
-        {settings.reason !== null ? (
-          <Text size="md" role="danger">
-            {settings.reason}
-          </Text>
-        ) : null}
-      </Col>
-      <Text size="md" role="link">
-        Change
-      </Text>
-    </RouteLink>
-  );
-}
-
-export function AgentRoute({ project }: { project: string }): ReactNode {
-  const model = useModelQuery();
-  const target: Selection = { kind: 'model', project };
-  return (
-    <Col gap={8}>
-      <ModelReadError error={model.error} cached={model.data !== undefined} />
-      {model.data === undefined ? null : <Card settings={model.data} href={routeHash(target)} />}
-    </Col>
-  );
 }

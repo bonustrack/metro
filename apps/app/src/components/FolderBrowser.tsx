@@ -1,39 +1,20 @@
-import { Fragment, type ReactNode } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { Icon } from './Icon.js';
+import { type ReactNode } from 'react';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { LIST_ICON_SIZE, ListRow } from './ListRow.js';
-import { RouteLink } from './RouteLink.js';
+import { Icon } from './Icon.js';
+import { Item } from './ui/Item.js';
+import { Crumbs as Trail } from './ui/PageHeader.js';
+import { ICON_SIZE } from './ui/sizes.js';
 
 export interface Crumb {
   label: string;
   href: string;
 }
 
+const ICON = ICON_SIZE.md;
+
 export function Crumbs({ crumbs }: { crumbs: Crumb[] }): ReactNode {
   if (crumbs.length <= 1) return null;
-  return (
-    <Row gap={6} align="center" wrap>
-      {crumbs.map((crumb, at) => (
-        <Fragment key={`${String(at)}:${crumb.label}`}>
-          {at === 0 ? null : <Text size="xs" role="secondary">/</Text>}
-          {at === crumbs.length - 1 ? (
-            <Text size="xs" weight="medium">{crumb.label}</Text>
-          ) : (
-            <RouteLink to={crumb.href} label={crumb.label}>
-              <Text size="xs" role="secondary">{crumb.label}</Text>
-            </RouteLink>
-          )}
-        </Fragment>
-      ))}
-    </Row>
-  );
-}
-
-function EntryIcon({ folder }: { folder: boolean }): ReactNode {
-  const palette = useKitPalette();
-  return <Icon name={folder ? 'folder' : 'documentText'} size={LIST_ICON_SIZE} color={folder ? palette.link : palette.sub} />;
+  return <Trail items={crumbs.map((crumb, at) => (at === crumbs.length - 1 ? { label: crumb.label } : crumb))} />;
 }
 
 interface EntryRowProps {
@@ -41,9 +22,10 @@ interface EntryRowProps {
   detail: string;
   folder: boolean;
   href: string;
-  trailing?: ReactNode;
 }
 
-export function EntryRow({ name, detail, folder, href, trailing }: EntryRowProps): ReactNode {
-  return <ListRow title={name} detail={detail} href={href} icon={<EntryIcon folder={folder} />} trailing={trailing} />;
+export function EntryRow({ name, detail, folder, href }: EntryRowProps): ReactNode {
+  const palette = useKitPalette();
+  const icon = <Icon name={folder ? 'folder' : 'documentText'} size={ICON} color={folder ? palette.link : palette.sub} />;
+  return <Item title={name} subtitle={detail === '' ? undefined : detail} leading={icon} href={href} />;
 }

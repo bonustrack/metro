@@ -1,4 +1,5 @@
 import { type MemoryFile } from '@metro-labs/client/api/claude';
+import { plainTitle } from '../lib/routine-words.js';
 
 export interface MemoryFolder {
   path: string;
@@ -45,4 +46,37 @@ export function memoryTree(files: MemoryFile[]): MemoryFolder {
   return root;
 }
 
-export const fileLeaf = leafOf;
+export function folderAt(root: MemoryFolder, path: string): MemoryFolder | null {
+  let at: MemoryFolder | undefined = root;
+  for (const part of path.split('/').filter((p) => p !== '')) at = at?.folders.find((f) => f.name === part);
+  return at ?? null;
+}
+
+export const noteTitle = (name: string): string => plainTitle(leafOf(name).replace(/\.md$/i, '')) || name;
+
+export const parentOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
+
+function decoded(path: string): string | null {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+}
+
+function walk(from: string, path: string): string | null {
+  const parts = parentOf(from).split('/').filter((p) => p !== '');
+  for (const part of path.split('/')) {
+    if (part !== '..') {
+      if (part !== '.' && part !== '') parts.push(part);
+    } else if (parts.pop() === undefined) return null;
+  }
+  return parts.join('/');
+}
+
+export function noteLink(from: string, href: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('/') || href.startsWith('#')) return null;
+  const path = decoded(href.split(/[?#]/)[0] ?? '');
+  if (path === null || !path.toLowerCase().endsWith('.md')) return null;
+  return walk(from, path);
+}

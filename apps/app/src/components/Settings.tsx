@@ -1,45 +1,16 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { PageTitle } from './PageTitle.js';
-import { THEME_MODES, useThemeMode } from '../lib/theme.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
+import { Groups } from './ui/Group.js';
+import { PageHeader } from './ui/PageHeader.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { AccountSettings } from './AccountSettings.js';
 
 export function Settings(): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const { mode, setMode } = useThemeMode();
   useDocumentTitle('Settings');
   return (
-    <Col gap={16}>
-      <Col gap={8}>
-        <PageTitle>Settings</PageTitle>
-      </Col>
+    <Groups>
+      <PageHeader title="Settings" subtitle={activeAccount()?.user.email ?? undefined} />
       <AccountSettings />
-      <Col gap={12}>
-          <Col gap={2}>
-            <Text size="sm" weight="medium">Appearance</Text>
-            <Text size="md" role="secondary">
-              System follows your device setting and changes with it.
-            </Text>
-          </Col>
-          <Row gap={8} wrap>
-            {THEME_MODES.map((m) => (
-              <Button
-                key={m.mode}
-                size="md"
-                dark={dark}
-                color={m.mode === mode ? 'primary' : 'secondary'}
-                label={m.label}
-                onPress={() => {
-                  setMode(m.mode);
-                }}
-              />
-            ))}
-          </Row>
-      </Col>
-    </Col>
+    </Groups>
   );
 }

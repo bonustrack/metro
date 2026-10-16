@@ -82,9 +82,13 @@ describe('the organization connectors client', () => {
     expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'DELETE', body: undefined });
   });
 
-  test('tool discovery is a scoped GET and preserves vendor names and read-only hints', async () => {
-    serve({ tools: [{ name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false }, { name: 'fetch', readOnly: true }] });
-    expect(await fetchOrgConnectorTools(ROW.id)).toEqual([{ name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false }, { name: 'fetch', title: 'fetch', description: '', readOnly: true }]);
+  test('tool discovery is a scoped GET and preserves vendor names, hints and the input schema', async () => {
+    const inputSchema = { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] };
+    serve({ tools: [{ name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false, destructive: true, openWorld: true, inputSchema }, { name: 'fetch', readOnly: true, inputSchema: 'nope' }] });
+    expect(await fetchOrgConnectorTools(ROW.id)).toEqual([
+      { name: 'delete_file', title: 'Delete file', description: 'Deletes a file', readOnly: false, destructive: true, openWorld: true, inputSchema },
+      { name: 'fetch', title: 'fetch', description: '', readOnly: true, destructive: false, openWorld: false, inputSchema: null },
+    ]);
     expect(calls).toEqual([{ url: `${BASE}/${ROW.id}/tools`, method: 'GET', body: undefined }]);
   });
 

@@ -48,7 +48,7 @@ describe('a channel tool policy on the page', () => {
 });
 
 describe('Claude Code permission prompts on the page', () => {
-  test('a metro call reads as the tool, the channel it targets and its text', () => {
+  test('a metro call reads as the tool, its input and its text', () => {
     expect(
       approvalOf({
         id: 'abcde',
@@ -58,17 +58,30 @@ describe('Claude Code permission prompts on the page', () => {
         line: 'metro://discord-bot/d1/42',
         requestedAt: '2026-09-24T10:00:00.000Z',
       }),
-    ).toEqual({ id: 'abcde', tool: 'send', channel: 'telegram-bot', preview: '"hi"', requestedAt: '2026-09-24T10:00:00.000Z', inChat: true });
+    ).toEqual({
+      id: 'abcde',
+      name: 'mcp__metro__send',
+      tool: 'send',
+      preview: '"hi"',
+      input: { line: 'metro://telegram-bot/tb1/-100', text: 'hi' },
+      line: 'metro://discord-bot/d1/42',
+      requestedAt: '2026-09-24T10:00:00.000Z',
+      inChat: true,
+      fileBytes: [],
+    });
   });
 
   test('another tool keeps its name and raw input, and a prompt held for the page only says so', () => {
     expect(approvalOf({ id: 'bcdef', tool: 'Bash', preview: '{ "command": "ls" }', line: null, requestedAt: '' })).toEqual({
       id: 'bcdef',
+      name: 'Bash',
       tool: 'Bash',
-      channel: '',
       preview: '{ "command": "ls" }',
+      input: { command: 'ls' },
+      line: '',
       requestedAt: '',
       inChat: false,
+      fileBytes: [],
     });
     expect(approvalOf({ id: 'broken' })).toBeNull();
   });

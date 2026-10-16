@@ -6,15 +6,15 @@ export type WorkerFilter = 'all' | WorkerStatus;
 interface Mark { icon: IconName; color: 'info' | 'success' | 'danger' | null }
 
 export const WORKER_FILTERS = [
-  { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
-  { value: 'running', label: 'Running' }, { value: 'completed', label: 'Completed' },
+  { value: 'all', label: 'All' }, { value: 'pending', label: 'Waiting to start' },
+  { value: 'running', label: 'Working' }, { value: 'completed', label: 'Done' },
   { value: 'failed', label: 'Failed' }, { value: 'stopped', label: 'Stopped' },
-  { value: 'paused', label: 'Paused' }, { value: 'unknown', label: 'Unknown' },
+  { value: 'paused', label: 'Paused' }, { value: 'unknown', label: 'Not known' },
 ] as const;
 
-export function workerSelection<T extends { status: WorkerStatus }>(workers: T[], filter: WorkerFilter, expanded: boolean, narrow: boolean): { matching: T[]; shown: T[] } {
+export function workerSelection<T extends { status: WorkerStatus }>(workers: T[], filter: WorkerFilter, expanded: boolean): { matching: T[]; shown: T[] } {
   const matching = filter === 'all' ? workers : workers.filter((worker) => worker.status === filter);
-  return { matching, shown: expanded ? matching : narrow ? [] : matching.slice(0, 3) };
+  return { matching, shown: expanded ? matching : matching.slice(0, 3) };
 }
 
 export const WORKER_STATE: Record<WorkerStatus, Mark> = {

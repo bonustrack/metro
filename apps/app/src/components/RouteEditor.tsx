@@ -1,14 +1,12 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Button } from '@stage-labs/kit/react-native/button';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Modal } from './Modal.js';
 import { ModelStep } from './ModelStep.js';
 import { nameIn } from './AgentModel.js';
 import { connectionNote } from './ProviderCard.js';
 import { ConnectionStep, Step } from './RouteSteps.js';
-import { useStacked } from './SettingsSection.js';
+import { Actions } from './ui/Actions.js';
+import { Readable } from './ui/Layout.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
 import type { ModelRoute, RouteStep } from '@metro-labs/client/api/model-route';
 import { changesOf, draftOf, problemOf, routeAfter, slotTitle, withConnection, type RouteChange, type Slot } from '@metro-labs/client/api/route-edit';
@@ -36,24 +34,18 @@ interface FooterProps {
 }
 
 function Footer({ changes, problem, error, busy, onSave, onCancel }: FooterProps): ReactNode {
-  const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
-  const ready = changes.length > 0 && problem === null && !busy;
+  const ready = changes.length > 0 && problem === null;
   return (
-    <Col gap={10} padding={{ x: 16, top: 14 }} border={{ top: { width: 1, color: palette.border } }}>
-      {changes.length === 0 ? <Text size="md" role="secondary">{NO_CHANGE}</Text> : (
+    <Col gap={12}>
+      {changes.length === 0 ? <Text size="xs" role="secondary">{NO_CHANGE}</Text> : (
         <Col gap={4}>
           {changes.map((c) => (
-            <Text key={c.label} size="md" numberOfLines={2}>{c.from === '' ? `${c.label}: ${c.to}` : `${c.label}: ${c.from} → ${c.to}`}</Text>
+            <Text key={c.label} size="xs" numberOfLines={2}>{c.from === '' ? `${c.label}: ${c.to}` : `${c.label}: ${c.from} → ${c.to}`}</Text>
           ))}
         </Col>
       )}
-      {problem === null ? null : <Text size="md" role="danger">{problem}</Text>}
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      <Row gap={8} justify="end">
-        <Button size="md" color="secondary" dark={dark} label="Cancel" onPress={onCancel} />
-        <Button size="md" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={!ready} onPress={onSave} />
-      </Row>
+      {problem === null ? null : <Text size="xs" role="danger">{problem}</Text>}
+      <Actions error={error} cancel={{ onPress: onCancel, disabled: busy }} main={{ label: busy ? 'Saving…' : 'Save', busy, disabled: !ready, onPress: onSave }} />
     </Col>
   );
 }
@@ -94,8 +86,7 @@ function modelValue(draft: RouteStep, slot: Slot, name: (connection: string, mod
   return name(draft.connection, draft.model);
 }
 
-function Editor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClose: () => void }): ReactNode {
-  const sheet = useStacked();
+export function RouteEditor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClose: () => void }): ReactNode {
   const [draft, setDraft] = useState<RouteStep>(() => draftOf(scope.route, slot));
   const [open, setOpen] = useState<Open>(scope.connections.some((c) => c.id === draft.connection) ? 'model' : 'connection');
   const conn = scope.connections.find((c) => c.id === draft.connection);
@@ -107,10 +98,10 @@ function Editor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClo
     setDraft(withConnection(scope.connections, id));
     setOpen('model');
   };
-  const footer = <Footer changes={changesOf(scope.route, scope.connections, slot, draft, name)} problem={conn === undefined ? null : problem} error={error} busy={busy} onSave={save} onCancel={onClose} />;
   return (
-    <Modal title={slotTitle(slot)} open onClose={onClose} footer={footer} side={sheet ? 'bottom' : 'center'}>
-      <Col padding={{ top: 4, bottom: 12 }}>
+    <Readable gap={16}>
+      <Text accessibilityRole="header" size="xs" role="secondary">{slotTitle(slot)}</Text>
+      <Col>
         <Step n={1} title="Connection" value={connectionValue(conn)} open={open === 'connection'} done={conn !== undefined} onOpen={() => { setOpen('connection'); }}>
           <ConnectionStep connections={scope.connections} draft={draft} empty={scope.empty} onPick={pickConnection} />
         </Step>
@@ -118,11 +109,7 @@ function Editor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot; onClo
           {conn === undefined ? null : <ModelStep conn={conn} model={draft.model} onPick={(model) => { setDraft((d) => ({ ...d, model })); }} />}
         </Step>
       </Col>
-    </Modal>
+      <Footer changes={changesOf(scope.route, scope.connections, slot, draft, name)} problem={conn === undefined ? null : problem} error={error} busy={busy} onSave={save} onCancel={onClose} />
+    </Readable>
   );
-}
-
-export function RouteEditor({ scope, slot, onClose }: { scope: RouteScope; slot: Slot | null; onClose: () => void }): ReactNode {
-  if (slot === null) return null;
-  return <Editor scope={scope} slot={slot} onClose={onClose} />;
 }

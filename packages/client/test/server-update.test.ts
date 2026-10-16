@@ -34,7 +34,7 @@ describe('an agent restarting after an update', () => {
   test('reads as updating while it does not answer, until it answers on the new version', () => {
     noteUpdate(BASE, 'v2', 0);
     expect(duringUpdate(BASE, live('v1'), MINUTE / 2)).toEqual(live('v1'));
-    expect(duringUpdate(BASE, offline, MINUTE).state).toBe('updating');
+    expect(duringUpdate(BASE, offline, MINUTE)).toEqual({ ...offline, state: 'updating', updatingTo: 'v2' });
     expect(duringUpdate('https://other.tail1234.ts.net', offline, MINUTE).state).toBe('offline');
     expect(duringUpdate(BASE, live('v2'), 2 * MINUTE)).toEqual(live('v2'));
     expect(duringUpdate(BASE, offline, 3 * MINUTE).state).toBe('offline');

@@ -1,16 +1,10 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { fetchMode } from '@metro-labs/client/api/mode';
 import { releaseAvailability } from '@metro-labs/client/api/metro-release';
 import { olderThan } from '@metro-labs/client/api/version';
 import { runUpdate } from '@metro-labs/client/api/update';
 import { daemonBase } from '@metro-labs/client/auth/daemon';
-import { SHRINK } from '../lib/style.js';
-import { SettingsSection } from './SettingsSection.js';
 import { queryError, useModeQuery, useUpdateQuery } from '../lib/queries.js';
 import { useMetroRelease } from '../lib/metro-release.js';
 
@@ -27,7 +21,7 @@ async function untilVersion(version: string, base: string): Promise<void> {
   throw new Error(`Metro is not back on ${version} yet. Check the machine.`);
 }
 
-function useMetroUpdate() {
+export function useMetroUpdate() {
   const client = useQueryClient();
   const mode = useModeQuery({ live: true });
   const check = useUpdateQuery();
@@ -61,18 +55,10 @@ function useMetroUpdate() {
   return { mode, check, release, busy, status, error, update, refresh };
 }
 
-function UpdateButtons({ u, newer }: { u: ReturnType<typeof useMetroUpdate>; newer: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return <Row gap={8} wrap>
-    <Button size="sm" color="secondary" dark={dark} label="Check for updates" disabled={u.busy || u.release.isFetching || u.mode.isFetching || u.check.isFetching} onPress={u.refresh} />
-    {newer ? <Button size="sm" color="primary" dark={dark} label="Update" disabled={u.busy} onPress={u.update} /> : null}
-  </Row>;
-}
-
-type MetroUpdate = ReturnType<typeof useMetroUpdate>;
+export type MetroUpdate = ReturnType<typeof useMetroUpdate>;
 const staleQuery = (query: { isError: boolean; dataUpdatedAt: number }, now: number): boolean => query.isError || now - query.dataUpdatedAt > 120_000 || query.dataUpdatedAt > now;
 
-function versionFacts(u: MetroUpdate) {
+export function versionFacts(u: MetroUpdate) {
   const now = Date.now();
   const version = u.mode.data?.version ?? null;
   const modeStale = staleQuery(u.mode, now);
@@ -82,41 +68,6 @@ function versionFacts(u: MetroUpdate) {
   return { version, modeStale, availability, installed, restart };
 }
 
-function versionNote(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): string {
-  const { version, modeStale, availability, installed, restart } = facts;
-  const state = modeStale ? 'Running version unavailable or stale' : availability.label;
-  const release = u.release.data;
-  const latest = release === undefined ? '' : ` Latest reported release ${release.latest}. Last checked ${new Date(release.checkedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}.`;
-  return `${version === null ? 'Version unavailable.' : `Running ${version}.`} ${state}.${latest}${restart ? ` Installed ${installed}; restart Metro to run it.` : ''}`;
-}
-
-function updateOffered(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): boolean {
+export function updateOffered(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): boolean {
   return !facts.modeStale && facts.availability.kind === 'newer' && (facts.installed === null || olderThan(facts.installed, u.release.data?.latest ?? ''));
-}
-
-function updateQuiet(facts: ReturnType<typeof versionFacts>, u: MetroUpdate): boolean {
-  return u.status === null && u.error === null && !facts.restart && facts.availability.kind === 'current' && !facts.modeStale;
-}
-
-function UpdateDetails({ u }: { u: MetroUpdate }): ReactNode {
-  return <Col gap={6} style={SHRINK}>
-    {u.status === null ? null : <Text size="md">{u.status}</Text>}
-    {u.error === null ? null : <Text size="md" role="danger">{u.error}</Text>}
-    {u.check.isError ? <Text size="md" role="secondary">Could not check the installed package version.</Text> : null}
-  </Col>;
-}
-
-export function MetroVersion({ quiet = false }: { quiet?: boolean }): ReactNode {
-  const u = useMetroUpdate();
-  const facts = versionFacts(u);
-  const note = versionNote(facts, u);
-  const details = <UpdateDetails u={u} />;
-  const buttons = <UpdateButtons u={u} newer={updateOffered(facts, u)} />;
-  if (quiet) {
-    if (updateQuiet(facts, u)) return null;
-    return <Col gap={12} padding={16} radius={8} surface="raised">
-      <Text size="md">{note}</Text>{details}{buttons}
-    </Col>;
-  }
-  return <SettingsSection title="Version" note={note}>{buttons}{details}</SettingsSection>;
 }

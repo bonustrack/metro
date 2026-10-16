@@ -16,7 +16,7 @@ import { OrganizationSetup } from './OrganizationSetup.js';
 import { SignInReturn } from './SignInReturn.js';
 import { UnlockedPage } from './UnlockedPage.js';
 import { OrganizationGate } from './gates.js';
-import { makeQueryClient } from '../lib/queries.js';
+import { dropStaleQueries, makeQueryClient } from '../lib/queries.js';
 import { noteTitle } from '../lib/title.js';
 import { onRelaunch } from '../lib/land.js';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,6 +81,7 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
     setPhase('unlocked');
   };
   const [client] = useState(() => makeQueryClient(lock));
+  useEffect(() => dropStaleQueries(client), [client]);
   useEffect(() => {
     if (phase === 'login') {
       client.clear();

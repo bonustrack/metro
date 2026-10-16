@@ -1,21 +1,22 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { awaitLive, startDaemon } from '@metro-labs/client/api/control';
-import { daemonBase, daemonHost } from '@metro-labs/client/auth/daemon';
-import { routeHash } from '@metro-labs/client/route';
-import { TextLink } from './TextLink.js';
-import { queryError } from '../lib/queries.js';
+import { serverLabel } from '@metro-labs/client/api/servers';
+import { currentServer } from '@metro-labs/client/auth/daemon';
+import { StateBlock } from './ui/StateBlock.js';
+import { queryError, useServersQuery } from '../lib/queries.js';
 
-const NOTICE_WIDTH = 480;
-const CENTER_SELF = { alignSelf: 'center' } as const;
+function useName(): string {
+  const servers = useServersQuery();
+  const here = currentServer();
+  const server = servers.data?.find((s) => s.id === here?.id);
+  return server === undefined ? 'This agent' : serverLabel(server);
+}
 
 export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNode {
   const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
+  const name = useName();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const start = (): void => {
@@ -28,26 +29,16 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
         onStarted();
       })
       .catch((err: unknown) => {
-        setError(queryError(err, 'Could not start metro.'));
+        setError(queryError(err, 'Could not start Metro.'));
       })
       .finally(() => {
         setBusy(false);
       });
   };
   return (
-    <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={16} align="center" width="100%" maxWidth={NOTICE_WIDTH}>
-        <Text size="xs" role="secondary">
-          metro is stopped on {daemonHost(daemonBase())}. metro serve is still holding the address, so it can start from here.
-        </Text>
-        <Button dark={dark} label={busy ? 'Starting…' : 'Start metro'} loading={busy} disabled={busy} onPress={start} style={CENTER_SELF} />
-        {error !== null ? (
-          <Text size="md" role="danger">
-            {error}
-          </Text>
-        ) : null}
-        <TextLink to={routeHash({ kind: 'servers' })}>All agents</TextLink>
-      </Col>
-    </Row>
+    <StateBlock icon="pause" title={`${name} is stopped`} text="Metro is stopped on its server. It can start again from here."
+      action={{ label: `Start ${name}`, primary: true, busy, onPress: start }}>
+      {error === null ? null : <Text size="xs" role="danger">{error}</Text>}
+    </StateBlock>
   );
 }

@@ -16,7 +16,7 @@ const EMPTY: RouteStep = { connection: '', model: '' };
 
 const connectionOf = (connections: ConnectionRow[], id: string): ConnectionRow | undefined => connections.find((c) => c.id === id);
 
-export const slotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Primary model' : slot.kind === 'new' ? 'Add a fallback' : `Fallback ${String(slot.at + 1)}`);
+export const slotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Main model' : slot.kind === 'new' ? 'Add a backup' : `Backup ${String(slot.at + 1)}`);
 
 export function draftOf(route: ModelRoute | null, slot: Slot): RouteStep {
   if (slot.kind === 'fallback') return route?.fallbacks[slot.at] ?? EMPTY;
@@ -49,7 +49,7 @@ function others(route: ModelRoute | null, slot: Slot): RouteStep[] {
 
 function modelProblem(slot: Slot, model: string): string | null {
   if (model !== '') return null;
-  return slot.kind === 'primary' ? 'Choose a model.' : 'Choose a named model for a fallback.';
+  return slot.kind === 'primary' ? 'Choose a model.' : 'Choose a named model for a backup.';
 }
 
 function zdrProblem(conn: ConnectionRow, model: string, models: ModelOption[]): string | null {

@@ -76,17 +76,19 @@ const switches = (): unknown[] => calls.filter((call) => call.path.endsWith('/sw
 const outcome = (pending: Promise<unknown>): Promise<unknown> => pending.catch((error: unknown) => error);
 
 describe('source-preserving organization access for the dashboard', () => {
-  test('members get only the destination bearer, with no selected organization or agent change and no destination persistence', async () => {
+  test('members get only the destination bearer with one rotation, no switch back, no selected organization or agent change and no destination persistence', async () => {
     const scope = accountScopeIdentity();
     const selected = currentServer();
+    const source = activeAccount()?.accessToken;
     const token = await scopedOrganizationAccessToken(TARGET);
     expect(token).toBe(testToken({ org_id: TARGET, role: 'member' }));
-    expect(switches()).toEqual([TARGET, SOURCE]);
-    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1']);
+    expect(switches()).toEqual([TARGET]);
+    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test']);
     expect(calls.every((call) => call.init.redirect === 'error' && call.init.signal instanceof AbortSignal)).toBe(true);
     expect(persisted.map((account) => account.organization)).toEqual([SOURCE, SOURCE]);
     expect(persisted.some((account) => account.accessToken === token)).toBe(false);
-    expect(activeAccount()?.refreshToken).toBe('rt_2');
+    expect(activeAccount()?.refreshToken).toBe('rt_1');
+    expect(activeAccount()?.accessToken).toBe(source);
     expect(activeAccount()?.organization).toBe(SOURCE);
     expect(accountScopeIdentity()).toBe(scope);
     expect(currentServer()).toBe(selected);
@@ -97,20 +99,20 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(calls).toHaveLength(0);
   });
 
-  test('singleflight shares simultaneous reads but retains no completed token cache', async () => {
+  test('singleflight shares simultaneous reads and keeps each organization token until it expires', async () => {
     const tokens = await Promise.all([scopedOrganizationAccessToken(TARGET), scopedOrganizationAccessToken(TARGET), scopedOrganizationAccessToken(OTHER)]);
     expect(tokens[0]).toBe(tokens[1]);
-    expect(switches()).toEqual([TARGET, SOURCE, OTHER, SOURCE]);
-    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1', 'rt_2', 'rt_3']);
-    await scopedOrganizationAccessToken(TARGET);
-    expect(switches()).toEqual([TARGET, SOURCE, OTHER, SOURCE, TARGET, SOURCE]);
+    expect(switches()).toEqual([TARGET, OTHER]);
+    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1']);
+    expect(await scopedOrganizationAccessToken(TARGET)).toBe(tokens[0] ?? '');
+    expect(switches()).toEqual([TARGET, OTHER]);
   });
 
   test('expired sources refresh once, with no fallback or repeated refresh for unusable tokens', async () => {
     installTestAccount({ org_id: SOURCE, role: 'member', exp: 1 });
     const scope = accountScopeIdentity();
     await Promise.all([scopedOrganizationAccessToken(TARGET), scopedOrganizationAccessToken(OTHER)]);
-    expect(calls.map((call) => call.path.split('/').at(-1))).toEqual(['refresh', 'switch', 'switch', 'switch', 'switch']);
+    expect(calls.map((call) => call.path.split('/').at(-1))).toEqual(['refresh', 'switch', 'switch']);
     expect(accountScopeIdentity()).toBe(scope);
     storeAccount({ ...installTestAccount({ org_id: SOURCE, role: 'member', exp: 1 }), refreshToken: 'rt_relogin' });
     transform = (_call, account) => Promise.resolve(Response.json({ ...account, accessToken: testToken({ org_id: SOURCE, exp: 1 }) }));
@@ -128,22 +130,22 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(switches()).toEqual([]);
     held.release(Response.json(response));
     await Promise.all([refreshed, dashboard]);
-    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1', 'rt_2']);
+    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1']);
   });
 
-  test('restoration is completed before refresh waiters or an explicit switch can run', async () => {
+  test('a dashboard read, a forced refresh and an explicit switch run one after another on fresh refresh tokens', async () => {
     const scope = accountScopeIdentity();
-    const held = hold((call) => call.body.organization === SOURCE);
-    const dashboard = outcome(scopedOrganizationAccessToken(TARGET));
+    const held = hold((call) => call.body.organization === TARGET);
+    const dashboard = scopedOrganizationAccessToken(TARGET);
     const response = await held.started;
     const refreshed = refreshAccount();
     const switched = switchOrganization(OTHER);
-    expect(switches()).toEqual([TARGET, SOURCE]);
+    expect(switches()).toEqual([TARGET]);
     held.release(Response.json(response));
+    expect(await dashboard).toBe(testToken({ org_id: TARGET, role: 'member' }));
     expect((await refreshed)?.organization).toBe(SOURCE);
-    await Promise.all([dashboard, switched]);
-    expect(switches()).toEqual([TARGET, SOURCE, OTHER]);
-    expect(calls.at(-1)?.body.refreshToken).toBe('rt_2');
+    await switched;
+    expect(calls.map((call) => [call.path.split('/').at(-1), call.body.refreshToken])).toEqual([['switch', 'rt_test'], ['refresh', 'rt_1'], ['switch', 'rt_2']]);
     expect(activeAccount()?.organization).toBe(OTHER);
     expect(accountScopeIdentity()).not.toBe(scope);
   });
@@ -175,16 +177,18 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(calls.map((request) => request.path)).toEqual(['/api/auth/refresh', '/api/auth/switch']);
   });
 
-  test('a queued dashboard read cannot capture the newly selected organization as its source', async () => {
+  test('a dashboard read queued behind a switch leaves the newly selected organization selected', async () => {
     const held = hold((call) => call.body.organization === OTHER);
     const switching = switchOrganization(OTHER);
     const response = await held.started;
-    const dashboard = outcome(scopedOrganizationAccessToken(TARGET));
+    const dashboard = scopedOrganizationAccessToken(TARGET);
     held.release(Response.json(response));
     await switching;
-    expect(await dashboard).toBeInstanceOf(Error);
-    expect(switches()).toEqual([OTHER]);
+    const scope = accountScopeIdentity();
+    expect(await dashboard).toBe(testToken({ org_id: TARGET, role: 'member' }));
+    expect(switches()).toEqual([OTHER, TARGET]);
     expect(activeAccount()?.organization).toBe(OTHER);
+    expect(accountScopeIdentity()).toBe(scope);
   });
 
   test('one cancelled singleflight subscriber cannot interrupt rotation or another subscriber', async () => {
@@ -198,8 +202,8 @@ describe('source-preserving organization access for the dashboard', () => {
     held.release(Response.json(response));
     expect(await cancelled).toHaveProperty('name', 'AbortError');
     expect(await retained).toBe(testToken({ org_id: TARGET, role: 'member' }));
-    expect(switches()).toEqual([TARGET, SOURCE]);
-    expect(activeAccount()?.refreshToken).toBe('rt_2');
+    expect(switches()).toEqual([TARGET]);
+    expect(activeAccount()?.refreshToken).toBe('rt_1');
   });
 
   test('already cancelled and signed-out reads send no requests', async () => {
@@ -209,18 +213,22 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(calls).toHaveLength(0);
   });
 
-  test('expired or mismatched destination tokens are refused only after source restoration', async () => {
+  test('expired or mismatched destination tokens are refused while the source keeps the rotated refresh token', async () => {
+    const source = activeAccount()?.accessToken;
     for (const claims of [{ org_id: TARGET, exp: 1 }, { org_id: SOURCE }, { org_id: TARGET, sub: 'other_user' }]) {
       transform = (call, account) => Promise.resolve(Response.json(call.body.organization === TARGET ? { ...account, accessToken: testToken(claims) } : account));
       await expect(scopedOrganizationAccessToken(TARGET)).rejects.toThrow();
       expect(activeAccount()?.organization).toBe(SOURCE);
+      expect(activeAccount()?.accessToken).toBe(source);
     }
-    expect(switches()).toEqual([TARGET, SOURCE, TARGET, SOURCE, TARGET, SOURCE]);
+    expect(switches()).toEqual([TARGET, TARGET, TARGET]);
+    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1', 'rt_2']);
+    expect(activeAccount()?.refreshToken).toBe('rt_3');
     expect(tokenExpiry('e30.eyJleHAiOjFlMzA5fQ.sig')).toBeNull();
     expect(tokenExpiring('e30.eyJleHAiOjFlMzA5fQ.sig')).toBe(true);
   });
 
-  test('malformed destination fields still restore and do not fail source refresh waiters', async () => {
+  test('malformed destination fields keep their refresh token and do not fail source refresh waiters', async () => {
     const scope = accountScopeIdentity();
     const held = hold((call) => call.body.organization === TARGET);
     const pending = outcome(scopedOrganizationAccessToken(TARGET));
@@ -229,7 +237,8 @@ describe('source-preserving organization access for the dashboard', () => {
     held.release(Response.json({ refreshToken: response.refreshToken, user: null }));
     expect((await refreshed)?.refreshToken).toBe('rt_2');
     expect(await pending).toBeInstanceOf(Error);
-    expect(switches()).toEqual([TARGET, SOURCE]);
+    expect(switches()).toEqual([TARGET]);
+    expect(calls.map((call) => call.body.refreshToken)).toEqual(['rt_test', 'rt_1']);
     expect(accountScopeIdentity()).toBe(scope);
   });
 
@@ -248,12 +257,17 @@ describe('source-preserving organization access for the dashboard', () => {
     expect(activeAccount()).toBeNull();
   });
 
-  test('failed source restoration signs out without returning a destination or source bearer', async () => {
-    transform = (call, account) => Promise.resolve(call.body.organization === SOURCE ? Response.json({}, { status: 503 }) : Response.json(account));
-    await expect(scopedOrganizationAccessToken(TARGET)).rejects.toThrow('Sign in again');
-    expect(activeAccount()).toBeNull();
-    expect(persisted).toHaveLength(1);
-  });
+  for (const status of [401, 403, 503]) {
+    test(`a destination switch refused with ${String(status)} never signs the source out`, async () => {
+      const source = activeAccount();
+      const scope = accountScopeIdentity();
+      transform = () => Promise.resolve(Response.json({ error: 'refused' }, { status }));
+      await expect(scopedOrganizationAccessToken(TARGET)).rejects.toThrow('refused');
+      expect(activeAccount()).toBe(source);
+      expect(accountScopeIdentity()).toBe(scope);
+      expect(persisted).toHaveLength(1);
+    });
+  }
 });
 
 describe('account scope guards across asynchronous auth work', () => {
@@ -280,7 +294,7 @@ describe('account scope guards across asynchronous auth work', () => {
   });
 
   for (const action of ['logout', 'relogin', 'organization'] as const) {
-    test(`late destination responses still restore, without overwriting ${action}`, async () => {
+    test(`late destination responses never overwrite ${action}`, async () => {
       const held = hold((call) => call.body.organization === TARGET);
       const pending = outcome(scopedOrganizationAccessToken(TARGET));
       const response = await held.started;
@@ -290,15 +304,15 @@ describe('account scope guards across asynchronous auth work', () => {
       const scope = accountScopeIdentity();
       held.release(Response.json(response));
       expect(await pending).toBeInstanceOf(Error);
-      expect(switches()).toEqual([TARGET, SOURCE]);
+      expect(switches()).toEqual([TARGET]);
       expect(activeAccount()).toBe(replacement);
       expect(accountScopeIdentity()).toBe(scope);
       expect(persisted).toHaveLength(action === 'logout' ? 1 : 2);
     });
   }
 
-  test('a late restoration failure cannot clear a replacement session', async () => {
-    const held = hold((call) => call.body.organization === SOURCE);
+  test('a late destination failure cannot clear a replacement session', async () => {
+    const held = hold((call) => call.body.organization === TARGET);
     const pending = outcome(scopedOrganizationAccessToken(TARGET));
     await held.started;
     const replacement = installTestAccount({ org_id: SOURCE, sid: 'new_session' });

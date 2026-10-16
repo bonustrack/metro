@@ -21,8 +21,8 @@ export async function stopDaemon(): Promise<void> {
   await call({ method: 'POST', base: `${daemonBase()}/api/stop` });
 }
 
-export async function restartDaemon(): Promise<void> {
-  await call({ method: 'POST', base: `${daemonBase()}/api/restart` });
+export async function restartDaemon(base = daemonBase()): Promise<void> {
+  await call({ method: 'POST', base: `${base}/api/restart` });
 }
 
 export async function startDaemon(base = daemonBase()): Promise<void> {

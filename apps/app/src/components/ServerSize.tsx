@@ -2,12 +2,14 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
 import { Spinner } from './Spinner.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Dropdown } from './Dropdown.js';
 import { ConfirmModal } from './ConfirmModal.js';
-import { FactRow, SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { Control, Fact, NoteRow } from './settings/rows.js';
 import { orgKey, queryError, useSizeQuery } from '../lib/queries.js';
 import { jobRunning, monthlyLabel, phaseText, resizeServer, sizeText, stateText, type ResizeJob, type ServerSize, type SizeView } from '@metro-labs/client/api/size';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -68,15 +70,11 @@ function confirmLines(view: Resizable, picked: ServerSize): string[] {
   ];
 }
 
-function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
+function Notice({ text }: { text: string }): ReactNode {
   return (
-    <SettingsGroup title={TITLE}>
-      <SettingsPad>
-        <Text size="md" role={danger ? 'danger' : 'secondary'}>
-          {text}
-        </Text>
-      </SettingsPad>
-    </SettingsGroup>
+    <Group label={TITLE}>
+      <NoteRow text={text} />
+    </Group>
   );
 }
 
@@ -84,18 +82,19 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
   const palette = useKitPalette();
   const running = jobRunning(job);
   return (
-    <SettingsSection title={running ? 'Resizing' : 'Last resize'} leading={running ? <Spinner color={palette.link} /> : undefined}>
-      <Text size="md" role={job.phase === 'failed' ? 'danger' : 'secondary'}>
-        {phaseText(job)}
-      </Text>
-    </SettingsSection>
+    <Item
+      title={running ? 'Resizing' : 'Last resize'}
+      subtitle={phaseText(job)}
+      subtitleTone={job.phase === 'failed' ? 'danger' : 'secondary'}
+      trailing={running ? <Spinner color={palette.link} /> : undefined}
+    />
   );
 }
 
 function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <SettingsSection title="Start" note={STOPPED_NOTE}>
+    <Control title="Start" note={STOPPED_NOTE} error={resize.error}>
       <Button
         size="md"
         color="primary"
@@ -106,19 +105,14 @@ function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactN
           resize.run(view.type, () => undefined);
         }}
       />
-      {resize.error === null ? null : (
-        <Text size="md" role="danger">
-          {resize.error}
-        </Text>
-      )}
-    </SettingsSection>
+    </Control>
   );
 }
 
 function ChangeRow({ view, onPick }: { view: Resizable; onPick: (size: ServerSize) => void }): ReactNode {
-  if (view.options.length === 0) return <SettingsSection title={CHANGE} note={NO_OTHER}>{null}</SettingsSection>;
+  if (view.options.length === 0) return <Control title={CHANGE} note={NO_OTHER} />;
   return (
-    <SettingsSection title={CHANGE} note={CHANGE_NOTE}>
+    <Control title={CHANGE} note={CHANGE_NOTE}>
       <Dropdown
         label="Sizes"
         button={{ label: 'Choose a size', color: 'secondary', size: 'sm' }}
@@ -129,15 +123,15 @@ function ChangeRow({ view, onPick }: { view: Resizable; onPick: (size: ServerSiz
           },
         }))}
       />
-    </SettingsSection>
+    </Control>
   );
 }
 
 function Controls({ view, resize, onPick }: { view: Resizable; resize: Resize; onPick: (size: ServerSize) => void }): ReactNode {
   if (jobRunning(view.job)) return null;
-  if (activeAccount()?.role !== 'admin') return <SettingsSection title={CHANGE} note={MEMBER_NOTE}>{null}</SettingsSection>;
+  if (activeAccount()?.role !== 'admin') return <Control title={CHANGE} note={MEMBER_NOTE} />;
   if (view.state === 'stopped') return <StartRow view={view} resize={resize} />;
-  if (view.state !== 'running') return <SettingsSection title={CHANGE} note={WAIT_NOTE}>{null}</SettingsSection>;
+  if (view.state !== 'running') return <Control title={CHANGE} note={WAIT_NOTE} />;
   return <ChangeRow view={view} onPick={onPick} />;
 }
 
@@ -150,10 +144,10 @@ function ResizableSize({ serverId, view }: { serverId: string; view: Resizable }
     resize.clear();
   };
   return (
-    <SettingsGroup title={TITLE}>
-      <FactRow label="Current" value={sizeText(view.current)} />
-      <FactRow label="In AWS" value={stateText(view.state)} />
-      {view.region === '' ? null : <FactRow label="Region" value={regionLabel(view.region)} />}
+    <Group label={TITLE}>
+      <Fact label="Current" value={sizeText(view.current)} />
+      <Fact label="In AWS" value={stateText(view.state)} />
+      {view.region === '' ? null : <Fact label="Region" value={regionLabel(view.region)} />}
       {view.job === null ? null : <JobRow job={view.job} />}
       <Controls view={view} resize={resize} onPick={setPicked} />
       {picked === null ? null : (
@@ -173,7 +167,7 @@ function ResizableSize({ serverId, view }: { serverId: string; view: Resizable }
           }}
         />
       )}
-    </SettingsGroup>
+    </Group>
   );
 }
 
@@ -182,8 +176,11 @@ export function ServerSizeSection({ serverId, launchedOnly = false }: { serverId
   if (size.data === null) return null;
   if (launchedOnly && size.data?.resizable !== true) return null;
   if (size.data === undefined) {
-    if (size.error === null) return <Loading />;
-    return <Notice text={queryError(size.error, 'Could not read the size of this server.')} danger />;
+    return (
+      <Group label={TITLE}>
+        {size.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the size of this server" text={queryError(size.error, 'Metro did not answer.')} onRetry={size.refetch} />}
+      </Group>
+    );
   }
   if (!size.data.resizable) return <Notice text={size.data.reason} />;
   return <ResizableSize serverId={serverId} view={size.data} />;

@@ -1,25 +1,25 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { FormField } from './FormField.js';
+import { Switch } from '@stage-labs/kit/react-native/switch';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Modal } from './Modal.js';
 import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '@metro-labs/client/export/pack';
 import { applyPayload, type Applied, type Mode } from '@metro-labs/client/export/transfer';
+import { Choice } from './Choice.js';
+import { FormField } from './FormField.js';
+import { type Portable } from './ExportAgent.js';
+import { Actions } from './ui/Actions.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { Readable } from './ui/Layout.js';
 import { pickText } from '../lib/files.js';
 
-const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose.';
+const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose. Exports skip Gmail logins managed by Metro, so reconnect those mailboxes after.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND = 'Adds what is missing. Nothing already here is replaced.';
 const OVERWRITE = 'Replaces what matches. The rest stays.';
-
-interface ImportAgentProps {
-  open: boolean;
-  onClose: () => void;
-  agent: { id: string; name: string };
-}
 
 function landed(result: Applied): string {
   const parts = [
@@ -44,48 +44,18 @@ function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps
   const dark = useKitScheme() === 'dark';
   const from = payload.agent.name === '' ? 'an agent' : payload.agent.name;
   return (
-    <Col gap={12}>
-      <Text size="xs">{`From ${from}`}</Text>
-      <Row gap={8} wrap>
+    <Col gap={16}>
+      <Group label={`From ${from}`}>
         {sectionsIn(payload).map((section) => (
-          <Button
-            key={section}
-            size="md"
-            color={picked.has(section) ? 'primary' : 'secondary'}
-            dark={dark}
-            disabled={busy}
-            label={`${SECTION_LABELS[section]} ${String(countOf(payload, section))}`}
-            onPress={() => {
-              onToggle(section);
-            }}
-          />
+          <Item key={section} title={SECTION_LABELS[section]} value={String(countOf(payload, section))} trailing={<Switch name={`Import ${SECTION_LABELS[section]}`} checked={picked.has(section)} dark={dark} disabled={busy} onChange={() => { onToggle(section); }} />} />
         ))}
-      </Row>
-      <Row gap={8} wrap>
-        <Button
-          size="md"
-          color={mode === 'append' ? 'primary' : 'secondary'}
-          dark={dark}
-          disabled={busy}
-          label="Append"
-          onPress={() => {
-            onMode('append');
-          }}
-        />
-        <Button
-          size="md"
-          color={mode === 'overwrite' ? 'danger' : 'secondary'}
-          dark={dark}
-          disabled={busy}
-          label="Overwrite"
-          onPress={() => {
-            onMode('overwrite');
-          }}
-        />
-      </Row>
-      <Text size="md" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
-        {mode === 'overwrite' ? OVERWRITE : APPEND}
-      </Text>
+      </Group>
+      <Col gap={8}>
+        <Choice<Mode> label="How to import" value={mode} disabled={busy} options={[{ value: 'append', label: 'Append' }, { value: 'overwrite', label: 'Overwrite' }]} onChange={onMode} />
+        <Text size="xs" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
+          {mode === 'overwrite' ? OVERWRITE : APPEND}
+        </Text>
+      </Col>
     </Col>
   );
 }
@@ -107,7 +77,7 @@ interface ImportState {
   reset: () => void;
 }
 
-function useImport(agent: { id: string; name: string }): ImportState {
+function useImport(agent: Portable): ImportState {
   const client = useQueryClient();
   const [payload, setPayload] = useState<Payload | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -193,23 +163,16 @@ function useImport(agent: { id: string; name: string }): ImportState {
   };
 }
 
-function Unlock({ busy, onOpen }: { busy: boolean; onOpen: (passphrase: string) => void }): ReactNode {
+function Unlock({ busy, onOpen, onReset }: { busy: boolean; onOpen: (passphrase: string) => void; onReset: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [passphrase, setPassphrase] = useState('');
+  const open = (): void => {
+    if (passphrase !== '') onOpen(passphrase);
+  };
   return (
-    <Col gap={10}>
-      <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} inputProps={SECRET} />
-      <Row gap={8}>
-        <Button size="lg"
-          color="primary"
-          dark={dark}
-          disabled={busy || passphrase === ''}
-          label={busy ? 'Opening…' : 'Open'}
-          onPress={() => {
-            onOpen(passphrase);
-          }}
-        />
-      </Row>
+    <Col gap={16}>
+      <FormField label="Passphrase" name="import-passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} onSubmit={open} inputProps={SECRET} />
+      <Actions cancel={{ label: 'Choose another file', onPress: onReset, disabled: busy }} main={{ label: busy ? 'Opening…' : 'Open', busy, disabled: passphrase === '', onPress: open }} />
     </Col>
   );
 }
@@ -217,76 +180,37 @@ function Unlock({ busy, onOpen }: { busy: boolean; onOpen: (passphrase: string) 
 function Chooser({ busy, onPick, onError }: { busy: boolean; onPick: (text: string | null) => void; onError: (err: unknown) => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
-    <Row gap={8}>
-      <Button
-        size="lg"
-        color="primary"
-        dark={dark}
-        disabled={busy}
-        label={busy ? 'Opening…' : 'Choose a .metro file'}
-        onPress={() => {
-          pickText('.metro,application/octet-stream').then(onPick, onError);
-        }}
-      />
-    </Row>
+    <Col align="start">
+      <Button size="md" color="secondary" dark={dark} disabled={busy} label={busy ? 'Opening…' : 'Choose a .metro file'} onPress={() => { pickText('.metro,application/octet-stream').then(onPick, onError); }} />
+    </Col>
   );
 }
 
-function Footer({ state, close, ready }: { state: ImportState; close: () => void; ready: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const danger = state.mode === 'overwrite';
-  const verb = danger ? 'Overwrite' : 'Append';
-  return (
-    <Row justify="end" gap={8}>
-      <Button
-        color="secondary"
-        dark={dark}
-        disabled={state.busy}
-        onPress={close}
-        label={state.done === null ? 'Cancel' : 'Done'}
-      />
-      {ready ? (
-        <Button
-          color={danger ? 'danger' : 'primary'}
-          dark={dark}
-          disabled={state.busy || state.picked.size === 0}
-          onPress={state.run}
-          label={state.busy ? 'Importing…' : verb}
-        />
-      ) : null}
-    </Row>
-  );
-}
-
-export function ImportAgent({ open, onClose, agent }: ImportAgentProps): ReactNode {
-  const state = useImport(agent);
-  const close = (): void => {
-    if (state.busy) return;
-    state.reset();
-    onClose();
-  };
+function Steps({ state }: { state: ImportState }): ReactNode {
   const ready = state.payload !== null && state.done === null;
+  if (state.payload === null && state.pending === null) return <Chooser busy={state.busy} onPick={state.chosen} onError={state.failed} />;
+  if (state.payload === null) return <Unlock busy={state.busy} onOpen={state.open} onReset={state.reset} />;
+  if (!ready) return null;
+  const danger = state.mode === 'overwrite';
   return (
-    <Modal title="Import agent" open={open} onClose={close}>
-      <Col gap={14}>
-        <Text size="md" role="secondary">{HOW}</Text>
-        <Text size="md" role="secondary">Exports skip Gmail logins managed by Metro. Reconnect those mailboxes after import.</Text>
-        {state.payload === null && state.pending === null ? <Chooser busy={state.busy} onPick={state.chosen} onError={state.failed} /> : null}
-        {state.payload === null && state.pending !== null ? <Unlock busy={state.busy} onOpen={state.open} /> : null}
-        {ready && state.payload !== null ? (
-          <Options
-            payload={state.payload}
-            picked={state.picked}
-            mode={state.mode}
-            busy={state.busy}
-            onToggle={state.toggle}
-            onMode={state.setMode}
-          />
-        ) : null}
-        {state.done === null ? null : <Text size="xs">{`Imported ${landed(state.done)}.`}</Text>}
-        {state.error === null ? null : <Text size="md" role="danger">{state.error}</Text>}
-        <Footer state={state} close={close} ready={ready} />
-      </Col>
-    </Modal>
+    <>
+      <Options payload={state.payload} picked={state.picked} mode={state.mode} busy={state.busy} onToggle={state.toggle} onMode={state.setMode} />
+      <Actions cancel={{ label: 'Start over', onPress: state.reset, disabled: state.busy }} main={{ label: state.busy ? 'Importing…' : danger ? 'Overwrite' : 'Append', danger, busy: state.busy, disabled: state.picked.size === 0, onPress: state.run }} />
+    </>
+  );
+}
+
+export function ImportSection({ agent }: { agent: Portable }): ReactNode {
+  const state = useImport(agent);
+  return (
+    <Readable gap={16}>
+      <Group label="Import a backup" note={HOW}>
+        {null}
+      </Group>
+      <Steps state={state} />
+      {state.done === null ? null : <Text size="md" role="success">{`Imported ${landed(state.done)}.`}</Text>}
+      {state.error === null ? null : <Text size="xs" role="danger">{state.error}</Text>}
+      {state.done === null ? null : <Actions cancel={{ label: 'Import another file', onPress: state.reset }} />}
+    </Readable>
   );
 }
