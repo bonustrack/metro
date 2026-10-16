@@ -10,7 +10,7 @@ import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { accountItems } from '../AccountMenu.js';
 import { RailOrgSwitch } from './OrgSwitch.js';
-import { RailTip } from './RailTip.js';
+import { hideRailTip, railTip } from './RailTip.js';
 import { SECTION_ICONS } from './section-icons.js';
 import { SHELL_SECTIONS, type ShellSection, type ShellSectionId } from '../../lib/shell-sections.js';
 import { setTechnicalDetails, useTechnicalDetails } from '../../lib/technical.js';
@@ -36,11 +36,9 @@ function RailItem({ section, active }: { section: ShellSection; active: boolean 
   const lit = { backgroundColor: hoverColor(palette) };
   const frame = StyleSheet.flatten([styles.item, active ? lit : null]);
   return (
-    <RailTip label={section.label}>
-      <RouteLink to={routeHash(section.target)} label={section.label} style={frame} hoverStyle={lit}>
-        <Icon name={SECTION_ICONS[section.id]} size={ICON} color={active ? palette.link : palette.sub} />
-      </RouteLink>
-    </RailTip>
+    <RouteLink to={routeHash(section.target)} label={section.label} style={frame} hoverStyle={lit} {...railTip(section.label)} onPress={hideRailTip}>
+      <Icon name={SECTION_ICONS[section.id]} size={ICON} color={active ? palette.link : palette.sub} />
+    </RouteLink>
   );
 }
 
@@ -49,13 +47,14 @@ const noop = (): void => undefined;
 function RailJump(): ReactNode {
   const palette = useKitPalette();
   const [hovered, hover] = useHover();
+  const tip = railTip('Jump', '⌘K');
   const frame = StyleSheet.flatten([styles.item, hovered ? { backgroundColor: hoverColor(palette) } : null]);
   return (
-    <RailTip label="Jump" shortcut="⌘K">
-      <Pressable accessibilityRole="button" accessibilityLabel="Jump" onPress={openJump} {...hover} style={frame}>
-        <Icon name="search" size={ICON} color={palette.sub} />
-      </Pressable>
-    </RailTip>
+    <Pressable
+      accessibilityRole="button" accessibilityLabel="Jump" onPress={() => { hideRailTip(); openJump(); }} style={frame}
+      onHoverIn={(event) => { hover.onHoverIn(); tip.onHoverIn(event); }} onHoverOut={() => { hover.onHoverOut(); tip.onHoverOut(); }}>
+      <Icon name="search" size={ICON} color={palette.sub} />
+    </Pressable>
   );
 }
 
@@ -64,11 +63,9 @@ function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
   const technical = useTechnicalDetails();
   const toggle = { label: 'Show technical details', selected: technical, onSelect: () => { setTechnicalDetails(!technical); } };
   return (
-    <RailTip label={account?.user.name ?? account?.user.email ?? 'Account'}>
-      <Dropdown label="Account menu" align="start" items={accountItems(onLock, noop, [toggle])}>
-        <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={ME} />
-      </Dropdown>
-    </RailTip>
+    <Dropdown label="Account menu" align="start" items={accountItems(onLock, noop, [toggle])} {...railTip(account?.user.name ?? account?.user.email ?? 'Account')}>
+      <AgentAvatar seed={account?.user.id ?? 'account'} src={account?.user.picture ?? null} size={ME} />
+    </Dropdown>
   );
 }
 

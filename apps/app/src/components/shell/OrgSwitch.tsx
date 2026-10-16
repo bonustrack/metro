@@ -6,7 +6,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Dropdown } from '../Dropdown.js';
 import { Icon } from '../Icon.js';
 import { useOrganizationMenu } from '../OrganizationSwitcher.js';
-import { RailTip } from './RailTip.js';
+import { railTip } from './RailTip.js';
 import { SHRINK } from '../../lib/style.js';
 
 const RAIL_MARK = 36;
@@ -35,11 +35,9 @@ export function RailOrgSwitch(): ReactNode {
   const menu = useOrganizationMenu(noop);
   return (
     <>
-      <RailTip label={menu.name}>
-        <Dropdown items={menu.items} label="Switch organization" align="start">
-          <OrgMark name={menu.name} size={RAIL_MARK} />
-        </Dropdown>
-      </RailTip>
+      <Dropdown items={menu.items} label="Switch organization" align="start" {...railTip(menu.name)}>
+        <OrgMark name={menu.name} size={RAIL_MARK} />
+      </Dropdown>
       {menu.modal}
     </>
   );

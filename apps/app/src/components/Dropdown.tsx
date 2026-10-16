@@ -114,10 +114,12 @@ interface DropdownProps {
   button?: TriggerButton;
   style?: StyleProp<ViewStyle>;
   hoverStyle?: StyleProp<ViewStyle>;
+  onHoverIn?: (event: { currentTarget: unknown }) => void;
+  onHoverOut?: () => void;
   children?: ReactNode;
 }
 
-export function Dropdown({ items, label, align = 'end', matchWidth = false, button, style, hoverStyle, children }: DropdownProps): ReactNode {
+export function Dropdown({ items, label, align = 'end', matchWidth = false, button, style, hoverStyle, onHoverIn, onHoverOut, children }: DropdownProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const narrow = useIsNarrow();
   const viewport = useWindowDimensions();
@@ -144,7 +146,7 @@ export function Dropdown({ items, label, align = 'end', matchWidth = false, butt
     <>
       <View ref={trigger} collapsable={false}>
         {button === undefined ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={open} {...hover} style={[style, hovered ? hoverStyle : null]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={open} onHoverIn={(event) => { hover.onHoverIn(); onHoverIn?.(event); }} onHoverOut={() => { hover.onHoverOut(); onHoverOut?.(); }} style={[style, hovered ? hoverStyle : null]}>
             {children}
           </Pressable>
         ) : (
