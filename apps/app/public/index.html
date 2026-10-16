@@ -34,9 +34,10 @@
       *:focus:not(:focus-visible) {
         outline: none;
       }
-      input,
-      textarea {
-        outline: none;
+      *,
+      *:focus,
+      *:focus-visible {
+        outline: none !important;
       }
       @media (pointer: coarse) {
         * {

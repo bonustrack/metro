@@ -7,7 +7,7 @@ import { webOnly } from '../../lib/style.js';
 
 const styles = StyleSheet.create({ scroll: { flex: 1 }, content: { paddingHorizontal: 12, paddingBottom: 24 } });
 
-const SELF_SCROLL = StyleSheet.flatten([styles.scroll, styles.content, webOnly({ overflowY: 'auto', minHeight: 0 })]);
+const SELF_SCROLL = StyleSheet.flatten([styles.scroll, styles.content, webOnly({ overflowY: 'auto', minHeight: 0, scrollbarWidth: 'none' })]);
 
 function PaneScroll({ children }: { children: ReactNode }): ReactNode {
   if (Platform.OS === 'web') return <View style={SELF_SCROLL}>{children}</View>;
