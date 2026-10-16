@@ -60,10 +60,12 @@ export const emptySetup = (): ModelSetup => ({ primary: null, fallbacks: [], con
 export const connectionOf = (setup: ModelSetup, id: string): Connection | null => setup.connections.find((c) => c.id === id) ?? null;
 
 export function primaryRoute(setup: ModelSetup): Route | null {
-  const primary = setup.primary;
-  const conn = primary === null ? null : connectionOf(setup, primary.connection);
-  if (primary === null || conn === null) return null;
-  return { connection: conn, model: primary.model === '' ? conn.model : primary.model };
+  const steps = setup.primary === null ? [] : [setup.primary, ...setup.fallbacks];
+  for (const step of steps) {
+    const conn = connectionOf(setup, step.connection);
+    if (conn !== null) return { connection: conn, model: step.model === '' ? conn.model : step.model };
+  }
+  return null;
 }
 
 const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {

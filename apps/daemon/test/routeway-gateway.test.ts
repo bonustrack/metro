@@ -28,6 +28,11 @@ const jsonReply = (res: ServerResponse, status: number, body: unknown, headers: 
 
 function routewayAnswer(seen: Seen, res: ServerResponse): void {
   const body = JSON.parse(seen.body) as { model?: string; stream?: boolean; output_config?: { effort?: string } };
+  if (body.model === 'walled') {
+    res.writeHead(429, { 'content-type': 'text/html; charset=UTF-8' });
+    res.end('<!DOCTYPE html><title>Too many requests</title>');
+    return;
+  }
   if (body.model === 'challenged') {
     res.writeHead(403, { 'content-type': 'text/html; charset=UTF-8' });
     res.end('<!DOCTYPE html><title>Just a moment...</title>');
@@ -197,6 +202,22 @@ describe('Routeway in the chain of models', () => {
     const last = await send('/v1/messages', ask('routeway:busy'));
     expect(last.status).toBe(402);
     expect(routeway.seen.map(sentModel)).toEqual(['busy', 'broke']);
+  });
+
+  test('a 429 web page from Routeway still hands the request to the next model', async () => {
+    cfg.primary = { connection: ROUTEWAY, model: 'walled' };
+    cfg.fallbacks = [{ connection: connectionId('anthropic'), model: 'claude-sonnet-5-5' }];
+    const res = await send('/v1/messages', ask('routeway:walled'));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { served?: string }).served).toBe('anthropic');
+  });
+
+  test('a main model whose connection was not delivered gives way to the first backup that was', async () => {
+    cfg.primary = { connection: 'unknown-provider-connection', model: 'some-model' };
+    cfg.fallbacks = [{ connection: ROUTEWAY, model: 'claude-sonnet-5.5' }];
+    expect(runnerModel(cfg)).toBe('routeway:claude-sonnet-5.5');
+    expect((await send('/v1/messages', ask('claude-opus-5-5'))).status).toBe(200);
+    expect(routeway.seen.map(sentModel)).toEqual(['claude-sonnet-5.5']);
   });
 
   test('Routeway and Anthropic hand over to each other', async () => {
