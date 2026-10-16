@@ -13,7 +13,7 @@ import { TerminalPage } from '../Terminal.js';
 import { Tabbed } from '../tabbed.js';
 import { AgentHeader } from './AgentHeader.js';
 import { AgentSubPages, AgentTabs } from './AgentTabs.js';
-import { isPageRoot } from '../../lib/agent-tabs.js';
+import { isDeepPage, isPageRoot } from '../../lib/agent-tabs.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { useSessionQuery } from '../../lib/queries.js';
 import { noteTitle } from '../../lib/title.js';
@@ -42,6 +42,7 @@ function AgentDetail({ server, selection, children }: { server: Server; selectio
   const narrow = useIsNarrow();
   const project = selectionProject(selection) ?? server.id;
   const top = narrow ? null : { backgroundColor: palette.bg };
+  if (isDeepPage(selection)) return <Col gap={24}>{children}</Col>;
   return (
     <Col gap={24}>
       <Col gap={20} style={narrow ? undefined : [STICKY, top]}>

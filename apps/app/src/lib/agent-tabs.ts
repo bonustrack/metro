@@ -18,11 +18,7 @@ export interface AgentTab {
   pages: readonly AgentPage[];
 }
 
-const CHATS: AgentPage[] = [
-  { label: 'Channels', kinds: ['chats', 'station'], target: (project) => ({ kind: 'chats', project }) },
-  { label: 'Voice', kinds: ['voice'], target: (project) => ({ kind: 'voice', project }) },
-  { label: 'Conversations', kinds: ['sessions'], target: (project) => ({ kind: 'sessions', project, claudeProject: null, id: null }) },
-];
+const CHATS: AgentPage[] = [{ label: 'Chats', kinds: ['chats', 'station', 'voice', 'sessions'], target: (project) => ({ kind: 'chats', project }) }];
 
 const MEMORY: AgentPage[] = [
   { label: 'Notes', kinds: ['memory'], target: (project) => ({ kind: 'memory', project, claudeProject: null, file: null }) },
@@ -58,6 +54,10 @@ export function agentTabOf(kind: Kind): AgentTab {
 export function agentPageOf(kind: Kind): AgentPage | undefined {
   return agentTabOf(kind).pages.find((page) => page.kinds.includes(kind));
 }
+
+const DEEP_PAGES: readonly Kind[] = ['station', 'voice', 'sessions'];
+
+export const isDeepPage = (selection: Selection): boolean => DEEP_PAGES.includes(selection.kind);
 
 export function isPageRoot(selection: Selection): boolean {
   if (!('project' in selection)) return false;

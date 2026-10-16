@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { routeHash, routeSelection } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
 import { configurePlatform, memoryKeyValue } from '@metro-labs/client/platform';
-import { AGENT_TABS, agentPageOf, agentTabOf, isPageRoot, type AgentTabId } from '../src/lib/agent-tabs.ts';
+import { AGENT_TABS, agentPageOf, agentTabOf, isDeepPage, isPageRoot, type AgentTabId } from '../src/lib/agent-tabs.ts';
 import { isTabRoot, phoneBackOf, phoneTabOf, shellSectionOf } from '../src/lib/shell-sections.ts';
 import { setTechnicalDetails, technicalDetails } from '../src/lib/technical.ts';
 
@@ -10,10 +10,12 @@ const AGENT = 'aB3-_xYz9Qw';
 
 const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['', 'home', null],
-  ['/chats', 'chats', 'Channels'],
-  ['/channel/a1', 'chats', 'Channels'],
-  ['/voice', 'chats', 'Voice'],
-  ['/sessions', 'chats', 'Conversations'],
+  ['/chats', 'chats', 'Chats'],
+  ['/channel/a1', 'chats', 'Chats'],
+  ['/channel/a1/write', 'chats', 'Chats'],
+  ['/channel/a1/exceptions/typing', 'chats', 'Chats'],
+  ['/voice', 'chats', 'Chats'],
+  ['/sessions', 'chats', 'Chats'],
   ['/memory', 'memory', 'Notes'],
   ['/files', 'memory', 'Files'],
   ['/skills', 'memory', 'Skills'],
@@ -40,7 +42,7 @@ describe('every page of an agent has a place under one of its five tabs', () => 
   });
 
   test('the old Channels and Connectors addresses land on the Chats and Tools tabs', () => {
-    for (const [old, tab, page] of [['/channels', 'chats', 'Channels'], ['/connectors', 'tools', 'Tools'], [`/connector/${AGENT}`, 'tools', 'Tools']] as const) {
+    for (const [old, tab, page] of [['/channels', 'chats', 'Chats'], ['/connectors', 'tools', 'Tools'], [`/connector/${AGENT}`, 'tools', 'Tools']] as const) {
       const selection = routeSelection(`#/${AGENT}${old}`);
       expect(agentTabOf(selection.kind).id).toBe(tab);
       expect(agentPageOf(selection.kind)?.label).toBe(page);
@@ -63,6 +65,14 @@ describe('every page of an agent has a place under one of its five tabs', () => 
 
   test('Tools is one page, so it shows no page switch', () => {
     expect(AGENT_TABS.find((tab) => tab.id === 'tools')?.pages).toHaveLength(1);
+  });
+
+  test('a channel, voice calls and conversations open below Chats without the agent header', () => {
+    expect(isDeepPage({ kind: 'station', project: AGENT, accountId: 'a1', rule: 'write' })).toBe(true);
+    expect(isDeepPage({ kind: 'voice', project: AGENT })).toBe(true);
+    expect(isDeepPage({ kind: 'sessions', project: AGENT, claudeProject: null, id: null })).toBe(true);
+    expect(isDeepPage({ kind: 'chats', project: AGENT })).toBe(false);
+    expect(isDeepPage({ kind: 'home', project: AGENT })).toBe(false);
   });
 
   test('the five tabs come in the order of the design', () => {

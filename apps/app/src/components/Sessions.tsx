@@ -1,16 +1,16 @@
 import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { BackLink } from './BackLink.js';
 import { ProjectGate } from './ProjectGate.js';
-import { ListRow } from './ListRow.js';
-import { EmptyCard, SettingsGroup } from './SettingsSection.js';
-import { ListHeader } from './ListHeader.js';
 import { Loading } from './Loading.js';
-import { PageTitle } from './PageTitle.js';
 import { SessionMenu } from './SessionMenu.js';
 import { Transcript } from './Transcript.js';
 import { OtherFolders } from './OtherFolders.js';
+import { DeepNav } from './chats/DeepNav.js';
+import { sessionTitle } from './chats/RecentConversations.js';
+import { Section } from './chats/Section.js';
+import { Item } from './ui/Item.js';
+import { PageHeader } from './ui/PageHeader.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { type ClaudeSession } from '@metro-labs/client/api/claude';
@@ -19,57 +19,50 @@ import { whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
 import { go } from '../lib/nav.js';
 
-function SessionRow({ claudeProject, session, target }: { claudeProject: string; session: ClaudeSession; target: Selection }): ReactNode {
-  const detail = session.lastAt === null ? '' : whenLabel(session.lastAt);
-  const title = session.title !== '' && session.title !== session.id ? session.title : 'Conversation';
-  return (
-    <ListRow
-      title={title}
-      detail={detail}
-      href={routeHash(target)}
-      trailing={<SessionMenu claudeProject={claudeProject} id={session.id} title={title} onDeleted={() => undefined} />}
-    />
-  );
+const LABEL = 'Conversations';
+
+function SessionRow({ session, target }: { session: ClaudeSession; target: Selection }): ReactNode {
+  return <Item title={sessionTitle(session)} subtitle={session.lastAt === null ? undefined : whenLabel(session.lastAt)} href={routeHash(target)} />;
 }
 
 function SessionList({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
   const { data, error } = useClaudeSessionsQuery(claudeProject);
   if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not list the sessions.')}</Text>;
   if (data === undefined) return <Loading />;
-  if (data.length === 0) return <EmptyCard text="No conversation yet." />;
+  if (data.length === 0) return <Text size="md" role="secondary">No conversation yet.</Text>;
   return (
-    <SettingsGroup>
+    <Section>
       {data.map((s) => (
-        <SessionRow
-          key={s.id}
-          claudeProject={claudeProject}
-          session={s}
-          target={{ kind: 'sessions', project, claudeProject, id: s.id }}
-        />
+        <SessionRow key={s.id} session={s} target={{ kind: 'sessions', project, claudeProject, id: s.id }} />
       ))}
-    </SettingsGroup>
+    </Section>
   );
 }
 
 function SessionView({ project, claudeProject, id }: { project: string; claudeProject: string; id: string }): ReactNode {
   const list: Selection = { kind: 'sessions', project, claudeProject, id: null };
-  useDocumentTitle(id);
+  const { data } = useClaudeSessionsQuery(claudeProject);
+  const found = data?.find((s) => s.id === id);
+  const title = found === undefined ? 'Conversation' : sessionTitle(found);
+  useDocumentTitle(title);
   return (
-    <Col gap={16}>
-      <Row justify="between" align="center" gap={12}>
-        <BackLink label="Conversations" href={routeHash(list)} />
-        <SessionMenu
-          claudeProject={claudeProject}
-          id={id}
-          title={id}
-          onDeleted={() => {
-            go(list);
-          }}
-        />
-      </Row>
-      <PageTitle>{id}</PageTitle>
-      <Transcript project={claudeProject} id={id} />
-    </Col>
+    <>
+      <DeepNav project={project} trail={[{ label: LABEL, href: routeHash(list) }, { label: title }]} />
+      <Col gap={16}>
+        <Row justify="between" align="center" gap={12}>
+          <PageHeader title={title} />
+          <SessionMenu
+            claudeProject={claudeProject}
+            id={id}
+            title={title}
+            onDeleted={() => {
+              go(list);
+            }}
+          />
+        </Row>
+        <Transcript project={claudeProject} id={id} />
+      </Col>
+    </>
   );
 }
 
@@ -81,22 +74,20 @@ interface SessionsProps {
 
 const NONE = 'No Claude Code session on this box yet.';
 
-function SessionsTitle({ claudeProject }: { claudeProject: string }): ReactNode {
-  const { data } = useClaudeSessionsQuery(claudeProject);
-  return <ListHeader title="Conversations" count={data?.length} />;
-}
-
 export function Sessions({ project, claudeProject, id }: SessionsProps): ReactNode {
-  useDocumentTitle('Conversations');
+  useDocumentTitle(LABEL);
   return (
-    <ProjectGate title="Conversations" claudeProject={claudeProject} none={NONE}>
+    <ProjectGate title={LABEL} claudeProject={claudeProject} none={NONE}>
       {(picked) =>
         id === null ? (
-          <Col gap={16}>
-            <SessionsTitle claudeProject={picked} />
-            <SessionList project={project} claudeProject={picked} />
-            <OtherFolders project={project} shown={picked} />
-          </Col>
+          <>
+            <DeepNav project={project} trail={[{ label: LABEL }]} />
+            <Col gap={24}>
+              <PageHeader title={LABEL} />
+              <SessionList project={project} claudeProject={picked} />
+              <OtherFolders project={project} shown={picked} />
+            </Col>
+          </>
         ) : (
           <SessionView project={project} claudeProject={picked} id={id} />
         )
