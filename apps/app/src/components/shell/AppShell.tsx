@@ -7,6 +7,7 @@ import { type Selection } from '@metro-labs/client/selection';
 import { PageScroll } from '../PageScroll.js';
 import { Crumbs } from '../ui/PageHeader.js';
 import { Rail } from './Rail.js';
+import { RailTipLayer } from './RailTipLayer.js';
 import { TAB_BAR_ROOM, TabBar } from './TabBar.js';
 import { SHELL_SECTIONS, phoneBackOf, phoneTabOf, shellSectionOf } from '../../lib/shell-sections.js';
 import { useIsNarrow } from '../../lib/media.js';
@@ -46,6 +47,7 @@ function DesktopShell({ selection, onLock, list, children }: AppShellProps): Rea
           </Col>
         </PageScroll>
       </Col>
+      <RailTipLayer />
     </Row>
   );
 }
