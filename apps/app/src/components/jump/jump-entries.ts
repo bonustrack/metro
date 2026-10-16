@@ -5,7 +5,7 @@ import { connectorLabel } from '@metro-labs/client/api/connectors';
 import type { Selection } from '@metro-labs/client/selection';
 import type { IconName } from '../Icon.js';
 import { SECTION_ICONS } from '../shell/section-icons.js';
-import { AGENT_TABS, type AgentTabId } from '../../lib/agent-tabs.js';
+import { AGENT_TABS, type AgentPage, type AgentTabId } from '../../lib/agent-tabs.js';
 import type { JumpEntry } from '../../lib/jump.js';
 import { useMetroRelease } from '../../lib/metro-release.js';
 import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
@@ -38,7 +38,11 @@ function pagesOf(server: Server): JumpItem[] {
   return AGENT_TABS.flatMap((tab) => {
     const root: JumpItem = { key: `page:${server.id}:${tab.id}`, group: 'pages', crumbs: [name, tab.label], payload: go(tab.target(server.id), TAB_ICONS[tab.id]) };
     const rootKind = tab.target(server.id).kind;
-    const pages = tab.pages.filter((page) => page.newTab !== true && page.target(server.id).kind !== rootKind).map((page): JumpItem => ({
+    const opens = (page: AgentPage): boolean => {
+      const kind = page.target(server.id).kind;
+      return page.newTab !== true && kind !== rootKind && page.kinds.includes(kind);
+    };
+    const pages = tab.pages.filter(opens).map((page): JumpItem => ({
       key: `page:${server.id}:${tab.id}:${page.label}`, group: 'pages', crumbs: [name, tab.label, page.label], payload: go(page.target(server.id), TAB_ICONS[tab.id]),
     }));
     return [root, ...pages];
