@@ -171,7 +171,7 @@ export function ProviderModal({ editing, onClose }: { editing: Editing | null; o
   const { provider, connection } = editing;
   if (provider === null || connection === null)
     return (
-      <Modal title="Add a connection" open onClose={onClose}>
+      <Modal title="Add an account" open onClose={onClose}>
         <AddFlow onDone={onClose} />
       </Modal>
     );

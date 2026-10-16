@@ -16,7 +16,7 @@ import { afterModelChange } from '../lib/model-queries.js';
 
 const FIELD_WIDTH = 420;
 const PLAN_NOTE = 'Needs a Claude Pro or Max plan. The token lasts about a year, and every agent of the organization can use it.';
-const AGAIN_NOTE = 'Paste a new token to replace the one this connection holds. The model order stays.';
+const AGAIN_NOTE = 'Paste a new token to replace the one this account holds. The routes stay.';
 const HOW = 'On your computer, with Claude Code installed, run claude setup-token, sign in, then paste the token here.';
 const CLAUDE_SETTINGS_URL = 'https://claude.ai/settings';
 export const REVOKE_NOTE = 'Replacing or removing a token in Metro does not revoke it at Anthropic. Revoke old ones in your Claude settings:';

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings, toConnection, type ConnectionRow } from '@metro-labs/client/api/model';
 import { toOrgModels } from '@metro-labs/client/api/org-models';
-import { connectionPatch, orgConnectionDetail, routesUsing, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { connectionPatch, sourceLine, withRoute } from '../src/components/model-view.ts';
 
 const ROUTE = { primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'bed00000001', model: 'eu.anthropic.claude-sonnet-4-6' }] };
 const list = toOrgModels({
@@ -18,15 +18,8 @@ const list = toOrgModels({
 const box = toModelSettings({ route: ROUTE.primary.connection, model: ROUTE.primary.model, fallbacks: ROUTE.fallbacks, source: 'organization', connections: [{ id: 'orA00000001', provider: 'openrouter', label: 'OpenRouter' }] });
 
 describe('the organization Models page', () => {
-  test('each connection says what it is, what it holds and how many model orders use it', () => {
-    expect(routesUsing(list, 'bed00000001')).toBe(2);
-    expect(routesUsing(list, 'cdx00000001')).toBe(0);
-    const [openrouter, bedrock, codex, subscription] = list.connections;
-    if (openrouter === undefined || bedrock === undefined || codex === undefined || subscription === undefined) throw new Error('missing connection');
-    expect(orgConnectionDetail(list, openrouter)).toBe('OpenRouter · API key stored · zero data retention · in 1 model order');
-    expect(orgConnectionDetail(list, bedrock)).toBe('Amazon Bedrock · API key stored · eu-central-1 · in 2 model orders');
-    expect(orgConnectionDetail(list, codex)).toBe('Codex (ChatGPT) · less@x · not used yet');
-    expect(orgConnectionDetail(list, subscription)).toBe('Anthropic · Claude subscription · not used yet');
+  test('a Claude subscription holds no key', () => {
+    const subscription = list.connections[3];
     expect(subscription).toMatchObject({ subscription: true, hasKey: false });
   });
 

@@ -12,6 +12,7 @@ interface NameModalProps {
   title: string;
   action: string;
   placeholder: string;
+  field?: string;
   initial?: string;
   failure: string;
   open: boolean;
@@ -23,6 +24,7 @@ export function NameModal({
   title,
   action,
   placeholder,
+  field = 'Name',
   initial = '',
   failure,
   open,
@@ -60,7 +62,7 @@ export function NameModal({
   return (
     <Modal title={title} open={open} onClose={close}>
       <Col gap={14}>
-        <FormField label="Name"
+        <FormField label={field}
           name="name"
           value={name}
           placeholder={placeholder}

@@ -121,6 +121,9 @@ describe('the shell knows its section and what a phone shows', () => {
     }
     expect(phoneBackOf({ kind: 'home', project: AGENT })).toEqual({ kind: 'servers' });
     expect(phoneBackOf({ kind: 'org-connector', id: AGENT })).toEqual({ kind: 'org-connectors' });
+    expect(phoneBackOf({ kind: 'org-route' })).toEqual({ kind: 'org-models' });
+    expect(phoneBackOf({ kind: 'org-model', id: AGENT })).toEqual({ kind: 'org-models' });
+    expect(shellSectionOf({ kind: 'org-model', id: AGENT })).toBe('models');
     expect(phoneBackOf({ kind: 'settings' })).toEqual({ kind: 'organization' });
   });
 });

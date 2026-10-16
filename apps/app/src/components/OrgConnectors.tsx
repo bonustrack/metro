@@ -11,7 +11,7 @@ import { ConnectorModal, type AddedConnector } from './AddConnector.js';
 import { Icon } from './Icon.js';
 import { Loading } from './Loading.js';
 import { RoundButton } from './RoundButton.js';
-import { orgConnectorStatus } from './org-connector-status.js';
+import { connectorLine, orgConnectorStatus } from './org-connector-status.js';
 import { Rows } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { ListPaneRow } from './ui/ListPaneRow.js';
@@ -32,11 +32,6 @@ const HINT = 'Use a public https address. Leave the header empty for a server yo
 const ICON = 32;
 const PLUS = 20;
 
-function lineOf(connector: OrgConnector): string {
-  const agents = connector.agents.length === 0 ? 'No agent' : connector.agents.length === 1 ? '1 agent' : `${String(connector.agents.length)} agents`;
-  return [orgConnectorStatus(connector).text, agents, ...(connector.readOnly ? ['Read-only'] : [])].join(' · ');
-}
-
 function ConnectorRow({ connector, peers, pane, selected }: { connector: OrgConnector; peers: OrgConnector[]; pane: boolean; selected: boolean }): ReactNode {
   const technical = useTechnicalDetails();
   const status = orgConnectorStatus(connector);
@@ -45,8 +40,8 @@ function ConnectorRow({ connector, peers, pane, selected }: { connector: OrgConn
   const icon = <ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />;
   const href = routeHash({ kind: 'org-connector', id: connector.id });
   const tone = status.bad ? 'danger' : 'secondary';
-  if (pane) return <ListPaneRow title={title} line={lineOf(connector)} lineTone={tone} detail={detail} avatar={icon} selected={selected} href={href} />;
-  return <Item title={title} subtitle={lineOf(connector)} subtitleTone={tone} detail={detail} leading={icon} href={href} />;
+  if (pane) return <ListPaneRow title={title} line={connectorLine(connector)} lineTone={tone} detail={detail} avatar={icon} selected={selected} href={href} />;
+  return <Item title={title} subtitle={connectorLine(connector)} subtitleTone={tone} detail={detail} leading={icon} href={href} />;
 }
 
 function List({ list, pane, selected }: { list: OrgList; pane: boolean; selected: string | null }): ReactNode {

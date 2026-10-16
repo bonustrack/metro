@@ -1,77 +1,54 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { SaveField, useSave, type Saving } from './SaveField.js';
-import { SettingsGroup, SettingsSection } from './SettingsSection.js';
-import { activeAccount, type Account } from '@metro-labs/client/auth/account';
+import { activeAccount } from '@metro-labs/client/auth/account';
 import { refreshAccount } from '@metro-labs/client/api/auth';
 import { renameOrganization, setOrganizationSlug } from '@metro-labs/client/api/organization';
 import { noteRoutedOrganization } from '@metro-labs/client/auth/org-route';
 import { routeHash } from '@metro-labs/client/route';
 import { SLUG_RE } from '@metro-labs/client/auth/org-segment';
-import { orgKey } from '../lib/queries.js';
 import { location } from '@metro-labs/client/platform';
+import { NameModal } from './NameModal.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { orgKey } from '../lib/queries.js';
 
 const NAME_MIN = 2;
 const NAME_MAX = 64;
 
-function useRename(account: Account): Saving {
-  const client = useQueryClient();
-  return useSave({
-    initial: account.organizationName ?? '',
-    valid: (name) => name.length >= NAME_MIN && name.length <= NAME_MAX,
-    run: async (name) => {
-      await renameOrganization(name);
-      await refreshAccount();
-      await client.invalidateQueries({ queryKey: orgKey('organization') });
-    },
-    failure: 'Could not rename the organization.',
-  });
+type Editing = 'name' | 'slug' | null;
+
+async function rename(name: string): Promise<void> {
+  if (name.length < NAME_MIN || name.length > NAME_MAX) throw new Error(`Use ${String(NAME_MIN)} to ${String(NAME_MAX)} characters.`);
+  await renameOrganization(name);
+  await refreshAccount();
 }
 
-function useSlug(account: Account): Saving {
-  return useSave({
-    initial: account.organizationSlug ?? '',
-    clean: (slug) => slug.trim().toLowerCase(),
-    valid: (slug) => SLUG_RE.test(slug),
-    run: async (slug) => {
-      await setOrganizationSlug(slug);
-      await refreshAccount();
-      noteRoutedOrganization(null);
-      location().replace(routeHash({ kind: 'organization' }));
-    },
-    failure: 'Could not change the slug.',
-  });
-}
-
-function SlugRow({ account }: { account: Account }): ReactNode {
-  const slug = useSlug(account);
-  const admin = account.role === 'admin';
-  const note = admin ? `Used in every link: metro.box/${routeHash({ kind: 'servers' })}. Lowercase letters, digits and dashes.` : 'Only an admin can change it.';
-  return (
-    <SettingsSection title="Web address" note={note}>
-      <SaveField saving={slug} name="slug" label="Web address" editable={admin} />
-    </SettingsSection>
-  );
-}
-
-function NameRow({ account }: { account: Account }): ReactNode {
-  const rename = useRename(account);
-  const admin = account.role === 'admin';
-  return (
-    <SettingsSection title="Name" note={admin ? 'What every member sees, and what invitations say.' : 'Only an admin can rename it.'}>
-      <SaveField saving={rename} name="organization" label="Name" editable={admin} />
-    </SettingsSection>
-  );
+async function moveSlug(raw: string): Promise<void> {
+  const slug = raw.trim().toLowerCase();
+  if (!SLUG_RE.test(slug)) throw new Error('Use lowercase letters, digits and dashes.');
+  await setOrganizationSlug(slug);
+  await refreshAccount();
+  noteRoutedOrganization(null);
+  location().replace(routeHash({ kind: 'organization' }));
 }
 
 export function OrganizationSettings(): ReactNode {
+  const client = useQueryClient();
+  const [editing, setEditing] = useState<Editing>(null);
   const account = activeAccount();
-  const organization = account?.organization ?? null;
-  if (account === null || organization === null) return null;
+  if (account === null || account.organization === null) return null;
+  const admin = account.role === 'admin';
+  const name = account.organizationName ?? '';
+  const slug = account.organizationSlug ?? '';
+  const open = (what: Editing) => (admin ? () => { setEditing(what); } : undefined);
   return (
-    <SettingsGroup title="Profile">
-      <NameRow account={account} />
-      <SlugRow account={account} />
-    </SettingsGroup>
+    <Group label="Profile" note={admin ? undefined : 'Only an admin can change the name and the web address.'}>
+      <Item title="Name" value={name} onPress={open('name')} />
+      <Item title="Web address" value={`metro.box/${routeHash({ kind: 'servers' })}`} onPress={open('slug')} />
+      <NameModal key={`name:${name}`} title="Rename the organization" action="Save" placeholder="Anderra" initial={name} failure="Could not rename the organization." open={editing === 'name'}
+        onClose={() => { setEditing(null); }} onSubmit={async (next) => { await rename(next); await client.invalidateQueries({ queryKey: orgKey('organization') }); }} />
+      <NameModal key={`slug:${slug}`} title="Change the web address" field="Web address" action="Save" placeholder="anderra" initial={slug} failure="Could not change the web address." open={editing === 'slug'}
+        onClose={() => { setEditing(null); }} onSubmit={moveSlug} />
+    </Group>
   );
 }

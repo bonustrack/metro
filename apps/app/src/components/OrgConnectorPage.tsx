@@ -1,27 +1,26 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { connectorHost } from '@metro-labs/client/api/connectors';
-import { completeOrgConnectorSignIn, signInOrgConnector, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
-import { PageTitle } from './PageTitle.js';
+import { completeOrgConnectorSignIn, renameOrgConnector, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { ConnectorFavicon } from './ConnectorFavicon.js';
+import { KebabMenu } from './KebabMenu.js';
 import { Loading } from './Loading.js';
-import { OrgConnectorAgents } from './OrgConnectorAgents.js';
-import { OrgConnectorFacts, OrgConnectorManage } from './OrgConnectorManage.js';
-import { OrgConnectorPermissions } from './OrgConnectorPermissions.js';
+import { NameModal } from './NameModal.js';
 import { orgConnectorStatus } from './org-connector-status.js';
+import { ConnectorAccount, ConnectorFacts } from './connectors/ConnectorAccount.js';
+import { ConnectorAgents } from './connectors/ConnectorAgents.js';
+import { ConnectorRule } from './connectors/ConnectorRule.js';
+import { Groups } from './ui/Group.js';
+import { PageHeader } from './ui/PageHeader.js';
+import { StateBlock } from './ui/StateBlock.js';
+import { technicalLine } from '../lib/agent-line.js';
 import { queryError } from '../lib/queries.js';
-import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
+import { refreshOrgConnectors, useConnectorScope, useOrgConnectorToolsQuery, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 import { useDocumentTitle } from '../lib/title.js';
-import { PublicOAuthResource } from './PublicOAuthResource.js';
-import { TextLink } from './TextLink.js';
-import { inNewTab } from './sign-in-tab.js';
 import { logError } from '../lib/log.js';
 import { takeInitialOrgConnectorReturn } from '../lib/location.js';
-import { SHRINK } from '../lib/style.js';
 
 const ICON = 32;
 
@@ -43,7 +42,7 @@ function useSignInReturn(onDone: () => void): Outcome {
     setOutcome({ busy: true, note: null, error: null });
     completeOrgConnectorSignIn(back.handoff)
       .then(() => {
-        setOutcome({ busy: false, note: 'Signed in. The service answered with the new sign-in.', error: null });
+        setOutcome({ busy: false, note: 'Signed in. Agents use the new sign-in from now on.', error: null });
         onDone();
       })
       .catch((err: unknown) => {
@@ -53,74 +52,58 @@ function useSignInReturn(onDone: () => void): Outcome {
   return outcome;
 }
 
-function Header({ connector, admin, onError }: { connector: OrgConnector; admin: boolean; onError: (message: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  const [busy, setBusy] = useState(false);
-  const [oauthResource, setOAuthResource] = useState('');
-  const [link, setLink] = useState<string | null>(null);
-  const status = orgConnectorStatus(connector);
-  const signIn = (): void => {
-    if (busy) return;
-    setBusy(true);
-    setLink(null);
-    inNewTab(() => signInOrgConnector(connector.id, undefined, undefined, oauthResource), (url) => url, setLink)
-      .catch((err: unknown) => {
-        onError(queryError(err, 'Could not start the sign-in.'));
-      }).finally(() => { setBusy(false); });
-  };
+function useSubtitle(connector: OrgConnector): string {
+  const technical = useTechnicalDetails();
+  const tools = useOrgConnectorToolsQuery(connector.id).data;
+  const count = tools === undefined ? null : `${String(tools.length)} ${tools.length === 1 ? 'tool' : 'tools'}`;
+  return technicalLine([orgConnectorStatus(connector).text, count, technical ? connectorHost(connector.url) : null]);
+}
+
+function Header({ connector, admin, onChanged }: { connector: OrgConnector; admin: boolean; onChanged: () => void }): ReactNode {
+  const [renaming, setRenaming] = useState(false);
+  const subtitle = useSubtitle(connector);
+  const menu = admin ? <KebabMenu size="lg" label={`Actions for ${connector.name}`} items={[{ label: 'Rename', onSelect: () => { setRenaming(true); } }]} /> : undefined;
   return (
-    <Col gap={16}>
-      <Row justify="between" align="center" gap={16}>
-        <Row gap={14} align="center" style={SHRINK}>
-          <ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />
-          <Col gap={2} style={SHRINK}>
-            <PageTitle>{connector.name}</PageTitle>
-            <Text size="md" role={status.bad ? 'danger' : 'secondary'} numberOfLines={1}>
-              {`${connectorHost(connector.url)} · ${status.text}`}
-            </Text>
-          </Col>
-        </Row>
-        {admin && connector.auth === 'oauth' ? <Button size="md" color={status.bad ? 'primary' : 'secondary'} dark={dark} label={status.bad ? 'Sign in' : 'Sign in again'} loading={busy} disabled={busy} onPress={signIn} /> : null}
-      </Row>
-      {admin && connector.auth === 'oauth' ? <PublicOAuthResource value={oauthResource} disabled={busy} onChange={setOAuthResource} /> : null}
-      {link === null ? null : <TextLink url={link}>Open sign-in</TextLink>}
-    </Col>
+    <>
+      <PageHeader title={connector.name} subtitle={subtitle} leading={<ConnectorFavicon name={connector.name} url={connector.url} size={ICON} />} action={menu} />
+      <NameModal key={connector.name} title="Rename connector" action="Rename" placeholder={connector.name} initial={connector.name} failure="Could not rename the connector." open={renaming}
+        onClose={() => { setRenaming(false); }} onSubmit={async (name) => { const row = await renameOrgConnector(connector.id, name); onChanged(); return row; }} />
+    </>
   );
 }
 
-function Notes({ outcome, failure }: { outcome: Outcome; failure: string | null }): ReactNode {
-  const error = failure ?? outcome.error;
+function Notes({ outcome }: { outcome: Outcome }): ReactNode {
   return (
     <>
       {outcome.busy ? <Text size="md" role="secondary">Finishing the sign-in…</Text> : null}
       {outcome.note === null ? null : <Text size="md" role="secondary">{outcome.note}</Text>}
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {outcome.error === null ? null : <Text size="md" role="danger">{outcome.error}</Text>}
     </>
   );
 }
 
 function Body({ id }: { id: string }): ReactNode {
   const client = useQueryClient();
-  const { data, error } = useOrgConnectorsQuery();
-  const [failure, setFailure] = useState<string | null>(null);
+  const technical = useTechnicalDetails();
+  const { data, error, refetch } = useOrgConnectorsQuery();
   const reload = useCallback(() => {
     refreshOrgConnectors(client).catch(logError('org-connector'));
   }, [client]);
   const outcome = useSignInReturn(reload);
   const connector = data?.connectors.find((c) => c.id === id);
   useDocumentTitle(connector?.name ?? 'Connector');
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load this connector.')}</Text>;
+  if (error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not load this connector" text={queryError(error, 'Metro did not answer.')} action={{ label: 'Retry', onPress: () => { refetch().catch(logError('org-connector')); } }} />;
   if (data === undefined) return <Loading />;
-  if (connector === undefined) return <Text size="md" role="danger">This connector is not in this organization any more.</Text>;
+  if (connector === undefined) return <StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." />;
   return (
-    <Col gap={32} width="100%">
-      <Header connector={connector} admin={data.admin} onError={setFailure} />
-      <Notes outcome={outcome} failure={failure} />
-      <OrgConnectorPermissions connector={connector} admin={data.admin} />
-      <OrgConnectorAgents connector={connector} admin={data.admin} onChanged={reload} />
-      <OrgConnectorFacts connector={connector} />
-      {data.admin ? <OrgConnectorManage connector={connector} onChanged={reload} /> : null}
-    </Col>
+    <Groups>
+      <Header connector={connector} admin={data.admin} onChanged={reload} />
+      <Notes outcome={outcome} />
+      <ConnectorRule connector={connector} admin={data.admin} />
+      <ConnectorAgents connector={connector} admin={data.admin} />
+      {data.admin ? <ConnectorAccount connector={connector} /> : null}
+      {technical ? <ConnectorFacts connector={connector} /> : null}
+    </Groups>
   );
 }
 
