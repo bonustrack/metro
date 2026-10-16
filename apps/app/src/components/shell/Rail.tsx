@@ -51,7 +51,7 @@ function RailJump(): ReactNode {
   const [hovered, hover] = useHover();
   const frame = StyleSheet.flatten([styles.item, hovered ? { backgroundColor: hoverColor(palette) } : null]);
   return (
-    <RailTip label="Jump (⌘K)">
+    <RailTip label="Jump" shortcut="⌘K">
       <Pressable accessibilityRole="button" accessibilityLabel="Jump" onPress={openJump} {...hover} style={frame}>
         <Icon name="search" size={ICON} color={palette.sub} />
       </Pressable>
