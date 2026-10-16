@@ -5,9 +5,10 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { flattenAccounts, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { ConnectStation } from '../ConnectStation.js';
 import { Icon } from '../Icon.js';
-import { Loading } from '../Loading.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { ChannelRow } from './ChannelRow.js';
 import { RecentConversations } from './RecentConversations.js';
@@ -15,9 +16,10 @@ import { useReceive } from './use-receive.js';
 import { VoiceRow } from './VoiceRow.js';
 import { queryError, refreshAgents, useStationsQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const RECEIVE_NOTE = 'Off stops new messages. Tools keep working.';
-const PLUS = 18;
+const PLUS = ICON_SIZE.sm;
 
 function AddChat({ onPress }: { onPress: () => void }): ReactNode {
   const palette = useKitPalette();
@@ -66,17 +68,12 @@ export function ChatsPage({ project }: { project: string }): ReactNode {
   const { data, error, refetch } = useStationsQuery();
   const [adding, setAdding] = useState(false);
   useDocumentTitle('Chats');
-  if (error !== null)
+  if (data === undefined)
     return (
-      <StateBlock
-        icon="exclamationCircle"
-        danger
-        title="Could not load the chats"
-        text={queryError(error, 'The agent did not answer.')}
-        action={{ label: 'Try again', onPress: () => { refetch().catch(() => undefined); } }}
-      />
+      <Group label="Channels">
+        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not load the chats" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
+      </Group>
     );
-  if (data === undefined) return <Loading />;
   const agent = data.agent;
   if (agent === undefined) return <StateBlock spinner title="Getting ready" text="The agent shows here within seconds." />;
   const accounts = flattenAccounts(data.groups);

@@ -9,6 +9,8 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Dropdown } from '../Dropdown.js';
 import { DIMENSIONS, LABELS, filterCount, filterOptions, type Dimension, type RunFilters } from './filters.js';
 import { short, stamp, type RunEntry } from './model.js';
+import { entryTime } from './words.js';
+import { useTechnicalDetails } from '../../lib/technical.js';
 
 const styles = StyleSheet.create({ search: { flex: 1, minWidth: 160 } });
 
@@ -32,8 +34,14 @@ function FilterMenu({ dimension, entries, filters, onChange }: Pick<Props, 'entr
   }))} />;
 }
 
+function activeLine(minute: number | null, count: number, technical: boolean): string {
+  const at = minute === null ? '' : `${technical ? stamp(minute) : entryTime(minute, false)} · `;
+  return `${at}${String(count)} active ${count === 1 ? 'filter' : 'filters'}`;
+}
+
 export function RunFiltersBar({ entries, filters, onChange, more, onMore, minute, onReset, narrow }: Props): ReactNode {
   const dark = useKitScheme() === 'dark';
+  const technical = useTechnicalDetails();
   const count = filterCount(filters) + (minute === null ? 0 : 1);
   const menu = (dimension: Dimension): ReactNode => <FilterMenu key={dimension} dimension={dimension} entries={entries} filters={filters} onChange={onChange} />;
   return <Col gap={12} testID="run-filters">
@@ -52,10 +60,10 @@ export function RunFiltersBar({ entries, filters, onChange, more, onMore, minute
     </Row>
     {more && <Col gap={12}>
       <Row gap={8} wrap>{DIMENSIONS.filter((key) => narrow || !['station', 'channel', 'time'].includes(key)).map(menu)}</Row>
-      <Text size="md" role="secondary">Filters combine. Messages are not linked to workers.</Text>
+      <Text size="md" role="secondary">Filters combine. Messages are not linked to helpers.</Text>
     </Col>}
     {count > 0 && <Row gap={12} align="center" wrap>
-      <Text size="md" role="secondary">{minute === null ? '' : `${stamp(minute)} · `}{count} active {count === 1 ? 'filter' : 'filters'}</Text>
+      <Text size="md" role="secondary">{activeLine(minute, count, technical)}</Text>
       <Button dark={dark} color="secondary" label="Clear filters" onPress={onReset} />
     </Row>}
   </Col>;

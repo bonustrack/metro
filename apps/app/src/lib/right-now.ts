@@ -19,6 +19,8 @@ export interface RightNow {
   main: NowRow;
   helpers: NowRow[];
   active: number;
+  working: number;
+  waiting: number;
 }
 
 const ACTIVE = new Set<Task['status']>(['pending', 'running', 'paused']);
@@ -57,16 +59,25 @@ function stoppedRow(status: ClaudeSessionStatus): NowRow {
 }
 
 export function rightNow(status: ClaudeSessionStatus, now: number): RightNow {
-  if (!status.running) return { live: false, main: stoppedRow(status), helpers: [], active: 0 };
+  if (!status.running) return { live: false, main: stoppedRow(status), helpers: [], active: 0, working: 0, waiting: 0 };
   const activity = status.activity;
   if (activity === null || status.legacyRunner || activityIsStale(activity.updatedAt, now))
-    return { live: false, main: { id: 'main', title: 'Running', subtitle: 'Main thread', dot: 'success', since: null }, helpers: [], active: 0 };
+    return { live: false, main: { id: 'main', title: 'Running', subtitle: 'Main thread', dot: 'success', since: null }, helpers: [], active: 0, working: 0, waiting: 0 };
   const phase = MAIN[activity.mainPhase];
   const main = { id: 'main', title: phase.title, subtitle: 'Main thread', dot: phase.dot, since: activity.mainStartedAt };
   const waiting = waitingTasks(activity);
   const active = activity.tasks.filter((task) => ACTIVE.has(task.status)).sort((a, b) => b.startedAt - a.startedAt);
   const helpers = active.slice(0, HELPERS_MAX).map((task) => helperRow(task, waiting.has(task.id)));
-  return { live: true, main, helpers, active: active.length };
+  const busy = active.filter((task) => task.status === 'running' && !waiting.has(task.id)).length + (phase.dot === 'success' ? 1 : 0);
+  return { live: true, main, helpers, active: active.length, working: busy, waiting: activity.approvals };
+}
+
+const tasksWord = (count: number): string => `${String(count)} ${count === 1 ? 'task' : 'tasks'}`;
+
+export function runSummary(view: RightNow): string {
+  if (!view.live) return `${view.main.title}.`;
+  const parts = [view.working === 0 ? '' : `Working on ${tasksWord(view.working)}.`, view.waiting === 0 ? '' : `Waiting for you on ${String(view.waiting)}.`].filter((part) => part !== '');
+  return parts.length === 0 ? `${view.main.title}.` : parts.join(' ');
 }
 
 export function workingLine(now: RightNow): string | null {

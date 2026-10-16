@@ -11,13 +11,14 @@ import { SAVE_FAILED } from './people-text.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, peopleHeading, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
+  approverNames, approvesInChat, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
 } from '../../lib/channel-people.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
-const MARK = 22;
+const MARK = ICON_SIZE.md;
 const NOBODY = 'Nobody added yet, so anyone can still write. Add the first person below.';
 const DUPLICATE = 'This person is already in the list.';
 
@@ -143,7 +144,7 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
       {editing ? (
         <PeopleList
           people={people}
-          heading={peopleHeading(entries)}
+          heading="People"
           chat={chat}
           busy={busy}
           error={error}

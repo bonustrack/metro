@@ -22,8 +22,8 @@ export type Dimension = Exclude<keyof RunFilters, 'q'>;
 interface FilterOption { value: string; label: string }
 export const DIMENSIONS: Dimension[] = ['sender', 'station', 'account', 'channel', 'worker', 'status', 'direction', 'time'];
 export const LABELS: Record<Dimension, string> = {
-  sender: 'senders', station: 'stations', account: 'accounts', channel: 'channels',
-  status: 'states', kind: 'events', time: 'retained time', worker: 'workers', direction: 'directions',
+  sender: 'people', station: 'channels', account: 'accounts', channel: 'chats',
+  status: 'states', kind: 'events', time: 'times', worker: 'helpers', direction: 'directions',
 };
 
 function valueOf(entry: RunEntry, key: Dimension): string {
@@ -42,7 +42,7 @@ function labelOf(entry: RunEntry, key: Dimension): string {
 
 export function filterOptions(entries: RunEntry[], key: Dimension): FilterOption[] {
   if (key === 'time') return [
-    { value: 'All', label: 'All retained time' }, { value: '5', label: 'Last 5 minutes' },
+    { value: 'All', label: 'Any time' }, { value: '5', label: 'Last 5 minutes' },
     { value: '15', label: 'Last 15 minutes' }, { value: '60', label: 'Last hour' },
   ];
   const options = new Map<string, string>();

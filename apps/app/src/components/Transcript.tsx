@@ -1,18 +1,22 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { Loading } from './Loading.js';
 import { MarkdownBlock } from './MarkdownBlock.js';
 import { StationIcon } from './StationIcon.js';
 import { parseChannelMessage } from './channel-message.js';
 import { atBottom, keepOffset, toBottom } from './chat-scroll.js';
 import { pollTranscript } from './transcript-poll.js';
 import { fetchTranscript, type Block, type TranscriptEntry } from '@metro-labs/client/api/claude';
+import { whenLabel } from '@metro-labs/client/api/when';
 import { queryError } from '../lib/queries.js';
 import { Disclosure } from './ui/Disclosure.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { allSides } from './ui/edges.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 
 const PAGE = 20;
 const BUBBLE_WIDTH = '85%';
@@ -60,9 +64,11 @@ function senderOf(entry: TranscriptEntry): Sender {
 }
 
 function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
+  const palette = useKitPalette();
+  const technical = useTechnicalDetails();
   const user = entry.role === 'user';
   const sender = senderOf(entry);
-  const when = entry.at === null ? '' : ` · ${new Date(entry.at).toLocaleTimeString()}`;
+  const when = entry.at === null ? '' : ` · ${technical ? new Date(entry.at).toLocaleString() : whenLabel(entry.at)}`;
   return (
     <Row justify={user ? 'start' : 'end'} padding={{ y: 4 }}>
       <Col gap={4} maxWidth={BUBBLE_WIDTH}>
@@ -73,7 +79,7 @@ function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
             {when}
           </Text>
         </Row>
-        <Col surface={user ? 'raised' : 'surface'} border={user ? undefined : { top: { width: 1 }, right: { width: 1 }, bottom: { width: 1 }, left: { width: 1 } }} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
+        <Col background={user ? palette.inputBg : undefined} border={user ? undefined : allSides(palette.border)} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
           {entry.blocks.map((b, i) => (
             <BlockView key={`${entry.uuid}-${String(i)}`} block={b} />
           ))}
@@ -95,6 +101,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const seen = useRef(0);
 
   useEffect(() => {
@@ -118,7 +125,7 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [project, id]);
+  }, [project, id, attempt]);
 
   useEffect(() => {
     if (entries === null) return;
@@ -157,10 +164,11 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
       });
   };
 
-  if (entries === null) return error === null ? <Loading /> : <Text size="md" role="danger">{error}</Text>;
+  if (entries === null)
+    return error === null ? <RowsSkeleton rows={4} leading={false} trailing={false} /> : <ErrorState title="Could not read the conversation" text={error} onRetry={() => { setAttempt((n) => n + 1); }} />;
   return (
     <Col>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="xs" role="danger">{error}</Text>}
       <Col gap={4}>
         {from > 0 ? (
           <Row justify="center" padding={{ bottom: 8 }}>

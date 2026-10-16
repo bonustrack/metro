@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Spinner } from './Spinner.js';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Dropdown } from './Dropdown.js';
 import { ConfirmModal } from './ConfirmModal.js';
 import { Group } from './ui/Group.js';
@@ -68,10 +69,10 @@ function confirmLines(view: Growable, sizeGib: number): string[] {
   ];
 }
 
-function Notice({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
+function Notice({ text }: { text: string }): ReactNode {
   return (
     <Group label={TITLE}>
-      <NoteRow text={text} danger={danger} />
+      <NoteRow text={text} />
     </Group>
   );
 }
@@ -153,8 +154,11 @@ export function ServerStorageSection({ serverId, launchedOnly = false }: { serve
   if (storage.data === null) return null;
   if (launchedOnly && storage.data?.growable !== true) return null;
   if (storage.data === undefined) {
-    if (storage.error === null) return <Loading />;
-    return <Notice text={queryError(storage.error, 'Could not read the disk of this server.')} danger />;
+    return (
+      <Group label={TITLE}>
+        {storage.error === null ? <RowsSkeleton rows={2} leading={false} /> : <ErrorState title="Could not read the disk of this server" text={queryError(storage.error, 'Metro did not answer.')} onRetry={storage.refetch} />}
+      </Group>
+    );
   }
   if (!storage.data.growable) return <Notice text={storage.data.reason} />;
   return <GrowableStorage serverId={serverId} view={storage.data} />;

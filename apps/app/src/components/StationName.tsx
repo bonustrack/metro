@@ -8,6 +8,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../lib/style.js';
 import { accountName, claimAccountName } from '@metro-labs/client/api/attach';
 import { boxKey, queryError, useBoxQuery } from '../lib/queries.js';
+import { ErrorState } from './ui/ErrorState.js';
 
 const FIELD_WIDTH = 420;
 const SUFFIX = '.stage.base.eth';
@@ -56,9 +57,8 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
 }
 
 export function StationName({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
-  const { data, error } = useBoxQuery(['account-name', station, accountId], () => accountName(agentId, station, accountId), { staleTime: 60_000 });
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not read the name.')}</Text>;
-  if (data === undefined) return null;
+  const { data, error, refetch } = useBoxQuery(['account-name', station, accountId], () => accountName(agentId, station, accountId), { staleTime: 60_000 });
+  if (data === undefined) return error === null ? null : <ErrorState title="Could not read the name" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />;
   if (data.name !== null) return <Text size="md">{data.name}</Text>;
   if (!data.canClaim)
     return (

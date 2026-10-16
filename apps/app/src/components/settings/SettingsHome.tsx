@@ -2,8 +2,8 @@ import { type ReactNode } from 'react';
 import { type Server } from '@metro-labs/client/api/servers';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { Groups } from '../ui/Group.js';
-import { StateBlock } from '../ui/StateBlock.js';
-import { Loading } from '../Loading.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { AdvancedGroup } from './AdvancedGroup.js';
 import { DangerGroup } from './DangerGroup.js';
 import { ModelGroup } from './ModelGroup.js';
@@ -31,8 +31,8 @@ export function AgentSettings({ project }: { project: string }): ReactNode {
   const technical = useTechnicalDetails();
   useDocumentTitle('Settings');
   if (server === undefined) {
-    if (error === null) return <Loading />;
-    return <StateBlock icon="exclamationCircle" danger title="Settings did not load" text={queryError(error, 'Could not read this agent.')} action={{ label: 'Try again', onPress: retry }} />;
+    if (error === null) return <RowsSkeleton rows={4} leading={false} />;
+    return <ErrorState title="Settings did not load" text={queryError(error, 'Could not read this agent.')} onRetry={retry} />;
   }
   return (
     <Groups>

@@ -1,18 +1,16 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { activeAccount } from '@metro-labs/client/auth/account';
+import { Groups } from './ui/Group.js';
 import { PageHeader } from './ui/PageHeader.js';
-import { Readable } from './ui/Layout.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { AccountSettings } from './AccountSettings.js';
 
 export function Settings(): ReactNode {
   useDocumentTitle('Settings');
   return (
-    <Col gap={16}>
-      <PageHeader title="Settings" />
-      <Readable>
-        <AccountSettings />
-      </Readable>
-    </Col>
+    <Groups>
+      <PageHeader title="Settings" subtitle={activeAccount()?.user.email ?? undefined} />
+      <AccountSettings />
+    </Groups>
   );
 }

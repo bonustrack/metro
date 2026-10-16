@@ -12,8 +12,8 @@ import { currentServer } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
-import { StateBlock } from '../ui/StateBlock.js';
-import { Loading } from '../Loading.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl, type RouteControl } from '../route-actions.js';
 import { sourceLine, withRoute } from '../model-view.js';
@@ -24,6 +24,7 @@ import { queryError } from '../../lib/queries.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const NO_CONNECTION = 'No account yet. Add one on the organization’s Models page, a Claude subscription included.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
@@ -54,7 +55,7 @@ function useEditing(org: OrgModels, agent: string): Editing {
 
 function Check(): ReactNode {
   const palette = useKitPalette();
-  return <Glyph icon={IconCheckmark1} size={22} color={palette.link} />;
+  return <Glyph icon={IconCheckmark1} size={ICON_SIZE.md} color={palette.link} />;
 }
 
 function stepName(org: OrgModels): (connection: string, model: string) => string {
@@ -134,8 +135,8 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
   const name = useAgentName();
   const agent = currentServer()?.id ?? null;
   if (model.data === undefined) {
-    if (model.error === null) return <Loading />;
-    return <StateBlock icon="exclamationCircle" danger title="The model did not load" text={queryError(model.error, 'Could not read the model settings.')} action={{ label: 'Try again', onPress: () => { model.refetch().catch(() => undefined); } }} />;
+    if (model.error === null) return <RowsSkeleton rows={3} />;
+    return <ErrorState title="The model did not load" text={queryError(model.error, 'Could not read the model settings.')} onRetry={model.refetch} />;
   }
   const admin = org.data?.admin === true && agent !== null;
   return (

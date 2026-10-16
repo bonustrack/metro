@@ -6,13 +6,15 @@ import { sizeLabel, whenLabel } from '@metro-labs/client/api/when';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
 import { Crumbs, EntryRow, type Crumb } from './FolderBrowser.js';
-import { Loading } from './Loading.js';
 import { Group, Groups } from './ui/Group.js';
 import { LogBlock } from './ui/LogBlock.js';
 import { PageHeader } from './ui/PageHeader.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { useAgentName } from '../lib/agent-hooks.js';
 import { queryError, useBoxQuery } from '../lib/queries.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 import { useDocumentTitle } from '../lib/title.js';
 
 interface FilesProps {
@@ -88,14 +90,15 @@ function Intro({ path }: { path: string }): ReactNode {
 }
 
 export function Files({ project, path }: FilesProps): ReactNode {
+  const technical = useTechnicalDetails();
   const query = useBoxQuery(['agent-files', path], () => fetchAgentPath(path), { staleTime: 5_000, retry: false });
   useDocumentTitle('Files');
-  if (query.error !== null) return <StateBlock icon="exclamationCircle" danger title="Could not read that path" text={queryError(query.error, 'Try again in a moment.')} />;
-  if (query.data === undefined) return <Loading />;
+  if (query.data === undefined)
+    return query.error === null ? <RowsSkeleton rows={5} trailing={false} /> : <ErrorState title="Could not read that folder" text={queryError(query.error, 'The agent did not answer.')} onRetry={query.refetch} />;
   return (
     <Col gap={16}>
       <Intro path={path} />
-      <Crumbs crumbs={crumbsOf(project, query.data.root === '' ? 'Agent folder' : query.data.root, path)} />
+      <Crumbs crumbs={crumbsOf(project, technical && query.data.root !== '' ? query.data.root : 'Agent folder', path)} />
       {query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} /> : <FileView answer={query.data} />}
     </Col>
   );

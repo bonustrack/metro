@@ -1,33 +1,26 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { SaveField, useSave } from './SaveField.js';
 import { AgentAvatar } from './AgentAvatar.js';
 import { useImagePicker } from './AvatarPicker.js';
+import { Block } from './settings/rows.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { AVATAR_SIZE } from './ui/sizes.js';
 import { updateAccount } from '@metro-labs/client/api/auth';
 import { activeAccount, type Account } from '@metro-labs/client/auth/account';
 
-const PAGE_AVATAR = 56;
 const NAME_MAX = 80;
 
-function Picture({ account, onChanged }: { account: Account; onChanged: () => void }): ReactNode {
+function PictureButtons({ busy, shown, onPick, onRemove }: { busy: boolean; shown: boolean; onPick: () => void; onRemove: () => void }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const picker = useImagePicker(async (next) => {
-    await updateAccount({ avatar: next });
-    onChanged();
-  });
   return (
-    <Row align="center" gap={16} wrap>
-      <AgentAvatar seed={account.user.id} src={account.user.picture} size={PAGE_AVATAR} />
-      <Button size="md" color="secondary" dark={dark} label={picker.busy ? 'Saving…' : 'Set picture'} loading={picker.busy} disabled={picker.busy} onPress={picker.pick} />
-      {account.user.picture === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove picture" disabled={picker.busy} onPress={picker.remove} />}
-      {picker.error === null ? null : (
-        <Text size="md" role="danger">
-          {picker.error}
-        </Text>
-      )}
+    <Row gap={8} align="center">
+      {shown ? <Button size="sm" color="secondary" dark={dark} label="Remove" disabled={busy} onPress={onRemove} /> : null}
+      <Button size="sm" color="secondary" dark={dark} label={busy ? 'Saving…' : 'Change'} loading={busy} disabled={busy} onPress={onPick} />
     </Row>
   );
 }
@@ -44,29 +37,35 @@ function Name({ account, onChanged }: { account: Account; onChanged: () => void 
     failure: 'Could not save the name.',
   });
   return (
-    <Col gap={8}>
+    <Block gap={10}>
+      <Text size="md">Name</Text>
       <SaveField saving={saving} name="account-name" label="Name" placeholder={account.user.email ?? ''} />
-    </Col>
+    </Block>
   );
 }
 
 export function AccountSettings(): ReactNode {
   const [, bump] = useState(0);
   const account = activeAccount();
-  if (account === null) return null;
   const changed = (): void => {
     bump((n) => n + 1);
   };
+  const picker = useImagePicker(async (next) => {
+    await updateAccount({ avatar: next });
+    changed();
+  });
+  if (account === null) return null;
   return (
-    <Col gap={12}>
-      <Col gap={2}>
-        <Text size="sm" weight="medium">Account</Text>
-        <Text size="md" role="secondary">
-          {account.user.email ?? ''}
-        </Text>
-      </Col>
-      <Picture account={account} onChanged={changed} />
+    <Group label="Profile" error={picker.error}>
+      <Item
+        title="Picture"
+        subtitle={account.user.picture === null ? 'A pattern made from your account' : 'Shown to the people in your organization'}
+        leading={<AgentAvatar seed={account.user.id} src={account.user.picture} size={AVATAR_SIZE.list} />}
+        trailing={<PictureButtons busy={picker.busy} shown={account.user.picture !== null} onPick={picker.pick} onRemove={picker.remove} />}
+        chevron={false}
+      />
       <Name key={account.user.name ?? ''} account={account} onChanged={changed} />
-    </Col>
+      <Item title="Email" value={account.user.email ?? ''} />
+    </Group>
   );
 }

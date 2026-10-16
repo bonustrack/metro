@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Loading } from './Loading.js';
+import { ErrorState } from './ui/ErrorState.js';
+import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { Dropdown } from './Dropdown.js';
 import { Group } from './ui/Group.js';
 import { Control, Fact, NoteRow } from './settings/rows.js';
@@ -69,7 +70,8 @@ function Picker({ server }: { server: Server }): ReactNode {
       </Control>
     );
   }
-  if (found.data === undefined) return found.error === null ? <Loading /> : <Note text={queryError(found.error, 'Could not list the servers in AWS.')} danger />;
+  if (found.data === undefined)
+    return found.error === null ? <RowsSkeleton rows={2} /> : <ErrorState title="Could not list the servers in AWS" text={queryError(found.error, 'AWS did not answer.')} onRetry={found.refetch} />;
   const list = candidates(found.data.instances, server);
   return (
     <>

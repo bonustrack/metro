@@ -22,6 +22,7 @@ import { openExternal } from '../../lib/open.js';
 import { queryError } from '../../lib/queries.js';
 import { go } from '../../lib/nav.js';
 import { GROW } from '../../lib/style.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const PALETTE_WIDTH = 640;
 const PALETTE_HEIGHT = '80%';
@@ -101,7 +102,7 @@ function SearchField({ query, sheet, onQuery, onMove, onEnter }: FieldProps): Re
   return (
     <Row align="center" gap={12} padding={sheet ? { x: 16, y: 6 } : { x: 20, y: 12 }} radius={sheet ? 12 : 0} background={sheet ? palette.bg : undefined}
       border={sheet ? undefined : { bottom: { width: 1, color: palette.border } }} margin={sheet ? { x: 12, bottom: 8 } : undefined}>
-      <Icon name="search" size={22} color={palette.text} />
+      <Icon name="search" size={ICON_SIZE.md} color={palette.text} />
       <Input name="jump" value={query} placeholder="Jump to an agent, a page or an action" autoFocus dark={dark} size="lg" onChangeText={onQuery} onSubmit={onEnter} style={styles.field}
         inputProps={{ ...SEARCH_INPUT_PROPS, onKeyPress, autoCapitalize: 'none', autoCorrect: false, returnKeyType: 'go' }} />
       {sheet ? (

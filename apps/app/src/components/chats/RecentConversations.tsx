@@ -7,13 +7,15 @@ import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { Item } from '../ui/Item.js';
+import { ICON_SIZE } from '../ui/sizes.js';
+import { ErrorState } from '../ui/ErrorState.js';
 import { Group } from '../ui/Group.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { useHomeProject } from '../../lib/agent-hooks.js';
 import { queryError, useClaudeSessionsQuery } from '../../lib/queries.js';
 
 const SHOWN = 5;
 const POLL_MS = 30_000;
-const MARK = 24;
 const LABEL = 'Recent conversations';
 
 export const sessionTitle = (session: ClaudeSession): string => (session.title !== '' && session.title !== session.id ? session.title : 'Conversation');
@@ -30,14 +32,13 @@ function ShowAll({ project }: { project: string }): ReactNode {
 
 function Recent({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
   const palette = useKitPalette();
-  const { data, error } = useClaudeSessionsQuery(claudeProject, POLL_MS);
-  if (error !== null)
+  const { data, error, refetch } = useClaudeSessionsQuery(claudeProject, POLL_MS);
+  if (data === undefined)
     return (
-      <Group label={LABEL} error={queryError(error, 'Could not list the conversations.')}>
-        {null}
+      <Group label={LABEL}>
+        {error === null ? <RowsSkeleton rows={2} trailing={false} /> : <ErrorState title="Could not list the conversations" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
       </Group>
     );
-  if (data === undefined) return null;
   if (data.length === 0)
     return (
       <Group label={LABEL} note="No conversation yet.">
@@ -50,7 +51,7 @@ function Recent({ project, claudeProject }: { project: string; claudeProject: st
         <Item
           key={session.id}
           title={sessionTitle(session)}
-          leading={<Icon name="chat" size={MARK} color={palette.text} />}
+          leading={<Icon name="chat" size={ICON_SIZE.lg} color={palette.text} />}
           value={session.lastAt === null ? undefined : whenLabel(session.lastAt)}
           href={routeHash({ kind: 'sessions', project, claudeProject, id: session.id })}
           chevron={false}

@@ -19,6 +19,7 @@ import { accountLine as connectionLine } from '../../lib/model-words.js';
 import { shownWindow } from '../../lib/settings-values.js';
 import { SHRINK } from '../../lib/style.js';
 import { useNow } from '../../lib/use-now.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const LOGO = 28;
 const CHEVRON = 20;
@@ -137,7 +138,7 @@ export function AddRow({ label, disabled, onPress }: { label: string; disabled: 
   const frame = StyleSheet.flatten([styles.row, { borderBottomColor: palette.border }]);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={frame}>
-      <Icon name="plus" size={22} color={disabled ? palette.sub : palette.link} />
+      <Icon name="plus" size={ICON_SIZE.md} color={disabled ? palette.sub : palette.link} />
       <Row flex={1}>
         <Text size="md" role={disabled ? 'secondary' : 'default'}>
           {label}

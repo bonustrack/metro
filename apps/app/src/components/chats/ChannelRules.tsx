@@ -1,24 +1,24 @@
 import { type ReactNode } from 'react';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { type GroupedTool, type ToolPolicy } from '@metro-labs/client/api/policy';
 import { routeHash } from '@metro-labs/client/route';
 import { Item } from '../ui/Item.js';
-import { AccessValue } from './AccessValue.js';
 import { Group } from '../ui/Group.js';
-import { exceptionSummary, overriddenTools, ruleRows } from '../../lib/channel-rules.js';
+import { PermissionControl } from '../ui/PermissionControl.js';
+import { type ChannelProps } from './channel-props.js';
+import { useSaveRule } from './use-save-rule.js';
+import { approvesInChat } from '../../lib/channel-people.js';
+import { askNote, changedCount, exceptionSummary, ruleRows } from '../../lib/channel-rules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 
-interface ChannelRulesProps {
-  project: string;
-  accountId: string;
-  policy: ToolPolicy;
-  tools: GroupedTool[];
-  verbs: string[];
-}
-
-export function ChannelRules({ project, accountId, policy, tools, verbs }: ChannelRulesProps): ReactNode {
+export function ChannelRules(props: ChannelProps): ReactNode {
+  const { project, found, view } = props;
+  const { station, row } = found;
   const name = useAgentName();
-  const label = `What ${name} may do`;
+  const saving = useSaveRule(props);
+  const tools = view.tools[station] ?? [];
+  const verbs = view.capabilities[station] ?? [];
+  const label = `What ${name} may do here`;
+  const id = row.id;
+  if (id === null) return null;
   if (verbs.length === 0)
     return (
       <Group label={label}>
@@ -26,26 +26,24 @@ export function ChannelRules({ project, accountId, policy, tools, verbs }: Chann
       </Group>
     );
   if (tools.length === 0) return null;
-  const href = (rule: string): string => routeHash({ kind: 'station', project, accountId, rule });
-  const own = overriddenTools(policy, tools).length;
+  const where = { chat: approvesInChat(station), approvers: row.approvers.length };
   return (
-    <Group label={label}>
-      {ruleRows(policy, tools).map((row) => (
+    <Group label={label} error={saving.error}>
+      {ruleRows(row.policy, tools).map((rule) => (
         <Item
-          key={row.target}
-          title={row.label}
-          subtitle={row.follows ? 'Same as Send and reply' : undefined}
-          trailing={<AccessValue shown={row.shown} />}
-          chevron
-          href={href(row.target)}
+          key={rule.target}
+          title={rule.label}
+          subtitle={rule.note}
+          detail={rule.value === 'ask' ? askNote(rule.target, where) : undefined}
+          trailing={<PermissionControl label={rule.label} value={rule.value} disabled={saving.busy} onChange={(choice) => { saving.pick(rule.target, choice); }} />}
+          chevron={false}
         />
       ))}
       <Item
-        title="Exceptions"
-        subtitle={exceptionSummary(policy, tools)}
-        trailing={<Text size="md" role="secondary">{own === 0 ? 'None' : String(own)}</Text>}
-        chevron
-        href={href('exceptions')}
+        title="Tool by tool"
+        subtitle={exceptionSummary(row.policy, tools)}
+        value={changedCount(row.policy, tools)}
+        href={routeHash({ kind: 'station', project, accountId: id, rule: 'exceptions' })}
       />
     </Group>
   );

@@ -17,6 +17,8 @@ import { runAccessDenied } from '../lib/run-cache.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { Wide } from './ui/Layout.js';
 import { useTechnicalDetails } from '../lib/technical.js';
+import { rightNow, runSummary } from '../lib/right-now.js';
+import { entryTime } from './run/words.js';
 import { RunCoverage } from './run/Coverage.js';
 import { RunCurrent } from './run/Current.js';
 import { RunSessionDetails, selectedModel } from './run/SessionDetails.js';
@@ -29,10 +31,12 @@ import { useRunFeed } from './run/use-run-feed.js';
 function FeedNotice({ unsupported, pending, error, updatedAt, catchingUp }: {
   unsupported: boolean; pending: boolean; error: Error | null; updatedAt: number; catchingUp: boolean;
 }): ReactNode {
-  if (unsupported) return <Text size="xs" role="secondary">Update this box to Metro {RUN_EVENTS_SINCE} or later to see messages. SDK activity still shows below.</Text>;
-  if (error !== null) return <Text size="xs" role="danger">Metro feed disconnected. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last confirmed ${stamp(updatedAt)}.` : ''}</Text>;
-  if (pending) return <Text size="xs" role="secondary">Loading retained Metro events…</Text>;
-  return <Text size="xs" role="secondary">{catchingUp ? 'Catching up with retained events…' : `Metro feed checked ${stamp(updatedAt)}. Polled every 5 seconds.`}</Text>;
+  const technical = useTechnicalDetails();
+  const checked = technical ? stamp(updatedAt) : entryTime(updatedAt, false);
+  if (unsupported) return <Text size="xs" role="secondary">Update Metro to {RUN_EVENTS_SINCE} or later to see messages here.</Text>;
+  if (error !== null) return <Text size="xs" role="danger">Messages are not updating. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last updated ${checked}.` : ''}</Text>;
+  if (pending) return <Text size="xs" role="secondary">Loading…</Text>;
+  return <Text size="xs" role="secondary">{catchingUp ? 'Catching up…' : technical ? `Metro feed checked ${checked}. Polled every 5 seconds.` : `Updated ${checked}.`}</Text>;
 }
 
 function combinedEntries(feed: RetainedRunFeed | undefined, status: ClaudeSessionStatus | undefined, agent: AgentSummary | undefined, now: number, disconnected: boolean): RunEntry[] {
@@ -72,8 +76,8 @@ function useRunSources(agent: AgentSummary | undefined, agentError: Error | null
 }
 
 function AgentNotice({ error, pending }: { error: Error | null; pending: boolean }): ReactNode {
-  if (error !== null) return <Text size="xs" role="danger">{queryError(error, 'Could not read this agent.')} The feed shows once the agent loads.</Text>;
-  return <Text size="xs" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
+  if (error !== null) return <Text size="xs" role="danger">{queryError(error, 'Could not read this agent.')} Messages show once the agent loads.</Text>;
+  return <Text size="xs" role="secondary">{pending ? 'Loading…' : 'Waiting for the agent.'}</Text>;
 }
 
 function RunFacts({ agent, data, agentError, agentPending }: { agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources>; agentError: Error | null; agentPending: boolean }): ReactNode {
@@ -94,7 +98,7 @@ function RunData({ project, agent, agentError, agentPending }: { project: string
   const [focus, setFocus] = useState({ worker: 'All', revision: 0, scope: '' });
   const initialWorker = focus.scope === data.scope ? focus.worker : 'All';
   const explain = <Text size="xs" onPress={() => { setCoverage(true); }} accessibilityRole="button">What is shown here?</Text>;
-  return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" action={explain}><Wide gap={40}>
+  return <AgentDeepPage project={project} tab="home" trail={[{ label: 'Right now' }]} title="Right now" subtitle={data.status === undefined ? undefined : runSummary(rightNow(data.status, now))} action={explain}><Wide gap={40}>
     <RunFacts agent={agent} data={data} agentError={agentError} agentPending={agentPending} />
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
       onWorker={(worker) => { setFocus((current) => ({ worker, revision: current.revision + 1, scope: data.scope })); }} />

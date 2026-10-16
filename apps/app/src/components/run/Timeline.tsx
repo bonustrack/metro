@@ -10,6 +10,7 @@ import { RunInspector } from './Inspector.js';
 import { RunTrends } from './Trends.js';
 import { DEFAULT_FILTERS, filterEntries, type EventBucket, type RunFilters } from './filters.js';
 import type { RunEntry } from './model.js';
+import { useTechnicalDetails } from '../../lib/technical.js';
 
 interface Props {
   entries: RunEntry[];
@@ -51,19 +52,20 @@ function Details({ selected, entries, filtered, narrow, inspect, onSelect, onClo
 
 export function RunTimeline({ entries, now, notice, initialWorker = 'All' }: Props): ReactNode {
   const narrow = useWindowDimensions().width < 700;
+  const technical = useTechnicalDetails();
   const data = useTimeline(entries, now, initialWorker);
   const [charts, setCharts] = useState(false);
   return <Col gap={16}>
       <Row justify="between" align="center" wrap gap={8}>
-        <Row align="center" gap={8}><Text size="xs" role="secondary">Activity</Text><Badge label={String(data.filtered.length)} /></Row>
-        <Row align="center" gap={12}><Text size="xs" role="secondary">Newest first · UTC</Text>
+        <Row align="center" gap={8}><Text size="xs" role="secondary">What happened</Text><Badge label={String(data.filtered.length)} /></Row>
+        <Row align="center" gap={12}><Text size="xs" role="secondary">{technical ? 'Newest first · UTC' : 'Newest first'}</Text>
           <Text size="xs" onPress={() => { setCharts(!charts); }} accessibilityRole="button" accessibilityState={{ expanded: charts }}>{charts ? 'Hide charts' : 'Charts'}</Text></Row>
       </Row>
       {notice}
       <RunFiltersBar entries={entries} filters={data.filters} onChange={data.change} more={data.more} onMore={data.toggleMore} minute={data.bucket?.start ?? null} onReset={data.reset} narrow={narrow} />
       {charts && <RunTrends entries={data.rows} selected={data.bucket} onSelect={data.selectBucket} />}
       <RunActivity entries={data.filtered} onSelect={data.select} limit={data.limit} onMore={data.loadMore} onReset={data.reset} />
-      <Text size="xs" role="secondary">Partial history: the last 500 Metro events, 40 SDK events and recent failures.</Text>
+      <Text size="xs" role="secondary">{technical ? 'Partial history: the last 500 Metro events, 40 SDK events and recent failures.' : 'Only recent activity is kept.'}</Text>
     <Details selected={data.selected} entries={entries} filtered={data.filtered} narrow={narrow} inspect={data.inspect} onSelect={data.select} onClose={data.close} />
   </Col>;
 }

@@ -5,8 +5,10 @@ import type { Machine } from '@metro-labs/client/api/machine';
 import type { ModelSettings } from '@metro-labs/client/api/model';
 import { limitingWindow, modelWindows, usageModel } from '@metro-labs/client/api/model-usage';
 import { providerLabel, routedConnection, routedUsage } from '@metro-labs/client/api/providers';
+import { olderThan } from '@metro-labs/client/api/version';
 import type { Tone } from './tone.js';
 import { modelReady } from './setup-steps.js';
+import { shortVersion } from './settings-values.js';
 
 export interface Glance {
   subtitle: string;
@@ -39,7 +41,10 @@ function usageValue(model: ModelSettings, now: number): string | null {
 
 export function modelGlance(model: ModelSettings, now: number): Glance {
   if (!modelReady(model)) return { subtitle: model.reason ?? modelName(model), value: 'Not ready', tone: 'danger' };
-  return { subtitle: modelName(model), value: usageValue(model, now) };
+  const usage = usageValue(model, now);
+  const picked = model.route === null ? '' : usageModel(model, model.route.primary);
+  if (picked === '') return { subtitle: modelName(model), value: usage };
+  return { subtitle: [modelName(model), usage].filter((part) => part !== null).join(' · '), value: picked };
 }
 
 export function chatsGlance(groups: AccountGroup[]): Glance {
@@ -71,11 +76,22 @@ function readings(machine: Machine | undefined, usage: LatestUsage | undefined):
   return all.flatMap(([label, value]) => (value === null ? [] : [[label, value]]));
 }
 
-export function serverGlance(machine: Machine | undefined, usage: LatestUsage | undefined): Glance {
-  const subtitle = machine === undefined ? 'Online' : `Up ${uptimeWords(machine.uptimeSeconds)}`;
+export function serverGlance(machine: Machine | undefined, usage: LatestUsage | undefined, place: string | null = null): Glance {
+  const subtitle = place ?? (machine === undefined ? 'Online' : `Up ${uptimeWords(machine.uptimeSeconds)}`);
   const shown = readings(machine, usage);
   const worst = shown.reduce<[string, number] | null>((most, reading) => (most === null || reading[1] > most[1] ? reading : most), null);
   if (worst === null) return { subtitle, value: null };
   if (worst[1] >= WARN) return { subtitle, value: `${worst[0]} ${String(Math.round(worst[1]))}%`, tone: 'danger' };
   return { subtitle, value: 'All good', tone: 'success' };
+}
+
+export function versionGlance(version: string | null | undefined, latest: string | null | undefined): Glance | undefined {
+  if (version === undefined || version === null) return undefined;
+  const behind = latest !== undefined && latest !== null && olderThan(version, latest);
+  return { subtitle: behind ? `Update to ${shortVersion(latest)}` : 'Up to date', value: shortVersion(version) };
+}
+
+export function uptimeGlance(machine: Machine | undefined): Glance | undefined {
+  if (machine === undefined) return undefined;
+  return { subtitle: 'Since the last restart', value: uptimeWords(machine.uptimeSeconds) };
 }

@@ -83,7 +83,7 @@ describe('Run filtering and links', () => {
     expect(filterEntries(rows, filters, 1_002_000).map((row) => row.id)).toEqual(['one']);
     expect(filterEntries(rows, { ...filters, worker: 'worker-two' }, 1_002_000)).toEqual([]);
     expect(filterEntries(rows, { ...filters, time: '5' }, 2_000_000)).toEqual([]);
-    expect(filterOptions(rows, 'sender').map((option) => option.label)).toEqual(['All senders', 'Alex', 'Jamie']);
+    expect(filterOptions(rows, 'sender').map((option) => option.label)).toEqual(['All people', 'Alex', 'Jamie']);
   });
 
   test('same-name channels and people have distinct filter labels', () => {

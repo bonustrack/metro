@@ -1,61 +1,64 @@
 import { type ReactNode } from 'react';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { stationLabel } from '@metro-labs/client/api/attach';
-import { effectiveAccess, toolOverride, type GroupedTool, type ToolGroup } from '@metro-labs/client/api/policy';
+import { type ToolGroup } from '@metro-labs/client/api/policy';
 import { routeHash } from '@metro-labs/client/route';
 import { Item } from '../ui/Item.js';
 import { AgentDeepPage } from '../agent/AgentDeepPage.js';
-import { AccessValue } from './AccessValue.js';
 import { type ChannelProps } from './channel-props.js';
 import { Group } from '../ui/Group.js';
-import { exceptionTools, toolTarget } from '../../lib/channel-rules.js';
+import { PermissionControl } from '../ui/PermissionControl.js';
+import { RoundButton } from '../ui/RoundButton.js';
+import { useSaveRule, type SaveRule } from './use-save-rule.js';
+import { toolRules, toolTarget, type ToolRule } from '../../lib/channel-rules.js';
+import { GROUP_WORD } from '../../lib/permission-words.js';
 import { toolLabel } from '../../lib/tool-labels.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
-const GROUPS: { group: ToolGroup; label: string }[] = [
-  { group: 'read', label: 'Read' },
-  { group: 'write', label: 'Send and reply' },
-];
+const GROUPS: readonly ToolGroup[] = ['read', 'write'];
+const LEAD = 'Each tool follows its row unless you change it here.';
 
-export function ExceptionsPage({ project, found, view }: ChannelProps): ReactNode {
+function subtitleOf(rule: ToolRule, group: ToolGroup, technical: boolean): string {
+  const parts = [rule.own ? 'Own rule' : `Same as ${GROUP_WORD[group]}`, rule.listed ? '' : 'Saved for a tool not listed now', technical ? rule.tool.name : ''];
+  return parts.filter((part) => part !== '').join(' · ');
+}
+
+function ToolRow({ rule, group, saving }: { rule: ToolRule; group: ToolGroup; saving: SaveRule }): ReactNode {
   const technical = useTechnicalDetails();
-  const { station, row } = found;
-  const id = row.id ?? '';
-  const channel = routeHash({ kind: 'station', project, accountId: id });
-  const known = view.tools[station] ?? [];
-  const tools = exceptionTools(row.policy, known);
-  useDocumentTitle('Exceptions');
-  const subtitleOf = (tool: GroupedTool, label: string): string | undefined => {
-    const parts = [toolOverride(row.policy, tool.name) === undefined ? `Same as ${label}` : '', known.some((k) => k.name === tool.name) ? '' : 'Saved for a tool not listed now', technical ? tool.name : ''];
-    const text = parts.filter((part) => part !== '').join(' · ');
-    return text === '' ? undefined : text;
-  };
+  const title = toolLabel(rule.tool.name);
+  const target = toolTarget(rule.tool.name);
   return (
-    <AgentDeepPage
-      project={project}
-      tab="chats"
-      trail={[{ label: stationLabel(station), href: channel }, { label: 'Exceptions' }]}
-      title="Exceptions"
-      lead="A tool here can have its own rule. The others follow their row."
-    >
-      {GROUPS.map(({ group, label }) => {
-        const inGroup = tools.filter((tool) => tool.group === group);
-        if (inGroup.length === 0) return null;
-        return (
-          <Group key={group} label={label}>
-            {inGroup.map((tool) => (
-              <Item
-                key={tool.name}
-                title={toolLabel(tool.name)}
-                subtitle={subtitleOf(tool, label)}
-                trailing={<AccessValue shown={effectiveAccess(row.policy, tool)} quiet={toolOverride(row.policy, tool.name) === undefined} />}
-                chevron
-                href={routeHash({ kind: 'station', project, accountId: id, rule: toolTarget(tool.name) })}
-              />
-            ))}
+    <Item
+      title={title}
+      subtitle={subtitleOf(rule, group, technical)}
+      chevron={false}
+      trailing={
+        <Row align="center" gap={4}>
+          {rule.own ? <RoundButton ghost icon="refresh" label={`${title}: same as ${GROUP_WORD[group]}`} disabled={saving.busy} onPress={() => { saving.pick(target, 'same'); }} /> : null}
+          <PermissionControl label={title} value={rule.value} disabled={saving.busy} onChange={(choice) => { saving.pick(target, choice); }} />
+        </Row>
+      }
+    />
+  );
+}
+
+export function ExceptionsPage(props: ChannelProps): ReactNode {
+  const { project, found, view } = props;
+  const saving = useSaveRule(props);
+  const { station, row } = found;
+  const channel = routeHash({ kind: 'station', project, accountId: row.id ?? '' });
+  const known = view.tools[station] ?? [];
+  useDocumentTitle('Tool by tool');
+  return (
+    <AgentDeepPage project={project} tab="chats" trail={[{ label: stationLabel(station), href: channel }, { label: 'Tool by tool' }]} title="Tool by tool" subtitle={LEAD}>
+      {GROUPS.map((group) => ({ group, rules: toolRules(row.policy, known, group) }))
+        .filter((part) => part.rules.length > 0)
+        .map(({ group, rules }, index) => (
+          <Group key={group} label={GROUP_WORD[group]} error={index === 0 ? saving.error : undefined}>
+            {rules.map((rule) => <ToolRow key={rule.tool.name} rule={rule} group={group} saving={saving} />)}
           </Group>
-        );
-      })}
+        ))}
     </AgentDeepPage>
   );
 }

@@ -9,14 +9,16 @@ import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { KebabMenu } from '../KebabMenu.js';
-import { Loading } from '../Loading.js';
 import { ProviderModal, type Editing } from '../ProviderModal.js';
 import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl } from '../route-actions.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { PageHeader } from '../ui/PageHeader.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
+import { AVATAR_SIZE } from '../ui/sizes.js';
 import { AvatarStack, serverNames } from './RouteParts.js';
 import { RouteOrder } from './RouteOrder.js';
 import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
@@ -63,7 +65,7 @@ function Agents({ list }: { list: OrgModels }): ReactNode {
         <Group label="Own route" note="These agents use their own route. Change it on the agent's Settings, Model.">
           {own.map((server) => (
             <Item key={server.id} title={serverLabel(server)} subtitle={routeSummary(list.agents[server.id] ?? null)}
-              leading={<AgentAvatar seed={server.host} src={server.avatar} size={28} />} href={routeHash({ kind: 'model', project: server.id })} />
+              leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
           ))}
         </Group>
       )}
@@ -96,11 +98,16 @@ function NoAccount({ admin }: { admin: boolean }): ReactNode {
 }
 
 function Body(): ReactNode {
-  const { data, error } = useOrgModelsQuery();
+  const { data, error, refetch } = useOrgModelsQuery();
   const back = useOpenRouterReturn();
   useDocumentTitle('Default route');
-  if (error !== null) return <Text size="md" role="danger">{queryError(error, 'Could not load the models.')}</Text>;
-  if (data === undefined) return <Loading />;
+  if (data === undefined)
+    return (
+      <Groups>
+        <PageHeader title="Default route" />
+        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not load the models" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
+      </Groups>
+    );
   return (
     <Groups>
       <PageHeader title="Default route" subtitle={data.admin ? undefined : MEMBER_NOTE} action={data.admin && data.default !== null ? <RemoveMenu /> : undefined} />

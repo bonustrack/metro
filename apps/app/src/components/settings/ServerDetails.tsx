@@ -6,13 +6,14 @@ import { whenLabel } from '@metro-labs/client/api/when';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
-import { Loading } from '../Loading.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { EnrollAgent } from '../EnrollAgent.js';
 import { ServerAwsSection } from '../ServerAws.js';
 import { ServerResources } from '../ServerResources.js';
 import { ServerSizeSection } from '../ServerSize.js';
 import { ServerStorageSection } from '../ServerStorage.js';
-import { Fact, NoteRow } from './rows.js';
+import { Fact } from './rows.js';
 import { useCurrentServer } from './SettingsHome.js';
 import { queryError, useClaudeSessionQuery, useLatestUsageQuery, useMachineQuery, useServerStatus } from '../../lib/queries.js';
 import { healthValue } from '../../lib/settings-values.js';
@@ -38,9 +39,9 @@ function Health({ server }: { server: Server }): ReactNode {
   );
 }
 
-function MachineGroup({ machine, error }: { machine: Machine | undefined; error: Error | null }): ReactNode {
+function MachineGroup({ machine, error, retry }: { machine: Machine | undefined; error: Error | null; retry: () => unknown }): ReactNode {
   if (machine === undefined)
-    return <Group label="Machine">{error === null ? <Loading /> : <NoteRow text={queryError(error, 'Could not read this server.')} danger />}</Group>;
+    return <Group label="Machine">{error === null ? <RowsSkeleton rows={3} leading={false} /> : <ErrorState title="Could not read this server" text={queryError(error, 'The agent did not answer.')} onRetry={retry} />}</Group>;
   const disk = machine.disk === null ? null : diskLabel(machine.disk);
   return (
     <Group label="Machine">
@@ -77,7 +78,7 @@ export function ServerDetails(): ReactNode {
   const machine = useMachineQuery();
   const technical = useTechnicalDetails();
   useDocumentTitle('Server');
-  if (server === undefined) return <Loading />;
+  if (server === undefined) return <RowsSkeleton rows={4} leading={false} />;
   return (
     <Groups>
       <Health server={server} />
@@ -86,7 +87,7 @@ export function ServerDetails(): ReactNode {
       <ServerStorageSection serverId={server.id} />
       <ServerAwsSection server={server} />
       <EnrollAgent server={server} />
-      <MachineGroup machine={machine.data} error={machine.error} />
+      <MachineGroup machine={machine.data} error={machine.error} retry={machine.refetch} />
       {technical ? <Details machine={machine.data} server={server} /> : null}
     </Groups>
   );

@@ -51,6 +51,7 @@ export function AdvancedGroup({ server, project }: { server: Server; project: st
   const name = serverLabel(server);
   return (
     <Group label="Advanced">
+      <Item title="Right now" subtitle={`What ${name} and its helpers are doing, on Home`} href={routeHash({ kind: 'run', project })} />
       <SetupRow href={routeHash({ kind: 'claude', project })} />
       <Item
         title="Terminal"
@@ -59,11 +60,10 @@ export function AdvancedGroup({ server, project }: { server: Server; project: st
           openTerminal(project);
         }}
       />
-      <Item title="Right now" subtitle={`What ${name} and its helpers are doing`} href={routeHash({ kind: 'run', project })} />
       {agent === undefined ? null : (
         <Item
-          title="Export or import"
-          subtitle="A .metro file with a passphrase"
+          title="Backup"
+          subtitle="Export or import a .metro file"
           onPress={() => {
             setStep('pick');
           }}

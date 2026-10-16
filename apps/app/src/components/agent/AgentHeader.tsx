@@ -10,7 +10,7 @@ import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
 import { PageHeader } from '../ui/PageHeader.js';
-import { AVATAR_SIZE } from '../ui/sizes.js';
+import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import { AgentMenu } from './AgentMenu.js';
 import { healthFix } from '../../lib/agent-health.js';
 import { useAgentRows } from '../../lib/agent-rows.js';
@@ -18,7 +18,7 @@ import { useClaudeSessionQuery, useServerStatus } from '../../lib/queries.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { SHRINK } from '../../lib/style.js';
 
-const BACK = 26;
+const BACK = ICON_SIZE.lg;
 const SELF = { alignSelf: 'flex-start', maxWidth: '100%' } as const;
 
 function Status({ text, fix }: { text: string; fix: Selection | undefined }): ReactNode {
