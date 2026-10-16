@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { log } from '@metro-labs/core/log';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SigningKeys } from '@metro-labs/http/workos-token';
@@ -289,6 +290,26 @@ describe('signing in to metro.box through WorkOS', () => {
       expect((await json('POST', '/api/auth/refresh', { organization: login, refreshToken: 'rt_busy' })).status).toBe(503);
       expect((await json('POST', '/api/auth/refresh', { organization: login, refreshToken: 'rt_edge' })).status).toBe(503);
     } finally {
+      workos.organizations.splice(0, workos.organizations.length, ...before);
+    }
+  });
+
+  test('a failed switch is logged with the user and the organization, and answered like a refresh: a revoked token 401, a busy WorkOS 503', async () => {
+    const [login, chosen] = ['org_01LOGIN0000000', 'org_01CHOSEN000000'];
+    const before = workos.organizations.splice(0, workos.organizations.length, login, chosen);
+    const warn = spyOn(log, 'warn');
+    try {
+      const tokens = await signIn();
+      const revoked = await json('POST', '/api/auth/switch', { organization: chosen, refreshToken: 'rt_dead' }, tokens.accessToken);
+      expect(revoked.status).toBe(401);
+      expect(await revoked.json()).toEqual({ error: 'the session has ended, sign in again' });
+      expect((await json('POST', '/api/auth/switch', { organization: chosen, refreshToken: 'rt_busy' }, tokens.accessToken)).status).toBe(503);
+      const failures = warn.mock.calls.filter((args) => args[1] === 'auth: the organization switch failed');
+      expect(failures).toHaveLength(2);
+      expect(failures[0]?.[0]).toMatchObject({ user: 'user_01ABC', organization: chosen });
+      expect((await json('POST', '/api/auth/switch', { organization: chosen, refreshToken: tokens.refreshToken }, tokens.accessToken)).status).toBe(200);
+    } finally {
+      warn.mockRestore();
       workos.organizations.splice(0, workos.organizations.length, ...before);
     }
   });

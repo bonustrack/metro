@@ -1,5 +1,5 @@
 import { fetchOrganizations, type OrganizationRow } from '@metro-labs/client/api/auth';
-import { activeAccount } from '@metro-labs/client/auth/account';
+import { AccountChangedError, activeAccount, subscribeAccountScope } from '@metro-labs/client/auth/account';
 import {
   QueryCache,
   QueryClient,
@@ -40,9 +40,10 @@ import { fetchLaunchOverview, type LaunchOverview } from '@metro-labs/client/api
 import { fetchSize, jobRunning, type SizeView } from '@metro-labs/client/api/size';
 import { applying, fetchStorage, growRunning, type StorageView } from '@metro-labs/client/api/storage';
 import { fetchSchedules, type Schedules } from '@metro-labs/client/api/schedules';
-import { currentOrganization } from '@metro-labs/client/auth/org-route';
+import { currentOrganization, forOrganization } from '@metro-labs/client/auth/org-route';
 import { readItem, writeItem } from '@metro-labs/client/platform';
 import { clearDeniedRunCache } from './run-cache.js';
+import { logError } from './log.js';
 import { useSharedPoll } from './shared-poll.js';
 
 const STALE_MS = 60_000;
@@ -115,9 +116,17 @@ export function makeQueryClient(onAuthError: () => void): QueryClient {
         gcTime: 30 * 60_000,
         refetchOnWindowFocus: false,
         refetchOnMount: false,
-        retry: (count, err) => !(err instanceof AuthError) && !(err instanceof StoppedError) && count < 2,
+        retry: (count, err) => !(err instanceof AuthError) && !(err instanceof StoppedError) && !(err instanceof AccountChangedError) && count < 2,
       },
     },
+  });
+}
+
+const ORGANIZATIONS = 'organizations';
+
+export function dropStaleQueries(client: QueryClient): () => void {
+  return subscribeAccountScope(() => {
+    client.cancelQueries({ predicate: (query) => query.queryKey[0] !== ORGANIZATIONS }).catch(logError('cancel stale queries'));
   });
 }
 
@@ -154,7 +163,7 @@ export function useServersQuery(): UseQueryResult<Server[]> {
   const org = key[1] ?? 'none';
   return useQuery({
     queryKey: key,
-    queryFn: async () => keepServers(org, await fetchServers()),
+    queryFn: async () => keepServers(org, await forOrganization(org === 'none' ? null : org, fetchServers)),
     staleTime: 30_000,
     initialData: () => cachedServers(org),
     initialDataUpdatedAt: 0,
@@ -183,7 +192,7 @@ function keepOrganizations(user: string, rows: OrganizationRow[]): OrganizationR
 export function useOrganizationsQuery(): UseQueryResult<OrganizationRow[]> {
   const user = activeAccount()?.user.id ?? 'none';
   return useQuery({
-    queryKey: ['organizations', user],
+    queryKey: [ORGANIZATIONS, user],
     queryFn: async () => keepOrganizations(user, await fetchOrganizations()),
     staleTime: 30_000,
     initialData: () => cachedOrganizations(user),

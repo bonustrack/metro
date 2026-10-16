@@ -92,8 +92,9 @@ describe('queued and refused dashboard organization access', () => {
       expect(activeAccount()).toBe(source);
       expect(accountScopeIdentity()).toBe(scope);
       await scopedOrganizationAccessToken(OTHER);
-      expect(calls.map((call) => call.refreshToken)).toEqual(['rt_test', 'rt_1']);
+      expect(calls.map((call) => call.refreshToken)).toEqual(['rt_test']);
       expect(activeAccount()?.organization).toBe(SOURCE);
+      expect(activeAccount()?.accessToken).toBe(source.accessToken);
     });
   }
 
@@ -122,7 +123,7 @@ describe('queued and refused dashboard organization access', () => {
     expect(activeAccount()?.refreshToken).toBe('rt_refreshed');
   });
 
-  test('an aborted subscriber settles before a started rotation finishes restoring', async () => {
+  test('an aborted subscriber settles before a started rotation finishes, and the rotation still keeps its refresh token', async () => {
     const serve = globalThis.fetch;
     const started = deferred<void>();
     const response = deferred<Response>();
@@ -138,9 +139,10 @@ describe('queued and refused dashboard organization access', () => {
     expect(await pending).toHaveProperty('name', 'AbortError');
     expect(activeAccount()?.refreshToken).toBe('rt_test');
     response.resolve(answer(TARGET, 'rt_destination'));
-    await scopedOrganizationAccessToken(SOURCE);
-    expect(calls.map((call) => call.organization)).toEqual([SOURCE]);
-    expect(activeAccount()?.refreshToken).toBe('rt_1');
+    expect(await scopedOrganizationAccessToken(TARGET)).toBe(testToken({ org_id: TARGET, role: 'member' }));
+    expect(await scopedOrganizationAccessToken(SOURCE)).toBe(source.accessToken);
+    expect(calls).toEqual([]);
+    expect(activeAccount()?.refreshToken).toBe('rt_destination');
   });
 
   test('one live queued subscriber still gets its shared destination token', async () => {
@@ -157,12 +159,12 @@ describe('queued and refused dashboard organization access', () => {
     await held;
     expect(await cancelled).toHaveProperty('name', 'AbortError');
     expect(await retained).toBe(testToken({ org_id: TARGET, role: 'member' }));
-    expect(calls.map((call) => call.organization)).toEqual([TARGET, SOURCE]);
+    expect(calls.map((call) => call.organization)).toEqual([TARGET]);
   });
 });
 
 describe('browser-wide source credential rotation', () => {
-  test('a waiting tab uses the other tab’s restored refresh token without changing its scope', async () => {
+  test('a waiting tab uses the other tab’s rotated refresh token without changing its scope', async () => {
     const browser = browserFixture();
     const scope = accountScopeIdentity();
     const changes: number[] = [];
@@ -172,7 +174,7 @@ describe('browser-wide source credential rotation', () => {
     const otherTab = browser.lock(async () => {
       started.resolve();
       await release.promise;
-      foreignAccount({ refreshToken: 'rt_other_tab_restored' });
+      foreignAccount({ refreshToken: 'rt_other_tab_rotated' });
       browser.changed();
     });
     await started.promise;
@@ -182,8 +184,8 @@ describe('browser-wide source credential rotation', () => {
     release.resolve();
     try {
       await Promise.all([otherTab, pending]);
-      expect(calls.map((call) => call.refreshToken)).toEqual(['rt_other_tab_restored', 'rt_1']);
-      expect(activeAccount()?.refreshToken).toBe('rt_2');
+      expect(calls.map((call) => call.refreshToken)).toEqual(['rt_other_tab_rotated']);
+      expect(activeAccount()?.refreshToken).toBe('rt_1');
       expect(accountScopeIdentity()).toBe(scope);
       expect(changes).toEqual([]);
     } finally { unsubscribe(); }
@@ -229,7 +231,7 @@ describe('browser-wide source credential rotation', () => {
     } finally { unsubscribe(); }
   });
 
-  test('logout during rotation completes restoration but cannot restore the signed-out account', async () => {
+  test('logout during a destination switch cannot bring the signed-out account back', async () => {
     browserFixture();
     const serve = globalThis.fetch;
     const started = deferred<void>();
@@ -247,19 +249,19 @@ describe('browser-wide source credential rotation', () => {
     response.resolve(answer(TARGET, 'rt_destination'));
     expect(await pending).toBeInstanceOf(Error);
     await loggedOut;
-    expect(calls.some((call) => call.organization === SOURCE)).toBe(true);
+    expect(calls.some((call) => call.organization === SOURCE)).toBe(false);
     expect(activeAccount()).toBeNull();
     expect(kv.getItem('metro.account')).toBeNull();
   });
 
-  test('logout masks foreign restoration until the shared clear commits under its lock', async () => {
+  test('logout masks a foreign rotation until the shared clear commits under its lock', async () => {
     const browser = browserFixture();
     const started = deferred<void>();
     const release = deferred<void>();
     const restored = browser.lock(async () => {
       started.resolve();
       await release.promise;
-      foreignAccount({ refreshToken: 'rt_foreign_restored' });
+      foreignAccount({ refreshToken: 'rt_foreign_rotated' });
       browser.changed();
       expect(activeAccount()).toBeNull();
     });

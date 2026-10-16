@@ -1,4 +1,4 @@
-import { accountScopeIdentity, tokenExpiring } from '../auth/account.js';
+import { accountScopeIdentity, forgetOrganizationAccount, tokenExpiring } from '../auth/account.js';
 import { fetchNoRedirect } from '../platform.js';
 import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
 import { accessToken, refreshAccount, scopedOrganizationAccessToken, toOrganizations } from './auth.js';
@@ -87,12 +87,19 @@ export function dashboardSource(scope: number, alive: () => boolean): DashboardS
   };
   return {
     current, mode: readMode,
-    forgetToken: (organization) => { tokens.delete(organization); },
+    forgetToken: (organization) => {
+      tokens.delete(organization);
+      forgetOrganizationAccount(organization);
+    },
     organizations: async (signal) => {
       const organizations = await inventory(signal, check);
       const ids = new Set(organizations.map((org) => org.id));
       const keys = new Set(organizations.flatMap((org) => (org.agents ?? []).map((agent) => dashboardKey(org.id, agent))));
-      for (const id of tokens.keys()) if (!ids.has(id)) tokens.delete(id);
+      for (const id of tokens.keys()) {
+        if (ids.has(id)) continue;
+        tokens.delete(id);
+        forgetOrganizationAccount(id);
+      }
       for (const key of modes.keys()) if (!keys.has(key)) modes.delete(key);
       return organizations;
     },

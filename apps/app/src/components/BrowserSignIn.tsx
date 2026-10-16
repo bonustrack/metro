@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { checkAccountIdentity, type AccountIdentity } from '@metro-labs/client/auth/account';
+import { checkAccountIdentity, shareActiveAccount, type AccountIdentity } from '@metro-labs/client/auth/account';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -10,6 +10,7 @@ import { location } from '@metro-labs/client/platform';
 import { Platform } from 'react-native';
 import { TextLink } from './TextLink.js';
 import { openExternal } from '../lib/open.js';
+import { logError } from '../lib/log.js';
 
 const ON_THE_WEB = 'This sign-in works only in a browser for now. Connect this channel on metro.box.';
 
@@ -57,6 +58,7 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
         startedAt: Date.now(),
         identity,
       });
+      shareActiveAccount().catch(logError('share the account with the sign-in tab'));
       setBlocked(!openExternal(authorizeUrl));
       setOpened(true);
     } catch (err) {

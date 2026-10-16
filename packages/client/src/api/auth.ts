@@ -1,6 +1,23 @@
 import { builtInDaemon } from '../auth/daemon.js';
 import { fetchNoRedirect, signInReturnUrl, timeoutSignal } from '../platform.js';
-import { accountFrom, accountScopeIdentity, activeAccount, beginAccountLogout, clearAccount, storeAccount, tokenExpiring, tokenMatchesAccount, withAccountLock, type Account } from '../auth/account.js';
+import {
+  AccountChangedError,
+  accountFrom,
+  accountScopeIdentity,
+  accountSessionIdentity,
+  activeAccount,
+  beginAccountLogout,
+  clearAccount,
+  keepOrganizationAccount,
+  keepRefreshToken,
+  organizationAccount,
+  selectAccount,
+  storeAccount,
+  tokenExpiring,
+  tokenMatchesAccount,
+  withAccountLock,
+  type Account,
+} from '../auth/account.js';
 import { isRecord } from '../read.js';
 import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
@@ -15,6 +32,8 @@ class AuthResponseError extends Error {
 }
 
 export class AuthUnavailableError extends Error {}
+
+export const switchRefused = (err: unknown): err is Error => err instanceof AuthResponseError && [401, 403, 404].includes(err.status);
 
 function errorText(body: unknown, status: number): string {
   return isRecord(body) && typeof body.error === 'string' ? body.error : `Metro returned ${String(status)}.`;
@@ -72,68 +91,64 @@ export async function exchangeHandoff(code: string, verifier?: string): Promise<
   const scope = accountScopeIdentity();
   const account = accountFrom(await post('/exchange', verifier === undefined ? { code } : { code, verifier }));
   return withAccountLock(() => {
-    if (accountScopeIdentity() !== scope) throw accountChanged();
+    if (accountScopeIdentity() !== scope) throw new AccountChangedError();
     storeAccount(account);
     clearInvitation();
     return Promise.resolve(account);
   });
 }
 
-const accountChanged = (): Error => new Error('Your account changed, try again.');
-const sourceLost = (): Error => new Error('Could not restore your source session. Sign in again.');
 let serialized: Promise<void> = Promise.resolve();
-let rotating: { scope: number; pending: Promise<Account | null>; started: boolean } | null = null;
 let refreshing: { scope: number; pending: Promise<Account | null> } | null = null;
 
-function rotate(path: string, body: unknown, bearer?: string): Promise<unknown> {
-  if (rotating !== null) rotating.started = true;
-  return post(path, body, bearer, { signal: timeoutSignal(30_000) });
-}
+const rotate = (path: string, body: unknown, bearer?: string): Promise<unknown> => post(path, body, bearer, { signal: timeoutSignal(30_000) });
+const usable = (account: Account): boolean => tokenMatchesAccount(account) && !tokenExpiring(account.accessToken);
 
 function currentAccount(scope: number): Account {
   const current = activeAccount();
-  if (accountScopeIdentity() !== scope) throw accountChanged();
+  if (accountScopeIdentity() !== scope) throw new AccountChangedError();
   if (current === null) throw new Error('Log in first.');
   return current;
 }
 
-function serialize<T>(scope: number, run: () => Promise<T>): Promise<T> {
-  const pending = serialized.then(() => withAccountLock(() => {
-    currentAccount(scope);
-    const result = Promise.resolve().then(run);
-    const rotation = result.then(() => {
-      if (accountScopeIdentity() !== scope && activeAccount() !== null) throw accountChanged();
-      return activeAccount();
-    });
-    rotating = { scope, pending: rotation, started: false };
-    return rotation.then(() => result, () => result).finally(() => { rotating = null; });
-  }));
+function sameSession(session: number): number {
+  if (accountSessionIdentity() !== session) throw new AccountChangedError();
+  return accountScopeIdentity();
+}
+
+function serialize<T>(run: () => Promise<T>): Promise<T> {
+  const pending = serialized.then(() => withAccountLock(run));
   serialized = pending.then(() => undefined, () => undefined);
   return pending;
 }
 
-async function refreshCurrent(scope: number): Promise<Account | null> {
+async function refreshCurrent(scope: number, seen: string | null): Promise<Account | null> {
   const current = currentAccount(scope);
+  if (seen !== null && current.accessToken !== seen && usable(current)) return current;
   try {
     const next = accountFrom(await rotate('/refresh', { refreshToken: current.refreshToken, ...(current.organization === null ? {} : { organization: current.organization }) }));
     if (!sameSource(next, current)) throw unexpected();
     storeAccount(next, scope);
     return next;
   } catch (err) {
-    if (accountScopeIdentity() !== scope) throw accountChanged();
-    if (err instanceof AuthUnavailableError) throw err;
-    if (err instanceof AuthResponseError && err.status !== 401) throw new AuthUnavailableError(err.message);
-    clearAccount();
-    return null;
+    return refreshFailed(err, scope);
   }
 }
 
+function refreshFailed(err: unknown, scope: number): null {
+  if (accountScopeIdentity() !== scope) throw new AccountChangedError();
+  if (err instanceof AuthUnavailableError) throw err;
+  if (err instanceof AuthResponseError && err.status !== 401) throw new AuthUnavailableError(err.message);
+  clearAccount();
+  return null;
+}
+
 export function refreshAccount(): Promise<Account | null> {
-  if (activeAccount() === null) return Promise.resolve(null);
+  const current = activeAccount();
+  if (current === null) return Promise.resolve(null);
   const scope = accountScopeIdentity();
   if (refreshing?.scope === scope) return refreshing.pending;
-  if (rotating?.scope === scope && rotating.started) return rotating.pending;
-  const pending = serialize(scope, () => refreshCurrent(scope)).finally(() => {
+  const pending = serialize(() => refreshCurrent(scope, current.accessToken)).finally(() => {
     if (refreshing?.pending === pending) refreshing = null;
   });
   refreshing = { scope, pending };
@@ -145,34 +160,56 @@ export async function accessToken(): Promise<string | null> {
   const current = activeAccount();
   if (current === null) return null;
   const next = tokenExpiring(current.accessToken) ? await refreshAccount() : current;
-  if (accountScopeIdentity() !== scope && (next !== null || activeAccount() !== null)) throw accountChanged();
+  if (accountScopeIdentity() !== scope && (next !== null || activeAccount() !== null)) throw new AccountChangedError();
   return next !== null && !tokenExpiring(next.accessToken) ? next.accessToken : null;
 }
 
 async function freshAccount(scope: number): Promise<Account> {
   let current = currentAccount(scope);
   if (tokenExpiring(current.accessToken)) {
-    if (await refreshCurrent(scope) === null) throw new Error('Could not refresh your session. Sign in again.');
+    if (await refreshCurrent(scope, null) === null) throw new Error('Could not refresh your session. Sign in again.');
     current = currentAccount(scope);
   }
-  if (!tokenMatchesAccount(current) || tokenExpiring(current.accessToken)) throw new Error('Your access token has expired. Sign in again.');
+  if (!usable(current)) throw new Error('Your access token has expired. Sign in again.');
   return current;
 }
 
-function selectOrganization(path: string, body: Record<string, string>, organization?: string): Promise<Account> {
-  const scope = accountScopeIdentity();
-  return serialize(scope, async () => {
-    const current = await freshAccount(scope);
-    currentAccount(scope);
-    const next = accountFrom(await rotate(path, { ...body, refreshToken: current.refreshToken }, current.accessToken));
-    currentAccount(scope);
+const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+
+function rotated(answer: unknown, current: Account, scope: number, organization?: string): Account {
+  try {
+    const next = accountFrom(answer);
     if (!tokenMatchesAccount(next) || next.user.id !== current.user.id || (organization !== undefined && next.organization !== organization)) throw unexpected();
-    storeAccount(next, next.organization === current.organization ? scope : undefined);
+    return next;
+  } catch (err) {
+    const refreshToken = isRecord(answer) ? text(answer.refreshToken) : null;
+    if (refreshToken !== null && refreshToken !== current.refreshToken) keepRefreshToken(refreshToken, scope);
+    throw err;
+  }
+}
+
+function selectOrganization(path: string, body: Record<string, string>, organization?: string): Promise<Account> {
+  const session = accountSessionIdentity();
+  return serialize(async () => {
+    const scope = sameSession(session);
+    if (organization !== undefined) {
+      if (currentAccount(scope).organization === organization) return freshAccount(scope);
+      const cached = organizationAccount(organization);
+      if (cached !== null) {
+        selectAccount(cached, scope);
+        return cached;
+      }
+    }
+    const current = await freshAccount(scope);
+    const next = rotated(await rotate(path, { ...body, refreshToken: current.refreshToken }, current.accessToken), current, scope, organization);
+    selectAccount(next, scope);
     return next;
   });
 }
 
 export const createOrganization = (name: string): Promise<Account> => selectOrganization('/organization', { name });
+
+export const switchOrganization = (organization: string): Promise<Account> => selectOrganization('/switch', { organization }, organization);
 
 export interface OrgAgent {
   id: string;
@@ -190,8 +227,6 @@ export interface OrganizationRow {
   agents: OrgAgent[] | null;
 }
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
-
 function agentsOf(value: unknown): OrgAgent[] | null {
   if (!Array.isArray(value)) return null;
   return value.flatMap((a: unknown) =>
@@ -201,14 +236,26 @@ function agentsOf(value: unknown): OrgAgent[] | null {
   );
 }
 
+async function sessionBearer(session: number): Promise<string> {
+  for (let attempt = 0; ; attempt += 1) {
+    sameSession(session);
+    try {
+      const bearer = await accessToken();
+      sameSession(session);
+      if (bearer === null) throw new Error('Log in first.');
+      return bearer;
+    } catch (err) {
+      if (!(err instanceof AccountChangedError) || attempt >= 2 || accountSessionIdentity() !== session) throw err;
+    }
+  }
+}
+
 export async function fetchOrganizations(): Promise<OrganizationRow[]> {
-  const scope = accountScopeIdentity();
-  const bearer = await accessToken();
-  currentAccount(scope);
-  if (bearer === null) throw new Error('Log in first.');
+  const session = accountSessionIdentity();
+  const bearer = await sessionBearer(session);
   const res = await fetch(authUrl('/organizations'), { headers: { authorization: `Bearer ${bearer}` } });
   const body: unknown = await res.json().catch(() => null);
-  currentAccount(scope);
+  sameSession(session);
   if (!res.ok) throw new Error(errorText(body, res.status));
   return toOrganizations(body);
 }
@@ -222,49 +269,21 @@ export function toOrganizations(body: unknown): OrganizationRow[] {
   );
 }
 
-export const switchOrganization = (organization: string): Promise<Account> => selectOrganization('/switch', { organization }, organization);
-
-function scopedSwitch(organization: string, refreshToken: string, bearer: string): Promise<unknown> {
-  return rotate('/switch', { organization, refreshToken }, bearer);
-}
-
 const sameSource = (next: Account, current: Account): boolean => tokenMatchesAccount(next) && next.user.id === current.user.id && next.organization === current.organization;
-const rotationRefused = (err: unknown): boolean => err instanceof AuthResponseError && (err.status === 403 || err.status === 404);
 
-async function restoredDestination(scope: number, current: Account, organization: string): Promise<unknown> {
-  if (current.organization === null) throw new Error('Select a source organization first.');
-  let destination: unknown;
-  let restored: Account;
-  let switched = false;
-  try {
-    destination = await scopedSwitch(organization, current.refreshToken, current.accessToken);
-    switched = true;
-    const refreshToken = isRecord(destination) ? text(destination.refreshToken) : null;
-    if (refreshToken === null) throw unexpected();
-    restored = accountFrom(await scopedSwitch(current.organization, refreshToken, current.accessToken));
-    if (!sameSource(restored, current)) throw unexpected();
-  } catch (err) {
-    if (!switched && rotationRefused(err)) throw err;
-    if (accountScopeIdentity() === scope) clearAccount();
-    throw sourceLost();
-  }
-  storeAccount(restored, scope);
-  return destination;
-}
-
-async function organizationAccount(scope: number, organization: string, check?: () => void): Promise<unknown> {
-  check?.();
-  const current = await freshAccount(scope);
-  check?.();
-  currentAccount(scope);
-  return current.organization === organization ? current : restoredDestination(scope, current, organization);
-}
-
-function organizationToken(scope: number, organization: string, check?: () => void): Promise<string> {
-  return serialize(scope, () => organizationAccount(scope, organization, check)).then((body) => {
-    const current = currentAccount(scope);
-    const next = accountFrom(body);
-    if (!tokenMatchesAccount(next) || next.user.id !== current.user.id || next.organization !== organization) throw unexpected();
+function organizationToken(session: number, organization: string, check: () => void): Promise<string> {
+  return serialize(async () => {
+    check();
+    const scope = sameSession(session);
+    currentAccount(scope);
+    const cached = organizationAccount(organization);
+    if (cached !== null) return cached.accessToken;
+    const current = await freshAccount(scope);
+    if (current.organization === organization) return current.accessToken;
+    if (current.organization === null) throw new Error('Select a source organization first.');
+    check();
+    const next = rotated(await rotate('/switch', { organization, refreshToken: current.refreshToken }, current.accessToken), current, scope, organization);
+    keepOrganizationAccount(next, scope);
     if (tokenExpiring(next.accessToken)) throw new Error('The organization access token has expired. Try again.');
     return next.accessToken;
   });
@@ -290,13 +309,15 @@ function subscribedToken(pending: Promise<string>, signal?: AbortSignal): Promis
 
 export async function scopedOrganizationAccessToken(organization: string, options: { signal?: AbortSignal } = {}): Promise<string> {
   checkCancelled(options.signal);
-  const scope = accountScopeIdentity();
-  currentAccount(scope);
-  const key = `${String(scope)}:${organization}`;
+  const session = accountSessionIdentity();
+  currentAccount(accountScopeIdentity());
+  const cached = organizationAccount(organization);
+  if (cached !== null) return cached.accessToken;
+  const key = `${String(session)}:${organization}`;
   let flight = scopedTokens.get(key);
   if (flight === undefined) {
     const signals: (AbortSignal | undefined)[] = [];
-    const pending = organizationToken(scope, organization, () => {
+    const pending = organizationToken(session, organization, () => {
       if (signals.every((signal) => signal?.aborted)) throw cancelled();
     }).finally(() => { scopedTokens.delete(key); });
     flight = { pending, signals };
@@ -305,7 +326,7 @@ export async function scopedOrganizationAccessToken(organization: string, option
   flight.signals.push(options.signal);
   const token = await subscribedToken(flight.pending, options.signal);
   checkCancelled(options.signal);
-  currentAccount(scope);
+  sameSession(session);
   if (tokenExpiring(token)) throw new Error('The organization access token has expired. Try again.');
   return token;
 }

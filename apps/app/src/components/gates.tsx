@@ -2,8 +2,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { addServer, probeServer } from '@metro-labs/client/api/servers';
 import { fetchOrganizations, switchOrganization } from '@metro-labs/client/api/auth';
-import { activeAccount } from '@metro-labs/client/auth/account';
-import { currentOrganization, isCurrentOrganization, resolveOrganization, routedOrganization } from '@metro-labs/client/auth/org-route';
+import { currentOrganization, routedOrganization } from '@metro-labs/client/auth/org-route';
 import { hostHash, hostTarget } from '@metro-labs/client/auth/host-link';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
 import { looksLikeHost, setCurrentServer, storedServerId } from '@metro-labs/client/auth/daemon';
@@ -16,6 +15,7 @@ import { AgentScreen } from './agent/AgentScreen.js';
 import { Loading } from './Loading.js';
 import { refreshServers, useServersQuery } from '../lib/queries.js';
 import { go } from '../lib/nav.js';
+import { useRoutedOrganization } from '../lib/routed-organization.js';
 
 async function openHost(host: string, client: QueryClient): Promise<string> {
   const [organizations, status] = await Promise.all([fetchOrganizations(), probeServer(host)]);
@@ -97,30 +97,14 @@ export const GLOBAL_KINDS = new Set<Selection['kind']>(['settings', 'admin', 'ad
 
 export function OrganizationGate({ selection, onLock, children }: { selection: Selection; onLock: () => void; children: ReactNode }): ReactNode {
   const wanted = routedOrganization();
-  const [refused, setRefused] = useState<string | null>(null);
-  const [, bump] = useState(0);
-  const mismatch = wanted !== null && activeAccount() !== null && !isCurrentOrganization(wanted);
-  useEffect(() => {
-    if (!mismatch) return;
-    setRefused(null);
-    resolveOrganization(wanted)
-      .then((id) => {
-        if (id === null) throw new Error('you are not a member of that organization');
-        return switchOrganization(id);
-      })
-      .then(() => {
-        bump((n) => n + 1);
-      })
-      .catch((err: unknown) => {
-        setRefused(err instanceof Error ? err.message : 'Could not open that organization.');
-      });
-  }, [mismatch, wanted]);
+  const { mismatch, failure, retry } = useRoutedOrganization(wanted, onLock);
   useEffect(() => {
     if (GLOBAL_KINDS.has(selection.kind) || mismatch) return;
     const wantedHash = routeHash(selection);
     if (location().hash() !== wantedHash) location().replace(wantedHash);
   }, [selection, mismatch]);
-  if (refused !== null) return <Notice text={`${wanted ?? ''}: ${refused}`} onRetry={onLock} retryLabel="Log in with another account" />;
+  if (failure !== null)
+    return <Notice text={`${failure.segment}: ${failure.text}`} onRetry={failure.refused ? onLock : retry} retryLabel={failure.refused ? 'Log in with another account' : 'Try again'} />;
   if (mismatch) return <AppShell selection={selection} onLock={onLock}><Loading /></AppShell>;
   return children;
 }

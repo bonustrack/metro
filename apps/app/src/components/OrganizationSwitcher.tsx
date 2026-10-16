@@ -42,7 +42,7 @@ export function useOrganizationMenu(onNavigate: () => void): OrganizationMenu {
   const switching = switchingTo(orgs.data);
   const enter = (row: OrganizationRow): void => {
     onNavigate();
-    if (row.id !== current) location().push(`#/${namedSegment(row.id, row.slug)}`);
+    if (row.id !== (switching?.id ?? current)) location().push(`#/${namedSegment(row.id, row.slug)}`);
   };
   const items: MenuItem[] = [
     ...(orgs.data ?? []).map((row) => ({ label: row.name ?? row.slug ?? row.id, selected: row.id === (switching?.id ?? current), onSelect: () => { enter(row); } })),
