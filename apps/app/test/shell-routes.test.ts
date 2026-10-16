@@ -27,7 +27,7 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/harness', 'settings', 'Harness'],
   ['/server', 'settings', 'Server'],
   ['/terminal', 'settings', 'Terminal'],
-  ['/run', 'settings', 'Run'],
+  ['/run', 'home', null],
 ];
 
 describe('every page of an agent has a place under one of its five tabs', () => {

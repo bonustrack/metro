@@ -22,6 +22,7 @@ export interface ServerStatus {
   state: ServerState;
   version: string | null;
   owner: string | null;
+  updatingTo?: string;
 }
 
 const PROBE_MS = 6_000;
@@ -129,7 +130,7 @@ export function duringUpdate(base: string, status: ServerStatus, now = Date.now(
     writeItem(key, null);
     return status;
   }
-  return status.state === 'offline' ? { ...status, state: 'updating' } : status;
+  return status.state === 'offline' ? { ...status, state: 'updating', updatingTo: update.version } : status;
 }
 
 export function probeServer(host: string): Promise<ServerStatus> {

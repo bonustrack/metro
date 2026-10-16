@@ -1,10 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Button } from '@stage-labs/kit/react-native/button';
 import { Modal } from './Modal.js';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { AgentSummary } from '@metro-labs/client/api/client';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import type { ModelSettings } from '@metro-labs/client/api/model';
@@ -16,7 +14,9 @@ import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { useNow } from '../lib/use-now.js';
 import { runAccessDenied } from '../lib/run-cache.js';
-import { PageTitle } from './PageTitle.js';
+import { Crumbs } from './ui/PageHeader.js';
+import { routeHash } from '@metro-labs/client/route';
+import { useTechnicalDetails } from '../lib/technical.js';
 import { RunCoverage } from './run/Coverage.js';
 import { RunCurrent } from './run/Current.js';
 import { RunSessionDetails, selectedModel } from './run/SessionDetails.js';
@@ -26,15 +26,13 @@ import { stamp, type RunEntry } from './run/model.js';
 import { freshness, sdkEntries, sessionIdentity } from './run/session.js';
 import { useRunFeed } from './run/use-run-feed.js';
 
-const styles = StyleSheet.create({ grow: { flex: 1, minWidth: 0 } });
-
 function FeedNotice({ unsupported, pending, error, updatedAt, catchingUp }: {
   unsupported: boolean; pending: boolean; error: Error | null; updatedAt: number; catchingUp: boolean;
 }): ReactNode {
-  if (unsupported) return <Text size="sm" role="secondary">Update this box to Metro {RUN_EVENTS_SINCE} or later to see messages. SDK activity still shows below.</Text>;
-  if (error !== null) return <Text size="sm" role="danger">Metro feed disconnected. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last confirmed ${stamp(updatedAt)}.` : ''}</Text>;
-  if (pending) return <Text size="md" role="secondary">Loading retained Metro events…</Text>;
-  return <Text size="md" role="secondary">{catchingUp ? 'Catching up with retained events…' : `Metro feed checked ${stamp(updatedAt)}. Polled every 5 seconds.`}</Text>;
+  if (unsupported) return <Text size="xs" role="secondary">Update this box to Metro {RUN_EVENTS_SINCE} or later to see messages. SDK activity still shows below.</Text>;
+  if (error !== null) return <Text size="xs" role="danger">Metro feed disconnected. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last confirmed ${stamp(updatedAt)}.` : ''}</Text>;
+  if (pending) return <Text size="xs" role="secondary">Loading retained Metro events…</Text>;
+  return <Text size="xs" role="secondary">{catchingUp ? 'Catching up with retained events…' : `Metro feed checked ${stamp(updatedAt)}. Polled every 5 seconds.`}</Text>;
 }
 
 function combinedEntries(feed: RetainedRunFeed | undefined, status: ClaudeSessionStatus | undefined, agent: AgentSummary | undefined, now: number, disconnected: boolean): RunEntry[] {
@@ -74,12 +72,22 @@ function useRunSources(agent: AgentSummary | undefined, agentError: Error | null
 }
 
 function AgentNotice({ error, pending }: { error: Error | null; pending: boolean }): ReactNode {
-  if (error !== null) return <Text size="sm" role="danger">{queryError(error, 'Could not read this agent.')} The feed shows once the agent loads.</Text>;
-  return <Text size="sm" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
+  if (error !== null) return <Text size="xs" role="danger">{queryError(error, 'Could not read this agent.')} The feed shows once the agent loads.</Text>;
+  return <Text size="xs" role="secondary">{pending ? 'Loading agent details…' : 'Waiting for this box’s agent.'}</Text>;
 }
 
-function RunData({ agent, agentError, agentPending }: { agent: AgentSummary | undefined; agentError: Error | null; agentPending: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
+function RunHead({ project, agent, data, onCoverage }: { project: string; agent: AgentSummary | undefined; data: ReturnType<typeof useRunSources>; onCoverage: () => void }): ReactNode {
+  const technical = useTechnicalDetails();
+  return <Col gap={8}>
+    <Row gap={12} align="center" justify="between">
+      <Crumbs items={[{ label: 'Home', href: routeHash({ kind: 'home', project }) }, { label: 'Right now' }]} />
+      <Text size="xs" onPress={onCoverage} accessibilityRole="button">What is shown here?</Text>
+    </Row>
+    {technical && <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>}
+  </Col>;
+}
+
+function RunData({ project, agent, agentError, agentPending }: { project: string; agent: AgentSummary | undefined; agentError: Error | null; agentPending: boolean }): ReactNode {
   const narrow = useWindowDimensions().width < 700;
   const now = useNow();
   const data = useRunSources(agent, agentError, now);
@@ -87,27 +95,23 @@ function RunData({ agent, agentError, agentPending }: { agent: AgentSummary | un
   const [details, setDetails] = useState(false);
   const [focus, setFocus] = useState({ worker: 'All', revision: 0, scope: '' });
   const initialWorker = focus.scope === data.scope ? focus.worker : 'All';
-  return <Col gap={24} testID="run-page">
+  return <Col gap={40} testID="run-page">
     <Col gap={10}>
-      <Row gap={8} align="center" wrap><PageTitle>Run</PageTitle><Col style={styles.grow} />
-        <Button dark={dark} color="secondary" label="What is available?" onPress={() => { setCoverage(true); }} /></Row>
-      <Row gap={8} align="center" wrap><Text size="sm" weight="semibold">{agent?.name ?? 'Agent'}</Text>
-        <Text size="sm" role="secondary">Selected model: {selectedModel(data.settings)}</Text></Row>
+      <RunHead project={project} agent={agent} data={data} onCoverage={() => { setCoverage(true); }} />
       {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
-      <Text size="md" role="secondary">{snapshotLabel(data.status)} · {data.state}</Text>
     </Col>
     <RunCurrent status={data.status} now={now} disconnected={data.session.isError} narrow={narrow} onSession={() => { setDetails(true); }}
       onWorker={(worker) => { setFocus((current) => ({ worker, revision: current.revision + 1, scope: data.scope })); }} />
     <RunTimeline key={`${data.scope}:${String(focus.revision)}`} initialWorker={initialWorker} entries={data.entries} now={now}
       notice={<FeedNotice unsupported={data.unsupported} pending={data.feed.isPending} error={data.feed.error} updatedAt={data.feed.dataUpdatedAt} catchingUp={data.feedData?.hasMore === true} />} />
-    <Modal open={coverage} onClose={() => { setCoverage(false); }} title="Available data" side={narrow ? 'bottom' : 'center'}><RunCoverage /></Modal>
+    <Modal open={coverage} onClose={() => { setCoverage(false); }} title="What is shown here" side={narrow ? 'bottom' : 'center'}><RunCoverage /></Modal>
     <Modal open={details} onClose={() => { setDetails(false); }} title="Session details" side={narrow ? 'bottom' : 'center'}><RunSessionDetails status={data.status} model={data.settings} state={data.state} /></Modal>
   </Col>;
 }
 
-export function RunPage(): ReactNode {
+export function RunPage({ project }: { project: string }): ReactNode {
   const stations = useStationsQuery();
-  useDocumentTitle('Run');
+  useDocumentTitle('Right now');
   const agent = runAccessDenied(stations.error) ? undefined : stations.data?.agent;
-  return <RunData key={`${daemonBase()}:${agent?.id ?? 'loading'}`} agent={agent} agentError={stations.error} agentPending={stations.isPending} />;
+  return <RunData key={`${daemonBase()}:${agent?.id ?? 'loading'}`} project={project} agent={agent} agentError={stations.error} agentPending={stations.isPending} />;
 }
