@@ -42,7 +42,6 @@ function AgentDetail({ server, selection, children }: { server: Server; selectio
   const narrow = useIsNarrow();
   const project = selectionProject(selection) ?? server.id;
   const top = narrow ? null : { backgroundColor: palette.bg };
-  if (isDeepPage(selection)) return <Col gap={24}>{children}</Col>;
   return (
     <Col gap={24}>
       <Col gap={20} style={narrow ? undefined : [STICKY, top]}>
@@ -79,10 +78,11 @@ export function AgentScreen({ server, selection, onLock }: AgentScreenProps): Re
   const notice = blocked(error, retry, onLock);
   const offline = error !== null && notice === null;
   if (selection.kind === 'terminal') return notice ?? (offline ? <OfflinePanel onRetry={retry} /> : <TerminalPage />);
-  const page = offline && !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : <AgentPanel selection={selection} />;
+  const replaced = notice ?? (offline && !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : null);
+  if (replaced === null && isDeepPage(selection)) return <AgentPanel selection={selection} />;
   return (
     <AgentDetail server={server} selection={selection}>
-      {notice ?? page}
+      {replaced ?? <AgentPanel selection={selection} />}
     </AgentDetail>
   );
 }

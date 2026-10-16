@@ -9,7 +9,8 @@ import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { useConnectorScope } from '../lib/org-connector-queries.js';
 import { queryError } from '../lib/queries.js';
 import { Modal } from './Modal.js';
-import { SettingsGroup, SettingsSection } from './SettingsSection.js';
+import { Group } from './ui/Group.js';
+import { Control } from './settings/rows.js';
 
 const NOTE = 'Links this agent to your organization, so it can use the connectors assigned to it through mcp.metro.box.';
 
@@ -57,13 +58,12 @@ function EnrollmentSection({ server }: { server: Server }): ReactNode {
     setError(null);
     try { setEnrollment(createEnrollment(server)); } catch { setError('Select a registered agent with a valid address before enrolling.'); }
   };
-  return <SettingsGroup title="Organization">
-    <SettingsSection title={enrolled ? 'Enrolled with organization' : 'Organization enrollment'} note={NOTE}>
-      {enrolled ? <Text size="md">Enrollment confirmed.</Text> : <Button color="secondary" dark={dark} label="Enroll with organization" onPress={open} />}
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </SettingsSection>
+  return <Group label="Organization">
+    <Control title={enrolled ? 'Enrolled with organization' : 'Organization enrollment'} note={enrolled ? 'Enrollment confirmed.' : NOTE} error={error}>
+      {enrolled ? null : <Button size="sm" color="secondary" dark={dark} label="Enroll" onPress={open} />}
+    </Control>
     {enrollment === null ? null : <EnrollmentDialog enrollment={enrollment} server={server} onClose={close} onEnrolled={() => { setEnrolled(true); close(); }} />}
-  </SettingsGroup>;
+  </Group>;
 }
 
 export function EnrollAgent({ server }: { server: Server }): ReactNode {

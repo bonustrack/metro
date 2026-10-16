@@ -5,7 +5,7 @@ import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
-import { AGENT_TABS, agentPageOf, agentTabOf, type AgentPage } from '../../lib/agent-tabs.js';
+import { AGENT_TABS, agentPageOf, agentTabOf, shallowPages, type AgentPage } from '../../lib/agent-tabs.js';
 import { go } from '../../lib/nav.js';
 import { openExternal } from '../../lib/open.js';
 import { side } from '../ui/edges.js';
@@ -43,9 +43,9 @@ export function AgentTabs({ selection, project }: { selection: Selection; projec
 }
 
 export function AgentSubPages({ selection, project }: { selection: Selection; project: string }): ReactNode {
-  const pages = agentTabOf(selection.kind).pages;
-  if (pages.length < 2) return null;
+  const pages = shallowPages(agentTabOf(selection.kind));
   const current = agentPageOf(selection.kind);
+  if (pages.length < 2 || current?.deep === true) return null;
   const track = { width: pages.length * pageWidth(pages) };
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel={agentTabOf(selection.kind).label}>

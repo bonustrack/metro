@@ -31,3 +31,8 @@ export function latestParts(usage: LatestUsage | undefined): string[] {
   ];
   return parts.flatMap(([label, value]) => (value === null ? [] : [`${label} ${percentLabel(value)}`]));
 }
+
+export function latestLine(usage: LatestUsage): string {
+  const shown = [...latestParts(usage), ...(usage.disk === null ? [] : [`Disk ${percentLabel(usage.disk)}`])];
+  return shown.length === 0 ? 'No data' : shown.join(' · ');
+}

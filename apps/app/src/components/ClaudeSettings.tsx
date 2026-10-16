@@ -7,10 +7,10 @@ import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
 import { Loading } from './Loading.js';
-import { PageTitle } from './PageTitle.js';
 import { ClaudeSetup } from './ClaudeSetup.js';
 import { ClaudeSession } from './ClaudeSession.js';
-import { SettingsGroup } from './SettingsSection.js';
+import { Group, Groups } from './ui/Group.js';
+import { Block, NoteRow } from './settings/rows.js';
 import { GROW } from '../lib/style.js';
 import { saveClaudeSettings, type ClaudeSettingsFile } from '@metro-labs/client/api/claude';
 import { queryError, refresh, useClaudeSettingsQuery } from '../lib/queries.js';
@@ -18,6 +18,7 @@ import { whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
 
 const WHAT = 'Claude Code’s own settings files, for advanced changes. They apply at the next start.';
+const NO_FILE = 'Claude Code has left no settings file on this machine.';
 const EDITOR = { minHeight: 420, lineHeight: 22 } as const;
 const EMPTY = '{\n  \n}\n';
 const INDENT = 2;
@@ -169,62 +170,57 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
   );
 }
 
-export function ClaudeSettings({ project }: { project: string }): ReactNode {
-  const settings = useClaudeSettingsQuery();
+function FileEditor({ files }: { files: ClaudeSettingsFile[] }): ReactNode {
   const [chosen, setChosen] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
-  useDocumentTitle('Harness');
-  const files = settings.data ?? [];
   const file = files.find((f) => f.id === chosen) ?? files[0];
+  if (file === undefined) return <NoteRow text={NO_FILE} />;
   return (
-    <Col gap={32}>
-      <PageTitle>Harness</PageTitle>
-      <SettingsGroup title="Session">
-        <ClaudeSession project={project} live />
-      </SettingsGroup>
-      <ClaudeSetup project={project} />
-      {settings.error !== null ? (
-        <Text size="md" role="danger">
-          {queryError(settings.error, 'Could not read the settings files.')}
+    <Block gap={16}>
+      <FilePicker
+        files={files}
+        chosen={file.id}
+        onPick={(id) => {
+          setChosen(id);
+          setDraft(null);
+        }}
+      />
+      <FileNote file={file} />
+      {file.editable ? null : (
+        <Text size="xs" role="danger">
+          That file is too large to edit here.
         </Text>
-      ) : settings.data === undefined ? (
-        <Loading />
-      ) : file === undefined ? (
-        <Text size="md" role="secondary">
-          Claude Code has left no settings file on this machine.
-        </Text>
-      ) : (
-        <Col gap={16}>
-          <Col gap={2}>
-            <Text size="sm" weight="medium">Advanced</Text>
-            <Text size="md" role="secondary">{WHAT}</Text>
-          </Col>
-          <FilePicker
-            files={files}
-            chosen={file.id}
-            onPick={(id) => {
-              setChosen(id);
-              setDraft(null);
-            }}
-          />
-          <FileNote file={file} />
-          {file.editable ? null : (
-            <Text size="md" role="danger">
-              That file is too large to edit here.
-            </Text>
-          )}
-          <Editor
-            file={file}
-            draft={draft?.id === file.id ? draft.text : null}
-            onEdit={(text) => {
-              setDraft({ id: file.id, text });
-            }}
-            onSaved={() => {
-              setDraft(null);
-            }}
-          />
-        </Col>
       )}
-    </Col>
+      <Editor
+        file={file}
+        draft={draft?.id === file.id ? draft.text : null}
+        onEdit={(text) => {
+          setDraft({ id: file.id, text });
+        }}
+        onSaved={() => {
+          setDraft(null);
+        }}
+      />
+    </Block>
+  );
+}
+
+export function ClaudeSettings({ project }: { project: string }): ReactNode {
+  const settings = useClaudeSettingsQuery();
+  useDocumentTitle('Agent SDK setup');
+  return (
+    <Groups>
+      <ClaudeSession project={project} />
+      <ClaudeSetup project={project} />
+      <Group label="Claude Code settings" note={WHAT}>
+        {settings.error !== null ? (
+          <NoteRow text={queryError(settings.error, 'Could not read the settings files.')} danger />
+        ) : settings.data === undefined ? (
+          <Loading />
+        ) : (
+          <FileEditor files={settings.data} />
+        )}
+      </Group>
+    </Groups>
   );
 }

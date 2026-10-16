@@ -1,21 +1,29 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Switch } from '@stage-labs/kit/react-native/switch';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { setClaudeLiveEvents, setClaudeMemoryRoutine, setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup, type MemoryJob } from '@metro-labs/client/api/claude-box';
+import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '@metro-labs/client/api/claude-box';
+import { routeHash } from '@metro-labs/client/route';
 import { queryError, refresh, useClaudeSetupQuery } from '../lib/queries.js';
+import { modeName } from '../lib/settings-values.js';
+import { useTechnicalDetails } from '../lib/technical.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
 import { Choice } from './Choice.js';
-import { SettingsGroup, SettingsPad, SettingsSection } from './SettingsSection.js';
-import { go } from '../lib/nav.js';
-import { Tag } from './Tag.js';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { Block, Control, NoteRow } from './settings/rows.js';
 
-function missingOf(setup: Setup): string[] {
-  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.stage ? '' : 'Stage skill', setup.memory ? '' : 'memory skill', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
+const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
+const MODE_NOTE = 'Ask first checks with you in chat before risky actions. Never ask lets it act alone.';
+const BEHAVIOUR_NOTE = 'A change to approvals applies after the next Stop and Start.';
+
+interface Flip {
+  busy: boolean;
+  error: string | null;
+  run: (job: () => Promise<unknown>) => void;
 }
 
-function useFlip(failure: string): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>) => void } {
+function useFlip(failure: string): Flip {
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,130 +42,75 @@ function useFlip(failure: string): { busy: boolean; error: string | null; run: (
   return { busy, error, run };
 }
 
-function LiveEvents({ on }: { on: boolean }): ReactNode {
-  const live = useFlip('Could not change whether messages arrive.');
+function missingOf(setup: Setup): string[] {
+  return [setup.worker ? '' : 'worker', setup.skill ? '' : 'standing rules', setup.stage ? '' : 'Stage skill', setup.memory ? '' : 'memory skill', setup.privacyApplied || !setup.privacy ? '' : 'privacy settings'].filter((x) => x !== '');
+}
+
+function Toggle({ title, note, on, flip, onChange }: { title: string; note: string; on: boolean; flip: Flip; onChange: (on: boolean) => void }): ReactNode {
+  const dark = useKitScheme() === 'dark';
   return (
-    <SettingsSection title="Live messages" note={LIVE_NOTE}>
-      <Choice
-        label="Live messages"
-        value={on ? 'on' : 'off'}
-        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
-        disabled={live.busy}
-        onChange={(next) => {
-          live.run(() => setClaudeLiveEvents(next === 'on'));
-        }}
-      />
-      {live.error === null ? null : <Text size="md" role="danger">{live.error}</Text>}
-    </SettingsSection>
+    <Control title={title} note={note} error={flip.error} inline>
+      <Switch name={title} checked={on} disabled={flip.busy} dark={dark} onChange={onChange} />
+    </Control>
   );
 }
 
-function memoryNote(job: MemoryJob | null): string {
-  if (job?.state === 'own') return `${MEMORY_NOTE} Your agent's own job ${job.job === null ? '' : `${job.job} `}keeps its memory, so this one does not run.`;
-  if (job?.state === 'unavailable') return `${MEMORY_NOTE} It starts once Metro runs as its own user on this server.`;
-  if (job?.state === 'scheduled') return `${MEMORY_NOTE} It runs as memory-routine on the Scheduled page.`;
-  return MEMORY_NOTE;
-}
-
-function MemoryRoutine({ on, job }: { on: boolean; job: MemoryJob | null }): ReactNode {
-  const memory = useFlip('Could not change the daily memory routine.');
+function Approvals({ setup }: { setup: Setup }): ReactNode {
+  const technical = useTechnicalDetails();
+  const mode = useFlip('Could not change how approvals work.');
   return (
-    <SettingsSection title="Daily memory" note={memoryNote(job)}>
+    <Control title="Approvals" note={technical ? `${MODE_NOTE} Now: ${modeName(setup.permissionMode)}.` : MODE_NOTE} error={mode.error}>
       <Choice
-        label="Daily memory"
-        value={on ? 'on' : 'off'}
-        options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
-        disabled={memory.busy}
+        label="Approvals"
+        value={setup.permissionMode === 'auto' ? 'auto' : 'bypass'}
+        options={[{ value: 'auto', label: 'Ask first' }, { value: 'bypass', label: 'Never ask' }]}
+        disabled={mode.busy}
         onChange={(next) => {
-          memory.run(() => setClaudeMemoryRoutine(next === 'on'));
+          mode.run(() => setClaudePermissionMode(next));
         }}
       />
-      {memory.error === null ? null : <Text size="md" role="danger">{memory.error}</Text>}
-    </SettingsSection>
+    </Control>
   );
 }
 
 function Behaviour({ setup, project }: { setup: Setup; project: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const privacy = useFlip('Could not change the privacy setting.');
-  const mode = useFlip('Could not change how approvals work.');
   return (
-    <SettingsGroup title="Behaviour">
-      <SettingsSection title="Privacy" note={PRIVACY}>
-        <Choice
-          label="Privacy"
-          value={setup.privacy ? 'on' : 'off'}
-          options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
-          disabled={privacy.busy}
-          onChange={(next) => {
-            privacy.run(() => setClaudePrivacy(next === 'on'));
-          }}
-        />
-        {privacy.error === null ? null : <Text size="md" role="danger">{privacy.error}</Text>}
-      </SettingsSection>
-      <SettingsSection title="Approvals" note={MODE_NOTE}>
-        <Choice
-          label="Approvals"
-          value={setup.permissionMode === 'auto' ? 'auto' : 'bypass'}
-          options={[{ value: 'auto', label: 'Ask first' }, { value: 'bypass', label: 'Never ask' }]}
-          disabled={mode.busy}
-          onChange={(next) => {
-            mode.run(() => setClaudePermissionMode(next));
-          }}
-        />
-        {mode.error === null ? null : <Text size="md" role="danger">{mode.error}</Text>}
-      </SettingsSection>
-      {setup.liveEvents === null ? null : <LiveEvents on={setup.liveEvents} />}
-      {setup.memoryRoutine === null ? null : <MemoryRoutine on={setup.memoryRoutine} job={setup.memoryJob} />}
-      {setup.skill ? (
-        <SettingsSection title="Standing rules" note="What your agent follows on every task, like how it delegates work.">
-          <Button
-            size="md"
-            color="secondary"
-            dark={dark}
-            label="Edit"
-            onPress={() => {
-              go({ kind: 'skill', project, id: 'user:metro' });
-            }}
-          />
-        </SettingsSection>
-      ) : null}
-    </SettingsGroup>
+    <Group label="Behaviour" note={BEHAVIOUR_NOTE}>
+      <Approvals setup={setup} />
+      <Toggle title="Privacy" note={PRIVACY} on={setup.privacy} flip={privacy} onChange={(on) => { privacy.run(() => setClaudePrivacy(on)); }} />
+      {setup.memoryRoutine === null ? null : <Item title="Daily memory" subtitle="In Tools, with the other routines" href={routeHash({ kind: 'tools', project })} />}
+      {setup.skill ? <Item title="Standing rules" subtitle="What your agent follows on every task" href={routeHash({ kind: 'skill', project, id: 'user:metro' })} /> : null}
+    </Group>
   );
 }
 
-function SetupRow({ setup }: { setup: Setup }): ReactNode {
+function SetupState({ setup }: { setup: Setup }): ReactNode {
   const missing = missingOf(setup);
-  return (
-    <SettingsSection
-      title="Harness setup"
-      note={missing.length === 0 ? `Everything Metro needs is in place. Conversations are kept ${String(setup.retentionDays ?? 7)} days.` : `Still to write: ${missing.join(', ')}. Done at the next start.`}
-    >
-      <Tag label={missing.length === 0 ? 'All set' : 'In progress'} />
-    </SettingsSection>
-  );
+  const note = missing.length === 0 ? `Everything Metro needs is in place. Conversations are kept ${String(setup.retentionDays ?? 7)} days.` : `Still to write: ${missing.join(', ')}. Done at the next start.`;
+  return <Item title="Harness setup" subtitle={note} value={missing.length === 0 ? 'All set' : 'In progress'} valueTone={missing.length === 0 ? 'success' : 'secondary'} />;
 }
-
-const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
-const LIVE_NOTE = 'On: messages reach the agent as they arrive. Off: nothing arrives, but the agent can still send, react and read. Approvals then work on metro.box only.';
-const MEMORY_NOTE = 'At 00:00 and 12:00 UTC, if there was activity, the agent saves what happened to its memory: people, facts, decisions and notes.';
-const MODE_NOTE = 'Ask first asks you in chat before risky actions. Never ask lets the agent act alone. To change it, let work finish and press Stop, then Start.';
 
 export function ClaudeSetup({ project }: { project: string }): ReactNode {
   const setup = useClaudeSetupQuery();
-  if (setup.error !== null) return <Text size="md" role="danger">{queryError(setup.error, 'Could not read the setup.')}</Text>;
+  if (setup.error !== null)
+    return (
+      <Group label="Behaviour">
+        <NoteRow text={queryError(setup.error, 'Could not read the setup.')} danger />
+      </Group>
+    );
   if (setup.data === undefined) return null;
   return (
     <>
-      <SettingsGroup title="Instructions">
-        <SettingsPad>
+      <Group label="Instructions">
+        <Block>
           <SystemPromptEditor setup={setup.data} />
-        </SettingsPad>
-      </SettingsGroup>
+        </Block>
+      </Group>
       <Behaviour setup={setup.data} project={project} />
-      <SettingsGroup title="Setup">
-        <SetupRow setup={setup.data} />
-      </SettingsGroup>
+      <Group label="Setup">
+        <SetupState setup={setup.data} />
+      </Group>
     </>
   );
 }

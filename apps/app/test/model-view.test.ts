@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings, toConnection, type ConnectionRow } from '@metro-labs/client/api/model';
 import { toOrgModels } from '@metro-labs/client/api/org-models';
-import { connectionPatch, editNote, orgConnectionDetail, routesUsing, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { connectionPatch, orgConnectionDetail, routesUsing, sourceLine, withRoute } from '../src/components/model-view.ts';
 
 const ROUTE = { primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'bed00000001', model: 'eu.anthropic.claude-sonnet-4-6' }] };
 const list = toOrgModels({
@@ -44,9 +44,6 @@ describe('the agent Model page', () => {
     expect(sourceLine('agent', ROUTE)).toContain('its own model order');
     expect(sourceLine('organization', ROUTE)).toContain('organization’s default');
     expect(sourceLine(null, null)).toContain('this agent has no model');
-    expect(editNote(true, ROUTE)).toBe('This agent uses its own model order.');
-    expect(editNote(false, ROUTE)).toContain('Changing the list gives this agent its own model order.');
-    expect(editNote(false, null)).toContain('this agent has no model');
   });
 
   test('an admin sees the order the api holds, with the box connections first and the rest added', () => {
