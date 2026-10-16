@@ -16,7 +16,7 @@ import { side } from '../ui/edges.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 import { ToolRow, type StricterName } from './ToolRow.js';
 import {
-  FILTER_WORD, TOOL_FILTERS, TOOL_GROUPS, explorerTools, filterCounts, filterTools, groupChoice, groupFloor, stricterAgents, toolChoice, toolFloor,
+  FILTER_WORD, TOOL_GROUPS, visibleFilters, explorerTools, filterCounts, filterTools, groupChoice, groupFloor, stricterAgents, toolChoice, toolFloor,
   withGroupChoice, withToolChoice, type ExplorerTool, type RuleScope, type ToolFilter,
 } from '../../lib/connector-rules.js';
 import { useOrgConnectorToolsQuery } from '../../lib/org-connector-queries.js';
@@ -64,7 +64,7 @@ function Chips({ value, counts, onChange }: { value: ToolFilter; counts: Record<
   const palette = useKitPalette();
   return (
     <Row gap={4} wrap>
-      {TOOL_FILTERS.map((filter) => {
+      {visibleFilters(counts, value).map((filter) => {
         const on = filter === value;
         const frame = StyleSheet.flatten([styles.chip, on ? { backgroundColor: selectedColor(palette) } : null]);
         return (

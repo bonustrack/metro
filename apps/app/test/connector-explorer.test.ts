@@ -4,7 +4,7 @@ import type { ToolPolicy } from '@metro-labs/client/api/policy';
 import { toolInputs } from '../src/lib/connector-inputs.ts';
 import { addressProblem, nameFromAddress } from '../src/lib/connector-address.ts';
 import {
-  explorerTools, filterCounts, filterTools, groupChoice, groupFloor, isChanged, stricterAgents, toolChoice, toolFloor, withGroupChoice, withToolChoice, type ExplorerTool,
+  explorerTools, filterCounts, filterTools, groupChoice, groupFloor, isChanged, stricterAgents, toolChoice, toolFloor, visibleFilters, withGroupChoice, withToolChoice, type ExplorerTool,
 } from '../src/lib/connector-rules.ts';
 import { agentRuleSummary, effectiveRule, summaryText, toolRulesText } from '../src/lib/connector-summary.ts';
 import { looserThan } from '../src/lib/permission-words.ts';
@@ -171,5 +171,14 @@ describe('the address of a new connector', () => {
     expect(addressProblem('mcp.notion.com')).toBe('Use a full address that starts with https://.');
     expect(addressProblem('ftp://files.example.com')).toBe('Use a web address that starts with https://.');
     expect(addressProblem(' https://mcp.notion.com/mcp ')).toBeNull();
+  });
+});
+
+describe('the tool filters', () => {
+  test('a filter with no tools is hidden, except All and the one in use', () => {
+    const counts = { all: 120, read: 0, write: 120, changed: 0 };
+    expect(visibleFilters(counts, 'all')).toEqual(['all', 'write']);
+    expect(visibleFilters(counts, 'changed')).toEqual(['all', 'write', 'changed']);
+    expect(visibleFilters({ all: 0, read: 0, write: 0, changed: 0 }, 'all')).toEqual(['all']);
   });
 });

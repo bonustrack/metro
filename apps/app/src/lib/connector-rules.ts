@@ -101,6 +101,10 @@ export function filterCounts(tools: readonly ExplorerTool[], scope: RuleScope): 
   };
 }
 
+export function visibleFilters(counts: Record<ToolFilter, number>, current: ToolFilter): ToolFilter[] {
+  return TOOL_FILTERS.filter((filter) => filter === 'all' || filter === current || counts[filter] > 0);
+}
+
 export interface AgentPolicy {
   id: string;
   policy: ToolPolicy;
