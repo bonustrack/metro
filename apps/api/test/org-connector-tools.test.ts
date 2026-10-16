@@ -73,8 +73,7 @@ describe('safe organization tool discovery', () => {
     expect(text).not.toContain('URL_ONLY_SECRET');
     expect(text).not.toContain('/private/path');
     expect(text).not.toContain(GOOD_KEY);
-    expect(text).not.toContain('inputSchema');
-    expect(JSON.parse(text) as unknown).toMatchObject({ tools: [{ name: 'find', readOnly: true }, { name: 'destroy', readOnly: false }, { name: 'unknown', readOnly: false }] });
+    expect(JSON.parse(text) as unknown).toMatchObject({ tools: [{ name: 'find', readOnly: true, inputSchema: { secret: '[redacted]' } }, { name: 'destroy', readOnly: false, destructive: true }, { name: 'unknown', readOnly: false }] });
     expect(seen.map((request) => request.rpc || request.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/list', 'DELETE']);
     expect(seen.every((request) => request.authorization === GOOD_KEY)).toBe(true);
     expect(seen[2]?.session).toBe('catalogue-session');
