@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Scroll } from '@stage-labs/kit/react-native/scroll';
@@ -7,10 +7,17 @@ import { webOnly } from '../../lib/style.js';
 
 const styles = StyleSheet.create({ scroll: { flex: 1 }, content: { paddingHorizontal: 12, paddingBottom: 24 } });
 
-const SELF_SCROLL = StyleSheet.flatten([styles.scroll, styles.content, webOnly({ overflowY: 'auto', minHeight: 0, scrollbarWidth: 'none' })]);
+const SELF_SCROLL = StyleSheet.flatten([styles.scroll, styles.content, webOnly({ overflowY: 'auto', minHeight: 0 })]);
+
+const isElement = (node: unknown): node is HTMLElement => typeof HTMLElement !== 'undefined' && node instanceof HTMLElement;
 
 function PaneScroll({ children }: { children: ReactNode }): ReactNode {
-  if (Platform.OS === 'web') return <View style={SELF_SCROLL}>{children}</View>;
+  const host = useRef<View>(null);
+  useEffect(() => {
+    const node: unknown = host.current;
+    if (isElement(node)) node.setAttribute('data-pane-scroll', '');
+  }, []);
+  if (Platform.OS === 'web') return <View ref={host} style={SELF_SCROLL}>{children}</View>;
   return (
     <Scroll style={styles.scroll} contentContainerStyle={styles.content}>
       {children}

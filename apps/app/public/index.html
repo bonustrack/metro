@@ -39,6 +39,24 @@
       *:focus-visible {
         outline: none !important;
       }
+      [data-pane-scroll] {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+      }
+      [data-pane-scroll]:hover {
+        scrollbar-color: var(--metro-border) transparent;
+      }
+      [data-pane-scroll]::-webkit-scrollbar {
+        width: 8px;
+        background: transparent;
+      }
+      [data-pane-scroll]::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 4px;
+      }
+      [data-pane-scroll]:hover::-webkit-scrollbar-thumb {
+        background: var(--metro-border);
+      }
       @media (pointer: coarse) {
         * {
           scrollbar-width: none;
