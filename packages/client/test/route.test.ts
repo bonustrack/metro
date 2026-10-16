@@ -23,6 +23,9 @@ describe('the first segment is the daemon', () => {
         { kind: 'run', project },
         { kind: 'chats', project },
         { kind: 'station', project, accountId: 'a1-e5036b5f' },
+        { kind: 'station', project, accountId: 'a1-e5036b5f', rule: 'write' },
+        { kind: 'station', project, accountId: 'a1', rule: 'exceptions' },
+        { kind: 'station', project, accountId: 'a1', rule: 'exceptions/close_channel' },
         { kind: 'tools', project },
         { kind: 'sessions', project, claudeProject: null, id: null },
         { kind: 'sessions', project, claudeProject: '-home-me-proj', id: null },
@@ -108,6 +111,8 @@ describe('the first segment is the daemon', () => {
       '#/x.tail1234.ts.net/members',
       '#/x.tail1234.ts.net/connector/short',
       '#/x.tail1234.ts.net/channel/../etc',
+      '#/x.tail1234.ts.net/channel/a1/send',
+      '#/x.tail1234.ts.net/channel/a1/exceptions/a b',
       '#/x.tail1234.ts.net/memory/-x/a b',
       '#/x.tail1234.ts.net/sessions/-x/id with space',
       '#/-leadingdash/connectors',
@@ -165,6 +170,7 @@ describe('switching server keeps the page', () => {
     expect(routeSelection('#/suzy00000001/claude')).toEqual({ kind: 'claude', project: 'suzy00000001' });
     expect(on({ kind: 'home', project: 'lisa000000001' })).toBe('#/suzy00000001');
     expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/chats');
+    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1', rule: 'delete' })).toBe('#/suzy00000001/chats');
     expect(on({ kind: 'tools', project: 'lisa000000001' })).toBe('#/suzy00000001/tools');
     expect(on({ kind: 'skill', project: 'lisa000000001', id: 'user:x' })).toBe('#/suzy00000001/skills');
     expect(on({ kind: 'sessions', project: 'lisa000000001', claudeProject: 'p', id: 's' })).toBe('#/suzy00000001/sessions');

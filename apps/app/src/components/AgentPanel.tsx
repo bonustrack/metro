@@ -11,8 +11,8 @@ import { ModelPage } from './ModelPage.js';
 import { ClaudeSettings } from './ClaudeSettings.js';
 import { Skills } from './Skills.js';
 import { SkillPage } from './SkillPage.js';
-import { StationPage } from './StationPage.js';
-import { Stations } from './Stations.js';
+import { ChannelPage } from './chats/ChannelPage.js';
+import { ChatsPage } from './chats/ChatsPage.js';
 import { ScheduledJobs } from './ScheduledJobs.js';
 import { ScheduledJobPage } from './ScheduledJobPage.js';
 import { Files } from './Files.js';
@@ -40,9 +40,9 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (selection.kind === 'server') return <ServerPage project={project} />;
   if (selection.kind === 'agent-settings') return <AgentSettings />;
   if (selection.kind === 'model') return <ModelPage project={selection.project} />;
-  if (selection.kind === 'voice') return <VoicePage />;
-  if (selection.kind === 'chats') return <Stations project={project} />;
-  if (selection.kind === 'station') return <StationPage project={project} accountId={selection.accountId} />;
+  if (selection.kind === 'voice') return <VoicePage project={project} />;
+  if (selection.kind === 'chats') return <ChatsPage project={project} />;
+  if (selection.kind === 'station') return <ChannelPage project={project} accountId={selection.accountId} rule={selection.rule} />;
   return <Home project={project} />;
 }
 

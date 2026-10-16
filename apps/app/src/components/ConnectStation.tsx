@@ -53,7 +53,7 @@ function ConnectContent({ agentId, attachable, features, onClose, onChanged }: C
   };
 
   return (
-    <Modal title="Connect channel" open onClose={close}>
+    <Modal title="Add a chat" open onClose={close}>
       {result !== null ? <AttachedAccount result={result} onDismiss={close} /> : pending !== null ? (
         <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} onUpdate={attach.update} onDone={done} onClose={close} />
       ) : station !== null ? (

@@ -21,7 +21,7 @@ export type Selection =
   | { kind: 'terminal'; project: string }
   | { kind: 'model'; project: string }
   | { kind: 'chats'; project: string }
-  | { kind: 'station'; project: string; accountId: string }
+  | { kind: 'station'; project: string; accountId: string; rule?: string }
   | { kind: 'tools'; project: string }
   | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
   | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }
