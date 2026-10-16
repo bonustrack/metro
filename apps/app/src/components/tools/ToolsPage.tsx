@@ -16,17 +16,16 @@ const ANCHOR = webOnly({ scrollMarginTop: 180 });
 
 interface ToolsPageProps {
   project: string;
-  connector?: string | null;
   focus?: ToolsFocus | null;
 }
 
-export function ToolsPage({ project, connector = null, focus = null }: ToolsPageProps): ReactNode {
+export function ToolsPage({ project, focus = null }: ToolsPageProps): ReactNode {
   const scope = useConnectorScope();
   useDocumentTitle('Tools');
   useScrollToAnchor(focus);
   return (
     <Groups>
-      <ToolConnectors key={`${String(scope)}:${currentServer()?.id ?? ''}`} open={connector} />
+      <ToolConnectors key={`${String(scope)}:${currentServer()?.id ?? ''}`} project={project} />
       <View nativeID="routines" style={ANCHOR}>
         <Routines project={project} />
       </View>

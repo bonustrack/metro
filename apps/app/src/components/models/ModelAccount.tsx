@@ -79,7 +79,7 @@ function Manage({ connection }: { connection: OrgModelConnection }): ReactNode {
       <Item title={`Remove ${connection.label}`} subtitle={connection.subscription ? 'Revoke the token at claude.ai too' : 'Every route that uses it loses it'} danger chevron={false} onPress={removing.show} />
       <NameModal key={connection.label} title="Rename the account" action="Rename" placeholder={connection.label} initial={connection.label} failure="Could not rename the account." open={renaming}
         onClose={() => { setRenaming(false); }} onSubmit={async (label) => { await updateOrgModel(connection.id, { label }); await afterModelChange(client); }} />
-      <ConfirmDialog confirming={removing} title="Remove this account?" lines={lines} action="Remove account" />
+      <ConfirmDialog confirming={removing} title={`Remove ${connection.label}?`} lines={lines} action="Remove account" name={connection.label} />
     </Group>
   );
 }

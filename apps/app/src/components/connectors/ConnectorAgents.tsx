@@ -1,139 +1,128 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { assignOrgConnector, setOrgConnectorAgentPolicy, unassignOrgConnector, type OrgConnector, type OrgConnectorAgent } from '@metro-labs/client/api/org-connectors';
+import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { assignOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
-import { AgentAvatar } from '../AgentAvatar.js';
-import { Icon } from '../Icon.js';
 import { Modal } from '../Modal.js';
-import { AvatarDot } from '../ui/AvatarDot.js';
-import { Group, Rows } from '../ui/Group.js';
+import { ErrorState } from '../ui/ErrorState.js';
+import { Group, Groups, Rows } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
-import { RuleChoice, RuleRows, useRuleSave, viewTitle, type RuleView } from './RuleViews.js';
-import { useConnectorTools } from './ConnectorRule.js';
-import { ownRuleLine } from '../../lib/rule-words.js';
-import { queryError, useServerStatus, useServersQuery } from '../../lib/queries.js';
-import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
-import { AVATAR_SIZE } from '../ui/sizes.js';
+import { RowsSkeleton } from '../ui/RowsSkeleton.js';
+import { AgentFace, SummaryLine } from './AgentFace.js';
+import { useAgentRows, type AgentRow } from '../../lib/agent-rows.js';
+import { explorerTools, type ExplorerTool } from '../../lib/connector-rules.js';
+import { agentRuleSummary } from '../../lib/connector-summary.js';
+import { refreshOrgConnectors, useOrgConnectorToolsQuery } from '../../lib/org-connector-queries.js';
+import { queryError, useServersQuery } from '../../lib/queries.js';
+import { routeHash } from '@metro-labs/client/route';
 
-const PLUS = 22;
-
-function AgentFace({ server }: { server: Server }): ReactNode {
-  const { data } = useServerStatus(server.host);
-  const dot = data?.state === 'live' ? 'success' : data?.state === 'offline' ? 'danger' : null;
-  return (
-    <AvatarDot dot={dot}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />
-    </AvatarDot>
-  );
+interface Split {
+  held: AgentRow[];
+  others: AgentRow[];
 }
 
-function useChange(onDone: () => void): { busy: boolean; error: string | null; run: (job: () => Promise<unknown>) => void } {
+const byName = (a: AgentRow, b: AgentRow): number => a.name.localeCompare(b.name);
+
+function useSplit(connector: OrgConnector, servers: Server[]): Split {
+  const rows = useAgentRows(servers);
+  const holds = new Set(connector.agents.map((agent) => agent.id));
+  return { held: rows.filter((row) => holds.has(row.server.id)).sort(byName), others: rows.filter((row) => !holds.has(row.server.id)).sort(byName) };
+}
+
+function useAssign(onDone?: () => void): { busy: string | null; error: string | null; add: (connector: OrgConnector, server: Server) => void } {
   const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const run = (job: () => Promise<unknown>): void => {
-    setBusy(true);
+  const add = (connector: OrgConnector, server: Server): void => {
+    if (busy !== null) return;
+    setBusy(server.id);
     setError(null);
-    job()
+    assignOrgConnector(connector.id, server.id)
       .then(() => refreshOrgConnectors(client))
-      .then(onDone)
-      .catch((err: unknown) => { setError(queryError(err, 'Could not change that agent.')); })
-      .finally(() => { setBusy(false); });
+      .then(() => { onDone?.(); })
+      .catch((err: unknown) => { setError(queryError(err, `Could not add ${connector.name} to ${serverLabel(server)}.`)); })
+      .finally(() => { setBusy(null); });
   };
-  return { busy, error, run };
+  return { busy, error, add };
 }
 
-interface AgentModalProps {
-  connector: OrgConnector;
-  held: OrgConnectorAgent;
-  server: Server;
-  admin: boolean;
-  onClose: () => void;
-}
-
-function AgentModal({ connector, held, server, admin, onClose }: AgentModalProps): ReactNode {
-  const client = useQueryClient();
-  const [view, setView] = useState<RuleView | null>(null);
-  const tools = useConnectorTools(connector);
-  const scope = tools.scope(held.policy, connector.policy);
-  const saving = useRuleSave(async (next) => {
-    await setOrgConnectorAgentPolicy(connector.id, server.id, next);
-    await refreshOrgConnectors(client);
-  });
-  const removing = useChange(onClose);
-  const name = serverLabel(server);
-  if (view !== null)
-    return (
-      <Modal title={`${name}: ${viewTitle(view, scope.tools)}`} open onClose={onClose}>
-        <RuleChoice view={view} scope={scope} disabled={!admin} busy={saving.busy} error={saving.error} onSave={saving.save} onPick={setView} onDone={() => { setView(null); }} onRefresh={tools.refresh} />
-      </Modal>
-    );
-  return (
-    <Modal title={name} open onClose={onClose}>
-      <Col gap={20}>
-        <Text size="md" role="secondary">{`${name} can be stricter than the organization, never looser. The stricter rule wins.`}</Text>
-        <Rows>
-          <RuleRows scope={scope} onOpen={setView} />
-        </Rows>
-        {admin ? (
-          <Rows>
-            <Item title={`Take ${connector.name} away from ${name}`} danger chevron={false} onPress={removing.busy ? undefined : () => { removing.run(() => unassignOrgConnector(connector.id, server.id)); }} />
-          </Rows>
-        ) : null}
-        {removing.error === null ? null : <Text size="md" role="danger">{removing.error}</Text>}
-      </Col>
-    </Modal>
-  );
-}
-
-function AddAgentModal({ connector, servers, onClose }: { connector: OrgConnector; servers: Server[]; onClose: () => void }): ReactNode {
-  const adding = useChange(onClose);
+function AddModal({ connector, others, onClose }: { connector: OrgConnector; others: AgentRow[]; onClose: () => void }): ReactNode {
+  const assign = useAssign(onClose);
   return (
     <Modal title="Add an agent" open onClose={onClose}>
       <Col gap={16}>
-        <Text size="md" role="secondary">{`The agent gets ${connector.name} and follows the rule of the organization.`}</Text>
-        {servers.length === 0 ? <Text size="md" role="secondary">Every agent has it already.</Text> : (
+        <Text size="md" role="secondary">{`The agent gets ${connector.name} with the rules of the organization.`}</Text>
+        {others.length === 0 ? (
+          <Text size="md" role="secondary">Every agent has it already.</Text>
+        ) : (
           <Rows>
-            {servers.map((server) => (
-              <Item key={server.id} title={serverLabel(server)} leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />} chevron={false}
-                onPress={adding.busy ? undefined : () => { adding.run(() => assignOrgConnector(connector.id, server.id)); }} />
+            {others.map((row) => (
+              <Item key={row.server.id} title={row.name} subtitle={row.line.text} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
+                onPress={assign.busy === null ? () => { assign.add(connector, row.server); } : undefined} />
             ))}
           </Rows>
         )}
-        {adding.error === null ? null : <Text size="md" role="danger">{adding.error}</Text>}
+        {assign.error === null ? null : <Text size="md" role="danger">{assign.error}</Text>}
       </Col>
     </Modal>
   );
 }
 
-function AddRow({ onPress }: { onPress: () => void }): ReactNode {
-  const palette = useKitPalette();
-  return <Item title="Add an agent" leading={<Icon name="plus" size={PLUS} color={palette.link} />} chevron={false} onPress={onPress} />;
+export function useAddAgent(connector: OrgConnector): { open: () => void; modal: ReactNode } {
+  const servers = useServersQuery().data ?? [];
+  const { others } = useSplit(connector, servers);
+  const [adding, setAdding] = useState(false);
+  return { open: () => { setAdding(true); }, modal: adding ? <AddModal connector={connector} others={others} onClose={() => { setAdding(false); }} /> : null };
+}
+
+function HeldRows({ connector, held, tools }: { connector: OrgConnector; held: AgentRow[]; tools: ExplorerTool[] | null }): ReactNode {
+  const note = `An agent can only be stricter than the organization. Open one to change its rules or remove ${connector.name} from it.`;
+  const count = held.length;
+  return (
+    <Group label={count === 0 ? `No agent has ${connector.name} yet` : `${String(count)} ${count === 1 ? 'agent has' : 'agents have'} ${connector.name}`} note={count === 0 ? undefined : note} wide>
+      {held.map((row) => {
+        const own = connector.agents.find((agent) => agent.id === row.server.id)?.policy ?? {};
+        return (
+          <Item key={row.server.id} title={row.name} subtitle={<SummaryLine summary={agentRuleSummary(connector.policy, own, tools)} />} leading={<AgentFace server={row.server} dot={row.line.dot} />}
+            href={routeHash({ kind: 'org-connector', id: connector.id, tab: 'agents', agent: row.server.id })} />
+        );
+      })}
+    </Group>
+  );
+}
+
+function OtherRows({ connector, others, admin }: { connector: OrgConnector; others: AgentRow[]; admin: boolean }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const assign = useAssign();
+  if (others.length === 0) return null;
+  return (
+    <Group label={`Without ${connector.name}`} error={assign.error} wide>
+      {others.map((row) => (
+        <Item key={row.server.id} title={row.name} subtitle={row.line.text} subtitleTone={row.line.tone} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
+          trailing={admin ? <Button color="secondary" dark={dark} label="Add" loading={assign.busy === row.server.id} disabled={assign.busy !== null} onPress={() => { assign.add(connector, row.server); }} /> : undefined} />
+      ))}
+    </Group>
+  );
+}
+
+function Lists({ connector, admin, servers }: { connector: OrgConnector; admin: boolean; servers: Server[] }): ReactNode {
+  const { held, others } = useSplit(connector, servers);
+  const listed = useOrgConnectorToolsQuery(connector.id).data;
+  const tools = listed === undefined ? null : explorerTools(listed, [connector.policy]);
+  return (
+    <Groups>
+      <HeldRows connector={connector} held={held} tools={tools} />
+      <OtherRows connector={connector} others={others} admin={admin} />
+    </Groups>
+  );
 }
 
 export function ConnectorAgents({ connector, admin }: { connector: OrgConnector; admin: boolean }): ReactNode {
   const servers = useServersQuery();
-  const [open, setOpen] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const all = servers.data ?? [];
-  const held = connector.agents.flatMap((agent) => {
-    const server = all.find((s) => s.id === agent.id);
-    return server === undefined ? [] : [{ agent, server }];
-  });
-  const others = all.filter((server) => !connector.agents.some((agent) => agent.id === server.id));
-  const selected = held.find((entry) => entry.server.id === open);
-  const note = servers.error === null ? (held.length === 0 ? 'No agent has it yet.' : undefined) : queryError(servers.error, 'Could not load the agents.');
-  return (
-    <Group label="Agents" note={note}>
-      {held.map(({ agent, server }) => (
-        <Item key={server.id} title={serverLabel(server)} subtitle={ownRuleLine(agent.policy)} leading={<AgentFace server={server} />} onPress={() => { setOpen(server.id); }} />
-      ))}
-      {admin && others.length > 0 ? <AddRow onPress={() => { setAdding(true); }} /> : null}
-      {selected === undefined ? null : <AgentModal connector={connector} held={selected.agent} server={selected.server} admin={admin} onClose={() => { setOpen(null); }} />}
-      {adding ? <AddAgentModal connector={connector} servers={others} onClose={() => { setAdding(false); }} /> : null}
-    </Group>
-  );
+  if (servers.data === undefined && servers.error !== null) return <ErrorState title="Could not load the agents" text={queryError(servers.error, 'Metro did not answer.')} onRetry={servers.refetch} />;
+  if (servers.data === undefined) return <RowsSkeleton rows={4} />;
+  return <Lists connector={connector} admin={admin} servers={servers.data} />;
 }

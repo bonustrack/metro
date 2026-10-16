@@ -159,6 +159,26 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'tools', project: 'aB3-_xYz9Qw' });
   });
 
+  test('a connector has a Tools, an Agents and a Settings address, one per agent, and an add page', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const id = 'aB3-_xYz9Qw';
+    const agent = 'emma0000001';
+    const cases: [string, Selection][] = [
+      [`#/stage-labs/organization/connectors/${id}/agents`, { kind: 'org-connector', id, tab: 'agents' }],
+      [`#/stage-labs/organization/connectors/${id}/settings`, { kind: 'org-connector', id, tab: 'settings' }],
+      [`#/stage-labs/organization/connectors/${id}/agents/${agent}`, { kind: 'org-connector', id, tab: 'agents', agent }],
+      ['#/stage-labs/organization/connectors/new', { kind: 'org-connector-new' }],
+    ];
+    for (const [hash, selection] of cases) {
+      expect(routeSelection(hash)).toEqual(selection);
+      expect(routeHash(selection)).toBe(hash);
+    }
+    expect(routeHash({ kind: 'org-connector', id, agent })).toBe(`#/stage-labs/organization/connectors/${id}/agents/${agent}`);
+    expect(routeSelection(`#/stage-labs/organization/connectors/${id}/settings/${agent}`).kind).toBe('none');
+    expect(routeSelection(`#/stage-labs/organization/connectors/${id}/agents/short`).kind).toBe('none');
+    expect(routeSelection(`#/stage-labs/organization/connectors/${id}/tools`).kind).toBe('none');
+  });
+
   test('the organization Models page is an organization page, and an agent keeps its own Model page', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: null });
     expect(routeSelection('#/organization/models')).toEqual({ kind: 'org-models' });

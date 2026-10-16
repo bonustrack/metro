@@ -107,6 +107,7 @@ describe('every page of an agent has a place under one of its five tabs', () => 
       { kind: 'skills-github', project: AGENT },
       { kind: 'secrets-recent', project: AGENT },
       { kind: 'add-chat', project: AGENT },
+      { kind: 'tools', project: AGENT, connector: AGENT },
     ];
     for (const selection of deep) expect(isDeepPage(selection)).toBe(true);
     const shallow: Selection[] = [
@@ -146,6 +147,8 @@ describe('the shell knows its section and what a phone shows', () => {
     }
     expect(phoneBackOf({ kind: 'home', project: AGENT })).toEqual({ kind: 'servers' });
     expect(phoneBackOf({ kind: 'org-connector', id: AGENT })).toEqual({ kind: 'org-connectors' });
+    expect(phoneBackOf({ kind: 'org-connector', id: AGENT, tab: 'settings' })).toEqual({ kind: 'org-connectors' });
+    expect(phoneBackOf({ kind: 'org-connector', id: AGENT, tab: 'agents', agent: AGENT })).toBeNull();
     expect(phoneBackOf({ kind: 'org-route' })).toEqual({ kind: 'org-models' });
     expect(phoneBackOf({ kind: 'org-model', id: AGENT })).toEqual({ kind: 'org-models' });
     expect(shellSectionOf({ kind: 'org-model', id: AGENT })).toBe('models');
@@ -163,7 +166,7 @@ describe('the shell knows its section and what a phone shows', () => {
 });
 
 describe('setup flows open full screen, like the launch', () => {
-  test('adding a chat, a model account or an AWS account is a focus page, and nothing else is', () => {
+  test('adding a chat, a connector, a model account or an AWS account is a focus page, and nothing else is', () => {
     const focus: Selection[] = [
       { kind: 'add-chat', project: AGENT },
       { kind: 'add-chat', project: AGENT, station: 'xmtp' },
@@ -171,6 +174,7 @@ describe('setup flows open full screen, like the launch', () => {
       { kind: 'org-model-add', provider: 'codex' },
       { kind: 'org-model-sign-in', id: AGENT },
       { kind: 'org-aws' },
+      { kind: 'org-connector-new' },
     ];
     for (const selection of focus) expect(isFocusPage(selection)).toBe(true);
     const shell: Selection[] = [{ kind: 'chats', project: AGENT }, { kind: 'backup', project: AGENT }, { kind: 'run', project: AGENT, view: 'session' }, { kind: 'org-models' }, { kind: 'organization' }, { kind: 'launch' }];
@@ -180,6 +184,7 @@ describe('setup flows open full screen, like the launch', () => {
   test('a focus page belongs to its section and goes back to where it was opened from', () => {
     expect(shellSectionOf({ kind: 'org-model-add' })).toBe('models');
     expect(shellSectionOf({ kind: 'org-aws' })).toBe('organization');
+    expect(shellSectionOf({ kind: 'org-connector-new' })).toBe('connectors');
     expect(phoneBackOf({ kind: 'org-model-add', provider: 'codex' })).toEqual({ kind: 'org-models' });
     expect(phoneBackOf({ kind: 'org-model-sign-in', id: AGENT })).toEqual({ kind: 'org-model', id: AGENT });
     expect(phoneBackOf({ kind: 'org-aws' })).toEqual({ kind: 'organization' });

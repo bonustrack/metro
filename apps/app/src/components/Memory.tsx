@@ -79,6 +79,7 @@ function DeleteNote({ project, claudeProject, file }: { project: string; claudeP
       label={`Actions for ${noteTitle(file)}`}
       action="Delete note"
       title="Delete this note?"
+      name={noteTitle(file)}
       lines={[`“${noteTitle(file)}” is removed. The agent writes a new one if it learns the same thing again.`]}
       failure="Could not delete the note."
       run={async () => {

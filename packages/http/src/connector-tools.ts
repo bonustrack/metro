@@ -9,6 +9,8 @@ export interface RemoteTool {
   title: string;
   description: string;
   readOnly: boolean;
+  destructive?: boolean;
+  openWorld?: boolean;
   inputSchema?: Record<string, unknown>;
 }
 
@@ -36,11 +38,15 @@ async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, 
   return resultOf(text, res.headers.get('content-type') ?? '');
 }
 
+function hintsOf(annotations: Record<string, unknown>): Pick<RemoteTool, 'destructive' | 'openWorld'> {
+  return { ...(annotations.destructiveHint === true ? { destructive: true } : {}), ...(annotations.openWorldHint === true ? { openWorld: true } : {}) };
+}
+
 function toTool(raw: unknown): RemoteTool | null {
   if (!isRecord(raw) || typeof raw.name !== 'string') return null;
   const annotations = isRecord(raw.annotations) ? raw.annotations : {};
   const title = typeof raw.title === 'string' && raw.title !== '' ? raw.title : raw.name;
-  return { name: raw.name, title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true, ...(isRecord(raw.inputSchema) ? { inputSchema: raw.inputSchema } : {}) };
+  return { name: raw.name, title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true, ...hintsOf(annotations), ...(isRecord(raw.inputSchema) ? { inputSchema: raw.inputSchema } : {}) };
 }
 
 async function endSession(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<void> {

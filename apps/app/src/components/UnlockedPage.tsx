@@ -6,6 +6,7 @@ import { InviteButton } from './Members.js';
 import { Organization, OrganizationGroups } from './Organization.js';
 import { ConnectorsIdle, OrgConnectorList } from './OrgConnectors.js';
 import { OrgConnectorPage } from './OrgConnectorPage.js';
+import { AddConnectorPage } from './connectors/AddConnectorPage.js';
 import { Settings } from './Settings.js';
 import { ServerGate } from './gates.js';
 import { AgentList } from './agents/AgentList.js';
@@ -52,7 +53,7 @@ function modelsPage(selection: Selection, narrow: boolean): ReactNode {
 
 function organizationPage({ selection, onLock, narrow }: PageProps): ReactNode {
   if (selection.kind === 'org-connectors') return narrow ? <OrgConnectorList pane={false} /> : <ConnectorsIdle />;
-  if (selection.kind === 'org-connector') return <OrgConnectorPage id={selection.id} />;
+  if (selection.kind === 'org-connector') return <OrgConnectorPage id={selection.id} tab={selection.tab} agent={selection.agent} />;
   const models = modelsPage(selection, narrow);
   if (models !== null) return models;
   if (selection.kind === 'settings') return <Settings />;
@@ -85,6 +86,7 @@ function FocusPage({ selection, onLock }: { selection: Selection; onLock: () => 
   if (selection.kind === 'org-model-add') return <AddModelAccountPage provider={selection.provider} />;
   if (selection.kind === 'org-model-sign-in') return <ModelSignInPage id={selection.id} />;
   if (selection.kind === 'org-aws') return <ConnectAwsPage />;
+  if (selection.kind === 'org-connector-new') return <AddConnectorPage />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }
 

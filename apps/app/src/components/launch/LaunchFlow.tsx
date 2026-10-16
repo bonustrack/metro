@@ -10,7 +10,7 @@ import { CopyBlock } from '../CopyBlock.js';
 import { Loading } from '../Loading.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { LaunchError } from './LaunchError.js';
-import { LaunchFrame, type FocusStep } from './LaunchFrame.js';
+import { LaunchFrame, type LaunchStep } from './LaunchFrame.js';
 import { ConfirmStep, NameStep, PlaceStep, seedOf } from './LaunchSteps.js';
 import { LaunchWatch, type LaunchSubject } from './LaunchWatch.js';
 import { cityOf, closestRegion, refusalOf } from '../../lib/launch-steps.js';
@@ -18,7 +18,7 @@ import { queryError, refreshServers, useLaunchOverviewQuery } from '../../lib/qu
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
 
-type Phase = { kind: FocusStep } | { kind: 'watch'; subject: LaunchSubject } | { kind: 'refused'; message: string; status: number | null; region: string; at: Date };
+type Phase = { kind: LaunchStep } | { kind: 'watch'; subject: LaunchSubject } | { kind: 'refused'; message: string; status: number | null; region: string; at: Date };
 
 const OFF = 'Launching is off here. Add your own server from the agent list instead.';
 const OFF_IDENTITY = 'To turn it on, set the AWS and Tailscale secrets on this deployment.';
@@ -108,8 +108,8 @@ function Flow({ overview }: { overview: LaunchOverview }): ReactNode {
   const regions = launchRegions(overview.regions);
   const l = useLauncher(regions);
   const { phase } = l;
-  const step: FocusStep = phase.kind === 'name' || phase.kind === 'place' ? phase.kind : 'launch';
-  const onStep = phase.kind === 'place' || phase.kind === 'launch' ? (next: FocusStep) => { l.setPhase({ kind: next }); } : undefined;
+  const step: LaunchStep = phase.kind === 'name' || phase.kind === 'place' ? phase.kind : 'launch';
+  const onStep = phase.kind === 'place' || phase.kind === 'launch' ? (next: LaunchStep) => { l.setPhase({ kind: next }); } : undefined;
   const label = seedOf(l.name);
   return (
     <LaunchFrame step={step} onStep={onStep}>

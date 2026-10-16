@@ -1,3 +1,5 @@
+export type ConnectorTab = 'agents' | 'settings';
+
 export type Selection =
   | { kind: 'none' }
   | { kind: 'servers' }
@@ -14,7 +16,8 @@ export type Selection =
   | { kind: 'members' }
   | { kind: 'organization' }
   | { kind: 'org-connectors' }
-  | { kind: 'org-connector'; id: string }
+  | { kind: 'org-connector'; id: string; tab?: ConnectorTab; agent?: string }
+  | { kind: 'org-connector-new' }
   | { kind: 'org-models' }
   | { kind: 'org-route' }
   | { kind: 'org-model'; id: string }

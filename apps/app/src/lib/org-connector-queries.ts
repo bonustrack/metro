@@ -5,8 +5,8 @@ import { fetchOrgConnectorTools, fetchOrgConnectors, type OrgConnectors } from '
 import type { ConnectorTool } from '@metro-labs/client/api/connectors';
 import { orgKey } from './queries.js';
 
-export const useOrgConnectorsQuery = (): UseQueryResult<OrgConnectors> =>
-  useQuery({ queryKey: orgKey('org-connectors', String(accountScopeIdentity())), queryFn: fetchOrgConnectors, staleTime: 30_000, retry: false });
+export const useOrgConnectorsQuery = (pollMs?: number): UseQueryResult<OrgConnectors> =>
+  useQuery({ queryKey: orgKey('org-connectors', String(accountScopeIdentity())), queryFn: fetchOrgConnectors, staleTime: 30_000, retry: false, refetchInterval: pollMs ?? false });
 
 export const useOrgConnectorToolsQuery = (id: string): UseQueryResult<ConnectorTool[]> =>
   useQuery({ queryKey: orgKey('org-connector-tools', String(accountScopeIdentity()), id), queryFn: ({ signal }) => fetchOrgConnectorTools(id, signal), staleTime: 60_000, retry: false });

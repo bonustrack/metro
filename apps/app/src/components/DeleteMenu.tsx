@@ -54,10 +54,11 @@ interface ConfirmDialogProps {
   title: string;
   lines: string[];
   action: string;
+  name?: string;
   word?: string;
 }
 
-export function ConfirmDialog({ confirming, title, lines, action, word = DELETE_WORD }: ConfirmDialogProps): ReactNode {
+export function ConfirmDialog({ confirming, title, lines, action, name, word = name ?? DELETE_WORD }: ConfirmDialogProps): ReactNode {
   return (
     <ConfirmModal
       open={confirming.open}

@@ -57,7 +57,7 @@ function DeleteSkill({ skill, project, edit }: { skill: ClaudeSkill; project: st
       action="Delete skill"
       title="Delete skill"
       lines={["This removes the skill's folder on that machine, and everything in it.", 'Claude Code stops loading it at once.']}
-      word={skill.name}
+      name={skill.name}
       failure="Could not delete that skill."
       run={async () => {
         await deleteClaudeSkill(skill.id);

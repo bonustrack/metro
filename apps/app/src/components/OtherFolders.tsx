@@ -1,11 +1,10 @@
 import { type ReactNode } from 'react';
-import { ListRow } from './ListRow.js';
-import { SettingsGroup } from './SettingsSection.js';
 import { routeHash } from '@metro-labs/client/route';
-import { type Selection } from '@metro-labs/client/selection';
 import { type ClaudeProject } from '@metro-labs/client/api/claude';
-import { useClaudeProjectsQuery } from '../lib/queries.js';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { Group } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { useClaudeProjectsQuery } from '../lib/queries.js';
 
 const folderLabel = (p: ClaudeProject): string => p.cwd ?? p.id;
 
@@ -19,18 +18,10 @@ export function OtherFolders({ project, shown }: { project: string; shown: strin
     .sort((a, b) => (b.lastActiveAt ?? '').localeCompare(a.lastActiveAt ?? ''));
   if (others.length === 0) return null;
   return (
-    <SettingsGroup title="Other folders" note="Conversations Claude Code started in other folders, such as ones copied from another computer.">
-      {others.map((p) => {
-        const target: Selection = { kind: 'sessions', project, claudeProject: p.id, id: null };
-        return (
-          <ListRow
-            key={p.id}
-            title={folderLabel(p)}
-            detail={detailOf(p)}
-            href={routeHash(target)}
-          />
-        );
-      })}
-    </SettingsGroup>
+    <Group label="Other folders" note="Conversations started in other folders, such as ones copied from another computer.">
+      {others.map((p) => (
+        <Item key={p.id} title={folderLabel(p)} subtitle={detailOf(p)} href={routeHash({ kind: 'sessions', project, claudeProject: p.id, id: null })} />
+      ))}
+    </Group>
   );
 }

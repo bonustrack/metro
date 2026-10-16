@@ -22,6 +22,7 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   none: 'agents',
   'org-connectors': 'connectors',
   'org-connector': 'connectors',
+  'org-connector-new': 'connectors',
   'org-models': 'models',
   'org-route': 'models',
   'org-model': 'models',
@@ -52,7 +53,7 @@ export const isTabRoot = (selection: Selection): boolean => TAB_ROOTS.has(select
 export function phoneBackOf(selection: Selection): Selection | null {
   if (isTabRoot(selection) || isAdminSelection(selection)) return null;
   if ('project' in selection) return { kind: 'servers' };
-  if (selection.kind === 'org-connector') return { kind: 'org-connectors' };
+  if (selection.kind === 'org-connector') return selection.agent === undefined ? { kind: 'org-connectors' } : null;
   if (selection.kind === 'org-model-sign-in') return { kind: 'org-model', id: selection.id };
   if (selection.kind === 'org-route' || selection.kind === 'org-model' || selection.kind === 'org-model-add') return { kind: 'org-models' };
   return { kind: 'organization' };

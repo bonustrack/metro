@@ -59,7 +59,7 @@ export function useDeleteKey(onRemoved: (vault: Vault) => void): { ask: (secret:
         confirming={confirming}
         title={`Delete ${target.name}?`}
         action="Delete key"
-        word={target.name}
+        name={target.name}
         lines={[`The value of ${target.env} is removed from this machine, and requests that use its stand-in stop working.`]}
       />
     );

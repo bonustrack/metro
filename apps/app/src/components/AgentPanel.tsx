@@ -16,6 +16,7 @@ import { Files } from './Files.js';
 import { VoicePage } from './VoicePage.js';
 import { RoutinePage } from './tools/RoutinePage.js';
 import { ToolsPage } from './tools/ToolsPage.js';
+import { AgentConnectorPage } from './connectors/AgentConnectorPage.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
 import { AddChatPage } from './AddChatPage.js';
 import { GitHubSourcePage } from './GitHubSourcePage.js';
@@ -26,7 +27,7 @@ import { RecentUsePage } from './tools/KeyModals.js';
 import { agentPageOf } from '../lib/agent-tabs.js';
 
 function toolsPage(project: string, selection: Selection): ReactNode {
-  if (selection.kind === 'tools') return <ToolsPage project={project} connector={selection.connector ?? null} />;
+  if (selection.kind === 'tools') return selection.connector === undefined ? <ToolsPage project={project} /> : <AgentConnectorPage project={project} id={selection.connector} />;
   if (selection.kind === 'scheduled') return <ToolsPage project={project} focus="routines" />;
   if (selection.kind === 'secrets') return <ToolsPage project={project} focus="secret-keys" />;
   return null;

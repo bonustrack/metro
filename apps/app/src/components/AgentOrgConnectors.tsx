@@ -6,14 +6,16 @@ interface AssignedConnectors {
   connectors: OrgConnector[] | undefined;
   admin: boolean;
   error: Error | null;
+  refetch: () => Promise<unknown>;
 }
 
 export function useAssignedConnectors(): AssignedConnectors {
   const agentId = currentServer()?.id;
-  const { data, error } = useOrgConnectorsQuery();
+  const { data, error, refetch } = useOrgConnectorsQuery();
   return {
     connectors: data?.connectors.filter((connector) => connector.agents.some((agent) => agent.id === agentId)),
     admin: data?.admin === true,
     error,
+    refetch,
   };
 }
