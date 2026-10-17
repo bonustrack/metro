@@ -111,8 +111,14 @@ function taskTools(task: RunnerTask, tools: RunnerTool[], clock: Clock): string 
   return task.lastTool === null ? 'no tool reported' : `last tool ${task.lastTool}`;
 }
 
+function taskTitle(task: RunnerTask): string {
+  if (task.description !== undefined && task.description !== null) return task.description;
+  const who = task.agent === null || task.agent === 'general-purpose' ? 'Helper' : `${task.agent.charAt(0).toUpperCase()}${task.agent.slice(1)} helper`;
+  return task.lastTool === null ? `${who}, no description given` : `${who}, last used ${task.lastTool}`;
+}
+
 function taskIdentity(task: RunnerTask): string[] {
-  return [`Worker ID: ${task.id}`, `Task: ${task.description ?? 'Unknown task'}`, `Last observed model: ${task.lastObservedModel ?? 'Unknown'}`];
+  return [`Worker ID: ${task.id}`, `Task: ${task.description ?? 'No description given'}`, `Last observed model: ${task.lastObservedModel ?? 'Unknown'}`];
 }
 
 function taskDetails(task: RunnerTask, tools: RunnerTool[], clock: Clock): string {
@@ -144,7 +150,7 @@ function workerRows(activity: RunnerActivity, clock: Clock): WorkerRow[] {
     return {
       id: task.id,
       status: task.status,
-      title: task.description ?? 'Unknown task',
+      title: taskTitle(task),
       lastObservedModel: task.lastObservedModel ?? 'Unknown',
       stateLabel: taskStatus(task, clock, 'prefix'),
       tools: toolLabel,
