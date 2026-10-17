@@ -7,7 +7,7 @@ import { runnerFailureSummary, type RunnerActivity, type RunnerDiagnostic, type 
 import { writeAtomic } from '@metro-labs/core/secure-fs';
 import { ActivityTasks, activityName } from './activity-tasks.js';
 import type { ApprovalAsk } from './approvals.js';
-import type { SavedTask } from './task-state.js';
+import { sdkTask, type SavedTask } from './task-state.js';
 import { sessionFailure } from './errors.js';
 export { failureSummary } from './errors.js';
 
@@ -94,10 +94,11 @@ export class Activity {
   }
 
   recover(tasks: SavedTask[]): void {
-    this.tasks.restore(tasks.map((task) => ({
-      id: task.id, kind: null, agent: null, status: task.state === 'interrupted' ? 'unknown' : task.state,
+    const workers = tasks.filter(sdkTask);
+    this.tasks.restore(workers.map((task) => ({
+      id: task.id, kind: null, agent: null, status: task.state === 'interrupted' ? 'unknown' : task.state, ...(task.description === undefined ? {} : { description: task.description }),
       background: true, startedAt: 0, updatedAt: task.updatedAt, endedAt: null, lastTool: null, toolUses: 0, durationMs: 0,
-    })), tasks.flatMap((task) => task.toolUseId === null ? [] : [[task.toolUseId, task.id]]));
+    })), workers.flatMap((task) => task.toolUseId === null ? [] : [[task.toolUseId, task.id]]));
     for (const task of tasks) {
       if (task.notice === null) continue;
       const code = task.notice.reason === 'worker_restart' ? 'interrupted' : task.notice.reason;

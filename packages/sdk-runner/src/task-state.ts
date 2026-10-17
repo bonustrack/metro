@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
+import { runnerTaskDescription } from '@metro-labs/core/runner-activity';
 import { activityName } from './activity-tasks.js';
 import type { Uuid } from './inbox.js';
 
@@ -26,6 +27,7 @@ export interface SavedTask {
   attempt: number;
   handledAttempt?: number;
   state: (typeof STATES)[number];
+  description?: string;
   events: string[];
   updatedAt: number;
   notice: TaskNotice | null;
@@ -35,6 +37,7 @@ const integer = (raw: unknown): raw is number => typeof raw === 'number' && Numb
 const name = (raw: unknown): raw is string | null => raw === null || activityName(raw) !== null;
 const reason = (raw: unknown): raw is TaskReason => REASONS.some((value) => value === raw);
 const optionalInteger = (raw: unknown): boolean => raw === undefined || integer(raw);
+const description = (raw: unknown): boolean => raw === undefined || (typeof raw === 'string' && runnerTaskDescription(raw) === raw);
 const optionalUuid = (raw: unknown): boolean => raw === undefined || (typeof raw === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(raw));
 
 function notice(raw: unknown): raw is TaskNotice | null {
@@ -45,13 +48,16 @@ function notice(raw: unknown): raw is TaskNotice | null {
 }
 
 const events = (raw: unknown): boolean => Array.isArray(raw) && raw.length <= 16 && raw.every((event) => activityName(event) !== null);
+const optionalFields = (raw: Record<string, unknown>): boolean => optionalInteger(raw.handledAttempt) && description(raw.description);
 
 function task(raw: unknown): raw is SavedTask {
   if (!isRecord(raw) || activityName(raw.id) === null) return false;
   if (![raw.toolUseId, raw.owner, raw.parentToolUseId ?? null].every(name)) return false;
-  if (!events(raw.events) || !optionalInteger(raw.handledAttempt)) return false;
+  if (!events(raw.events) || !optionalFields(raw)) return false;
   return integer(raw.attempt) && integer(raw.updatedAt) && STATES.some((state) => state === raw.state) && notice(raw.notice);
 }
+
+export const sdkTask = (task: SavedTask): boolean => !/^(?:input|turn):/.test(task.id);
 
 export function savedTasks(raw: unknown): SavedTask[] {
   if (raw === undefined) return [];

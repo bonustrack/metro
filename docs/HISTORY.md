@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-18: A helper keeps its description after a runner restart
+
+Less saw every helper on the Right now page without a description, 30 of 30, on Emma (GPT 6.1 through Codex) and Chen (GLM through Routeway). A live helper had its description all along: with the pinned SDK (0.3.287, Claude Code 2.1.287), `task_started` and `background_tasks_changed` carry the Agent call's `description`, checked through the real SDK on the scripted upstream and through the gateway's Codex translation. The loss came at every runner start (a metro update, Start, a lost Metro link, a crash): `Activity.recover` rebuilt the list from the task ledger in `agent-session.json`, which kept no description, so every helper from before the restart came back as "Helper, no description given". The ledger keeps up to 200 rows and the page shows 30, so the whole list stayed unnamed until 30 new helpers had run. The ledger's own rows for a failed main turn (`turn:<uuid>`) and an interrupted chat input (`input:<uuid>`) came back as helpers too. The two boxes' own files were not read; this is the one path found that drops a description.
+
+- **The ledger keeps each helper's short description** (`description` on a saved task, from `task_started`, `task_updated` and `background_tasks_changed`, through `runnerTaskDescription`: one line, 160 characters), never its prompt or result, and the restart puts it back. A saved description that is not in that form fails closed like the rest of the ledger. A ledger written before this change has none, so its helpers stay unnamed until they age out.
+- **Ledger-only rows are no longer listed as helpers** (`sdkTask`); their recovery notices still show as events.
+- Still not kept across a restart: the agent, kind, start and end times, duration and observed model of an old helper.
+
 ## 2026-10-17: The page enrolls an agent by itself
 
 Less saw the agent's Settings › Server page still showing an "Organization" section ("Enrolled with organization", "Enrollment confirmed."), which looked like a leftover: every agent's models and connectors live at the organization now, so the person should never have to think about enrollment. Enrollment itself stays, since it gives the box the signed agent key that `POST /api/agents/models` and mcp.metro.box need; only the manual step went.
