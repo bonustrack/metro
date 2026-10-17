@@ -20,6 +20,7 @@ export interface SetupInput {
   model: ModelSettings | undefined;
   groups: AccountGroup[] | undefined;
   conversations: number | undefined;
+  link?: string | null;
 }
 
 export interface Setup {
@@ -42,7 +43,7 @@ function connectionName(model: ModelSettings): string {
 
 function modelStep(input: SetupInput, model: ModelSettings): SetupStep {
   const done = modelReady(model);
-  const hint = done ? connectionName(model) : model.reason ?? `Pick the AI behind ${input.name}`;
+  const hint = done ? connectionName(model) : input.link ?? model.reason ?? `Pick the AI behind ${input.name}`;
   return { id: 'model', title: 'Choose a model', hint, done, target: { kind: 'model', project: input.project } };
 }
 

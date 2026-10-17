@@ -1,5 +1,14 @@
 # Metro history
 
+## 2026-10-17: The page enrolls an agent by itself
+
+Less saw the agent's Settings › Server page still showing an "Organization" section ("Enrolled with organization", "Enrollment confirmed."), which looked like a leftover: every agent's models and connectors live at the organization now, so the person should never have to think about enrollment. Enrollment itself stays, since it gives the box the signed agent key that `POST /api/agents/models` and mcp.metro.box need; only the manual step went.
+
+- **The section is gone** (`EnrollAgent.tsx`, its Enroll button and its confirmation dialog). `createEnrollment` in the client stays the one enrollment flow.
+- **The page enrolls when the box says it is not enrolled** (`lib/auto-enroll.ts`, mounted in `AgentScreen`): an organization admin with one of the agent's pages open, a model read that worked, and `sync.enrolled` exactly `false` run the enrollment once per box per page load, then the box's model sync. Never on `true` (a new enrollment replaces the agent's identity, which the old dialog warned about), never on an unknown answer, an old daemon or a failed read, and never for a member who is not an admin. It reads the existing model query and adds no poll.
+- **Nothing shows unless it fails.** While it runs, the box's misleading "No model is set up for this agent yet" line reads "Linking this agent to the organization…"; a failure shows on the Model page as "This agent could not link to the organization" with the reason and Try again. The texts that said to enroll it on the Server page (the Model page and the daemon's "Connectors are not set up" tool error) now say an admin links it by opening its page.
+- **The Model page names a provider the box is too old for**: when the agent's route uses Routeway and the box runs Metro before beta.312, it says "Update Metro to use Routeway" instead of "No model is set up for this agent yet".
+
 ## 2026-10-17: Routeway joins the model providers
 
 Less asked for Routeway (https://routeway.ai), "a bit like OpenRouter, with different models", with its model list loaded from Routeway. Checked on 2026-10-17: Routeway speaks the OpenAI API and also the Anthropic Messages API at `https://api.routeway.ai/v1/messages` (and `/v1/messages/count_tokens`), takes the key as `x-api-key` or a bearer, and lists 290 models at a public `GET /v1/models`, 140 of them available, on the Messages endpoint and with tools. Cloudflare sits in front: an unknown path or a request with no key gets a challenge page (HTML 403), and many failed keys from one address get a 429.

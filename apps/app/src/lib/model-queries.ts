@@ -10,8 +10,8 @@ import { logError } from './log.js';
 const LIST_MS = 10 * 60_000;
 const STATUS_POLL_MS = 15_000;
 
-export const useModelQuery = (): UseQueryResult<ModelSettings> =>
-  useBoxQuery('model', fetchModel, { staleTime: 5_000, refetchInterval: STATUS_POLL_MS });
+export const useModelQuery = (poll = true): UseQueryResult<ModelSettings> =>
+  useBoxQuery('model', fetchModel, { staleTime: 5_000, refetchInterval: poll ? STATUS_POLL_MS : false });
 
 export const useOrgModelsQuery = (poll = false): UseQueryResult<OrgModels> =>
   useQuery({ queryKey: orgKey('org-models', String(accountScopeIdentity())), queryFn: fetchOrgModels, staleTime: 30_000, retry: false, refetchInterval: poll ? 3_000 : false });

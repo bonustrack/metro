@@ -3,6 +3,7 @@ import { call } from './client.js';
 import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
 import { toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
+import { olderThan } from './version.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'routeway';
 
@@ -78,6 +79,8 @@ export interface ModelSettings {
 
 const KEY_PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter', 'routeway'];
 
+const PROVIDER_SINCE: Partial<Record<Provider, string>> = { routeway: '0.1.0-beta.312' };
+
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const isProvider = (value: unknown): value is Provider => PROVIDERS.some((p) => p.id === value);
 const methodOf = (value: unknown): CodexMethod | null => (value === 'chatgpt' || value === 'code' ? value : null);
@@ -131,8 +134,8 @@ function routeOf(body: Record<string, unknown>): ModelRoute | null {
 }
 
 function toSync(raw: unknown): ModelSync | null {
-  if (!isRecord(raw)) return null;
-  return { enrolled: raw.enrolled === true, at: filled(raw.at), error: filled(raw.error) };
+  if (!isRecord(raw) || typeof raw.enrolled !== 'boolean') return null;
+  return { enrolled: raw.enrolled, at: filled(raw.at), error: filled(raw.error) };
 }
 
 const listOf = <T>(raw: unknown, make: (item: unknown) => T | null): T[] => (Array.isArray(raw) ? raw.flatMap((item: unknown) => make(item) ?? []) : []);
@@ -150,6 +153,15 @@ export function toModelSettings(body: unknown): ModelSettings {
     connections: listOf(body.connections, toConnection),
     chain: listOf(body.chain, toChainRow),
   };
+}
+
+export function providerTooNew(route: ModelRoute | null, connections: ConnectionRow[], version: string | null): ProviderInfo | null {
+  if (route === null) return null;
+  const used = new Set([route.primary, ...route.fallbacks].map((step) => connections.find((c) => c.id === step.connection)?.provider));
+  return PROVIDERS.find((p) => {
+    const since = PROVIDER_SINCE[p.id];
+    return since !== undefined && used.has(p.id) && olderThan(version, since);
+  }) ?? null;
 }
 
 export const usageOf = (settings: ModelSettings, connection: string): Usage[string] | undefined => settings.usage[connection];

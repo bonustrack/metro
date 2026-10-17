@@ -6,8 +6,9 @@ organization's Connectors page. An agent reaches only the connectors assigned to
 
 ## How an agent gets its connectors
 
-1. The agent is enrolled in its organization (Server page, Enroll). Enrolling gives it its
-   own keys, kept in Metro's folder on the box.
+1. The agent is enrolled in its organization: the page does it by itself the first time an
+   organization admin opens one of the agent's pages. Enrolling gives it its own keys, kept
+   in Metro's folder on the box.
 2. The daemon makes the agent an MCP token and registers its hash with mcp.metro.box.
 3. Claude Code reaches every assigned connector through two tools of the daemon's `metro`
    MCP server: `tool_search` to find a tool, `tool_call` to run it

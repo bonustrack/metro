@@ -132,7 +132,7 @@ describe('tool_search and tool_call forwarded to mcp.metro.box', () => {
 
   test('with no token, or no server, connectors are not set up', async () => {
     expect(await callConnectorTool('tool_search', { query: 'x' }, { ...deps(), token: null })).toEqual({ content: [{ type: 'text', text: NOT_SET_UP }], isError: true });
-    expect(text(await callConnectorTool('tool_search', { query: 'x' }, { ...deps(), url: null }))).toContain('Server page');
+    expect(text(await callConnectorTool('tool_search', { query: 'x' }, { ...deps(), url: null }))).toContain(NOT_SET_UP);
     expect(fake.seen).toEqual([]);
   });
 
