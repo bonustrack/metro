@@ -36,8 +36,8 @@ describe('which addresses api.metro.box may reach for an organization connector'
 
   test('oversized request bodies fail before resolving or opening a connection', async () => {
     let resolutions = 0;
-    const send = egressFetch(() => { resolutions += 1; return Promise.resolve([{ address: '93.184.216.34', family: 4 }]); });
-    await expect(send('https://vendor.example/token', { method: 'POST', body: 'x'.repeat(1024 * 1024 + 1) })).rejects.toThrow('larger than Metro sends');
+    const send = egressFetch(() => { resolutions += 1; return Promise.resolve([{ address: '93.184.216.34', family: 4 }]); }, { bodyMax: 1024, idleMs: 20_000 });
+    await expect(send('https://vendor.example/token', { method: 'POST', body: 'x'.repeat(1025) })).rejects.toThrow('larger than Metro sends');
     expect(resolutions).toBe(0);
   });
 

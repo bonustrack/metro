@@ -11,7 +11,7 @@ export interface EgressLimits {
   idleMs: number;
 }
 
-const DEFAULT_LIMITS: EgressLimits = { bodyMax: 1024 * 1024, idleMs: 20_000 };
+const DEFAULT_LIMITS: EgressLimits = { bodyMax: 64 * 1024 * 1024, idleMs: 20_000 };
 
 export class EgressRefused extends Error {}
 
