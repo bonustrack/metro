@@ -39,7 +39,8 @@ function usageValue(model: ModelSettings, now: number): string | null {
   return most === null || most.used === null ? null : `${percent(most.used)} used`;
 }
 
-export function modelGlance(model: ModelSettings, now: number): Glance {
+export function modelGlance(model: ModelSettings, now: number, outdated: string | null = null): Glance {
+  if (outdated !== null && !modelReady(model)) return { subtitle: outdated, value: 'Update Metro', tone: 'danger' };
   if (!modelReady(model)) return { subtitle: model.reason ?? modelName(model), value: 'Not ready', tone: 'danger' };
   const usage = usageValue(model, now);
   const picked = model.route === null ? '' : usageModel(model, model.route.primary);

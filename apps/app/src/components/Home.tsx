@@ -17,6 +17,7 @@ import { rightNow } from '../lib/right-now.js';
 import { setupOf } from '../lib/setup-steps.js';
 import { useBoxApprovals } from '../lib/agent-status.js';
 import { useLinkWords } from '../lib/auto-enroll.js';
+import { outdatedLine, useOutdatedProvider } from '../lib/outdated-provider.js';
 import { queryError, useBoxQuery, useClaudeSessionQuery, useServersQuery, useStationsQuery } from '../lib/queries.js';
 import { useModelQuery } from '../lib/model-queries.js';
 import { useDocumentTitle } from '../lib/title.js';
@@ -62,7 +63,8 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
   const model = useModelQuery().data;
   const conversations = useConversations();
   const narrow = useIsNarrow();
-  const link = useLinkWords(model?.sync)?.line ?? null;
+  const outdated = useOutdatedProvider();
+  const link = useLinkWords(model?.sync)?.line ?? (outdated === null ? null : outdatedLine(outdated));
   const setup = setupOf({ name, project, model, groups: view.groups, conversations, link });
   return (
     <>

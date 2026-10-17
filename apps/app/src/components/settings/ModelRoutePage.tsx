@@ -5,7 +5,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { providerTooNew, type ModelSettings, type ProviderInfo } from '@metro-labs/client/api/model';
+import type { ModelSettings, ProviderInfo } from '@metro-labs/client/api/model';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { modelOrder } from '@metro-labs/client/api/model-order';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
@@ -22,8 +22,9 @@ import { RouteOrder } from '../models/RouteOrder.js';
 import { Control, NoteRow } from './rows.js';
 import { useLinkWords, useRetryLink, type LinkWords } from '../../lib/auto-enroll.js';
 import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../../lib/model-queries.js';
-import { queryError, useModeQuery } from '../../lib/queries.js';
+import { queryError } from '../../lib/queries.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
+import { useOutdatedProvider } from '../../lib/outdated-provider.js';
 import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { ICON_SIZE } from '../ui/sizes.js';
@@ -137,11 +138,6 @@ function Problems({ settings, error, outdated, project }: { settings: ModelSetti
   );
 }
 
-function useOutdated(org: OrgModels | undefined, agent: string | null): ProviderInfo | null {
-  const version = useModeQuery().data?.version ?? null;
-  if (org === undefined || agent === null) return null;
-  return providerTooNew(org.agents[agent] ?? org.default, org.connections, version);
-}
 
 function Editable({ org, agent, settings, name }: { org: OrgModels; agent: string; settings: ModelSettings; name: string }): ReactNode {
   const editing = useEditing(org, agent);
@@ -159,7 +155,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
   const org = useOrgModelsQuery();
   const name = useAgentName();
   const agent = currentServer()?.id ?? null;
-  const outdated = useOutdated(org.data, agent);
+  const outdated = useOutdatedProvider();
   if (model.data === undefined) {
     if (model.error === null) return <RowsSkeleton rows={3} />;
     return <ErrorState title="The model did not load" text={queryError(model.error, 'Could not read the model settings.')} onRetry={model.refetch} />;

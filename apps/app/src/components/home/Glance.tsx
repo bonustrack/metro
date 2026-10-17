@@ -8,6 +8,7 @@ import { Group } from '../ui/Group.js';
 import { Fact } from '../ui/Layout.js';
 import { chatsGlance, modelGlance, serverGlance, uptimeGlance, versionGlance, type Glance } from '../../lib/glance.js';
 import { useMetroRelease } from '../../lib/metro-release.js';
+import { outdatedLine, useOutdatedProvider } from '../../lib/outdated-provider.js';
 import { useModelQuery } from '../../lib/model-queries.js';
 import { useLatestUsageQuery, useMachineQuery, useModeQuery, useSizeQuery } from '../../lib/queries.js';
 import { regionShort, sizeValue } from '../../lib/settings-values.js';
@@ -41,6 +42,7 @@ function usePlace(serverId: string | null): string | null {
 function useRows(project: string, serverId: string | null, groups: AccountGroup[]): GlanceRow[] {
   const now = useNow(CLOCK_MS);
   const model = useModelQuery().data;
+  const outdated = useOutdatedProvider();
   const machine = useMachineQuery().data;
   const usage = useLatestUsageQuery().data?.[serverId ?? ''];
   const version = useModeQuery().data?.version;
@@ -48,7 +50,7 @@ function useRows(project: string, serverId: string | null, groups: AccountGroup[
   const place = usePlace(serverId);
   const server = routeHash({ kind: 'server', project });
   return [
-    { title: 'Model', glance: model === undefined ? undefined : modelGlance(model, now), href: routeHash({ kind: 'model', project }) },
+    { title: 'Model', glance: model === undefined ? undefined : modelGlance(model, now, outdated === null ? null : outdatedLine(outdated)), href: routeHash({ kind: 'model', project }) },
     { title: 'Metro version', glance: versionGlance(version, latest), href: routeHash({ kind: 'agent-settings', project }) },
     { title: 'Server', glance: serverGlance(machine, usage, place), href: server },
     { title: 'Up for', glance: uptimeGlance(machine), href: server },
