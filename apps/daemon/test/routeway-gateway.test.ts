@@ -142,6 +142,14 @@ describe('a Routeway connection', () => {
     expect(sentModel(routeway.seen[2])).toBe('claude-sonnet-5.5');
   });
 
+  test('a tool schema without properties gets an empty one, since Routeway refuses it, and a full schema is left as it is', async () => {
+    const tools = [{ name: 'list_accounts', description: 'd', input_schema: { type: 'object' } }, { name: 'react', description: 'r', input_schema: { type: 'object', properties: { emoji: { type: 'string' } } } }];
+    expect((await send('/v1/messages', ask('routeway:claude-sonnet-5.5', { tools }))).status).toBe(200);
+    const sentTools = (JSON.parse(routeway.seen[0]?.body ?? '{}') as { tools: { input_schema: Record<string, unknown> }[] }).tools;
+    expect(sentTools[0]?.input_schema).toEqual({ type: 'object', properties: {} });
+    expect(sentTools[1]?.input_schema).toEqual(tools[1]?.input_schema);
+  });
+
   test('counts tokens at Routeway too, with the same credential', async () => {
     expect((await send('/v1/messages/count_tokens', ask('routeway:claude-sonnet-5.5'))).status).toBe(200);
     expect(routeway.seen[0]?.url).toBe('/v1/messages/count_tokens');

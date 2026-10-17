@@ -43,7 +43,7 @@ import { notReady, resolveRoute, routeLabel, type Connection, type ModelSetup, t
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
-import { refusedWithPage, ROUTEWAY_BASE, routewayHeaders } from './routeway.js';
+import { refusedWithPage, ROUTEWAY_BASE, routewayHeaders, routewayTools } from './routeway.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
@@ -189,7 +189,9 @@ async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shape
   const conn = route.connection;
   const watch = watchUpstream(res);
   const send = sender(`${deps.routewayBase ?? ROUTEWAY_BASE}${upstreamPath(req)}`, watch);
-  const upstream = await shapedAttempt(send, routewayHeaders(req, conn.apiKey), { ...body, bind: false }, route);
+  const sent = routewayTools(body.sent);
+  const fitted: Shaped = { raw: sent === body.sent ? body.raw : Buffer.from(JSON.stringify(sent)), sent, shaped: routewayTools(body.shaped), bind: false };
+  const upstream = await shapedAttempt(send, routewayHeaders(req, conn.apiKey), fitted, route);
   noteRefusal(conn.label, route.model, upstream);
   await refusedWithPage(upstream, watch);
   await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id) });
