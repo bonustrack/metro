@@ -150,6 +150,30 @@ describe('a Routeway connection', () => {
     expect(sentTools[1]?.input_schema).toEqual(tools[1]?.input_schema);
   });
 
+  test('a list of types becomes anyOf at every depth, since Routeway takes one type per field', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        limit: { type: ['integer', 'null'], description: 'How many.' },
+        only: { type: ['string'] },
+        filter: { type: 'object', properties: { tags: { type: 'array', items: { type: ['string', 'number'] } } } },
+        mixed: { type: ['string', 'null'], anyOf: [{ minLength: 1 }, { const: null }] },
+      },
+    };
+    await send('/v1/messages', ask('routeway:claude-sonnet-5.5', { tools: [{ name: 'read', description: 'r', input_schema: schema }] }));
+    const sent = (JSON.parse(routeway.seen[0]?.body ?? '{}') as { tools: { input_schema: { properties: Record<string, unknown> } }[] }).tools[0]?.input_schema.properties;
+    expect(sent?.limit).toEqual({ description: 'How many.', anyOf: [{ type: 'integer' }, { type: 'null' }] });
+    expect(sent?.only).toEqual({ type: 'string' });
+    expect(sent?.filter).toEqual({ type: 'object', properties: { tags: { type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'number' }] } } } });
+    expect(sent?.mixed).toEqual({ allOf: [{ anyOf: [{ type: 'string' }, { type: 'null' }] }, { anyOf: [{ minLength: 1 }, { const: null }] }] });
+  });
+
+  test('a body with nothing to fit is sent byte for byte even with tools', async () => {
+    const raw = '{"model":"claude-sonnet-5.5","max_tokens":8,"tools":[{"name":"a","description":"b","input_schema":{"type":"object","properties":{"x":{"type":"string"}}}}],"messages":[{"role":"user","content":"hi"}]}';
+    await send('/v1/messages', raw);
+    expect(routeway.seen[0]?.body).toBe(raw);
+  });
+
   test('counts tokens at Routeway too, with the same credential', async () => {
     expect((await send('/v1/messages/count_tokens', ask('routeway:claude-sonnet-5.5'))).status).toBe(200);
     expect(routeway.seen[0]?.url).toBe('/v1/messages/count_tokens');
