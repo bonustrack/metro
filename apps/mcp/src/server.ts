@@ -5,7 +5,6 @@ import { egressFetch } from '@metro-labs/connectors/egress';
 import { handleRequest, mcpDeps } from './app.js';
 import { readMcpConfig, type McpConfig } from './config.js';
 import { connectDb } from './db.js';
-import { MCP_BODY_MAX } from './mcp-http.js';
 import { startApprovalPruning } from './prune.js';
 import { VENDOR_CALL_MS } from './vendor.js';
 
@@ -25,7 +24,7 @@ const deps = mcpDeps({
   db: () => db,
   publicHost: config.publicHost,
   fetch: egressFetch(),
-  callFetch: egressFetch(undefined, { bodyMax: 2 * MCP_BODY_MAX, idleMs: VENDOR_CALL_MS }),
+  callFetch: egressFetch(undefined, { bodyMax: 64 * 1024 * 1024, idleMs: VENDOR_CALL_MS }),
 });
 
 const server = createServer((req, res) => {
