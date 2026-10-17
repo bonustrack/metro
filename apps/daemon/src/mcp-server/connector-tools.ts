@@ -10,7 +10,7 @@ export const CALL_TIMEOUT_MS = 120_000;
 const LIST_TIMEOUT_MS = 15_000;
 const REFRESH_MS = 5 * 60_000;
 
-export const NOT_SET_UP = 'Connectors are not set up on this agent: enroll it in its organization on the Server page of metro.box, then try again.';
+export const NOT_SET_UP = 'Connectors are not set up on this agent yet: it links to its organization once an admin of the organization opens its page on metro.box. Try again after that.';
 export const UNAVAILABLE = 'mcp.metro.box is unavailable, try again.';
 
 export interface ConnectorResult {

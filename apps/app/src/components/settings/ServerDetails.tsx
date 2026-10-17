@@ -8,7 +8,6 @@ import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
-import { EnrollAgent } from '../EnrollAgent.js';
 import { ServerAwsSection } from '../ServerAws.js';
 import { ServerResources } from '../ServerResources.js';
 import { ServerSizeSection } from '../ServerSize.js';
@@ -86,7 +85,6 @@ export function ServerDetails(): ReactNode {
       <ServerSizeSection serverId={server.id} />
       <ServerStorageSection serverId={server.id} />
       <ServerAwsSection server={server} />
-      <EnrollAgent server={server} />
       <MachineGroup machine={machine.data} error={machine.error} retry={machine.refetch} />
       {technical ? <Details machine={machine.data} server={server} /> : null}
     </Groups>

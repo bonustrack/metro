@@ -1,10 +1,11 @@
 import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconCheckmark1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCheckmark1';
+import { Button } from '@stage-labs/kit/react-native/button';
 import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import type { ModelSettings } from '@metro-labs/client/api/model';
+import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import type { ModelSettings, ProviderInfo } from '@metro-labs/client/api/model';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { modelOrder } from '@metro-labs/client/api/model-order';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
@@ -18,17 +19,18 @@ import { type RouteScope } from '../RouteEditor.js';
 import { useRouteControl, type RouteControl } from '../route-actions.js';
 import { sourceLine, withRoute } from '../model-view.js';
 import { RouteOrder } from '../models/RouteOrder.js';
-import { NoteRow } from './rows.js';
+import { Control, NoteRow } from './rows.js';
+import { useLinkWords, useRetryLink, type LinkWords } from '../../lib/auto-enroll.js';
 import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { queryError } from '../../lib/queries.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
+import { useOutdatedProvider } from '../../lib/outdated-provider.js';
 import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 
 const NO_CONNECTION = 'No account yet. Add one on the organization’s Models page, a Claude subscription included.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
-const NOT_ENROLLED = 'Enroll this agent with the organization to use its models. Until then it has no model.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
 
 interface Editing {
@@ -100,23 +102,42 @@ function ReadOnlyModels({ settings, org, orgError, name }: { settings: ModelSett
   return <RouteOrder items={modelOrder(settings)} who={name} mainNote={note} error={error} />;
 }
 
-function Problems({ settings, error, project }: { settings: ModelSettings; error: Error | null; project: string }): ReactNode {
-  const enrolled = settings.sync === null || settings.sync.enrolled;
-  const lines = [
+function LinkRow({ words }: { words: LinkWords }): ReactNode {
+  const dark = useKitScheme() === 'dark';
+  const retry = useRetryLink();
+  if (words.error === null) return <NoteRow text={words.line} danger={words.danger} />;
+  return (
+    <Control title="This agent could not link to the organization" note={words.error} noteTone="danger">
+      <Button size="sm" color="secondary" dark={dark} label="Try again" onPress={retry} />
+    </Control>
+  );
+}
+
+function problemLines(settings: ModelSettings, error: Error | null, linking: boolean, outdated: ProviderInfo | null): string[] {
+  const syncError = linking ? null : (settings.sync?.error ?? null);
+  const explained = linking || (outdated !== null && settings.route === null);
+  return [
     error === null ? null : 'Could not refresh the model settings. Showing the last reading.',
-    settings.sync === null || !enrolled || settings.sync.error === null ? null : `${SYNC_FAILED} ${settings.sync.error}`,
-    settings.reason,
+    syncError === null ? null : `${SYNC_FAILED} ${syncError}`,
+    explained ? null : settings.reason,
   ].filter((line): line is string => line !== null);
-  if (lines.length === 0 && enrolled) return null;
+}
+
+function Problems({ settings, error, outdated, project }: { settings: ModelSettings; error: Error | null; outdated: ProviderInfo | null; project: string }): ReactNode {
+  const link = useLinkWords(settings.sync);
+  const lines = problemLines(settings, error, link !== null, outdated);
+  if (lines.length === 0 && link === null && outdated === null) return null;
   return (
     <Group label="Needs attention">
-      {enrolled ? null : <Item title="Enroll it on the Server page" subtitle={NOT_ENROLLED} subtitleTone="danger" href={routeHash({ kind: 'server', project })} />}
+      {link === null ? null : <LinkRow words={link} />}
+      {outdated === null ? null : <Item title={`Update Metro to use ${outdated.label}`} subtitle="Open Settings, then Metro version under Server." subtitleTone="danger" href={routeHash({ kind: 'agent-settings', project })} />}
       {lines.map((line) => (
         <NoteRow key={line} text={line} danger />
       ))}
     </Group>
   );
 }
+
 
 function Editable({ org, agent, settings, name }: { org: OrgModels; agent: string; settings: ModelSettings; name: string }): ReactNode {
   const editing = useEditing(org, agent);
@@ -134,6 +155,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
   const org = useOrgModelsQuery();
   const name = useAgentName();
   const agent = currentServer()?.id ?? null;
+  const outdated = useOutdatedProvider();
   if (model.data === undefined) {
     if (model.error === null) return <RowsSkeleton rows={3} />;
     return <ErrorState title="The model did not load" text={queryError(model.error, 'Could not read the model settings.')} onRetry={model.refetch} />;
@@ -141,7 +163,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
   const admin = org.data?.admin === true && agent !== null;
   return (
     <Groups>
-      <Problems settings={model.data} error={model.error} project={project} />
+      <Problems settings={model.data} error={model.error} outdated={outdated} project={project} />
       {admin && org.data !== undefined && agent !== null ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
       <Group label="Organization">
         <Item title="Accounts and the default route" subtitle="On the organization’s Models page" href={routeHash({ kind: 'org-models' })} />

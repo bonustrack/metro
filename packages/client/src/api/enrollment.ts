@@ -21,7 +21,7 @@ interface Ticket {
   expiresAt: number;
 }
 
-const CHANGED = 'The account or agent changed. Close this dialog and start again.';
+const CHANGED = 'The account or agent changed during enrollment. Try again.';
 const UNCONFIRMED = 'Enrollment could not be confirmed and may have reached the agent. Try again.';
 const DISABLED = 'Organization connectors are not switched on yet.';
 const STALE = 'This enrollment ticket is stale or belongs to another organization. Start again from the agent page.';
@@ -36,7 +36,7 @@ function ticketOf(value: unknown): Ticket {
 }
 
 function resultOf(value: unknown, server: string, organization: string): EnrollmentResult {
-  if (!isRecord(value) || value.server !== server || value.organization !== organization || typeof value.keyId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.keyId)) throw new EnrollmentError('Enrollment returned a different or invalid identity and is not confirmed. Close this and check the agent and organization.');
+  if (!isRecord(value) || value.server !== server || value.organization !== organization || typeof value.keyId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.keyId)) throw new EnrollmentError('Enrollment returned a different or invalid identity and is not confirmed. Check the agent and organization, then try again.');
   return { server, organization };
 }
 

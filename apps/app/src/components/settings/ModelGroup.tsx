@@ -9,25 +9,26 @@ import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { ICON_SIZE } from '../ui/sizes.js';
+import { useLinkWords, type LinkWords } from '../../lib/auto-enroll.js';
 import { useModelQuery } from '../../lib/model-queries.js';
 import { queryError } from '../../lib/queries.js';
 import { routeSummary, weekUsage } from '../../lib/settings-values.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
+import type { Tone } from '../../lib/tone.js';
 import { useNow } from '../../lib/use-now.js';
 
 const ORGANIZATION = 'Uses the organization’s route';
 const OWN = 'Own route';
 const NONE = 'No model yet';
-const NOT_ENROLLED = 'Not enrolled with the organization, so no model';
 
 function titleOf(settings: ModelSettings): string {
   if (settings.route === null) return NONE;
   return settings.source === 'agent' ? OWN : ORGANIZATION;
 }
 
-function problemOf(settings: ModelSettings): string | null {
-  if (settings.sync !== null && !settings.sync.enrolled) return NOT_ENROLLED;
-  return settings.reason;
+function subtitleOf(settings: ModelSettings, link: LinkWords | null, plain: string | undefined): { text: string | undefined; tone: Tone } {
+  if (link !== null) return { text: link.short, tone: link.danger ? 'danger' : 'secondary' };
+  return settings.reason === null ? { text: plain, tone: 'secondary' } : { text: settings.reason, tone: 'danger' };
 }
 
 function RouteItem({ settings, href }: { settings: ModelSettings; href: string }): ReactNode {
@@ -35,12 +36,13 @@ function RouteItem({ settings, href }: { settings: ModelSettings; href: string }
   const now = useNow(60_000);
   const conn = routedConnection(settings);
   const model = settings.route === null ? '' : usageModel(settings, settings.route.primary);
-  const problem = problemOf(settings);
+  const link = useLinkWords(settings.sync);
   const steps = routeSummary(settings.route, (connection, name) => (name !== '' ? name : usageModel(settings, { connection, model: name }) || (settings.connections.find((c) => c.id === connection)?.label ?? 'a model')));
   const plain = conn === undefined ? undefined : technical ? `${conn.id} · ${steps}` : steps;
   const usage = conn === undefined ? null : weekUsage(routedUsage(settings), conn.provider, model, now);
   const logo = conn === undefined ? undefined : <ProviderLogo provider={providerInfo(conn.provider)} size={ICON_SIZE.lg} />;
-  return <Item title={titleOf(settings)} subtitle={problem ?? plain} subtitleTone={problem === null ? 'secondary' : 'danger'} leading={logo} value={usage ?? undefined} href={href} />;
+  const line = subtitleOf(settings, link, plain);
+  return <Item title={titleOf(settings)} subtitle={line.text} subtitleTone={line.tone} leading={logo} value={usage ?? undefined} href={href} />;
 }
 
 export function ModelGroup({ project }: { project: string }): ReactNode {

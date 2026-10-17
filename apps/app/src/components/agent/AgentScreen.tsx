@@ -14,6 +14,7 @@ import { Tabbed } from '../tabbed.js';
 import { AgentHeader } from './AgentHeader.js';
 import { AgentSubPages, AgentTabs } from './AgentTabs.js';
 import { isDeepPage, isPageRoot } from '../../lib/agent-tabs.js';
+import { useAutoEnroll } from '../../lib/auto-enroll.js';
 import { isFocusPage } from '../../lib/focus-pages.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { useServerStatus, useSessionQuery } from '../../lib/queries.js';
@@ -82,6 +83,7 @@ export function AgentScreen({ server, selection, onLock }: AgentScreenProps): Re
   const { error, retry } = useBoxState();
   const stopped = useServerStatus(server.host).data?.state === 'stopped';
   useRememberAgent(selection);
+  useAutoEnroll(server);
   const replaced = replacement(selection, error, stopped, retry, onLock);
   if (selection.kind === 'terminal') return replaced ?? <TerminalPage />;
   if (isFocusPage(selection)) return replaced ?? <AgentPanel selection={selection} />;

@@ -3,7 +3,7 @@ import { baseDomain, faviconUrl } from '../src/api/favicon.js';
 import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
-import { carriesCodeAndState, PROVIDERS, syncModel, toModelSettings, toServed, usageOf } from '../src/api/model.js';
+import { carriesCodeAndState, providerTooNew, PROVIDERS, syncModel, toConnection, toModelSettings, toServed, usageOf } from '../src/api/model.js';
 import { contextLabel, matchModels, priceLabel, toModelOptions } from '../src/api/model-options.js';
 import { toRoute } from '../src/api/model-route.js';
 import { installTestAccount } from './account-fixture.js';
@@ -112,6 +112,17 @@ describe('what the Model page reads from the box', () => {
   test('the last request names the connection it went to, and a half answer is no answer', () => {
     expect(toServed({ connection: 'antA0000001', provider: 'anthropic', model: 'x', at: '2026-10-15T10:00:00.000Z' })?.connection).toBe('antA0000001');
     expect(toServed({ provider: 'openrouter', model: 'x/y' })).toBeNull();
+  });
+
+  test('a box older than a provider of its route names that provider, an unknown version never does', () => {
+    const rows = [{ id: 'rw1', provider: 'routeway' }, { id: 'an1', provider: 'anthropic' }].flatMap((raw) => toConnection(raw) ?? []);
+    const main = (connection: string) => ({ primary: { connection, model: 'm' }, fallbacks: [] });
+    expect(providerTooNew(main('rw1'), rows, '0.1.0-beta.311')?.label).toBe('Routeway');
+    expect(providerTooNew({ primary: { connection: 'an1', model: 'm' }, fallbacks: [{ connection: 'rw1', model: 'm' }] }, rows, '0.1.0-beta.311')?.id).toBe('routeway');
+    expect(providerTooNew(main('rw1'), rows, '0.1.0-beta.312')).toBeNull();
+    expect(providerTooNew(main('an1'), rows, '0.1.0-beta.100')).toBeNull();
+    expect(providerTooNew(main('rw1'), rows, null)).toBeNull();
+    expect(providerTooNew(null, rows, '0.1.0-beta.311')).toBeNull();
   });
 
   test('sync is a POST on the selected box', async () => {
