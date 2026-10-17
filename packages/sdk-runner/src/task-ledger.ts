@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { runnerTaskDescription } from '@metro-labs/core/runner-activity';
 import { activityName } from './activity-tasks.js';
 import type { Unanswered } from './inbox.js';
 import { pendingNotice, TASK_LIMIT, type SavedTask, type TaskReason } from './task-state.js';
@@ -67,9 +68,11 @@ export class TaskLedger {
   changed(handled?: ReadonlySet<string>): void { this.save(this.snapshot(), handled); }
 
   private taskEvent(id: string, m: Record<string, unknown>, event: string | null, now: number): void {
-    if (m.subtype === 'task_started') this.start(id, m.tool_use_id, event, now);
+    const known = this.rows.get(id);
+    if (m.subtype === 'task_started') this.start(id, m.tool_use_id, event, now, m.description);
     else if (m.subtype === 'task_notification') this.end(id, m, event, now);
-    else if (m.subtype === 'task_updated' && isRecord(m.patch) && this.rows.has(id)) {
+    else if (m.subtype === 'task_updated' && isRecord(m.patch) && known !== undefined) {
+      if (this.describe(known, m.patch.description)) this.save(this.snapshot());
       this.end(id, { status: m.patch.status === 'killed' ? 'stopped' : m.patch.status, summary: m.patch.error }, event, now);
     } else if (m.subtype === 'task_progress') this.progress(id, m.tool_use_id, now);
   }
@@ -114,10 +117,11 @@ export class TaskLedger {
     return task;
   }
 
-  private start(id: string, rawTool: unknown, event: string | null, now: number): void {
+  private start(id: string, rawTool: unknown, event: string | null, now: number, description?: unknown): void {
     const task = this.get(id, now);
     if (task.state !== 'running') task.attempt += 1;
     task.state = 'running';
+    this.describe(task, description);
     if (event !== null) task.events = [...task.events, event].slice(-16);
     task.updatedAt = now;
     task.toolUseId = activityName(rawTool) ?? task.toolUseId;
@@ -165,13 +169,24 @@ export class TaskLedger {
 
   private background(m: Record<string, unknown>, now: number): void {
     if (!Array.isArray(m.tasks)) return;
+    let described = false;
     for (const row of m.tasks) {
       if (!isRecord(row)) continue;
       const id = activityName(row.task_id);
       if (id === null) continue;
+      const known = this.rows.get(id);
       if (row.ambient === true) this.hide(id);
-      else if (!this.rows.has(id)) this.start(id, undefined, activityName(m.uuid), now);
+      else if (known === undefined) this.start(id, undefined, activityName(m.uuid), now, row.description);
+      else described = this.describe(known, row.description) || described;
     }
+    if (described) this.save(this.snapshot());
+  }
+
+  private describe(task: SavedTask, raw: unknown): boolean {
+    const description = runnerTaskDescription(raw);
+    if (description === null || description === task.description) return false;
+    task.description = description;
+    return true;
   }
 
   private content(m: Record<string, unknown>, now: number): void {
