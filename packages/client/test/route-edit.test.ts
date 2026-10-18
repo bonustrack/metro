@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { toConnection, type ConnectionRow } from '../src/api/model.js';
-import { FALLBACKS_MAX, type ModelRoute } from '../src/api/model-route.js';
+import { effortOf, FALLBACKS_MAX, routeSteps, withEffort, withHelpers, type ModelRoute } from '../src/api/model-route.js';
 import {
   canAddFallback,
   changesOf,
   draftOf,
+  helperSlotTitle,
   movedFallback,
   problemOf,
   promotedFallback,
@@ -103,6 +104,26 @@ describe('the route after an edit', () => {
     expect(routeAfter(route, { kind: 'fallback', at: 0 }, pick).fallbacks[0]).toEqual(pick);
     expect(routeAfter(route, { kind: 'primary' }, pick)).toEqual({ primary: pick, fallbacks: route.fallbacks });
     expect(routeAfter(null, { kind: 'primary' }, pick)).toEqual({ primary: pick, fallbacks: [] });
+  });
+
+  test('an edit keeps the helper models and the effort of the route', () => {
+    const pick = { connection: 'max', model: 'claude-sonnet-4-6' };
+    const parts = { helpers: { primary: { connection: 'gpt', model: 'gpt-6-astra' }, fallbacks: [] }, effort: { main: 'high' as const } };
+    const full = { ...route, ...parts };
+    expect(routeAfter(full, { kind: 'primary' }, pick)).toMatchObject(parts);
+    expect(routeAfter(full, { kind: 'new' }, pick)).toMatchObject(parts);
+    expect(promotedFallback(full, 1)).toMatchObject(parts);
+    expect(movedFallback(full, 1, -1)).toMatchObject(parts);
+    expect(removedFallback(full, 0)).toMatchObject(parts);
+    const helped = withHelpers(full, { primary: pick, fallbacks: [] });
+    expect(helped.helpers).toEqual({ primary: pick, fallbacks: [] });
+    expect(routeSteps(helped).map((s) => s.connection)).toEqual(['max', 'or', 'gpt', 'max']);
+    expect(withHelpers(full, null)).toMatchObject({ helpers: null, effort: { main: 'high' } });
+    const effort = withEffort(full, 'helpers', 'asked').effort;
+    expect(effort).toEqual({ main: 'high', helpers: 'asked' });
+    expect([effortOf(effort, 'main'), effortOf(effort, 'helpers'), effortOf(undefined, 'main'), effortOf(null, 'helpers')]).toEqual(['high', 'asked', 'low', 'max']);
+    expect(helperSlotTitle({ kind: 'primary' })).toBe('Helpers, main model');
+    expect(helperSlotTitle({ kind: 'fallback', at: 1 })).toBe('Helpers, backup 2');
   });
 
   test('moving stops at both ends, and removing drops one', () => {

@@ -1,3 +1,5 @@
+import type { RouteEffort } from '@metro-labs/core/effort';
+
 export const PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export type CodexMethod = 'chatgpt' | 'code';
@@ -36,11 +38,18 @@ export interface Fallback {
   model: string;
 }
 
+export interface Chain {
+  primary: Fallback;
+  fallbacks: Fallback[];
+}
+
 export interface ModelSetup {
   primary: Fallback | null;
   fallbacks: Fallback[];
   connections: Connection[];
   source: RouteSource | null;
+  helpers?: Chain | null;
+  effort?: RouteEffort;
 }
 
 export interface Route {
@@ -117,6 +126,19 @@ export function resolveRoute(requested: string, setup: ModelSetup): Route | null
   const primary = primaryRoute(setup);
   if (primary === null) return null;
   return { connection: primary.connection, model: DEFAULTS[primary.connection.provider](bareModel(requested), primary.model) };
+}
+
+export function pinnedRoute(requested: string, setup: ModelSetup): Route | null {
+  const primary = primaryRoute(setup);
+  if (primary === null) return null;
+  const bare = bareModel(requested);
+  const passes = primary.connection.provider === 'anthropic' && (primary.model === '' || isSmallModel(bare));
+  return passes ? { connection: primary.connection, model: bare } : primary;
+}
+
+export function helperSetup(setup: ModelSetup): ModelSetup | null {
+  const helpers = setup.helpers ?? null;
+  return helpers === null ? null : { ...setup, primary: helpers.primary, fallbacks: helpers.fallbacks, helpers: null };
 }
 
 export const routeLabel = (route: Route): string =>

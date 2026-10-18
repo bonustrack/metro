@@ -98,7 +98,7 @@ export async function deleteOrgModel(id: string): Promise<void> {
 }
 
 export async function setModelRoute(agent: string | null, route: ModelRoute): Promise<void> {
-  await send('PUT', '/route', { agent, primary: route.primary, fallbacks: route.fallbacks });
+  await send('PUT', '/route', { agent, primary: route.primary, fallbacks: route.fallbacks, helpers: route.helpers ?? null, effort: route.effort ?? null });
 }
 
 export async function clearModelRoute(agent: string | null): Promise<void> {

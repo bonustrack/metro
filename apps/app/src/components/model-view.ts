@@ -1,6 +1,7 @@
 import type { ConnectionRow, ModelSettings, Provider } from '@metro-labs/client/api/model';
-import type { ModelRoute } from '@metro-labs/client/api/model-route';
-import type { OrgModelPatch } from '@metro-labs/client/api/org-models';
+import { modelOrder, type ModelOrderItem } from '@metro-labs/client/api/model-order';
+import type { ModelRoute, RouteChain } from '@metro-labs/client/api/model-route';
+import type { OrgModelPatch, OrgModels } from '@metro-labs/client/api/org-models';
 
 export interface KeyDraft {
   label: string;
@@ -20,6 +21,18 @@ export function sourceLine(source: ModelSettings['source'], route: ModelRoute | 
 export function withRoute(settings: ModelSettings, route: ModelRoute | null, choices: ConnectionRow[]): ModelSettings {
   const known = new Set(settings.connections.map((c) => c.id));
   return { ...settings, route, connections: [...settings.connections, ...choices.filter((c) => !known.has(c.id))] };
+}
+
+export function helperItems(settings: ModelSettings, chain: RouteChain | null, choices: ConnectionRow[] = []): ModelOrderItem[] | null {
+  if (chain === null) return null;
+  return modelOrder({ ...withRoute(settings, chain, choices), chain: settings.helpers?.chain ?? [] });
+}
+
+const routeParts = (route: ModelRoute | undefined): boolean => route?.helpers != null || route?.effort?.main !== undefined || route?.effort?.helpers !== undefined;
+
+export function partsNeedUpdate(settings: ModelSettings, org: OrgModels | undefined, agent: string | null): boolean {
+  if (settings.effort !== null || org === undefined || agent === null) return false;
+  return routeParts(org.agents[agent] ?? org.default ?? undefined);
 }
 
 export function connectionPatch(provider: Provider, draft: KeyDraft, row: ConnectionRow | null): OrgModelPatch {

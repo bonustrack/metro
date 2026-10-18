@@ -96,6 +96,17 @@ describe('the delivered setup', () => {
     expect(own.connections.map((c) => c.id)).toEqual(['conn0000002']);
   });
 
+  test('the helpers and the effort ride with the route, and every connection the helpers name is sent with its credential', async () => {
+    await seed('conn0000011', 'openrouter', { kind: 'key', apiKey: 'sk-or-main' });
+    await seed('conn0000012', 'anthropic', { kind: 'key', apiKey: 'sk-ant-helpers' });
+    await seed('conn0000013', 'anthropic', { kind: 'key', apiKey: 'sk-ant-unused' });
+    const helpers = { primary: { connection: 'conn0000012', model: 'claude-opus-5-5' }, fallbacks: [] };
+    await route(null, { primary: { connection: 'conn0000011', model: 'openai/gpt-5.2' }, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } });
+    const answer = await delivered();
+    expect(answer.route).toEqual({ primary: { connection: 'conn0000011', model: 'openai/gpt-5.2' }, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } });
+    expect(answer.connections.map((c) => [c.id, c.credential])).toEqual([['conn0000011', { apiKey: 'sk-or-main' }], ['conn0000012', { apiKey: 'sk-ant-helpers' }]]);
+  });
+
   test('a Claude subscription is delivered as its token, and a stored route naming a box login drops that step', async () => {
     const token = `sk-ant-oat01-${'t'.repeat(90)}`;
     await seed('conn0000010', 'anthropic', { kind: 'claude', token }, { detail: modelDetailText({ subscription: true, signedInAt: new Date(now).toISOString() }) });

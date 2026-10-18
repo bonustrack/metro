@@ -22,6 +22,7 @@ export interface RouteScope {
   connections: ConnectionRow[];
   empty: ReactNode;
   save: (route: ModelRoute) => Promise<void>;
+  title?: (slot: Slot) => string;
 }
 
 interface FooterProps {
@@ -100,7 +101,7 @@ export function RouteEditor({ scope, slot, onClose }: { scope: RouteScope; slot:
   };
   return (
     <Readable gap={16}>
-      <Text accessibilityRole="header" size="xs" role="secondary">{slotTitle(slot)}</Text>
+      <Text accessibilityRole="header" size="xs" role="secondary">{(scope.title ?? slotTitle)(slot)}</Text>
       <Col>
         <Step n={1} title="Connection" value={connectionValue(conn)} open={open === 'connection'} done={conn !== undefined} onOpen={() => { setOpen('connection'); }}>
           <ConnectionStep connections={scope.connections} draft={draft} empty={scope.empty} onPick={pickConnection} />

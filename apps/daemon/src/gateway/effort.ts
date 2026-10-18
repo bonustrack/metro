@@ -1,8 +1,7 @@
 import type { IncomingMessage } from 'node:http';
+import { EFFORT_DEFAULTS, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
 
-const MAIN_EFFORT = 'low';
-const SUBAGENT_EFFORT = 'max';
 export const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
 
 const SUBAGENT_HEADER = 'x-claude-code-agent-id';
@@ -42,12 +41,13 @@ const messagesOf = (body: Body): unknown[] => (Array.isArray(body.messages) ? bo
 
 const askedEfforts = (body: Body): string[] => [body, ...messagesOf(body).map(record)].map(effortOf).filter((effort) => effort !== '');
 
-export function plannedEffort(req: IncomingMessage, body: Body): string | null {
+export function plannedEffort(req: IncomingMessage, body: Body, setting: RouteEffort = {}): string | null {
   const asked = askedEfforts(body);
   if (asked.length === 0) return null;
   const kind = requestKind(req, body);
   if (kind === 'other') return null;
-  const wanted = kind === 'subagent' ? SUBAGENT_EFFORT : MAIN_EFFORT;
+  const wanted = kind === 'subagent' ? (setting.helpers ?? EFFORT_DEFAULTS.helpers) : (setting.main ?? EFFORT_DEFAULTS.main);
+  if (wanted === 'asked') return null;
   return asked.every((effort) => effort === wanted) ? null : wanted;
 }
 

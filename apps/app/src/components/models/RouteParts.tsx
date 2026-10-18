@@ -1,9 +1,12 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { IconCheckmark1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCheckmark1';
 import { Row } from '@stage-labs/kit/react-native/box';
+import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { AgentAvatar } from '../AgentAvatar.js';
+import { ICON_SIZE } from '../ui/sizes.js';
 
 const STACK = 28;
 const OVERLAP = -8;
@@ -28,3 +31,8 @@ export function AvatarStack({ servers }: { servers: Server[] }): ReactNode {
 }
 
 export const serverNames = (servers: Server[]): string[] => servers.map(serverLabel);
+
+export function Check(): ReactNode {
+  const palette = useKitPalette();
+  return <Glyph icon={IconCheckmark1} size={ICON_SIZE.md} color={palette.link} />;
+}

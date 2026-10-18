@@ -18,6 +18,8 @@ const connectionOf = (connections: ConnectionRow[], id: string): ConnectionRow |
 
 export const slotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Main model' : slot.kind === 'new' ? 'Add a backup' : `Backup ${String(slot.at + 1)}`);
 
+export const helperSlotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Helpers, main model' : slot.kind === 'new' ? 'Helpers, add a backup' : `Helpers, backup ${String(slot.at + 1)}`);
+
 export function draftOf(route: ModelRoute | null, slot: Slot): RouteStep {
   if (slot.kind === 'fallback') return route?.fallbacks[slot.at] ?? EMPTY;
   return slot.kind === 'new' ? EMPTY : (route?.primary ?? EMPTY);
@@ -66,7 +68,8 @@ export function problemOf(route: ModelRoute | null, connections: ConnectionRow[]
 
 export function routeAfter(route: ModelRoute | null, slot: Slot, draft: RouteStep): ModelRoute {
   const step = { connection: draft.connection, model: draft.model };
-  if (route === null || slot.kind === 'primary') return { primary: step, fallbacks: route?.fallbacks ?? [] };
+  if (route === null) return { primary: step, fallbacks: [] };
+  if (slot.kind === 'primary') return { ...route, primary: step };
   if (slot.kind === 'new') return { ...route, fallbacks: [...route.fallbacks, step] };
   return { ...route, fallbacks: route.fallbacks.map((f, at) => (at === slot.at ? step : f)) };
 }
@@ -89,5 +92,5 @@ export function promotedFallback(route: ModelRoute, at: number, primaryModel = r
   const rest = route.fallbacks.filter((_, other) => other !== at);
   const old = { connection: route.primary.connection, model: primaryModel };
   const keep = old.model !== '' && !rest.some((step) => sameStep(step, old)) && !sameStep(old, picked);
-  return { primary: picked, fallbacks: keep ? [...rest.slice(0, at), old, ...rest.slice(at)] : rest };
+  return { ...route, primary: picked, fallbacks: keep ? [...rest.slice(0, at), old, ...rest.slice(at)] : rest };
 }

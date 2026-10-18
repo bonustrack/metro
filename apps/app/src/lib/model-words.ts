@@ -1,8 +1,10 @@
 import { usesKey, type ConnectionRow } from '@metro-labs/client/api/model';
 import { providerLabel } from '@metro-labs/client/api/providers';
-import { routeSteps, type ModelRoute } from '@metro-labs/client/api/model-route';
+import { routeSteps, type EffortLevel, type ModelRoute } from '@metro-labs/client/api/model-route';
 
 export const DEFAULT_MODEL_WORD = 'Default model';
+
+export const EFFORT_WORD: Record<EffortLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', max: 'Max', asked: 'As the agent asks' };
 
 const plural = (count: number, one: string, many: string): string => `${String(count)} ${count === 1 ? one : many}`;
 

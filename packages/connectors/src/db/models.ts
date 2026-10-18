@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { newId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
-import { routeNames, routeOf, routeText, withoutConnection, type ModelRoute } from '../model-route.js';
+import type { RouteEffort } from '@metro-labs/core/effort';
+import { routeNames, routeOf, routeText, withoutConnection, withParts, type ModelRoute, type RouteChain } from '../model-route.js';
 import type { Database } from './database.js';
 import { agents, modelConnections, modelHosts, modelRoutes } from './schema.js';
 
@@ -25,7 +26,9 @@ export interface ModelEdit {
 export interface RouteWrite {
   owner: string;
   agent: string | null;
-  route: ModelRoute;
+  route: RouteChain;
+  helpers?: RouteChain | null;
+  effort?: RouteEffort | null;
   actor: string;
   at: string;
 }
@@ -89,8 +92,21 @@ async function removeIn(tx: Database, owner: string, id: string): Promise<ModelC
   return row;
 }
 
-async function upsertRoute(tx: Database, write: RouteWrite): Promise<void> {
-  const route = routeText(write.route);
+async function storedRoute(tx: Database, owner: string, agent: string | null): Promise<ModelRoute | null> {
+  const held = await tx.select({ route: modelRoutes.route }).from(modelRoutes).where(routeOwned(owner, agent)).for('update');
+  const text = held[0]?.route;
+  return text === undefined ? null : routeOf(text);
+}
+
+async function routeToWrite(tx: Database, write: RouteWrite): Promise<ModelRoute> {
+  const stored = write.helpers === undefined || write.effort === undefined ? await storedRoute(tx, write.owner, write.agent) : null;
+  const helpers = write.helpers === undefined ? (stored?.helpers ?? null) : write.helpers;
+  const effort = write.effort === undefined ? (stored?.effort ?? null) : write.effort;
+  return withParts(write.route, helpers, effort);
+}
+
+async function upsertRoute(tx: Database, write: RouteWrite, held: ModelRoute): Promise<void> {
+  const route = routeText(held);
   const set = { owner: write.owner, route, updatedBy: write.actor, updatedAt: write.at };
   const values = { id: newId(), agent: write.agent, ...set };
   if (write.agent === null) await tx.insert(modelRoutes).values(values).onConflictDoUpdate({ target: modelRoutes.owner, targetWhere: sql`${modelRoutes.agent} IS NULL`, set });
@@ -102,13 +118,12 @@ async function setRouteIn(tx: Database, write: RouteWrite): Promise<ModelRoute> 
     const agent = await tx.select({ id: agents.id }).from(agents).where(and(eq(agents.id, write.agent), eq(agents.owner, write.owner))).for('update');
     if (agent.length === 0) throw new ApiError('no such agent in this organization', 404);
   }
-  const named = routeNames(write.route);
-  if (named.length > 0) {
-    const found = await tx.select({ id: modelConnections.id }).from(modelConnections).where(and(eq(modelConnections.owner, write.owner), inArray(modelConnections.id, named))).for('share');
-    if (found.length !== named.length) throw new ApiError('A route can only name model connections of this organization.', 400);
-  }
-  await upsertRoute(tx, write);
-  return write.route;
+  const route = await routeToWrite(tx, write);
+  const named = routeNames(route);
+  const found = await tx.select({ id: modelConnections.id }).from(modelConnections).where(and(eq(modelConnections.owner, write.owner), inArray(modelConnections.id, named))).for('share');
+  if (found.length !== named.length) throw new ApiError('A route can only name model connections of this organization.', 400);
+  await upsertRoute(tx, write, route);
+  return route;
 }
 
 export async function hostIdIn(db: Database, owner: string): Promise<string> {

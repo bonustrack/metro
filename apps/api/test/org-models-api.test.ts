@@ -291,6 +291,62 @@ describe('routes', () => {
   });
 });
 
+describe('helpers and effort', () => {
+  test('a route keeps its helpers and its effort; an absent field keeps the stored one, null clears it', async () => {
+    const or = await add();
+    const second = await add();
+    const primary = { connection: or.id, model: 'openai/gpt-5.2' };
+    const helpers = { primary: { connection: second.id, model: 'anthropic/claude-opus-5.5' }, fallbacks: [{ connection: or.id, model: 'openai/gpt-5.2' }] };
+    const full = { agent: null, primary, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } };
+    expect(await data<unknown>(await call('PUT', '/api/models/route', full))).toEqual({ agent: null, route: { primary, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } } });
+    const kept = await data<{ route: unknown }>(await call('PUT', '/api/models/route', { agent: null, primary: { connection: or.id, model: 'openai/gpt-6' } }));
+    expect(kept.route).toEqual({ primary: { connection: or.id, model: 'openai/gpt-6' }, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } });
+    const halved = await data<{ route: unknown }>(await call('PUT', '/api/models/route', { agent: null, primary, effort: { helpers: 'high' } }));
+    expect(halved.route).toEqual({ primary, fallbacks: [], helpers, effort: { helpers: 'high' } });
+    const cleared = await data<{ route: unknown }>(await call('PUT', '/api/models/route', { agent: null, primary, helpers: null, effort: null }));
+    expect(cleared.route).toEqual({ primary, fallbacks: [] });
+    expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toEqual({ primary, fallbacks: [] });
+    await call('PUT', '/api/models/route', { agent: OURS, primary, effort: { main: 'max' } });
+    const own = await data<{ route: unknown }>(await call('PUT', '/api/models/route', { agent: OURS, primary }));
+    expect(own.route).toEqual({ primary, fallbacks: [], effort: { main: 'max' } });
+    expect((await data<{ agents: Record<string, unknown> }>(await call('GET', '/api/models'))).agents[OURS]).toEqual({ primary, fallbacks: [], effort: { main: 'max' } });
+  });
+
+  test('bad helpers and a bad effort are refused by name', async () => {
+    const or = await add();
+    const theirs = await add({}, await auth(TEST_STRANGER));
+    const primary = { connection: or.id, model: 'openai/gpt-5.2' };
+    const refused = async (body: Record<string, unknown>): Promise<string> => {
+      const res = await call('PUT', '/api/models/route', { agent: null, primary, ...body });
+      expect(res.status).toBe(400);
+      return ((await res.json()) as { error: string }).error;
+    };
+    expect(await refused({ effort: { main: 'extreme' } })).toBe('effort.main must be one of low, medium, high, max, asked');
+    expect(await refused({ effort: { helpers: 3 } })).toBe('effort.helpers must be one of low, medium, high, max, asked');
+    expect(await refused({ effort: { worker: 'low' } })).toBe('effort takes main and helpers, not worker');
+    expect(await refused({ effort: 'low' })).toContain('effort must be an object');
+    expect(await refused({ helpers: { fallbacks: [primary] } })).toBe('Helpers need a main model. To let helpers use the main models, send helpers: null.');
+    expect(await refused({ helpers: 'same' })).toContain('helpers must be an object');
+    expect(await refused({ helpers: { primary: { connection: or.id, model: '' } } })).toBe('helpers.primary needs a model');
+    expect(await refused({ helpers: { primary: { connection: 'local:session', model: 'm' } } })).toContain('add a Claude subscription');
+    expect(await refused({ helpers: { primary, fallbacks: Array.from({ length: 9 }, (_, i) => ({ connection: or.id, model: `m${String(i)}` })) } })).toBe('A route keeps at most 8 helper fallbacks.');
+    expect(await refused({ helpers: { primary: { connection: theirs.id, model: 'm' } } })).toBe('A route can only name model connections of this organization.');
+    expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toBeNull();
+  });
+
+  test('removing a connection takes it out of the helpers too, and helpers left with nothing use the main models again', async () => {
+    const or = await add();
+    const second = await add();
+    const third = await add();
+    const primary = { connection: or.id, model: 'a' };
+    await call('PUT', '/api/models/route', { agent: null, primary, helpers: { primary: { connection: second.id, model: 'b' }, fallbacks: [{ connection: third.id, model: 'c' }] }, effort: { main: 'high' } });
+    await call('DELETE', `/api/models/${second.id}`);
+    expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toEqual({ primary, fallbacks: [], helpers: { primary: { connection: third.id, model: 'c' }, fallbacks: [] }, effort: { main: 'high' } });
+    await call('DELETE', `/api/models/${third.id}`);
+    expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toEqual({ primary, fallbacks: [], effort: { main: 'high' } });
+  });
+});
+
 describe('model lists', () => {
   test('OpenRouter lists tool models with prices and ZDR, kept for an hour', async () => {
     const or = await add();

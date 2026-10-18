@@ -115,11 +115,20 @@ describe('the organization models client', () => {
     await clearModelRoute('agentA00001');
     await clearModelRoute(null);
     expect(calls).toEqual([
-      { url: `${BASE}/route`, method: 'PUT', body: { agent: null, ...ROUTE } },
-      { url: `${BASE}/route`, method: 'PUT', body: { agent: 'agentA00001', ...ROUTE } },
+      { url: `${BASE}/route`, method: 'PUT', body: { agent: null, ...ROUTE, helpers: null, effort: null } },
+      { url: `${BASE}/route`, method: 'PUT', body: { agent: 'agentA00001', ...ROUTE, helpers: null, effort: null } },
       { url: `${BASE}/route?agent=agentA00001`, method: 'DELETE', body: undefined },
       { url: `${BASE}/route`, method: 'DELETE', body: undefined },
     ]);
+  });
+
+  test('a route carries its helper models and its effort both ways', async () => {
+    const helpers = { primary: { connection: 'cxA00000001', model: 'gpt-5.5' }, fallbacks: [] };
+    const full = { ...ROUTE, helpers, effort: { main: 'medium' as const, helpers: 'asked' as const } };
+    expect(toOrgModels({ connections: [], default: { ...full, effort: { main: 'medium', helpers: 'asked', other: 'x' } }, agents: { agentA00001: { ...ROUTE, helpers: { primary: null }, effort: { main: 'loud' } } } })).toMatchObject({ default: full, agents: { agentA00001: ROUTE } });
+    serve({});
+    await setModelRoute(null, full);
+    expect(calls[0]).toEqual({ url: `${BASE}/route`, method: 'PUT', body: { agent: null, ...full } });
   });
 
   test('the model list of a connection comes from the api', async () => {

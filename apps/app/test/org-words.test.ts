@@ -13,6 +13,7 @@ describe('model accounts and routes in plain words', () => {
     expect(routeSummary({ primary: { connection: 'c1', model: '' }, fallbacks: [{ connection: 'c2', model: 'x' }] })).toBe('Default model, then 1 backup');
     expect(usesConnection({ primary: { connection: 'c1', model: 'a' }, fallbacks: [{ connection: 'c2', model: 'b' }] }, 'c2')).toBe(true);
     expect(usesConnection(null, 'c2')).toBe(false);
+    expect(usesConnection({ primary: { connection: 'c1', model: 'a' }, fallbacks: [], helpers: { primary: { connection: 'c3', model: 'h' }, fallbacks: [] } }, 'c3')).toBe(true);
   });
 
   test('accounts say who signed in, or that a key is saved, or that something is missing', () => {

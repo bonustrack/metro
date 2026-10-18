@@ -2,7 +2,8 @@ import { filled, isRecord, str } from '../read.js';
 import { call } from './client.js';
 import { toUsage, untilLabel, type Usage } from './usage.js';
 import { daemonBase } from '../auth/daemon.js';
-import { toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
+import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
+import { routeSteps, toFallbacks, toSource, type ModelRoute, type RouteSource, type RouteStep } from './model-route.js';
 import { olderThan } from './version.js';
 
 export type Provider = 'anthropic' | 'bedrock' | 'openrouter' | 'codex' | 'routeway';
@@ -65,8 +66,15 @@ export interface ModelSync {
   error: string | null;
 }
 
+export interface HelperModels {
+  route: ModelRoute;
+  chain: ChainRow[];
+}
+
 export interface ModelSettings {
   route: ModelRoute | null;
+  helpers: HelperModels | null;
+  effort: RouteEffort | null;
   source: RouteSource;
   sync: ModelSync | null;
   ready: boolean;
@@ -140,10 +148,18 @@ function toSync(raw: unknown): ModelSync | null {
 
 const listOf = <T>(raw: unknown, make: (item: unknown) => T | null): T[] => (Array.isArray(raw) ? raw.flatMap((item: unknown) => make(item) ?? []) : []);
 
+function toHelpers(raw: unknown): HelperModels | null {
+  if (!isRecord(raw)) return null;
+  const route = routeOf(raw);
+  return route === null ? null : { route, chain: listOf(raw.chain, toChainRow) };
+}
+
 export function toModelSettings(body: unknown): ModelSettings {
   if (!isRecord(body) || typeof body.route !== 'string' || !Array.isArray(body.connections)) throw unexpected();
   return {
     route: routeOf(body),
+    helpers: toHelpers(body.helpers),
+    effort: isRecord(body.effort) ? readEffort(body.effort) : null,
     source: toSource(body.source),
     sync: toSync(body.sync),
     ready: body.ready === true,
@@ -157,7 +173,7 @@ export function toModelSettings(body: unknown): ModelSettings {
 
 export function providerTooNew(route: ModelRoute | null, connections: ConnectionRow[], version: string | null): ProviderInfo | null {
   if (route === null) return null;
-  const used = new Set([route.primary, ...route.fallbacks].map((step) => connections.find((c) => c.id === step.connection)?.provider));
+  const used = new Set(routeSteps(route).map((step) => connections.find((c) => c.id === step.connection)?.provider));
   return PROVIDERS.find((p) => {
     const since = PROVIDER_SINCE[p.id];
     return since !== undefined && used.has(p.id) && olderThan(version, since);

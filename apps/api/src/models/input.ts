@@ -1,9 +1,10 @@
 import { isClaudeToken } from '@metro-labs/core/claude-token';
+import { EFFORT_LEVELS, isEffortLevel, type RouteEffort } from '@metro-labs/core/effort';
 import { ID_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelConnectionRow } from '@metro-labs/connectors/db/models';
-import { distinctFallbacks, FALLBACKS_MAX, MODEL_ID_MAX, type ModelRoute, type RouteTarget } from '@metro-labs/connectors/model-route';
+import { distinctFallbacks, FALLBACKS_MAX, MODEL_ID_MAX, type RouteChain, type RouteTarget } from '@metro-labs/connectors/model-route';
 import { modelDetailOf, type ModelProvider } from '@metro-labs/connectors/model-secret';
 import type { Caller } from './deps.js';
 
@@ -97,11 +98,50 @@ function targetInput(raw: unknown, what: string): RouteTarget {
   return { connection, model };
 }
 
-export function routeInput(body: Record<string, unknown>): ModelRoute {
-  if (body.primary === null || body.primary === undefined) throw bad('A route needs a primary model. To remove a route, delete it.');
-  const primary = targetInput(body.primary, 'primary');
+interface ChainWords {
+  missing: string;
+  primary: string;
+  fallback: string;
+  list: string;
+}
+
+const MAIN_WORDS: ChainWords = { missing: 'A route needs a primary model. To remove a route, delete it.', primary: 'primary', fallback: 'each fallback', list: 'fallbacks' };
+const HELPER_WORDS: ChainWords = { missing: 'Helpers need a main model. To let helpers use the main models, send helpers: null.', primary: 'helpers.primary', fallback: 'each helper fallback', list: 'helper fallbacks' };
+
+function chainInput(body: Record<string, unknown>, words: ChainWords): RouteChain {
+  if (body.primary === null || body.primary === undefined) throw bad(words.missing);
+  const primary = targetInput(body.primary, words.primary);
   const raw = body.fallbacks ?? [];
-  if (!Array.isArray(raw)) throw bad('fallbacks must be a list');
-  if (raw.length > FALLBACKS_MAX) throw bad(`A route keeps at most ${String(FALLBACKS_MAX)} fallbacks.`);
-  return { primary, fallbacks: distinctFallbacks(raw.map((entry: unknown) => targetInput(entry, 'each fallback'))) };
+  if (!Array.isArray(raw)) throw bad(`${words.list} must be a list`);
+  if (raw.length > FALLBACKS_MAX) throw bad(`A route keeps at most ${String(FALLBACKS_MAX)} ${words.list}.`);
+  return { primary, fallbacks: distinctFallbacks(raw.map((entry: unknown) => targetInput(entry, words.fallback))) };
+}
+
+export const routeInput = (body: Record<string, unknown>): RouteChain => chainInput(body, MAIN_WORDS);
+
+export function helpersInput(body: Record<string, unknown>): RouteChain | null | undefined {
+  if (!Object.hasOwn(body, 'helpers')) return undefined;
+  const raw = body.helpers;
+  if (raw === null) return null;
+  if (!isRecord(raw)) throw bad('helpers must be an object with a primary and fallbacks, or null to let helpers use the main models');
+  return chainInput(raw, HELPER_WORDS);
+}
+
+const LEVELS_WORD = EFFORT_LEVELS.join(', ');
+
+function levelInput(raw: Record<string, unknown>, key: keyof RouteEffort): RouteEffort {
+  const value = raw[key];
+  if (value === undefined || value === null) return {};
+  if (!isEffortLevel(value)) throw bad(`effort.${key} must be one of ${LEVELS_WORD}`);
+  return { [key]: value };
+}
+
+export function effortInput(body: Record<string, unknown>): RouteEffort | null | undefined {
+  if (!Object.hasOwn(body, 'effort')) return undefined;
+  const raw = body.effort;
+  if (raw === null) return null;
+  if (!isRecord(raw)) throw bad('effort must be an object with main and helpers, or null for the defaults');
+  const other = Object.keys(raw).find((key) => key !== 'main' && key !== 'helpers');
+  if (other !== undefined) throw bad(`effort takes main and helpers, not ${other}`);
+  return { ...levelInput(raw, 'main'), ...levelInput(raw, 'helpers') };
 }

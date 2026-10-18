@@ -43,6 +43,19 @@ describe('the effort metro asks for', () => {
     expect(plannedEffort(asRequest({ 'x-claude-code-agent-id': 'a1' }), turn())).toBe('max');
   });
 
+  test('the route sets each thread on its own, and As the agent asks leaves the effort as Claude Code sent it', () => {
+    const helper = asRequest({ 'x-claude-code-agent-id': 'a1' });
+    expect(plannedEffort(asRequest(), turn(), { main: 'medium' })).toBe('medium');
+    expect(plannedEffort(helper, turn(), { main: 'medium' })).toBe('max');
+    expect(plannedEffort(helper, turn(), { helpers: 'low' })).toBe('low');
+    expect(plannedEffort(asRequest(), turn(), { helpers: 'low' })).toBe('low');
+    expect(plannedEffort(asRequest(), turn(), { main: 'asked', helpers: 'asked' })).toBeNull();
+    expect(plannedEffort(helper, turn({ output_config: { effort: 'xhigh' } }), { main: 'max', helpers: 'asked' })).toBeNull();
+    expect(plannedEffort(helper, turn({ output_config: { effort: 'xhigh' } }), { helpers: 'high' })).toBe('high');
+    expect(plannedEffort(asRequest(), turn({ output_config: undefined }), { main: 'max' })).toBeNull();
+    expect(plannedEffort(asRequest(), turn({ thinking: { type: 'disabled' } }), { main: 'max' })).toBeNull();
+  });
+
   test('nothing is changed when the client never asked for an effort, when it already matches, or on a chore', () => {
     expect(plannedEffort(asRequest(), turn({ output_config: undefined }))).toBeNull();
     expect(plannedEffort(asRequest(), turn({ output_config: { effort: 'low' } }))).toBeNull();
