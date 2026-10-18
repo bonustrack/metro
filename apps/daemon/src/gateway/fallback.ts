@@ -18,14 +18,16 @@ interface Cooling {
   reason: string;
 }
 
+export type Lane = 'main' | 'helpers';
+
 const cooling = new Map<string, Cooling>();
-let lastChoice = '';
+const lastChoice = new Map<Lane, string>();
 
 const keyOf = (route: Route): string => `${route.connection.id}\n${route.model}`;
 
 export function forgetFallbackState(): void {
   cooling.clear();
-  lastChoice = '';
+  lastChoice.clear();
 }
 
 function scopeOf(label: string): string | null {
@@ -96,18 +98,18 @@ export function noteRefused(route: Route, status: number, headers: Headers, next
   log.warn({ from: routeLabel(route), to: next === undefined ? null : routeLabel(next), status }, why);
 }
 
-export function noteChoice(primary: Route, chosen: Route, now = Date.now()): void {
+export function noteChoice(primary: Route, chosen: Route, lane: Lane, now = Date.now()): void {
   const key = keyOf(chosen);
-  if (key === lastChoice) return;
-  const first = lastChoice === '';
-  lastChoice = key;
+  const last = lastChoice.get(lane);
+  if (key === last) return;
+  lastChoice.set(lane, key);
   if (key === keyOf(primary)) {
-    if (!first) log.info({ model: routeLabel(chosen), connection: chosen.connection.label }, 'gateway: back on the first model of the fallback list');
+    if (last !== undefined) log.info({ lane, model: routeLabel(chosen), connection: chosen.connection.label }, 'gateway: back on the first model of the fallback list');
     return;
   }
   const hold = holdOf(primary, now);
   log.info(
-    { from: routeLabel(primary), to: routeLabel(chosen), connection: chosen.connection.label, reason: hold?.reason ?? null, until: hold?.until ?? null },
+    { lane, from: routeLabel(primary), to: routeLabel(chosen), connection: chosen.connection.label, reason: hold?.reason ?? null, until: hold?.until ?? null },
     'gateway: the first model is over its limit, so requests go to a fallback model',
   );
 }

@@ -19,6 +19,7 @@
     "./trains/protocol": "./src/protocol.ts",
     "./ids": "./src/ids.ts",
     "./claude-token": "./src/claude-token.ts",
+    "./effort": "./src/effort.ts",
     "./tickets": "./src/tickets.ts",
     "./station-names": "./src/station-names.ts",
     "./str": "./src/str.ts",

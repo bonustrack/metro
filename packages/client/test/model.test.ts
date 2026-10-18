@@ -63,6 +63,22 @@ describe('what the Model page reads from the box', () => {
     expect(JSON.stringify(settings)).not.toContain('apiKey');
   });
 
+  test('the helper models and the effort the box applies, and nothing from a box that does not know them', () => {
+    const box = toModelSettings({
+      route: 'orA00000001',
+      model: 'openai/gpt-5.2',
+      connections: [],
+      helpers: { route: 'antA0000001', model: 'claude-opus-5-5', fallbacks: [{ connection: 'orA00000001', model: 'x' }], chain: [{ connection: 'antA0000001', model: 'claude-opus-5-5', used: 0.2, hold: null, active: true }] },
+      effort: { main: 'low', helpers: 'asked' },
+    });
+    expect(box.helpers?.route).toEqual({ primary: { connection: 'antA0000001', model: 'claude-opus-5-5' }, fallbacks: [{ connection: 'orA00000001', model: 'x' }] });
+    expect(box.helpers?.chain).toEqual([{ connection: 'antA0000001', model: 'claude-opus-5-5', used: 0.2, hold: null, active: true }]);
+    expect(box.effort).toEqual({ main: 'low', helpers: 'asked' });
+    const old = toModelSettings({ route: 'orA00000001', model: 'openai/gpt-5.2', connections: [] });
+    expect([old.helpers, old.effort]).toEqual([null, null]);
+    expect(toModelSettings({ route: 'orA00000001', connections: [], helpers: { route: '' } }).helpers).toBeNull();
+  });
+
   test('no primary is no route, with or without fallbacks, and only the box answer fields count', () => {
     const bare = toModelSettings({ route: '', model: '', connections: [{ id: 'cn-1', provider: 'codex', label: 'ChatGPT', signedIn: false }] });
     expect(bare.route).toBeNull();

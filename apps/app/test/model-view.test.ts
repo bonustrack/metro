@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings, toConnection, type ConnectionRow } from '@metro-labs/client/api/model';
 import { toOrgModels } from '@metro-labs/client/api/org-models';
-import { connectionPatch, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { connectionPatch, helperItems, partsNeedUpdate, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { EFFORT_WORD } from '../src/lib/model-words.ts';
 
 const ROUTE = { primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'bed00000001', model: 'eu.anthropic.claude-sonnet-4-6' }] };
 const list = toOrgModels({
@@ -45,5 +46,21 @@ describe('the agent Model page', () => {
     expect(shown.route).toEqual(override);
     expect(shown.connections.map((c) => c.id)).toEqual(['orA00000001', 'bed00000001', 'cdx00000001', 'sub00000001']);
     expect(shown.usage).toBe(box.usage);
+  });
+
+  test('the helper models show with the usage the box reports for them, and only a route with helpers or an effort needs a newer box', () => {
+    const helpers = { primary: { connection: 'cdx00000001', model: 'gpt-6-astra' }, fallbacks: [{ connection: 'orA00000001', model: 'openai/gpt-5.2' }] };
+    const read = toModelSettings({ route: 'orA00000001', model: 'openai/gpt-5.2', connections: [], effort: { main: 'low', helpers: 'max' }, helpers: { route: 'cdx00000001', model: 'gpt-6-astra', chain: [{ connection: 'cdx00000001', model: 'gpt-6-astra', used: 0.5, hold: null, active: true }] } });
+    const items = helperItems(read, helpers, list.connections);
+    expect(items?.map((item) => [item.slot.kind, item.connection?.label, item.model, item.row?.active ?? null])).toEqual([['primary', 'ChatGPT', 'gpt-6-astra', true], ['fallback', 'OpenRouter', 'openai/gpt-5.2', null]]);
+    expect(helperItems(read, null)).toBeNull();
+    const old = toModelSettings({ route: 'orA00000001', model: 'openai/gpt-5.2', connections: [] });
+    const set = toOrgModels({ connections: [], default: { ...ROUTE, effort: { helpers: 'asked' } }, agents: { agentA00001: { ...ROUTE, helpers } } });
+    expect(partsNeedUpdate(old, list, 'agentB00001')).toBe(false);
+    expect(partsNeedUpdate(old, set, 'agentB00001')).toBe(true);
+    expect(partsNeedUpdate(old, set, 'agentA00001')).toBe(true);
+    expect(partsNeedUpdate(read, set, 'agentA00001')).toBe(false);
+    expect(partsNeedUpdate(old, undefined, 'agentA00001')).toBe(false);
+    expect(EFFORT_WORD.asked).toBe('As the agent asks');
   });
 });

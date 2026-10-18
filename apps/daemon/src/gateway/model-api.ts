@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { EFFORT_DEFAULTS } from '@metro-labs/core/effort';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
 import { effectiveSetup } from './effective.js';
 import { chainStatus } from './fallback.js';
-import { notReady, primaryRoute, type Connection, type ModelSetup } from './model-config.js';
+import { helperSetup, notReady, primaryRoute, type Connection, type ModelSetup } from './model-config.js';
 import { orgModels, type SyncStatus } from './org-models.js';
 import { lastServed } from './served.js';
 import { refreshUsage, type UsageDeps } from './usage-refresh.js';
@@ -41,6 +42,13 @@ function publicConnection(c: Connection): Record<string, unknown> {
 
 const setupOf = (deps: ModelApiDeps): ModelSetup => (deps.setup ?? (() => effectiveSetup()))();
 
+function helpersBody(setup: ModelSetup): Record<string, unknown> | null {
+  const helpers = helperSetup(setup);
+  if (helpers === null) return null;
+  const primary = primaryRoute(helpers);
+  return { route: primary?.connection.id ?? '', model: primary?.model ?? '', fallbacks: helpers.fallbacks, chain: chainStatus(helpers) };
+}
+
 export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
   const setup = setupOf(deps);
   const primary = primaryRoute(setup);
@@ -55,6 +63,8 @@ export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
     connections: setup.connections.map(publicConnection),
     fallbacks: setup.fallbacks,
     chain: chainStatus(setup),
+    helpers: helpersBody(setup),
+    effort: { ...EFFORT_DEFAULTS, ...setup.effort },
     lastServed: lastServed(),
     usage: usageSeen(),
   };

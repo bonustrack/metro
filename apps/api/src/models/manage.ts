@@ -6,7 +6,7 @@ import type { ModelChange, ModelConnectionRow, ModelEdit } from '@metro-labs/con
 import { MODEL_ID_MAX, type ModelRoute } from '@metro-labs/connectors/model-route';
 import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealModelSecret, type ModelDetail, type ModelProvider, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { isoNow, modelKey, MODELS_MAX, userActor, type Caller, type ModelsDeps } from './deps.js';
-import { apiKeyOf, claudeTokenOf, creator, flagOf, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
+import { apiKeyOf, claudeTokenOf, creator, effortInput, flagOf, helpersInput, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
 import { checkClaudeToken } from './provider-lists.js';
 import { checkRoutewayKey } from './routeway.js';
 import { connectionView, type ConnectionView, type ModelsView } from './view.js';
@@ -149,8 +149,9 @@ function agentOf(raw: unknown): string | null {
 export async function putRoute(deps: ModelsDeps, caller: Caller, body: unknown): Promise<{ agent: string | null; route: ModelRoute }> {
   const input = isRecord(body) ? body : {};
   const agent = agentOf(input.agent);
-  const route = await deps.store.setRoute({ owner: caller.owner, agent, route: routeInput(input), actor: userActor(caller), at: isoNow(deps) });
-  log.info({ owner: caller.owner, agent, primary: route.primary.connection, fallbacks: route.fallbacks.length }, 'models: route changed');
+  const write = { owner: caller.owner, agent, route: routeInput(input), helpers: helpersInput(input), effort: effortInput(input), actor: userActor(caller), at: isoNow(deps) };
+  const route = await deps.store.setRoute(write);
+  log.info({ owner: caller.owner, agent, primary: route.primary.connection, fallbacks: route.fallbacks.length, helpers: route.helpers !== undefined, effort: route.effort ?? null }, 'models: route changed');
   return { agent, route };
 }
 

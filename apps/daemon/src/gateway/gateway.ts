@@ -26,7 +26,7 @@ import {
   type Watch,
   type Refusal,
 } from './forward.js';
-import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry } from './fallback.js';
+import { chainOf, forgetFallbackState, noteChoice, noteRefused, routesToTry, type Lane } from './fallback.js';
 import {
   BINDING_BETA,
   cappedEffort,
@@ -34,12 +34,13 @@ import {
   forgetLearnedThinking,
   learnAlwaysThinks,
   plannedEffort,
+  requestKind,
   thinkingOff,
   withBlockBinding,
   withEffort,
   withThinkingFor,
 } from './effort.js';
-import { notReady, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
+import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
@@ -241,9 +242,21 @@ async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, 
   else await codexMessages(req, res, body, route.model, route.connection, { refresh: refreshCodex, ...deps.codex }, watchUpstream(res));
 }
 
-function shapedFor(req: IncomingMessage, sent: Record<string, unknown>): Record<string, unknown> {
-  const effort = plannedEffort(req, sent);
+function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup): Record<string, unknown> {
+  const effort = plannedEffort(req, sent, setup.effort);
   return effort === null ? sent : withEffort(sent, effort);
+}
+
+interface Chosen {
+  lane: Lane;
+  setup: ModelSetup;
+  primary: Route;
+}
+
+function chosenChain(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup, requested: string): Chosen {
+  const helpers = requestKind(req, sent) === 'subagent' ? helperSetup(setup) : null;
+  if (helpers === null) return { lane: 'main', setup, primary: resolveRoute(requested, setup) ?? noRoute() };
+  return { lane: 'helpers', setup: helpers, primary: pinnedRoute(requested, helpers) ?? noRoute() };
 }
 
 const bytesOf = (raw: Buffer, parsed: Record<string, unknown>, sent: Record<string, unknown>): Buffer => (sent === parsed ? raw : Buffer.from(JSON.stringify(sent)));
@@ -299,12 +312,12 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   const parsed = parseJson(raw);
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
-  const primary = resolveRoute(requested, setup) ?? noRoute();
-  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent), setup };
-  const routes = routesToTry(chainOf(primary, setup, requested));
+  const { lane, setup: chain, primary } = chosenChain(req, sent, setup, requested);
+  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
+  const routes = routesToTry(chainOf(primary, chain, requested));
   for (const [at, route] of routes.entries()) {
     const next = routes[at + 1];
-    if (path === MESSAGES) noteChoice(primary, route);
+    if (path === MESSAGES) noteChoice(primary, route, lane);
     if (next === undefined) {
       await attempt(req, res, ask, route, deps);
       return;

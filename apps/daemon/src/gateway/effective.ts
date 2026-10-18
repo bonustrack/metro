@@ -6,7 +6,7 @@ import { deliveredSetup, type OrgModels } from './org-models.js';
 export function setupOf(delivered: Delivered | null): ModelSetup {
   const route = delivered?.route ?? null;
   if (delivered === null || route === null) return { ...emptySetup(), source: delivered?.source ?? null };
-  return { primary: route.primary, fallbacks: route.fallbacks, connections: delivered.connections, source: delivered.source };
+  return { primary: route.primary, fallbacks: route.fallbacks, connections: delivered.connections, source: delivered.source, helpers: route.helpers, effort: route.effort };
 }
 
 export const effectiveSetup = (delivered: Delivered | null = deliveredSetup()): ModelSetup => setupOf(delivered);

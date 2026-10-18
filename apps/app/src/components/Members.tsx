@@ -8,7 +8,7 @@ import { activeAccount } from '@metro-labs/client/auth/account';
 import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Choice } from './Choice.js';
-import { Dropdown, type MenuItem } from './Dropdown.js';
+import type { MenuItem } from './Dropdown.js';
 import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
 import { KebabMenu } from './KebabMenu.js';
@@ -18,13 +18,13 @@ import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { ValueMenu } from './ValueMenu.js';
 import { orgKey, queryError } from '../lib/queries.js';
 import { AVATAR_SIZE, ICON_SIZE } from './ui/sizes.js';
 
 const ROLES_NOTE = 'Admins launch agents, add connectors, change models and invite. Members check on agents and approve.';
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const ROLE_WORD: Record<Role, string> = { admin: 'Admin', member: 'Member' };
-const ROLE_TRIGGER = { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 6, marginRight: -6, borderRadius: 8 } as const;
 
 const organizationKey = (): string[] => orgKey('organization');
 
@@ -40,19 +40,12 @@ function useRun(onError: (text: string) => void, failure: string): (work: Promis
 }
 
 function RoleMenu({ member, self, onError }: { member: Member; self: boolean; onError: (text: string) => void }): ReactNode {
-  const palette = useKitPalette();
   const run = useRun(onError, 'Could not change that member.');
-  const hover = { backgroundColor: palette.inputBg };
   const items: MenuItem[] = [
     ...(['admin', 'member'] as const).map((role): MenuItem => ({ label: ROLE_WORD[role], selected: member.role === role, onSelect: () => { if (member.role !== role) run(setMemberRole(member.membershipId, role)); } })),
     ...(self ? [] : [{ label: 'Remove from the organization', danger: true, onSelect: () => { run(removeMember(member.membershipId)); } }]),
   ];
-  return (
-    <Dropdown items={items} label={`Role of ${member.email ?? member.userId}`} style={ROLE_TRIGGER} hoverStyle={hover}>
-      <Text size="md">{ROLE_WORD[member.role]}</Text>
-      <Icon name="chevronDown" size={ICON_SIZE.sm} color={palette.sub} />
-    </Dropdown>
-  );
+  return <ValueMenu items={items} label={`Role of ${member.email ?? member.userId}`} value={ROLE_WORD[member.role]} />;
 }
 
 function MemberRow({ member, org, onError }: { member: Member; org: Organization; onError: (text: string) => void }): ReactNode {

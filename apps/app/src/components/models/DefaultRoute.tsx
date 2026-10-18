@@ -19,7 +19,7 @@ import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
 import { AvatarStack, serverNames } from './RouteParts.js';
-import { RouteOrder } from './RouteOrder.js';
+import { RouteSetup } from './RouteSetup.js';
 import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
 import { afterModelChange, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { agentsWord, namesLine, routeSummary } from '../../lib/model-words.js';
@@ -47,8 +47,10 @@ function useScope(list: OrgModels): RouteScope {
 function Route({ list }: { list: OrgModels }): ReactNode {
   const scope = useScope(list);
   const control = useRouteControl(scope.route, scope.save);
-  const items = list.default === null ? [] : routeItems(list.default, list.connections);
-  return <RouteOrder items={items} who="An agent" edit={list.admin ? { control, scope } : undefined} />;
+  const route = list.default;
+  const items = route === null ? [] : routeItems(route, list.connections);
+  const helpers = route?.helpers == null ? null : routeItems(route.helpers, list.connections);
+  return <RouteSetup items={items} helperItems={helpers} effort={route?.effort ?? {}} who="An agent" edit={list.admin ? { control, scope } : undefined} />;
 }
 
 function Agents({ list }: { list: OrgModels }): ReactNode {

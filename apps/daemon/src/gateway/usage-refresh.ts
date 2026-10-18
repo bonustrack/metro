@@ -42,7 +42,7 @@ export async function refreshUsage(setup: ModelSetup, deps: UsageDeps = {}, now 
 export function watchFallbackUsage(setup: () => ModelSetup, deps: UsageDeps = {}, every = CREDITS_TTL_MS): void {
   const run = (): void => {
     const current = setup();
-    if (current.fallbacks.length === 0) return;
+    if (current.fallbacks.length === 0 && (current.helpers ?? null) === null) return;
     refreshUsage(current, deps).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'model-api: could not refresh the usage of the fallback models');
     });

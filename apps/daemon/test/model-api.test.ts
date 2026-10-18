@@ -80,6 +80,8 @@ interface Shown {
   connections: Record<string, unknown>[];
   fallbacks: { connection: string; model: string }[];
   chain: { connection: string; model: string; active: boolean }[];
+  helpers: { route: string; model: string; fallbacks: unknown[]; chain: { connection: string; model: string; active: boolean }[] } | null;
+  effort: { main: string; helpers: string };
   usage: Record<string, { windows: { label: string; used: number | null }[] } | undefined>;
 }
 
@@ -108,6 +110,21 @@ describe('the Model page reads what the organization delivered', () => {
     ]);
     for (const secret of ['sk-or-secret', 'at-secret', 'acct', CLAUDE_TOKEN]) expect(JSON.stringify(after)).not.toContain(secret);
     expect((await shown('/api/model/snapshot')).route).toBe('or000000001');
+  });
+
+  test('the helper models and the effort the organization set are shown, with the defaults for what it left out', async () => {
+    await call('POST', '/api/model/sync');
+    const plain = await shown('/api/model/snapshot');
+    expect(plain.helpers).toBeNull();
+    expect(plain.effort).toEqual({ main: 'low', helpers: 'max' });
+    const route = api.delivery.route as Record<string, unknown>;
+    api.delivery = { ...api.delivery, route: { ...route, helpers: { primary: { connection: 'an000000001', model: 'claude-opus-5-5' }, fallbacks: [{ connection: 'cx000000001', model: 'gpt-5.4' }] }, effort: { helpers: 'asked', main: 'bogus' } } };
+    await models.sync();
+    const after = await shown('/api/model/snapshot');
+    expect(after.helpers).toMatchObject({ route: 'an000000001', model: 'claude-opus-5-5', fallbacks: [{ connection: 'cx000000001', model: 'gpt-5.4' }] });
+    expect(after.helpers?.chain.map((r) => [r.connection, r.model, r.active])).toEqual([['an000000001', 'claude-opus-5-5', true], ['cx000000001', 'gpt-5.4', false]]);
+    expect(after.effort).toEqual({ main: 'low', helpers: 'asked' });
+    expect(after.route).toBe('or000000001');
   });
 
   test('the routes of the old Model page are gone, and every other method is refused', async () => {

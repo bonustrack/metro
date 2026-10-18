@@ -1,9 +1,12 @@
+import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
-import { isProvider, type Account, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
+import { isProvider, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
 
 export interface DeliveredRoute {
   primary: Fallback | null;
   fallbacks: Fallback[];
+  helpers: Chain | null;
+  effort: RouteEffort;
 }
 
 export interface Delivered {
@@ -24,10 +27,20 @@ function refOf(raw: unknown): Fallback | null {
   return ref.connection === '' ? null : ref;
 }
 
+function fallbacksOf(raw: Record<string, unknown>): Fallback[] {
+  const fallbacks = Array.isArray(raw.fallbacks) ? raw.fallbacks.flatMap((f: unknown) => refOf(f) ?? []) : [];
+  return fallbacks.filter((f) => f.model !== '').slice(0, MAX_FALLBACKS);
+}
+
+function helpersOf(raw: unknown): Chain | null {
+  if (!isRecord(raw)) return null;
+  const primary = refOf(raw.primary);
+  return primary === null ? null : { primary, fallbacks: fallbacksOf(raw) };
+}
+
 function routeOf(raw: unknown): DeliveredRoute | null {
   if (!isRecord(raw)) return null;
-  const fallbacks = Array.isArray(raw.fallbacks) ? raw.fallbacks.flatMap((f: unknown) => refOf(f) ?? []) : [];
-  return { primary: refOf(raw.primary), fallbacks: fallbacks.filter((f) => f.model !== '').slice(0, MAX_FALLBACKS) };
+  return { primary: refOf(raw.primary), fallbacks: fallbacksOf(raw), helpers: helpersOf(raw.helpers), effort: readEffort(raw.effort) };
 }
 
 function accountOf(raw: unknown): Account {
