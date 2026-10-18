@@ -143,8 +143,8 @@ async function asAnthropicWants(send: Send, base: Record<string, string>, payloa
   const { metro, asSent, bound } = payloads;
   const upstream = await send(metro, bound ? addBeta(base, BINDING_BETA) : base);
   if (upstream.status !== 400 || asSent === null) return upstream;
-  await upstream.body?.cancel();
-  log.warn({ connection, model }, 'gateway: Anthropic refused the request metro shaped, so it was sent again as Claude Code wrote it');
+  const reason = upstreamMessage(await upstream.text().catch(() => ''), '').slice(0, 300);
+  log.warn({ connection, model, reason }, 'gateway: the provider refused the request metro shaped, so it was sent again as Claude Code wrote it');
   return send(asSent, base);
 }
 
