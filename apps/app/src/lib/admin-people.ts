@@ -66,6 +66,7 @@ export interface AdminOrganization {
   id: string;
   name: string;
   slug: string | null;
+  avatar: string | null;
   createdAt: number | null;
   agents: number;
   online: number | null;
@@ -87,6 +88,7 @@ export function adminOrganizations(organizations: readonly OrganizationSummary[]
     id: organization.id,
     name: organization.name ?? organization.slug ?? organization.id,
     slug: organization.slug,
+    avatar: organization.avatar,
     createdAt: timeOf(organization.createdAt),
     agents: agents.filter((agent) => agent.owner === organization.id).length,
     online: roles.has(organization.id) ? onlineIn(organization.id, live) : null,

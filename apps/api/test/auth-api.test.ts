@@ -7,6 +7,7 @@ import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
 import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { pngDataUrl } from './png-fixture.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
@@ -20,7 +21,7 @@ let deps: AuthApiDeps;
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs(), users: memoryUsers() };
+  deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs(), orgAvatars: memoryOrgAvatars(), users: memoryUsers() };
   server = createServer((req, res) => {
     if (handleAuthApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -241,9 +242,17 @@ describe('signing in to metro.box through WorkOS', () => {
     expect(second.status).toBe(200);
     const inSecond = (await second.json()) as TokenBody;
     expect(inSecond.organization).toBe(workos.organizations[1] ?? '');
+    const picture = pngDataUrl(32, 32);
+    await deps.orgAvatars.setAvatar(workos.organizations[0] ?? '', picture);
     const listed = await json('GET', '/api/auth/organizations', undefined, inSecond.accessToken);
     expect(listed.status).toBe(200);
-    expect(await listed.json()).toEqual({ organizations: [{ id: workos.organizations[0], name: 'Stage Labs', role: 'admin', slug: 'stage-labs' }, { id: workos.organizations[1], name: 'Twice', role: 'admin', slug: 'twice' }] });
+    expect(await listed.json()).toEqual({
+      organizations: [
+        { id: workos.organizations[0], name: 'Stage Labs', role: 'admin', slug: 'stage-labs', avatar: picture },
+        { id: workos.organizations[1], name: 'Twice', role: 'admin', slug: 'twice', avatar: null },
+      ],
+    });
+    await deps.orgAvatars.setAvatar(workos.organizations[0] ?? '', null);
     expect((inSecond as unknown as { organizationSlug: string }).organizationSlug).toBe('twice');
     const back = await json('POST', '/api/auth/switch', { organization: workos.organizations[0], refreshToken: inSecond.refreshToken }, inSecond.accessToken);
     expect(back.status).toBe(200);

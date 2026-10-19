@@ -10,7 +10,7 @@ const NOW = Date.parse('2026-10-06T12:00:00Z');
 const SESSION = toRuntimeSnapshot({ running: true, runner: 'cli' });
 const MODEL = toModelSettings({ route: '', connections: [] });
 const organization = (id: string, ids = ['one']): OrganizationRow => ({
-  id, name: id, slug: id, role: 'member', agents: ids.map((agent) => ({ id: agent, host: `${agent}.example.invalid`, name: 'Same name', slug: null, avatar: null })),
+  id, name: id, slug: id, role: 'member', avatar: null, agents: ids.map((agent) => ({ id: agent, host: `${agent}.example.invalid`, name: 'Same name', slug: null, avatar: null })),
 });
 const realTimeout = globalThis.setTimeout;
 const realClearTimeout = globalThis.clearTimeout;

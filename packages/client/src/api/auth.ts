@@ -18,7 +18,7 @@ import {
   withAccountLock,
   type Account,
 } from '../auth/account.js';
-import { isRecord } from '../read.js';
+import { isRecord, pngAvatar } from '../read.js';
 import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
 export type Provider = 'google' | 'microsoft' | 'github';
@@ -224,6 +224,7 @@ export interface OrganizationRow {
   name: string | null;
   role: string | null;
   slug: string | null;
+  avatar: string | null;
   agents: OrgAgent[] | null;
 }
 
@@ -231,7 +232,7 @@ function agentsOf(value: unknown): OrgAgent[] | null {
   if (!Array.isArray(value)) return null;
   return value.flatMap((a: unknown) =>
     isRecord(a) && typeof a.id === 'string' && typeof a.host === 'string'
-      ? [{ id: a.id, host: a.host, name: text(a.name), slug: text(a.slug), avatar: typeof a.avatar === 'string' && a.avatar.startsWith('data:image/png;base64,') ? a.avatar : null }]
+      ? [{ id: a.id, host: a.host, name: text(a.name), slug: text(a.slug), avatar: pngAvatar(a.avatar) }]
       : [],
   );
 }
@@ -264,7 +265,7 @@ export function toOrganizations(body: unknown): OrganizationRow[] {
   if (!isRecord(body) || !Array.isArray(body.organizations)) throw unexpected();
   return body.organizations.flatMap((o: unknown) =>
     isRecord(o) && typeof o.id === 'string'
-      ? [{ id: o.id, name: typeof o.name === 'string' ? o.name : null, role: typeof o.role === 'string' ? o.role : null, slug: typeof o.slug === 'string' ? o.slug : null, agents: agentsOf(o.agents) }]
+      ? [{ id: o.id, name: typeof o.name === 'string' ? o.name : null, role: typeof o.role === 'string' ? o.role : null, slug: typeof o.slug === 'string' ? o.slug : null, avatar: pngAvatar(o.avatar), agents: agentsOf(o.agents) }]
       : [],
   );
 }

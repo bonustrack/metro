@@ -8,9 +8,10 @@ import { routeHash } from '@metro-labs/client/route';
 import { SLUG_RE } from '@metro-labs/client/auth/org-segment';
 import { location } from '@metro-labs/client/platform';
 import { NameModal } from './NameModal.js';
+import { OrganizationPicture } from './OrganizationPicture.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
-import { orgKey } from '../lib/queries.js';
+import { orgKey, useOrganizationAvatar } from '../lib/queries.js';
 
 const NAME_MIN = 2;
 const NAME_MAX = 64;
@@ -36,13 +37,15 @@ export function OrganizationSettings(): ReactNode {
   const client = useQueryClient();
   const [editing, setEditing] = useState<Editing>(null);
   const account = activeAccount();
+  const avatar = useOrganizationAvatar(account?.organization ?? null);
   if (account === null || account.organization === null) return null;
   const admin = account.role === 'admin';
   const name = account.organizationName ?? '';
   const slug = account.organizationSlug ?? '';
   const open = (what: Editing) => (admin ? () => { setEditing(what); } : undefined);
   return (
-    <Group label="Profile" note={admin ? undefined : 'Only an admin can change the name and the web address.'}>
+    <Group label="Profile" note={admin ? undefined : 'Only an admin can change the name, the picture and the web address.'}>
+      <OrganizationPicture name={name} avatar={avatar} admin={admin} />
       <Item title="Name" value={name} onPress={open('name')} />
       <Item title="Web address" value={`metro.box/${routeHash({ kind: 'servers' })}`} onPress={open('slug')} />
       <NameModal key={`name:${name}`} title="Rename the organization" action="Save" placeholder="Anderra" initial={name} failure="Could not rename the organization." open={editing === 'name'}

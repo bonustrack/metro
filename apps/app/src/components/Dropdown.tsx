@@ -11,6 +11,7 @@ import { useHover } from './ui/hover.js';
 export interface MenuItem {
   label: string;
   icon?: IconName;
+  leading?: ReactNode;
   selected?: boolean;
   separated?: boolean;
   danger?: boolean;
@@ -80,6 +81,7 @@ function MenuItems({ items, onClose }: { items: MenuItem[]; onClose: () => void 
       {(item.danger === true || item.separated === true) && index > 0 ? <DropdownMenuSeparator /> : null}
       <DropdownMenuItem
         label={item.label}
+        icon={item.leading}
         iconName={item.icon === undefined ? undefined : iconOf(item.icon)}
         danger={item.danger}
         selected={item.selected}

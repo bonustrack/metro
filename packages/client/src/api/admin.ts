@@ -3,7 +3,7 @@ import { type Account } from '../auth/account.js';
 import { accessToken, scopedOrganizationAccessToken } from './auth.js';
 import { callBearer } from './client.js';
 import { toLatestUsage, type LatestUsage } from './latest-usage.js';
-import { isRecord } from '../read.js';
+import { isRecord, pngAvatar } from '../read.js';
 
 const OPERATOR_EMAIL = 'admin@stage.box';
 
@@ -26,6 +26,7 @@ export interface OrganizationSummary {
   id: string;
   name: string | null;
   slug: string | null;
+  avatar: string | null;
   createdAt: string | null;
 }
 
@@ -94,7 +95,7 @@ export async function setUserStatus(id: string, next: UserStatus): Promise<void>
 
 export async function fetchAllOrganizations(): Promise<OrganizationSummary[]> {
   return rows(await call('/organizations'), 'organizations').flatMap((o) =>
-    typeof o.id === 'string' ? [{ id: o.id, name: optional(o.name), slug: optional(o.slug), createdAt: optional(o.createdAt) }] : [],
+    typeof o.id === 'string' ? [{ id: o.id, name: optional(o.name), slug: optional(o.slug), avatar: pngAvatar(o.avatar), createdAt: optional(o.createdAt) }] : [],
   );
 }
 

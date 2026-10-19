@@ -46,7 +46,7 @@ import { gmailUserAllowed } from './gmail/authorization.js';
 import { handleUsageApiRequest, LIVE_METRICS, type MetricsCore, type UsageApiDeps } from './usage.js';
 import { handleLatestApiRequest, type LatestApiDeps } from './usage-latest.js';
 import { usageRowForOwner, usageRowsForOwner } from './db/usage.js';
-import { dbSlugs } from './db/organizations.js';
+import { dbOrganizations } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
@@ -73,7 +73,7 @@ const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
 const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
-const authApi = { config: () => readWorkosConfig(), keys, slugs: dbSlugs, users: dbUsers, agentsOf: listServersForOwner };
+const authApi = { config: () => readWorkosConfig(), keys, slugs: dbOrganizations, orgAvatars: dbOrganizations, users: dbUsers, agentsOf: listServersForOwner };
 const gmailApi = {
   keys,
   broker: new GmailBroker({

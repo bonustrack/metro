@@ -5,13 +5,13 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Icon, type IconName } from '../Icon.js';
+import { markRadius, OrgPicture } from '../ui/OrgMark.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import type { AgentState } from '../../lib/admin-agents.js';
 import type { UserState } from '../../lib/admin-people.js';
 import { SHRINK } from '../../lib/style.js';
 
 const DOT = 8;
-const ROUNDING = 0.28;
 
 const styles = StyleSheet.create({ dot: { width: DOT, height: DOT, borderRadius: DOT / 2 } });
 
@@ -43,10 +43,10 @@ export function DotWord({ color, word, danger = false }: { color: DotColor; word
   );
 }
 
-export function LetterMark({ name, size = AVATAR_SIZE.row, round = false }: { name: string; size?: number; round?: boolean }): ReactNode {
+function LetterMark({ name, size = AVATAR_SIZE.row, round = false }: { name: string; size?: number; round?: boolean }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Row width={size} height={size} radius={round ? size / 2 : Math.round(size * ROUNDING)} background={palette.border} align="center" justify="center">
+    <Row width={size} height={size} radius={round ? size / 2 : markRadius(size)} background={palette.border} align="center" justify="center">
       <Text size={size >= AVATAR_SIZE.list ? 'md' : '2xs'} weight="semibold">
         {name.slice(0, 1).toUpperCase()}
       </Text>
@@ -57,6 +57,11 @@ export function LetterMark({ name, size = AVATAR_SIZE.row, round = false }: { na
 export function UserMark({ name, picture, size = AVATAR_SIZE.row }: { name: string; picture: string | null; size?: number }): ReactNode {
   if (picture !== null) return <AgentAvatar seed={name} src={picture} size={size} />;
   return <LetterMark name={name} size={size} round />;
+}
+
+export function OrganizationMark({ name, avatar, size = AVATAR_SIZE.row }: { name: string; avatar: string | null; size?: number }): ReactNode {
+  if (avatar !== null) return <OrgPicture src={avatar} size={size} />;
+  return <LetterMark name={name} size={size} />;
 }
 
 export function IconMark({ icon }: { icon: IconName }): ReactNode {

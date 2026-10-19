@@ -9,6 +9,7 @@ import { listOrganizations, organizationName, type WorkosConfig } from './auth/w
 import type { AgentSummary, DeletionRow } from './db/servers.js';
 import { confirmDeletion, deletionView, noteRefusal, type DeletionCore } from './deletion.js';
 import type { SlugStore } from './slug.js';
+import type { OrganizationAvatars } from './avatar.js';
 import { isUserStatus, type UserStore } from './users.js';
 
 const PREFIX = '/api/admin';
@@ -24,6 +25,7 @@ export interface AdminApiDeps {
   keys: SigningKeys;
   users: UserStore;
   slugs: SlugStore;
+  orgAvatars: OrganizationAvatars;
   agents: () => Promise<AgentSummary[]>;
   deletion: AdminDeletionDeps;
 }
@@ -68,7 +70,8 @@ async function organizations(deps: AdminApiDeps): Promise<unknown> {
   const cfg = deps.config();
   if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
   const rows = await listOrganizations(cfg);
-  return { organizations: await Promise.all(rows.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name) }))) };
+  const avatars = await deps.orgAvatars.avatars(rows.map((o) => o.id));
+  return { organizations: await Promise.all(rows.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null }))) };
 }
 
 async function agentsList(deps: AdminApiDeps): Promise<unknown> {

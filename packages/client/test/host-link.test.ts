@@ -8,7 +8,7 @@ const MCI = 'org_01MCI000000000000';
 
 const agent = (id: string, host: string, slug: string | null): NonNullable<OrganizationRow['agents']>[number] => ({ id, host, name: null, slug, avatar: null });
 
-const org = (id: string, slug: string, agents: OrganizationRow['agents']): OrganizationRow => ({ id, name: slug, role: 'admin', slug, agents });
+const org = (id: string, slug: string, agents: OrganizationRow['agents']): OrganizationRow => ({ id, name: slug, role: 'admin', slug, avatar: null, agents });
 
 const stage = org(STAGE, 'stage', [agent('emmaAgentId', HOST, 'emma')]);
 const mci = org(MCI, 'mci-group', [agent('lisaAgentId', 'metro-fa79qt.tail17c4f8.ts.net', 'lisa')]);

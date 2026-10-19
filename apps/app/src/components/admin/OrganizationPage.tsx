@@ -15,7 +15,7 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 import { seenWords } from './AgentRows.js';
 import { addressOf, agentsWords } from './AdminOrganizations.js';
 import { ORGANIZATIONS_CRUMB, detailCrumbs } from './crumbs.js';
-import { LetterMark } from './Marks.js';
+import { OrganizationMark } from './Marks.js';
 import { useAdminOrganizationRows } from './organization-rows.js';
 import { STATE_WORD, type AdminAgent } from '../../lib/admin-agents.js';
 import { roleWord, type AdminOrganization } from '../../lib/admin-people.js';
@@ -68,7 +68,7 @@ function OrganizationBody({ row, agents }: { row: AdminOrganization; agents: Adm
   const created = row.createdAt === null ? '' : ` · created ${agoWords(row.createdAt, now).toLowerCase()}`;
   return (
     <Groups>
-      <PageHeader title={row.name} subtitle={`${addressOf(row)}${created}`} crumbs={detailCrumbs(ORGANIZATIONS_CRUMB, row.name)} leading={<LetterMark name={row.name} size={AVATAR_SIZE.header} />}
+      <PageHeader title={row.name} subtitle={`${addressOf(row)}${created}`} crumbs={detailCrumbs(ORGANIZATIONS_CRUMB, row.name)} leading={<OrganizationMark name={row.name} avatar={row.avatar} size={AVATAR_SIZE.header} />}
         action={row.member ? <Button color="secondary" dark={dark} label={`Switch to ${row.name}`} onPress={() => { goHash(homeOf(row)); }} /> : undefined} />
       <Group label="Overview" note={technical ? `Organization id ${row.id}` : undefined}>
         <Item title="Agents" value={row.online === null ? agentsWords(row) : `${agentsWords(row)}, ${String(row.online)} online`} />

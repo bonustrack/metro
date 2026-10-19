@@ -1,4 +1,4 @@
-import { filled, isRecord } from '../read.js';
+import { filled, isRecord, pngAvatar } from '../read.js';
 import { call } from './client.js';
 import { fetchMode } from './mode.js';
 import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
@@ -41,7 +41,7 @@ export function toServer(value: unknown): Server {
     addedAt: typeof value.addedAt === 'string' ? value.addedAt : '',
     instanceId: filled(value.instanceId),
     launchedAt: filled(value.launchedAt),
-    avatar: typeof value.avatar === 'string' && value.avatar.startsWith('data:image/png;base64,') ? value.avatar : null,
+    avatar: pngAvatar(value.avatar),
     slug: filled(value.slug),
   };
 }

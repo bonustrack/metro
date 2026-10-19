@@ -19,6 +19,7 @@ export const organizations = pgTable(
   {
     id: text('id').primaryKey(),
     slug: text('slug').notNull(),
+    avatar: text('avatar'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

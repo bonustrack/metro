@@ -1,5 +1,15 @@
 # Metro history
 
+## 2026-10-19: An organization has a picture
+
+Less: "Make it possible to add / edit / remove an avatar for an organization." Agents and accounts already had a picture; an organization only had the first letter of its name.
+
+- **Stored like an agent's**: `0017_organization_avatar` adds a nullable `organizations.avatar` text column (a column add, safe in one deploy). `PUT /api/organization/avatar {avatar}` (admin) takes the same PNG data url the agent avatar takes, through the same `parseAvatar` (a real PNG, 96 KiB and 256 by 256 pixels at most), and `null` removes it. A read only ever serves a `data:image/png;base64,` value.
+- **Read where the page reads organizations**: `GET /api/organization`, `GET /api/auth/organizations` and the operator's `GET /api/admin/organizations` carry `avatar`. The sign-in tokens (`/exchange`, `/refresh`, `/switch`) do not: a 128 KiB picture does not belong in the stored session, which the phone keeps in SecureStore.
+- **On the page**: Organization › Profile has a Picture row (Add, or Change and Remove, Remove behind a short confirm), using the agent's picker (a 128 by 128 PNG drawn on the device). The picture shows as a rounded square in the rail, the phone's title switcher, the switcher menu, the Organization header and the operator's organization pages; without one, each place keeps its letter tile.
+
+Rollout: api.metro.box only, no box is involved. The api (with `0017`) and the page deploy on the same merge; until the api is live, Add answers "not found" and the page shows the letter tiles as before.
+
 ## 2026-10-18: The model setup sets the effort and the helpers' models
 
 Less: "Ideally I should be able to set the effort from the model setup", then "I should also be able to setup model for the main session and different for the sub agent / workers." Until then the gateway's effort policy was fixed (main thread `low`, helpers `max`) and helpers thought with the main model order, since the runner gives workers no model of their own.
