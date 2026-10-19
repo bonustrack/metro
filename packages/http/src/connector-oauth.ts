@@ -11,6 +11,8 @@ const CLIENT_NAME = 'Metro';
 
 export class OAuthInvalidGrant extends ConnectorVerifyError {}
 
+const SIGN_IN_AGAIN = new Set(['invalid_grant', 'invalid_client', 'unauthorized_client']);
+
 export interface OAuthClient {
   clientId: string;
   clientSecret?: string;
@@ -143,10 +145,17 @@ async function postToken(
   } catch (err) {
     throw refused(`Metro could not reach that server to finish signing in: ${whyUnreachable(err)}`);
   }
-  const body: unknown = await res.json().catch(() => null);
-  if (form.grant_type === 'refresh_token' && res.status === 400 && isRecord(body) && body.error === 'invalid_grant') throw new OAuthInvalidGrant('That server requires a new sign-in.', 400);
-  if (!res.ok || !isRecord(body))
-    throw refused('That server refused to complete the sign-in.');
+  return tokenAnswer(form.grant_type === 'refresh_token', res.status, res.ok, await res.json().catch(() => null));
+}
+
+const errorCode = (body: unknown): string | null => (isRecord(body) && typeof body.error === 'string' && /^[a-z_]{1,64}$/.test(body.error) ? body.error : null);
+
+const grantGone = (refreshing: boolean, status: number, code: string | null): boolean => refreshing && (status === 400 || status === 401) && code !== null && SIGN_IN_AGAIN.has(code);
+
+function tokenAnswer(refreshing: boolean, status: number, ok: boolean, body: unknown): OAuthTokens {
+  const code = errorCode(body);
+  if (grantGone(refreshing, status, code)) throw new OAuthInvalidGrant('That server requires a new sign-in.', 400);
+  if (!ok || !isRecord(body)) throw refused(`That server refused to complete the sign-in (${String(status)}${code === null ? '' : ` ${code}`}).`);
   return tokensFrom(body);
 }
 

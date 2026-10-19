@@ -1,3 +1,4 @@
+import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oauth';
@@ -68,6 +69,7 @@ export async function catalogueCredential(deps: CatalogueDeps, owner: string, id
       return { change: await refreshedGrant(deps, key, current, secret) };
     } catch (err) {
       const invalid = err instanceof OAuthInvalidGrant;
+      log.warn({ owner, connector: id, reason: errMsg(err).replace(/https?:\/\/\S+/gi, '[address]').slice(0, 300) }, 'connectors: the sign-in could not be renewed');
       state.error = invalid || (err instanceof ApiError && err.status === 424) ? catalogueSignin() : catalogueUnavailable();
       return { change: invalid ? clearGrant(key, current, secret) : {} };
     }
