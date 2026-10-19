@@ -7,3 +7,5 @@ export const recordOf = (value: unknown): Record<string, unknown> => (isRecord(v
 export const filled = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 export const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+export const pngAvatar = (value: unknown): string | null => (typeof value === 'string' && value.startsWith('data:image/png;base64,') ? value : null);

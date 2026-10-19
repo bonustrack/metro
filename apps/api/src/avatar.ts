@@ -11,6 +11,13 @@ const WIDTH_AT = 16;
 const HEIGHT_AT = 20;
 const MIN_PNG = 33;
 
+export interface OrganizationAvatars {
+  avatars: (organizations: string[]) => Promise<Map<string, string>>;
+  setAvatar: (organization: string, avatar: string | null) => Promise<void>;
+}
+
+export const storedAvatar = (value: string | null): string | null => (value?.startsWith('data:image/png;base64,') === true ? value : null);
+
 export class AvatarError extends ApiError {
   constructor(message: string) {
     super(message, 400);

@@ -6,9 +6,11 @@ import { handleAdminApiRequest, type AdminApiDeps } from '../src/admin.ts';
 import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { fakeAccount, fakeDeletionAws } from './deletion-fake.ts';
+import { pngDataUrl } from './png-fixture.ts';
 
 let workos: FakeWorkos;
 let server: Server;
@@ -24,6 +26,7 @@ beforeAll(async () => {
     config: () => readWorkosConfig(env),
     keys: new SigningKeys(workos.issuer.url),
     slugs: memorySlugs(),
+    orgAvatars: memoryOrgAvatars(),
     users: memoryUsers(),
     agents: () => Promise.resolve([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, instanceId: null }]),
     deletion: {
@@ -88,7 +91,12 @@ describe('the operator pages', () => {
 
   test('organizations come from WorkOS with their metro slug, and agents from the table with their organization name', async () => {
     const orgs = (await (await call('GET', '/api/admin/organizations', token('user_01ABC'))).json()) as { organizations: Record<string, unknown>[] };
-    expect(orgs.organizations).toEqual([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z', slug: 'stage-labs' }]);
+    expect(orgs.organizations).toEqual([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z', slug: 'stage-labs', avatar: null }]);
+    const picture = pngDataUrl(16, 16);
+    await deps.orgAvatars.setAvatar(ORG, picture);
+    const pictured = (await (await call('GET', '/api/admin/organizations', token('user_01ABC'))).json()) as { organizations: Record<string, unknown>[] };
+    expect(pictured.organizations[0]?.avatar).toBe(picture);
+    await deps.orgAvatars.setAvatar(ORG, null);
     const agents = (await (await call('GET', '/api/admin/agents', token('user_01ABC'))).json()) as { agents: Record<string, unknown>[] };
     expect(agents.agents).toEqual([{ id: 'aB3-_xYz9Qw', owner: ORG, host: 'tony.example.ts.net', name: 'Tony', slug: 'tony', addedAt: '2026-09-10T00:00:00.000Z', avatar: null, instanceId: null, organizationName: 'Stage Labs' }]);
   });

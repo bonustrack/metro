@@ -38,8 +38,8 @@ const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 const LATEST = '0.1.0-beta.312';
 
-const anderra: OrganizationRow = { id: 'org_anderra0001', name: 'Anderra', role: 'admin', slug: 'anderra', agents: [] };
-const snapshot: OrganizationRow = { id: 'org_snapshot001', name: 'Snapshot Labs', role: 'member', slug: 'snapshot-labs', agents: [] };
+const anderra: OrganizationRow = { id: 'org_anderra0001', name: 'Anderra', role: 'admin', slug: 'anderra', avatar: null, agents: [] };
+const snapshot: OrganizationRow = { id: 'org_snapshot001', name: 'Snapshot Labs', role: 'member', slug: 'snapshot-labs', avatar: null, agents: [] };
 
 const mode = (version: string, stopped = false): ModeInfo => ({ mode: 'local', owner: null, version, stopped });
 
@@ -186,9 +186,9 @@ describe('the operator users table', () => {
 
 describe('the operator organizations table', () => {
   const summaries: OrganizationSummary[] = [
-    { id: anderra.id, name: 'Anderra', slug: 'anderra', createdAt: new Date(NOW - 300 * DAY).toISOString() },
-    { id: 'org_mci00000001', name: 'MCI Group', slug: 'mci-group', createdAt: new Date(NOW - 60 * DAY).toISOString() },
-    { id: 'org_empty000001', name: null, slug: 'quiet', createdAt: null },
+    { id: anderra.id, name: 'Anderra', slug: 'anderra', avatar: null, createdAt: new Date(NOW - 300 * DAY).toISOString() },
+    { id: 'org_mci00000001', name: 'MCI Group', slug: 'mci-group', avatar: null, createdAt: new Date(NOW - 60 * DAY).toISOString() },
+    { id: 'org_empty000001', name: null, slug: 'quiet', avatar: 'data:image/png;base64,iVBORw0KGgo=', createdAt: null },
   ];
   const everyAgent: AgentRow[] = [other, { ...other, id: 'emma0000001', owner: anderra.id, name: 'Emma' }, { ...other, id: 'lisa0000001', owner: anderra.id, name: 'Lisa' }];
 
@@ -201,6 +201,7 @@ describe('the operator organizations table', () => {
       ['quiet', 0, null, 'Not a member'],
     ]);
     expect(organizationCounts(rows)).toEqual({ total: 3, agents: 3, member: 1, empty: 1 });
+    expect(rows.map((row) => row.avatar)).toEqual([null, null, 'data:image/png;base64,iVBORw0KGgo=']);
   });
 
   test('search reads the name and the web address, and sorting by agents puts the busiest first', () => {

@@ -1,4 +1,4 @@
-import { fetchOrganizations, type OrganizationRow } from '@metro-labs/client/api/auth';
+import { fetchOrganizations, toOrganizations, type OrganizationRow } from '@metro-labs/client/api/auth';
 import { AccountChangedError, activeAccount, subscribeAccountScope } from '@metro-labs/client/auth/account';
 import {
   QueryCache,
@@ -178,7 +178,7 @@ const isOrganizationRow = (v: unknown): v is OrganizationRow => typeof v === 'ob
 function cachedOrganizations(user: string): OrganizationRow[] | undefined {
   try {
     const parsed: unknown = JSON.parse(readItem(`${ORGANIZATIONS_CACHE}${user}`) ?? 'null');
-    return Array.isArray(parsed) && parsed.every(isOrganizationRow) ? parsed : undefined;
+    return Array.isArray(parsed) && parsed.every(isOrganizationRow) ? toOrganizations({ organizations: parsed }) : undefined;
   } catch {
     return undefined;
   }
@@ -200,6 +200,12 @@ export function useOrganizationsQuery(): UseQueryResult<OrganizationRow[]> {
     refetchOnMount: true,
   });
 }
+
+export function useOrganizationAvatar(organization: string | null): string | null {
+  return useOrganizationsQuery().data?.find((row) => row.id === organization)?.avatar ?? null;
+}
+
+export const refreshOrganizations = (client: QueryClient): Promise<void> => client.invalidateQueries({ queryKey: [ORGANIZATIONS] });
 
 export function useLaunchOverviewQuery(): UseQueryResult<LaunchOverview> {
   return useQuery({ queryKey: orgKey('launch-overview'), queryFn: () => fetchLaunchOverview(), staleTime: 60_000, retry: false });

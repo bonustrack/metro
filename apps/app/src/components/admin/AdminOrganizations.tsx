@@ -12,7 +12,7 @@ import { PageHeader } from '../ui/PageHeader.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
 import { listCrumbs } from './crumbs.js';
-import { LetterMark } from './Marks.js';
+import { OrganizationMark } from './Marks.js';
 import { Stats, type Stat } from './Stats.js';
 import { Cell, Controls, HeadCell, HeadRow, NoMatch, SearchBox, Table, TableRow, TwoLines } from './Table.js';
 import {
@@ -47,7 +47,7 @@ export const agentsWords = (row: AdminOrganization): string => `${String(row.age
 function Identity({ row }: { row: AdminOrganization }): ReactNode {
   return (
     <Row align="center" gap={12} minWidth={0}>
-      <LetterMark name={row.name} />
+      <OrganizationMark name={row.name} avatar={row.avatar} />
       <Col flex={1} minWidth={0}>
         <TwoLines top={<Text size="md" numberOfLines={1} style={SHRINK}>{row.name}</Text>} bottom={addressOf(row)} />
       </Col>
@@ -97,7 +97,7 @@ function OrganizationCards({ rows }: { rows: AdminOrganization[] }): ReactNode {
   return (
     <Rows>
       {rows.map((row) => (
-        <Item key={row.id} title={row.name} subtitle={addressOf(row)} detail={phoneDetail(row)} leading={<LetterMark name={row.name} size={AVATAR_SIZE.list} />} href={organizationHref(row)} chevron={false} />
+        <Item key={row.id} title={row.name} subtitle={addressOf(row)} detail={phoneDetail(row)} leading={<OrganizationMark name={row.name} avatar={row.avatar} size={AVATAR_SIZE.list} />} href={organizationHref(row)} chevron={false} />
       ))}
     </Rows>
   );

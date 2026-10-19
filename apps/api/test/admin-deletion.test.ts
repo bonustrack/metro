@@ -11,6 +11,7 @@ import type { ConfigResult } from '../src/launch-config.ts';
 import type { DeletionRow } from '../src/db/servers.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { BOX, BOX_DISK, HOST, OTHER, OTHER_DISK, fakeAccount, fakeDeletionAws, instance, otherDisk, otherServer, volume, type FakeAccount } from './deletion-fake.ts';
@@ -54,6 +55,7 @@ beforeAll(async () => {
     config: () => readWorkosConfig(env),
     keys: new SigningKeys(workos.issuer.url),
     slugs: memorySlugs(),
+    orgAvatars: memoryOrgAvatars(),
     users: memoryUsers(),
     agents: () => Promise.resolve([]),
     deletion: {

@@ -31,7 +31,7 @@ const source = () => dashboardSource(accountScopeIdentity(), () => true);
 function row(organization = 'org-a', host = 'one.example.invalid'): DashboardRow {
   const agent = { id: 'same-id', host, name: 'Same name', slug: null, avatar: null };
   return {
-    key: dashboardKey(organization, agent), agent, organization: { id: organization, name: organization, slug: null, role: 'member', agents: [agent] },
+    key: dashboardKey(organization, agent), agent, organization: { id: organization, name: organization, slug: null, role: 'member', avatar: null, agents: [agent] },
     mode: emptyReading(), session: emptyReading(), model: emptyReading(),
   };
 }

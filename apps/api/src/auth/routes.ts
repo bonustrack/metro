@@ -8,7 +8,7 @@ import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
 import { parseAccountName, type UserStore } from '../users.js';
-import { AVATAR_BODY_MAX, parseAvatar } from '../avatar.js';
+import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
 import { invitationFrom, startEmailCode, verifyEmailCode } from './email.js';
 import { admit, stillIn, type Intent, type Refusal, mayCreateOrganization } from './operator.js';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
@@ -40,6 +40,7 @@ export interface AuthApiDeps {
   keys: SigningKeys;
   slugs: SlugStore;
   users: UserStore;
+  orgAvatars: OrganizationAvatars;
   agentsOf?: (organization: string) => Promise<ServerEntry[]>;
   publicBase?: (req: IncomingMessage) => string;
   now?: () => number;
@@ -307,6 +308,14 @@ async function agentsPayload(deps: AuthApiDeps, organization: string): Promise<{
   return { agents: rows.map((a) => ({ id: a.id, host: a.host, name: a.name, slug: a.slug, avatar: a.avatar })) };
 }
 
+async function organizationsOf(deps: AuthApiDeps, session: Session): Promise<unknown> {
+  const cfg = deps.config();
+  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const mine = await userOrganizations(cfg, session.userId);
+  const avatars = await deps.orgAvatars.avatars(mine.map((o) => o.id));
+  return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null, ...(await agentsPayload(deps, o.id)) }))) };
+}
+
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
 
 async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
@@ -346,15 +355,7 @@ const PRIVATE: Record<string, PrivateRoute> = {
   '/me': { method: 'GET', run: (_req, _deps, session) => Promise.resolve(mePayload(session)) },
   '/logout': { method: 'POST', run: (_req, deps, session) => logout(session, deps) },
   '/organization': { method: 'POST', run: (req, deps, session) => createOrg(req, session, deps) },
-  '/organizations': {
-    method: 'GET',
-    run: async (_req, deps, session) => {
-      const cfg = deps.config();
-      if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-      const mine = await userOrganizations(cfg, session.userId);
-      return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), ...(await agentsPayload(deps, o.id)) }))) };
-    },
-  },
+  '/organizations': { method: 'GET', run: (_req, deps, session) => organizationsOf(deps, session) },
   '/switch': { method: 'POST', run: (req, deps, session) => switchOrg(req, session, deps) },
   '/account': { method: 'PUT', run: (req, deps, session) => updateAccount(req, session, deps) },
 };

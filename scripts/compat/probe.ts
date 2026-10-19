@@ -97,7 +97,7 @@ const dashboard = dashboardSource(accountScopeIdentity(), () => true);
 const dashboardAgent = { id: agent, host, name: null, slug: null, avatar: null };
 const dashboardRow: DashboardRow = {
   key: dashboardKey(org, dashboardAgent), agent: dashboardAgent,
-  organization: { id: org, name: null, role: 'admin', slug: null, agents: [dashboardAgent] },
+  organization: { id: org, name: null, role: 'admin', slug: null, avatar: null, agents: [dashboardAgent] },
   mode: emptyReading(), session: emptyReading(), model: emptyReading(),
 };
 await ok('dashboard reported mode and version', () => dashboard.mode(dashboardRow, new AbortController().signal));

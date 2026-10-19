@@ -63,6 +63,10 @@ export async function setOrganizationSlug(slug: string): Promise<void> {
   await call({ method: 'PUT', base: base(), ...json({ slug }) });
 }
 
+export async function setOrganizationAvatar(avatar: string | null): Promise<void> {
+  await call({ method: 'PUT', base: base(), path: '/avatar', ...json({ avatar }) });
+}
+
 export async function inviteMember(email: string, role: Role): Promise<void> {
   await call({ method: 'POST', base: base(), path: '/invitations', ...json({ email, role }) });
 }

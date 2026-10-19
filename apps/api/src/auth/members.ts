@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SlugStore } from '../slug.js';
 import type { UserStore } from '../users.js';
+import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -30,9 +31,10 @@ export interface MembersApiDeps {
   keys: SigningKeys;
   slugs: SlugStore;
   users: UserStore;
+  orgAvatars: OrganizationAvatars;
 }
 
-type Target = { kind: 'organization' } | { kind: 'invitations' } | { kind: 'invitation'; id: string } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
+type Target = { kind: 'organization' } | { kind: 'avatar' } | { kind: 'invitations' } | { kind: 'invitation'; id: string } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
 
 function invitationTarget(parts: string[]): Target {
   const id = parts[1] ?? '';
@@ -43,6 +45,7 @@ function invitationTarget(parts: string[]): Target {
 
 function subTarget(parts: string[]): Target {
   if (parts[0] === 'invitations') return invitationTarget(parts);
+  if (parts[0] === 'avatar' && parts.length === 1) return { kind: 'avatar' };
   const id = parts[1] ?? '';
   if (parts[0] === 'members' && parts.length === 2 && ID_RE.test(id)) return { kind: 'member', id };
   return { kind: 'unknown' };
@@ -56,6 +59,7 @@ function target(path: string): Target {
 
 const METHODS: Record<Exclude<NonNullable<Target>, { kind: 'unknown' }>['kind'], string[]> = {
   organization: ['GET', 'PUT'],
+  avatar: ['PUT'],
   invitations: ['POST'],
   invitation: ['POST'],
   member: ['PUT', 'DELETE'],
@@ -88,12 +92,22 @@ async function rename(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosCon
   return { id: organization, name: savedName, slug: savedSlug };
 }
 
+async function setAvatar(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+  admin(session);
+  const body = await readJsonBody(req, AVATAR_BODY_MAX);
+  const avatar = parseAvatar(isRecord(body) ? body.avatar : undefined);
+  await deps.slugs.ensure(organization, await organizationName(cfg, organization));
+  await deps.orgAvatars.setAvatar(organization, avatar);
+  log.info({ organization, avatar: avatar !== null, by: session.userId }, 'members: organization avatar changed');
+  return { id: organization, avatar };
+}
+
 async function overview(deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
   const [name, members, invitations] = await Promise.all([organizationName(cfg, organization), listMembers(cfg, organization), listInvitations(cfg, organization)]);
   const slug = await deps.slugs.ensure(organization, name);
-  const pictures = await deps.users.avatars(members.map((m) => m.userId));
+  const [pictures, avatars] = await Promise.all([deps.users.avatars(members.map((m) => m.userId)), deps.orgAvatars.avatars([organization])]);
   const shown = members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
-  return { id: organization, name, slug, self: session.userId, role: session.role, members: shown, invitations };
+  return { id: organization, name, slug, avatar: avatars.get(organization) ?? null, self: session.userId, role: session.role, members: shown, invitations };
 }
 
 async function invite(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
@@ -147,6 +161,7 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
   const cfg = ready(deps);
   if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, cfg, session, session.organization) : overview(deps, cfg, session, session.organization);
+  if (tgt.kind === 'avatar') return setAvatar(req, deps, cfg, session, session.organization);
   if (tgt.kind === 'invitations') return invite(req, cfg, session, session.organization);
   if (tgt.kind === 'invitation') {
     admin(session);

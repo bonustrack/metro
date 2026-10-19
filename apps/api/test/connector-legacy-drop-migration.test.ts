@@ -9,7 +9,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import type { Database } from '../src/db/client.js';
 import * as schema from '../src/db/schema.js';
-import { awsConnections, awsExternalIds, organizations, users } from '../src/db/schema.js';
+import { awsConnections, awsExternalIds, users } from '../src/db/schema.js';
 import { assignConnector, enrollLegacyAgent, newEnrolledAgent, oauthSecret, opaque, seedConnector, seedLegacyMigration } from './connector-agent-fixture.js';
 import { TEST_OWNER } from './identity-helper.js';
 import { PGLITE_START_MS } from './pglite-db.js';
@@ -38,7 +38,7 @@ async function seed(db: Database, execute: (statement: string) => Promise<unknow
   await seedLegacyMigration(db, agent, 'conn0000002');
   await agentNonceStore(() => db, Date.now).consume({ keyId: agent.row.keyId, time: Date.now(), nonce: opaque(), signature: '' }, agent.row.owner);
   await db.insert(users).values({ id: 'user_fixture', updatedAt: AT, name: 'Retained user' });
-  await db.insert(organizations).values({ id: TEST_OWNER, slug: 'retained-org', createdAt: AT, updatedAt: AT });
+  await execute(`INSERT INTO organizations (id, slug, created_at, updated_at) VALUES ('${TEST_OWNER}', 'retained-org', '${AT}', '${AT}')`);
   await db.insert(awsConnections).values({ id: 'aws00000001', owner: TEST_OWNER, accountId: '123456789012', roleArn: 'arn:aws:iam::123456789012:role/fixture', addedAt: AT });
   await db.insert(awsExternalIds).values({ owner: TEST_OWNER, externalId: 'retained-external-id', createdAt: AT });
   await execute(`INSERT INTO connector_events (id, owner, connector, agent, actor, action, detail, at) VALUES ('event000001', '${TEST_OWNER}', 'conn0000001', 'agent000001', 'user:fixture', 'connector.created', '{"name":"Calendar"}', '${AT}')`);

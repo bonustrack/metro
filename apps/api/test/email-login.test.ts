@@ -6,6 +6,7 @@ import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
 import { readWorkosConfig } from '../src/auth/workos.ts';
 import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
+import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
 
 let workos: FakeWorkos;
@@ -15,7 +16,7 @@ let base = '';
 beforeAll(async () => {
   workos = await fakeWorkos();
   const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  const deps: AuthApiDeps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs(), users: memoryUsers() };
+  const deps: AuthApiDeps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), publicBase: () => base, slugs: memorySlugs(), orgAvatars: memoryOrgAvatars(), users: memoryUsers() };
   server = createServer((req, res) => {
     if (handleAuthApiRequest(req, res, deps)) return;
     res.writeHead(404).end();

@@ -120,6 +120,13 @@
       "when": 1792368000000,
       "tag": "0016_routeway_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792454400000,
+      "tag": "0017_organization_avatar",
+      "breakpoints": true
     }
   ]
 }
