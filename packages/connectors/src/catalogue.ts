@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
@@ -69,7 +70,14 @@ export function publicTools(tools: RemoteTool[], secret: ConnectorSecret, withSc
   const names = redactionKeys([...known, ...paths.names]);
   const redact = (value: string): string => hidden.reduce((text, key) => text.replaceAll(key, '[redacted]'), value.replace(/https?:\/\/[^\s<>"']+/gi, '[address withheld]'));
   return tools.map((tool) => {
-    if (!validConnectorToolName(tool.name) || /https?:\/\//i.test(tool.name) || names.some((key) => tool.name.includes(key))) throw catalogueUnavailable();
+    if (!validConnectorToolName(tool.name)) {
+      log.warn({ name: tool.name.slice(0, 120) }, 'connectors: a tool name has characters metro does not accept, so the tool list was refused');
+      throw catalogueUnavailable();
+    }
+    if (/https?:\/\//i.test(tool.name) || names.some((key) => tool.name.includes(key))) {
+      log.warn({}, 'connectors: a tool name holds an address or a credential, so the tool list was refused');
+      throw catalogueUnavailable();
+    }
     const schema = withSchemas && tool.inputSchema !== undefined ? { inputSchema: redactedRecord(tool.inputSchema, redact) } : {};
     const hints = { ...(tool.destructive === true ? { destructive: true } : {}), ...(tool.openWorld === true ? { openWorld: true } : {}) };
     return { name: tool.name, title: redact(tool.title).slice(0, 256), description: redact(tool.description).slice(0, 4096), readOnly: tool.readOnly, ...hints, ...schema };
@@ -106,6 +114,7 @@ export async function listConnectorTools(deps: CatalogueDeps, owner: string, id:
   } catch (err) {
     if (err instanceof ApiError && [404, 409, 424].includes(err.status)) throw err;
     if (err instanceof ConnectorUnauthorized) throw catalogueSignin();
+    if (!(err instanceof ApiError)) log.warn({ owner, connector: id, reason: errMsg(err).replace(/https?:\/\/\S+/gi, '[address]').slice(0, 300) }, 'connectors: the tool list could not be read');
     throw catalogueUnavailable();
   }
 }
