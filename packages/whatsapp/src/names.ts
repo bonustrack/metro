@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { jidNormalizedUser } from 'baileys';
 import { accountFiles } from '@metro-labs/core/stations/account-files';
 import { writeSecure } from '@metro-labs/core/secure-fs';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -27,10 +26,14 @@ function loaded(file: string | undefined): Map<string, string> {
   }
 }
 
-const idOf = (jid: string | null | undefined): string | undefined => {
-  const id = jid ? jidNormalizedUser(jid) : '';
-  return id === '' ? undefined : id;
-};
+const JID_RE = /^([^@:_]+)(?:_\d+)?(?::\d+)?@([^@]+)$/;
+
+export function idOf(jid: string | null | undefined): string | undefined {
+  const parts = JID_RE.exec(jid ?? '');
+  if (parts === null) return undefined;
+  const [, user = '', server = ''] = parts;
+  return `${user}@${server === 'c.us' ? 's.whatsapp.net' : server}`;
+}
 
 export function makeNameBook(file?: string): NameBook {
   const names = loaded(file);

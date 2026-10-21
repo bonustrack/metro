@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeEventBuffer, type WAMessage } from 'baileys';
+import { jidNormalizedUser, makeEventBuffer, type WAMessage } from 'baileys';
 import { createHistory, type History } from '../src/history.ts';
 import { makeKeyCache } from '../src/keys.ts';
-import { makeNameBook, noteContact, type NameBook } from '../src/names.ts';
+import { idOf, makeNameBook, noteContact, type NameBook } from '../src/names.ts';
 import { baileysLogger } from '../src/logger.ts';
 import { bindMessages } from '../src/messages.ts';
 
@@ -97,6 +97,14 @@ describe('every place WhatsApp names a person', () => {
     names.note('5@lid', 'Eve');
     noteContact(names, { id: '5@lid', phoneNumber: '41795555555@s.whatsapp.net' });
     expect(names.get('41795555555@s.whatsapp.net')).toBe('Eve');
+  });
+
+  test('ids are normalized like Baileys does, without loading Baileys in the station module', () => {
+    for (const jid of ['41791234567:12@s.whatsapp.net', '41791234567@c.us', '183103582650419:2@lid', '183103582650419@lid', '120363000000000001@g.us', '41791234567@s.whatsapp.net'])
+      expect(idOf(jid)).toBe(jidNormalizedUser(jid));
+    expect(idOf('')).toBeUndefined();
+    expect(idOf('not a jid')).toBeUndefined();
+    expect(idOf(null)).toBeUndefined();
   });
 
   test('ids with a device part are filed under the person', () => {
