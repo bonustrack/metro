@@ -12,6 +12,7 @@ export const nameFiles = accountFiles('WHATSAPP_TOKEN_DIR', 'whatsapp-names-');
 export interface NameBook {
   note(jid: string | null | undefined, name: string | null | undefined): void;
   get(jid: string): string | undefined;
+  alias(pn: string | null | undefined, lid: string | null | undefined): void;
 }
 
 function loaded(file: string | undefined): Map<string, string> {
@@ -37,22 +38,32 @@ export function makeNameBook(file?: string): NameBook {
       process.stderr.write(`whatsapp: could not save the names: ${errMsg(err)}\n`);
     }
   };
+  const schedule = (): void => {
+    if (file !== undefined && timer === null) {
+      timer = setTimeout(save, SAVE_DELAY_MS);
+      timer.unref();
+    }
+  };
+  const note = (jid: string | null | undefined, name: string | null | undefined): void => {
+    const clean = name?.trim() ?? '';
+    if (!jid || clean === '' || names.get(jid) === clean) return;
+    names.delete(jid);
+    names.set(jid, clean);
+    if (names.size > MAX_NAMES) {
+      const oldest = names.keys().next().value;
+      if (oldest !== undefined) names.delete(oldest);
+    }
+    schedule();
+  };
   return {
-    note(jid, name) {
-      const clean = name?.trim() ?? '';
-      if (!jid || clean === '' || names.get(jid) === clean) return;
-      names.delete(jid);
-      names.set(jid, clean);
-      if (names.size > MAX_NAMES) {
-        const oldest = names.keys().next().value;
-        if (oldest !== undefined) names.delete(oldest);
-      }
-      if (file !== undefined && timer === null) {
-        timer = setTimeout(save, SAVE_DELAY_MS);
-        timer.unref();
-      }
-    },
+    note,
     get: (jid) => names.get(jid),
+    alias(pn, lid) {
+      if (!pn || !lid) return;
+      const known = names.get(pn) ?? names.get(lid);
+      if (!names.has(pn)) note(pn, known);
+      if (!names.has(lid)) note(lid, known);
+    },
   };
 }
 
@@ -62,11 +73,19 @@ export interface ContactNames {
   phoneNumber?: string | null;
   name?: string | null;
   notify?: string | null;
+  verifiedName?: string | null;
 }
 
+const nonBlank = (value: string | null | undefined): string | undefined => (value?.trim() ? value : undefined);
+
+const isLid = (jid: string | null | undefined): jid is string => jid?.endsWith('@lid') === true;
+
 export function noteContact(book: NameBook, c: ContactNames): void {
-  const name = c.name ?? c.notify;
+  const name = nonBlank(c.name) ?? nonBlank(c.notify) ?? nonBlank(c.verifiedName);
   for (const jid of [c.id, c.lid, c.phoneNumber]) book.note(jid, name);
+  const lid = c.lid ?? (isLid(c.id) ? c.id : undefined);
+  const pn = c.phoneNumber ?? (isLid(c.id) ? undefined : c.id);
+  book.alias(pn, lid);
 }
 
 export const phoneOf = (jid: string | null | undefined): string | undefined => {

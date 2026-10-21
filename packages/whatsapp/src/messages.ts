@@ -1,4 +1,4 @@
-import { jidNormalizedUser, type Contact, type WASocket } from 'baileys';
+import { jidNormalizedUser, type Contact, type WAMessage, type WASocket } from 'baileys';
 import { bindAppState, noteHistoryContact } from './app-state.js';
 import type { InboundHandlers } from './client-types.js';
 import type { History } from './history.js';
@@ -14,6 +14,20 @@ interface MessageHooks {
   current(): boolean;
   handlers(): InboundHandlers | undefined;
   self(): SelfRef;
+}
+
+const person = (jid: string | null | undefined): string | undefined =>
+  jid && (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid')) ? jidNormalizedUser(jid) : undefined;
+
+const pair = (a: string, b: string): [string, string] => (a.endsWith('@lid') ? [b, a] : [a, b]);
+
+function noteSender(names: NameBook, m: WAMessage): void {
+  if (m.key.fromMe === true) return;
+  const name = m.pushName ?? m.verifiedBizName;
+  const sender = person(m.key.participant ?? m.key.remoteJid);
+  const alt = person(m.key.participantAlt ?? m.key.remoteJidAlt);
+  for (const jid of [sender, alt]) names.note(jid, name);
+  if (sender !== undefined && alt !== undefined) names.alias(...pair(sender, alt));
 }
 
 export function bindMessages(sock: Pick<WASocket, 'ev' | 'user'>, hooks: MessageHooks): void {
@@ -37,18 +51,25 @@ export function bindMessages(sock: Pick<WASocket, 'ev' | 'user'>, hooks: Message
       const inbound = toInbound(hooks.accountId, m, hooks.self());
       if (!inbound) continue;
       hooks.names.note(inbound.senderJid, inbound.pushName);
+      noteSender(hooks.names, m);
       handlers.onMessage(inbound, m);
     }
+  });
+  sock.ev.on('lid-mapping.update', ({ pn, lid }) => {
+    if (hooks.current()) hooks.names.alias(pn, lid);
   });
   sock.ev.on('contacts.upsert', noteContacts);
   sock.ev.on('contacts.update', noteContacts);
   sock.ev.on('messaging-history.set', ({ contacts, messages, lidPnMappings }) => {
     if (!hooks.current()) return;
     noteContacts(contacts);
-    for (const { pn, lid } of lidPnMappings ?? []) hooks.history.alias(pn, lid);
+    for (const { pn, lid } of lidPnMappings ?? []) {
+      hooks.history.alias(pn, lid);
+      hooks.names.alias(pn, lid);
+    }
     for (const m of messages) {
       hooks.keys.remember(m.key);
-      if (m.key.fromMe !== true) hooks.names.note(m.key.participant ?? m.key.remoteJid, m.pushName);
+      noteSender(hooks.names, m);
     }
     hooks.history.ingest(messages, selfJid());
   });
