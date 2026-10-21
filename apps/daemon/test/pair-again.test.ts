@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import { log } from '@metro-labs/core/log';
+import { ApiError } from '@metro-labs/http/api-error';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -107,6 +109,31 @@ describe('an attach session that pairs an account again', () => {
     }
     expect(view).toMatchObject({ status: 'done', accountId: account.id, activated: true });
     expect(seen.completed).toBe(account.id);
+    await sessions.stop();
+  });
+
+  test('a refused store tells the page the numbers but never writes them to the log', async () => {
+    const warn = spyOn(log, 'warn');
+    let hooks: DriverHooks | null = null;
+    const sessions = new AttachSessions({
+      authorize: () => Promise.resolve(),
+      start: (_station, _input, h) => {
+        hooks = h;
+        return Promise.resolve({ prompt: { step: 'scan', prompt: 'scan' }, driver: { submit: () => Promise.resolve(), cancel: () => Promise.resolve() } });
+      },
+      complete: () => Promise.reject(new ApiError('This channel is 447700900123, not 447700900999. Nothing was changed.', 400)),
+    });
+    const started = await sessions.start(OWNER, 'whatsapp', {}, account.id);
+    const done = hooks as DriverHooks | null;
+    done?.done({ config: { phone: '447700900999' }, identity: {} });
+    let view: AttachView = sessions.view(OWNER, started.attachId);
+    for (let i = 0; i < 50 && view.status === 'pending'; i += 1) {
+      await new Promise((r) => setTimeout(r, 5));
+      view = sessions.view(OWNER, started.attachId);
+    }
+    expect(view).toMatchObject({ status: 'failed', error: 'This channel is 447700900123, not 447700900999. Nothing was changed.' });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('4477009');
+    warn.mockRestore();
     await sessions.stop();
   });
 });

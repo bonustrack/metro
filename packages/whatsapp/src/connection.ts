@@ -19,6 +19,9 @@ export function terminalReason(code: number | undefined): string | undefined {
   return code === undefined ? undefined : TERMINAL[code];
 }
 
+export const closeReason = (closed: Closed): string | undefined =>
+  terminalReason(closed.removed ? DisconnectReason.loggedOut : closed.code);
+
 export interface Closed {
   code: number | undefined;
   message: string;
@@ -39,8 +42,8 @@ export function closeOf(error: unknown): Closed {
 }
 
 export function statusAfterClose(closed: Closed, now: number): AccountStatus {
-  if (closed.code === DisconnectReason.loggedOut)
-    return accountStatus('logged_out', closed.removed ? 'WhatsApp removed this linked device.' : 'WhatsApp logged this device out.', now);
+  if (closed.removed) return accountStatus('logged_out', 'WhatsApp removed this linked device.', now);
+  if (closed.code === DisconnectReason.loggedOut) return accountStatus('logged_out', 'WhatsApp logged this device out.', now);
   if (closed.code === DisconnectReason.connectionReplaced)
     return accountStatus('disconnected', 'Another Metro took over this WhatsApp device, so this one stopped.', now);
   const code = `code ${closed.code === undefined ? '?' : String(closed.code)}`;

@@ -143,12 +143,14 @@ describe('how often the chats are read again', () => {
     tools: {},
   });
 
-  test('a channel that reports its state is read every 30 s, a reconnecting one every 5 s, an unreachable station every 3 s', () => {
+  test('a channel of a station that reports its state is read every 30 s, a reconnecting one every 5 s, an unreachable station every 3 s', () => {
     expect(stationsPoll(live({ state: 'connected', since: 1 }))).toBe(30_000);
     expect(stationsPoll(live({ state: 'logged_out', since: 1 }))).toBe(30_000);
     expect(stationsPoll(live({ state: 'connecting', since: 1 }))).toBe(5_000);
     expect(stationsPoll({ ...live(null), unavailable: ['whatsapp'] })).toBe(3_000);
     expect(stationsPoll({ ...live(null), reportsStatus: [] })).toBe(false);
+    expect(stationsPoll({ ...live(null), groups: [{ station: 'telegram-bot', rows: live(null).groups[0]?.rows ?? [] }] })).toBe(false);
+    expect(stationsPoll({ ...live(null), groups: [] })).toBe(false);
     expect(stationsPoll(undefined)).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { stationLabel } from '@metro-labs/client/api/attach';
-import { pairAgainLines } from '@metro-labs/client/api/pair-again';
+import { pairAgainLines, pairedWords } from '@metro-labs/client/api/pair-again';
 import { Modal, ModalText } from '../Modal.js';
 import { AttachSession } from '../AttachSession.js';
 import { useAttach } from '../../lib/use-attach.js';
@@ -25,13 +25,13 @@ const digitsOf = (handle: string | undefined): string => handle?.replace(/[^0-9]
 export function PairAgain({ agentId, station, accountId, handle, replaces, onClose, onSaved }: PairAgainProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const attach = useAttach(agentId);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ activated: boolean } | null>(null);
   const label = stationLabel(station);
   const session = attach.started?.kind === 'pending' ? attach.started.session : null;
   const phone = digitsOf(handle);
 
   useEffect(() => {
-    if (done) onSaved().catch(logError('refresh after pairing again'));
+    if (done !== null) onSaved().catch(logError('refresh after pairing again'));
   }, [done]);
 
   const close = (): void => {
@@ -45,13 +45,13 @@ export function PairAgain({ agentId, station, accountId, handle, replaces, onClo
 
   return (
     <Modal title={`Pair ${label} again`} open onClose={close}>
-      {done ? (
+      {done !== null ? (
         <Col gap={14}>
-          <ModalText>{`Paired again. ${label} reconnects within a few seconds.`}</ModalText>
+          <ModalText>{pairedWords(label, done.activated)}</ModalText>
           <Button color="secondary" dark={dark} label="Done" onPress={close} />
         </Col>
       ) : session !== null ? (
-        <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={session} onUpdate={attach.update} onDone={() => { setDone(true); }} onClose={close} />
+        <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={session} onUpdate={attach.update} onDone={(result) => { setDone({ activated: result.activated }); }} onClose={close} />
       ) : (
         <Col gap={14}>
           {pairAgainLines(label, handle, replaces).map((line) => (

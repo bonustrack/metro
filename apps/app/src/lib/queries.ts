@@ -302,8 +302,9 @@ export function useStationsQuery(): UseQueryResult<StationsView> {
 export function stationsPoll(view: StationsView | undefined): number | false {
   if (view === undefined) return false;
   if (view.unavailable.length > 0) return STARTING_POLL_MS;
-  if (flattenAccounts(view.groups).some((a) => a.row.status?.state === 'connecting')) return LIVE_MS;
-  return view.reportsStatus.length > 0 ? CHANNEL_POLL_MS : false;
+  const accounts = flattenAccounts(view.groups);
+  if (accounts.some((a) => a.row.status?.state === 'connecting')) return LIVE_MS;
+  return accounts.some((a) => view.reportsStatus.includes(a.station)) ? CHANNEL_POLL_MS : false;
 }
 
 export const useClaudeProjectsQuery = (): UseQueryResult<ClaudeProject[]> =>

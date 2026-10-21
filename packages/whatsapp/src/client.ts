@@ -26,7 +26,7 @@ import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
 import { deliveryNotes, describeNote } from './delivery.js';
-import { closeOf, ConnectionWatch, failureOf, terminalReason, type Closed } from './connection.js';
+import { closeOf, closeReason, ConnectionWatch, failureOf, type Closed } from './connection.js';
 import {
   ACK_WAIT_MS,
   bindAcks,
@@ -110,7 +110,7 @@ function servedFromOutbox(
 
 function onClose(st: State, closed: Closed): void {
   const { code } = closed;
-  const terminal = terminalReason(code);
+  const terminal = closeReason(closed);
   if (!st.closed) st.watch.closed(closed);
   if (st.closed || terminal !== undefined) {
     process.stderr.write(

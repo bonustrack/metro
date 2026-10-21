@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { groupAccounts } from '../src/api/accounts.js';
-import { channelTrouble, connectionWords, pairAgainLines, troubleLine } from '../src/api/pair-again.js';
+import { channelTrouble, connectionWords, pairAgainLines, pairedWords, troubleLine } from '../src/api/pair-again.js';
 
 const NOW = 1_800_000_000_000;
 const HOUR = 3_600_000;
@@ -42,6 +42,11 @@ describe('the live state of a channel on the page', () => {
     ]);
     expect(trouble.map(troubleLine)).toEqual(['Telegram bot disconnected', 'WhatsApp logged out: pair again']);
     expect(channelTrouble(undefined)).toEqual([]);
+  });
+
+  test('a saved pairing promises a reconnect only when Metro restarted the channel', () => {
+    expect(pairedWords('WhatsApp', true)).toBe('Paired again. WhatsApp reconnects within a few seconds.');
+    expect(pairedWords('WhatsApp', false)).toBe("The pairing is saved, but Metro could not restart WhatsApp yet. It connects at Metro's next restart.");
   });
 
   test('pairing again says what stays and what to do on the phone', () => {

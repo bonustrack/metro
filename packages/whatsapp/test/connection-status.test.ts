@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { DisconnectReason } from 'baileys';
-import { closeOf, ConnectionWatch, failureOf, RECONNECT_GRACE_MS, SILENT_MS, statusAfterClose } from '../src/connection.ts';
+import { closeOf, closeReason, ConnectionWatch, failureOf, RECONNECT_GRACE_MS, SILENT_MS, statusAfterClose } from '../src/connection.ts';
 import { TrainError } from '@metro-labs/core/train-error';
 import { fixture } from './client-fixture.ts';
 import type { WAClient } from '../src/client-types.ts';
@@ -27,6 +27,14 @@ describe('what a WhatsApp close means for the channel', () => {
     const closed = closeOf(DEVICE_REMOVED);
     expect(closed).toEqual({ code: 401, message: 'Stream Errored (401)', removed: true });
     expect(statusAfterClose(closed, T0)).toEqual({ state: 'logged_out', reason: 'WhatsApp removed this linked device.', since: T0 });
+  });
+
+  test('device_removed without a code is still a logout, though Baileys files a conflict under 440', () => {
+    const closed = closeOf(streamError(DisconnectReason.connectionReplaced, { tag: 'conflict', attrs: { type: 'device_removed' } }));
+    expect(closed).toMatchObject({ code: 440, removed: true });
+    expect(statusAfterClose(closed, T0)).toEqual({ state: 'logged_out', reason: 'WhatsApp removed this linked device.', since: T0 });
+    expect(closeReason(closed)).toContain('re-pair');
+    expect(closeReason(closeOf(streamError(DisconnectReason.connectionReplaced, { tag: 'conflict', attrs: { type: 'replaced' } })))).toContain('another metro');
   });
 
   test('any other 401 is a logout too, and a replaced connection is a disconnect', () => {
@@ -108,6 +116,20 @@ describe('the client reports what WhatsApp did', () => {
   const clients: WAClient[] = [];
   afterEach(async () => {
     await Promise.all(clients.splice(0).map((c) => c.disconnect()));
+  });
+
+  test('the device_removed conflict under 440 logs the client out and does not reconnect', async () => {
+    const f = await fixture(clients);
+    let sockets = 0;
+    const make = f.runtime.makeSocket;
+    f.runtime.makeSocket = (config) => {
+      sockets += 1;
+      return make(config);
+    };
+    f.ev.emit('connection.update', { connection: 'close', lastDisconnect: { error: streamError(DisconnectReason.connectionReplaced, { tag: 'conflict', attrs: { type: 'device_removed' } }), date: new Date() } });
+    expect(f.client.status()).toMatchObject({ state: 'logged_out', reason: 'WhatsApp removed this linked device.' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sockets).toBe(0);
   });
 
   test('connected once open, then logged out on the device_removed stream error', async () => {

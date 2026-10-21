@@ -70,3 +70,6 @@ export function pairAgainLines(label: string, handle: string | undefined, replac
   if (!replaces) return [`${label} logged Metro out. Pair ${phone} again to get messages. ${kept}`];
   return [`The current link is replaced. Pair ${phone} again. ${kept}`, 'Then remove the old Metro entry from Linked Devices on that phone.'];
 }
+
+export const pairedWords = (label: string, activated: boolean): string =>
+  activated ? `Paired again. ${label} reconnects within a few seconds.` : `The pairing is saved, but Metro could not restart ${label} yet. It connects at Metro's next restart.`;

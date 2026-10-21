@@ -196,7 +196,7 @@ export class AttachSessions {
     } catch (err) {
       const reason =
         err instanceof ApiError ? err.message : 'could not store the account';
-      log.warn({ station, err: errMsg(err) }, 'attach-session: store failed');
+      log.warn({ station, ...(err instanceof ApiError ? { status: err.status } : { err: errMsg(err).replace(/\d{6,}/g, '<number>') }) }, 'attach-session: store failed');
       this.settle(session, { status: 'failed', prompt: '', error: reason });
     }
   }
