@@ -6,6 +6,7 @@ import makeWASocket, {
 } from 'baileys';
 import { errMsg, log } from '@metro-labs/core/log';
 import { inMemoryAuthState } from './auth-state.js';
+import type { ClientRuntime } from './client-types.js';
 
 export class WhatsappLoginError extends Error {}
 
@@ -32,6 +33,13 @@ export function normalizePhone(raw: unknown): string {
   return phone;
 }
 
+export function assertSamePhone(phone: string, expect: string): void {
+  if (expect !== '' && phone !== '' && phone !== expect)
+    throw new WhatsappLoginError(
+      `This channel is +${expect}. Pair it again with that number, or add a new channel for +${phone}.`,
+    );
+}
+
 function closeReason(err: unknown): number | undefined {
   return (err as { output?: { statusCode?: number } } | undefined)?.output
     ?.statusCode;
@@ -47,14 +55,18 @@ export class WhatsappLogin {
   constructor(
     private phone: string,
     private events: WhatsappLoginEvents,
-  ) {}
+    private expect = '',
+    private runtime: ClientRuntime = { makeSocket: makeWASocket, fetchVersion: fetchLatestWaWebVersion },
+  ) {
+    assertSamePhone(phone, expect);
+  }
 
   get mode(): 'pairing-code' | 'qr' {
     return this.phone === '' ? 'qr' : 'pairing-code';
   }
 
   async start(): Promise<void> {
-    const { version, error } = await fetchLatestWaWebVersion({});
+    const { version, error } = await this.runtime.fetchVersion({});
     if (error)
       throw new WhatsappLoginError(
         'could not reach WhatsApp to start the pairing',
@@ -64,7 +76,7 @@ export class WhatsappLogin {
 
   private open(version: [number, number, number]): void {
     if (this.settled) return;
-    const sock = makeWASocket({
+    const sock = this.runtime.makeSocket({
       version,
       auth: this.auth.state,
       browser: Browsers.macOS('Safari'),
@@ -131,6 +143,10 @@ export class WhatsappLogin {
       );
       return;
     }
+    if (this.expect !== '' && phone !== this.expect) {
+      this.refuseOther(phone);
+      return;
+    }
     const credentials = this.auth.serialize();
     this.settled = true;
     this.closeSocket()
@@ -142,6 +158,23 @@ export class WhatsappLogin {
       })
       .catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'whatsapp login: pairing report failed');
+      });
+  }
+
+  private refuseOther(phone: string): void {
+    this.settled = true;
+    const sock = this.sock;
+    const message = `You linked +${phone}, but this channel is +${this.expect}. Nothing was changed. Scan the code with the phone of +${this.expect}.`;
+    (sock === null ? Promise.resolve() : sock.logout('Metro: another phone than the channel'))
+      .catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'whatsapp login: could not unlink the other phone');
+      })
+      .then(() => this.closeSocket())
+      .then(() => {
+        this.events.onFailed(message);
+      })
+      .catch((err: unknown) => {
+        log.warn({ err: errMsg(err) }, 'whatsapp login: failure report failed');
       });
   }
 

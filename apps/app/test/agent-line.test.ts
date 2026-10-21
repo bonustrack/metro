@@ -10,7 +10,9 @@ type RunnerTask = RunnerActivity['tasks'][number];
 const NOW = 1_800_000_000_000;
 const live = { state: 'live', version: '0.1.0-beta.311', owner: null } as const;
 
-const facts = (over: Partial<LineFacts>): LineFacts => ({ status: live, booting: null, waiting: 0, ask: null, setup: null, session: undefined, now: NOW, ...over });
+const facts = (over: Partial<LineFacts>): LineFacts => ({ status: live, booting: null, waiting: 0, ask: null, setup: null, trouble: null, session: undefined, now: NOW, ...over });
+
+const loggedOut = { station: 'whatsapp', accountId: 'waLisa00001', status: { state: 'logged_out' as const, reason: 'WhatsApp removed this linked device.', since: NOW } };
 
 const session = (over: Partial<ClaudeSessionStatus>): ClaudeSessionStatus => ({
   name: 'metro', running: true, legacyRunner: false, autostart: true, blocked: null, lastStartedAt: null, lastError: null, activity: null, ...over,
@@ -53,6 +55,15 @@ describe('the one line under an agent in the list', () => {
     expect(agentLine(facts({ setup: setup(5, 5) })).text).toBe('Online');
   });
 
+  test('a logged out channel needs you before the setup, and after approvals and a stopped session', () => {
+    expect(agentLine(facts({ trouble: loggedOut }))).toEqual({ text: 'WhatsApp logged out: pair again', tone: 'danger', dot: 'danger', busy: false, needsYou: true });
+    expect(agentLine(facts({ trouble: { ...loggedOut, status: { state: 'disconnected', since: NOW } } })).text).toBe('WhatsApp disconnected');
+    expect(agentLine(facts({ trouble: loggedOut, setup: setup(2, 5) })).text).toBe('WhatsApp logged out: pair again');
+    expect(agentLine(facts({ trouble: loggedOut, waiting: 1 })).text).toBe('Waiting for you: 1 approval');
+    expect(agentLine(facts({ trouble: loggedOut, session: session({ running: false }) })).text).toBe('Not running');
+    expect(agentLine(facts({ trouble: loggedOut, status: { ...live, state: 'offline' } })).text).toBe('Offline');
+  });
+
   test('a live Agent SDK snapshot says the agent works, otherwise it is just online', () => {
     const working = session({ activity: activity({ mainPhase: 'working', tasks: [task('a', 'running'), task('b', 'completed')] }) });
     expect(agentLine(facts({ session: working }))).toEqual({ text: 'Working with 1 helper', tone: 'secondary', dot: 'success', busy: false, needsYou: false });
@@ -80,5 +91,7 @@ describe('the status under the agent name in its header', () => {
     expect(healthFix('live', session({}), 'emma')).toBeUndefined();
     expect(healthFix('offline', undefined, 'emma')).toBeUndefined();
     expect(healthFix(undefined, undefined, 'emma')).toBeUndefined();
+    expect(healthFix('live', session({}), 'lisa', loggedOut)).toEqual({ kind: 'station', project: 'lisa', accountId: 'waLisa00001' });
+    expect(healthFix('offline', undefined, 'lisa', loggedOut)).toBeUndefined();
   });
 });

@@ -4,6 +4,7 @@ import type { MemberList } from '@metro-labs/core/stations/types';
 import type { ChannelList } from '@metro-labs/core/stations/channel-directory';
 import type { ProfileChange } from '@metro-labs/core/stations/profile';
 import type { SenderProfile } from '@metro-labs/core/stations/sender-profile';
+import type { AccountStatus } from '@metro-labs/core/stations/account-status';
 import type { WhatsAppAccount } from './types.js';
 import type { InboundMessage, ReactionInput } from './format.js';
 import type { SenderFound } from './resolve.js';
@@ -25,6 +26,7 @@ export interface WAMedia {
 export interface WAClient {
   account: WhatsAppAccount;
   self(): string | null;
+  status(): AccountStatus;
   start(handlers: InboundHandlers): Promise<void>;
   read(jid: string, options?: HistoryOptions): Promise<HistoryPage>;
   listMembers(jid: string, limit?: number): Promise<MemberList>;

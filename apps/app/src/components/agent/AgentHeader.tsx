@@ -67,7 +67,7 @@ export function AgentHeader({ server, project, tabs }: { server: Server; project
       <AgentAvatar seed={server.host} src={server.avatar} size={narrow ? AVATAR_SIZE.list : AVATAR_SIZE.header} />
     </AvatarDot>
   );
-  const line = <Status text={row?.line.text ?? 'Checking…'} fix={healthFix(status.data?.state, session.data, project)} />;
+  const line = <Status text={row?.line.text ?? 'Checking…'} fix={healthFix(status.data?.state, session.data, project, row?.trouble ?? null)} />;
   if (narrow) return <CompactHeader server={server} avatar={avatar} status={line} tabs={tabs} />;
   return <PageHeader title={serverLabel(server)} subtitle={line} leading={avatar} action={<AgentMenu server={server} />} tabs={tabs} />;
 }

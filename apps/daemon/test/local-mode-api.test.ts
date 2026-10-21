@@ -127,6 +127,18 @@ describe('a local daemon, end to end over http', () => {
     expect(gone.status).toBe(200);
   });
 
+  test('pairing again is offered only where a station declares it, and only for a channel the agent has', async () => {
+    const view = (await (await call('GET', '/api/agents', session)).json()) as { pairAgain: string[]; reportsStatus: string[] };
+    expect(view.pairAgain).toEqual(['whatsapp']);
+    expect(view.reportsStatus).toEqual(['whatsapp']);
+    const refused = await call('POST', `/api/agents/${agentId}/accounts/telegram-bot/tgBot000001/repair`, session, {});
+    expect([refused.status, ((await refused.json()) as { error: string }).error]).toEqual([400, 'telegram-bot cannot pair again']);
+    const missing = await call('POST', `/api/agents/${agentId}/accounts/whatsapp/waGone00001/repair`, session, {});
+    expect([missing.status, ((await missing.json()) as { error: string }).error]).toEqual([404, 'No such channel on this agent.']);
+    expect((await call('GET', `/api/agents/${agentId}/accounts/whatsapp/waGone00001/repair`, session)).status).toBe(405);
+    expect((await call('POST', `/api/agents/${agentId}/accounts/whatsapp/waGone00001/repair`, undefined, {})).status).toBe(401);
+  });
+
   test('what a local daemon refuses: the key, delete, code, connector, local connector, connector sync and runtime routes are gone', async () => {
     for (const [method, path] of [
       ['POST', `/api/agents/${agentId}/key`],

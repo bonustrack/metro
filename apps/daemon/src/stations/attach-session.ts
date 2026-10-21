@@ -19,6 +19,7 @@ export type StartAttach = (
   input: Record<string, unknown>,
   hooks: DriverHooks,
   owner: AttachOwner,
+  repair?: string,
 ) => Promise<StartedAttach>;
 
 export const ATTACH_ID_RE = /^as_[A-Za-z0-9_-]{22}$/;
@@ -60,6 +61,7 @@ type CompleteAttach = (
   station: StationName,
   config: Record<string, unknown>,
   active: () => boolean,
+  repair?: string,
 ) => Promise<{ accountId: string; activated: boolean }>;
 
 type AuthorizeAttach = (owner: AttachOwner) => Promise<void>;
@@ -72,6 +74,7 @@ export interface AttachSessionDeps {
 
 interface Session {
   owner: AttachOwner;
+  repair?: string;
   driver: AttachDriver | null;
   view: AttachView;
   finishing?: boolean;
@@ -177,6 +180,7 @@ export class AttachSessions {
           session.committing = true;
           return true;
         },
+        session.repair,
       );
       this.settle(session, {
         status: 'done',
@@ -187,7 +191,7 @@ export class AttachSessions {
       });
       log.info(
         { agentId: session.owner.agentId, station, account: landed.accountId },
-        'attach-session: signed in and attached a station account',
+        session.repair === undefined ? 'attach-session: signed in and attached a station account' : 'attach-session: paired a station account again',
       );
     } catch (err) {
       const reason =
@@ -230,6 +234,7 @@ export class AttachSessions {
     owner: AttachOwner,
     station: InteractiveStation,
     input: Record<string, unknown>,
+    repair?: string,
   ): Promise<AttachView> {
     await this.deps.authorize(owner);
     this.admit(owner);
@@ -237,6 +242,7 @@ export class AttachSessions {
     const attachId = newAttachId();
     const session: Session = {
       owner,
+      ...(repair === undefined ? {} : { repair }),
       driver: null,
       view: blankView(attachId, station),
     };
@@ -248,6 +254,7 @@ export class AttachSessions {
         input,
         this.hooksFor(attachId, station),
         owner,
+        repair,
       );
       if (this.sessions.get(attachId) !== session || session.view.expiresAt <= Date.now()) {
         await started.driver.cancel();

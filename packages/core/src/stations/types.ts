@@ -114,6 +114,8 @@ export interface Station {
   readFilters?: ReadonlySet<ReadFilter>;
   approvals?: boolean;
   sendsFrames?: boolean;
+  reportsStatus?: boolean;
+  pairAgain?: { identity: string };
   attachmentMode: AttachmentMode;
   forget?: (accountId: string) => void;
   forgetExcept?: (keptAccountIds: readonly string[]) => void;

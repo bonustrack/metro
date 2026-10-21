@@ -196,12 +196,13 @@ function makeDelete(clientFor: ClientFor): StationHandler {
 function makeAccounts(clientFor: ClientFor): StationHandler {
   return (id) => {
     const list = [...accounts.values()].map((a) => {
-      const phone = clientFor(a.id).self();
+      const client = clientFor(a.id);
+      const phone = client.self();
       return {
         id: a.id,
         handle: phone === null ? null : `+${phone}`,
         url: phone === null ? null : `https://wa.me/${phone}`,
-        connected: phone !== null,
+        status: client.status(),
       };
     });
     respond(id, { result: { accounts: list } });

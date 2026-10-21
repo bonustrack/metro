@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Switch } from '@stage-labs/kit/react-native/switch';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +14,8 @@ import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { type ChannelProps } from './channel-props.js';
 import { ChannelPeople } from './ChannelPeople.js';
+import { ChannelConnection } from './ChannelConnection.js';
+import { PairAgain } from './PairAgain.js';
 import { ChannelRules } from './ChannelRules.js';
 import { channelTitle } from './ChannelRow.js';
 import { ChannelDetails, ChannelSetup } from './ChannelSetup.js';
@@ -31,16 +33,18 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 
 const RECEIVE_NOTE = 'Off stops new messages. Tools keep working.';
 
-function ChannelMenu({ project, agentId, found }: Pick<ChannelProps, 'project' | 'agentId' | 'found'>): ReactNode {
+function ChannelMenu({ project, agentId, found, onPairAgain }: Pick<ChannelProps, 'project' | 'agentId' | 'found'> & { onPairAgain: (() => void) | null }): ReactNode {
   const client = useQueryClient();
   const { station, row } = found;
   const url = stationFields(row).url;
   const id = row.id;
   if (id === null) return null;
+  const open = url === undefined ? [] : [{ label: `Open in ${stationLabel(station)}`, icon: 'chat' as const, onSelect: () => { openExternal(url); } }];
+  const pair = onPairAgain === null ? [] : [{ label: 'Pair again', icon: 'refresh' as const, onSelect: onPairAgain }];
   return (
     <DeleteMenu
       label="Channel actions"
-      items={url === undefined ? [] : [{ label: `Open in ${stationLabel(station)}`, icon: 'chat', onSelect: () => { openExternal(url); } }]}
+      items={[...open, ...pair]}
       action="Delete channel"
       title="Delete channel"
       lines={detachLines(station, row.managed === true)}
@@ -74,9 +78,11 @@ function Receive({ agentId, found }: { agentId: string; found: FlatAccount }): R
 }
 
 function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps): ReactNode {
+  const [pairing, setPairing] = useState<'fix' | 'replace' | null>(null);
   const { station, row } = found;
   const title = channelTitle(found);
   const id = row.id;
+  const canPair = id !== null && view.pairAgain.includes(station);
   return (
     <AgentDeepPage
       project={project}
@@ -85,8 +91,12 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       title={title}
       subtitle={channelLine(stationLabel(station), row.allowlist)}
       leading={<StationIcon station={station} size={AVATAR_SIZE.header} />}
-      action={<ChannelMenu project={project} agentId={agentId} found={found} />}
+      action={<ChannelMenu project={project} agentId={agentId} found={found} onPairAgain={canPair ? () => { setPairing(row.status?.state === 'logged_out' ? 'fix' : 'replace'); } : null} />}
     >
+      <ChannelConnection found={found} view={view} onPairAgain={() => { setPairing('fix'); }} />
+      {pairing === null || id === null ? null : (
+        <PairAgain agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle} replaces={pairing === 'replace'} onSaved={onSaved} onClose={() => { setPairing(null); }} />
+      )}
       <Receive agentId={agentId} found={found} />
       {id === null || row.allowlist === null ? null : (
         <ChannelPeople agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle ?? ''} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />

@@ -26,12 +26,12 @@ export function useAttach(agentId: string) {
     };
   }, [agentId, base, identity]);
 
-  const start = (station: string, fields: Record<string, string>): void => {
+  const start = (station: string, fields: Record<string, string>, pairAgain?: string): void => {
     const current = life.current;
     if (current === null || busy) return;
     setBusy(true);
     setError(null);
-    current.start(station, fields)
+    current.start(station, fields, pairAgain)
       .then((next) => {
         if (next !== null && life.current === current) setStarted(next);
       })

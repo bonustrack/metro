@@ -4,6 +4,7 @@ import { AttachSessions } from '../stations/attach-session.js';
 import { startInteractiveAttach } from '../stations/attach-interactive.js';
 import { assertAttachOwner, finishGmailUpgrade, startGmailAttach } from './gmail-attach.js';
 import { detachWithGmailRevocation } from './gmail-detach.js';
+import { finishPairAgain, pairAgainInput } from './pair-again.js';
 import { recentSenders } from '../agents/senders.js';
 import { forwardTrainCall } from '../stations/train-call.js';
 import type { AgentApiDeps } from '../agents/api.js';
@@ -44,11 +45,16 @@ function attachSessions(deps: LocalModeDeps): AttachSessions {
       assertAttachOwner(owner);
       return Promise.resolve();
     },
-    start: (station, input, hooks, owner) => station === 'gmail' ? startGmailAttach(station, input, hooks, owner) : startInteractiveAttach(station, input, hooks),
-    complete: async (owner, station, config, active) => {
+    start: (station, input, hooks, owner, repair) => {
+      if (repair !== undefined) return startInteractiveAttach(station, pairAgainInput(owner, station, repair, input), hooks);
+      return station === 'gmail' ? startGmailAttach(station, input, hooks, owner) : startInteractiveAttach(station, input, hooks);
+    },
+    complete: async (owner, station, config, active, repair) => {
       assertAttachOwner(owner);
       if (!active()) throw new ApiError('This sign-in was cancelled or expired.', 409);
-      const ref = (station === 'gmail' ? finishGmailUpgrade(owner, config) : null) ?? await localAttachAccount(owner.agentId, station, config);
+      const ref = repair !== undefined
+        ? finishPairAgain(owner, station, repair, config)
+        : (station === 'gmail' ? finishGmailUpgrade(owner, config) : null) ?? await localAttachAccount(owner.agentId, station, config);
       const activated = await deps.syncStations(station).then(
         () => true,
         (err: unknown) => {

@@ -1,7 +1,6 @@
 import makeWASocket, {
   jidNormalizedUser,
   Browsers,
-  DisconnectReason,
   fetchLatestWaWebVersion,
   type proto,
   type WAMessage,
@@ -27,6 +26,7 @@ import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
 import { deliveryNotes, describeNote } from './delivery.js';
+import { closeOf, ConnectionWatch, failureOf, terminalReason, type Closed } from './connection.js';
 import {
   ACK_WAIT_MS,
   bindAcks,
@@ -51,6 +51,7 @@ interface State {
   acks: AckWatch;
   names: NameBook;
   channels: WhatsAppChannels;
+  watch: ConnectionWatch;
 }
 type SendOpts = Parameters<WASocket['sendMessage']>[2];
 type SendContent = Parameters<WASocket['sendMessage']>[1];
@@ -107,19 +108,10 @@ function servedFromOutbox(
   return message;
 }
 
-const TERMINAL: Record<number, string> = {
-  [DisconnectReason.loggedOut]: ' — re-pair required',
-  [DisconnectReason.connectionReplaced]:
-    ' — another metro took this device; not reconnecting (two sockets on one ' +
-    'identity evict each other and risk a 463 timelock)',
-};
-
-export function terminalReason(code: number | undefined): string | undefined {
-  return code === undefined ? undefined : TERMINAL[code];
-}
-
-function onClose(st: State, code: number | undefined): void {
+function onClose(st: State, closed: Closed): void {
+  const { code } = closed;
   const terminal = terminalReason(code);
+  if (!st.closed) st.watch.closed(closed);
   if (st.closed || terminal !== undefined) {
     process.stderr.write(
       `whatsapp[${st.account.id}] disconnected (code=${code ?? '?'})${terminal ?? ''}\n`,
@@ -132,6 +124,7 @@ function onClose(st: State, code: number | undefined): void {
     process.stderr.write(
       `whatsapp[${st.account.id}] reconnect failed: ${errMsg(e)}\n`,
     );
+    st.watch.failed(failureOf(e, 'reconnect'));
   });
 }
 
@@ -140,14 +133,15 @@ function bindConnection(st: State, sock: WASocket): void {
     const { connection, lastDisconnect } = update;
     if (connection === 'open') {
       process.stderr.write(`whatsapp[${st.account.id}] connected\n`);
+      if (st.sock === sock) st.watch.opened();
       st.openResolve?.();
       return;
     }
     if (connection !== 'close') return;
-    const code = (
-      lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
-    )?.output?.statusCode;
-    onClose(st, code);
+    onClose(st, closeOf(lastDisconnect?.error));
+  });
+  sock.ws.on('frame', () => {
+    if (st.sock === sock) st.watch.heard();
   });
 }
 
@@ -272,6 +266,7 @@ async function readProfile(st: State, jid: string): Promise<SenderProfile> {
 
 async function disconnect(st: State): Promise<void> {
   st.closed = true;
+  st.watch.stop();
   st.openResolve?.();
   try {
     st.history.close();
@@ -295,6 +290,7 @@ function initialState(account: WhatsAppAccount, runtime: ClientRuntime): State {
     acks: makeAckWatch(),
     names: makeNameBook(nameFiles.path(account.id)),
     channels: new WhatsAppChannels(account.id),
+    watch: new ConnectionWatch(account.id, () => st.sock?.ws.isOpen !== false),
   };
   resetGate(st);
   return st;
@@ -317,14 +313,15 @@ export function createClient(
     },
     async start(handlers) {
       st.handlers = handlers;
+      st.watch.watch();
       try {
         await connect(st);
       } catch (e) {
-        process.stderr.write(
-          `whatsapp[${account.id}] connect failed: ${errMsg(e)}\n`,
-        );
+        process.stderr.write(`whatsapp[${account.id}] connect failed: ${errMsg(e)}\n`);
+        st.watch.failed(failureOf(e, 'connect'));
       }
     },
+    status: () => st.watch.read(),
     read(jid, options) {
       const page = st.history.read(jid, options);
       for (const message of page.messages) st.keys.remember(message.key);
