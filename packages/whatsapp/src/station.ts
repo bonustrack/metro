@@ -24,6 +24,8 @@ export const whatsappStation: Station = {
   readsProfiles: true,
   resolvesSenders: true,
   discoversChannels: true,
+  reportsStatus: true,
+  pairAgain: { identity: 'phone' },
   forget: (accountId) => {
     tokenFiles.forget(accountId);
     nameFiles.forget(accountId);

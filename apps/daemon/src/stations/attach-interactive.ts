@@ -97,7 +97,7 @@ async function startWhatsapp(
       },
       onPaired: hooks.done,
       onFailed: hooks.fail,
-    });
+    }, normalizePhone(input.expect));
     await login.start();
   } catch (err) {
     await login?.cancel();

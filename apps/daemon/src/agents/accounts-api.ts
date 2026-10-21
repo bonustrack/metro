@@ -37,6 +37,7 @@ interface AttachSessionApi {
     owner: AttachOwner,
     station: InteractiveStation,
     input: Record<string, unknown>,
+    repair?: string,
   ) => Promise<AttachView>;
   view: (owner: AttachOwner, attachId: string) => AttachView;
   submit: (
@@ -315,16 +316,36 @@ async function handleStep(
   sendJson(req, res, 200, view);
 }
 
+async function handleRepair(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: AccountApiDeps,
+  owner: AttachOwner,
+  target: { station: StationName; accountId: string },
+): Promise<void> {
+  const { station, accountId } = target;
+  if (!isInteractiveStation(station) || stationByName(station)?.pairAgain === undefined)
+    throw new ApiError(`${station} cannot pair again`, 400);
+  const view = await deps.attachSessions.start(owner, station, asInput(await readJsonBody(req)), accountId);
+  sendJson(req, res, 201, view);
+}
+
+type AttachRoute = Extract<AccountRoute, { kind: 'start' | 'session' | 'step' | 'repair' }>;
+
+const isAttachRoute = (route: AccountRoute): route is AttachRoute =>
+  route.kind === 'start' || route.kind === 'session' || route.kind === 'step' || route.kind === 'repair';
+
 async function dispatchAttach(
   req: IncomingMessage,
   res: ServerResponse,
   deps: AccountApiDeps,
   agentId: string,
-  route: Extract<AccountRoute, { kind: 'start' | 'session' | 'step' }>,
+  route: AttachRoute,
   session?: ApiSession,
 ): Promise<void> {
   const owner: AttachOwner = { agentId, organization: session?.subject, userId: session?.userId, sessionId: session?.sessionId, authorization: req.headers.authorization };
   if (route.kind === 'start') return handleStart(req, res, deps, agentId, owner);
+  if (route.kind === 'repair') return handleRepair(req, res, deps, owner, route);
   if (route.kind === 'session') return handleSession(req, res, deps, owner, route.attachId);
   return handleStep(req, res, deps, owner, route.attachId);
 }
@@ -337,7 +358,7 @@ async function dispatchRoute(
   route: AccountRoute,
   session?: ApiSession,
 ): Promise<void> {
-  if (route.kind === 'start' || route.kind === 'session' || route.kind === 'step') return dispatchAttach(req, res, deps, agentId, route, session);
+  if (isAttachRoute(route)) return dispatchAttach(req, res, deps, agentId, route, session);
   if (route.kind === 'allowlist') return handleAllowlist(req, res, deps, agentId, route);
   if (route.kind === 'enabled') return handleEnabled(req, res, deps, agentId, route);
   if (route.kind === 'policy') return handlePolicy(req, res, deps, agentId, route);

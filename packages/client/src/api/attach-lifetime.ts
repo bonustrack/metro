@@ -1,5 +1,6 @@
 import { accountIdentity, checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { startAttach, type AttachStarted } from './attach.js';
+import { startPairAgain } from './pair-again.js';
 import { cancelAttachSession, type AttachSession } from './attach-session.js';
 import { agentsUrl } from './client.js';
 import { forgetAttachSignIn } from './sign-in-return.js';
@@ -11,11 +12,13 @@ export class AttachLifetime {
 
   constructor(readonly agentId: string, readonly base = agentsUrl(), readonly identity: AccountIdentity | null = accountIdentity()) {}
 
-  async start(station: string, fields: Record<string, string>): Promise<AttachStarted | null> {
+  async start(station: string, fields: Record<string, string>, pairAgain?: string): Promise<AttachStarted | null> {
     if (this.closed || this.starting) return null;
     this.starting = true;
     try {
-      const started = await startAttach(this.agentId, station, fields, this.base, this.identity);
+      const started = pairAgain === undefined
+        ? await startAttach(this.agentId, station, fields, this.base, this.identity)
+        : await startPairAgain(this.agentId, station, pairAgain, fields, this.base, this.identity);
       if (started.kind === 'pending') {
         if (this.closed) await this.cancel(started.session);
         else this.session = started.session;

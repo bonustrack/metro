@@ -6,6 +6,7 @@ import {
 } from '../stations/registry.js';
 import { listEndpoints } from '../stations/webhook-endpoints.js';
 import { hookUrl, threemaCallbackUrl } from '../stations/attach.js';
+import { accountStatusOf } from '@metro-labs/core/stations/account-status';
 import { accountEnabled, agentIdForAccount, allowlistForAccount, approversForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -85,8 +86,33 @@ function withCallbackUrl(acc: unknown): unknown {
   return { ...rest, callback: threemaCallbackUrl(callbackId, callbackToken) };
 }
 
-const decorate = (station: string, rows: unknown[]): unknown[] =>
-  station === 'threema' ? rows.map(withCallbackUrl) : rows;
+function withStatus(reports: boolean, acc: unknown): unknown {
+  const rec = asRecord(acc);
+  if (rec === undefined || !('status' in rec)) return acc;
+  const { status, ...rest } = rec;
+  const live = reports ? accountStatusOf(status) : null;
+  return live === null ? rest : { ...rest, status: live };
+}
+
+function decorate(station: string, rows: unknown[]): unknown[] {
+  const reports = stationByName(station)?.reportsStatus === true;
+  const live = rows.map((row) => withStatus(reports, row));
+  return station === 'threema' ? live.map(withCallbackUrl) : live;
+}
+
+const STATUS_WAIT_MS = 5_000;
+
+function answerIn<T>(call: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`no answer within ${String(ms)} ms`));
+    }, ms);
+  });
+  return Promise.race([call, late]).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 export interface ScopedAccounts {
   accounts: Record<string, unknown[]>;
@@ -99,7 +125,8 @@ async function liveAccounts(
   if (!hasTrain(station))
     return { rows: inCoreAccounts(station), reachable: true };
   try {
-    const resp = await forwardTrainCall(station, 'accounts', {});
+    const call = forwardTrainCall(station, 'accounts', {});
+    const resp = await (stationByName(station)?.reportsStatus === true ? answerIn(call, STATUS_WAIT_MS) : call);
     const list = (resp.result as { accounts?: unknown[] } | undefined)?.accounts;
     return { rows: decorate(station, Array.isArray(list) ? list : []), reachable: true };
   } catch {

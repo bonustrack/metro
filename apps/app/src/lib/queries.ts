@@ -10,7 +10,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { daemonBase } from '@metro-labs/client/auth/daemon';
-import { carryForward, type AccountGroup } from '@metro-labs/client/api/accounts';
+import { carryForward, flattenAccounts, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { AuthError, StoppedError, fetchSession, fetchStations, type StationsView } from '@metro-labs/client/api/client';
 import {
   fetchClaudeProjects,
@@ -49,6 +49,7 @@ import { useSharedPoll } from './shared-poll.js';
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
 const LIVE_MS = 5_000;
+const CHANNEL_POLL_MS = 30_000;
 const STATUS_POLL_MS = 15_000;
 const EXPIRED = 'Your Metro session expired. Reload the page to sign in again.';
 
@@ -294,8 +295,16 @@ export function useStationsQuery(): UseQueryResult<StationsView> {
       const prev = client.getQueryData<StationsView>(stationsKey());
       return { ...next, groups: carryForward(next.groups, prev?.groups ?? [], next.unavailable) };
     },
-    { refetchInterval: (query) => ((query.state.data?.unavailable.length ?? 0) > 0 ? STARTING_POLL_MS : false) },
+    { refetchInterval: (query) => stationsPoll(query.state.data) },
   );
+}
+
+export function stationsPoll(view: StationsView | undefined): number | false {
+  if (view === undefined) return false;
+  if (view.unavailable.length > 0) return STARTING_POLL_MS;
+  const accounts = flattenAccounts(view.groups);
+  if (accounts.some((a) => a.row.status?.state === 'connecting')) return LIVE_MS;
+  return accounts.some((a) => view.reportsStatus.includes(a.station)) ? CHANNEL_POLL_MS : false;
 }
 
 export const useClaudeProjectsQuery = (): UseQueryResult<ClaudeProject[]> =>

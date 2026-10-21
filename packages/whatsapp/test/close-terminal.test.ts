@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { DisconnectReason } from 'baileys';
-import { terminalReason } from '../src/client.ts';
+import { terminalReason } from '../src/connection.ts';
 
 describe('which disconnects metro refuses to reconnect from', () => {
   test('connectionReplaced is terminal — reconnecting is what causes the 463 loop', () => {

@@ -41,6 +41,8 @@ export interface StationsView {
   attachable: string[];
   features: string[];
   unavailable: string[];
+  reportsStatus: string[];
+  pairAgain: string[];
   capabilities: Record<string, string[]>;
   tools: Record<string, GroupedTool[]>;
 }
@@ -162,6 +164,8 @@ export async function fetchStations(): Promise<StationsView> {
     attachable: toStationList(body.attachable),
     features: toStationList(body.features),
     unavailable: toStationList(body.unavailable),
+    reportsStatus: toStationList(body.reportsStatus),
+    pairAgain: toStationList(body.pairAgain),
     capabilities: toCapabilities(body.capabilities),
     tools: toolGroupsOf(body.tools),
   };

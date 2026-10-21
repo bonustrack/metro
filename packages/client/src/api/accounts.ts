@@ -1,3 +1,4 @@
+import { accountStatusOf, type AccountStatus } from '@metro-labs/core/stations/account-status';
 import { isRecord } from '../read.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 interface AccountField {
@@ -13,6 +14,7 @@ export interface AccountRow {
   sendEnabled?: boolean | null;
   managed?: boolean | null;
   policy: ToolPolicy;
+  status: AccountStatus | null;
   fields: AccountField[];
 }
 
@@ -48,7 +50,8 @@ const ALLOWLIST = 'allowlist';
 const APPROVERS = 'approvers';
 const ENABLED = 'enabled';
 const POLICY = 'policy';
-const HIDDEN_KEYS = new Set([AGENT_ID, ALLOWLIST, APPROVERS, ENABLED, POLICY, 'sendEnabled', 'managed']);
+const STATUS = 'status';
+const HIDDEN_KEYS = new Set([AGENT_ID, ALLOWLIST, APPROVERS, ENABLED, POLICY, STATUS, 'connected', 'sendEnabled', 'managed']);
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
@@ -58,6 +61,7 @@ function toRow(account: unknown): AccountRow {
       approvers: [],
       enabled: true,
       policy: {},
+      status: null,
       fields: [{ label: 'value', value: stringifyValue(account) }],
     };
   const fields: AccountField[] = [];
@@ -73,6 +77,7 @@ function toRow(account: unknown): AccountRow {
     sendEnabled: typeof account.sendEnabled === 'boolean' ? account.sendEnabled : null,
     managed: typeof account.managed === 'boolean' ? account.managed : null,
     policy: policyOf(account[POLICY]),
+    status: accountStatusOf(account[STATUS]),
     fields,
   };
 }
@@ -136,7 +141,7 @@ export function findAccount(
 }
 
 function carriedRows(fresh: AccountRow[], before: AccountRow[]): AccountRow[] {
-  if (fresh.length === 0) return before;
+  if (fresh.length === 0) return before.map((row) => ({ ...row, status: null }));
   return fresh.map((row) => {
     const known = before.find((b) => b.id === row.id);
     return known === undefined ? row : {

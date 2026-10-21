@@ -21,6 +21,7 @@ function fakeClient(calls: Captured[]): WAClient {
   return {
     account: { id: 'w0', phone: '111' },
     self: () => '447700900123',
+    status: () => ({ state: 'connected', since: 1 }),
     start: () => Promise.resolve(),
     sendText: record('sendText'),
     sendMedia: record('sendMedia'),
@@ -249,7 +250,7 @@ describe('whatsapp outbound handlers', () => {
             id: 'w0',
             handle: '+447700900123',
             url: 'https://wa.me/447700900123',
-            connected: true,
+            status: { state: 'connected', since: 1 },
           },
         ],
       },
@@ -313,16 +314,16 @@ describe('the handle is the number actually paired, not the one configured', () 
     accounts.clear();
   });
 
-  test('a socket that is not connected reports no handle and no link', async () => {
+  test('a logged out socket reports its live state, no handle and no link', async () => {
     const calls: Captured[] = [];
-    const offline = { ...fakeClient(calls), self: () => null };
+    const offline = { ...fakeClient(calls), self: () => null, status: () => ({ state: 'logged_out' as const, reason: 'WhatsApp removed this linked device.', since: 2 }) };
     const handle = makeHandleCall(() => offline);
     const cap = captureResponses();
     await handle({ op: 'call', id: 'g', action: 'accounts', args: {} });
     cap.restore();
     expect(cap.responses[0]).toMatchObject({
       result: {
-        accounts: [{ id: 'w0', handle: null, url: null, connected: false }],
+        accounts: [{ id: 'w0', handle: null, url: null, status: { state: 'logged_out', reason: 'WhatsApp removed this linked device.', since: 2 } }],
       },
     });
   });

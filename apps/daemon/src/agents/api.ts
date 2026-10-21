@@ -13,6 +13,7 @@ import {
   type AccountRoute,
 } from './account-routes.js';
 import type { AgentSummary } from './admin.js';
+import { pairAgainStations, statusStations } from '../stations/registry.js';
 
 const PREFIX = '/api/agents';
 
@@ -70,6 +71,8 @@ async function handleList(
     capabilities: deps.capabilities(),
     features: deps.features ?? [],
     attachable: deps.attachable ?? ATTACHABLE,
+    reportsStatus: statusStations(),
+    pairAgain: pairAgainStations(),
     ...(deps.toolGroups === undefined ? {} : { tools: deps.toolGroups() }),
   };
   if (!wantsAccounts(req)) {

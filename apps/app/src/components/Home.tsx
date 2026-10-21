@@ -13,6 +13,7 @@ import { ApprovalCardView, type ApprovalContext } from './home/ApprovalCard.js';
 import { AtAGlance } from './home/Glance.js';
 import { RightNow } from './home/RightNow.js';
 import { SetupChecklist } from './home/SetupChecklist.js';
+import { ChannelAlerts } from './home/ChannelAlerts.js';
 import { rightNow } from '../lib/right-now.js';
 import { setupOf } from '../lib/setup-steps.js';
 import { useBoxApprovals } from '../lib/agent-status.js';
@@ -68,6 +69,7 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
   const setup = setupOf({ name, project, model, groups: view.groups, conversations, link });
   return (
     <>
+      <ChannelAlerts project={project} groups={view.groups} />
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
       {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} name={name} /> : null}

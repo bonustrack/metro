@@ -5,6 +5,7 @@ import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/cl
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
 import * as session from '../../packages/client/src/api/attach-session.ts';
+import * as pairAgain from '../../packages/client/src/api/pair-again.ts';
 import * as bundle from '../../packages/client/src/api/bundle.ts';
 import * as box from '../../packages/client/src/api/claude-box.ts';
 import * as claude from '../../packages/client/src/api/claude.ts';
@@ -172,6 +173,10 @@ if (stations?.features.includes('gmail-managed') === true) {
   await refused('startAttach Gmail BYO without credentials', /client|credential/i, () =>
     attach.startAttach(agent, 'gmail', { mode: 'byo', sendEnabled: 'false' }),
   );
+}
+if (stations?.pairAgain.includes('whatsapp') === true) {
+  await refused('startPairAgain on a station that cannot', /cannot pair again/, () => pairAgain.startPairAgain(agent, 'threema', account, {}));
+  await refused('startPairAgain unknown WhatsApp channel', /no such channel/i, () => pairAgain.startPairAgain(agent, 'whatsapp', 'cmpGone0001', {}));
 }
 await refused('pollAttachSession unknown', /not found|no such|unknown|expired/i, () =>
   session.pollAttachSession(agent, 'as_AAAAAAAAAAAAAAAAAAAAAA'),

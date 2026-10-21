@@ -41,6 +41,12 @@ export const accountStationCapabilities = (): Record<string, string[]> => {
   return out;
 };
 
+export const statusStations = (): string[] =>
+  STATIONS.filter((s) => s.reportsStatus === true).map((s) => s.name);
+
+export const pairAgainStations = (): string[] =>
+  STATIONS.filter((s) => s.pairAgain !== undefined).map((s) => s.name);
+
 export function forgetOrphans(known: readonly { station: string; id: string }[]): void {
   for (const s of STATIONS) {
     if (s.forgetExcept === undefined) continue;

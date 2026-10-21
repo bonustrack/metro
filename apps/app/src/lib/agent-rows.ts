@@ -6,6 +6,7 @@ import type { ClaudeProject } from '@metro-labs/client/api/claude';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { fetchInstanceView } from '@metro-labs/client/api/launch';
 import type { ModelSettings } from '@metro-labs/client/api/model';
+import { channelTrouble, type ChannelTrouble } from '@metro-labs/client/api/pair-again';
 import { serverLabel, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { agentLine, orderAgents, type AgentLine } from './agent-line.js';
@@ -24,6 +25,7 @@ export interface AgentRow {
   line: AgentLine;
   waiting: number;
   status: ServerStatus | undefined;
+  trouble: ChannelTrouble | null;
 }
 
 const CACHED = ['claude-session', 'model', 'stations', 'claude-projects'].map((name) => `["${name}",`);
@@ -82,8 +84,9 @@ export function useAgentRows(servers: Server[]): AgentRow[] {
     const first = count > 0 ? approvals[i]?.data?.[0] : undefined;
     const status = statuses[i]?.data;
     const setup = knownSetup(name, models[i], stations[i], projects[i]);
-    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, session: sessions[i], now });
-    return { server, name, line, waiting: count, status };
+    const trouble = channelTrouble(stations[i]?.groups)[0] ?? null;
+    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, trouble, session: sessions[i], now });
+    return { server, name, line, waiting: count, status, trouble };
   });
   return orderAgents(rows);
 }

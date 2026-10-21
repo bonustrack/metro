@@ -210,6 +210,23 @@ export function localRenewGmail(agentId: string, accountId: string, previous: st
   return { agentId, station: 'gmail', accountId };
 }
 
+const sameIdentity = (a: unknown, b: unknown): boolean =>
+  typeof a === 'string' && typeof b === 'string' && a.replace(/[\s()+-]/g, '').toLowerCase() === b.replace(/[\s()+-]/g, '').toLowerCase();
+
+const shownIdentity = (value: unknown): string => (typeof value === 'string' && value !== '' ? value : 'unknown');
+
+export function localPairAgain(agentId: string, station: StationName, accountId: string, identity: string, config: Record<string, unknown>, dir = agentsDir()): AccountRef {
+  const stored = agentOrThrow(agentId, dir);
+  const account = stored.file.stations.find((s) => s.station === station && s.id === accountId);
+  if (account === undefined) throw new AgentAdminError('This channel is gone. Nothing was changed.', 404);
+  const before = account.config[identity];
+  const after = config[identity];
+  if (!sameIdentity(before, after)) throw new AgentAdminError(`This channel is ${shownIdentity(before)}, not ${shownIdentity(after)}. Nothing was changed.`, 400);
+  account.config = { ...account.config, ...config };
+  save(stored);
+  return { agentId, station, accountId };
+}
+
 export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFile {
   const found = storedAgents(dir).find((s) => s.file.id === agentId);
   if (found === undefined) throw missing();

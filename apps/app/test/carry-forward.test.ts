@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { carryForward, type AccountGroup } from '@metro-labs/client/api/accounts';
-import { boxKey, dropAccount } from '../src/lib/queries.ts';
+import { carryForward, type AccountGroup, type AccountRow } from '@metro-labs/client/api/accounts';
+import { boxKey, dropAccount, stationsPoll } from '../src/lib/queries.ts';
 import { QueryClient } from '@tanstack/react-query';
 import type { StationsView } from '@metro-labs/client/api/client';
 
@@ -127,5 +127,30 @@ describe('a switched-off channel on a station without a train stays listed', () 
     const fresh: AccountGroup[] = [{ station: 'telegram', rows: [account('tg1', false)] }];
     const [telegram] = carryForward(fresh, prev, ['telegram']);
     expect(telegram?.rows.map((r) => r.id)).toEqual(['tg1']);
+  });
+});
+
+describe('how often the chats are read again', () => {
+  const live = (status: AccountRow['status']): StationsView => ({
+    agent: undefined,
+    groups: [{ station: 'whatsapp', rows: [{ id: 'w1', allowlist: null, approvers: [], enabled: true, policy: {}, status, fields: [] }] }],
+    attachable: [],
+    features: [],
+    unavailable: [],
+    reportsStatus: ['whatsapp'],
+    pairAgain: ['whatsapp'],
+    capabilities: {},
+    tools: {},
+  });
+
+  test('a channel of a station that reports its state is read every 30 s, a reconnecting one every 5 s, an unreachable station every 3 s', () => {
+    expect(stationsPoll(live({ state: 'connected', since: 1 }))).toBe(30_000);
+    expect(stationsPoll(live({ state: 'logged_out', since: 1 }))).toBe(30_000);
+    expect(stationsPoll(live({ state: 'connecting', since: 1 }))).toBe(5_000);
+    expect(stationsPoll({ ...live(null), unavailable: ['whatsapp'] })).toBe(3_000);
+    expect(stationsPoll({ ...live(null), reportsStatus: [] })).toBe(false);
+    expect(stationsPoll({ ...live(null), groups: [{ station: 'telegram-bot', rows: live(null).groups[0]?.rows ?? [] }] })).toBe(false);
+    expect(stationsPoll({ ...live(null), groups: [] })).toBe(false);
+    expect(stationsPoll(undefined)).toBe(false);
   });
 });
