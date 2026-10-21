@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { jidNormalizedUser } from 'baileys';
 import { accountFiles } from '@metro-labs/core/stations/account-files';
 import { writeSecure } from '@metro-labs/core/secure-fs';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -26,6 +27,11 @@ function loaded(file: string | undefined): Map<string, string> {
   }
 }
 
+const idOf = (jid: string | null | undefined): string | undefined => {
+  const id = jid ? jidNormalizedUser(jid) : '';
+  return id === '' ? undefined : id;
+};
+
 export function makeNameBook(file?: string): NameBook {
   const names = loaded(file);
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -44,9 +50,10 @@ export function makeNameBook(file?: string): NameBook {
       timer.unref();
     }
   };
-  const note = (jid: string | null | undefined, name: string | null | undefined): void => {
+  const note = (raw: string | null | undefined, name: string | null | undefined): void => {
     const clean = name?.trim() ?? '';
-    if (!jid || clean === '' || names.get(jid) === clean) return;
+    const jid = idOf(raw);
+    if (jid === undefined || clean === '' || names.get(jid) === clean) return;
     names.delete(jid);
     names.set(jid, clean);
     if (names.size > MAX_NAMES) {
@@ -57,9 +64,11 @@ export function makeNameBook(file?: string): NameBook {
   };
   return {
     note,
-    get: (jid) => names.get(jid),
-    alias(pn, lid) {
-      if (!pn || !lid) return;
+    get: (jid) => names.get(idOf(jid) ?? jid),
+    alias(rawPn, rawLid) {
+      const pn = idOf(rawPn);
+      const lid = idOf(rawLid);
+      if (pn === undefined || lid === undefined) return;
       const known = names.get(pn) ?? names.get(lid);
       if (!names.has(pn)) note(pn, known);
       if (!names.has(lid)) note(lid, known);

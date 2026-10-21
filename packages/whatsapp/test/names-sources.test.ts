@@ -99,6 +99,15 @@ describe('every place WhatsApp names a person', () => {
     expect(names.get('41795555555@s.whatsapp.net')).toBe('Eve');
   });
 
+  test('ids with a device part are filed under the person', () => {
+    const names = makeNameBook();
+    names.note('41791234567:12@s.whatsapp.net', 'Jan');
+    expect(names.get(PN)).toBe('Jan');
+    expect(names.get('41791234567:3@s.whatsapp.net')).toBe('Jan');
+    names.alias('41791234567:5@s.whatsapp.net', '183103582650419:2@lid');
+    expect(names.get(LID)).toBe('Jan');
+  });
+
   test('a known name is never overwritten by the copy of another id', () => {
     const names = makeNameBook();
     names.note(PN, 'Jan');

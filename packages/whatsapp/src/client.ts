@@ -22,7 +22,7 @@ import { listMembers } from './members.js';
 import { SendExpiry } from './send-expiry.js';
 import { baileysLogger } from './logger.js';
 import { makeNameBook, nameFiles, type NameBook } from './names.js';
-import { NoPictures, readPeer, withName, type PeerProfile } from './profile.js';
+import { limiter, PictureMemory, PROFILE_READS, readPeer, withName, type PeerProfile } from './profile.js';
 import { useAccountAuthState } from './auth-state.js';
 import { knownKey, makeKeyCache, targetKey, type KeyCache } from './keys.js';
 import { makeOutbox, type Outbox } from './outbox.js';
@@ -250,8 +250,12 @@ function mediaContent(m: WAMedia): SendContent {
 }
 
 function profileReader(st: State): (jid: string) => Promise<SenderProfile | null> {
-  const pictures = new NoPictures();
-  const senders = makeProfileCache<PeerProfile>(async (jid) => readPeer(await ready(st), jid, pictures), {
+  const pictures = new PictureMemory();
+  const reads = limiter(PROFILE_READS);
+  const senders = makeProfileCache<PeerProfile>(async (jid) => {
+    const sock = await ready(st);
+    return reads(() => readPeer(sock, jid, pictures));
+  }, {
     onError: (jid, err) => process.stderr.write(`whatsapp[${st.account.id}] could not read the profile of ${jid}: ${errMsg(err)}\n`),
   });
   return async (jid) => {
