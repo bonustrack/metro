@@ -104,6 +104,12 @@ async function run(ctx: CallContext, target: Target, call: McpCall): Promise<Out
   return { blocks, failed: answer.isError, outcome: answer.isError ? 'vendor_error' : 'ok' };
 }
 
+function remember(ctx: CallContext, call: McpCall, outcome: string, started: number, at: number): void {
+  const named = splitMcpTool(call.tool);
+  const connector = ctx.connectors.find((candidate) => candidate.key === named?.connector);
+  ctx.deps.calls.record(ctx.identity, { connector: connector?.id ?? null, connectorKey: named?.connector ?? '', connectorName: connector?.name ?? null, tool: named?.tool ?? call.tool, outcome, ms: at - started, at });
+}
+
 async function runCall(ctx: CallContext, call: McpCall, index: number): Promise<Outcome> {
   const started = ctx.deps.now();
   const header = textBlock(`[${String(index)}] ${call.tool}`);
@@ -117,7 +123,9 @@ async function runCall(ctx: CallContext, call: McpCall, index: number): Promise<
     const failure = failureOf(err, target?.connector.name ?? call.tool);
     result = { blocks: [textBlock(`${failure.code}: ${failure.message}`)], failed: true, outcome: failure.code };
   }
-  log.info({ agent: ctx.identity.agent, connector: target?.connector.id ?? null, tool: target?.tool ?? call.tool, outcome: result.outcome, ms: ctx.deps.now() - started }, 'mcp: call');
+  const ended = ctx.deps.now();
+  log.info({ agent: ctx.identity.agent, connector: target?.connector.id ?? null, tool: target?.tool ?? call.tool, outcome: result.outcome, ms: ended - started }, 'mcp: call');
+  remember(ctx, call, result.outcome, started, ended);
   return { ...result, blocks: [header, ...result.blocks] };
 }
 

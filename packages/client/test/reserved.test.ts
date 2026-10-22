@@ -4,7 +4,7 @@ import { routedSegment } from '../src/auth/daemon.js';
 
 describe('reserved segments', () => {
   test('one list covers the global pages and the api words', () => {
-    for (const word of ['docs', 'settings', 'connect', 'launch', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors'])
+    for (const word of ['docs', 'settings', 'connect', 'launch', 'activity', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors'])
       expect(RESERVED_SEGMENTS.has(word)).toBe(true);
   });
 

@@ -141,7 +141,7 @@ url (https, or http on this machine only); an empty value turns the client off.
 
 - Reads connectors, assignments, policies and agent keys from api.metro.box's Postgres (the
   same database; migrations still run from `apps/api` only). Its own tables: the token hash
-  on the agent key row and `mcp_approvals`.
+  on the agent key row, `mcp_approvals` and `mcp_calls`.
 - Opens a connector's credential with `METRO_CONNECTORS_KEY`, refreshes OAuth tokens (single
   flight, the same rules and uncertainty records as api.metro.box), and calls the vendor
   through the same safe egress (HTTPS only, no redirects, no private addresses, pinned DNS).
@@ -152,6 +152,13 @@ url (https, or http on this machine only); an empty value turns the client off.
   once is fine.
 - Logs one line per call (agent, connector, tool, outcome, duration), never arguments or
   results.
+- Writes one `mcp_calls` row per call (`call-log.ts`): owner, agent id and name, connector id,
+  key and name, tool, outcome, duration and the time it ended, never arguments, results or
+  an approval preview. The write happens after the call has its answer and is never waited
+  for, so a database error never fails or slows a call; a missing table (this server
+  deployed before api.metro.box ran migration `0018`) is logged once. The rows are kept for
+  good, also after the agent or connector is deleted, and feed the page's Live activity
+  through api.metro.box's `GET /api/connectors/activity`. About 33 MB per 100,000 calls.
 - Code shared with api.metro.box lives in `packages/connectors`.
 
 ## Deploy

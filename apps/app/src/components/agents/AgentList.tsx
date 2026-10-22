@@ -9,11 +9,12 @@ import { AgentAvatar } from '../AgentAvatar.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { RoundButton } from '../ui/RoundButton.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
-import { AVATAR_SIZE } from '../ui/sizes.js';
+import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import { Spinner } from '../Spinner.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
 import { CountPill } from '../ui/CountPill.js';
-import { Rows } from '../ui/Group.js';
+import { Group, Groups, Rows } from '../ui/Group.js';
+import { Icon } from '../Icon.js';
 import { Item } from '../ui/Item.js';
 import { ListPaneRow } from '../ui/ListPaneRow.js';
 import { ListPane } from '../shell/ListPane.js';
@@ -82,7 +83,22 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
     ) : (
       <NoAgents />
     );
-  return <AgentRows servers={data} pane={pane} selected={selected} />;
+  if (pane) return <AgentRows servers={data} pane selected={selected} />;
+  return (
+    <Groups>
+      <AgentRows servers={data} pane={false} selected={selected} />
+      <ActivityLink />
+    </Groups>
+  );
+}
+
+function ActivityLink(): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <Group>
+      <Item title="Live activity" subtitle="Connector calls from all your agents, as they happen." leading={<Icon name="plug" size={ICON_SIZE.lg} color={palette.text} />} href={routeHash({ kind: 'activity' })} />
+    </Group>
+  );
 }
 
 function SearchAgents(): ReactNode {

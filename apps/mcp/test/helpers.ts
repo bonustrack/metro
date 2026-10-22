@@ -26,7 +26,7 @@ export const MASTER = randomBytes(32);
 export const VENDOR_ORIGIN = 'https://vendor.example.com';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'api', 'drizzle');
-const TABLES = ['mcp_approvals', 'agent_nonces', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
+const TABLES = ['mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
 
 export interface TestDb {
   db: Database;

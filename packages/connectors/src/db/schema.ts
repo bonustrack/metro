@@ -98,6 +98,24 @@ export const mcpApprovals = pgTable(
   ],
 );
 
+export const mcpCalls = pgTable(
+  'mcp_calls',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').notNull(),
+    agentName: text('agent_name'),
+    connector: text('connector'),
+    connectorKey: text('connector_key').notNull(),
+    connectorName: text('connector_name'),
+    tool: text('tool').notNull(),
+    outcome: text('outcome').notNull(),
+    ms: integer('ms').notNull(),
+    at: bigint('at', { mode: 'number' }).notNull(),
+  },
+  (t) => [index('mcp_calls_owner_at_idx').on(t.owner, t.at.desc(), t.id.desc())],
+);
+
 export const modelConnections = pgTable(
   'model_connections',
   {

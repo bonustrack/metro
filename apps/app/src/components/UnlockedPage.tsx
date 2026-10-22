@@ -10,7 +10,7 @@ import { AddConnectorPage } from './connectors/AddConnectorPage.js';
 import { Settings } from './Settings.js';
 import { ServerGate } from './gates.js';
 import { AgentList } from './agents/AgentList.js';
-import { AgentsIdle } from './agents/AgentsIdle.js';
+import { ActivityPage, AgentsIdle } from './agents/AgentsIdle.js';
 import { Jump } from './jump/Jump.js';
 import { LaunchFlow } from './launch/LaunchFlow.js';
 import { DefaultRoute } from './models/DefaultRoute.js';
@@ -66,6 +66,7 @@ function SectionPage(props: PageProps): ReactNode {
   if (selectionProject(selection) !== null) return <ServerGate selection={selection} onLock={onLock} />;
   const page = organizationPage(props);
   if (page !== null) return page;
+  if (selection.kind === 'activity') return <ActivityPage />;
   return narrow ? <AgentList pane={false} /> : <AgentsIdle />;
 }
 

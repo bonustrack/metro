@@ -1,0 +1,112 @@
+import { type ReactNode, useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Text } from '@stage-labs/kit/react-native/text';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
+import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { routeHash } from '@metro-labs/client/route';
+import { AgentAvatar } from '../AgentAvatar.js';
+import { ConnectorFavicon } from '../ConnectorFavicon.js';
+import { RouteLink } from '../RouteLink.js';
+import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
+import { agoWords, durationWords, outcomeWords } from '../../lib/activity-words.js';
+import { toolLabel } from '../../lib/tool-labels.js';
+import { MONO, SHRINK } from '../../lib/style.js';
+
+const DOT = 8;
+const ENTER_MS = 260;
+const ENTER_FROM = -10;
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, minHeight: 68, borderBottomWidth: 1 },
+  dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
+  end: { alignItems: 'flex-end', gap: 2, maxWidth: '40%' },
+});
+
+interface RowProps {
+  call: ActivityCall;
+  server: Server | undefined;
+  now: number;
+  technical: boolean;
+  fresh: boolean;
+}
+
+function useEntrance(fresh: boolean): Animated.Value {
+  const shown = useRef(new Animated.Value(fresh ? 0 : 1)).current;
+  useEffect(() => {
+    if (!fresh) return;
+    Animated.timing(shown, { toValue: 1, duration: ENTER_MS, useNativeDriver: false }).start();
+  }, [fresh, shown]);
+  return shown;
+}
+
+function Outcome({ outcome }: { outcome: string }): ReactNode {
+  const palette = useKitPalette();
+  const words = outcomeWords(outcome);
+  const dot = words.dot === null ? null : StyleSheet.flatten([styles.dot, { backgroundColor: words.dot === 'danger' ? palette.danger : palette.success }]);
+  return (
+    <Row align="center" gap={6}>
+      {dot === null ? null : <View style={dot} />}
+      <Text size="xs" role={words.dot === 'danger' ? 'danger' : 'default'} numberOfLines={1}>
+        {words.word}
+      </Text>
+    </Row>
+  );
+}
+
+function What({ call, technical }: { call: ActivityCall; technical: boolean }): ReactNode {
+  const connector = call.connectorName ?? (call.connectorKey === '' ? 'Unknown connector' : call.connectorKey);
+  return (
+    <Col gap={2} minWidth={0}>
+      <Row align="center" gap={6} minWidth={0}>
+        <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.sm} />
+        <Text size="xs" role="secondary" numberOfLines={1} style={SHRINK}>
+          {`${connector} · ${toolLabel(call.tool)}`}
+        </Text>
+      </Row>
+      {technical ? (
+        <Text size="xs" role="secondary" numberOfLines={1} style={MONO}>
+          {call.connectorKey === '' ? call.tool : `${call.connectorKey}.${call.tool}`}
+        </Text>
+      ) : null}
+    </Col>
+  );
+}
+
+export function ActivityRow({ call, server, now, technical, fresh }: RowProps): ReactNode {
+  const palette = useKitPalette();
+  const shown = useEntrance(fresh);
+  const name = server === undefined ? (call.agentName ?? 'Removed agent') : serverLabel(server);
+  const frame = StyleSheet.flatten([styles.row, { borderBottomColor: palette.border }]);
+  const motion = { opacity: shown, transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [ENTER_FROM, 0] }) }] };
+  const when = technical ? new Date(call.at).toLocaleString() : agoWords(call.at, now);
+  const body = (
+    <>
+      <AgentAvatar seed={server?.host ?? call.agent} src={server?.avatar ?? null} size={AVATAR_SIZE.list} />
+      <Col flex={1} minWidth={0} gap={2}>
+        <Text size="md" numberOfLines={1}>
+          {name}
+        </Text>
+        <What call={call} technical={technical} />
+      </Col>
+      <View style={styles.end}>
+        <Outcome outcome={call.outcome} />
+        <Text size="xs" role="secondary" numberOfLines={1}>
+          {`${durationWords(call.ms)} · ${when}`}
+        </Text>
+      </View>
+    </>
+  );
+  return (
+    <Animated.View style={motion}>
+      {server === undefined ? (
+        <View style={frame}>{body}</View>
+      ) : (
+        <RouteLink to={routeHash({ kind: 'home', project: server.id })} label={`${name}: ${toolLabel(call.tool)}`} style={frame}>
+          {body}
+        </RouteLink>
+      )}
+    </Animated.View>
+  );
+}
