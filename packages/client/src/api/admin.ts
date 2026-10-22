@@ -34,7 +34,8 @@ export interface AgentRow {
   id: string;
   owner: string;
   organizationName: string | null;
-  host: string;
+  kind: 'box' | 'remote';
+  host: string | null;
   name: string | null;
   slug: string | null;
   addedAt: string | null;
@@ -99,15 +100,21 @@ export async function fetchAllOrganizations(): Promise<OrganizationSummary[]> {
   );
 }
 
+const hostOf = (a: Record<string, unknown>): { kind: 'box' | 'remote'; host: string | null } | null => {
+  if (a.kind === 'remote') return { kind: 'remote', host: null };
+  return typeof a.host === 'string' ? { kind: 'box', host: a.host } : null;
+};
+
 export async function fetchAllAgents(): Promise<AgentRow[]> {
-  return rows(await call('/agents'), 'agents').flatMap((a) =>
-    typeof a.id === 'string' && typeof a.owner === 'string' && typeof a.host === 'string'
+  return rows(await call('/agents'), 'agents').flatMap((a) => {
+    const place = hostOf(a);
+    return typeof a.id === 'string' && typeof a.owner === 'string' && place !== null
       ? [
           {
             id: a.id,
             owner: a.owner,
             organizationName: optional(a.organizationName),
-            host: a.host,
+            ...place,
             name: optional(a.name),
             slug: optional(a.slug),
             addedAt: optional(a.addedAt),
@@ -115,8 +122,8 @@ export async function fetchAllAgents(): Promise<AgentRow[]> {
             instanceId: optional(a.instanceId),
           },
         ]
-      : [],
-  );
+      : [];
+  });
 }
 
 export async function fetchOrganizationUsage(organization: string): Promise<Record<string, LatestUsage>> {

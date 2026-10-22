@@ -6,6 +6,7 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { OrgModelConnection, OrgModels } from '@metro-labs/client/api/org-models';
 import { providerInfo } from '@metro-labs/client/api/providers';
 import { routeHash } from '@metro-labs/client/route';
+import { boxesOf } from '@metro-labs/client/api/servers';
 import { Icon } from '../Icon.js';
 import { ProviderLogo } from '../ProviderLogo.js';
 import { ErrorState } from '../ui/ErrorState.js';
@@ -51,7 +52,7 @@ function AccountMark({ connection }: { connection: OrgModelConnection }): ReactN
 
 function useDefaultCount(list: OrgModels): number {
   const { data } = useServersQuery();
-  return (data ?? []).filter((server) => list.agents[server.id] === undefined).length;
+  return boxesOf(data ?? []).filter((server) => list.agents[server.id] === undefined).length;
 }
 
 function AccountRow({ connection, pane, selected }: { connection: OrgModelConnection; pane: boolean; selected: boolean }): ReactNode {

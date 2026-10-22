@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { type Server } from '@metro-labs/client/api/servers';
+import { agentSeed, type Server } from '@metro-labs/client/api/servers';
 import { latestParts } from '@metro-labs/client/api/latest-usage';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -28,14 +28,19 @@ import { useListKeys } from '../../lib/list-keys.js';
 import { openJump } from '../../lib/jump-store.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
+import { mayAddAgent } from '../../lib/launch-steps.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
 
 function useDetail(row: AgentRow): string | undefined {
   const technical = useTechnicalDetails();
   const usage = useLatestUsageQuery().data?.[row.server.id];
   if (!technical) return undefined;
+  if (row.server.kind === 'remote') return technicalLine([row.server.id]);
   const version = row.status?.version;
   return technicalLine([row.server.host, version === null || version === undefined ? null : shortVersion(version), ...latestParts(usage)]);
 }
+
+const REMOTE_MARK = 'plug';
 
 function AgentRowView({ row, pane, selected }: { row: AgentRow; pane: boolean; selected: boolean }): ReactNode {
   const palette = useKitPalette();
@@ -43,14 +48,15 @@ function AgentRowView({ row, pane, selected }: { row: AgentRow; pane: boolean; s
   const { server, line } = row;
   const href = routeHash({ kind: 'home', project: server.id });
   const trailing = row.waiting > 0 ? <CountPill count={row.waiting} /> : line.busy ? <Spinner color={palette.link} /> : undefined;
+  const mark = server.kind === 'remote' ? REMOTE_MARK : undefined;
   if (pane)
     return (
-      <ListPaneRow title={row.name} line={line.text} lineTone={line.tone} detail={detail} dot={line.dot} trailing={trailing} selected={selected} href={href}
-        avatar={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.list} />} />
+      <ListPaneRow title={row.name} line={line.text} lineTone={line.tone} detail={detail} dot={line.dot} mark={mark} trailing={trailing} selected={selected} href={href}
+        avatar={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.list} />} />
     );
   return (
     <Item title={row.name} subtitle={line.text} subtitleTone={line.tone} detail={detail} href={href} trailing={trailing} chevron={false}
-      leading={<AvatarDot dot={line.dot}><AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.list} /></AvatarDot>} />
+      leading={<AvatarDot dot={line.dot} mark={mark}><AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.list} /></AvatarDot>} />
   );
 }
 
@@ -106,6 +112,7 @@ function SearchAgents(): ReactNode {
 }
 
 function NewAgent(): ReactNode {
+  if (!mayAddAgent(activeAccount()?.role)) return null;
   return <RoundButton label="New agent" icon="plus" onPress={() => { go({ kind: 'launch' }); }} />;
 }
 

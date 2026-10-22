@@ -74,7 +74,7 @@ function Earlier({ earlier }: { earlier: ActivityFeedView['earlier'] }): ReactNo
   );
 }
 
-function Calls({ feed, servers }: { feed: ActivityFeedView; servers: Server[] }): ReactNode {
+function Calls({ feed, servers, fixed }: { feed: ActivityFeedView; servers: Server[]; fixed: boolean }): ReactNode {
   const now = useNow();
   const technical = useTechnicalDetails();
   const fresh = useFreshIds(feed.calls, feed.loaded);
@@ -89,7 +89,7 @@ function Calls({ feed, servers }: { feed: ActivityFeedView; servers: Server[] })
     <Col>
       <Rows>
         {feed.calls.map((call) => (
-          <ActivityRow key={call.id} call={call} server={byId.get(call.agent)} now={now} technical={technical} fresh={fresh.has(call.id)} />
+          <ActivityRow key={call.id} call={call} server={byId.get(call.agent)} now={now} technical={technical} fresh={fresh.has(call.id)} showAgent={!fixed} />
         ))}
       </Rows>
       {feed.complete ? null : <Earlier earlier={feed.earlier} />}
@@ -97,27 +97,32 @@ function Calls({ feed, servers }: { feed: ActivityFeedView; servers: Server[] })
   );
 }
 
-function Feed({ agent, servers }: { agent: string | null; servers: Server[] }): ReactNode {
+function Feed({ agent, servers, fixed }: { agent: string | null; servers: Server[]; fixed: boolean }): ReactNode {
   const feed = useActivityFeed(agent);
   if (feed.error !== null) return <ErrorState title="Could not read the activity" text={feed.error} onRetry={feed.retry} />;
   if (!feed.loaded) return <RowsSkeleton rows={5} />;
   return (
     <Col>
       <NewCalls count={feed.waiting} />
-      <Calls feed={feed} servers={servers} />
+      <Calls feed={feed} servers={servers} fixed={fixed} />
     </Col>
   );
 }
 
-export function ActivityFeed({ agent: picked = null }: { agent?: string | null }): ReactNode {
+function shownAgent(agent: string | null, fixed: boolean, known: Server[] | undefined): string | null {
+  if (agent === null || fixed || known === undefined) return agent;
+  return known.some((server) => server.id === agent) ? agent : null;
+}
+
+export function ActivityFeed({ agent: picked = null, fixed = false }: { agent?: string | null; fixed?: boolean }): ReactNode {
   const known = useServersQuery().data;
   const servers = known ?? [];
   const [agent, setAgent] = useState<string | null>(picked);
-  const shown = agent !== null && (known === undefined || servers.some((server) => server.id === agent)) ? agent : null;
+  const shown = shownAgent(agent, fixed, known);
   return (
     <Col gap={20} width="100%">
-      <Chips servers={servers} value={shown} onChange={setAgent} />
-      <Feed key={`${currentOrganization() ?? 'none'}:${shown ?? 'all'}`} agent={shown} servers={servers} />
+      {fixed ? null : <Chips servers={servers} value={shown} onChange={setAgent} />}
+      <Feed key={`${currentOrganization() ?? 'none'}:${shown ?? 'all'}`} agent={shown} servers={servers} fixed={fixed} />
     </Col>
   );
 }

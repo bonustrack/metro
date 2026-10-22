@@ -38,7 +38,7 @@ function AgentItem({ agent, now }: { agent: AdminAgent; now: number }): ReactNod
   const dot = agent.state === 'online' ? 'success' : agent.state === 'offline' ? 'danger' : null;
   return (
     <Item title={agent.name} subtitle={agentLine(agent)} subtitleTone={agent.state === 'offline' ? 'danger' : 'secondary'} value={agent.member ? seenWords(agent, now) : undefined} valueTone="secondary"
-      leading={<AvatarDot dot={dot}><AgentAvatar seed={agent.host} src={agent.avatar} size={AVATAR_SIZE.row} /></AvatarDot>} href={agent.href ?? undefined} />
+      leading={<AvatarDot dot={dot}><AgentAvatar seed={agent.host ?? agent.id} src={agent.avatar} size={AVATAR_SIZE.row} /></AvatarDot>} href={agent.href ?? undefined} />
   );
 }
 

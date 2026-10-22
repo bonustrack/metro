@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { type Server } from '@metro-labs/client/api/servers';
+import { boxesOf, type BoxServer } from '@metro-labs/client/api/servers';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { Groups } from '../ui/Group.js';
 import { ErrorState } from '../ui/ErrorState.js';
@@ -14,11 +14,11 @@ import { queryError, useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
-export function useCurrentServer(): { server: Server | undefined; error: Error | null; retry: () => void } {
+export function useCurrentServer(): { server: BoxServer | undefined; error: Error | null; retry: () => void } {
   const servers = useServersQuery();
   const here = currentServer();
   return {
-    server: servers.data?.find((s) => s.id === here?.id),
+    server: boxesOf(servers.data ?? []).find((s) => s.id === here?.id),
     error: servers.error,
     retry: () => {
       servers.refetch().catch(() => undefined);

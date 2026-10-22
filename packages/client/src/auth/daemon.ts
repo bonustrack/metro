@@ -8,6 +8,18 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export const builtInDaemon = (): string => apiBase();
 
+export const NO_SERVER_BASE = 'metro-no-server://agent';
+
+export class NoServerError extends Error {
+  constructor() {
+    super('This agent has no server, so Metro asks no box for it.');
+  }
+}
+
+export function refuseNoServer(url: string): void {
+  if (url.startsWith(NO_SERVER_BASE)) throw new NoServerError();
+}
+
 const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
 
 export function baseFromSegment(segment: string): string {
@@ -28,7 +40,12 @@ export function routedDaemon(hash?: string): string | null {
   return segment === null || !looksLikeHost(segment) ? null : baseFromSegment(segment);
 }
 
-let current: { id: string; host: string } | null = null;
+export interface CurrentAgent {
+  id: string;
+  host: string | null;
+}
+
+let current: CurrentAgent | null = null;
 const serverListeners = new Set<() => void>();
 
 export function subscribeCurrentServer(listener: () => void): () => void {
@@ -36,13 +53,13 @@ export function subscribeCurrentServer(listener: () => void): () => void {
   return () => { serverListeners.delete(listener); };
 }
 
-export function setCurrentServer(server: { id: string; host: string } | null): void {
+export function setCurrentServer(server: CurrentAgent | null): void {
   const changed = current?.id !== server?.id || current?.host !== server?.host;
   current = server;
   if (changed) for (const listener of serverListeners) listener();
 }
 
-export const currentServer = (): { id: string; host: string } | null => current;
+export const currentServer = (): CurrentAgent | null => current;
 
 export function storedServerId(): string | null {
   const v = readItem(SERVER_KEY);
@@ -73,6 +90,6 @@ export function storeDaemon(base: string | null): void {
 export function daemonBase(): string {
   const routed = routedDaemon();
   if (routed !== null) return routed;
-  if (current !== null) return baseFromSegment(current.host);
+  if (current !== null) return current.host === null ? NO_SERVER_BASE : baseFromSegment(current.host);
   return storedDaemon() ?? builtInDaemon();
 }

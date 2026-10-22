@@ -11,7 +11,7 @@ export const isOrganizationId = (segment: string): boolean => ORG_RE.test(segmen
 
 export const isOrganizationSlug = (segment: string): boolean => SLUG_RE.test(segment) && !RESERVED_SEGMENTS.has(segment);
 
-const AGENT_PAGES = new Set(['run', 'server', 'settings', 'terminal', 'model', 'voice', 'harness', 'claude', 'skills', 'skill', 'scheduled', 'channels', 'channel', 'chats', 'tools', 'connectors', 'connector', 'sessions', 'memory', 'secrets', 'backup', 'profile', 'launch-log']);
+const AGENT_PAGES = new Set(['run', 'server', 'settings', 'terminal', 'model', 'voice', 'harness', 'claude', 'skills', 'skill', 'scheduled', 'channels', 'channel', 'chats', 'tools', 'connectors', 'connector', 'sessions', 'memory', 'secrets', 'backup', 'profile', 'launch-log', 'keys']);
 
 function leadsWithOrganization(first: string, second: string): boolean {
   if (isOrganizationId(first)) return true;

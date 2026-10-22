@@ -106,15 +106,23 @@ function Attachment({ card }: { card: Card }): ReactNode {
   );
 }
 
-function useAnswer(id: string): { busy: boolean; error: string | null; answer: (decision: Decision) => void } {
+export type Decide = (decision: Decision) => Promise<void>;
+
+function useBoxDecide(id: string): Decide {
   const client = useQueryClient();
+  return async (decision) => {
+    await decideApproval(id, decision);
+    await refresh(client, 'approvals');
+  };
+}
+
+function useAnswer(decide: Decide): { busy: boolean; error: string | null; answer: (decision: Decision) => void } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const answer = (decision: Decision): void => {
     setBusy(true);
     setError(null);
-    decideApproval(id, decision)
-      .then(() => refresh(client, 'approvals'))
+    decide(decision)
       .catch((err: unknown) => {
         setError(queryError(err, DECIDE_FAILED));
       })
@@ -125,9 +133,9 @@ function useAnswer(id: string): { busy: boolean; error: string | null; answer: (
   return { busy, error, answer };
 }
 
-function Answers({ id }: { id: string }): ReactNode {
+function Answers({ decide }: { decide: Decide }): ReactNode {
   const dark = useKitScheme() === 'dark';
-  const { busy, error, answer } = useAnswer(id);
+  const { busy, error, answer } = useAnswer(decide);
   return (
     <Col gap={10} margin={{ top: 16 }}>
       <Row gap={12}>
@@ -143,17 +151,26 @@ function Answers({ id }: { id: string }): ReactNode {
   );
 }
 
-export function ApprovalCardView({ approval, context }: { approval: Approval; context: ApprovalContext }): ReactNode {
+interface ApprovalCardProps {
+  approval: Approval;
+  context: ApprovalContext;
+  decide?: Decide;
+  where?: string;
+  mark?: ReactNode;
+}
+
+export function ApprovalCardView({ approval, context, decide, where: named, mark }: ApprovalCardProps): ReactNode {
   const palette = useKitPalette();
   const narrow = useIsNarrow();
+  const boxDecide = useBoxDecide(approval.id);
   const card = approvalCard(approval);
-  const where = whereOf(card, context.groups);
+  const where = named ?? whereOf(card, context.groups);
   const others = useOthers(approval, context);
   const note = [ruleLine(card, approval.tool, context.groups, context.tools), others].filter((part) => part !== null).join(' ');
   return (
     <Col surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
       <Row align="start" gap={12}>
-        <Mark card={card} />
+        {mark ?? <Mark card={card} />}
         <Col flex={1} minWidth={0} gap={2}>
           <Text size="md" weight="semibold" numberOfLines={2}>
             {card.title}
@@ -184,7 +201,7 @@ export function ApprovalCardView({ approval, context }: { approval: Approval; co
           </Text>
         </Col>
       )}
-      <Answers id={approval.id} />
+      <Answers decide={decide ?? boxDecide} />
     </Col>
   );
 }

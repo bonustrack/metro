@@ -5,7 +5,7 @@ import { readBodyBytes } from '@metro-labs/http/api-http';
 import { MCP_PATHS, mcpAnswerOf, mcpTokenHashOf, type McpApproval } from '@metro-labs/http/mcp-server-protocol';
 import { AgentKeyMissing, refuseBrowser } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
-import type { ApprovalRow } from './approvals.js';
+import type { ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentConnectors } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { sendBody } from './mcp-http.js';

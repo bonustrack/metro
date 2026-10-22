@@ -6,7 +6,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { ROUTEWAY_USAGE_URL } from '@metro-labs/client/api/model';
 import { deleteOrgModel, updateOrgModel, type OrgModelConnection, type OrgModels } from '@metro-labs/client/api/org-models';
 import { providerInfo } from '@metro-labs/client/api/providers';
-import { serverLabel } from '@metro-labs/client/api/servers';
+import { agentSeed, serverLabel } from '@metro-labs/client/api/servers';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -58,7 +58,7 @@ function UsedIn({ list, connection }: { list: OrgModels; connection: OrgModelCon
     <Group label="Used in" note={!shared && agents.length === 0 ? 'No route uses it yet. Pick it in the default route or in an agent’s own route.' : undefined}>
       {shared ? <Item title="Default route" subtitle={routeSummary(list.default)} leading={<Icon name="route" size={ICON_SIZE.lg} color={palette.link} />} href={routeHash({ kind: 'org-route' })} /> : null}
       {agents.map((server) => (
-        <Item key={server.id} title={serverLabel(server)} subtitle={routeSummary(list.agents[server.id] ?? null)} leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
+        <Item key={server.id} title={serverLabel(server)} subtitle={routeSummary(list.agents[server.id] ?? null)} leading={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
       ))}
     </Group>
   );

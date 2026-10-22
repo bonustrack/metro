@@ -9,6 +9,7 @@ import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
 import { readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
+  addRemoteAgentForOwner,
   addServerForOwner,
   deleteServerForOwner,
   deleteServerRow,
@@ -18,6 +19,7 @@ import {
   launchForOwner,
   listAllServers,
   listServersForOwner,
+  ownerOf,
   renameServerForOwner,
   setAvatarForOwner, moveServerForOwner } from './db/servers.js';
 import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
@@ -52,6 +54,7 @@ import { getDb } from './db/client.js';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
+import { handleRemoteAgentsRequest, type RemoteAgentsApiDeps } from './agents/remote-api.js';
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connectors/setup';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
@@ -95,6 +98,7 @@ const latestApi: LatestApiDeps = { ...metricsCore, rows: usageRowsForOwner, keys
 const serversApi: ServersApiDeps = {
   list: listServersForOwner,
   add: addServerForOwner,
+  addRemote: addRemoteAgentForOwner,
   rename: renameServerForOwner,
   remove: deleteServerForOwner,
   avatar: setAvatarForOwner,
@@ -131,7 +135,7 @@ const storageApi: StorageApiDeps = {
   keys,
 };
 
-const deletionApi: DeletionApiDeps = { ...deletionCore, lookup: deletionRowForOwner, remove: deleteServerForOwner, keys };
+const deletionApi: DeletionApiDeps = { ...deletionCore, lookup: deletionRowForOwner, remove: (owner, id) => deleteServerRow(ownerOf(owner), id), keys };
 
 const awsApi: AwsConnectionsDeps = {
   config: () => readLaunchConfig(),
@@ -193,6 +197,8 @@ const agentModelsApi: AgentModelsDeps = {
   now: () => Date.now(),
 };
 
+const remoteAgentsApi: RemoteAgentsApiDeps = { keys, db: getDb, now: () => Date.now() };
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -227,6 +233,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleGmailApiRequest(req, res, gmailApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
   (req, res) => handleAgentModelsRequest(req, res, agentModelsApi),
+  (req, res) => handleRemoteAgentsRequest(req, res, remoteAgentsApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleModelsApiRequest(req, res, modelsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),

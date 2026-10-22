@@ -38,7 +38,7 @@ import { useNow } from '../../lib/use-now.js';
 
 const TICK_MS = 15_000;
 const UNCHECKED_NOTE = 'Not checked: you are not a member of their organization, so Metro cannot read their status, model or version.';
-const STATUS_ORDER: StatusFilter[] = ['all', 'online', 'updating', 'offline', 'stopped', 'checking', 'unchecked'];
+const STATUS_ORDER: StatusFilter[] = ['all', 'online', 'updating', 'offline', 'stopped', 'checking', 'unchecked', 'noserver'];
 
 const statusOptions = (): FilterOption<StatusFilter>[] => STATUS_ORDER.map((value) => ({ value, label: value === 'all' ? 'All' : STATE_WORD[value] }));
 

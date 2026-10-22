@@ -1,6 +1,6 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import type { Database } from '@metro-labs/connectors/db/database';
-import { pruneApprovals } from './approvals.js';
+import { pruneApprovals } from '@metro-labs/connectors/db/mcp-approvals';
 
 export const PRUNE_EVERY_MS = 60 * 60_000;
 

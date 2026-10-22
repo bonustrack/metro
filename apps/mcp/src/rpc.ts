@@ -2,13 +2,14 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { mcpCallsOf, mcpFindRequestOf } from '@metro-labs/http/mcp-server-protocol';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { callTools } from './call.js';
 import { agentConnectors, visibleKeys } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { findTools } from './find.js';
 import { errorResult, type ToolResult } from './tool-result.js';
-import { MCP_INSTRUCTIONS, TOOL_CALL, TOOL_SEARCH, toolList } from './tools.js';
+import type { ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
+import { approvalPlace, instructionsFor, TOOL_CALL, TOOL_SEARCH, toolList } from './tools.js';
 
 export const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
@@ -17,7 +18,7 @@ type RequestId = string | number | null;
 
 interface RpcContext {
   deps: McpDeps;
-  identity: AgentKeyRow;
+  identity: DeliveryIdentity;
 }
 
 class RpcError extends Error {
@@ -31,13 +32,13 @@ class RpcError extends Error {
 
 const failure = (id: RequestId, code: number, message: string): Reply => ({ jsonrpc: '2.0', id, error: { code, message } });
 
-function initialize(params: Record<string, unknown>): Reply {
+function initialize(params: Record<string, unknown>, place: ApprovalPlace): Reply {
   const asked = typeof params.protocolVersion === 'string' ? params.protocolVersion : '';
   return {
     protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
     capabilities: { tools: {} },
     serverInfo: { name: 'metro', version: METRO_VERSION },
-    instructions: MCP_INSTRUCTIONS,
+    instructions: instructionsFor(place),
   };
 }
 
@@ -64,9 +65,10 @@ async function toolCall(ctx: RpcContext, params: Record<string, unknown>): Promi
 }
 
 async function result(ctx: RpcContext, method: string, params: Record<string, unknown>): Promise<unknown> {
-  if (method === 'initialize') return initialize(params);
+  const place = approvalPlace(ctx.identity);
+  if (method === 'initialize') return initialize(params, place);
   if (method === 'ping') return {};
-  if (method === 'tools/list') return { tools: toolList(visibleKeys(await agentConnectors(ctx.deps, ctx.identity))) };
+  if (method === 'tools/list') return { tools: toolList(visibleKeys(await agentConnectors(ctx.deps, ctx.identity)), place) };
   if (method === 'tools/call') return toolCall(ctx, params);
   throw new RpcError(-32601, `Method not found: ${method.slice(0, 64)}`);
 }

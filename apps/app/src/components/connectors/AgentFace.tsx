@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { Text } from '@stage-labs/kit/react-native/text';
-import type { Server } from '@metro-labs/client/api/servers';
+import { agentSeed, type Server } from '@metro-labs/client/api/servers';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
@@ -12,8 +12,8 @@ const CHOICE_TONE: Record<PermissionChoice, Tone> = { allow: 'success', ask: 'de
 
 export function AgentFace({ server, dot, size = AVATAR_SIZE.row }: { server: Server; dot: DotTone | null; size?: number }): ReactNode {
   return (
-    <AvatarDot dot={dot}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={size} />
+    <AvatarDot dot={dot} mark={server.kind === 'remote' ? 'plug' : undefined}>
+      <AgentAvatar seed={agentSeed(server)} src={server.avatar} size={size} />
     </AvatarDot>
   );
 }

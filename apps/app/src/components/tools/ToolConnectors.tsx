@@ -53,11 +53,13 @@ function ConnectorRow({ connector, peers, admin, project }: { connector: OrgConn
   );
 }
 
-function Contents({ project }: { project: string }): ReactNode {
+function Contents({ project, onAdd }: { project: string; onAdd?: () => void }): ReactNode {
   const name = useAgentName();
   const { connectors, admin, error, refetch } = useAssignedConnectors();
   if (connectors === undefined && error !== null) return <ErrorState title="Could not load the connectors" text={queryError(error, 'Try again in a moment.')} onRetry={refetch} />;
   if (connectors === undefined) return <RowsSkeleton rows={2} trailing={false} />;
+  if (connectors.length === 0 && onAdd !== undefined)
+    return <StateBlock icon="plug" title="No connector yet" text={`A connector gives ${name} tools, like a calendar, Notion or GitHub.`} action={{ label: 'Add a connector', primary: true, onPress: onAdd }} />;
   if (connectors.length === 0)
     return (
       <StateBlock icon="plug" title="No connector yet" text={`A connector gives ${name} tools, like a calendar, Notion or GitHub. An admin picks them on the Connectors page.`}
@@ -66,11 +68,17 @@ function Contents({ project }: { project: string }): ReactNode {
   return connectors.map((row) => <ConnectorRow key={row.id} connector={row} peers={connectors} admin={admin} project={project} />);
 }
 
-export function ToolConnectors({ project }: { project: string }): ReactNode {
+interface ToolConnectorsProps {
+  project: string;
+  action?: ReactNode;
+  onAdd?: () => void;
+}
+
+export function ToolConnectors({ project, action, onAdd }: ToolConnectorsProps): ReactNode {
   const organization = activeAccount()?.organizationName ?? 'your organization';
   return (
-    <Group label="Connectors" note={`From ${organization}. Admins pick who gets them.`}>
-      <Contents project={project} />
+    <Group label="Connectors" note={`From ${organization}. Admins pick who gets them.`} action={action}>
+      <Contents project={project} onAdd={onAdd} />
     </Group>
   );
 }

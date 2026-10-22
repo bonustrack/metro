@@ -6,13 +6,13 @@ import { olderThan } from '@metro-labs/client/api/version';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
 import { matchesQuery, versionRank, type SortDir, type SortValue } from './admin-table.js';
 
-export type AgentState = 'online' | 'updating' | 'offline' | 'stopped' | 'checking' | 'unchecked';
+export type AgentState = 'online' | 'updating' | 'offline' | 'stopped' | 'checking' | 'unchecked' | 'noserver';
 
 export interface AdminAgent {
   key: string;
   id: string;
   name: string;
-  host: string;
+  host: string | null;
   avatar: string | null;
   organizationId: string;
   organizationName: string;
@@ -46,11 +46,12 @@ export const STATE_WORD: Record<AgentState, string> = {
   stopped: 'Stopped',
   checking: 'Checking',
   unchecked: 'Not checked',
+  noserver: 'No server',
 };
 
 const STATE_OF: Record<ServerStatus['state'], AgentState> = { live: 'online', stopped: 'stopped', offline: 'offline', updating: 'updating' };
 
-const URGENCY: Record<AgentState, number> = { offline: 5, updating: 4, stopped: 3, checking: 2, online: 1, unchecked: 0 };
+const URGENCY: Record<AgentState, number> = { offline: 5, updating: 4, stopped: 3, checking: 2, online: 1, unchecked: 0, noserver: 0 };
 
 function probeOf(row: DashboardRow): ServerStatus {
   const { mode } = row;
@@ -76,7 +77,7 @@ function modelOf(row: DashboardRow, now: number): ModelFacts {
 
 const newer = (version: string | null, latest: string | null): boolean => latest !== null && olderThan(version, latest);
 
-const agentName = (agent: { name: string | null; slug: string | null; host: string }): string => agent.name ?? agent.slug ?? agent.host;
+const agentName = (agent: { id: string; name: string | null; slug: string | null; host: string | null }): string => agent.name ?? agent.slug ?? agent.host ?? agent.id;
 
 const organizationName = (organization: DashboardRow['organization']): string => organization.name ?? organization.slug ?? organization.id;
 
@@ -106,7 +107,20 @@ function memberAgent(row: DashboardRow, sources: AgentSources): AdminAgent {
   };
 }
 
-function otherAgent(agent: AgentRow, known: boolean): AdminAgent {
+type Organizations = DashboardState['organizations'];
+
+function memberHref(agent: AgentRow, organizations: Organizations): string | null {
+  const organization = organizations?.find((one) => one.id === agent.owner);
+  return organization === undefined ? null : `#/${namedSegment(organization.id, organization.slug)}/${namedSegment(agent.id, agent.slug)}`;
+}
+
+function otherState(agent: AgentRow, known: boolean): AgentState {
+  if (agent.kind === 'remote') return 'noserver';
+  return known ? 'unchecked' : 'checking';
+}
+
+function otherAgent(agent: AgentRow, organizations: Organizations): AdminAgent {
+  const href = agent.kind === 'remote' ? memberHref(agent, organizations) : null;
   return {
     key: `other:${agent.id}`,
     id: agent.id,
@@ -115,9 +129,9 @@ function otherAgent(agent: AgentRow, known: boolean): AdminAgent {
     avatar: agent.avatar,
     organizationId: agent.owner,
     organizationName: agent.organizationName ?? agent.owner,
-    href: null,
-    member: false,
-    state: known ? 'unchecked' : 'checking',
+    href,
+    member: href !== null,
+    state: otherState(agent, organizations !== null),
     updatingTo: null,
     version: null,
     needsUpdate: false,
@@ -133,8 +147,7 @@ function otherAgent(agent: AgentRow, known: boolean): AdminAgent {
 export function adminAgents(sources: AgentSources): AdminAgent[] {
   const members = sources.dashboard.rows.map((row) => memberAgent(row, sources));
   const seen = new Set(members.map((row) => row.id));
-  const known = sources.dashboard.organizations !== null;
-  const others = (sources.everyAgent ?? []).filter((agent) => !seen.has(agent.id)).map((agent) => otherAgent(agent, known));
+  const others = (sources.everyAgent ?? []).filter((agent) => !seen.has(agent.id)).map((agent) => otherAgent(agent, sources.dashboard.organizations));
   return [...members, ...others];
 }
 

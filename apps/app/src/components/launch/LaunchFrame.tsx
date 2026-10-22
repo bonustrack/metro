@@ -9,22 +9,32 @@ import { LogBlock } from '../ui/LogBlock.js';
 import { copyText } from '../../lib/clipboard.js';
 import { go } from '../../lib/nav.js';
 
-export type LaunchStep = 'name' | 'place' | 'launch';
+export type LaunchStep = 'kind' | 'name' | 'place' | 'launch';
 
-const STEPS: readonly FocusStep[] = [
-  { id: 'name', label: 'Name' },
-  { id: 'place', label: 'Place' },
-  { id: 'launch', label: 'Launch' },
-];
+export type LaunchKind = 'box' | 'remote';
+
+const KIND: FocusStep = { id: 'kind', label: 'Server' };
+
+const STEPS: Record<LaunchKind, readonly FocusStep[]> = {
+  box: [KIND, { id: 'name', label: 'Name' }, { id: 'place', label: 'Place' }, { id: 'launch', label: 'Launch' }],
+  remote: [KIND, { id: 'name', label: 'Name' }],
+};
 
 const close = (): void => { go({ kind: 'servers' }); };
 
-const launchStep = (id: string): LaunchStep => (id === 'place' || id === 'launch' ? id : 'name');
+const launchStep = (id: string): LaunchStep => (id === 'kind' || id === 'place' || id === 'launch' ? id : 'name');
 
-export function LaunchFrame({ step, onStep, children }: { step: LaunchStep; onStep?: (step: LaunchStep) => void; children: ReactNode }): ReactNode {
+interface LaunchFrameProps {
+  step: LaunchStep;
+  kind?: LaunchKind;
+  onStep?: (step: LaunchStep) => void;
+  children: ReactNode;
+}
+
+export function LaunchFrame({ step, kind = 'box', onStep, children }: LaunchFrameProps): ReactNode {
   const back = onStep === undefined ? undefined : (id: string): void => { onStep(launchStep(id)); };
   return (
-    <FocusFrame title="New agent" onClose={close} steps={STEPS} step={step} onStep={back}>
+    <FocusFrame title="New agent" onClose={close} steps={STEPS[kind]} step={step} onStep={back}>
       {children}
     </FocusFrame>
   );

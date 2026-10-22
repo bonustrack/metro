@@ -92,7 +92,7 @@ async function view(deps: UsageApiDeps, row: UsageRow, range: UsageRange): Promi
   const config = deps.config();
   if (!config.ok) return { available: false, reason: OFF };
   const link = row.link;
-  if (link === null) return { available: false, reason: NOT_AVAILABLE };
+  if (link === null || row.host === null) return { available: false, reason: NOT_AVAILABLE };
   const credentials = access.reach(config.config, link.account);
   let usage: Usage;
   try {

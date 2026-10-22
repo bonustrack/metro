@@ -4,7 +4,7 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
 import { routeItems } from '@metro-labs/client/api/model-order';
-import { serverLabel } from '@metro-labs/client/api/servers';
+import { agentSeed, boxesOf, serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
@@ -55,7 +55,7 @@ function Route({ list }: { list: OrgModels }): ReactNode {
 
 function Agents({ list }: { list: OrgModels }): ReactNode {
   const { data } = useServersQuery();
-  const servers = data ?? [];
+  const servers = boxesOf(data ?? []);
   const shared = servers.filter((server) => list.agents[server.id] === undefined);
   const own = servers.filter((server) => list.agents[server.id] !== undefined);
   return (
@@ -67,7 +67,7 @@ function Agents({ list }: { list: OrgModels }): ReactNode {
         <Group label="Own route" note="These agents use their own route. Change it on the agent's Settings, Model.">
           {own.map((server) => (
             <Item key={server.id} title={serverLabel(server)} subtitle={routeSummary(list.agents[server.id] ?? null)}
-              leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
+              leading={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
           ))}
         </Group>
       )}

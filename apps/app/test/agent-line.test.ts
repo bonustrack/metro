@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
-import { agentLine, orderAgents, shortVersion, technicalLine, type LineFacts } from '../src/lib/agent-line.ts';
+import { agentLine, connectorsWords, orderAgents, remoteLine, shortVersion, technicalLine, type LineFacts } from '../src/lib/agent-line.ts';
+import { REMOTE_TABS, remoteTabOf } from '../src/lib/remote-tabs.ts';
 import { healthFix } from '../src/lib/agent-health.ts';
 import type { Setup } from '../src/lib/setup-steps.ts';
 
@@ -93,5 +94,24 @@ describe('the status under the agent name in its header', () => {
     expect(healthFix(undefined, undefined, 'emma')).toBeUndefined();
     expect(healthFix('live', session({}), 'lisa', loggedOut)).toEqual({ kind: 'station', project: 'lisa', accountId: 'waLisa00001' });
     expect(healthFix('offline', undefined, 'lisa', loggedOut)).toBeUndefined();
+  });
+});
+
+describe('an agent without a server', () => {
+  test('its line counts its connectors, and approvals waiting on metro.box come first', () => {
+    expect(connectorsWords(null)).toBe('No server');
+    expect(connectorsWords(1)).toBe('No server · 1 connector');
+    expect(remoteLine(0, null, 3)).toEqual({ text: 'No server · 3 connectors', tone: 'secondary', dot: null, busy: false, needsYou: false });
+    expect(remoteLine(1, 'use Create page on notion', 3)).toMatchObject({ text: 'Waiting for you: use Create page on notion', needsYou: true, dot: null });
+    expect(remoteLine(2, null, 0).text).toBe('Waiting for you: 2 approvals');
+    const rows = orderAgents([{ name: 'Alpha', line: remoteLine(0, null, 1) }, { name: 'Zed', line: remoteLine(1, null, 1) }]);
+    expect(rows.map((row) => row.name)).toEqual(['Zed', 'Alpha']);
+  });
+
+  test('its page has three tabs, and any other address of it opens Connectors', () => {
+    expect(REMOTE_TABS.map((tab) => [tab.label, tab.target('laptop').kind])).toEqual([['Connectors', 'home'], ['Access keys', 'access-keys'], ['Activity', 'agent-activity']]);
+    expect(remoteTabOf({ kind: 'access-keys', project: 'laptop' })).toBe('keys');
+    expect(remoteTabOf({ kind: 'agent-activity', project: 'laptop' })).toBe('activity');
+    expect(remoteTabOf({ kind: 'chats', project: 'laptop' })).toBe('connectors');
   });
 });

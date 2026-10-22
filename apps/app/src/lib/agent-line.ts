@@ -57,6 +57,16 @@ function liveLine(facts: LineFacts): AgentLine {
   return online(working ?? 'Online');
 }
 
+export function connectorsWords(count: number | null): string {
+  if (count === null) return 'No server';
+  return `No server · ${count === 1 ? '1 connector' : `${String(count)} connectors`}`;
+}
+
+export function remoteLine(waiting: number, ask: string | null, connectors: number | null): AgentLine {
+  if (waiting > 0) return { text: waitingText(waiting, ask), tone: 'default', dot: null, busy: false, needsYou: true };
+  return quiet(connectorsWords(connectors));
+}
+
 export function agentLine(facts: LineFacts): AgentLine {
   const { status } = facts;
   if (status === undefined) return quiet('Checking…');

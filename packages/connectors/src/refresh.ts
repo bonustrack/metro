@@ -1,7 +1,6 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oauth';
-import type { AgentKeyRow } from './db/agent-keys.js';
-import type { AssignedConnector, ConnectorDeliveryStore } from './db/connector-delivery.js';
+import type { AssignedConnector, ConnectorDeliveryStore, DeliveryIdentity } from './db/connector-delivery.js';
 import type { ConnectorEdit, ConnectorRow } from './db/connectors.js';
 import { refreshImported } from './imported-refresh.js';
 import { credentialRevision, deliveryPolicy } from './revision.js';
@@ -78,7 +77,7 @@ function bounded(deps: RefreshDeps): RefreshDeps {
   return { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
 }
 
-async function refreshOne(deps: RefreshDeps, identity: AgentKeyRow, connectorId: string, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<void> {
+async function refreshOne(deps: RefreshDeps, identity: DeliveryIdentity, connectorId: string, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<void> {
   await refreshImported(deps, async (edit) => {
     await deps.store.refresh(identity, connectorId, new Date(deps.now()).toISOString(), async (current) => {
       const { valid, blocked } = deliveryPolicy(current);
@@ -89,7 +88,7 @@ async function refreshOne(deps: RefreshDeps, identity: AgentKeyRow, connectorId:
   await deps.store.refresh(identity, connectorId, new Date(deps.now()).toISOString(), (current) => refreshLocked(deps, current, forced, failed));
 }
 
-export async function refreshConnector(deps: RefreshDeps, identity: AgentKeyRow, connectorId: string, forced?: RefreshRequest): Promise<Map<string, string>> {
+export async function refreshConnector(deps: RefreshDeps, identity: DeliveryIdentity, connectorId: string, forced?: RefreshRequest): Promise<Map<string, string>> {
   const failed = new Map<string, string>();
   await refreshOne(bounded(deps), identity, connectorId, forced?.connectorId === connectorId ? forced : undefined, failed);
   return failed;

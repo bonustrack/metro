@@ -30,6 +30,17 @@ describe('the two connector tools every agent sees', () => {
     expect(TOOL_CALL_DESCRIPTION).toContain('"approval": "<id>"');
   });
 
+  test('the approval line follows where the owner answers: the box session, the page of an agent without a server, or a key of a box', () => {
+    const page = mcpServerTools(['notion'], 'page')[1]?.description ?? '';
+    expect(page).toContain('- needs_approval: the owner must approve it on this agent\'s page on metro.box.');
+    expect(page).not.toContain('channel message');
+    const owner = mcpServerTools(['notion'], 'owner')[1]?.description ?? '';
+    expect(owner).toContain('- needs_approval: the agent\'s owner was asked in chat and on its page on metro.box.');
+    expect(owner).not.toContain('channel message');
+    for (const text of [page, owner]) expect(text.length).toBeLessThan(1800);
+    expect(mcpServerTools(['notion'])[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
+  });
+
   test('a malformed tool_call answers with the expected shape', () => {
     for (const bad of [{}, { calls: [] }, { calls: [{ tool: 'nope' }] }, { calls: [{ tool: 'notion.search', arguments: 'x' }] }, { tool: 'notion.search' }])
       expect(() => mcpCallsOf(bad)).toThrow(`Expected: ${TOOL_CALL_EXAMPLE}`);

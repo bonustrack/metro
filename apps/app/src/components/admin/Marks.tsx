@@ -28,7 +28,7 @@ export function Dot({ color }: { color: DotColor }): ReactNode {
   return <View style={StyleSheet.flatten([styles.dot, { backgroundColor: dotFill(palette, color) }])} />;
 }
 
-export const AGENT_DOT: Record<AgentState, DotColor> = { online: 'success', offline: 'danger', updating: 'grey', stopped: 'grey', checking: 'grey', unchecked: 'grey' };
+export const AGENT_DOT: Record<AgentState, DotColor> = { online: 'success', offline: 'danger', updating: 'grey', stopped: 'grey', checking: 'grey', unchecked: 'grey', noserver: 'grey' };
 
 export const USER_DOT: Record<UserState, DotColor> = { approved: 'success', waitlist: 'white', rejected: 'danger', none: 'grey' };
 

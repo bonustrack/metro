@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { splitMcpTool } from '@metro-labs/http/mcp-server-protocol';
-import { connectorKeys, slugOf } from '../src/keys.ts';
+import { connectorKeys, slugOf } from '../src/connector-keys.ts';
 
 describe('connector keys', () => {
   test('a key is the slug of the connector name', () => {

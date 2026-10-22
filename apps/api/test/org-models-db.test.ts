@@ -65,7 +65,7 @@ test('0014 is journaled after 0013 and only adds the three model tables to exist
     const path = join(folder, 'meta', '_journal.json');
     writeFileSync(path, JSON.stringify({ ...journal, entries: journal.entries.filter((e) => e.idx <= 13) }));
     await migrate(db, { migrationsFolder: folder });
-    await db.insert(agents).values({ id: 'agent000001', owner: TEST_OWNER, host: 'a.ts.net', addedAt: AT });
+    await db.execute(sql`INSERT INTO agents (id, owner, host, added_at) VALUES ('agent000001', ${TEST_OWNER}, 'a.ts.net', ${AT})`);
     await db.insert(connectors).values({ id: 'conn0000001', owner: TEST_OWNER, name: 'Linear', url: 'https://mcp.linear.app', auth: 'none', createdBy: 'user', createdAt: AT, updatedAt: AT });
     await migrate(db, { migrationsFolder: DIR });
     const tables = (await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename LIKE 'model_%' ORDER BY tablename")).rows.map((row) => row.tablename);

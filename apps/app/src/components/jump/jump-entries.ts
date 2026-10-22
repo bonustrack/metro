@@ -1,5 +1,5 @@
 import { releaseAvailability } from '@metro-labs/client/api/metro-release';
-import { serverLabel, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
+import { boxesOf, serverLabel, type BoxServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { connectorLabel } from '@metro-labs/client/api/connectors';
 import type { Selection } from '@metro-labs/client/selection';
 import type { IconName } from '../Icon.js';
@@ -9,13 +9,16 @@ import type { JumpEntry } from '../../lib/jump.js';
 import { useMetroRelease } from '../../lib/metro-release.js';
 import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
 import { useServerStatuses, useServersQuery } from '../../lib/queries.js';
+import { REMOTE_TABS, type RemoteTabId } from '../../lib/remote-tabs.js';
 import { SHELL_SECTIONS } from '../../lib/shell-sections.js';
+import { mayAddAgent } from '../../lib/launch-steps.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
 
 export type JumpAction =
   | { kind: 'go'; target: Selection }
-  | { kind: 'restart'; server: Server }
-  | { kind: 'update'; server: Server; version: string }
-  | { kind: 'terminal'; server: Server };
+  | { kind: 'restart'; server: BoxServer }
+  | { kind: 'update'; server: BoxServer; version: string }
+  | { kind: 'terminal'; server: BoxServer };
 
 export interface JumpTarget {
   icon: IconName | null;
@@ -28,12 +31,16 @@ export type JumpItem = JumpEntry<JumpTarget>;
 
 const TAB_ICONS: Record<AgentTabId, IconName> = { home: 'home', chats: 'chat', memory: 'documentText', tools: 'plug', settings: 'cog' };
 
+const REMOTE_ICONS: Record<RemoteTabId, IconName> = { connectors: 'plug', keys: 'key', activity: 'chartBar' };
+
 const STATE_WORD: Record<ServerStatus['state'], string> = { live: 'Online', offline: 'Offline', stopped: 'Stopped', updating: 'Updating' };
 
 const go = (target: Selection, icon: IconName | null, server: Server | null = null): JumpTarget => ({ icon, server, sub: null, action: { kind: 'go', target } });
 
 function pagesOf(server: Server): JumpItem[] {
   const name = serverLabel(server);
+  if (server.kind === 'remote')
+    return REMOTE_TABS.map((tab): JumpItem => ({ key: `page:${server.id}:${tab.id}`, group: 'pages', crumbs: [name, tab.label], payload: go(tab.target(server.id), REMOTE_ICONS[tab.id]) }));
   return AGENT_TABS.flatMap((tab) => {
     const root: JumpItem = { key: `page:${server.id}:${tab.id}`, group: 'pages', crumbs: [name, tab.label], payload: go(tab.target(server.id), TAB_ICONS[tab.id]) };
     const rootKind = tab.target(server.id).kind;
@@ -48,7 +55,7 @@ function pagesOf(server: Server): JumpItem[] {
   });
 }
 
-function actionsOf(server: Server, status: ServerStatus | undefined, latest: string | null): JumpItem[] {
+function actionsOf(server: BoxServer, status: ServerStatus | undefined, latest: string | null): JumpItem[] {
   const name = serverLabel(server);
   const live = status?.state === 'live';
   const newer = latest !== null && live && releaseAvailability(status.version, { latest, checkedAt: Date.now() }, false).kind === 'newer';
@@ -60,29 +67,37 @@ function actionsOf(server: Server, status: ServerStatus | undefined, latest: str
   ];
 }
 
-function sectionEntries(): JumpItem[] {
+function sectionEntries(admin: boolean): JumpItem[] {
+  const launch: JumpItem = { key: 'action:launch', group: 'actions', crumbs: ['New agent'], words: ['launch', 'create'], idle: true, payload: go({ kind: 'launch' }, 'plus') };
   return [
     ...SHELL_SECTIONS.map((section): JumpItem => ({ key: `section:${section.id}`, group: 'pages', crumbs: [section.label], idle: true, payload: go(section.target, SECTION_ICONS[section.id]) })),
     { key: 'section:route', group: 'pages', crumbs: ['Models', 'Default route'], words: ['backup', 'fallback'], payload: go({ kind: 'org-route' }, 'route') },
-    { key: 'action:launch', group: 'actions', crumbs: ['New agent'], words: ['launch', 'create'], idle: true, payload: go({ kind: 'launch' }, 'plus') },
+    ...(admin ? [launch] : []),
   ];
+}
+
+function subOf(server: Server, state: ServerStatus['state'] | undefined): string | null {
+  if (server.kind === 'remote') return 'No server';
+  return state === undefined ? null : STATE_WORD[state];
 }
 
 export function useJumpEntries(): JumpItem[] {
   const servers = useServersQuery().data ?? [];
-  const statuses = useServerStatuses(servers.map((server) => server.host));
+  const boxes = boxesOf(servers);
+  const statuses = useServerStatuses(boxes.map((server) => server.host));
+  const stateOf = new Map(boxes.map((server, at) => [server.id, statuses[at]?.data]));
   const latest = useMetroRelease().data?.latest ?? null;
   const connectors = useOrgConnectorsQuery().data?.connectors ?? [];
-  const agents = servers.map((server, at): JumpItem => {
-    const state = statuses[at]?.data?.state;
-    return { key: `agent:${server.id}`, group: 'agents', crumbs: [serverLabel(server)], words: [server.slug ?? ''], idle: true, payload: { icon: null, server, sub: state === undefined ? null : STATE_WORD[state], action: { kind: 'go', target: { kind: 'home', project: server.id } } } };
+  const agents = servers.map((server): JumpItem => {
+    const sub = subOf(server, stateOf.get(server.id)?.state);
+    return { key: `agent:${server.id}`, group: 'agents', crumbs: [serverLabel(server)], words: [server.slug ?? ''], idle: true, payload: { icon: null, server, sub, action: { kind: 'go', target: { kind: 'home', project: server.id } } } };
   });
   const connectorPages = connectors.map((connector): JumpItem => ({ key: `connector:${connector.id}`, group: 'pages', crumbs: ['Connectors', connectorLabel(connector, connectors)], payload: go({ kind: 'org-connector', id: connector.id }, 'plug') }));
   return [
     ...agents,
-    ...sectionEntries(),
+    ...sectionEntries(mayAddAgent(activeAccount()?.role)),
     ...servers.flatMap(pagesOf),
     ...connectorPages,
-    ...servers.flatMap((server, at) => actionsOf(server, statuses[at]?.data, latest)),
+    ...boxes.flatMap((server) => actionsOf(server, stateOf.get(server.id), latest)),
   ];
 }

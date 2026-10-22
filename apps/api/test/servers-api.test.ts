@@ -24,7 +24,7 @@ const deps: ServersApiDeps = {
       const { owner: _o, ...entry } = held;
       return Promise.resolve(entry);
     }
-    const row = { owner, id: nextId(), host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z', instanceId: null, launchedAt: null, avatar: null, slug: null };
+    const row: ServerEntry & { owner: string } = { owner, id: nextId(), kind: 'box', host, name: nameIn(body), addedAt: '2026-09-05T20:00:00.000Z', instanceId: null, launchedAt: null, avatar: null, slug: null, awsConnection: null };
     rows = [...rows, row];
     const { owner: _o, ...entry } = row;
     return Promise.resolve(entry);
@@ -38,7 +38,16 @@ const deps: ServersApiDeps = {
     const { owner: _o, ...entry } = held;
     return Promise.resolve(entry);
   },
-  remove: (owner, id) => {
+  addRemote: (owner, body) => {
+    const name = nameIn(body);
+    if (name === null) return Promise.reject(new ApiError('give the agent a name', 400));
+    const row: ServerEntry & { owner: string } = { owner, id: nextId(), kind: 'remote', host: null, name, addedAt: '2026-10-23T09:00:00.000Z', instanceId: null, launchedAt: null, avatar: null, slug: null, awsConnection: null };
+    rows = [...rows, row];
+    const { owner: _o, ...entry } = row;
+    return Promise.resolve(entry);
+  },
+  remove: (session, id) => {
+    const owner = session.organization ?? '';
     const held = rows.find((r) => r.owner === owner && r.id === id);
     if (held === undefined) return Promise.reject(new ApiError('no such server', 404));
     rows = rows.filter((r) => r !== held);
@@ -111,6 +120,32 @@ describe('the server list on metro.box', () => {
     expect((await call('DELETE', `/api/servers/${added.id}`, TEST_STRANGER)).status).toBe(404);
     expect((await call('DELETE', `/api/servers/${added.id}`, TEST_OWNER)).status).toBe(200);
     expect(rows.map((r) => r.host)).toEqual(['127.0.0.1:8420']);
+  });
+
+  test('only an admin of the organization adds an agent, a box by its address or one without a server', async () => {
+    const asMember = async (body: unknown): Promise<Response> =>
+      fetch(`${base}/api/servers`, { method: 'POST', headers: { authorization: await auth(TEST_OWNER, 'member'), 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    for (const body of [{ kind: 'remote', name: 'Laptop' }, { host: 'suzy.tail1234.ts.net', name: 'Suzy' }, { kind: 'box', host: 'suzy.tail1234.ts.net' }]) {
+      const refused = await asMember(body);
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toEqual({ error: 'Only an admin of the organization can add an agent.' });
+    }
+    expect(rows).toEqual([]);
+    expect((await call('POST', '/api/servers', TEST_OWNER, { host: 'suzy.tail1234.ts.net' })).status).toBe(200);
+    rows = [];
+    const list = await fetch(`${base}/api/servers`, { headers: { authorization: await auth(TEST_OWNER, 'member') } });
+    expect(list.status).toBe(200);
+  });
+
+  test('an admin creates an agent without a server by its name', async () => {
+    expect((await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote' })).status).toBe(400);
+    const made = (await (await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote', name: 'Laptop' })).json()) as ServerEntry;
+    expect(made).toMatchObject({ kind: 'remote', host: null, name: 'Laptop' });
+    const list = (await (await call('GET', '/api/servers?kinds=all', TEST_OWNER)).json()) as { servers: ServerEntry[] };
+    expect(list.servers.map((s) => [s.kind, s.host, s.name])).toEqual([['remote', null, 'Laptop']]);
+    const older = (await (await call('GET', '/api/servers', TEST_OWNER)).json()) as { servers: ServerEntry[] };
+    expect(older.servers).toEqual([]);
+    expect((await call('DELETE', `/api/servers/${made.id}`, TEST_OWNER)).status).toBe(200);
   });
 
   test('no signature is 401, a bad id or path is 404, a wrong method 405, and preflight passes', async () => {

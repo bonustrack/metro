@@ -38,7 +38,8 @@ export function checked(id: string, re: RegExp, what: string): string {
   return id;
 }
 
-export function nodeIn(host: string): string | null {
+export function nodeIn(host: string | null): string | null {
+  if (host === null) return null;
   const node = host.split('.')[0] ?? '';
   return NODE_RE.test(node) ? node : null;
 }

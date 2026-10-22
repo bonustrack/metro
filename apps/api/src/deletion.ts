@@ -39,7 +39,7 @@ export function resetDeletionState(): void {
   claims.clear();
 }
 
-const labelOf = (row: DeletionRow): string => row.name ?? row.host;
+const labelOf = (row: DeletionRow): string => row.name ?? row.host ?? row.id;
 
 async function guarded<T>(work: () => Promise<T>): Promise<T> {
   try {

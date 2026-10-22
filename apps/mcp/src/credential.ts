@@ -2,7 +2,7 @@ import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import { connectorAuthOf } from '@metro-labs/connectors/catalogue';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { openConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { refreshConnector } from '@metro-labs/connectors/refresh';
@@ -40,7 +40,7 @@ function opened(deps: CredentialDeps, row: ConnectorRow): ConnectorSecret | null
   }
 }
 
-async function currentRow(deps: CredentialDeps, identity: AgentKeyRow, connectorId: string): Promise<ConnectorRow> {
+async function currentRow(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string): Promise<ConnectorRow> {
   const row = (await deps.store.assigned(identity)).find((assigned) => assigned.connector.id === connectorId);
   if (row === undefined) throw missingError();
   return row.connector;
@@ -65,14 +65,14 @@ function targetOf(deps: CredentialDeps, row: ConnectorRow): VendorTarget {
   return { url, auth: connectorAuthOf(secret), secret, revision: credentialRevision(deps.key, row) };
 }
 
-async function refreshed(deps: CredentialDeps, identity: AgentKeyRow, connectorId: string, forced?: string): Promise<void> {
+async function refreshed(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, forced?: string): Promise<void> {
   await deps.refreshes.run(`${connectorId}:${forced ?? ''}`, async () => {
     await refreshConnector(deps, identity, connectorId, forced === undefined ? undefined : { connectorId, revision: forced });
     return undefined;
   });
 }
 
-export async function vendorTarget(deps: CredentialDeps, identity: AgentKeyRow, connectorId: string, forced?: string): Promise<VendorTarget> {
+export async function vendorTarget(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, forced?: string): Promise<VendorTarget> {
   let row = await currentRow(deps, identity, connectorId);
   if (forced !== undefined || needsRefresh(opened(deps, row), deps.now())) {
     await refreshed(deps, identity, connectorId, forced);
@@ -81,7 +81,7 @@ export async function vendorTarget(deps: CredentialDeps, identity: AgentKeyRow, 
   return targetOf(deps, row);
 }
 
-export async function withCredential<T>(deps: CredentialDeps, identity: AgentKeyRow, connectorId: string, work: (target: VendorTarget) => Promise<T>): Promise<T> {
+export async function withCredential<T>(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, work: (target: VendorTarget) => Promise<T>): Promise<T> {
   const first = await vendorTarget(deps, identity, connectorId);
   try {
     return await work(first);

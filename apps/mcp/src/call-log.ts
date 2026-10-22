@@ -1,15 +1,13 @@
 import { newId } from '@metro-labs/core/ids';
-import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { Database } from '@metro-labs/connectors/db/database';
+import { isUndefinedTable } from '@metro-labs/connectors/db/errors';
 import { CALL_NAME_MAX, recordCall } from '@metro-labs/connectors/db/mcp-calls';
 
 const KEY_MAX = 128;
 const OUTCOME_MAX = 32;
 const MS_MAX = 2_147_483_647;
-const UNDEFINED_TABLE = '42P01';
-const DEPTH = 4;
 
 export interface CallRecord {
   connector: string | null;
@@ -22,16 +20,7 @@ export interface CallRecord {
 }
 
 export interface CallRecorder {
-  record: (identity: AgentKeyRow, call: CallRecord) => void;
-}
-
-function missingTable(err: unknown): boolean {
-  let current: unknown = err;
-  for (let i = 0; i < DEPTH && isRecord(current); i += 1) {
-    if (current.code === UNDEFINED_TABLE) return true;
-    current = current.cause;
-  }
-  return false;
+  record: (identity: DeliveryIdentity, call: CallRecord) => void;
 }
 
 const clampMs = (ms: number): number => Math.min(MS_MAX, Math.max(0, Math.round(ms)));
@@ -41,7 +30,7 @@ export function callRecorder(db: () => Database): CallRecorder {
   const failed = (err: unknown): void => {
     if (quiet) return;
     quiet = true;
-    if (missingTable(err)) log.warn('mcp: the mcp_calls table does not exist yet, so calls are not recorded until api.metro.box migrates');
+    if (isUndefinedTable(err)) log.warn('mcp: the mcp_calls table does not exist yet, so calls are not recorded until api.metro.box migrates');
     else log.warn({ err: errMsg(err) }, 'mcp: could not record a call, later failures stay quiet until one works');
   };
   const recorded = (): void => {

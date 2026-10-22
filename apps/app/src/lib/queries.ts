@@ -32,7 +32,7 @@ import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type Cl
 import { fetchMode, type ModeInfo } from '@metro-labs/client/api/mode';
 import { sessionPollMs } from '@metro-labs/client/api/runner-activity';
 import { fetchUpdate, type UpdateCheck } from '@metro-labs/client/api/update';
-import { fetchServers, probeServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
+import { fetchServers, probeServer, toServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { fetchMachine, type Machine } from '@metro-labs/client/api/machine';
 import { fetchUsage, type ResourceRange, type Usage } from '@metro-labs/client/api/resources';
 import { fetchLatestUsage, type LatestUsage } from '@metro-labs/client/api/latest-usage';
@@ -142,13 +142,10 @@ const serversKey = (): string[] => orgKey('servers');
 
 const SERVERS_CACHE = 'metro.servers:';
 
-const isServerRow = (v: unknown): v is Server =>
-  typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { host?: unknown }).host === 'string';
-
 function cachedServers(key: string): Server[] | undefined {
   try {
     const parsed: unknown = JSON.parse(readItem(`${SERVERS_CACHE}${key}`) ?? 'null');
-    return Array.isArray(parsed) && parsed.every(isServerRow) ? parsed : undefined;
+    return Array.isArray(parsed) ? parsed.map(toServer) : undefined;
   } catch {
     return undefined;
   }

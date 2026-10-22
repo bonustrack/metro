@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { serverLabel, type BoxServer } from '@metro-labs/client/api/servers';
 import type { Selection } from '@metro-labs/client/selection';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -35,7 +35,7 @@ function Status({ text, fix }: { text: string; fix: Selection | undefined }): Re
   );
 }
 
-function CompactHeader({ server, avatar, status, tabs }: { server: Server; avatar: ReactNode; status: ReactNode; tabs: ReactNode }): ReactNode {
+function CompactHeader({ server, avatar, status, tabs }: { server: BoxServer; avatar: ReactNode; status: ReactNode; tabs: ReactNode }): ReactNode {
   const palette = useKitPalette();
   return (
     <Col gap={20}>
@@ -57,7 +57,7 @@ function CompactHeader({ server, avatar, status, tabs }: { server: Server; avata
   );
 }
 
-export function AgentHeader({ server, project, tabs }: { server: Server; project: string; tabs: ReactNode }): ReactNode {
+export function AgentHeader({ server, project, tabs }: { server: BoxServer; project: string; tabs: ReactNode }): ReactNode {
   const narrow = useIsNarrow();
   const status = useServerStatus(server.host);
   const session = useClaudeSessionQuery();

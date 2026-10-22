@@ -1,4 +1,4 @@
-import { daemonBase, daemonHost } from '../auth/daemon.js';
+import { daemonBase, daemonHost, refuseNoServer } from '../auth/daemon.js';
 import { isRecord } from '../read.js';
 import { call } from './client.js';
 import { fetchMode } from './mode.js';
@@ -26,6 +26,7 @@ export async function restartDaemon(base = daemonBase()): Promise<void> {
 }
 
 export async function startDaemon(base = daemonBase()): Promise<void> {
+  refuseNoServer(base);
   let res: Response;
   try {
     res = await fetch(`${base}/api/start`, { method: 'POST' });
@@ -71,6 +72,7 @@ export async function awaitStopped(base = daemonBase()): Promise<void> {
 }
 
 async function uptimeOf(base: string): Promise<number | null> {
+  refuseNoServer(base);
   try {
     const res = await fetch(`${base}/health`, { signal: timeoutSignal(5_000) });
     const body: unknown = await res.json();

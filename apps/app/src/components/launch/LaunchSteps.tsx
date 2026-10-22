@@ -10,6 +10,7 @@ import { Icon } from '../Icon.js';
 import { Rows } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import type { AvatarPicker } from '../AvatarPicker.js';
+import type { LaunchKind } from './LaunchFrame.js';
 import { cityOf } from '../../lib/launch-steps.js';
 
 const PREVIEW = 72;
@@ -42,14 +43,19 @@ interface NameProps {
   picker: AvatarPicker;
   onName: (name: string) => void;
   onNext: () => void;
+  onBack?: () => void;
+  text?: string;
+  next?: string;
+  busy?: boolean;
+  error?: string | null;
 }
 
-export function NameStep({ name, avatar, picker, onName, onNext }: NameProps): ReactNode {
+export function NameStep({ name, avatar, picker, onName, onNext, onBack, text = 'People see this name in their chats. You can change it later.', next = 'Continue', busy = false, error = null }: NameProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   const ready = name.trim() !== '';
   return (
     <>
-      <Heading title="Name your agent" text="People see this name in their chats. You can change it later." />
+      <Heading title="Name your agent" text={text} />
       <Row align="center" gap={16} wrap>
         <AgentAvatar seed={seedOf(name)} src={avatar} size={PREVIEW} />
         <Row gap={8}>
@@ -58,8 +64,35 @@ export function NameStep({ name, avatar, picker, onName, onNext }: NameProps): R
         </Row>
       </Row>
       {picker.error === null ? null : <Text size="md" role="danger">{picker.error}</Text>}
-      <FormField label="Name" name="launch-name" value={name} placeholder="Rosa" autoFocus dark={dark} inputProps={NO_AUTOFILL} onChangeText={onName} onSubmit={() => { if (ready) onNext(); }} />
-      <Buttons next="Continue" ready={ready} onNext={onNext} />
+      <FormField label="Name" name="launch-name" value={name} placeholder="Rosa" autoFocus dark={dark} inputProps={NO_AUTOFILL} onChangeText={onName} onSubmit={() => { if (ready && !busy) onNext(); }} />
+      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      <Buttons next={next} ready={ready} busy={busy} onNext={onNext} onBack={onBack} />
+    </>
+  );
+}
+
+interface KindProps {
+  kind: LaunchKind | null;
+  onKind: (kind: LaunchKind) => void;
+  onNext: () => void;
+}
+
+function KindIcon({ name }: { name: 'server' | 'plug' }): ReactNode {
+  const palette = useKitPalette();
+  return <Icon name={name} size={24} color={palette.text} />;
+}
+
+export function KindStep({ kind, onKind, onNext }: KindProps): ReactNode {
+  return (
+    <>
+      <Heading title="Does your agent need a server?" text="With a server, it answers in your chats and works on its own. Without one, it gives you the organization's connectors in Claude Code or any MCP client." />
+      <Rows>
+        <Item title="With a server" subtitle="Metro starts a server for it on AWS. It answers in your chats and runs on its own." chevron={false}
+          leading={<KindIcon name="server" />} trailing={<Check on={kind === 'box'} />} onPress={() => { onKind('box'); }} />
+        <Item title="Without a server" subtitle="Use its connectors from Claude Code on your computer, or any MCP client, with an access key." chevron={false}
+          leading={<KindIcon name="plug" />} trailing={<Check on={kind === 'remote'} />} onPress={() => { onKind('remote'); }} />
+      </Rows>
+      <Buttons next="Continue" ready={kind !== null} onNext={onNext} />
     </>
   );
 }

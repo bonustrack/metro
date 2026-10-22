@@ -1,6 +1,11 @@
+export type AgentKind = 'box' | 'remote';
+
+export const ADD_AGENT_ADMIN = 'Only an admin of the organization can add an agent.';
+
 export interface ServerEntry {
   id: string;
-  host: string;
+  kind: AgentKind;
+  host: string | null;
   name: string | null;
   addedAt: string;
   instanceId: string | null;
@@ -24,3 +29,5 @@ export function parseServerName(raw: unknown): string | null {
   const name = raw.replace(/[\p{Cc}]/gu, '').trim().slice(0, NAME_MAX);
   return name === '' ? null : name;
 }
+
+export const agentKindOf = (raw: string): AgentKind => (raw === 'remote' ? 'remote' : 'box');

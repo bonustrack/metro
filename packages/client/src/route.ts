@@ -57,6 +57,8 @@ const PROFILE_PATH = new RegExp(`^#?/(${HOST})/profile$`);
 const LAUNCH_LOG_PATH = new RegExp(`^#?/(${HOST})/launch-log$`);
 const SKILLS_GITHUB_PATH = new RegExp(`^#?/(${HOST})/skills/github$`);
 const SECRETS_RECENT_PATH = new RegExp(`^#?/(${HOST})/secrets/recent$`);
+const ACCESS_KEYS_PATH = new RegExp(`^#?/(${HOST})/keys$`);
+const AGENT_ACTIVITY_PATH = new RegExp(`^#?/(${HOST})/activity$`);
 const ORG_MODEL_ADD_PATH = /^#?\/organization\/models\/add(?:\/([a-z]{1,32}))?$/;
 const ORG_MODEL_SIGN_IN_PATH = new RegExp(`^#?/organization/models/(${ID})/sign-in$`);
 const ORG_AWS_PATH = /^#?\/organization\/aws$/;
@@ -154,6 +156,8 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [LAUNCH_LOG_PATH, (project) => ({ kind: 'launch-log', project })],
   [SKILLS_GITHUB_PATH, (project) => ({ kind: 'skills-github', project })],
   [SECRETS_RECENT_PATH, (project) => ({ kind: 'secrets-recent', project })],
+  [ACCESS_KEYS_PATH, (project) => ({ kind: 'access-keys', project })],
+  [AGENT_ACTIVITY_PATH, (project) => ({ kind: 'agent-activity', project })],
 ];
 
 function runSelection(project: string, view: string, id: string): Selection {
@@ -281,6 +285,8 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   'launch-log': () => '/launch-log',
   'skills-github': () => '/skills/github',
   'secrets-recent': () => '/secrets/recent',
+  'access-keys': () => '/keys',
+  'agent-activity': () => '/activity',
 };
 
 function orgItemPath(selection: Selection): string | null {

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from '
 import { log } from '@metro-labs/core/log';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { mcpApprovals } from '@metro-labs/connectors/db/schema';
-import { APPROVAL_KEEP_MS, approvalStore, pruneApprovals, type ApprovalRow } from '../src/approvals.ts';
+import { APPROVAL_KEEP_MS, approvalStore, pruneApprovals, type ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';
 import { argsDigest, previewOf } from '../src/digest.ts';
 import { pruneOnce, startApprovalPruning } from '../src/prune.ts';
 import { enrollAgent, PGLITE_START_MS, testDb, type TestAgent, type TestDb } from './helpers.ts';

@@ -11,6 +11,7 @@ import { allSides } from '../ui/edges.js';
 import { hoverColor } from '../../lib/theme.js';
 import { SHRINK } from '../../lib/style.js';
 import type { JumpItem } from './jump-entries.js';
+import { agentSeed } from '@metro-labs/client/api/servers';
 
 const LEAD = 24;
 const SEPARATOR = 14;
@@ -32,7 +33,7 @@ export function Kbd({ label }: { label: string }): ReactNode {
 function Lead({ item }: { item: JumpItem }): ReactNode {
   const palette = useKitPalette();
   const { server, icon } = item.payload;
-  if (item.group === 'agents' && server !== null) return <AgentAvatar seed={server.host} src={server.avatar} size={LEAD} />;
+  if (item.group === 'agents' && server !== null) return <AgentAvatar seed={agentSeed(server)} src={server.avatar} size={LEAD} />;
   return icon === null ? null : <Icon name={icon} size={20} color={palette.text} />;
 }
 

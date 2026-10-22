@@ -12,6 +12,7 @@ import { location } from '@metro-labs/client/platform';
 import { Notice } from './Notice.js';
 import { AppShell } from './shell/AppShell.js';
 import { AgentScreen } from './agent/AgentScreen.js';
+import { RemoteAgentScreen } from './remote/RemoteAgentScreen.js';
 import { Loading } from './Loading.js';
 import { refreshServers, useServersQuery } from '../lib/queries.js';
 import { go } from '../lib/nav.js';
@@ -80,6 +81,7 @@ function ListedServer({ id, selection, onLock }: { id: string; selection: Select
     );
   if (server === undefined) return <Notice text="This agent is not in your list." onRetry={onLock} retryLabel="Log in with another account" />;
   if (ready !== server.id) return <Loading />;
+  if (server.kind === 'remote') return <RemoteAgentScreen server={server} selection={selection} />;
   return <AgentScreen server={server} selection={selection} onLock={onLock} />;
 }
 

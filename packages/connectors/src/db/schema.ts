@@ -6,7 +6,8 @@ export const agents = pgTable(
   {
     id: text('id').primaryKey(),
     owner: text('owner').notNull(),
-    host: text('host').notNull(),
+    kind: text('kind').notNull().default('box'),
+    host: text('host'),
     name: text('name'),
     addedAt: text('added_at').notNull(),
     instanceId: text('instance_id'),
@@ -62,6 +63,22 @@ export const agentKeys = pgTable(
     mcpTokenHash: text('mcp_token_hash'),
   },
   (t) => [uniqueIndex('agent_keys_key_id_idx').on(t.keyId), uniqueIndex('agent_keys_mcp_token_hash_idx').on(t.mcpTokenHash).where(sql`${t.mcpTokenHash} IS NOT NULL`)],
+);
+
+export const agentTokens = pgTable(
+  'agent_tokens',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    label: text('label').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    lastUsedAt: bigint('last_used_at', { mode: 'number' }),
+    revokedAt: bigint('revoked_at', { mode: 'number' }),
+  },
+  (t) => [uniqueIndex('agent_tokens_token_hash_idx').on(t.tokenHash), index('agent_tokens_agent_idx').on(t.agent, t.createdAt)],
 );
 
 export const agentNonces = pgTable(

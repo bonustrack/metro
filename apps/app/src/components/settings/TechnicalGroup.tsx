@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { type Server } from '@metro-labs/client/api/servers';
+import { type BoxServer } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
@@ -21,12 +21,12 @@ function Runner(): ReactNode {
   return <Fact label="Runner" value={runnerValue(session.legacyRunner, setup?.permissionMode)} />;
 }
 
-function LaunchLog({ server }: { server: Server }): ReactNode {
+function LaunchLog({ server }: { server: BoxServer }): ReactNode {
   if (server.instanceId === null) return null;
   return <Item title="Launch log" subtitle="What the server printed while it set itself up" href={routeHash({ kind: 'launch-log', project: server.id })} />;
 }
 
-export function TechnicalGroup({ server }: { server: Server }): ReactNode {
+export function TechnicalGroup({ server }: { server: BoxServer }): ReactNode {
   return (
     <Group label="Technical details">
       <Fact label="Host" value={server.host} copy />

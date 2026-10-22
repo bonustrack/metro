@@ -56,6 +56,7 @@ function wantedOf(body: unknown): Wanted {
 const LAUNCHED = 'Metro launched this server in its own AWS account, so it is linked already';
 
 function linkable(row: DeletionRow): string {
+  if (row.host === null) throw new ApiError('This agent has no server to link.', 400);
   if (row.instanceId !== null && row.account === null) throw new ApiError(LAUNCHED, 409);
   const node = nodeIn(row.host);
   if (node === null) throw new ApiError('Metro links only a server whose address starts with its node name, as in metro-abc123', 400);

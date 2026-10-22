@@ -29,7 +29,7 @@ export const LIVE_DELETION: DeletionAws = {
 
 export interface Owned {
   agentId: string;
-  host: string;
+  host: string | null;
   addedAt: string;
 }
 
@@ -84,8 +84,8 @@ function sameIds(a: string[], b: string[]): boolean {
   return new Set(x).size === x.length && x.length === y.length && x.every((id, at) => id === y[at]);
 }
 
-export function nodeOf(host: string): string {
-  return nodeIn(host) ?? refuse(`${host} is not an address Metro gives the servers it launches.`);
+export function nodeOf(host: string | null): string {
+  return nodeIn(host) ?? refuse(host === null ? 'This agent has no server.' : `${host} is not an address Metro gives the servers it launches.`);
 }
 
 function checkTags(tags: Tags, owned: Owned, node: string, what: string, nodeRequired: boolean): void {

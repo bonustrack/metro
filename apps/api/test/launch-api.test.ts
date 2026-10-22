@@ -141,6 +141,21 @@ describe('the overview a wallet on the list sees', () => {
   });
 });
 
+describe('who may launch', () => {
+  test('only an admin of the organization starts a server; a member reads the overview but launches nothing', async () => {
+    const member = await auth(TEST_OWNER, 'member');
+    const overview = await fetch(`${base}/api/launch`, { headers: { authorization: member } });
+    expect(overview.status).toBe(200);
+    const refused = await fetch(`${base}/api/launch`, { method: 'POST', headers: { authorization: member, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Andy', region: 'us-east-1' }) });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: 'Only an admin of the organization can add an agent.' });
+    expect(launched).toEqual([]);
+    expect(recorded).toEqual([]);
+    expect((await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1' })).status).toBe(200);
+    expect(launched).toHaveLength(1);
+  });
+});
+
 describe('issuing one', () => {
   test('the box is owned by the organization that signed the request, whatever owner the body names', async () => {
     const res = await call('POST', '/api/launch', TEST_OWNER, { name: 'Andy', region: 'us-east-1', owner: WALLET });

@@ -49,7 +49,9 @@ export type Selection =
   | { kind: 'agent-profile'; project: string }
   | { kind: 'launch-log'; project: string }
   | { kind: 'skills-github'; project: string }
-  | { kind: 'secrets-recent'; project: string };
+  | { kind: 'secrets-recent'; project: string }
+  | { kind: 'access-keys'; project: string }
+  | { kind: 'agent-activity'; project: string };
 
 export type RunView = 'session' | 'about' | 'helper' | 'event';
 
