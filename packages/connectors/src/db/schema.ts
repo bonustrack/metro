@@ -108,10 +108,12 @@ export const mcpApprovals = pgTable(
     requestedAt: bigint('requested_at', { mode: 'number' }).notNull(),
     answeredAt: bigint('answered_at', { mode: 'number' }),
     deliveredAt: bigint('delivered_at', { mode: 'number' }),
+    origin: text('origin'),
+    token: text('token'),
   },
   (t) => [
     index('mcp_approvals_agent_state_idx').on(t.agent, t.state),
-    uniqueIndex('mcp_approvals_pending_idx').on(t.agent, t.connector, t.tool, t.argsDigest).where(sql`${t.state} = 'pending'`),
+    uniqueIndex('mcp_approvals_pending_idx').on(t.agent, t.connector, t.tool, t.argsDigest, sql`coalesce(${t.token}, '')`).where(sql`${t.state} = 'pending'`),
   ],
 );
 

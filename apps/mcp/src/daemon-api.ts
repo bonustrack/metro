@@ -5,7 +5,7 @@ import { readBodyBytes } from '@metro-labs/http/api-http';
 import { MCP_PATHS, mcpAnswerOf, mcpTokenHashOf, type McpApproval } from '@metro-labs/http/mcp-server-protocol';
 import { AgentKeyMissing, refuseBrowser } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
-import type { ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';
+import type { DeliveredApproval } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentConnectors } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { sendBody } from './mcp-http.js';
@@ -49,10 +49,16 @@ async function signed(req: IncomingMessage, deps: McpDeps): Promise<Signed> {
   return { identity, body: bodyOf(bytes) };
 }
 
-async function wireOf(deps: McpDeps, identity: AgentKeyRow, rows: ApprovalRow[]): Promise<McpApproval[]> {
+function originOf(row: DeliveredApproval): Pick<McpApproval, 'origin' | 'keyLabel'> {
+  if (row.origin === 'box') return { origin: 'box' };
+  if (row.origin !== 'key') return {};
+  return row.keyLabel === null ? { origin: 'key' } : { origin: 'key', keyLabel: row.keyLabel };
+}
+
+async function wireOf(deps: McpDeps, identity: AgentKeyRow, rows: DeliveredApproval[]): Promise<McpApproval[]> {
   if (rows.length === 0) return [];
   const keys = new Map((await agentConnectors(deps, identity)).map((connector) => [connector.id, connector.key]));
-  return rows.map((row) => ({ id: row.id, connector: keys.get(row.connector) ?? row.connector, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt }));
+  return rows.map((row) => ({ id: row.id, connector: keys.get(row.connector) ?? row.connector, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt, ...originOf(row) }));
 }
 
 async function pendingFor(deps: McpDeps, identity: AgentKeyRow, signal: AbortSignal): Promise<McpApproval[]> {

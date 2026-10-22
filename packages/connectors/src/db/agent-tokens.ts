@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { newId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './database.js';
@@ -74,6 +74,15 @@ export async function findAgentToken(db: Database, tokenHash: string): Promise<A
     .limit(1);
   const row = rows[0];
   return row === undefined ? null : { agent: row.agent, owner: row.owner, tokenId: row.tokenId, remote: row.kind === 'remote' };
+}
+
+export async function agentTokenLabels(db: Database, identity: { agent: string; owner: string }, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ id: agentTokens.id, label: agentTokens.label })
+    .from(agentTokens)
+    .where(and(inArray(agentTokens.id, ids), eq(agentTokens.agent, identity.agent), eq(agentTokens.owner, identity.owner)));
+  return new Map(rows.map((row) => [row.id, row.label]));
 }
 
 export async function touchAgentToken(db: Database, id: string, now: number): Promise<void> {

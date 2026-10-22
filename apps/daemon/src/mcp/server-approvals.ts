@@ -46,10 +46,16 @@ const noticeText = (tool: string, id: string, behavior: Behavior): string =>
 
 const requestedAt = (at: number, now = Date.now()): number => (Number.isFinite(at) && at > 0 ? Math.min(at, now) : now);
 
+const askedBy = (approval: McpApproval): string => {
+  if (approval.origin !== 'key') return '';
+  return approval.keyLabel === undefined ? ' (from an access key)' : ` (from an access key: ${approval.keyLabel})`;
+};
+
 interface Held {
   id: string;
   tool: string;
   line: string | undefined;
+  tellAgent: boolean;
   answer: (decision: McpDecision) => Promise<AnswerOutcome>;
   publish: (event: MetroEvent) => void;
 }
@@ -58,6 +64,10 @@ async function deliver(held: Held, behavior: Behavior): Promise<void> {
   const outcome = await held.answer(behavior);
   if (outcome !== 'acknowledged') {
     log.info({ id: held.id, outcome }, 'mcp-server: the answer was not taken, so the agent is not told');
+    return;
+  }
+  if (!held.tellAgent) {
+    log.info({ id: held.id }, 'mcp-server: the call came with an access key, not from this agent\'s session, so the agent is not told');
     return;
   }
   const line = noticeLineFor(held.line);
@@ -91,15 +101,15 @@ export function holdServerApproval(approval: McpApproval, answer: Held['answer']
   const tool = `${approval.connector}.${approval.tool}`;
   const announced = announcedLine(approval.id);
   const line = announced ?? promptLineFor(approval.id);
-  const held: Held = { id: approval.id, tool, line, answer, publish };
+  const held: Held = { id: approval.id, tool, line, tellAgent: approval.origin !== 'key', answer, publish };
   holdPrompt(
     { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server' },
     owner,
     sender(held),
     line === undefined ? undefined : async (text) => metroSend(line, text),
   );
-  log.info({ id: approval.id, tool, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
-  if (line !== undefined && announced === undefined) announce(approval.id, line, serverPromptBody({ requestId: approval.id, tool, preview: approval.preview }));
+  log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
+  if (line !== undefined && announced === undefined) announce(approval.id, line, serverPromptBody({ requestId: approval.id, tool: `${tool}${askedBy(approval)}`, preview: approval.preview }));
   return true;
 }
 
