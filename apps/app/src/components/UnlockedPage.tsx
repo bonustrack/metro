@@ -66,7 +66,7 @@ function SectionPage(props: PageProps): ReactNode {
   if (selectionProject(selection) !== null) return <ServerGate selection={selection} onLock={onLock} />;
   const page = organizationPage(props);
   if (page !== null) return page;
-  if (selection.kind === 'activity') return <ActivityPage />;
+  if (selection.kind === 'activity') return <ActivityPage agent={selection.agent} />;
   return narrow ? <AgentList pane={false} /> : <AgentsIdle />;
 }
 

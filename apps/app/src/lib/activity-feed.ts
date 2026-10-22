@@ -9,6 +9,7 @@ import { usePageAtTop } from './page-scroll.js';
 import { useSharedPoll } from './shared-poll.js';
 
 const LIVE_POLL_MS = 3_000;
+const LATEST_SHOWN = 5;
 
 export interface ActivityFeedView {
   calls: ActivityCall[];
@@ -33,6 +34,30 @@ function useEarlier(agent: string | null, oldest: ActivityCall | undefined, done
       .finally(() => { setBusy(false); });
   };
   return { busy, error, load };
+}
+
+export function useFreshIds(calls: ActivityCall[], loaded: boolean): Set<string> {
+  const known = useRef<Set<string> | null>(null);
+  const newest = useRef(0);
+  const fresh = new Set(known.current === null ? [] : calls.filter((call) => !known.current?.has(call.id) && call.at >= newest.current).map((call) => call.id));
+  useEffect(() => {
+    if (!loaded) return;
+    known.current = new Set(calls.map((call) => call.id));
+    newest.current = Math.max(newest.current, ...calls.map((call) => call.at));
+  }, [calls, loaded]);
+  return fresh;
+}
+
+export function useLatestActivity(agent: string): ActivityCall[] | null {
+  const key = orgKey('connector-activity', String(accountScopeIdentity()), agent, `latest-${String(LATEST_SHOWN)}`);
+  useSharedPoll([key], LIVE_POLL_MS);
+  const latest = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => fetchConnectorActivity({ limit: LATEST_SHOWN, agent }, signal),
+    staleTime: LIVE_POLL_MS,
+    retry: false,
+  });
+  return latest.data ?? null;
 }
 
 export function useActivityFeed(agent: string | null): ActivityFeedView {

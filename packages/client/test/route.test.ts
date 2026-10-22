@@ -154,6 +154,18 @@ describe('the first segment is the daemon', () => {
     routeSelection('#/settings');
   });
 
+  test('#/activity/<agent id> is the live activity of one agent', () => {
+    expect(routeSelection('#/activity/aB3-_xYz9Qw')).toEqual({ kind: 'activity', agent: 'aB3-_xYz9Qw' });
+    expect(routeHash({ kind: 'activity', agent: 'aB3-_xYz9Qw' })).toBe('#/activity/aB3-_xYz9Qw');
+    expect(routeSelection('#/activity/aB3-_xYz9Qw?x=1')).toEqual({ kind: 'activity', agent: 'aB3-_xYz9Qw' });
+    expect(routeSelection('#/activity/not-an-id').kind).toBe('none');
+    expect(routeSelection('#/activity/aB3-_xYz9Qw/').kind).toBe('none');
+    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/activity/aB3-_xYz9Qw')).toEqual({ kind: 'activity', agent: 'aB3-_xYz9Qw' });
+    expect(routeHash({ kind: 'activity', agent: 'aB3-_xYz9Qw' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/activity/aB3-_xYz9Qw');
+    expect(routeHash({ kind: 'activity' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/activity');
+    routeSelection('#/settings');
+  });
+
   test('the organization Connectors page and one connector of it are organization pages', () => {
     expect(routeSelection('#/organization/connectors')).toEqual({ kind: 'org-connectors' });
     expect(routeHash({ kind: 'org-connectors' })).toBe('#/organization/connectors');

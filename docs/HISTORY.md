@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-10-23: An agent's connector calls on its Home
+
+Less, the day after Live activity shipped: "Feed should also appear in the homepage of an agent." The agent's Home gained a Connector activity group after Right now and the setup checklist: its last 5 connector calls, live every 3 s, as feed rows without the agent's avatar and name, and Show all opening Live activity with that agent's chip chosen (`#/<org>/activity/<agent id>`, which on a phone goes back to the agent). The group is left out while it loads, against an api without the route or when the first read fails, so it can never hold Home up; no calls is one line. Page only: no api, mcp.metro.box or box change.
+
 ## 2026-10-22: Live activity, every agent's connector calls on one page
 
 Less, looking at the Agents section on a wide screen with no agent chosen ("Choose an agent"): "Can you show a feed of all agents connector tool call on this page? So I can follow what's going on live? Which agent is doing what." Until then a connector call left only a log line on mcp.metro.box.

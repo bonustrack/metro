@@ -14,6 +14,7 @@ import { AtAGlance } from './home/Glance.js';
 import { RightNow } from './home/RightNow.js';
 import { SetupChecklist } from './home/SetupChecklist.js';
 import { ChannelAlerts } from './home/ChannelAlerts.js';
+import { ConnectorActivity } from './home/ConnectorActivity.js';
 import { rightNow } from '../lib/right-now.js';
 import { setupOf } from '../lib/setup-steps.js';
 import { useBoxApprovals } from '../lib/agent-status.js';
@@ -72,6 +73,7 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
       <ChannelAlerts project={project} groups={view.groups} />
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
+      {serverId === null ? null : <ConnectorActivity agent={serverId} />}
       {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} name={name} /> : null}
     </>
   );

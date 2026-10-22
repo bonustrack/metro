@@ -1,3 +1,4 @@
+import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import type { Selection } from '@metro-labs/client/selection';
 
 type Kind = Selection['kind'];
@@ -52,7 +53,6 @@ export const phoneTabOf = (selection: Selection): ShellSectionId => shellSection
 export const isTabRoot = (selection: Selection): boolean => TAB_ROOTS.has(selection.kind);
 
 const BACK_TO: Partial<Record<Kind, Selection>> = {
-  activity: { kind: 'servers' },
   'org-route': { kind: 'org-models' },
   'org-model': { kind: 'org-models' },
   'org-model-add': { kind: 'org-models' },
@@ -63,6 +63,14 @@ export function phoneBackOf(selection: Selection): Selection | null {
   if ('project' in selection) return { kind: 'servers' };
   if (selection.kind === 'org-connector') return selection.agent === undefined ? { kind: 'org-connectors' } : null;
   if (selection.kind === 'org-model-sign-in') return { kind: 'org-model', id: selection.id };
+  if (selection.kind === 'activity') return selection.agent === undefined ? { kind: 'servers' } : { kind: 'home', project: selection.agent };
   const back = BACK_TO[selection.kind];
   return back === undefined ? { kind: 'organization' } : { ...back };
+}
+
+export function phoneBackLabel(back: Selection, servers: readonly Server[] | undefined): string {
+  const section = SHELL_SECTIONS.find((s) => s.target.kind === back.kind);
+  if (section !== undefined) return section.label;
+  const server = 'project' in back ? servers?.find((s) => s.id === back.project) : undefined;
+  return server === undefined ? 'Back' : serverLabel(server);
 }

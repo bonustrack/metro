@@ -22,13 +22,13 @@ export function NoAgents(): ReactNode {
 const WIDE_HINT = 'Pick an agent on the left to see what it is doing and what it needs from you.';
 const PHONE_HINT = 'Connector calls from all your agents, as they happen.';
 
-export function ActivityPage(): ReactNode {
+export function ActivityPage({ agent }: { agent?: string }): ReactNode {
   const narrow = useIsNarrow();
   useDocumentTitle('Live activity');
   return (
     <Wide gap={24}>
       <PageHeader title="Live activity" subtitle={narrow ? PHONE_HINT : WIDE_HINT} />
-      <ActivityFeed />
+      <ActivityFeed key={agent ?? 'all'} agent={agent} />
     </Wide>
   );
 }
