@@ -1,7 +1,6 @@
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
-import type { AssignedConnector } from '@metro-labs/connectors/db/connector-delivery';
+import { connectorKeys } from '@metro-labs/connectors/connector-keys';
+import type { AssignedConnector, DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { McpDeps } from './deps.js';
-import { connectorKeys } from './keys.js';
 import { connectorAccess, type ConnectorAccess } from './policy.js';
 
 export interface AgentConnector {
@@ -12,7 +11,7 @@ export interface AgentConnector {
   access: ConnectorAccess;
 }
 
-export async function agentConnectors(deps: Pick<McpDeps, 'store'>, identity: AgentKeyRow): Promise<AgentConnector[]> {
+export async function agentConnectors(deps: Pick<McpDeps, 'store'>, identity: DeliveryIdentity): Promise<AgentConnector[]> {
   const rows = await deps.store.assigned(identity);
   const keys = connectorKeys(rows.map((row) => ({ id: row.connector.id, name: row.connector.name })));
   return rows

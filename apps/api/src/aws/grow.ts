@@ -36,7 +36,7 @@ export const LIVE_GROW: GrowAws = {
 
 export interface Owner {
   agentId: string;
-  host: string;
+  host: string | null;
 }
 
 export interface RootDisk {
@@ -94,7 +94,7 @@ function theVolume(found: VolumeFacts[], volumeId: string, instanceId: string): 
 
 export async function readRootDisk(aws: GrowAws, target: Ec2Target, owner: Owner): Promise<RootDisk> {
   const { instanceId } = target;
-  const node = nodeIn(owner.host) ?? refuse(`${owner.host} is not an address Metro gives the servers it launches.`);
+  const node = nodeIn(owner.host) ?? refuse(owner.host === null ? 'This agent has no server.' : `${owner.host} is not an address Metro gives the servers it launches.`);
   const instance = theInstance(await aws.instance(target), instanceId);
   const serverTags = tagMismatch(instance.tags, node, owner.agentId, true);
   if (serverTags !== null) refuse(`The server ${instanceId} ${serverTags}`);

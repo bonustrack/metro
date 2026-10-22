@@ -1,6 +1,6 @@
 import { splitMcpTool, type McpFindRequest } from '@metro-labs/http/mcp-server-protocol';
 import type { RemoteTool } from '@metro-labs/http/connector-tools';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, visibleKeys, type AgentConnector } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { connectorTools, failureOf, groupsOf } from './listing.js';
@@ -22,7 +22,7 @@ function wanted(connectors: AgentConnector[], query: string): AgentConnector[] {
   return connectors.filter((connector) => keys.has(connector.key));
 }
 
-async function listingOf(deps: McpDeps, identity: AgentKeyRow, connector: AgentConnector): Promise<Listing> {
+async function listingOf(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConnector): Promise<Listing> {
   try {
     return { connector, tools: await connectorTools(deps, identity, connector) };
   } catch (err) {
@@ -48,7 +48,7 @@ function noMatch(query: string, connectors: AgentConnector[], listings: Listing[
 
 const callFooter = (found: SearchTool[]): string => `Call these with tool_call: {"calls":[{"tool":"${found[0]?.name ?? '<name>'}","arguments":{…}}]}`;
 
-export async function findTools(deps: McpDeps, identity: AgentKeyRow, request: McpFindRequest): Promise<ToolResult> {
+export async function findTools(deps: McpDeps, identity: DeliveryIdentity, request: McpFindRequest): Promise<ToolResult> {
   const connectors = (await agentConnectors(deps, identity)).filter((connector) => !connector.access.blocked);
   const listings = await Promise.all(wanted(connectors, request.query).map((connector) => listingOf(deps, identity, connector)));
   const found = searchTools(listings.flatMap(searchable), request.query, request.max_results);

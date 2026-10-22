@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
+import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import { approvalCard } from '@metro-labs/client/api/approval-card';
 import type { StationsView } from '@metro-labs/client/api/client';
 import type { ClaudeProject } from '@metro-labs/client/api/claude';
@@ -7,11 +8,12 @@ import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { fetchInstanceView } from '@metro-labs/client/api/launch';
 import type { ModelSettings } from '@metro-labs/client/api/model';
 import { channelTrouble, type ChannelTrouble } from '@metro-labs/client/api/pair-again';
-import { serverLabel, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
+import { boxesOf, isRemote, serverLabel, type BoxServer, type RemoteServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
-import { agentLine, orderAgents, type AgentLine } from './agent-line.js';
+import { agentLine, orderAgents, remoteLine, type AgentLine } from './agent-line.js';
 import { useApprovalLists, waitingCount } from './agent-status.js';
 import { useServerStatuses } from './queries.js';
+import { useConnectorCounts, useRemoteApprovalLists } from './remote-agents.js';
 import { setupOf, type Setup } from './setup-steps.js';
 import { stillBooting } from './use-launch.js';
 import { useNow } from './use-now.js';
@@ -43,10 +45,10 @@ function useCacheChanges(): QueryClient {
   return client;
 }
 
-const cached = <T>(client: QueryClient, name: string, servers: Server[]): (T | undefined)[] =>
+const cached = <T>(client: QueryClient, name: string, servers: BoxServer[]): (T | undefined)[] =>
   servers.map((server) => client.getQueryData<T>([name, baseFromSegment(server.host)]));
 
-function useBooting(servers: Server[], statuses: UseQueryResult<ServerStatus>[]): (string | null)[] {
+function useBooting(servers: BoxServer[], statuses: UseQueryResult<ServerStatus>[]): (string | null)[] {
   const booting = servers.map((server, i) => statuses[i]?.data?.state === 'offline' && stillBooting(server));
   const views = useQueries({
     queries: servers.map((server, i) => ({
@@ -66,7 +68,31 @@ function knownSetup(name: string, model: ModelSettings | undefined, stations: St
   return setupOf({ name, project: '', model, groups: stations.groups, conversations });
 }
 
+function remoteAsk(found: RemoteApproval): string {
+  const card = approvalCard(found.approval);
+  return `approve ${card.title} on ${found.connectorName ?? card.connector ?? 'a connector'}`;
+}
+
+function useRemoteRows(remotes: RemoteServer[]): AgentRow[] {
+  const ids = remotes.map((server) => server.id);
+  const approvals = useRemoteApprovalLists(ids);
+  const counts = useConnectorCounts(ids);
+  return remotes.map((server, i): AgentRow => {
+    const read = approvals[i];
+    const pending = read === undefined || read.error !== null ? [] : read.data ?? [];
+    const first = pending[0];
+    const line = remoteLine(pending.length, first === undefined ? null : remoteAsk(first), counts[i] ?? null);
+    return { server, name: serverLabel(server), line, waiting: pending.length, status: undefined, trouble: null };
+  });
+}
+
 export function useAgentRows(servers: Server[]): AgentRow[] {
+  const boxes = useBoxRows(boxesOf(servers));
+  const remotes = useRemoteRows(servers.filter(isRemote));
+  return orderAgents([...boxes, ...remotes]);
+}
+
+function useBoxRows(servers: BoxServer[]): AgentRow[] {
   const now = useNow(CLOCK_MS);
   const hosts = servers.map((server) => server.host);
   const statuses = useServerStatuses(hosts);
@@ -88,5 +114,5 @@ export function useAgentRows(servers: Server[]): AgentRow[] {
     const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, trouble, session: sessions[i], now });
     return { server, name, line, waiting: count, status, trouble };
   });
-  return orderAgents(rows);
+  return rows;
 }

@@ -61,19 +61,27 @@ export const toolSearchDescription = (keys: string[] | null): string =>
     'Results are full definitions (name, description and the JSON schema of the arguments) in a <functions> block. Each name is <connector>.<tool>: pass it exactly as "tool" to tool_call. Tools the owner blocked are never returned.',
   ].join('\n');
 
-export const TOOL_CALL_DESCRIPTION = [
-  'Run connector tools that tool_search found. Always find a tool with tool_search first: its exact name and argument schema come from there.',
-  `Shape: ${TOOL_CALL_EXAMPLE}`,
-  `Up to ${String(MCP_CALLS_MAX)} independent calls run in parallel in one tool_call and are answered in order. Each result starts with "[n] <connector>.<tool>", then the tool's own content, or one line saying why it did not run:`,
-  '- not_found: no such connector or tool here. Run tool_search, then use a name it returned.',
-  '- needs_approval: the owner was asked in chat and on metro.box. Tell the person what is waiting, wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
-  '- denied or blocked: the owner refused or blocked this call. Do not retry it.',
-  '- signin: the connector must be signed in again. Tell the owner to do it on the organization\'s Connectors page on metro.box.',
-  '- unavailable: the connector or Metro could not be reached. Try again later.',
-  '- vendor_error: the connector answered with its own error, shown as it came.',
-].join('\n');
+const NEEDS_APPROVAL = {
+  box: '- needs_approval: the owner was asked in chat and on metro.box. Tell the person what is waiting, wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
+  remote: '- needs_approval: the owner must approve it on this agent\'s page on metro.box. Tell the person what is waiting and ask them to approve it there, then call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.',
+};
 
-export function mcpServerTools(keys: string[] | null): McpServerTool[] {
+const toolCallDescription = (remote: boolean): string =>
+  [
+    'Run connector tools that tool_search found. Always find a tool with tool_search first: its exact name and argument schema come from there.',
+    `Shape: ${TOOL_CALL_EXAMPLE}`,
+    `Up to ${String(MCP_CALLS_MAX)} independent calls run in parallel in one tool_call and are answered in order. Each result starts with "[n] <connector>.<tool>", then the tool's own content, or one line saying why it did not run:`,
+    '- not_found: no such connector or tool here. Run tool_search, then use a name it returned.',
+    remote ? NEEDS_APPROVAL.remote : NEEDS_APPROVAL.box,
+    '- denied or blocked: the owner refused or blocked this call. Do not retry it.',
+    '- signin: the connector must be signed in again. Tell the owner to do it on the organization\'s Connectors page on metro.box.',
+    '- unavailable: the connector or Metro could not be reached. Try again later.',
+    '- vendor_error: the connector answered with its own error, shown as it came.',
+  ].join('\n');
+
+export const TOOL_CALL_DESCRIPTION = toolCallDescription(false);
+
+export function mcpServerTools(keys: string[] | null, remote = false): McpServerTool[] {
   return [
     {
       name: TOOL_SEARCH,
@@ -85,7 +93,7 @@ export function mcpServerTools(keys: string[] | null): McpServerTool[] {
     {
       name: TOOL_CALL,
       title: 'Call connector tools',
-      description: TOOL_CALL_DESCRIPTION,
+      description: toolCallDescription(remote),
       inputSchema: callSchema,
       annotations: { title: 'Call connector tools', readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },

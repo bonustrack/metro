@@ -72,7 +72,7 @@ function dashboardRow(spec: RowSpec): DashboardRow {
 
 const dashboard = (rows: DashboardRow[], organizations: OrganizationRow[] | null = [anderra, snapshot]): DashboardState => ({ organizations, rows, loading: false, refreshing: false, error: null });
 
-const other: AgentRow = { id: 'otto0000001', owner: 'org_mci00000001', organizationName: 'MCI Group', host: 'metro-otto.ts.net', name: 'Otto', slug: 'otto', addedAt: null, avatar: null, instanceId: null };
+const other: AgentRow = { id: 'otto0000001', owner: 'org_mci00000001', organizationName: 'MCI Group', kind: 'box', host: 'metro-otto.ts.net', name: 'Otto', slug: 'otto', addedAt: null, avatar: null, instanceId: null };
 
 const noUpdate = (_host: string, status: ServerStatus): ServerStatus => status;
 
@@ -113,6 +113,16 @@ describe('the operator agents table', () => {
     expect(rows[0]).toMatchObject({ state: 'updating', updatingTo: LATEST });
     const loading = adminAgents({ ...sources([]), dashboard: dashboard([], null) });
     expect(loading.map((row) => row.state)).toEqual(['checking']);
+  });
+
+  test('an agent without a server is never probed: it reads No server, and opens when it is in one of your organizations', () => {
+    const laptop: AgentRow = { id: 'laptop00001', owner: anderra.id, organizationName: 'Anderra', kind: 'remote', host: null, name: 'Laptop', slug: 'laptop', addedAt: null, avatar: null, instanceId: null };
+    const theirs: AgentRow = { ...laptop, id: 'laptop00002', owner: 'org_mci00000001', organizationName: 'MCI Group', slug: 'theirs' };
+    const rows = adminAgents(sources([], { everyAgent: [laptop, theirs] }));
+    expect(rows.map((row) => [row.name, row.state, row.member, row.href, row.host])).toEqual([
+      ['Laptop', 'noserver', true, '#/anderra/laptop', null],
+      ['Laptop', 'noserver', false, null, null],
+    ]);
   });
 
   test('the summary strip counts agents, online, updating, offline and those needing an update', () => {

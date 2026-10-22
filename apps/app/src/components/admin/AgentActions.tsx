@@ -31,6 +31,7 @@ export function useAgentActions(): AgentActions {
   const [asking, setAsking] = useState<Asking>(null);
   const note = (row: AdminAgent, text: string): void => { setNotes((current) => ({ ...current, [row.key]: text })); };
   const update = async (row: AdminAgent): Promise<void> => {
+    if (row.host === null) return;
     note(row, 'Updating…');
     try {
       const result = await updateAgentIn(row.organizationId, row.host);
@@ -42,6 +43,7 @@ export function useAgentActions(): AgentActions {
   };
   const restart = (row: AdminAgent): void => {
     setAsking(null);
+    if (row.host === null) return;
     note(row, 'Restarting…');
     restartAgentIn(row.organizationId, row.host)
       .then(() => { note(row, 'Restarting, back in about a minute'); })

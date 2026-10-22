@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { latestLine } from '@metro-labs/client/api/latest-usage';
 import { diskLabel, systemLabel, uptimeLabel, type Machine } from '@metro-labs/client/api/machine';
-import { type Server } from '@metro-labs/client/api/servers';
+import { type BoxServer } from '@metro-labs/client/api/servers';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { Group, Groups } from '../ui/Group.js';
@@ -26,7 +26,7 @@ function ownerLabel(owner: string | null): string {
   return owner;
 }
 
-function Health({ server }: { server: Server }): ReactNode {
+function Health({ server }: { server: BoxServer }): ReactNode {
   const status = useServerStatus(server.host);
   const session = useClaudeSessionQuery();
   const usage = useLatestUsageQuery().data?.[server.id];
@@ -53,7 +53,7 @@ function MachineGroup({ machine, error, retry }: { machine: Machine | undefined;
   );
 }
 
-function Details({ machine, server }: { machine: Machine | undefined; server: Server }): ReactNode {
+function Details({ machine, server }: { machine: Machine | undefined; server: BoxServer }): ReactNode {
   return (
     <Group label="Details">
       <Fact label="Agent id" value={server.id} copy />

@@ -1,5 +1,16 @@
 # Metro history
 
+## 2026-10-23: Agents without a server
+
+Less: "I need a way so I can create an agent without a server. Just so I can use defined connectors for it, and use the Metro MCP in my Claude Code session or other places." Until then every agent row was a box, and mcp.metro.box only took the MCP token an enrolled daemon registers.
+
+- **An agent row may have no server**: migration `0019` adds `agents.kind` (`box` by default, `remote`) and makes `host` nullable, with a check that a box has an address and a remote agent has none; the `(owner, host)` unique index is unchanged, since Postgres keeps NULLs distinct. An organization admin creates one with `POST /api/servers {kind: 'remote', name}` (New agent, Without a server); rename, slug, picture, move and delete are the same routes as for a box, and deleting one needs the admin role.
+- **Access keys** (`agent_tokens`, also `0019`): only the SHA-256 of `mcp_` plus 32 random bytes is stored, the key is shown once, 20 live keys per agent at most, revoked keys stay listed. mcp.metro.box takes a bearer that is either a box's MCP token or a live access key of an agent still in that organization, and notes when a key was last used at most once a minute, off the request path.
+- **Two decisions with the owner**: a connector tool set to Ask is approved on metro.box, as approval cards on the agent's page, since the agent has no chat to ask in (api.metro.box answers the same `mcp_approvals` rows the daemon relay answers, with the same expiry and single use); and sign-in is an access key first, OAuth later.
+- **On the page**: New agent first asks whether the agent needs a server. An agent without one has a plug mark on its avatar, the line "No server · N connectors" (or "Waiting for you: approve …"), and three tabs instead of the box's five: Connectors (the organization connectors it has, Add a connector, the per-agent connector page), Access keys (create with the Claude Code command shown once, revoke) and Activity (its connector calls). Nothing on its page calls a box: no probe, no enrollment, no setup checklist, and the box calls of the page fall back to api.metro.box, never to the last box used.
+
+Rollout: api.metro.box (with `0019`), mcp.metro.box and the page, no box change and no Metro release. mcp.metro.box may land before the migration: boxes keep working, access keys are refused (logged once) until the table exists. A tab loaded before this change cannot read a row without a host, so once the organization has an agent without a server, such a tab says it could not list the agents until it reloads.
+
 ## 2026-10-23: An agent's connector calls on its Home
 
 Less, the day after Live activity shipped: "Feed should also appear in the homepage of an agent." The agent's Home gained a Connector activity group after Right now and the setup checklist: its last 5 connector calls, live every 3 s, as feed rows without the agent's avatar and name, and Show all opening Live activity with that agent's chip chosen (`#/<org>/activity/<agent id>`, which on a phone goes back to the agent). The group is left out while it loads, against an api without the route or when the first read fails, so it can never hold Home up; no calls is one line. Page only: no api, mcp.metro.box or box change.

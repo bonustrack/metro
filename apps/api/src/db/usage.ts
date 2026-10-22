@@ -7,7 +7,7 @@ import { connectionJoin, externalIdJoin, placedColumns, placementOf, type Placem
 export type MetricsLink = Placement;
 
 export interface UsageRow {
-  host: string;
+  host: string | null;
   link: MetricsLink | null;
 }
 

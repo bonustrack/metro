@@ -8,7 +8,7 @@ import { agents, awsConnections, awsExternalIds } from './schema.js';
 import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aws.js';
 import { leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
 import type { AwsAccount } from '../aws/access.js';
-import { parseServerHost, parseServerName, type ServerEntry } from '../server-types.js';
+import { agentKindOf, parseServerHost, parseServerName, type AgentKind, type ServerEntry } from '../server-types.js';
 import { parseAvatar } from '../avatar.js';
 import { parseSlug, slugify, withSuffix } from '../slug.js';
 import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
@@ -31,7 +31,8 @@ export function idOf(raw: string): string {
 
 interface Row {
   id: string;
-  host: string;
+  kind: string;
+  host: string | null;
   name: string | null;
   addedAt: string;
   instanceId: string | null;
@@ -43,6 +44,7 @@ interface Row {
 
 const entryOf = (row: Row): ServerEntry => ({
   id: row.id,
+  kind: agentKindOf(row.kind),
   host: row.host,
   name: row.name,
   addedAt: row.addedAt,
@@ -55,6 +57,7 @@ const entryOf = (row: Row): ServerEntry => ({
 
 const columns = {
   id: agents.id,
+  kind: agents.kind,
   host: agents.host,
   name: agents.name,
   addedAt: agents.addedAt,
@@ -81,7 +84,7 @@ async function freeSlug(owner: string, base: string): Promise<string> {
 
 async function withSlug(owner: string, row: Row): Promise<Row> {
   if (row.slug !== null) return row;
-  const slug = await freeSlug(owner, row.name ?? row.host);
+  const slug = await freeSlug(owner, row.name ?? row.host ?? row.id);
   try {
     await getDb().update(agents).set({ slug }).where(and(eq(agents.id, row.id), eq(agents.owner, owner)));
   } catch (err) {
@@ -110,7 +113,8 @@ async function insertAgent<T extends typeof agents.$inferInsert & { slug: string
 export interface AgentSummary {
   id: string;
   owner: string;
-  host: string;
+  kind: AgentKind;
+  host: string | null;
   name: string | null;
   slug: string | null;
   addedAt: string;
@@ -120,10 +124,10 @@ export interface AgentSummary {
 
 export async function listAllServers(): Promise<AgentSummary[]> {
   const rows = await getDb()
-    .select({ id: agents.id, owner: agents.owner, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
+    .select({ id: agents.id, owner: agents.owner, kind: agents.kind, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
     .from(agents)
     .orderBy(desc(agents.addedAt));
-  return rows.map((r) => ({ ...r, avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));
+  return rows.map((r) => ({ ...r, kind: agentKindOf(r.kind), avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));
 }
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {
@@ -147,8 +151,16 @@ export async function addServerForOwner(subject: string, body: unknown): Promise
     await db.update(agents).set({ name }).where(eq(agents.id, row.id));
     return entryOf({ ...row, name });
   }
-  const next = { id: newId(), owner, host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host), awsConnection: null };
+  const next = { id: newId(), owner, kind: 'box', host, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name ?? host), awsConnection: null };
   return entryOf(await insertAgent(owner, next, name ?? host));
+}
+
+export async function addRemoteAgentForOwner(subject: string, body: unknown): Promise<ServerEntry> {
+  const owner = ownerOf(subject);
+  const name = parseServerName(isRecord(body) ? body.name : undefined);
+  if (name === null) throw new ServerListError('give the agent a name', 400);
+  const next = { id: newId(), owner, kind: 'remote', host: null, name, addedAt: new Date().toISOString(), instanceId: null, launchedAt: null, avatar: null, slug: await freeSlug(owner, name), awsConnection: null };
+  return entryOf(await insertAgent(owner, next, name));
 }
 
 export interface LaunchRecord {
@@ -166,6 +178,7 @@ export async function addLaunchedServer(subject: string, launch: LaunchRecord): 
   const next = {
     id: idOf(launch.id),
     owner,
+    kind: 'box',
     host,
     name: parseServerName(launch.name),
     addedAt: new Date().toISOString(),
@@ -202,7 +215,7 @@ export async function instanceForOwner(subject: string, rawId: string): Promise<
 export interface DeletionRow {
   id: string;
   owner: string;
-  host: string;
+  host: string | null;
   name: string | null;
   addedAt: string;
   instanceId: string | null;
@@ -327,11 +340,21 @@ export async function moveServerForOwner(session: Session, rawId: string, body: 
   return changeOwner(id, from, to);
 }
 
-export async function deleteServerForOwner(subject: string, rawId: string): Promise<{ id: string; host: string }> {
-  return deleteServerRow(ownerOf(subject), idOf(rawId));
+export async function deleteServerForOwner(session: Session, rawId: string): Promise<{ id: string; host: string | null }> {
+  const owner = ownerOf(session.organization ?? '');
+  const id = idOf(rawId);
+  if (session.role === 'admin') return deleteServerRow(owner, id);
+  const gone = await getDb()
+    .delete(agents)
+    .where(and(eq(agents.id, id), eq(agents.owner, owner), eq(agents.kind, 'box')))
+    .returning({ id: agents.id, host: agents.host });
+  if (gone[0] !== undefined) return gone[0];
+  const held = await getDb().select({ id: agents.id }).from(agents).where(and(eq(agents.id, id), eq(agents.owner, owner)));
+  if (held.length > 0) throw new ServerListError('deleting an agent without a server needs the admin role in your organization', 403);
+  throw missing();
 }
 
-export async function deleteServerRow(owner: string, id: string): Promise<{ id: string; host: string }> {
+export async function deleteServerRow(owner: string, id: string): Promise<{ id: string; host: string | null }> {
   const gone = await getDb()
     .delete(agents)
     .where(and(eq(agents.id, id), eq(agents.owner, owner)))

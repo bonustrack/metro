@@ -6,7 +6,7 @@ import { Switch } from '@stage-labs/kit/react-native/switch';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { setClaudeLiveEvents } from '@metro-labs/client/api/claude-box';
-import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { agentSeed, type Server, serverLabel } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Group } from '../ui/Group.js';
@@ -65,7 +65,7 @@ function PauseRow(): ReactNode {
 function NameValue({ server }: { server: Server }): ReactNode {
   return (
     <Row align="center" gap={10} style={SHRINK}>
-      <AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.row} />
+      <AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.row} />
       <Text size="md" numberOfLines={1} style={SHRINK}>
         {serverLabel(server)}
       </Text>

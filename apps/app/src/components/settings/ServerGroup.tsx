@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { latestLine } from '@metro-labs/client/api/latest-usage';
-import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { serverLabel, type BoxServer } from '@metro-labs/client/api/servers';
 import { jobRunning, phaseText } from '@metro-labs/client/api/size';
 import { growRunning, growText } from '@metro-labs/client/api/storage';
 import { routeHash } from '@metro-labs/client/route';
@@ -13,7 +13,7 @@ import { healthValue, regionShort, sizeValue, storageValue } from '../../lib/set
 import { useTechnicalDetails } from '../../lib/technical.js';
 
 interface Rows {
-  server: Server;
+  server: BoxServer;
   href: string;
   technical: boolean;
 }
@@ -48,7 +48,7 @@ function StorageRow({ server, href, technical }: Rows): ReactNode {
   return <Item title="Storage" subtitle={note} value={storageValue(storage.sizeGib, disk)} href={href} />;
 }
 
-export function ServerGroup({ server, project }: { server: Server; project: string }): ReactNode {
+export function ServerGroup({ server, project }: { server: BoxServer; project: string }): ReactNode {
   const technical = useTechnicalDetails();
   const rows: Rows = { server, href: routeHash({ kind: 'server', project }), technical };
   return (

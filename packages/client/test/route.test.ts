@@ -230,6 +230,8 @@ describe('pages that replaced dialogs have their own addresses', () => {
       { kind: 'launch-log', project: agent },
       { kind: 'skills-github', project: agent },
       { kind: 'secrets-recent', project: agent },
+      { kind: 'access-keys', project: agent },
+      { kind: 'agent-activity', project: agent },
       { kind: 'run', project: agent, view: 'session' },
       { kind: 'run', project: agent, view: 'about' },
       { kind: 'run', project: agent, view: 'helper', id: 'task-1' },
@@ -238,6 +240,16 @@ describe('pages that replaced dialogs have their own addresses', () => {
     for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     expect(routeHash({ kind: 'run', project: agent, view: 'event', id: 'k_9-x' })).toEndWith(`/${agent}/run/event/k_9-x`);
     expect(routeHash({ kind: 'add-chat', project: agent, station: 'xmtp' })).toEndWith(`/${agent}/chats/add/xmtp`);
+    expect(routeHash({ kind: 'access-keys', project: agent })).toEndWith(`/${agent}/keys`);
+    expect(routeHash({ kind: 'agent-activity', project: agent })).toEndWith(`/${agent}/activity`);
+  });
+
+  test('the activity of an agent page and the organization activity of one agent keep apart', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeSelection(`#/stage-labs/${agent}/activity`)).toEqual({ kind: 'agent-activity', project: agent });
+    expect(routeSelection(`#/stage-labs/activity/${agent}`)).toEqual({ kind: 'activity', agent });
+    expect(routeSelection(`#/laptop/keys`)).toEqual({ kind: 'access-keys', project: 'laptop' });
+    routeSelection('#/settings');
   });
 
   test('a run detail without what it names opens the run page', () => {
@@ -266,6 +278,7 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(on({ kind: 'skills-github', project: agent })).toBe('#/suzy00000001/skills');
     expect(on({ kind: 'secrets-recent', project: agent })).toBe('#/suzy00000001/tools');
     expect(on({ kind: 'run', project: agent, view: 'helper', id: 'x' })).toBe('#/suzy00000001/run');
+    expect(on({ kind: 'access-keys', project: agent })).toBe('#/suzy00000001');
   });
 });
 

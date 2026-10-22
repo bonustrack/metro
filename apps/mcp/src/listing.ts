@@ -2,7 +2,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { publicTools } from '@metro-labs/connectors/catalogue';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
@@ -20,7 +20,7 @@ export function failureOf(err: unknown, name: string): CallError {
 
 export const groupsOf = (tools: RemoteTool[]): Record<string, ToolGroup> => Object.fromEntries(tools.map((tool) => [tool.name, tool.readOnly ? 'read' : 'write']));
 
-export async function connectorTools(deps: McpDeps, identity: AgentKeyRow, connector: AgentConnector): Promise<RemoteTool[]> {
+export async function connectorTools(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConnector): Promise<RemoteTool[]> {
   const cached = deps.tools.get(connector.id);
   if (cached !== undefined) return cached;
   return deps.listings.run(connector.id, async () => {

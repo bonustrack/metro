@@ -4,7 +4,7 @@ import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { renameServer, serverLabel, setServerSlug, type Server } from '@metro-labs/client/api/servers';
+import { agentSeed, renameServer, type Server, serverLabel, setServerSlug } from '@metro-labs/client/api/servers';
 import { SLUG_RE } from '@metro-labs/client/auth/org-segment';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { location } from '@metro-labs/client/platform';
@@ -48,7 +48,7 @@ function Picture({ server }: { server: Server }): ReactNode {
   );
   return (
     <Group label="Picture" note="Shown in your agent list. PNG, JPEG, WebP or GIF." error={avatar.error}>
-      <Item title={serverLabel(server)} leading={<AgentAvatar seed={server.host} src={server.avatar} size={AVATAR_SIZE.header} />} trailing={buttons} />
+      <Item title={serverLabel(server)} leading={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.header} />} trailing={buttons} />
     </Group>
   );
 }
@@ -63,7 +63,7 @@ function Name({ server }: { server: Server }): ReactNode {
   });
   return (
     <FieldSection label="Name" note="What your team calls this agent.">
-      <SaveField saving={saving} name="agent-name" label="Name" placeholder={server.host} />
+      <SaveField saving={saving} name="agent-name" label="Name" placeholder={server.host ?? undefined} />
     </FieldSection>
   );
 }
@@ -88,13 +88,13 @@ function WebAddress({ server }: { server: Server }): ReactNode {
   );
 }
 
-export function ProfilePage({ project }: { project: string }): ReactNode {
+export function ProfilePage({ project, remote = false }: { project: string; remote?: boolean }): ReactNode {
   const servers = useServersQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
   useDocumentTitle('Profile');
   return (
-    <AgentDeepPage project={project} tab="settings" trail={[{ label: 'Profile' }]} title="Profile" subtitle="Name, picture and web address.">
+    <AgentDeepPage project={project} tab={remote ? 'home' : 'settings'} trail={[{ label: 'Profile' }]} title="Profile" subtitle="Name, picture and web address.">
       {server === undefined ? (
         <RowsSkeleton rows={3} />
       ) : (

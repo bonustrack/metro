@@ -4,7 +4,7 @@ import { IconCheckmark1 } from '@central-icons-react-native/round-outlined-radiu
 import { Row } from '@stage-labs/kit/react-native/box';
 import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { agentSeed, type Server, serverLabel } from '@metro-labs/client/api/servers';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 
@@ -23,7 +23,7 @@ export function AvatarStack({ servers }: { servers: Server[] }): ReactNode {
     <Row align="center">
       {servers.slice(0, SHOWN).map((server, at) => (
         <View key={server.id} style={StyleSheet.flatten([ring, { marginLeft: at === 0 ? 0 : OVERLAP }])}>
-          <AgentAvatar seed={server.host} src={server.avatar} size={STACK} />
+          <AgentAvatar seed={agentSeed(server)} src={server.avatar} size={STACK} />
         </View>
       ))}
     </Row>

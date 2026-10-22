@@ -3,7 +3,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createEnrollment } from '@metro-labs/client/api/enrollment';
 import { fetchModel, type ModelSync } from '@metro-labs/client/api/model';
 import { accountScopeIdentity, activeAccount } from '@metro-labs/client/auth/account';
-import { currentServer } from '@metro-labs/client/auth/daemon';
+import { currentServer, type CurrentAgent } from '@metro-labs/client/auth/daemon';
 import { logError } from './log.js';
 import { syncSelectedBox, useModelQuery } from './model-queries.js';
 import { boxKey, queryError } from './queries.js';
@@ -111,6 +111,8 @@ function enrollBox(box: Box, client: QueryClient): void {
     .catch(logError('organization link'));
 }
 
+const boxOf = (agent: CurrentAgent | null): Box | null => (agent === null || agent.host === null ? null : { id: agent.id, host: agent.host });
+
 const useAttempt = (box: Box | null): Attempt | undefined => {
   const slot = slotOf(box);
   return useSyncExternalStore(subscribe, () => attempts.get(slot), () => attempts.get(slot));
@@ -127,12 +129,12 @@ export function useAutoEnroll(box: Box): void {
   }, [start, id, host, client]);
 }
 
-export const useLinkWords = (sync: ModelSync | null | undefined): LinkWords | null => linkWords(sync, useAttempt(currentServer()), isAdmin());
+export const useLinkWords = (sync: ModelSync | null | undefined): LinkWords | null => linkWords(sync, useAttempt(boxOf(currentServer())), isAdmin());
 
 export function useRetryLink(): () => void {
   const client = useQueryClient();
   return () => {
-    const box = currentServer();
+    const box = boxOf(currentServer());
     if (box !== null) enrollBox(box, client);
   };
 }

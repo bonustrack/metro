@@ -5,9 +5,8 @@ import { baseFromSegment, builtInDaemon, daemonBase } from '../auth/daemon.js';
 import { rememberAgents } from '../auth/agent-route.js';
 import { readItem, writeItem } from '../platform.js';
 
-export interface Server {
+interface AgentRow {
   id: string;
-  host: string;
   name: string | null;
   addedAt: string;
   instanceId: string | null;
@@ -15,6 +14,24 @@ export interface Server {
   avatar: string | null;
   slug: string | null;
 }
+
+export interface BoxServer extends AgentRow {
+  kind: 'box';
+  host: string;
+}
+
+export interface RemoteServer extends AgentRow {
+  kind: 'remote';
+  host: null;
+}
+
+export type Server = BoxServer | RemoteServer;
+
+export const isBox = (server: Server): server is BoxServer => server.kind === 'box';
+
+export const isRemote = (server: Server): server is RemoteServer => server.kind === 'remote';
+
+export const boxesOf = (servers: Server[]): BoxServer[] => servers.filter(isBox);
 
 type ServerState = 'live' | 'stopped' | 'offline' | 'updating';
 
@@ -32,11 +49,9 @@ const listUrl = (): string => `${builtInDaemon()}/api/servers`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 
 
-export function toServer(value: unknown): Server {
-  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.host !== 'string') throw unexpected();
+function agentRowOf(value: Record<string, unknown> & { id: string }): AgentRow {
   return {
     id: value.id,
-    host: value.host,
     name: filled(value.name),
     addedAt: typeof value.addedAt === 'string' ? value.addedAt : '',
     instanceId: filled(value.instanceId),
@@ -46,7 +61,17 @@ export function toServer(value: unknown): Server {
   };
 }
 
-export const serverLabel = (server: Server): string => server.name ?? server.host;
+export function toServer(value: unknown): Server {
+  if (!isRecord(value) || typeof value.id !== 'string') throw unexpected();
+  const row = agentRowOf({ ...value, id: value.id });
+  if (value.kind === 'remote') return { ...row, kind: 'remote', host: null };
+  if (typeof value.host !== 'string') throw unexpected();
+  return { ...row, kind: 'box', host: value.host };
+}
+
+export const serverLabel = (server: Server): string => server.name ?? server.host ?? 'Agent';
+
+export const agentSeed = (server: Server): string => server.host ?? server.id;
 
 export async function fetchServers(): Promise<Server[]> {
   const body = await call({ method: 'GET', base: listUrl() });
@@ -54,6 +79,12 @@ export async function fetchServers(): Promise<Server[]> {
   const servers = body.servers.map(toServer);
   rememberAgents(servers);
   return servers;
+}
+
+export async function addRemoteAgent(name: string): Promise<Server> {
+  const server = toServer(await call({ method: 'POST', base: listUrl(), headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'remote', name }) }));
+  rememberAgents([server]);
+  return server;
 }
 
 export async function addServer(host: string, name?: string): Promise<Server> {

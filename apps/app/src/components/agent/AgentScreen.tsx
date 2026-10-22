@@ -2,7 +2,7 @@ import { type ReactNode, useEffect } from 'react';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AuthError, StoppedError } from '@metro-labs/client/api/client';
-import { type Server } from '@metro-labs/client/api/servers';
+import { type BoxServer } from '@metro-labs/client/api/servers';
 import { baseFromSegment, currentServer, daemonBase, daemonHost, storeDaemon, storeServerId } from '@metro-labs/client/auth/daemon';
 import { selectionProject, type Selection } from '@metro-labs/client/selection';
 import { AgentPanel } from '../AgentPanel.js';
@@ -24,7 +24,7 @@ import { webOnly } from '../../lib/style.js';
 const STICKY = webOnly({ position: 'sticky', top: 0, zIndex: 3 });
 
 interface AgentScreenProps {
-  server: Server;
+  server: BoxServer;
   selection: Selection;
   onLock: () => void;
 }
@@ -33,13 +33,13 @@ function useRememberAgent(selection: Selection): void {
   const routed = selectionProject(selection);
   useEffect(() => {
     const server = currentServer();
-    if (routed === null || server === null) return;
+    if (routed === null || server === null || server.host === null) return;
     storeServerId(server.id);
     storeDaemon(baseFromSegment(server.host));
   }, [routed]);
 }
 
-function AgentDetail({ server, selection, children }: { server: Server; selection: Selection; children: ReactNode }): ReactNode {
+function AgentDetail({ server, selection, children }: { server: BoxServer; selection: Selection; children: ReactNode }): ReactNode {
   const palette = useKitPalette();
   const narrow = useIsNarrow();
   const project = selectionProject(selection) ?? server.id;

@@ -7,7 +7,7 @@ import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import type { Database } from '@metro-labs/connectors/db/database';
-import { approvalStore } from './approvals.js';
+import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { callRecorder } from './call-log.js';
 import { handleDaemonRequest } from './daemon-api.js';
 import type { McpDeps } from './deps.js';
@@ -32,7 +32,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
   const now = setup.now ?? Date.now;
   return {
     key: setup.key,
-    tokens: tokenStore(setup.db),
+    tokens: tokenStore(setup.db, now),
     keys: agentKeyStore(setup.db),
     nonces: agentNonceStore(setup.db, now),
     auth: new AgentAuth(setup.publicHost, now),

@@ -2,9 +2,8 @@ import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { approvalId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { McpDecision } from '@metro-labs/http/mcp-server-protocol';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
-import type { Database } from '@metro-labs/connectors/db/database';
-import { mcpApprovals } from '@metro-labs/connectors/db/schema';
+import type { Database } from './database.js';
+import { mcpApprovals } from './schema.js';
 
 export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
 export const GRANT_WINDOW_MS = 10 * 60_000;
@@ -16,6 +15,11 @@ const ID_TRIES = 8;
 
 export type ApprovalRow = typeof mcpApprovals.$inferSelect;
 
+export interface ApprovalAgent {
+  agent: string;
+  owner: string;
+}
+
 export interface ApprovalRequest {
   connector: string;
   tool: string;
@@ -26,30 +30,31 @@ export interface ApprovalRequest {
 export type Redeemed = 'used' | 'denied' | 'invalid';
 
 export interface ApprovalStore {
-  request: (identity: AgentKeyRow, request: ApprovalRequest, now: number) => Promise<string>;
-  redeem: (identity: AgentKeyRow, id: string, request: ApprovalRequest, now: number) => Promise<Redeemed>;
-  deliver: (identity: AgentKeyRow, now: number) => Promise<ApprovalRow[]>;
-  answer: (identity: AgentKeyRow, id: string, decision: McpDecision, now: number) => Promise<boolean>;
+  request: (identity: ApprovalAgent, request: ApprovalRequest, now: number) => Promise<string>;
+  redeem: (identity: ApprovalAgent, id: string, request: ApprovalRequest, now: number) => Promise<Redeemed>;
+  deliver: (identity: ApprovalAgent, now: number) => Promise<ApprovalRow[]>;
+  answer: (identity: ApprovalAgent, id: string, decision: McpDecision, now: number) => Promise<boolean>;
+  pending: (identity: ApprovalAgent, now: number) => Promise<ApprovalRow[]>;
 }
 
-const mine = (identity: AgentKeyRow) => and(eq(mcpApprovals.agent, identity.agent), eq(mcpApprovals.owner, identity.owner));
+const mine = (identity: ApprovalAgent) => and(eq(mcpApprovals.agent, identity.agent), eq(mcpApprovals.owner, identity.owner));
 
-const sameCall = (identity: AgentKeyRow, request: ApprovalRequest) =>
+const sameCall = (identity: ApprovalAgent, request: ApprovalRequest) =>
   and(mine(identity), eq(mcpApprovals.connector, request.connector), eq(mcpApprovals.tool, request.tool), eq(mcpApprovals.argsDigest, request.digest));
 
-async function expire(db: Database, identity: AgentKeyRow, now: number): Promise<void> {
+async function expire(db: Database, identity: ApprovalAgent, now: number): Promise<void> {
   await db
     .update(mcpApprovals)
     .set({ state: 'expired', answeredAt: now })
     .where(and(mine(identity), eq(mcpApprovals.state, 'pending'), lt(mcpApprovals.requestedAt, now - APPROVAL_TTL_MS)));
 }
 
-async function pendingId(db: Database, identity: AgentKeyRow, request: ApprovalRequest): Promise<string | null> {
+async function pendingId(db: Database, identity: ApprovalAgent, request: ApprovalRequest): Promise<string | null> {
   const rows = await db.select({ id: mcpApprovals.id }).from(mcpApprovals).where(and(sameCall(identity, request), eq(mcpApprovals.state, 'pending'))).limit(1);
   return rows[0]?.id ?? null;
 }
 
-async function insertPending(db: Database, identity: AgentKeyRow, request: ApprovalRequest, now: number): Promise<string> {
+async function insertPending(db: Database, identity: ApprovalAgent, request: ApprovalRequest, now: number): Promise<string> {
   for (let attempt = 0; attempt < ID_TRIES; attempt += 1) {
     const row: ApprovalRow = { id: approvalId(), owner: identity.owner, agent: identity.agent, connector: request.connector, tool: request.tool, argsDigest: request.digest, preview: request.preview, state: 'pending', requestedAt: now, answeredAt: null, deliveredAt: null };
     const inserted = await db.insert(mcpApprovals).values(row).onConflictDoNothing().returning({ id: mcpApprovals.id });
@@ -60,7 +65,7 @@ async function insertPending(db: Database, identity: AgentKeyRow, request: Appro
   throw new ApiError('Metro could not record the approval request. Try again.', 503);
 }
 
-async function request(db: Database, identity: AgentKeyRow, call: ApprovalRequest, now: number): Promise<string> {
+async function request(db: Database, identity: ApprovalAgent, call: ApprovalRequest, now: number): Promise<string> {
   await expire(db, identity, now);
   const held = await pendingId(db, identity, call);
   if (held !== null) return held;
@@ -69,7 +74,7 @@ async function request(db: Database, identity: AgentKeyRow, call: ApprovalReques
   return insertPending(db, identity, call, now);
 }
 
-async function redeem(db: Database, identity: AgentKeyRow, id: string, call: ApprovalRequest, now: number): Promise<Redeemed> {
+async function redeem(db: Database, identity: ApprovalAgent, id: string, call: ApprovalRequest, now: number): Promise<Redeemed> {
   const used = await db
     .update(mcpApprovals)
     .set({ state: 'used' })
@@ -80,14 +85,19 @@ async function redeem(db: Database, identity: AgentKeyRow, id: string, call: App
   return denied.length > 0 ? 'denied' : 'invalid';
 }
 
-async function deliver(db: Database, identity: AgentKeyRow, now: number): Promise<ApprovalRow[]> {
+async function deliver(db: Database, identity: ApprovalAgent, now: number): Promise<ApprovalRow[]> {
   await expire(db, identity, now);
   const due = or(isNull(mcpApprovals.deliveredAt), lt(mcpApprovals.deliveredAt, now - REDELIVER_MS));
   const rows = await db.update(mcpApprovals).set({ deliveredAt: now }).where(and(mine(identity), eq(mcpApprovals.state, 'pending'), due)).returning();
   return rows.sort((a, b) => a.requestedAt - b.requestedAt);
 }
 
-async function answer(db: Database, identity: AgentKeyRow, id: string, decision: McpDecision, now: number): Promise<boolean> {
+async function pending(db: Database, identity: ApprovalAgent, now: number): Promise<ApprovalRow[]> {
+  await expire(db, identity, now);
+  return db.select().from(mcpApprovals).where(and(mine(identity), eq(mcpApprovals.state, 'pending'))).orderBy(mcpApprovals.requestedAt, mcpApprovals.id).limit(PENDING_MAX);
+}
+
+async function answer(db: Database, identity: ApprovalAgent, id: string, decision: McpDecision, now: number): Promise<boolean> {
   await expire(db, identity, now);
   const rows = await db
     .update(mcpApprovals)
@@ -117,5 +127,6 @@ export function approvalStore(db: () => Database): ApprovalStore {
     redeem: (identity, id, call, now) => redeem(db(), identity, id, call, now),
     deliver: (identity, now) => deliver(db(), identity, now),
     answer: (identity, id, decision, now) => answer(db(), identity, id, decision, now),
+    pending: (identity, now) => pending(db(), identity, now),
   };
 }

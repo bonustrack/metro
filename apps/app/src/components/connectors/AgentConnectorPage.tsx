@@ -11,6 +11,7 @@ import { StateBlock } from '../ui/StateBlock.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
 import { AgentRules, ResetRules, agentSubtitle } from './AgentRules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
+import type { AgentTabId } from '../../lib/agent-tabs.js';
 import { go } from '../../lib/nav.js';
 import { useConnectorScope, useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
 import { queryError } from '../../lib/queries.js';
@@ -19,21 +20,24 @@ import { useDocumentTitle } from '../../lib/title.js';
 interface PageProps {
   project: string;
   id: string;
+  remote?: boolean;
 }
 
-function Waiting({ project, children }: { project: string; children: ReactNode }): ReactNode {
+const tabOf = (remote: boolean): AgentTabId => (remote ? 'home' : 'tools');
+
+function Waiting({ project, remote, children }: { project: string; remote: boolean; children: ReactNode }): ReactNode {
   return (
-    <AgentDeepPage project={project} tab="tools" trail={[{ label: 'Connector' }]}>
+    <AgentDeepPage project={project} tab={tabOf(remote)} trail={[{ label: 'Connector' }]}>
       {children}
     </AgentDeepPage>
   );
 }
 
-function Page({ project, connector, admin }: { project: string; connector: OrgConnector; admin: boolean }): ReactNode {
+function Page({ project, connector, admin, remote }: { project: string; connector: OrgConnector; admin: boolean; remote: boolean }): ReactNode {
   const name = useAgentName();
   const agentId = currentServer()?.id ?? project;
   return (
-    <AgentDeepPage project={project} tab="tools" trail={[{ label: connector.name }]} title={connector.name} subtitle={agentSubtitle(connector, name)}
+    <AgentDeepPage project={project} tab={tabOf(remote)} trail={[{ label: connector.name }]} title={connector.name} subtitle={agentSubtitle(connector, name)}
       leading={<ConnectorFavicon name={connector.name} url={connector.url} size={AVATAR_SIZE.header} />} action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined}>
       <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} onRemoved={() => { go({ kind: 'tools', project }); }} />
       <TextLink to={routeHash({ kind: 'org-connector', id: connector.id })}>{`Open ${connector.name} in Connectors`}</TextLink>
@@ -41,16 +45,16 @@ function Page({ project, connector, admin }: { project: string; connector: OrgCo
   );
 }
 
-function Body({ project, id }: PageProps): ReactNode {
+function Body({ project, id, remote = false }: PageProps): ReactNode {
   const { data, error, refetch } = useOrgConnectorsQuery();
   const connector = data?.connectors.find((row) => row.id === id);
   useDocumentTitle(connector?.name ?? 'Connector');
   if (data === undefined && error !== null)
-    return <Waiting project={project}><ErrorState title="Could not load this connector" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /></Waiting>;
-  if (data === undefined) return <Waiting project={project}><RowsSkeleton rows={6} /></Waiting>;
+    return <Waiting project={project} remote={remote}><ErrorState title="Could not load this connector" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /></Waiting>;
+  if (data === undefined) return <Waiting project={project} remote={remote}><RowsSkeleton rows={6} /></Waiting>;
   if (connector === undefined)
-    return <Waiting project={project}><StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: 'Back to Tools', onPress: () => { go({ kind: 'tools', project }); } }} /></Waiting>;
-  return <Page project={project} connector={connector} admin={data.admin} />;
+    return <Waiting project={project} remote={remote}><StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: remote ? 'Back to Connectors' : 'Back to Tools', onPress: () => { go({ kind: 'tools', project }); } }} /></Waiting>;
+  return <Page project={project} connector={connector} admin={data.admin} remote={remote} />;
 }
 
 export function AgentConnectorPage(props: PageProps): ReactNode {

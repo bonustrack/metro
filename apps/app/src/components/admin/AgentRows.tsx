@@ -43,10 +43,10 @@ function Identity({ row }: { row: AdminAgent }): ReactNode {
   return (
     <Row align="center" gap={12} minWidth={0}>
       <AvatarDot dot={AVATAR_DOT[row.state] ?? null}>
-        <AgentAvatar seed={row.host} src={row.avatar} size={AVATAR_SIZE.row} />
+        <AgentAvatar seed={row.host ?? row.id} src={row.avatar} size={AVATAR_SIZE.row} />
       </AvatarDot>
       <Col flex={1} minWidth={0}>
-        <TwoLines top={<Text size="md" numberOfLines={1} style={SHRINK}>{row.name}</Text>} bottom={row.host} />
+        <TwoLines top={<Text size="md" numberOfLines={1} style={SHRINK}>{row.name}</Text>} bottom={row.host ?? 'No server'} />
       </Col>
     </Row>
   );
@@ -167,7 +167,7 @@ export function AgentCards({ rows, now, actions }: { rows: AdminAgent[]; now: nu
       {rows.map((row) => (
         <Item key={row.key} title={row.name} subtitle={`${row.organizationName} · ${STATE_WORD[row.state]}`} subtitleTone={row.state === 'offline' ? 'danger' : 'secondary'} detail={phoneDetail(row)}
           href={row.href ?? undefined} chevron={false}
-          leading={<AvatarDot dot={AVATAR_DOT[row.state] ?? null}><AgentAvatar seed={row.host} src={row.avatar} size={AVATAR_SIZE.list} /></AvatarDot>}
+          leading={<AvatarDot dot={AVATAR_DOT[row.state] ?? null}><AgentAvatar seed={row.host ?? row.id} src={row.avatar} size={AVATAR_SIZE.list} /></AvatarDot>}
           trailing={<PhoneTrailing row={row} now={now} note={actions.notes[row.key]} />} />
       ))}
     </Rows>

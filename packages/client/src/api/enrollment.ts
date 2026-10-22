@@ -2,7 +2,7 @@ import { accountIdentity, accountScopeIdentity, activeAccount, checkAccountIdent
 import { baseFromSegment, builtInDaemon, currentServer, daemonBase, subscribeCurrentServer } from '../auth/daemon.js';
 import { isRecord } from '../read.js';
 import { AuthError, call, ForbiddenError, NotFoundError } from './client.js';
-import type { Server } from './servers.js';
+import type { BoxServer } from './servers.js';
 import { toMode } from './mode.js';
 import { olderThan } from './version.js';
 
@@ -65,7 +65,7 @@ function originOf(base: string): string {
 
 function matchesDestination(id: string, origin: string, central: string): boolean {
   const server = currentServer();
-  return server !== null && server.id === id && originOf(baseFromSegment(server.host)) === origin && originOf(daemonBase()) === origin && builtInDaemon() === central;
+  return server !== null && server.host !== null && server.id === id && originOf(baseFromSegment(server.host)) === origin && originOf(daemonBase()) === origin && builtInDaemon() === central;
 }
 
 function checkMode(body: unknown, organization: string | undefined): void {
@@ -75,7 +75,7 @@ function checkMode(body: unknown, organization: string | undefined): void {
   if (mode.owner !== organization) throw new EnrollmentError('This agent does not belong to the selected organization. Enrollment did not start.');
 }
 
-export function createEnrollment(server: Pick<Server, 'id' | 'host'>): Enrollment {
+export function createEnrollment(server: Pick<BoxServer, 'id' | 'host'>): Enrollment {
   const identity = accountIdentity();
   const organization = identity?.organization ?? '';
   const scope = accountScopeIdentity();

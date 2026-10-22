@@ -10,7 +10,7 @@ import { Control, Fact, NoteRow } from './settings/rows.js';
 import { queryError } from '../lib/queries.js';
 import { instanceLabel, linkServer, unlinkServer, type FoundInstance } from '@metro-labs/client/api/aws';
 import { refreshAws, useInstancesQuery, useServerLinkQuery } from '../lib/aws-queries.js';
-import type { Server } from '@metro-labs/client/api/servers';
+import type { BoxServer } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 
 const TITLE = 'AWS';
@@ -44,13 +44,13 @@ function useBusy(): Busy {
 
 const Note = ({ text, danger = false }: { text: string; danger?: boolean }): ReactNode => <NoteRow text={text} danger={danger} />;
 
-function candidates(found: FoundInstance[], server: Server): FoundInstance[] {
+function candidates(found: FoundInstance[], server: BoxServer): FoundInstance[] {
   const node = server.host.split('.')[0] ?? '';
   const free = found.filter((i) => i.agentId === null || i.agentId === server.id);
   return [...free.filter((i) => i.node === node), ...free.filter((i) => i.node !== node)];
 }
 
-function Picker({ server }: { server: Server }): ReactNode {
+function Picker({ server }: { server: BoxServer }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const [open, setOpen] = useState(false);
   const found = useInstancesQuery(open);
@@ -97,7 +97,7 @@ function Picker({ server }: { server: Server }): ReactNode {
   );
 }
 
-function Linked({ server, accountId, region, instanceId }: { server: Server; accountId: string | null; region: string; instanceId: string }): ReactNode {
+function Linked({ server, accountId, region, instanceId }: { server: BoxServer; accountId: string | null; region: string; instanceId: string }): ReactNode {
   const dark = useKitScheme() === 'dark';
   const action = useBusy();
   return (
@@ -124,7 +124,7 @@ function Linked({ server, accountId, region, instanceId }: { server: Server; acc
   );
 }
 
-export function ServerAwsSection({ server }: { server: Server }): ReactNode {
+export function ServerAwsSection({ server }: { server: BoxServer }): ReactNode {
   const link = useServerLinkQuery(server.id);
   const view = link.data;
   if (view === undefined || view.mode === 'metro') return null;

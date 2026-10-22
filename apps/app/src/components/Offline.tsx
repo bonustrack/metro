@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { boxesOf, serverLabel, type BoxServer } from '@metro-labs/client/api/servers';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { type Selection } from '@metro-labs/client/selection';
 import { DeleteServerSection } from './DeleteServer.js';
@@ -44,7 +44,7 @@ function Checks({ checks }: { checks: Check[] }): ReactNode {
   );
 }
 
-function useChecks(server: Server | undefined): Check[] {
+function useChecks(server: BoxServer | undefined): Check[] {
   const servers = useServersQuery();
   const usage = useLatestUsageQuery().data?.[server?.id ?? ''];
   const runs = usage === undefined || usage.cpu === null ? [] : [{ label: 'The server runs', ok: true }];
@@ -52,7 +52,7 @@ function useChecks(server: Server | undefined): Check[] {
   return [...runs, { label: 'Metro does not answer', ok: false }, ...reach];
 }
 
-function GettingReady({ server, state }: { server: Server; state: string }): ReactNode {
+function GettingReady({ server, state }: { server: BoxServer; state: string }): ReactNode {
   const step = state === 'running' ? 'Installing Metro' : 'Starting the server';
   return (
     <StateBlock spinner title={`${serverLabel(server)} is getting ready`} text={`${step}. You can close this page.`}
@@ -60,7 +60,7 @@ function GettingReady({ server, state }: { server: Server; state: string }): Rea
   );
 }
 
-function ServerSections({ server }: { server: Server }): ReactNode {
+function ServerSections({ server }: { server: BoxServer }): ReactNode {
   return (
     <Col gap={24}>
       <ServerResources serverId={server.id} />
@@ -71,7 +71,7 @@ function ServerSections({ server }: { server: Server }): ReactNode {
   );
 }
 
-function OfflineState({ server, name, onRetry }: { server: Server | undefined; name: string; onRetry: () => void }): ReactNode {
+function OfflineState({ server, name, onRetry }: { server: BoxServer | undefined; name: string; onRetry: () => void }): ReactNode {
   const technical = useTechnicalDetails();
   const checks = useChecks(server);
   const host = currentServer()?.host;
@@ -86,7 +86,7 @@ function OfflineState({ server, name, onRetry }: { server: Server | undefined; n
   );
 }
 
-function KnownServer({ server, onRetry }: { server: Server; onRetry: () => void }): ReactNode {
+function KnownServer({ server, onRetry }: { server: BoxServer; onRetry: () => void }): ReactNode {
   const status = useServerStatus(server.host).data;
   const booting = useBootingState(server, status !== undefined && status.state !== 'live');
   const name = serverLabel(server);
@@ -101,7 +101,7 @@ function KnownServer({ server, onRetry }: { server: Server; onRetry: () => void 
 export function OfflinePanel({ onRetry }: { onRetry: () => void }): ReactNode {
   const servers = useServersQuery();
   const here = currentServer();
-  const server = servers.data?.find((s) => s.id === here?.id);
+  const server = boxesOf(servers.data ?? []).find((s) => s.id === here?.id);
   if (server !== undefined) return <KnownServer server={server} onRetry={onRetry} />;
   return <OfflineState server={undefined} name="This agent" onRetry={onRetry} />;
 }

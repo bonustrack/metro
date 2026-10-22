@@ -30,6 +30,14 @@ describe('the two connector tools every agent sees', () => {
     expect(TOOL_CALL_DESCRIPTION).toContain('"approval": "<id>"');
   });
 
+  test('an agent without a server is told to have the call approved on its metro.box page, not in chat', () => {
+    const remote = mcpServerTools(['notion'], true)[1]?.description ?? '';
+    expect(remote).toContain('- needs_approval: the owner must approve it on this agent\'s page on metro.box.');
+    expect(remote).not.toContain('channel message');
+    expect(remote.length).toBeLessThan(1800);
+    expect(mcpServerTools(['notion'])[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
+  });
+
   test('a malformed tool_call answers with the expected shape', () => {
     for (const bad of [{}, { calls: [] }, { calls: [{ tool: 'nope' }] }, { calls: [{ tool: 'notion.search', arguments: 'x' }] }, { tool: 'notion.search' }])
       expect(() => mcpCallsOf(bad)).toThrow(`Expected: ${TOOL_CALL_EXAMPLE}`);

@@ -4,10 +4,11 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readBodyBytes } from '@metro-labs/http/api-http';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import { tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { McpDeps } from './deps.js';
 import { answerMessage } from './rpc.js';
-import { bearerToken, tokenHashOf } from './token.js';
+import { bearerToken } from './token.js';
 
 export const MCP_BODY_MAX = 4 * 1024 * 1024;
 const BATCH_MAX = 50;
@@ -22,10 +23,10 @@ export function sendBody(res: ServerResponse, status: number, body: unknown, hea
 }
 
 function unauthorized(res: ServerResponse): void {
-  sendBody(res, 401, { error: 'An MCP token from this agent\'s Metro is required (Authorization: Bearer mcp_...).' }, { 'www-authenticate': 'Bearer' });
+  sendBody(res, 401, { error: 'An access key from the agent\'s page on metro.box, or the MCP token of its Metro, is required (Authorization: Bearer mcp_...). A revoked key no longer works.' }, { 'www-authenticate': 'Bearer' });
 }
 
-async function identityOf(req: IncomingMessage, deps: McpDeps): Promise<AgentKeyRow | null> {
+async function identityOf(req: IncomingMessage, deps: McpDeps): Promise<DeliveryIdentity | null> {
   const token = bearerToken(req.headers.authorization);
   return token === null ? null : deps.tokens.agentOf(tokenHashOf(token));
 }
@@ -42,7 +43,7 @@ const initializes = (messages: unknown[]): boolean => messages.some((message) =>
 
 const rpcFailure = (code: number, message: string): Record<string, unknown> => ({ jsonrpc: '2.0', id: null, error: { code, message } });
 
-async function answer(req: IncomingMessage, res: ServerResponse, deps: McpDeps, identity: AgentKeyRow): Promise<void> {
+async function answer(req: IncomingMessage, res: ServerResponse, deps: McpDeps, identity: DeliveryIdentity): Promise<void> {
   const body = parsedBody(await readBodyBytes(req, MCP_BODY_MAX));
   if (body === undefined) {
     sendBody(res, 400, rpcFailure(-32700, 'Parse error'));

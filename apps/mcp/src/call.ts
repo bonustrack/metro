@@ -1,7 +1,8 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
-import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
+import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
+import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
@@ -27,12 +28,15 @@ interface Target {
 
 interface CallContext {
   deps: McpDeps;
-  identity: AgentKeyRow;
+  identity: DeliveryIdentity;
   connectors: AgentConnector[];
 }
 
-export const needsApprovalText = (name: string, id: string): string =>
-  `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
+export function needsApprovalText(name: string, id: string, remote = false): string {
+  if (remote)
+    return `The owner must approve ${name} with these arguments first (approval ${id}), on this agent's page on metro.box. Tell the person what is waiting and ask them to approve it there. Once it is approved, call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer.`;
+  return `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
+}
 
 const SUGGESTIONS = 3;
 
@@ -87,7 +91,7 @@ async function approved(ctx: CallContext, target: Target, call: McpCall): Promis
   }
   const id = await deps.approvals.request(identity, request, now);
   deps.waiters.notify(identity.agent);
-  throw new CallError('needs_approval', needsApprovalText(target.name, id));
+  throw new CallError('needs_approval', needsApprovalText(target.name, id, isTokenIdentity(identity)));
 }
 
 async function gate(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
@@ -129,7 +133,7 @@ async function runCall(ctx: CallContext, call: McpCall, index: number): Promise<
   return { ...result, blocks: [header, ...result.blocks] };
 }
 
-export async function callTools(deps: McpDeps, identity: AgentKeyRow, calls: McpCall[]): Promise<ToolResult> {
+export async function callTools(deps: McpDeps, identity: DeliveryIdentity, calls: McpCall[]): Promise<ToolResult> {
   const ctx: CallContext = { deps, identity, connectors: await agentConnectors(deps, identity) };
   const outcomes = await Promise.all(calls.map((call, i) => runCall(ctx, call, i + 1)));
   const content = outcomes.flatMap((outcome) => outcome.blocks);

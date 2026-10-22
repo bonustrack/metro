@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import type { IconName } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AvatarDot } from './AvatarDot.js';
 import { hoverColor, selectedColor } from '../../lib/theme.js';
@@ -20,19 +21,20 @@ export interface ListPaneRowProps {
   detail?: string;
   avatar: ReactNode;
   dot?: DotTone | null;
+  mark?: IconName;
   trailing?: ReactNode;
   selected?: boolean;
   href: string;
 }
 
-export function ListPaneRow({ title, line, lineTone = 'secondary', detail, avatar, dot = null, trailing, selected = false, href }: ListPaneRowProps): ReactNode {
+export function ListPaneRow({ title, line, lineTone = 'secondary', detail, avatar, dot = null, mark, trailing, selected = false, href }: ListPaneRowProps): ReactNode {
   const palette = useKitPalette();
   const fill = selected ? selectedColor(palette) : palette.bg;
   const frame = StyleSheet.flatten([styles.row, selected ? { backgroundColor: fill } : null]);
   const hover = selected ? null : { backgroundColor: hoverColor(palette) };
   return (
     <RouteLink to={href} label={title} style={frame} hoverStyle={hover}>
-      <AvatarDot dot={dot} ring={fill}>
+      <AvatarDot dot={dot} mark={mark} ring={fill}>
         {avatar}
       </AvatarDot>
       <Col flex={1} minWidth={0}>

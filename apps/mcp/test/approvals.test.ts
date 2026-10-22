@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
 import { agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
-import { APPROVAL_TTL_MS, GRANT_WINDOW_MS, PENDING_MAX, REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '../src/approvals.ts';
+import { APPROVAL_TTL_MS, GRANT_WINDOW_MS, PENDING_MAX, REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { argsDigest, canonicalJson, PREVIEW_MAX, previewOf } from '../src/digest.ts';
 import { enrollAgent, PGLITE_START_MS, testDb, type TestAgent, type TestDb } from './helpers.ts';
 

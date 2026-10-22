@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
+import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { ServerEntry } from './server-types.js';
@@ -11,8 +13,9 @@ const PREFIX = '/api/servers';
 export interface ServersApiDeps {
   list: (subject: string) => Promise<ServerEntry[]>;
   add: (subject: string, body: unknown) => Promise<ServerEntry>;
+  addRemote: (subject: string, body: unknown) => Promise<ServerEntry>;
   rename: (subject: string, id: string, body: unknown) => Promise<ServerEntry>;
-  remove: (subject: string, id: string) => Promise<{ id: string; host: string }>;
+  remove: (session: Session, id: string) => Promise<{ id: string; host: string | null }>;
   avatar: (subject: string, id: string, body: unknown) => Promise<ServerEntry>;
   move: (session: Session, id: string, body: unknown) => Promise<ServerEntry>;
   keys: SigningKeys;
@@ -43,13 +46,22 @@ function idTarget(segments: string[]): Target {
 
 const ALLOWED: Record<Known['kind'], string[]> = { index: ['GET', 'POST'], server: ['PUT', 'DELETE'], avatar: ['PUT'], move: ['POST'] };
 
+const isRemote = (body: unknown): boolean => isRecord(body) && body.kind === 'remote';
+
+async function added(deps: ServersApiDeps, session: Session, body: unknown): Promise<ServerEntry> {
+  const owner = session.organization ?? '';
+  if (!isRemote(body)) return deps.add(owner, body);
+  if (session.role !== 'admin') throw new ApiError('creating an agent without a server needs the admin role in your organization', 403);
+  return deps.addRemote(owner, body);
+}
+
 async function answer(req: IncomingMessage, deps: ServersApiDeps, session: Session, tgt: Known): Promise<unknown> {
   const owner = session.organization ?? '';
   if (tgt.kind === 'move') return deps.move(session, tgt.id, await readJsonBody(req));
   if (tgt.kind === 'index')
-    return req.method === 'GET' ? { servers: await deps.list(owner) } : deps.add(owner, await readJsonBody(req));
+    return req.method === 'GET' ? { servers: await deps.list(owner) } : added(deps, session, await readJsonBody(req));
   if (tgt.kind === 'avatar') return deps.avatar(owner, tgt.id, await readJsonBody(req, AVATAR_BODY_MAX));
-  return req.method === 'DELETE' ? deps.remove(owner, tgt.id) : deps.rename(owner, tgt.id, await readJsonBody(req));
+  return req.method === 'DELETE' ? deps.remove(session, tgt.id) : deps.rename(owner, tgt.id, await readJsonBody(req));
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: ServersApiDeps, tgt: Known): Promise<void> {

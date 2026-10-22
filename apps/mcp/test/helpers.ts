@@ -16,7 +16,7 @@ import { sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connector
 import * as schema from '@metro-labs/connectors/db/schema';
 import { handleRequest, mcpDeps } from '../src/app.ts';
 import type { McpDeps } from '../src/deps.ts';
-import { tokenHashOf } from '../src/token.ts';
+import { tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 
 export const PGLITE_START_MS = 60_000;
 export const OWNER = 'org_01TESTOWNER000000';
@@ -26,7 +26,7 @@ export const MASTER = randomBytes(32);
 export const VENDOR_ORIGIN = 'https://vendor.example.com';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'api', 'drizzle');
-const TABLES = ['mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
+const TABLES = ['mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
 
 export interface TestDb {
   db: Database;
