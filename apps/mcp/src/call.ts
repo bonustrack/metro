@@ -1,7 +1,6 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
-import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
@@ -12,6 +11,8 @@ import { connectorTools, failureOf, groupsOf } from './listing.js';
 import { closestNames } from './search.js';
 import type { ToolGroup } from './policy.js';
 import { textBlock, type ToolResult } from './tool-result.js';
+import { approvalPlace } from './tools.js';
+import type { ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
 import { callVendorTool } from './vendor.js';
 
 interface Outcome {
@@ -32,9 +33,13 @@ interface CallContext {
   connectors: AgentConnector[];
 }
 
-export function needsApprovalText(name: string, id: string, remote = false): string {
-  if (remote)
-    return `The owner must approve ${name} with these arguments first (approval ${id}), on this agent's page on metro.box. Tell the person what is waiting and ask them to approve it there. Once it is approved, call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer.`;
+const AGAIN = (id: string): string => `call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer.`;
+
+export function needsApprovalText(name: string, id: string, place: ApprovalPlace = 'session'): string {
+  if (place === 'page')
+    return `The owner must approve ${name} with these arguments first (approval ${id}), on this agent's page on metro.box. Tell the person what is waiting and ask them to approve it there. Once it is approved, ${AGAIN(id)}`;
+  if (place === 'owner')
+    return `The owner must approve ${name} with these arguments first (approval ${id}). The agent's owner was asked in chat and on its page on metro.box. Tell the person what is waiting. Once it is approved, ${AGAIN(id)}`;
   return `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
 }
 
@@ -91,7 +96,7 @@ async function approved(ctx: CallContext, target: Target, call: McpCall): Promis
   }
   const id = await deps.approvals.request(identity, request, now);
   deps.waiters.notify(identity.agent);
-  throw new CallError('needs_approval', needsApprovalText(target.name, id, isTokenIdentity(identity)));
+  throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity)));
 }
 
 async function gate(ctx: CallContext, target: Target, call: McpCall): Promise<void> {

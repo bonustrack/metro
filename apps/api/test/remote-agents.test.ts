@@ -134,7 +134,7 @@ describe('access keys', () => {
     expect((await call(`/api/agents/${REMOTE}/tokens`, { method: 'POST', body: { label: 'x' }, who: TEST_STRANGER })).status).toBe(404);
     expect((await call(`/api/agents/${REMOTE}/tokens/${made.token.id}`, { method: 'DELETE', who: TEST_STRANGER })).status).toBe(404);
     expect((await call(`/api/agents/${THEIRS}/tokens`, { method: 'POST', body: { label: 'x' } })).status).toBe(404);
-    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: REMOTE, owner: TEST_OWNER, tokenId: made.token.id });
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: REMOTE, owner: TEST_OWNER, tokenId: made.token.id, remote: true });
   });
 
   test('a revoked key stays listed as revoked and no longer names its agent', async () => {
@@ -158,9 +158,16 @@ describe('access keys', () => {
     await created(REMOTE, 'one more');
   });
 
-  test('an agent with a server gets no access key', async () => {
-    const res = await call(`/api/agents/${BOX}/tokens`, { method: 'POST', body: { label: 'x' } });
-    expect(res.status).toBe(409);
+  test('an agent with a server gets access keys too, which a move drops and a delete removes', async () => {
+    const made = await created(BOX, 'Laptop');
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: BOX, owner: TEST_OWNER, tokenId: made.token.id, remote: false });
+    expect((await (await tokensOf(BOX, TEST_OWNER, 'member')).json()) as { tokens: TokenView[] }).toEqual({ tokens: [made.token] });
+    expect((await call(`/api/agents/${BOX}/tokens`, { method: 'POST', body: { label: 'x' }, role: 'member' })).status).toBe(403);
+    await held.db.transaction((tx) => leaveOrganization(tx, BOX));
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toBeNull();
+    const again = await created(BOX, 'Again');
+    await held.db.delete(agents).where(eq(agents.id, BOX));
+    expect(await findAgentToken(held.db, tokenHashOf(again.key))).toBeNull();
     expect(await held.db.$count(agentTokens)).toBe(0);
   });
 

@@ -4,9 +4,10 @@ import { createAgentToken, revokeAgentToken, tokenHashOf } from '@metro-labs/con
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentKeys, agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
-import { REMOTE_INSTRUCTIONS } from '../src/tools.ts';
+import { MCP_PATHS } from '@metro-labs/http/mcp-server-protocol';
+import { KEY_INSTRUCTIONS, REMOTE_INSTRUCTIONS } from '../src/tools.ts';
 import { TOUCH_EVERY_MS } from '../src/token.ts';
-import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
+import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, signed, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
 
 const REMOTE = 'remote00001';
@@ -127,6 +128,27 @@ describe('an agent without a server, signed in with an access key', () => {
     expect(boxInit.result.instructions).toContain('from a worker');
     const other = await addRemote(held.db, 'remote00002', STRANGER);
     expect(texts(await callTool(app, other.key, 'tool_search', { query: 'notion' }))[0]).toBe('No tool matched "notion". This agent has no connectors it may use.');
+  });
+
+  test('a key of an agent with a server works as that agent, and its Ask goes through the daemon relay as today', async () => {
+    const box = await enrollAgent(held.db, 'agent000001');
+    await addConnector(held.db, 'conn0000002', 'Linear', headerSecret('/mcp'), { policy: JSON.stringify({ write: 'ask' }) });
+    await assign(held.db, 'conn0000002', box.row.agent);
+    const made = await createAgentToken(held.db, { owner: OWNER, agent: box.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now });
+    const init = (await (await rpc(app, made.token, initialize)).json()) as { result: { instructions: string } };
+    expect(init.result.instructions).toBe(KEY_INSTRUCTIONS);
+    expect(texts(await callTool(app, made.token, 'tool_search', { query: 'select:linear.search' }))[0]).toContain('"name":"linear.search"');
+    const call = { tool: 'linear.update_page', arguments: { page_id: 'p9' } };
+    const asked = texts(await callTool(app, made.token, 'tool_call', { calls: [call] }))[1] ?? '';
+    const id = /approval ([a-km-z]{5})/.exec(asked)?.[1] ?? '';
+    expect(asked).toContain('The agent\'s owner was asked in chat and on its page on metro.box.');
+    const relayed = signed(box, MCP_PATHS.approvals, {}, now);
+    const pending = (await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: relayed.body, headers: relayed.headers })).json()) as { approvals: { id: string; connector: string; tool: string }[] };
+    expect(pending.approvals.map((one) => [one.id, one.connector, one.tool])).toEqual([[id, 'linear', 'update_page']]);
+    const answer = signed(box, MCP_PATHS.answer, { id, decision: 'allow' }, now);
+    expect((await fetch(`${app.base}${MCP_PATHS.answer}`, { method: 'POST', body: answer.body, headers: answer.headers })).status).toBe(200);
+    expect(texts(await callTool(app, made.token, 'tool_call', { calls: [{ ...call, approval: id }] }))).toEqual(['[1] linear.update_page', 'update_page ran with {"page_id":"p9"}']);
+    expect((await held.db.select({ agent: mcpCalls.agent }).from(mcpCalls).where(eq(mcpCalls.connector, 'conn0000002'))).length).toBeGreaterThan(0);
   });
 
   test('a daemon MCP token on a row without a server opens nothing', async () => {

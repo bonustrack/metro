@@ -14,6 +14,7 @@ export interface AgentTokenIdentity {
   agent: string;
   owner: string;
   tokenId: string;
+  remote: boolean;
 }
 
 export interface NewAgentToken {
@@ -32,15 +33,13 @@ export const isTokenIdentity = (identity: { agent: string; owner: string }): ide
 
 const missingAgent = (): ApiError => new ApiError('no such agent', 404);
 
-async function remoteAgentIn(tx: Database, owner: string, agent: string): Promise<void> {
-  const rows = await tx.select({ kind: agents.kind }).from(agents).where(and(eq(agents.id, agent), eq(agents.owner, owner))).for('update');
-  const row = rows[0];
-  if (row === undefined) throw missingAgent();
-  if (row.kind !== 'remote') throw new ApiError('Access keys are for agents without a server. This agent reaches its connectors through its own server.', 409);
+async function agentIn(tx: Database, owner: string, agent: string): Promise<void> {
+  const rows = await tx.select({ id: agents.id }).from(agents).where(and(eq(agents.id, agent), eq(agents.owner, owner))).for('update');
+  if (rows[0] === undefined) throw missingAgent();
 }
 
 async function createIn(tx: Database, input: NewAgentToken): Promise<{ row: AgentTokenRow; token: string }> {
-  await remoteAgentIn(tx, input.owner, input.agent);
+  await agentIn(tx, input.owner, input.agent);
   const live = await tx.$count(agentTokens, and(eq(agentTokens.agent, input.agent), eq(agentTokens.owner, input.owner), isNull(agentTokens.revokedAt)));
   if (live >= AGENT_TOKENS_MAX) throw new ApiError(`This agent already has ${String(AGENT_TOKENS_MAX)} access keys. Revoke one first.`, 409);
   const token = newAgentToken();
@@ -68,12 +67,13 @@ export async function revokeAgentToken(db: Database, owner: string, agent: strin
 
 export async function findAgentToken(db: Database, tokenHash: string): Promise<AgentTokenIdentity | null> {
   const rows = await db
-    .select({ agent: agentTokens.agent, owner: agentTokens.owner, tokenId: agentTokens.id })
+    .select({ agent: agentTokens.agent, owner: agentTokens.owner, tokenId: agentTokens.id, kind: agents.kind })
     .from(agentTokens)
     .innerJoin(agents, and(eq(agents.id, agentTokens.agent), eq(agents.owner, agentTokens.owner)))
     .where(and(eq(agentTokens.tokenHash, tokenHash), isNull(agentTokens.revokedAt)))
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row === undefined ? null : { agent: row.agent, owner: row.owner, tokenId: row.tokenId, remote: row.kind === 'remote' };
 }
 
 export async function touchAgentToken(db: Database, id: string, now: number): Promise<void> {

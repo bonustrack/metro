@@ -2,7 +2,7 @@
 
 `apps/mcp` (package `@metro-labs/mcp`, Fly app `metro-mcp`, `https://mcp.metro.box`)
 is the one MCP endpoint for every agent's connectors, reached through the agent's daemon, or
-directly with an access key by an agent that has no server (see Agents without a server). It is its own app with its own
+directly with an access key of any agent, for example by an agent that has no server (see Access keys and agents without a server). It is its own app with its own
 deploy, so a change to api.metro.box, the page or the daemon never redeploys it. Later it
 will also serve memory.
 
@@ -112,14 +112,15 @@ The daemon applies no station policy to the two tools.
 - Enrolling again replaces it. A token whose agent left its organization stops working at
   once.
 
-## Agents without a server
+## Access keys and agents without a server
 
 Since 2026-10-23 an agent row may have no server (`agents.kind = 'remote'`, no `host`): an
 organization admin creates one on metro.box (Agents, New agent, Without a server) only to
-give a person's own Claude Code, or any MCP client, the organization's connectors.
+give a person's own Claude Code, or any MCP client, the organization's connectors. Any agent,
+with a server or not, can have access keys.
 
-- **Access keys** (`agent_tokens`): an admin creates a key on the agent's Access keys tab
-  (`POST /api/agents/<id>/tokens {label}` on api.metro.box). The key is `mcp_` plus 32
+- **Access keys** (`agent_tokens`): an admin creates a key on the agent's Access keys tab, or in
+  the Tools tab of an agent with a server (`POST /api/agents/<id>/tokens {label}` on api.metro.box). The key is `mcp_` plus 32
   random bytes in base64url, the shape of an MCP token, answered once; only its SHA-256 is
   stored. At most 20 live keys per agent; Revoke (`DELETE …/tokens/<id>`) keeps the row with
   its `revoked_at`. Claude Code:
@@ -132,10 +133,14 @@ give a person's own Claude Code, or any MCP client, the organization's connector
   migration `0019` the `agent_tokens` table is missing: boxes work, every access key is a 401,
   and that is logged once.
 - **Everything else is the same**: assignments, policies, `tool_search`, `tool_call`, the
-  `mcp_approvals` rows and the `mcp_calls` activity. Only the words differ: `initialize`
-  answers instructions without the worker rule, and the `needs_approval` line of
-  `tool_call` and of a result says the owner approves it on the agent's page on metro.box.
-- **Ask is answered on metro.box** (Less, 2026-10-23: the agent has no chat): no daemon
+  `mcp_approvals` rows and the `mcp_calls` activity; a key of an agent with a server works as
+  that agent. Only the words differ: `initialize` answers instructions without the worker
+  rule, and the `needs_approval` line of `tool_call` and of a result says where the owner
+  answers: on the agent's page on metro.box for an agent without a server, in chat and on the
+  agent's page for a key of an agent with a server, whose request goes through its daemon's
+  approval relay as any other (the daemon then also tells its own session, which never saw
+  the arguments).
+- **Ask of an agent without a server is answered on metro.box** (Less, 2026-10-23: the agent has no chat): no daemon
   relays the request, so the page shows it as an approval card on the agent's page
   (`GET /api/agents/<id>/approvals`) and any member answers it
   (`POST /api/agents/<id>/approvals/<approval id> {decision}`), as on a box's page. Listing is

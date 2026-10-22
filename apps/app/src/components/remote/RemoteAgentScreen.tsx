@@ -9,7 +9,7 @@ import { AgentConnectorPage } from '../connectors/AgentConnectorPage.js';
 import { ProfilePage } from '../settings/ProfilePage.js';
 import { Tabbed } from '../tabbed.js';
 import { Wide } from '../ui/Layout.js';
-import { AccessKeys } from './AccessKeys.js';
+import { AccessKeys } from '../tools/AccessKeys.js';
 import { RemoteApprovals } from './RemoteApprovals.js';
 import { RemoteConnectors } from './RemoteConnectors.js';
 import { RemoteHeader } from './RemoteHeader.js';
