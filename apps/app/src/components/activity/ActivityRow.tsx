@@ -26,10 +26,11 @@ const styles = StyleSheet.create({
 
 interface RowProps {
   call: ActivityCall;
-  server: Server | undefined;
+  server?: Server | undefined;
   now: number;
   technical: boolean;
   fresh: boolean;
+  showAgent?: boolean;
 }
 
 function useEntrance(fresh: boolean): Animated.Value {
@@ -55,8 +56,18 @@ function Outcome({ outcome }: { outcome: string }): ReactNode {
   );
 }
 
+const connectorOf = (call: ActivityCall): string => call.connectorName ?? (call.connectorKey === '' ? 'Unknown connector' : call.connectorKey);
+
+function RawName({ call }: { call: ActivityCall }): ReactNode {
+  return (
+    <Text size="xs" role="secondary" numberOfLines={1} style={MONO}>
+      {call.connectorKey === '' ? call.tool : `${call.connectorKey}.${call.tool}`}
+    </Text>
+  );
+}
+
 function What({ call, technical }: { call: ActivityCall; technical: boolean }): ReactNode {
-  const connector = call.connectorName ?? (call.connectorKey === '' ? 'Unknown connector' : call.connectorKey);
+  const connector = connectorOf(call);
   return (
     <Col gap={2} minWidth={0}>
       <Row align="center" gap={6} minWidth={0}>
@@ -65,23 +76,13 @@ function What({ call, technical }: { call: ActivityCall; technical: boolean }): 
           {`${connector} · ${toolLabel(call.tool)}`}
         </Text>
       </Row>
-      {technical ? (
-        <Text size="xs" role="secondary" numberOfLines={1} style={MONO}>
-          {call.connectorKey === '' ? call.tool : `${call.connectorKey}.${call.tool}`}
-        </Text>
-      ) : null}
+      {technical ? <RawName call={call} /> : null}
     </Col>
   );
 }
 
-export function ActivityRow({ call, server, now, technical, fresh }: RowProps): ReactNode {
-  const palette = useKitPalette();
-  const shown = useEntrance(fresh);
-  const name = server === undefined ? (call.agentName ?? 'Removed agent') : serverLabel(server);
-  const frame = StyleSheet.flatten([styles.row, { borderBottomColor: palette.border }]);
-  const motion = { opacity: shown, transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [ENTER_FROM, 0] }) }] };
-  const when = technical ? new Date(call.at).toLocaleString() : agoWords(call.at, now);
-  const body = (
+function AgentLines({ call, server, name, technical }: { call: ActivityCall; server: Server | undefined; name: string; technical: boolean }): ReactNode {
+  return (
     <>
       <AgentAvatar seed={server?.host ?? call.agent} src={server?.avatar ?? null} size={AVATAR_SIZE.list} />
       <Col flex={1} minWidth={0} gap={2}>
@@ -90,6 +91,35 @@ export function ActivityRow({ call, server, now, technical, fresh }: RowProps): 
         </Text>
         <What call={call} technical={technical} />
       </Col>
+    </>
+  );
+}
+
+function ConnectorLines({ call, technical }: { call: ActivityCall; technical: boolean }): ReactNode {
+  const connector = connectorOf(call);
+  return (
+    <>
+      <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.lg} />
+      <Col flex={1} minWidth={0} gap={2}>
+        <Text size="md" numberOfLines={1}>
+          {`${connector} · ${toolLabel(call.tool)}`}
+        </Text>
+        {technical ? <RawName call={call} /> : null}
+      </Col>
+    </>
+  );
+}
+
+export function ActivityRow({ call, server, now, technical, fresh, showAgent = true }: RowProps): ReactNode {
+  const palette = useKitPalette();
+  const shown = useEntrance(fresh);
+  const name = server === undefined ? (call.agentName ?? 'Removed agent') : serverLabel(server);
+  const frame = StyleSheet.flatten([styles.row, { borderBottomColor: palette.border }]);
+  const motion = { opacity: shown, transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [ENTER_FROM, 0] }) }] };
+  const when = technical ? new Date(call.at).toLocaleString() : agoWords(call.at, now);
+  const body = (
+    <>
+      {showAgent ? <AgentLines call={call} server={server} name={name} technical={technical} /> : <ConnectorLines call={call} technical={technical} />}
       <View style={styles.end}>
         <Outcome outcome={call.outcome} />
         <Text size="xs" role="secondary" numberOfLines={1}>
@@ -100,7 +130,7 @@ export function ActivityRow({ call, server, now, technical, fresh }: RowProps): 
   );
   return (
     <Animated.View style={motion}>
-      {server === undefined ? (
+      {server === undefined || !showAgent ? (
         <View style={frame}>{body}</View>
       ) : (
         <RouteLink to={routeHash({ kind: 'home', project: server.id })} label={`${name}: ${toolLabel(call.tool)}`} style={frame}>

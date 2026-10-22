@@ -1,10 +1,9 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { currentOrganization } from '@metro-labs/client/auth/org-route';
 import { Icon } from '../Icon.js';
@@ -13,7 +12,7 @@ import { Rows } from '../ui/Group.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 import { ActivityRow } from './ActivityRow.js';
-import { useActivityFeed, type ActivityFeedView } from '../../lib/activity-feed.js';
+import { useActivityFeed, useFreshIds, type ActivityFeedView } from '../../lib/activity-feed.js';
 import { scrollPageToTop } from '../../lib/page-scroll.js';
 import { useServersQuery } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
@@ -65,18 +64,6 @@ function NewCalls({ count }: { count: number }): ReactNode {
   );
 }
 
-function useFreshIds(calls: ActivityCall[], loaded: boolean): Set<string> {
-  const known = useRef<Set<string> | null>(null);
-  const newest = useRef(0);
-  const fresh = new Set(known.current === null ? [] : calls.filter((call) => !known.current?.has(call.id) && call.at >= newest.current).map((call) => call.id));
-  useEffect(() => {
-    if (!loaded) return;
-    known.current = new Set(calls.map((call) => call.id));
-    newest.current = Math.max(newest.current, ...calls.map((call) => call.at));
-  }, [calls, loaded]);
-  return fresh;
-}
-
 function Earlier({ earlier }: { earlier: ActivityFeedView['earlier'] }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
@@ -122,10 +109,11 @@ function Feed({ agent, servers }: { agent: string | null; servers: Server[] }): 
   );
 }
 
-export function ActivityFeed(): ReactNode {
-  const servers = useServersQuery().data ?? [];
-  const [agent, setAgent] = useState<string | null>(null);
-  const shown = agent !== null && servers.some((server) => server.id === agent) ? agent : null;
+export function ActivityFeed({ agent: picked = null }: { agent?: string | null }): ReactNode {
+  const known = useServersQuery().data;
+  const servers = known ?? [];
+  const [agent, setAgent] = useState<string | null>(picked);
+  const shown = agent !== null && (known === undefined || servers.some((server) => server.id === agent)) ? agent : null;
   return (
     <Col gap={20} width="100%">
       <Chips servers={servers} value={shown} onChange={setAgent} />

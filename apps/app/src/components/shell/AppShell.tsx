@@ -9,8 +9,9 @@ import { Crumbs } from '../ui/PageHeader.js';
 import { Rail } from './Rail.js';
 import { RailTipLayer } from './RailTipLayer.js';
 import { TAB_BAR_ROOM, TabBar } from './TabBar.js';
-import { SHELL_SECTIONS, isAdminSelection, phoneBackOf, phoneTabOf, shellSectionOf } from '../../lib/shell-sections.js';
+import { isAdminSelection, phoneBackLabel, phoneBackOf, phoneTabOf, shellSectionOf } from '../../lib/shell-sections.js';
 import { useIsNarrow } from '../../lib/media.js';
+import { useServersQuery } from '../../lib/queries.js';
 import { side } from '../ui/edges.js';
 import { PAGE_PAD, PAGE_TOP, WIDE_WIDTH } from '../ui/sizes.js';
 import { webOnly } from '../../lib/style.js';
@@ -54,10 +55,10 @@ function DesktopShell({ selection, onLock, list, fluid = false, children }: AppS
 }
 
 function PhoneBack({ selection }: { selection: Selection }): ReactNode {
+  const servers = useServersQuery().data;
   const back = 'project' in selection ? null : phoneBackOf(selection);
   if (back === null) return null;
-  const label = SHELL_SECTIONS.find((s) => s.target.kind === back.kind)?.label ?? 'Back';
-  return <Crumbs items={[{ label, href: routeHash(back) }]} />;
+  return <Crumbs items={[{ label: phoneBackLabel(back, servers), href: routeHash(back) }]} />;
 }
 
 function PhoneShell({ selection, children }: AppShellProps): ReactNode {

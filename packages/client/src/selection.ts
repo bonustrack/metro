@@ -13,7 +13,7 @@ export type Selection =
   | { kind: 'admin-user'; id: string }
   | { kind: 'admin-organization'; id: string }
   | { kind: 'launch' }
-  | { kind: 'activity' }
+  | { kind: 'activity'; agent?: string }
   | { kind: 'members' }
   | { kind: 'organization' }
   | { kind: 'org-connectors' }

@@ -22,6 +22,7 @@ const ADMIN_USER_PATH = /^#?\/admin\/users\/([A-Za-z0-9_]{1,64})$/;
 const ADMIN_ORGANIZATION_PATH = /^#?\/admin\/organizations\/([A-Za-z0-9_]{1,64})$/;
 const LAUNCH_PATH = /^#?\/launch$/;
 const ACTIVITY_PATH = /^#?\/activity$/;
+const ACTIVITY_AGENT_PATH = new RegExp(`^#?/activity/(${ID})$`);
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
 const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
@@ -89,7 +90,12 @@ function exactSelection(hash: string): Selection | null {
   const exact = EXACT.find(([re]) => re.test(hash))?.[1];
   if (exact !== undefined) return { ...exact };
   const path = hash.split('?')[0] ?? '';
-  return adminSelection(path) ?? organizationSelection(path);
+  return adminSelection(path) ?? activitySelection(path) ?? organizationSelection(path);
+}
+
+function activitySelection(path: string): Selection | null {
+  const agent = ACTIVITY_AGENT_PATH.exec(path)?.[1];
+  return agent === undefined ? null : { kind: 'activity', agent };
 }
 
 function organizationSelection(path: string): Selection | null {
@@ -197,7 +203,6 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   servers: '',
   none: '',
   launch: 'launch',
-  activity: 'activity',
   members: 'members',
   organization: 'organization',
   'org-connectors': 'organization/connectors',
@@ -279,6 +284,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
 };
 
 function orgItemPath(selection: Selection): string | null {
+  if (selection.kind === 'activity') return selection.agent === undefined ? 'activity' : `activity/${selection.agent}`;
   if (selection.kind === 'org-connector') return orgConnectorHash(selection);
   if (selection.kind === 'org-model') return `organization/models/${selection.id}`;
   if (selection.kind === 'org-model-add') return `organization/models/add${selection.provider === undefined ? '' : `/${selection.provider}`}`;

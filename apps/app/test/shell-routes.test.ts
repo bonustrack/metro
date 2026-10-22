@@ -3,7 +3,7 @@ import { routeHash, routeSelection } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
 import { configurePlatform, memoryKeyValue } from '@metro-labs/client/platform';
 import { AGENT_TABS, agentPageOf, agentTabOf, isDeepPage, isPageRoot, shallowPages, type AgentTabId } from '../src/lib/agent-tabs.ts';
-import { isTabRoot, phoneBackOf, phoneTabOf, shellSectionOf } from '../src/lib/shell-sections.ts';
+import { isTabRoot, phoneBackLabel, phoneBackOf, phoneTabOf, shellSectionOf } from '../src/lib/shell-sections.ts';
 import { isFocusPage } from '../src/lib/focus-pages.ts';
 import { setTechnicalDetails, technicalDetails } from '../src/lib/technical.ts';
 
@@ -160,6 +160,20 @@ describe('the shell knows its section and what a phone shows', () => {
     expect(phoneTabOf({ kind: 'activity' })).toBe('agents');
     expect(isTabRoot({ kind: 'activity' })).toBe(false);
     expect(phoneBackOf({ kind: 'activity' })).toEqual({ kind: 'servers' });
+  });
+
+  test('the activity of one agent goes back to that agent on a phone, named after it', () => {
+    const one: Selection = { kind: 'activity', agent: AGENT };
+    expect(shellSectionOf(one)).toBe('agents');
+    expect(isTabRoot(one)).toBe(false);
+    const back: Selection = { kind: 'home', project: AGENT };
+    expect(phoneBackOf(one)).toEqual(back);
+    const emma = { id: AGENT, host: 'metro-emma.ts.net', name: 'Emma', addedAt: '', instanceId: null, launchedAt: null, avatar: null, slug: null };
+    expect(phoneBackLabel(back, [emma])).toBe('Emma');
+    expect(phoneBackLabel(back, [{ ...emma, name: null }])).toBe('metro-emma.ts.net');
+    expect(phoneBackLabel(back, undefined)).toBe('Back');
+    expect(phoneBackLabel({ kind: 'servers' }, [emma])).toBe('Agents');
+    expect(phoneBackLabel({ kind: 'org-model', id: AGENT }, [emma])).toBe('Back');
   });
 
   test('the operator pages draw their own back link and sit under the Organization tab on a phone', () => {
