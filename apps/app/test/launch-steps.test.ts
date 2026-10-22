@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cityOf, clockOf, closestRegion, failedLaunchNote, launchFailure, launchOutcome, minutesLeft, plainSteps, refusalOf, stepTimes, timeLeftLine, type LaunchFacts } from '../src/lib/launch-steps.ts';
+import { cityOf, clockOf, closestRegion, failedLaunchNote, launchFailure, launchOutcome, mayAddAgent, minutesLeft, plainSteps, refusalOf, stepTimes, timeLeftLine, type LaunchFacts } from '../src/lib/launch-steps.ts';
 
 const SETUP = ['packages', 'node', 'bun', 'user', 'tailscale', 'metro', 'service'];
 
@@ -121,5 +121,12 @@ describe('places', () => {
     expect(failedLaunchNote(null, false)).toBe('The server is still running in AWS and is billed until you delete it. Ask an admin of the organization to delete it.');
     expect(failedLaunchNote('stopped', true)).toContain('its disk is billed until you delete it');
     expect(failedLaunchNote('terminated', true)).toBe('AWS ended the server, so it is no longer billed. Delete removes it from your agents.');
+  });
+});
+
+describe('who sees New agent', () => {
+  test('only an admin of the organization: a member, an unknown role or no account does not', () => {
+    expect(mayAddAgent('admin')).toBe(true);
+    for (const role of ['member', '', null, undefined]) expect(mayAddAgent(role)).toBe(false);
   });
 });

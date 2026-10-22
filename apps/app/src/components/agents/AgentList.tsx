@@ -28,6 +28,8 @@ import { useListKeys } from '../../lib/list-keys.js';
 import { openJump } from '../../lib/jump-store.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
+import { mayAddAgent } from '../../lib/launch-steps.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
 
 function useDetail(row: AgentRow): string | undefined {
   const technical = useTechnicalDetails();
@@ -110,6 +112,7 @@ function SearchAgents(): ReactNode {
 }
 
 function NewAgent(): ReactNode {
+  if (!mayAddAgent(activeAccount()?.role)) return null;
   return <RoundButton label="New agent" icon="plus" onPress={() => { go({ kind: 'launch' }); }} />;
 }
 

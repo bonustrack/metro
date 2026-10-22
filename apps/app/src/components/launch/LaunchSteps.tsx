@@ -73,7 +73,6 @@ export function NameStep({ name, avatar, picker, onName, onNext, onBack, text = 
 
 interface KindProps {
   kind: LaunchKind | null;
-  remoteAllowed: boolean;
   onKind: (kind: LaunchKind) => void;
   onNext: () => void;
 }
@@ -83,15 +82,15 @@ function KindIcon({ name }: { name: 'server' | 'plug' }): ReactNode {
   return <Icon name={name} size={24} color={palette.text} />;
 }
 
-export function KindStep({ kind, remoteAllowed, onKind, onNext }: KindProps): ReactNode {
+export function KindStep({ kind, onKind, onNext }: KindProps): ReactNode {
   return (
     <>
       <Heading title="Does your agent need a server?" text="With a server, it answers in your chats and works on its own. Without one, it gives you the organization's connectors in Claude Code or any MCP client." />
       <Rows>
         <Item title="With a server" subtitle="Metro starts a server for it on AWS. It answers in your chats and runs on its own." chevron={false}
           leading={<KindIcon name="server" />} trailing={<Check on={kind === 'box'} />} onPress={() => { onKind('box'); }} />
-        <Item title="Without a server" subtitle={remoteAllowed ? 'Use its connectors from Claude Code on your computer, or any MCP client, with an access key.' : 'Only an admin of the organization can create one.'} chevron={false}
-          leading={<KindIcon name="plug" />} trailing={<Check on={kind === 'remote'} />} onPress={remoteAllowed ? () => { onKind('remote'); } : undefined} />
+        <Item title="Without a server" subtitle="Use its connectors from Claude Code on your computer, or any MCP client, with an access key." chevron={false}
+          leading={<KindIcon name="plug" />} trailing={<Check on={kind === 'remote'} />} onPress={() => { onKind('remote'); }} />
       </Rows>
       <Buttons next="Continue" ready={kind !== null} onNext={onNext} />
     </>

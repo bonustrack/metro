@@ -122,9 +122,22 @@ describe('the server list on metro.box', () => {
     expect(rows.map((r) => r.host)).toEqual(['127.0.0.1:8420']);
   });
 
-  test('an admin creates an agent without a server by its name; a member may not', async () => {
-    const member = await fetch(`${base}/api/servers`, { method: 'POST', headers: { authorization: await auth(TEST_OWNER, 'member'), 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'remote', name: 'Laptop' }) });
-    expect(member.status).toBe(403);
+  test('only an admin of the organization adds an agent, a box by its address or one without a server', async () => {
+    const asMember = async (body: unknown): Promise<Response> =>
+      fetch(`${base}/api/servers`, { method: 'POST', headers: { authorization: await auth(TEST_OWNER, 'member'), 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    for (const body of [{ kind: 'remote', name: 'Laptop' }, { host: 'suzy.tail1234.ts.net', name: 'Suzy' }, { kind: 'box', host: 'suzy.tail1234.ts.net' }]) {
+      const refused = await asMember(body);
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toEqual({ error: 'Only an admin of the organization can add an agent.' });
+    }
+    expect(rows).toEqual([]);
+    expect((await call('POST', '/api/servers', TEST_OWNER, { host: 'suzy.tail1234.ts.net' })).status).toBe(200);
+    rows = [];
+    const list = await fetch(`${base}/api/servers`, { headers: { authorization: await auth(TEST_OWNER, 'member') } });
+    expect(list.status).toBe(200);
+  });
+
+  test('an admin creates an agent without a server by its name', async () => {
     expect((await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote' })).status).toBe(400);
     const made = (await (await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote', name: 'Laptop' })).json()) as ServerEntry;
     expect(made).toMatchObject({ kind: 'remote', host: null, name: 'Laptop' });

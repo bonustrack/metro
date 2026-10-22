@@ -11,6 +11,8 @@ import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
 import { useServerStatuses, useServersQuery } from '../../lib/queries.js';
 import { REMOTE_TABS, type RemoteTabId } from '../../lib/remote-tabs.js';
 import { SHELL_SECTIONS } from '../../lib/shell-sections.js';
+import { mayAddAgent } from '../../lib/launch-steps.js';
+import { activeAccount } from '@metro-labs/client/auth/account';
 
 export type JumpAction =
   | { kind: 'go'; target: Selection }
@@ -65,11 +67,12 @@ function actionsOf(server: BoxServer, status: ServerStatus | undefined, latest: 
   ];
 }
 
-function sectionEntries(): JumpItem[] {
+function sectionEntries(admin: boolean): JumpItem[] {
+  const launch: JumpItem = { key: 'action:launch', group: 'actions', crumbs: ['New agent'], words: ['launch', 'create'], idle: true, payload: go({ kind: 'launch' }, 'plus') };
   return [
     ...SHELL_SECTIONS.map((section): JumpItem => ({ key: `section:${section.id}`, group: 'pages', crumbs: [section.label], idle: true, payload: go(section.target, SECTION_ICONS[section.id]) })),
     { key: 'section:route', group: 'pages', crumbs: ['Models', 'Default route'], words: ['backup', 'fallback'], payload: go({ kind: 'org-route' }, 'route') },
-    { key: 'action:launch', group: 'actions', crumbs: ['New agent'], words: ['launch', 'create'], idle: true, payload: go({ kind: 'launch' }, 'plus') },
+    ...(admin ? [launch] : []),
   ];
 }
 
@@ -92,7 +95,7 @@ export function useJumpEntries(): JumpItem[] {
   const connectorPages = connectors.map((connector): JumpItem => ({ key: `connector:${connector.id}`, group: 'pages', crumbs: ['Connectors', connectorLabel(connector, connectors)], payload: go({ kind: 'org-connector', id: connector.id }, 'plug') }));
   return [
     ...agents,
-    ...sectionEntries(),
+    ...sectionEntries(mayAddAgent(activeAccount()?.role)),
     ...servers.flatMap(pagesOf),
     ...connectorPages,
     ...boxes.flatMap((server) => actionsOf(server, stateOf.get(server.id), latest)),

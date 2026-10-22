@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { activeAccount } from '@metro-labs/client/auth/account';
 import { StateBlock } from '../ui/StateBlock.js';
 import { PageHeader } from '../ui/PageHeader.js';
 import { Wide } from '../ui/Layout.js';
@@ -7,14 +8,16 @@ import { useIsNarrow } from '../../lib/media.js';
 import { useServersQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
+import { ADD_AGENT_ADMIN, mayAddAgent } from '../../lib/launch-steps.js';
 
 export function NoAgents(): ReactNode {
+  const admin = mayAddAgent(activeAccount()?.role);
   return (
     <StateBlock
       icon="robot"
       title="No agents yet"
-      text="An agent runs on its own server and answers in your chats."
-      action={{ label: 'Launch an agent', primary: true, onPress: () => { go({ kind: 'launch' }); } }}
+      text={admin ? 'An agent answers in your chats from its own server, or brings your connectors to Claude Code.' : ADD_AGENT_ADMIN}
+      action={admin ? { label: 'New agent', primary: true, onPress: () => { go({ kind: 'launch' }); } } : undefined}
     />
   );
 }

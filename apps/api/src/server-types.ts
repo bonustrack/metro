@@ -1,5 +1,7 @@
 export type AgentKind = 'box' | 'remote';
 
+export const ADD_AGENT_ADMIN = 'Only an admin of the organization can add an agent.';
+
 export interface ServerEntry {
   id: string;
   kind: AgentKind;

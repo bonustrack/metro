@@ -13,7 +13,8 @@ import { LaunchError } from './LaunchError.js';
 import { LaunchFrame, type LaunchKind, type LaunchStep } from './LaunchFrame.js';
 import { ConfirmStep, KindStep, NameStep, PlaceStep, seedOf } from './LaunchSteps.js';
 import { LaunchWatch, type LaunchSubject } from './LaunchWatch.js';
-import { cityOf, closestRegion, refusalOf } from '../../lib/launch-steps.js';
+import { ADD_AGENT_ADMIN, cityOf, closestRegion, mayAddAgent, refusalOf } from '../../lib/launch-steps.js';
+import { FocusFrame } from '../ui/FocusFrame.js';
 import { queryError, refreshServers, useLaunchOverviewQuery } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { go } from '../../lib/nav.js';
@@ -185,17 +186,29 @@ function RemoteCreate({ named, onKind }: { named: Named; onKind: () => void }): 
   );
 }
 
-export function LaunchFlow(): ReactNode {
+function AdminsOnly(): ReactNode {
+  return (
+    <FocusFrame title="New agent" onClose={() => { go({ kind: 'servers' }); }}>
+      <StateBlock icon="robot" title="Only an admin adds agents" text={ADD_AGENT_ADMIN} action={{ label: 'Back to your agents', onPress: () => { go({ kind: 'servers' }); } }} />
+    </FocusFrame>
+  );
+}
+
+function AdminLaunch(): ReactNode {
   const named = useNamed();
   const [kind, setKind] = useState<LaunchKind | null>(null);
   const [picked, setPicked] = useState<LaunchKind | null>(null);
-  useDocumentTitle('New agent');
   const choose = (): void => { setPicked(null); };
   if (picked === 'remote') return <RemoteCreate named={named} onKind={choose} />;
   if (picked === 'box') return <BoxLaunch named={named} onKind={choose} />;
   return (
     <LaunchFrame step="kind" kind={kind ?? 'box'}>
-      <KindStep kind={kind} remoteAllowed={activeAccount()?.role === 'admin'} onKind={setKind} onNext={() => { setPicked(kind); }} />
+      <KindStep kind={kind} onKind={setKind} onNext={() => { setPicked(kind); }} />
     </LaunchFrame>
   );
+}
+
+export function LaunchFlow(): ReactNode {
+  useDocumentTitle('New agent');
+  return mayAddAgent(activeAccount()?.role) ? <AdminLaunch /> : <AdminsOnly />;
 }

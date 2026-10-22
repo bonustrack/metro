@@ -2,8 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { SigningKeys } from '@metro-labs/http/workos-token';
-import { requestOwner } from './servers.js';
+import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import { AGENT_NAME_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
@@ -12,7 +11,7 @@ import { AwsError, REGION_RE, type AwsCredentials, type InstanceState } from './
 import { LaunchError, type BootView, type Launched, type LaunchInput } from './aws/launch.js';
 import { TailscaleError, type TailscaleClient } from './aws/tailscale-key.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
-import type { ServerEntry } from './server-types.js';
+import { ADD_AGENT_ADMIN, type ServerEntry } from './server-types.js';
 
 const PREFIX = '/api/launch';
 const IN_FLIGHT_MS = 60_000;
@@ -155,14 +154,22 @@ async function issue(deps: LaunchApiDeps, subject: string, body: unknown): Promi
   }
 }
 
+function launching(session: Session): void {
+  if (session.role !== 'admin') throw new ApiError(ADD_AGENT_ADMIN, 403);
+}
+
 async function answer(
   req: IncomingMessage,
   deps: LaunchApiDeps,
-  subject: string,
+  session: Session,
   tgt: Exclude<Target, { kind: 'unknown' } | null>,
 ): Promise<unknown> {
-  if (tgt.kind === 'index')
-    return req.method === 'GET' ? overview(deps) : issue(deps, subject, await readJsonBody(req));
+  const subject = session.organization ?? '';
+  if (tgt.kind === 'index' && req.method === 'GET') return overview(deps);
+  if (tgt.kind === 'index') {
+    launching(session);
+    return issue(deps, subject, await readJsonBody(req));
+  }
   const config = allowed(deps);
   const launch = await deps.lookup(subject, tgt.id);
   const credentials = access.reach(config, launch.account);
@@ -177,12 +184,12 @@ async function route(
   tgt: Exclude<Target, { kind: 'unknown' } | null>,
 ): Promise<void> {
   try {
-    const subject = await requestOwner(req, deps.keys);
-    if (subject === null) {
+    const session = await bearerSession(req, deps.keys);
+    if (session === null || session.organization === null) {
       sendJson(req, res, 401, { error: 'unauthorized' });
       return;
     }
-    sendJson(req, res, 200, await answer(req, deps, subject, tgt));
+    sendJson(req, res, 200, await answer(req, deps, session, tgt));
   } catch (err) {
     apiFailure(req, res, err, 'launch-api');
   }

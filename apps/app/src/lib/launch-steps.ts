@@ -1,5 +1,9 @@
 export type PlainState = 'done' | 'active' | 'pending' | 'failed';
 
+export const mayAddAgent = (role: string | null | undefined): boolean => role === 'admin';
+
+export const ADD_AGENT_ADMIN = 'Only an admin of the organization can add an agent.';
+
 export interface BootStepView {
   key: string;
   state: PlainState;

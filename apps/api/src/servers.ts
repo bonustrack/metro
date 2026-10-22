@@ -4,7 +4,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import type { ServerEntry } from './server-types.js';
+import { ADD_AGENT_ADMIN, type ServerEntry } from './server-types.js';
 import { parseId } from '@metro-labs/core/ids';
 import { AVATAR_BODY_MAX } from './avatar.js';
 
@@ -19,11 +19,6 @@ export interface ServersApiDeps {
   avatar: (subject: string, id: string, body: unknown) => Promise<ServerEntry>;
   move: (session: Session, id: string, body: unknown) => Promise<ServerEntry>;
   keys: SigningKeys;
-}
-
-export async function requestOwner(req: IncomingMessage, keys: SigningKeys): Promise<string | null> {
-  const session = await bearerSession(req, keys);
-  return session?.organization ?? null;
 }
 
 type Known = { kind: 'index' } | { kind: 'server'; id: string } | { kind: 'avatar'; id: string } | { kind: 'move'; id: string };
@@ -50,9 +45,8 @@ const isRemote = (body: unknown): boolean => isRecord(body) && body.kind === 're
 
 async function added(deps: ServersApiDeps, session: Session, body: unknown): Promise<ServerEntry> {
   const owner = session.organization ?? '';
-  if (!isRemote(body)) return deps.add(owner, body);
-  if (session.role !== 'admin') throw new ApiError('creating an agent without a server needs the admin role in your organization', 403);
-  return deps.addRemote(owner, body);
+  if (session.role !== 'admin') throw new ApiError(ADD_AGENT_ADMIN, 403);
+  return isRemote(body) ? deps.addRemote(owner, body) : deps.add(owner, body);
 }
 
 async function answer(req: IncomingMessage, deps: ServersApiDeps, session: Session, tgt: Known): Promise<unknown> {
