@@ -1,6 +1,7 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
+import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
@@ -87,7 +88,7 @@ async function groupsFor(ctx: CallContext, target: Target): Promise<Record<strin
 
 async function approved(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
   const { deps, identity } = ctx;
-  const request = { connector: target.connector.id, tool: target.tool, digest: argsDigest(call.arguments), preview: previewOf(call.arguments) };
+  const request = { connector: target.connector.id, tool: target.tool, digest: argsDigest(call.arguments), preview: previewOf(call.arguments), ...(isTokenIdentity(identity) ? { token: identity.tokenId } : {}) };
   const now = deps.now();
   if (call.approval !== undefined) {
     const redeemed = await deps.approvals.redeem(identity, call.approval, request, now);

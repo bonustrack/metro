@@ -4,7 +4,7 @@ import { createAgentToken, revokeAgentToken, tokenHashOf } from '@metro-labs/con
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentKeys, agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
-import { MCP_PATHS } from '@metro-labs/http/mcp-server-protocol';
+import { MCP_PATHS, mcpApprovalsOf } from '@metro-labs/http/mcp-server-protocol';
 import { KEY_INSTRUCTIONS, REMOTE_INSTRUCTIONS } from '../src/tools.ts';
 import { TOUCH_EVERY_MS } from '../src/token.ts';
 import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, signed, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
@@ -97,7 +97,7 @@ describe('an agent without a server, signed in with an access key', () => {
     expect(asked).toContain('on this agent\'s page on metro.box');
     expect(asked).not.toContain('in chat');
     expect(vendor.calls).toEqual([]);
-    expect((await held.db.select().from(mcpApprovals))[0]).toMatchObject({ id, agent: REMOTE, owner: OWNER, state: 'pending' });
+    expect((await held.db.select().from(mcpApprovals))[0]).toMatchObject({ id, agent: REMOTE, owner: OWNER, state: 'pending', origin: 'key', token: tokenId });
     expect(await approvalStore(() => held.db).answer({ agent: REMOTE, owner: OWNER }, id, 'allow', now)).toBe(true);
     const ran = texts(await callTool(app, key, 'tool_call', { calls: [{ ...call, approval: id }] }));
     expect(ran).toEqual(['[1] notion.update_page', 'update_page ran with {"page_id":"p1","title":"Plan"}']);
@@ -142,9 +142,14 @@ describe('an agent without a server, signed in with an access key', () => {
     const asked = texts(await callTool(app, made.token, 'tool_call', { calls: [call] }))[1] ?? '';
     const id = /approval ([a-km-z]{5})/.exec(asked)?.[1] ?? '';
     expect(asked).toContain('The agent\'s owner was asked in chat and on its page on metro.box.');
+    now += 1;
+    const own = texts(await callTool(app, box.token, 'tool_call', { calls: [call] }))[1] ?? '';
+    const ownId = /approval ([a-km-z]{5})/.exec(own)?.[1] ?? '';
+    expect(ownId).not.toBe(id);
     const relayed = signed(box, MCP_PATHS.approvals, {}, now);
-    const pending = (await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: relayed.body, headers: relayed.headers })).json()) as { approvals: { id: string; connector: string; tool: string }[] };
-    expect(pending.approvals.map((one) => [one.id, one.connector, one.tool])).toEqual([[id, 'linear', 'update_page']]);
+    const pending = mcpApprovalsOf(await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: relayed.body, headers: relayed.headers })).json());
+    expect(pending.map((one) => [one.id, one.connector, one.tool, one.origin, one.keyLabel])).toEqual([[id, 'linear', 'update_page', 'key', 'Laptop'], [ownId, 'linear', 'update_page', 'box', undefined]]);
+    expect((await held.db.select({ origin: mcpApprovals.origin, token: mcpApprovals.token }).from(mcpApprovals).where(eq(mcpApprovals.id, id)))[0]).toEqual({ origin: 'key', token: made.row.id });
     const answer = signed(box, MCP_PATHS.answer, { id, decision: 'allow' }, now);
     expect((await fetch(`${app.base}${MCP_PATHS.answer}`, { method: 'POST', body: answer.body, headers: answer.headers })).status).toBe(200);
     expect(texts(await callTool(app, made.token, 'tool_call', { calls: [{ ...call, approval: id }] }))).toEqual(['[1] linear.update_page', 'update_page ran with {"page_id":"p9"}']);

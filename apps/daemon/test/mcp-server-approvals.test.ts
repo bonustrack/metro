@@ -166,6 +166,42 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()).toHaveLength(1);
   });
 
+  test('asked with an access key: posted with the key label and answered as usual, but the agent is not told', async () => {
+    await arrives('pqrst', { origin: 'key', keyLabel: 'Laptop' });
+    await waitFor(() => sends().length === 1);
+    expect(sends()).toEqual([
+      [LINE, 'Approval needed: notion.update_page (from an access key: Laptop)\npage_id: p1\ntitle: Weekly notes\n\nReply "yes pqrst" or "no pqrst"'],
+    ]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: LINE })]);
+    chat(LINE, OWNER_SENDER, 'yes pqrst');
+    await waitFor(() => fake.answers.length === 1);
+    expect(fake.answers).toEqual([{ id: 'pqrst', decision: 'allow' }]);
+    chat(LINE, OWNER_SENDER, 'after the key approval');
+    await waitFor(() => raw().includes('after the key approval'));
+    await settle(100);
+    expect(raw()).not.toContain('(pqrst)');
+    expect(pendingPrompts()).toEqual([]);
+
+    await arrives('qrstv', { origin: 'key' });
+    await waitFor(() => sends().length === 2);
+    expect(sends()[1]).toEqual([LINE, expect.stringMatching(/^Approval needed: notion\.update_page \(from an access key\)\n/)]);
+    expect((await pageCall('POST', '/qrstv', { decision: 'deny' })).status).toBe(200);
+    await waitFor(() => fake.answers.length === 2);
+    await waitFor(() => sends().length === 3);
+    expect(sends()[2]).toEqual([LINE, 'Denied on the page.']);
+    await settle(100);
+    expect(raw()).not.toContain('(qrstv)');
+  });
+
+  test('asked by this agent\'s own session (origin box) is told to the agent as before', async () => {
+    await arrives('rstvw', { origin: 'box' });
+    await waitFor(() => sends().length === 1);
+    expect(sends()[0]).toEqual([LINE, expect.stringMatching(/^Approval needed: notion\.update_page\n/)]);
+    chat(LINE, OWNER_SENDER, 'no rstvw');
+    await waitFor(() => raw().includes('Denied: notion.update_page (rstvw).'));
+    expect(fake.answers).toEqual([{ id: 'rstvw', decision: 'deny' }]);
+  });
+
   test('announced once survives a restart: the server sends it again, it is held again on its first chat, and never posted twice', async () => {
     const file = join(dir, 'mcp-approvals.json');
     await arrives('kmnpq');

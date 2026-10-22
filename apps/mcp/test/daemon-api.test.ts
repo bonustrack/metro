@@ -4,7 +4,7 @@ import { MCP_PATHS, mcpApprovalsOf } from '@metro-labs/http/mcp-server-protocol'
 import { agentKeys, agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
 import { REDELIVER_MS } from '@metro-labs/connectors/db/mcp-approvals';
 import { argsDigest } from '../src/digest.ts';
-import { tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
+import { createAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import { addConnector, assign, enrollAgent, headerSecret, newToken, PGLITE_START_MS, rpc, signed, startApp, STRANGER, testDb, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 
 let held: TestDb;
@@ -89,7 +89,18 @@ describe('POST /v1/approvals', () => {
     const res = await post(agent, MCP_PATHS.approvals, {});
     expect(res.status).toBe(200);
     const list = mcpApprovalsOf(await res.json());
-    expect(list).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":1}', requestedAt: clock }]);
+    expect(list).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":1}', requestedAt: clock, origin: 'box' }]);
+  });
+
+  test('a request made with an access key says so, with the key label, and never the key', async () => {
+    const made = await createAgentToken(held.db, { owner: agent.row.owner, agent: agent.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now: clock });
+    const args = { page: 2 };
+    const id = await app.deps.approvals.request(agent.row, { connector: 'conn0000001', tool: 'update_page', digest: argsDigest(args), preview: JSON.stringify(args), token: made.row.id }, clock);
+    const res = await post(agent, MCP_PATHS.approvals, {});
+    const text = await res.text();
+    expect(mcpApprovalsOf(JSON.parse(text))).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":2}', requestedAt: clock, origin: 'key', keyLabel: 'Laptop' }]);
+    expect(text).not.toContain(made.token);
+    expect(text).not.toContain(made.row.id);
   });
 
   test('holds while nothing is pending, and wakes when a request arrives', async () => {

@@ -140,7 +140,7 @@ describe('tool_call against a real connector', () => {
     expect(texts(await run([call]))[1]).toContain(`(approval ${id})`);
     const request = signed(agent, MCP_PATHS.approvals, {});
     const delivered = mcpApprovalsOf(await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: request.body, headers: request.headers })).json());
-    expect(delivered).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page_id":"p1","title":"Q4"}', requestedAt: expect.any(Number) as unknown as number }]);
+    expect(delivered).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page_id":"p1","title":"Q4"}', requestedAt: expect.any(Number) as unknown as number, origin: 'box' }]);
     expect(texts(await run([{ ...call, approval: id }]))[1]).toContain('needs_approval');
     expect(await answerAs(agent, id, 'allow')).toBe(200);
     expect(texts(await run([{ ...call, arguments: { page_id: 'p2', title: 'Q4' }, approval: id }]))[1]).toContain('needs_approval');

@@ -27,12 +27,18 @@ export interface McpCall {
   approval?: string;
 }
 
+type McpApprovalOrigin = 'box' | 'key';
+
+const KEY_LABEL_MAX = 64;
+
 export interface McpApproval {
   id: string;
   connector: string;
   tool: string;
   preview: string;
   requestedAt: number;
+  origin?: McpApprovalOrigin;
+  keyLabel?: string;
 }
 
 export type McpDecision = 'allow' | 'deny';
@@ -70,9 +76,16 @@ export function mcpTokenHashOf(raw: unknown): string {
   return raw.tokenHash;
 }
 
+function originOf(raw: Record<string, unknown>): Pick<McpApproval, 'origin' | 'keyLabel'> {
+  if (raw.origin === 'box') return { origin: 'box' };
+  if (raw.origin !== 'key') return {};
+  const label = typeof raw.keyLabel === 'string' ? raw.keyLabel.replace(/\p{Cc}/gu, '').trim() : '';
+  return label === '' || label.length > KEY_LABEL_MAX ? { origin: 'key' } : { origin: 'key', keyLabel: label };
+}
+
 function approvalOf(raw: unknown): McpApproval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.id) || typeof raw.connector !== 'string' || typeof raw.tool !== 'string' || typeof raw.preview !== 'string' || typeof raw.requestedAt !== 'number') return null;
-  return { id: raw.id, connector: raw.connector, tool: raw.tool, preview: raw.preview, requestedAt: raw.requestedAt };
+  return { id: raw.id, connector: raw.connector, tool: raw.tool, preview: raw.preview, requestedAt: raw.requestedAt, ...originOf(raw) };
 }
 
 export function mcpApprovalsOf(raw: unknown): McpApproval[] {

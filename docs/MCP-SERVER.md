@@ -88,8 +88,9 @@ The daemon applies no station policy to the two tools.
   preview) and hands it to the agent's daemon, which asks the owner exactly as today: a
   chat message (`Approval needed: notion.update_page`, the arguments, then
   `Reply "yes <id>" or "no <id>"`) on the agent's last chat line, and the page's
-  approvals list. The owner's answer goes back to mcp.metro.box, and the daemon tells the
-  agent in its channel (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent
+  approvals list. The owner's answer goes back to mcp.metro.box, and when the agent's own
+  session made the call (not an access key) the daemon tells the agent in its channel
+  (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent
   then calls `tool_call` again with the same tool and arguments and `approval: "abcde"`.
   An approval works once, for exactly that tool and those arguments, within 10 minutes of
   the answer. Unanswered requests expire after 24 hours (denied). Answered, used and
@@ -138,8 +139,15 @@ with a server or not, can have access keys.
   rule, and the `needs_approval` line of `tool_call` and of a result says where the owner
   answers: on the agent's page on metro.box for an agent without a server, in chat and on the
   agent's page for a key of an agent with a server, whose request goes through its daemon's
-  approval relay as any other (the daemon then also tells its own session, which never saw
-  the arguments).
+  approval relay as any other. The request row records who made the call (`origin`: `box` for
+  the daemon's MCP token, `key` with the access key's id in `token`, migration `0020`), and the
+  daemon gets `origin` and the key's label: its chat prompt reads
+  `Approval needed: notion.update_page (from an access key: Laptop)`, and after the answer it
+  tells its own session nothing, since that session never made the call (until 2026-10-23 it
+  posted the `Approved: …` notice there too). The person holding the key repeats the call
+  with `approval: "<id>"` once the owner answered. Each caller has its own pending request
+  for the same call (the daemon's session, and each access key), so one never waits on
+  another's prompt.
 - **Ask of an agent without a server is answered on metro.box** (Less, 2026-10-23: the agent has no chat): no daemon
   relays the request, so the page shows it as an approval card on the agent's page
   (`GET /api/agents/<id>/approvals`) and any member answers it
@@ -159,11 +167,13 @@ limits and validators live in `packages/http/src/mcp-server-protocol.ts`.
 | Request | Body | Answer |
 | --- | --- | --- |
 | `POST /v1/token` | `{ tokenHash }` | `{ ok: true }` |
-| `POST /v1/approvals` | `{}` | `{ approvals: [{ id, connector, tool, preview, requestedAt }] }`, held up to 25 s while there is none |
+| `POST /v1/approvals` | `{}` | `{ approvals: [{ id, connector, tool, preview, requestedAt, origin?, keyLabel? }] }`, held up to 25 s while there is none. `origin` is `box` (the daemon's own session asked) or `key` (an access key asked, with its `keyLabel`, never the key); absent for a request recorded before `0020` |
 | `POST /v1/approvals/answer` | `{ id, decision: "allow" \| "deny" }` | `{ ok: true }`, 404 for an unknown or already answered id |
 
 The daemon keeps one `/v1/approvals` request open at a time, merges what it receives into
 its pending approvals (chat prompt, page list, 24 h expiry), and sends each answer back.
+It tells its session the answer only when `origin` is not `key`; an unknown `origin` is
+read as none, which keeps the behaviour from before 2026-10-23.
 The server sends a pending approval again every minute, so the daemon keeps the ids it
 already posted in chat (`<agents dir>/mcp-approvals.json`, a day at most): after a restart
 it holds such an approval again on the chat it was posted to, without posting it twice.

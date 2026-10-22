@@ -14,7 +14,7 @@ let held: TestDb;
 let agent: TestAgent;
 
 function row(id: string, state: string, requestedAt: number, answeredAt: number | null): ApprovalRow {
-  return { id, owner: agent.row.owner, agent: agent.row.agent, connector: 'conn0000001', tool: 'update_page', argsDigest: argsDigest({ id }), preview: previewOf({ id }), state, requestedAt, answeredAt, deliveredAt: null };
+  return { id, owner: agent.row.owner, agent: agent.row.agent, connector: 'conn0000001', tool: 'update_page', argsDigest: argsDigest({ id }), preview: previewOf({ id }), state, requestedAt, answeredAt, deliveredAt: null, origin: null, token: null };
 }
 
 const ids = async (): Promise<string[]> => (await held.db.select({ id: mcpApprovals.id }).from(mcpApprovals)).map((r) => r.id).sort();

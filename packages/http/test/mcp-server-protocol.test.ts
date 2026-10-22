@@ -33,4 +33,18 @@ describe('the mcp.metro.box protocol', () => {
     expect(mcpAnswerOf({ id: 'abcde', decision: 'allow' })).toEqual({ id: 'abcde', decision: 'allow' });
     expect(() => mcpAnswerOf({ id: 'abcde', decision: 'maybe' })).toThrow();
   });
+
+  test('an approval says who made the call when the server knows it, and an unknown origin is read as none', () => {
+    const base = { id: 'abcde', connector: 'notion', tool: 'update_page', preview: '{}', requestedAt: 1 };
+    const read = (extra: Record<string, unknown>) => mcpApprovalsOf({ approvals: [{ ...base, ...extra }] })[0];
+    expect(read({})).toEqual(base);
+    expect(read({ origin: 'box', keyLabel: 'ignored' })).toEqual({ ...base, origin: 'box' });
+    expect(read({ origin: 'key', keyLabel: ' Laptop ' })).toEqual({ ...base, origin: 'key', keyLabel: 'Laptop' });
+    expect(read({ origin: 'key', keyLabel: 'Lap\ntop\u0007' })).toEqual({ ...base, origin: 'key', keyLabel: 'Laptop' });
+    expect(read({ origin: 'key' })).toEqual({ ...base, origin: 'key' });
+    expect(read({ origin: 'key', keyLabel: 'x'.repeat(65) })).toEqual({ ...base, origin: 'key' });
+    expect(read({ origin: 'key', keyLabel: 7 })).toEqual({ ...base, origin: 'key' });
+    expect(read({ origin: 'remote', keyLabel: 'Laptop' })).toEqual(base);
+    expect(read({ origin: 3 })).toEqual(base);
+  });
 });
