@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { MCP_TOKEN_RE } from '@metro-labs/http/mcp-server-protocol';
@@ -68,7 +68,7 @@ async function boxOf(db: Database, tokenHash: string): Promise<AgentKeyRow | nul
   const rows = await db
     .select(identityColumns)
     .from(agentKeys)
-    .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner)))
+    .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner), isNotNull(agents.host)))
     .where(eq(agentKeys.mcpTokenHash, tokenHash))
     .limit(1);
   return rows[0] ?? null;

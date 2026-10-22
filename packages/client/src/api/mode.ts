@@ -1,5 +1,5 @@
 import { filled, isRecord } from '../read.js';
-import { daemonBase, daemonHost } from '../auth/daemon.js';
+import { daemonBase, daemonHost, refuseNoServer } from '../auth/daemon.js';
 
 export interface ModeInfo {
   mode: 'local';
@@ -20,6 +20,7 @@ export function toMode(body: unknown): ModeInfo | null {
 }
 
 export async function fetchMode(base = daemonBase()): Promise<ModeInfo> {
+  refuseNoServer(base);
   let res: Response;
   try {
     res = await fetch(`${base}/api/mode`);

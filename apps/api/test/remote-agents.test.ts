@@ -95,6 +95,9 @@ describe('agents without a server in the database', () => {
     expect(enroll).rejects.toThrow('This agent has no server, so no server can enroll as it.');
     await enroll.catch(() => undefined);
     await agentKeyStore(() => held.db).enroll(newEnrolledAgent(BOX, TEST_OWNER).row);
+    const stray = newEnrolledAgent(REMOTE, TEST_OWNER).row;
+    await held.db.execute(sql`INSERT INTO agent_keys (agent, owner, key_id, signing_key, enrolled_by, enrolled_at) VALUES (${stray.agent}, ${stray.owner}, ${stray.keyId}, ${stray.signingKey}, ${stray.enrolledBy}, ${stray.enrolledAt})`);
+    expect(await agentKeyStore(() => held.db).find(stray.keyId)).toBeNull();
   });
 
   test('two remote agents of one organization both keep no address', async () => {
@@ -186,11 +189,10 @@ describe('approvals answered on metro.box', () => {
     expect(await res.json()).toEqual({ approvals: [{ id, connector: CONN, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'create_page', preview: '{"title":"Plan"}', requestedAt: NOW }] });
   });
 
-  test('an admin answers once, which moves the row as the daemon relay does', async () => {
+  test('a member answers once, as on a box page, which moves the row as the daemon relay does', async () => {
     const id = await pendingApproval();
-    expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'allow' }, role: 'member' })).status).toBe(403);
-    expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'maybe' } })).status).toBe(400);
-    expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'allow' } })).status).toBe(200);
+    expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'maybe' }, role: 'member' })).status).toBe(400);
+    expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'allow' }, role: 'member' })).status).toBe(200);
     const row = (await held.db.select().from(mcpApprovals).where(eq(mcpApprovals.id, id)))[0];
     expect(row).toMatchObject({ state: 'allow', answeredAt: NOW });
     expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'deny' } })).status).toBe(404);
@@ -207,10 +209,11 @@ describe('approvals answered on metro.box', () => {
     expect(await approvalStore(() => held.db).redeem({ agent: REMOTE, owner: TEST_OWNER }, id, request, NOW)).toBe('denied');
   });
 
-  test('a request older than 24 hours expires and can no longer be answered', async () => {
+  test('a request older than 24 hours expires and can no longer be answered, and listing it writes nothing', async () => {
     const id = await pendingApproval();
     now = NOW + APPROVAL_TTL_MS + 1;
     expect(((await (await call(`/api/agents/${REMOTE}/approvals`)).json()) as { approvals: unknown[] }).approvals).toEqual([]);
+    expect((await held.db.select().from(mcpApprovals).where(eq(mcpApprovals.id, id)))[0]?.state).toBe('pending');
     expect((await call(`/api/agents/${REMOTE}/approvals/${id}`, { method: 'POST', body: { decision: 'allow' } })).status).toBe(404);
   });
 

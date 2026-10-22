@@ -49,8 +49,8 @@ async function answer(req: IncomingMessage, deps: RemoteAgentsApiDeps, target: T
   const { session, owner } = await sessionOf(req, deps);
   const method = req.method ?? 'GET';
   if (method === 'GET') return target.section === 'tokens' ? agentTokens(deps, owner, target.agent) : agentApprovals(deps, owner, target.agent);
-  admin(session);
   if (target.section === 'approvals') return answerAgentApproval(deps, session, owner, target.agent, target.item ?? '', await readJsonBody(req));
+  admin(session);
   if (method === 'POST') return newAgentToken(deps, session, owner, target.agent, await readJsonBody(req));
   const id = parseId(target.item ?? '');
   if (id === null) throw new ApiError('no such access key', 404);

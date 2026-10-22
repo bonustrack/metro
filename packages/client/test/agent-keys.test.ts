@@ -1,10 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { clearAccount } from '../src/auth/account.js';
-import { baseFromSegment, daemonBase, setCurrentServer } from '../src/auth/daemon.js';
+import { baseFromSegment, daemonBase, NO_SERVER_BASE, NoServerError, setCurrentServer } from '../src/auth/daemon.js';
+import { fetchApprovals } from '../src/api/approvals.js';
+import { fetchMode } from '../src/api/mode.js';
+import { syncModel } from '../src/api/model.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import { claudeCommand, createAgentKey, decideRemoteApproval, fetchAgentKeys, fetchRemoteApprovals, MCP_URL } from '../src/api/agent-keys.js';
 import { approvalCard } from '../src/api/approval-card.js';
-import { agentSeed, boxesOf, serverLabel, toServer } from '../src/api/servers.js';
+import { agentSeed, boxesOf, fetchServers, serverLabel, toServer } from '../src/api/servers.js';
 import { installTestAccount } from './account-fixture.js';
 
 const AGENT = 'aB3-_xYz9Qw';
@@ -50,11 +53,23 @@ describe('an agent without a server in the agent list', () => {
     expect(() => toServer({ id: 'box00000002', host: null })).toThrow('unexpected response');
   });
 
-  test('never points the box calls at another box: they go to api.metro.box, which has no box routes', () => {
+  test('never points the box calls anywhere: a box call for it is refused before any request', async () => {
     setCurrentServer({ id: 'box00000001', host: 'suzy.ts.net' });
     expect(daemonBase()).toBe(baseFromSegment('suzy.ts.net'));
     setCurrentServer({ id: AGENT, host: null });
-    expect(daemonBase()).toBe('https://api.metro.box');
+    expect(daemonBase()).toBe(NO_SERVER_BASE);
+    serve({ ok: true });
+    expect(syncModel()).rejects.toThrow(NoServerError);
+    expect(fetchMode()).rejects.toThrow('This agent has no server');
+    expect(fetchApprovals()).rejects.toThrow(NoServerError);
+    await Promise.allSettled([syncModel(), fetchMode(), fetchApprovals()]);
+    expect(sent).toEqual([]);
+  });
+
+  test('the agent list asks for every kind, which an older page does not', async () => {
+    serve({ servers: [{ id: AGENT, kind: 'remote', host: null, name: 'Laptop' }] });
+    expect((await fetchServers()).map((one) => one.kind)).toEqual(['remote']);
+    expect(sent[0]?.url).toBe('https://api.metro.box/api/servers?kinds=all');
   });
 });
 

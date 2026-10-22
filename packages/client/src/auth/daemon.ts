@@ -8,6 +8,18 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export const builtInDaemon = (): string => apiBase();
 
+export const NO_SERVER_BASE = 'metro-no-server://agent';
+
+export class NoServerError extends Error {
+  constructor() {
+    super('This agent has no server, so Metro asks no box for it.');
+  }
+}
+
+export function refuseNoServer(url: string): void {
+  if (url.startsWith(NO_SERVER_BASE)) throw new NoServerError();
+}
+
 const FIRST_SEGMENT = /^#\/([A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?)(?:\/|$)/;
 
 export function baseFromSegment(segment: string): string {
@@ -78,6 +90,6 @@ export function storeDaemon(base: string | null): void {
 export function daemonBase(): string {
   const routed = routedDaemon();
   if (routed !== null) return routed;
-  if (current !== null) return current.host === null ? builtInDaemon() : baseFromSegment(current.host);
+  if (current !== null) return current.host === null ? NO_SERVER_BASE : baseFromSegment(current.host);
   return storedDaemon() ?? builtInDaemon();
 }

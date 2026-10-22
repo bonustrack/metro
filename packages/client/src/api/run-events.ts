@@ -1,5 +1,5 @@
 import type { RunEvent, RunEventMetadata, RunEventsPage } from '@metro-labs/core/events';
-import { daemonBase } from '../auth/daemon.js';
+import { daemonBase, refuseNoServer } from '../auth/daemon.js';
 import { activeAccount } from '../auth/account.js';
 import { isRecord } from '../read.js';
 import { AuthError, call, NotFoundError } from './client.js';
@@ -81,6 +81,7 @@ async function checkSupport(base: string, version: RunEventsOptions['version']):
   if (olderThan(version ?? null, RUN_EVENTS_SINCE)) throw new RunEventsUnavailableError();
   if (isVersion(version)) return;
   if (activeAccount() === null) throw new AuthError('not signed in');
+  refuseNoServer(base);
   const response = await fetch(`${base}/api/run/events`, { method: 'HEAD' }).catch(() => {
     throw new Error('Failed to reach Metro.');
   });

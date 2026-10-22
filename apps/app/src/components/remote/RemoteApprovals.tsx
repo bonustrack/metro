@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Col } from '@stage-labs/kit/react-native/box';
 import { decideRemoteApproval, type RemoteApproval } from '@metro-labs/client/api/agent-keys';
-import { activeAccount } from '@metro-labs/client/auth/account';
 import type { Decision } from '@metro-labs/client/api/approvals';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { ApprovalCardView, type ApprovalContext } from '../home/ApprovalCard.js';
@@ -22,7 +21,7 @@ function Card({ agent, found }: { agent: string; found: RemoteApproval }): React
   };
   const name = found.connectorName ?? undefined;
   const mark = name === undefined ? undefined : <ConnectorFavicon name={name} url={found.connectorUrl ?? ''} size={MARK} />;
-  return <ApprovalCardView approval={found.approval} context={context} decide={activeAccount()?.role === 'admin' ? decide : null} where={name} mark={mark} />;
+  return <ApprovalCardView approval={found.approval} context={context} decide={decide} where={name} mark={mark} />;
 }
 
 export function RemoteApprovals({ agent }: { agent: string }): ReactNode {

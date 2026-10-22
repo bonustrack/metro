@@ -1,4 +1,4 @@
-import { daemonBase } from '../auth/daemon.js';
+import { daemonBase, refuseNoServer } from '../auth/daemon.js';
 import { fetchNoRedirect } from '../platform.js';
 import { toolGroupsOf, type GroupedTool } from './policy.js';
 import { accessToken, refreshAccount } from './auth.js';
@@ -67,6 +67,7 @@ export interface CallInit {
 }
 
 async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
+  refuseNoServer(url);
   init.checkAccount?.();
   try {
     const send = init.redirect === 'error' ? fetchNoRedirect : fetch;

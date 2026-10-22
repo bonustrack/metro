@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
-import { createAgentToken, revokeAgentToken } from '@metro-labs/connectors/db/agent-tokens';
+import { createAgentToken, revokeAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
-import { agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
+import { agentKeys, agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
 import { REMOTE_INSTRUCTIONS } from '../src/tools.ts';
 import { TOUCH_EVERY_MS } from '../src/token.ts';
-import { addConnector, assign, callTool, enrollAgent, headerSecret, OWNER, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
+import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
 
 const REMOTE = 'remote00001';
@@ -127,6 +127,13 @@ describe('an agent without a server, signed in with an access key', () => {
     expect(boxInit.result.instructions).toContain('from a worker');
     const other = await addRemote(held.db, 'remote00002', STRANGER);
     expect(texts(await callTool(app, other.key, 'tool_search', { query: 'notion' }))[0]).toBe('No tool matched "notion". This agent has no connectors it may use.');
+  });
+
+  test('a daemon MCP token on a row without a server opens nothing', async () => {
+    const stray = newToken();
+    await held.db.insert(agentKeys).values({ agent: REMOTE, owner: OWNER, keyId: 'strayKeyId01', signingKey: 'stray', enrolledBy: 'user_01TEST', enrolledAt: new Date().toISOString(), mcpTokenHash: tokenHashOf(stray) });
+    expect((await rpc(app, stray, initialize)).status).toBe(401);
+    expect((await rpc(app, key, initialize)).status).toBe(200);
   });
 
   test('last use is noted at most once a minute, off the request path', async () => {

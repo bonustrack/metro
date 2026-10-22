@@ -1,4 +1,4 @@
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './database.js';
 import { isUniqueViolation } from './errors.js';
@@ -67,7 +67,7 @@ export function agentKeyStore(db: () => Database): AgentKeyStore {
       const rows = await db()
         .select(columns)
         .from(agentKeys)
-        .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner)))
+        .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner), isNotNull(agents.host)))
         .where(eq(agentKeys.keyId, keyId))
         .limit(1);
       return rows[0] ?? null;

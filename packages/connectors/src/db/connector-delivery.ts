@@ -1,4 +1,4 @@
-import { and, eq, exists, getTableColumns, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, getTableColumns, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { AgentKeyRow } from './agent-keys.js';
 import { isTokenIdentity, type AgentTokenIdentity } from './agent-tokens.js';
@@ -22,7 +22,7 @@ function credentialHeld(db: Database, identity: DeliveryIdentity): SQL {
   const one = { one: sql`1` };
   if (isTokenIdentity(identity))
     return exists(db.select(one).from(agentTokens).where(and(eq(agentTokens.id, identity.tokenId), eq(agentTokens.agent, agents.id), eq(agentTokens.owner, agents.owner), isNull(agentTokens.revokedAt))));
-  return exists(
+  return and(isNotNull(agents.host), exists(
     db.select(one).from(agentKeys).where(and(
       eq(agentKeys.agent, agents.id),
       eq(agentKeys.owner, agents.owner),
@@ -30,7 +30,7 @@ function credentialHeld(db: Database, identity: DeliveryIdentity): SQL {
       eq(agentKeys.signingKey, identity.signingKey),
       eq(agentKeys.enrolledAt, identity.enrolledAt),
     )),
-  );
+  )) ?? sql`false`;
 }
 
 function assignedQuery(db: Database, identity: DeliveryIdentity, id?: string) {

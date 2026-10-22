@@ -137,8 +137,9 @@ give a person's own Claude Code, or any MCP client, the organization's connector
   `tool_call` and of a result says the owner approves it on the agent's page on metro.box.
 - **Ask is answered on metro.box** (Less, 2026-10-23: the agent has no chat): no daemon
   relays the request, so the page shows it as an approval card on the agent's page
-  (`GET /api/agents/<id>/approvals`, members) and an admin answers it
-  (`POST /api/agents/<id>/approvals/<approval id> {decision}`). The answer moves the row to
+  (`GET /api/agents/<id>/approvals`) and any member answers it
+  (`POST /api/agents/<id>/approvals/<approval id> {decision}`), as on a box's page. Listing is
+  a plain read: a request older than 24 hours is left out, and only an answer expires rows. The answer moves the row to
   `allow` or `deny` exactly as `/v1/approvals/answer` does (same 24 hour expiry, same single
   use within 10 minutes). Nobody tells the agent: the person repeats the call, or asks the
   agent to, with `approval: "<id>"`. These routes refuse an agent with a server (409), whose

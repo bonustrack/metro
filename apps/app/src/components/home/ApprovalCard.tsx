@@ -154,17 +154,9 @@ function Answers({ decide }: { decide: Decide }): ReactNode {
 interface ApprovalCardProps {
   approval: Approval;
   context: ApprovalContext;
-  decide?: Decide | null;
+  decide?: Decide;
   where?: string;
   mark?: ReactNode;
-}
-
-function AdminsAnswer(): ReactNode {
-  return (
-    <Col margin={{ top: 16 }}>
-      <Text size="md" role="secondary">An admin of the organization answers this.</Text>
-    </Col>
-  );
 }
 
 export function ApprovalCardView({ approval, context, decide, where: named, mark }: ApprovalCardProps): ReactNode {
@@ -209,7 +201,7 @@ export function ApprovalCardView({ approval, context, decide, where: named, mark
           </Text>
         </Col>
       )}
-      {decide === null ? <AdminsAnswer /> : <Answers decide={decide ?? boxDecide} />}
+      <Answers decide={decide ?? boxDecide} />
     </Col>
   );
 }

@@ -93,8 +93,8 @@ async function deliver(db: Database, identity: ApprovalAgent, now: number): Prom
 }
 
 async function pending(db: Database, identity: ApprovalAgent, now: number): Promise<ApprovalRow[]> {
-  await expire(db, identity, now);
-  return db.select().from(mcpApprovals).where(and(mine(identity), eq(mcpApprovals.state, 'pending'))).orderBy(mcpApprovals.requestedAt, mcpApprovals.id).limit(PENDING_MAX);
+  const live = and(mine(identity), eq(mcpApprovals.state, 'pending'), gte(mcpApprovals.requestedAt, now - APPROVAL_TTL_MS));
+  return db.select().from(mcpApprovals).where(live).orderBy(mcpApprovals.requestedAt, mcpApprovals.id).limit(PENDING_MAX);
 }
 
 async function answer(db: Database, identity: ApprovalAgent, id: string, decision: McpDecision, now: number): Promise<boolean> {
