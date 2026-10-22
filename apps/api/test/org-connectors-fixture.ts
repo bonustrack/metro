@@ -6,6 +6,7 @@ import { OwnerTickets } from '../src/agents/tickets.ts';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from '../src/connectors/api.ts';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.ts';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { mcpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { users } from '../src/db/schema.ts';
 import { testKeys } from './identity-helper.ts';
 import type { TestDb } from './pglite-db.ts';
@@ -157,6 +158,7 @@ export async function startApi(db: () => TestDb['db'], now: () => number, send: 
     key: () => key,
     keys: await testKeys(),
     store: orgConnectorStore(db),
+    calls: mcpCallStore(db),
     fetch: send,
     httpsOnly: true,
     callbackUrl: CALLBACK,

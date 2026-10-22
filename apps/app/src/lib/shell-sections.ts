@@ -20,6 +20,7 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
 const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   servers: 'agents',
   none: 'agents',
+  activity: 'agents',
   'org-connectors': 'connectors',
   'org-connector': 'connectors',
   'org-connector-new': 'connectors',
@@ -50,11 +51,18 @@ export const phoneTabOf = (selection: Selection): ShellSectionId => shellSection
 
 export const isTabRoot = (selection: Selection): boolean => TAB_ROOTS.has(selection.kind);
 
+const BACK_TO: Partial<Record<Kind, Selection>> = {
+  activity: { kind: 'servers' },
+  'org-route': { kind: 'org-models' },
+  'org-model': { kind: 'org-models' },
+  'org-model-add': { kind: 'org-models' },
+};
+
 export function phoneBackOf(selection: Selection): Selection | null {
   if (isTabRoot(selection) || isAdminSelection(selection)) return null;
   if ('project' in selection) return { kind: 'servers' };
   if (selection.kind === 'org-connector') return selection.agent === undefined ? { kind: 'org-connectors' } : null;
   if (selection.kind === 'org-model-sign-in') return { kind: 'org-model', id: selection.id };
-  if (selection.kind === 'org-route' || selection.kind === 'org-model' || selection.kind === 'org-model-add') return { kind: 'org-models' };
-  return { kind: 'organization' };
+  const back = BACK_TO[selection.kind];
+  return back === undefined ? { kind: 'organization' } : { ...back };
 }

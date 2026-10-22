@@ -5,6 +5,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
+import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
+import { connectorActivity } from './activity.js';
 import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import { callbackLocation } from './sign-in.js';
@@ -14,10 +16,12 @@ const BODY_MAX = 1024 * 1024;
 
 export interface ConnectorsApiDeps extends ActionDeps {
   keys: SigningKeys;
+  calls: McpCallStore;
 }
 
 type Target =
   | { kind: 'collection' }
+  | { kind: 'activity' }
   | { kind: 'callback' }
   | { kind: 'complete' }
   | { kind: 'connector'; id: string }
@@ -27,6 +31,7 @@ type Target =
 
 const METHODS: Record<Target['kind'], string[]> = {
   collection: ['GET', 'POST'],
+  activity: ['GET'],
   tools: ['GET'],
   callback: ['GET'],
   complete: ['POST'],
@@ -36,7 +41,7 @@ const METHODS: Record<Target['kind'], string[]> = {
   'agent-policy': ['PUT'],
 };
 
-const NAMED: Record<string, Target> = { callback: { kind: 'callback' }, complete: { kind: 'complete' } };
+const NAMED: Record<string, Target> = { callback: { kind: 'callback' }, complete: { kind: 'complete' }, activity: { kind: 'activity' } };
 
 function byAgent(id: string, rest: string[]): Target | 'unknown' {
   const agent = parseId(rest[1] ?? '');
@@ -77,6 +82,7 @@ interface Context {
   deps: ConnectorsApiDeps;
   caller: Caller;
   body: unknown;
+  query: URLSearchParams;
   id: string;
   agent: string;
 }
@@ -84,6 +90,7 @@ interface Context {
 const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'GET collection': async (c) => ({ connectors: await listConnectors(c.deps, c.caller.owner), admin: c.caller.session.role === 'admin' }),
   'POST collection': (c) => createConnector(c.deps, c.caller, c.body),
+  'GET activity': (c) => connectorActivity(c.deps.calls, c.caller.owner, c.query),
   'GET tools': (c) => listConnectorTools(c.deps, c.caller.owner, c.id),
   'POST complete': (c) => completeSignIn(c.deps, c.caller, c.body),
   'GET connector': (c) => viewOf(c.deps, c.caller.owner, c.id),
@@ -95,7 +102,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
 };
 
-const MEMBER_READS = new Set(['GET collection', 'GET connector', 'GET tools']);
+const MEMBER_READS = new Set(['GET collection', 'GET activity', 'GET connector', 'GET tools']);
 
 async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exclude<Target, { kind: 'callback' }>): Promise<unknown> {
   const caller = await callerOf(req, deps);
@@ -105,7 +112,8 @@ async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exc
   const handler = ROUTES[route];
   if (handler === undefined) throw new ApiError('method not allowed', 405);
   const body = method === 'GET' || method === 'DELETE' ? {} : await readJsonBody(req, BODY_MAX);
-  return handler({ deps, caller, body, id: 'id' in target ? target.id : '', agent: 'agent' in target ? target.agent : '' });
+  const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+  return handler({ deps, caller, body, query, id: 'id' in target ? target.id : '', agent: 'agent' in target ? target.agent : '' });
 }
 
 function callback(req: IncomingMessage, res: ServerResponse, deps: ConnectorsApiDeps): void {

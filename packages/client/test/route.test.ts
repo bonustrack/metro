@@ -145,6 +145,15 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/launch/').kind).not.toBe('launch');
   });
 
+  test('#/activity is the live connector activity, an organization page', () => {
+    expect(routeSelection('#/activity')).toEqual({ kind: 'activity' });
+    expect(routeHash({ kind: 'activity' })).toBe('#/activity');
+    expect(routeSelection('#/activity/').kind).not.toBe('activity');
+    expect(routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/activity')).toEqual({ kind: 'activity' });
+    expect(routeHash({ kind: 'activity' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/activity');
+    routeSelection('#/settings');
+  });
+
   test('the organization Connectors page and one connector of it are organization pages', () => {
     expect(routeSelection('#/organization/connectors')).toEqual({ kind: 'org-connectors' });
     expect(routeHash({ kind: 'org-connectors' })).toBe('#/organization/connectors');

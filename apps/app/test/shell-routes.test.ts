@@ -155,6 +155,13 @@ describe('the shell knows its section and what a phone shows', () => {
     expect(phoneBackOf({ kind: 'settings' })).toEqual({ kind: 'organization' });
   });
 
+  test('the live activity sits under Agents, and a phone goes back to the agents list from it', () => {
+    expect(shellSectionOf({ kind: 'activity' })).toBe('agents');
+    expect(phoneTabOf({ kind: 'activity' })).toBe('agents');
+    expect(isTabRoot({ kind: 'activity' })).toBe(false);
+    expect(phoneBackOf({ kind: 'activity' })).toEqual({ kind: 'servers' });
+  });
+
   test('the operator pages draw their own back link and sit under the Organization tab on a phone', () => {
     const pages: Selection[] = [{ kind: 'admin' }, { kind: 'admin-agents' }, { kind: 'admin-users' }, { kind: 'admin-user', id: 'user_1' }, { kind: 'admin-organization', id: 'org_1' }];
     for (const page of pages) {

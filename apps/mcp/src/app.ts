@@ -8,6 +8,7 @@ import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from './approvals.js';
+import { callRecorder } from './call-log.js';
 import { handleDaemonRequest } from './daemon-api.js';
 import type { McpDeps } from './deps.js';
 import { Flights, ToolCache } from './flights.js';
@@ -37,6 +38,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     auth: new AgentAuth(setup.publicHost, now),
     store: connectorDeliveryStore(setup.db),
     approvals: approvalStore(setup.db),
+    calls: callRecorder(setup.db),
     waiters: new Waiters(),
     tools: new ToolCache(TOOL_LIST_TTL_MS, now),
     listings: new Flights(),

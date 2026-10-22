@@ -21,6 +21,7 @@ const ADMIN_AGENTS_PATH = /^#?\/admin\/agents$/;
 const ADMIN_USER_PATH = /^#?\/admin\/users\/([A-Za-z0-9_]{1,64})$/;
 const ADMIN_ORGANIZATION_PATH = /^#?\/admin\/organizations\/([A-Za-z0-9_]{1,64})$/;
 const LAUNCH_PATH = /^#?\/launch$/;
+const ACTIVITY_PATH = /^#?\/activity$/;
 const MEMBERS_PATH = /^#?\/members$/;
 const ORGANIZATION_PATH = /^#?\/organization$/;
 const ORG_CONNECTORS_PATH = /^#?\/organization\/connectors$/;
@@ -69,6 +70,7 @@ const EXACT: [RegExp, Selection][] = [
   [ADMIN_ORGANIZATIONS_PATH, { kind: 'admin-organizations' }],
   [ADMIN_AGENTS_PATH, { kind: 'admin-agents' }],
   [LAUNCH_PATH, { kind: 'launch' }],
+  [ACTIVITY_PATH, { kind: 'activity' }],
   [MEMBERS_PATH, { kind: 'members' }],
   [ORGANIZATION_PATH, { kind: 'organization' }],
   [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
@@ -195,6 +197,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   servers: '',
   none: '',
   launch: 'launch',
+  activity: 'activity',
   members: 'members',
   organization: 'organization',
   'org-connectors': 'organization/connectors',

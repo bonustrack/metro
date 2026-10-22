@@ -1,5 +1,16 @@
 # Metro history
 
+## 2026-10-22: Live activity, every agent's connector calls on one page
+
+Less, looking at the Agents section on a wide screen with no agent chosen ("Choose an agent"): "Can you show a feed of all agents connector tool call on this page? So I can follow what's going on live? Which agent is doing what." Until then a connector call left only a log line on mcp.metro.box.
+
+- **Recorded where the call runs**: mcp.metro.box writes one `mcp_calls` row per `tool_call` call (migration `0018`): owner, agent, connector, tool, outcome, duration and the time it ended. Never the arguments, the result or an approval preview, the same rule as the log line. The write is not awaited and only logs a failure, so a call is never slowed or failed by it, and a missing table is logged once.
+- **Kept for good**: the first version pruned rows after 7 days and kept at most 10,000 per organization; Less: "We should store it without 7 day expiration." So nothing prunes them, the agent has no foreign key, and the agent's and connector's names are stored with each row, so a deleted or moved agent or connector still reads "Lisa · Notion · Search". No path deletes an organization's rows today, and none was added. Measured on PGlite, 100,000 calls take about 33 MB.
+- **Read through api.metro.box**: `GET /api/connectors/activity` (members), newest first, with `since` for the live poll and a `<ms>:<id>` `before` cursor for older pages, on one index `(owner, at desc, id desc)`. The id column uses `COLLATE "C"` so equal times sort the same in Postgres, in the cursor and on the page.
+- **On the page**: the empty detail pane became Live activity, with the hint to pick an agent kept as its subtitle; `#/<org>/activity` and a row on the phone's Agents tab open the same feed. It polls every 3 s while visible, and new calls wait behind a "N new calls" button while the reader is scrolled down, so the list never jumps under them.
+
+Rollout: api.metro.box (with `0018`), mcp.metro.box and the page, no box change and no Metro release. In whatever order they land nothing breaks: mcp.metro.box before the migration logs the missing table once and records nothing until it exists, and the page against an api without the route shows the empty feed.
+
 ## 2026-10-21: WhatsApp names and pictures in the People list
 
 On Lisa's WhatsApp channel, People showed 11 numbers, 2 of them with a name, and several with the generated pattern instead of a photo. The channel had just been removed and added again, which deleted `whatsapp-names-<account>.json` (the station's `forget`), so every name had to come back from WhatsApp. Read in the code (no second Baileys client on live credentials):
