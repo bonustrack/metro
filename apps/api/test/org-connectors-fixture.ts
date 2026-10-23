@@ -156,6 +156,7 @@ export async function startApi(db: () => TestDb['db'], now: () => number, send: 
   let key: Buffer | null = randomBytes(32);
   const deps: ConnectorsApiDeps = {
     key: () => key,
+    organizations: () => Promise.resolve([]),
     keys: await testKeys(),
     store: orgConnectorStore(db),
     calls: mcpCallStore(db),

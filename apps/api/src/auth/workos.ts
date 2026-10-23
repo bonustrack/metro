@@ -257,15 +257,19 @@ export interface UserOrganization {
   role: string | null;
 }
 
-export async function userOrganizations(cfg: WorkosConfig, userId: string): Promise<UserOrganization[]> {
+export async function userMemberships(cfg: WorkosConfig, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
   const answer = await request(cfg, 'GET', `/user_management/organization_memberships?user_id=${encodeURIComponent(userId)}&statuses=active&${LIST}`);
+  return rows(answer).flatMap((membership) => {
+    const id = str(membership.organization_id);
+    if (id === null || membership.status !== 'active') return [];
+    const role = isRecord(membership.role) ? str(membership.role.slug) : null;
+    return [{ id, role }];
+  });
+}
+
+export async function userOrganizations(cfg: WorkosConfig, userId: string): Promise<UserOrganization[]> {
   const out: UserOrganization[] = [];
-  for (const m of rows(answer)) {
-    const id = str(m.organization_id);
-    if (id === null) continue;
-    const role = isRecord(m.role) ? str(m.role.slug) : null;
-    out.push({ id, name: await organizationName(cfg, id), role });
-  }
+  for (const membership of await userMemberships(cfg, userId)) out.push({ ...membership, name: await organizationName(cfg, membership.id) });
   return out;
 }
 

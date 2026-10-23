@@ -47,6 +47,17 @@ export interface NewOrgConnector {
   oauthResource?: string;
 }
 
+export interface CopyOrgConnectorInput {
+  organization: string;
+  name: string;
+  shareCredentials: true;
+}
+
+export interface CopiedOrgConnector {
+  organization: string;
+  connector: OrgConnector;
+}
+
 export type OrgAddResult = { kind: 'added'; connector: OrgConnector } | { kind: 'oauth'; connector: OrgConnector; authorizeUrl: string };
 export type OrgConnectorReturn = { kind: 'handoff'; handoff: string } | { kind: 'error'; error: string };
 
@@ -139,6 +150,30 @@ export const replaceOrgConnectorKey = (id: string, header: string, value: string
 
 export async function deleteOrgConnector(id: string): Promise<void> {
   await orgCall({ method: 'DELETE', base: base(), path: `/${id}` });
+}
+
+export function connectorCopyNameError(raw: string): string | null {
+  const name = raw.trim();
+  if (name === '') return 'Enter a connector name.';
+  if (name.length > 64) return 'Use 64 characters or fewer for the connector name.';
+  for (const ch of name) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) return 'The connector name must not contain control characters.';
+  }
+  return null;
+}
+
+export async function copyOrgConnector(id: string, input: CopyOrgConnectorInput): Promise<CopiedOrgConnector> {
+  const error = connectorCopyNameError(input.name);
+  if (error !== null) throw new Error(error);
+  if (!input.shareCredentials) throw new Error('Confirm that the destination can use the saved credentials.');
+  const body = recordOf(await orgCall({
+    method: 'POST', base: base(), path: `/${id}/copy`, headers: JSON_HEADERS,
+    body: JSON.stringify({ organization: input.organization, name: input.name.trim(), shareCredentials: true }),
+    retryOnUnauthorized: false, redirect: 'error',
+  }));
+  if (body.organization !== input.organization) throw unexpected();
+  return { organization: body.organization, connector: toOrgConnector(body.connector) };
 }
 
 export const signInOrgConnector = async (id: string, checkAccount?: () => void, signal?: AbortSignal, oauthResource?: string): Promise<string> =>

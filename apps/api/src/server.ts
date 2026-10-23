@@ -58,6 +58,7 @@ import { handleRemoteAgentsRequest, type RemoteAgentsApiDeps } from './agents/re
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connectors/setup';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
+import { copyOrganizations } from './connectors/copy.js';
 import { egressFetch } from '@metro-labs/connectors/egress';
 import type { Handoff, SignInState } from './connectors/sign-in.js';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
@@ -160,6 +161,7 @@ const enrollmentApi: EnrollmentDeps = {
 
 const connectorsApi: ConnectorsApiDeps = {
   key: () => connectorsSetup.key,
+  organizations: (userId) => copyOrganizations(readWorkosConfig(), userId),
   keys,
   store: orgConnectorStore(getDb),
   calls: mcpCallStore(getDb),
