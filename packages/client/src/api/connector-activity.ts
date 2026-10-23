@@ -22,6 +22,7 @@ export interface ActivityQuery {
   before?: ActivityCall;
   limit: number;
   agent?: string | null;
+  connector?: string | null;
 }
 
 export interface ActivityFeed {
@@ -69,6 +70,7 @@ function activityPath(query: ActivityQuery): string {
   if (query.since !== undefined) params.set('since', String(Math.max(0, Math.floor(query.since))));
   if (query.before !== undefined) params.set('before', `${String(query.before.at)}:${query.before.id}`);
   if (query.agent !== undefined && query.agent !== null) params.set('agent', query.agent);
+  if (query.connector !== undefined && query.connector !== null) params.set('connector', query.connector);
   return `/activity?${params.toString()}`;
 }
 

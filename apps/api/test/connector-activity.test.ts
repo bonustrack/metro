@@ -177,8 +177,22 @@ describe('since, limit and agent', () => {
     expect((await calls(`?agent=${SECOND}`)).map((call) => call.id)).toEqual(['callother01']);
   });
 
+  test('connector keeps one connector by its id, or the calls that named the same unknown key, with agent too', async () => {
+    await record(
+      row({ id: 'callnotion1' }),
+      row({ id: 'calllinear1', connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', at: NOW - 1 }),
+      row({ id: 'calllinear2', agent: SECOND, connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', at: NOW - 2 }),
+      row({ id: 'calljira001', connector: null, connectorKey: 'jira', connectorName: null, outcome: 'not_found', at: NOW - 3 }),
+    );
+    expect((await calls(`?connector=${LINEAR}`)).map((call) => call.id)).toEqual(['calllinear1', 'calllinear2']);
+    expect((await calls(`?connector=${LINEAR}&agent=${SECOND}`)).map((call) => call.id)).toEqual(['calllinear2']);
+    expect((await calls('?connector=jira')).map((call) => call.id)).toEqual(['calljira001']);
+    expect(await calls('?connector=linear')).toEqual([]);
+    expect(await calls(`?connector=${FOREIGN}`)).toEqual([]);
+  });
+
   test('a malformed value is refused by name', async () => {
-    for (const [query, name] of [['?since=yesterday', 'since'], ['?limit=-3', 'limit'], ['?since=1.5', 'since'], ['?agent=nope', 'agent'], ['?before=soon', 'before'], ['?before=12:short', 'before']] as const) {
+    for (const [query, name] of [['?since=yesterday', 'since'], ['?limit=-3', 'limit'], ['?since=1.5', 'since'], ['?agent=nope', 'agent'], ['?before=soon', 'before'], ['?before=12:short', 'before'], ['?connector=a%20b', 'connector']] as const) {
       const res = await get(query);
       expect(res.status).toBe(400);
       expect(((await res.json()) as { error: string }).error).toContain(name);

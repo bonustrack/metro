@@ -44,18 +44,22 @@ function Line({ text, role }: { text: string | null | undefined; role: 'secondar
   );
 }
 
+export function GroupTitle({ label, action }: { label?: string | undefined; action?: ReactNode }): ReactNode {
+  if (label === undefined && action === undefined) return null;
+  return (
+    <Row align="center" justify="between" gap={12} minHeight={32}>
+      <Text size="xs" role="secondary" numberOfLines={1}>
+        {label ?? ''}
+      </Text>
+      {action}
+    </Row>
+  );
+}
+
 export function Group({ label, note, action, right, error, wide = false, children }: GroupProps): ReactNode {
-  const trailing = action ?? right;
   return (
     <Col width="100%" maxWidth={wide ? undefined : READABLE_WIDTH}>
-      {label === undefined && trailing === undefined ? null : (
-        <Row align="center" justify="between" gap={12} minHeight={32}>
-          <Text size="xs" role="secondary" numberOfLines={1}>
-            {label ?? ''}
-          </Text>
-          {trailing}
-        </Row>
-      )}
+      <GroupTitle label={label} action={action ?? right} />
       <Rows>{children}</Rows>
       <Line text={note} role="secondary" />
       <Line text={error} role="danger" />

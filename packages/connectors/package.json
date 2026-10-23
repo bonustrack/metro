@@ -23,6 +23,7 @@
     "./db/agent-keys": "./src/db/agent-keys.ts",
     "./db/agent-nonces": "./src/db/agent-nonces.ts",
     "./db/mcp-calls": "./src/db/mcp-calls.ts",
+    "./db/mcp-call-stats": "./src/db/mcp-call-stats.ts",
     "./db/mcp-approvals": "./src/db/mcp-approvals.ts",
     "./db/agent-tokens": "./src/db/agent-tokens.ts",
     "./connector-keys": "./src/connector-keys.ts",

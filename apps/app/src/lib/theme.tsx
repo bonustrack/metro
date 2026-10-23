@@ -4,6 +4,7 @@ import { KitThemeProvider, type KitPalette } from '@stage-labs/kit/react-native/
 import { semanticPalette } from '@stage-labs/kit/tokens';
 import { withAlpha } from '@stage-labs/kit/badge';
 import { DROPDOWN_MENU } from '@stage-labs/kit/react-native/menu';
+import { chartPrimitiveColor } from '@stage-labs/kit/chart';
 
 type Scheme = 'light' | 'dark';
 
@@ -62,6 +63,10 @@ function paintDocument(scheme: Scheme, palette: KitPalette): void {
 }
 
 const PALETTE = buildPalette(SCHEME);
+
+const SERIES_TOKENS = ['blue-400', 'green-500', 'purple-400', 'yellow-700', 'blue-500', 'orange-600', 'pink-500', 'red-600'] as const;
+
+export const SERIES_COLORS: readonly string[] = SERIES_TOKENS.map((token) => chartPrimitiveColor(token, SCHEME) ?? PALETTE.link);
 
 export function ThemeProvider({ children }: { children: ReactNode }): ReactNode {
   useEffect(() => {

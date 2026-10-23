@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 import type { Database } from './database.js';
 import { agents, connectors, mcpCalls } from './schema.js';
+import { callStats, connectorGroup, type CallStats, type StatsScope } from './mcp-call-stats.js';
 
 export type McpCallRow = typeof mcpCalls.$inferSelect;
 
@@ -20,6 +21,7 @@ export interface CallFilter {
   since?: number;
   before?: CallCursor;
   agent?: string;
+  connector?: string;
 }
 
 export interface CallView {
@@ -38,6 +40,7 @@ export interface CallView {
 
 export interface McpCallStore {
   recent: (owner: string, filter: CallFilter) => Promise<CallView[]>;
+  stats: (scope: StatsScope) => Promise<CallStats>;
 }
 
 export async function recordCall(db: Database, row: NewMcpCall): Promise<void> {
@@ -58,6 +61,7 @@ export async function recentCalls(db: Database, owner: string, filter: CallFilte
     filter.since === undefined ? undefined : gte(mcpCalls.at, filter.since),
     beforeOf(filter.before),
     filter.agent === undefined ? undefined : eq(mcpCalls.agent, filter.agent),
+    filter.connector === undefined ? undefined : sql`${connectorGroup} = ${filter.connector}`,
   );
   return db
     .select({
@@ -82,5 +86,5 @@ export async function recentCalls(db: Database, owner: string, filter: CallFilte
 }
 
 export function mcpCallStore(db: () => Database): McpCallStore {
-  return { recent: (owner, filter) => recentCalls(db(), owner, filter) };
+  return { recent: (owner, filter) => recentCalls(db(), owner, filter), stats: (scope) => callStats(db(), scope) };
 }
