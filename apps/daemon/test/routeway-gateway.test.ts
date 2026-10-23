@@ -132,6 +132,17 @@ describe('a Routeway connection', () => {
     expect(anthropic.seen).toHaveLength(0);
   });
 
+  test('gets the five-minute cache it got before the one-hour cache, never its ttl or beta', async () => {
+    const system = [{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral', ttl: '1h' } }];
+    const messages = [{ role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral', ttl: '1h' } }] }];
+    await send('/v1/messages', ask('routeway:claude-sonnet-5.5', { system, messages }), { 'anthropic-beta': 'claude-code-20250219,extended-cache-ttl-2025-04-11' });
+    const [seen] = routeway.seen;
+    const sent = JSON.parse(seen?.body ?? '{}') as Record<string, unknown>;
+    expect(sent.system).toEqual([{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }]);
+    expect(sent.messages).toEqual([{ role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }] }]);
+    expect(seen?.headers['anthropic-beta']).toBe('claude-code-20250219');
+  });
+
   test('sends the body byte for byte when metro changes nothing, and names the routed model when the request asks for another one', async () => {
     const raw = '{ "max_tokens":8,  "model":"claude-sonnet-5.5", "messages":[{"role":"user","content":"hi"}] }';
     await send('/v1/messages', raw);

@@ -10,6 +10,8 @@ const PROBE_MS = 3_000;
 const AUTH_STATUS_MS = 20_000;
 const RM_PROMPT_OFF = 'CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT';
 const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
+const CACHE_TTLS = ['CLAUDE_CODE_PROMPT_CACHE_TTL', 'CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL'];
+const LONG_CACHE = '1h';
 
 export const AGENT_VIEW_OFF = 'CLAUDE_CODE_DISABLE_AGENT_VIEW';
 export const NO_UPDATES = { DISABLE_AUTOUPDATER: '1' } as const;
@@ -35,6 +37,11 @@ export function gatewayEnv(base: NodeJS.ProcessEnv, agentKey: string | null, por
 
 export const toolSearchEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, 'ENABLE_TOOL_SEARCH') ? env : { ...env, ENABLE_TOOL_SEARCH: 'true' };
+
+export function cacheTtlEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const missing = CACHE_TTLS.filter((name) => !set(env, name));
+  return missing.length === 0 ? env : { ...env, ...Object.fromEntries(missing.map((name) => [name, LONG_CACHE])) };
+}
 
 export const rmPromptEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, RM_PROMPT_OFF) ? env : { ...env, [RM_PROMPT_OFF]: '1' };
@@ -93,8 +100,9 @@ async function verdict(): Promise<Verdict> {
 function gatewayLaunchEnv(key: string, port: number, claude: string, say: (line: string) => void): NodeJS.ProcessEnv {
   say(`inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)`);
   const pointed = routeModelEnv(gatewayEnv(process.env, key, port), currentRoute());
-  const routed = toolSearchEnv(pointed);
-  if (routed !== pointed) say('MCP tool search is on, so connector tools load when Claude needs them instead of all at start');
+  const searched = toolSearchEnv(pointed);
+  if (searched !== pointed) say('MCP tool search is on, so connector tools load when Claude needs them instead of all at start');
+  const routed = cacheTtlEnv(searched);
   const env = credentialEnv(routed, key, claudeSignedIn(claude));
   if (env !== routed) say("Claude Code has no login of its own here, so metro's key stands in as its credential; the organization's Models page decides where requests go");
   return env;

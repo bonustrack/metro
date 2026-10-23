@@ -150,7 +150,7 @@ describe('serveStandaloneGet', () => {
 
     expect(sinkSeen).toBeDefined();
     expect((head as { s: number }).s).toBe(200);
-    expect(body.startsWith('retry: 15000\n\n')).toBe(true);
+    expect(body.startsWith('retry: 1000\n\n')).toBe(true);
     expect(body).toContain(':\n\n');
     expect(body).toContain('"content":"newer"');
     expect(body).not.toContain('"content":"replayed"');

@@ -1,6 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
+import { withoutCacheTtl, withoutTtlBeta } from './cache-ttl.js';
 import { anthropicHeaders, GatewayError, type Watch } from './forward.js';
 
 export const ROUTEWAY_BASE = 'https://api.routeway.ai';
@@ -10,6 +11,9 @@ const HANDED_OVER = new Set([402, 429]);
 export function routewayHeaders(req: IncomingMessage, apiKey: string): Record<string, string> {
   const headers = anthropicHeaders(req, apiKey);
   headers['user-agent'] ??= USER_AGENT;
+  const betas = withoutTtlBeta((headers['anthropic-beta'] ?? '').split(',').filter((beta) => beta !== ''));
+  if (betas.length > 0) headers['anthropic-beta'] = betas.join(',');
+  else delete headers['anthropic-beta'];
   return headers;
 }
 
@@ -65,12 +69,14 @@ function withProperties(tool: unknown): unknown {
   return full === tool.input_schema ? tool : { ...tool, input_schema: full };
 }
 
-export function routewayTools(body: Record<string, unknown>): Record<string, unknown> {
+function routewayTools(body: Record<string, unknown>): Record<string, unknown> {
   const listed: unknown = body.tools;
   if (!Array.isArray(listed)) return body;
   const tools: unknown[] = listed.map(withProperties);
   return tools.some((tool, at) => tool !== listed[at]) ? { ...body, tools } : body;
 }
+
+export const routewayBody = (body: Record<string, unknown>): Record<string, unknown> => withoutCacheTtl(routewayTools(body));
 
 export async function noteRoutewayRefusal(upstream: Response): Promise<void> {
   if (upstream.ok || !(upstream.headers.get('content-type') ?? '').includes('application/json')) return;

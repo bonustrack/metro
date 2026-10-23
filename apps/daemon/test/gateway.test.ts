@@ -402,6 +402,46 @@ describe('the Bedrock route', () => {
     expect(sent.stream).toBeUndefined();
   });
 
+  test('a refused one-hour cache drops only the ttl, never the field that holds it, and is remembered', async () => {
+    use(cfg, 'bedrock');
+    const answer = bedrock.answer;
+    bedrock.answer = (req, res) => {
+      if (!req.body.includes('"ttl"')) return answer(req, res);
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end('{"message":"system.0.cache_control.ttl: Extra inputs are not permitted"}');
+    };
+    try {
+      const long = { ...message('claude-sonnet-4-6'), system: [{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral', ttl: '1h' } }] };
+      const betas = { 'anthropic-beta': 'interleaved-thinking-2025-05-14,extended-cache-ttl-2025-04-11' };
+      expect((await post('/gateway/v1/messages', long, betas)).status).toBe(200);
+      expect((await post('/gateway/v1/messages', long, betas)).status).toBe(200);
+      expect(bedrock.seen).toHaveLength(3);
+      for (const seen of bedrock.seen.slice(1)) {
+        const sent = JSON.parse(seen.body) as Record<string, unknown>;
+        expect(sent.system).toEqual([{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }]);
+        expect(sent.messages).toEqual([{ role: 'user', content: 'hi' }]);
+        expect(sent.anthropic_beta).toEqual(['interleaved-thinking-2025-05-14']);
+      }
+    } finally {
+      bedrock.answer = answer;
+    }
+  });
+
+  test('another nested extra input never drops its whole parent field', async () => {
+    use(cfg, 'bedrock');
+    const answer = bedrock.answer;
+    bedrock.answer = (_req, res) => {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end('{"message":"messages.0.content.0.citations: Extra inputs are not permitted"}');
+    };
+    try {
+      expect((await post('/gateway/v1/messages', message('claude-sonnet-4-6'))).status).toBe(400);
+      for (const seen of bedrock.seen) expect((JSON.parse(seen.body) as Record<string, unknown>).messages).toEqual([{ role: 'user', content: 'hi' }]);
+    } finally {
+      bedrock.answer = answer;
+    }
+  });
+
   test('counts tokens through Bedrock, and refuses by name when the page holds no key', async () => {
     use(cfg, 'bedrock');
     const count = await post('/gateway/v1/messages/count_tokens', message('claude-sonnet-4-6'));
