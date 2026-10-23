@@ -12,6 +12,9 @@ export const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 function channelAppData(a: Record<string, unknown>): Record<string, unknown> {
   const appData = a.metadata === undefined ? {} : { ...metadataPatch(a.metadata) };
+  if (Object.hasOwn(appData, 'description')) {
+    throw new TrainError('INVALID_ARGS', 'Use top-level description for the native XMTP group description, not metadata.description');
+  }
   for (const key of ['labels', 'github', 'preview']) {
     if (!Object.hasOwn(a, key)) continue;
     if (Object.hasOwn(appData, key)) {
@@ -29,18 +32,23 @@ export async function setChannelMetadata(
 ) {
   const line = str(a.line);
   if (!line) return ctx.err('set_channel_metadata requires `line`');
-  if (Object.hasOwn(a, 'name') && typeof a.name !== 'string') {
-    return ctx.err('set_channel_metadata name must be a string');
-  }
+  const invalidField = ['name', 'description'].find(
+    (field) => Object.hasOwn(a, field) && typeof a[field] !== 'string',
+  );
+  if (invalidField) return ctx.err(`set_channel_metadata ${invalidField} must be a string`);
   const appData = channelAppData(a);
   const metaName = a.name;
   const hasName = typeof metaName === 'string' && metaName.length > 0;
-  if (!hasName && Object.keys(appData).length === 0)
+  const hasDescription = typeof a.description === 'string';
+  const hasAppData = Object.keys(appData).length > 0;
+  if (!hasName && !hasDescription && !hasAppData)
     return ctx.err(
-      'set_channel_metadata requires at least one of `metadata`, `github`, `preview`, `name`, `labels`',
+      'set_channel_metadata requires at least one of `metadata`, `github`, `preview`, `name`, `description`, `labels`',
     );
-  const callArgs: Record<string, unknown> = { line, appData };
+  const callArgs: Record<string, unknown> = { line };
+  if (hasAppData) callArgs.appData = appData;
   if (hasName) callArgs.name = metaName;
+  if (hasDescription) callArgs.description = a.description;
   return ctx.okJson(await ctx.call('updateChannelMeta', callArgs));
 }
 

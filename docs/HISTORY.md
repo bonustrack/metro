@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-10-23: Channel descriptions use the standard XMTP field
+
+Less: "Ideally it should use XMTP standard for group description if it exists", then "Yes, fix that". Stage already shows that field. Metro's `set_channel_metadata` now accepts a top-level `description` string and forwards it to the existing `group.updateDescription` writer; `group_info.description` reads the native SDK field after sync. A description-only call does not write appData, and an empty string clears the native description. `metadata.description` is refused with a pointer to the native argument: earlier calls wrote a custom appData key, and a metadata notice or a readback of that key never proved that Stage's visible description changed. Existing custom appData keys are preserved, not migrated or used as a readback fallback. No Stage renderer or group-creation change.
+
 ## 2026-10-23: A compaction runs at low effort, and provider failures reach the log
 
 Lisa at MCI, on `codex:gpt-6.1-sol` through "Codex (ChatGPT) 3", with the Claude Code of the pinned Agent SDK (2.1.287): one background worker ran 866 turns (its transcript, `subagents/agent-aca5e1eb1e2e1617c.jsonl`, is 168 MB). At 02:39:55 it got "Prompt is too long · automatic compaction failed: API Error: Server error mid-response. The response above may be incomplete.", and the daemon logged nothing but `gateway: routing` lines. From then on it compacted by itself every 10 to 12 minutes, from 167k to 177k tokens down to 31k to 61k, and each compaction took 9 to 12.6 minutes (`durationMs` 756985, 679380, 535543, 594952, 644007), so the orchestrator saw no new turn for 8 minutes and reported a stall. Every turn read 130k to 148k input tokens with `cache_read_input_tokens` 0 or 6,528.

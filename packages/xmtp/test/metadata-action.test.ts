@@ -21,11 +21,21 @@ afterEach(() => {
 function fixture(raw = JSON.stringify({ v: 1, assigned: [bob], labels: ['Blocked'], custom: true })) {
   const state = {
     raw, names: [] as string[], writes: [] as string[], lookups: [] as EthId[], syncs: 0,
+    description: 'Existing native description', descriptions: [] as string[], descriptionFailure: false, descriptionReadFailure: false,
     syncFailure: false, readFailure: false, lookupFailure: false, membersFailure: false,
     beforeLookup: async () => {}, beforeWrite: async () => {},
   };
   const group = {
     id: 'group1', name: 'feat: existing',
+    get description() {
+      if (state.descriptionReadFailure) throw new Error('native description read failed');
+      return state.description;
+    },
+    updateDescription: async (description: string) => {
+      if (state.descriptionFailure) throw new Error('native description update failed');
+      state.descriptions.push(description);
+      state.description = description;
+    },
     get appData() {
       if (state.readFailure) throw new Error('metadata read failed');
       return state.raw;
@@ -64,6 +74,69 @@ function patch(appData: Record<string, unknown>, name?: string) {
 }
 
 describe('metadata action and independent mocked readback', () => {
+  test.each(['  Native description\nwith whitespace  ', ''])('native description updates and clears preserve title, metadata and members: %j', async (description) => {
+    const initial = '{ "v": 1, "category": "Stage", "status": "In review", "assigned": ["' + bob + '"], "description": "legacy shadow" }';
+    const { state, group, acct } = fixture(initial);
+    const read = () => buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2]);
+    expect((await read()).description).toBe('Existing native description');
+    await updateChannelMeta('native', { line, description });
+    const info = await read();
+    expect(info.description).toBe(description);
+    expect(info.name).toBe('feat: existing');
+    expect(info.rawAppData).toBe(initial);
+    expect(info.appData).toEqual(JSON.parse(initial));
+    expect(info.members).toEqual([{ inboxId: 'alice-inbox', address: null }, { inboxId: 'bob-inbox', address: null }]);
+    expect(state.descriptions).toEqual([description]);
+    expect(state.names).toHaveLength(0);
+    expect(state.writes).toHaveLength(0);
+    expect(state.lookups).toHaveLength(0);
+    expect(state.syncs).toBe(3);
+  });
+
+  test('native description and metadata share the existing updater without a shadow key', async () => {
+    const { state, group, acct } = fixture();
+    await updateChannelMeta('combined', { line, description: 'Native', appData: { labels: ['Bug'] } });
+    const info = await buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2]);
+    expect(info.description).toBe('Native');
+    expect(info.appData).toEqual({ v: 1, assigned: [bob], labels: ['Bug'], custom: true });
+    expect(state.descriptions).toEqual(['Native']);
+    expect(state.writes).toHaveLength(1);
+    await patch({ labels: [] });
+    expect(state.descriptions).toEqual(['Native']);
+  });
+
+  test.each([null, 42, true, [], {}])('invalid native descriptions refuse all writes: %j', async (description) => {
+    const { state } = fixture();
+    await expect(updateChannelMeta('invalid', { line, description, name: 'Do not rename', appData: { labels: [] } })).rejects.toThrow('description must be a string');
+    expect(state.names).toHaveLength(0);
+    expect(state.descriptions).toHaveLength(0);
+    expect(state.writes).toHaveLength(0);
+  });
+
+  test('unsupported or failed native description updates do not write metadata', async () => {
+    const { state, group } = fixture();
+    state.descriptionFailure = true;
+    await expect(updateChannelMeta('failed', { line, description: 'Native', appData: { labels: [] } })).rejects.toThrow('native description update failed');
+    Object.defineProperty(group, 'updateDescription', { value: undefined });
+    await expect(updateChannelMeta('unsupported', { line, description: 'Native', name: 'Do not rename', appData: { labels: [] } })).rejects.toThrow('does not support native group descriptions');
+    expect(state.names).toHaveLength(0);
+    expect(state.descriptions).toHaveLength(0);
+    expect(state.writes).toHaveLength(0);
+  });
+
+  test('native read failures surface instead of falling back to appData.description', async () => {
+    const { state, group, acct } = fixture('{"description":"shadow"}');
+    state.descriptionReadFailure = true;
+    await expect(buildGroupInfo(line, acct, group as unknown as Parameters<typeof buildGroupInfo>[2])).rejects.toThrow('native description read failed');
+  });
+
+  test('DM info has an empty native description', async () => {
+    const { acct } = fixture();
+    const dm = { id: 'dm1', peerInboxId: async () => 'bob-inbox', members: async () => [], sync: async () => {} };
+    const info = await buildGroupInfo(line, acct, dm as unknown as Parameters<typeof buildGroupInfo>[2]);
+    expect(info).toMatchObject({ version: 'dm', description: '' });
+  });
+
   test('valid members normalize and preserve all other metadata', async () => {
     const initial = { v: 3, labels: ['Blocked'], assigned: [bob], github: 'https://github.com/a/b',
       preview: 'https://example.com', custom: { keep: true } };

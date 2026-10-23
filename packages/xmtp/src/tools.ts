@@ -115,7 +115,7 @@ export const XMTP_TOOLS: StationTool[] = [
     group: 'read',
     description:
       "Read an XMTP channel's current metadata + membership. Args: line (required). Returns " +
-      '{line, id, account, version (dm|group), name, memberCount, labels, category, status, priority, github, preview, ' +
+      '{line, id, account, version (dm|group), name, description (native XMTP group description, empty for DMs), memberCount, labels, category, status, priority, github, preview, ' +
       'assigned, appData (stored JSON object), rawAppData (stored JSON string), ' +
       'members:[{inboxId, address}]}. Syncs first and fails if metadata cannot be read. ' +
       'xmtp-only (daemon `groupInfo`). Use before ' +
@@ -170,7 +170,9 @@ export const XMTP_TOOLS: StationTool[] = [
     group: 'write',
     description:
       "Update an existing channel's metadata. Args: line (required, the metro:// line), and " +
-      'any of metadata? (JSON object), github? (url), preview? (url), name? (string). ' +
+      'any of metadata? (JSON object), github? (url), preview? (url), name? (string), description? (string). ' +
+      'Top-level description updates the standard XMTP group description shown in Stage; "" clears it. ' +
+      'Use group_info.description for native readback. metadata.description is refused; it is not the visible description. ' +
       'metadata is a shallow appData patch: omitted keys are preserved, supplied nested ' +
       'values replace that key, and null deletes custom keys. v is reserved. Put labels, ' +
       'assigned, category, status and priority inside metadata. assigned replaces the array with normalized lowercase ' +
@@ -226,6 +228,10 @@ export const XMTP_TOOLS: StationTool[] = [
           description: 'Linked preview URL ("" to clear).',
         },
         name: { type: 'string', description: 'New channel name.' },
+        description: {
+          type: 'string',
+          description: 'Standard XMTP group description shown in Stage. "" clears it. Omit to preserve it; never put it inside metadata.',
+        },
       },
       required: ['line'],
     },

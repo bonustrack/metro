@@ -86,10 +86,36 @@ describe('set_channel_metadata routes through one updateChannelMeta call', () =>
   test('metadata patch and native fields use one call', async () => {
     const { ctx, calls } = fakeCtx();
     const metadata = { labels: ['In progress'], assigned: ['0x' + 'a'.repeat(40)], custom: { open: true } };
-    await setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata, name: 'feat: thing' }, ctx);
+    await setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata, name: 'feat: thing', description: 'Native description' }, ctx);
     expect(calls).toEqual([{ action: 'updateChannelMeta', args: {
-      line: 'metro://xmtp/tony/g1', appData: metadata, name: 'feat: thing',
+      line: 'metro://xmtp/tony/g1', appData: metadata, name: 'feat: thing', description: 'Native description',
     } }]);
+  });
+
+  test.each(['  Native description\nwith whitespace  ', ''])('description-only updates and clears forward native text without appData: %j', async (description) => {
+    const { ctx, calls } = fakeCtx();
+    await setChannelMetadata({ line: 'metro://xmtp/tony/g1', description }, ctx);
+    expect(calls).toEqual([{ action: 'updateChannelMeta', args: { line: 'metro://xmtp/tony/g1', description } }]);
+  });
+
+  test.each([null, 42, true, [], {}, undefined])('invalid native descriptions never dispatch: %j', async (description) => {
+    const { ctx, calls } = fakeCtx();
+    const result = await setChannelMetadata({ line: 'metro://xmtp/tony/g1', description, metadata: { assigned: [] } }, ctx);
+    expect(result).toEqual({ error: 'set_channel_metadata description must be a string' });
+    expect(calls).toHaveLength(0);
+  });
+
+  test.each(['shadow', '', null])('metadata.description cannot write a shadow description: %j', async (description) => {
+    const { ctx, calls } = fakeCtx();
+    await expect(setChannelMetadata({ line: 'metro://xmtp/tony/g1', metadata: { description } }, ctx)).rejects.toThrow('Use top-level description');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('the public schema declares native description separately from metadata', () => {
+    expect(XMTP_TOOLS.find((tool) => tool.name === 'set_channel_metadata')?.inputSchema).toMatchObject({
+      properties: { description: { type: 'string' } }, required: ['line'],
+    });
+    expect(XMTP_TOOLS.find((tool) => tool.name === 'group_info')?.description).toContain('native XMTP group description');
   });
 
   test('assigned-only metadata and empty assigned list are forwarded', async () => {

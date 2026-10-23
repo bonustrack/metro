@@ -100,6 +100,7 @@ export async function buildGroupInfo(
     account: acct.cfg.id,
     version: isDm ? 'dm' : 'group',
     name: resolvedName ?? '',
+    description: 'description' in conv ? conv.description : '',
     memberCount: inboxIds.length,
     labels,
     category,

@@ -11,10 +11,11 @@ Stage (https://stage.box) is a messenger built on XMTP. A Stage channel is an XM
 
 **Channels.**
 - Create: `create_group {"station": "xmtp", "name": "Launch plan", "members": ["0x…"]}`. Members are 0x addresses or XMTP inbox ids. It returns the new `line` and `id`.
-- Rename: `set_channel_metadata {"line": "…", "name": "New title"}`. No tool sets the description or the picture.
+- Rename: `set_channel_metadata {"line": "…", "name": "New title"}`. No tool sets the picture.
+- Description: `set_channel_metadata {"line": "…", "description": "What this channel is for"}` sets the standard XMTP group description shown in Stage. `""` clears it. Read `group_info.description` to check it saved. Never put it in `metadata.description`: that is not the visible description and is refused.
 - Add or remove people: `add_members {"line": "…", "members": ["0x…"]}`. `remove_members` takes the same shape.
 - Leave: `close_channel {"line": "…", "removeSelf": true}`.
-- Read: `group_info {"line": "…"}` gives the name, `labels`, `assigned`, `category`, `status`, `priority`, `appData` and the members (`inboxId`, `address`). `list_members {"line": "…"}` gives the members only.
+- Read: `group_info {"line": "…"}` gives the name, native `description`, `labels`, `assigned`, `category`, `status`, `priority`, `appData` and the members (`inboxId`, `address`). `list_members {"line": "…"}` gives the members only.
 - Direct chat: `dm {"address": "0x…"}` opens a 1:1 chat and returns its line.
 - With several XMTP accounts, add `"account": "<id>"` to `create_group` and `dm`.
 

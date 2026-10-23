@@ -25,7 +25,11 @@ async function applyNameAndDescription(
   group: GroupLike,
   name: string | undefined,
   description: string | undefined,
+  verb: string,
 ): Promise<void> {
+  if (description !== undefined && typeof group.updateDescription !== 'function') {
+    throw new TrainError('INVALID_ARGS', `${verb} target does not support native group descriptions`);
+  }
   if (
     typeof name === 'string' &&
     name &&
@@ -88,7 +92,7 @@ async function applyChannelMeta(
     }
   }
 
-  await applyNameAndDescription(group, name, description);
+  await applyNameAndDescription(group, name, description, verb);
   const merged = await applyMergedAppData(
     group as GroupLike & { updateAppData: (s: string) => Promise<void> },
     appData,
@@ -138,6 +142,9 @@ export async function updateChannelMeta(id: string, args: Args): Promise<void> {
   };
   if (name !== undefined && typeof name !== 'string') {
     throw new TrainError('INVALID_ARGS', 'name must be a string');
+  }
+  if (description !== undefined && typeof description !== 'string') {
+    throw new TrainError('INVALID_ARGS', 'description must be a string');
   }
   const task = () => applyChannelMeta({ line, name, description, appData }, 'updateChannelMeta');
   const previous = metadataWrites.get(key);
