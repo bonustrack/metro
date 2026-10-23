@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-10-23: The page says Workers, not Helpers
+
+Less: "we should rename Helpers to Workers everywhere". Every word a person reads now says worker: the Workers group and its titles on the model order editor, the Effort row, Right now, the Run page and its filters, the agent line ("Working with 2 workers"), and the api's refusals of a route. A task of the `worker` agent reads "Worker", not "Worker worker". The Run page's worker address is `/run/worker/<key>`, and an old `/run/helper/<key>` link opens the same page. The `helpers` keys of a route (`model_routes.route`, `PUT /api/models/route`, `GET /api/model`, `effort.helpers`), the gateway's `helpers` lane and the code names stay: they are stored and wire contracts that older boxes and pages read.
+
 ## 2026-10-23: Faster replies: one-hour cache, one-turn reactions, a one-second stream retry
 
 Less asked why agents take so long to answer. Research on the code and on recorded requests, no box reachable that day:

@@ -18,7 +18,7 @@ const connectionOf = (connections: ConnectionRow[], id: string): ConnectionRow |
 
 export const slotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Main model' : slot.kind === 'new' ? 'Add a backup' : `Backup ${String(slot.at + 1)}`);
 
-export const helperSlotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Helpers, main model' : slot.kind === 'new' ? 'Helpers, add a backup' : `Helpers, backup ${String(slot.at + 1)}`);
+export const helperSlotTitle = (slot: Slot): string => (slot.kind === 'primary' ? 'Workers, main model' : slot.kind === 'new' ? 'Workers, add a backup' : `Workers, backup ${String(slot.at + 1)}`);
 
 export function draftOf(route: ModelRoute | null, slot: Slot): RouteStep {
   if (slot.kind === 'fallback') return route?.fallbacks[slot.at] ?? EMPTY;

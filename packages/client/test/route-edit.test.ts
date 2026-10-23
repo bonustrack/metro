@@ -122,8 +122,8 @@ describe('the route after an edit', () => {
     const effort = withEffort(full, 'helpers', 'asked').effort;
     expect(effort).toEqual({ main: 'high', helpers: 'asked' });
     expect([effortOf(effort, 'main'), effortOf(effort, 'helpers'), effortOf(undefined, 'main'), effortOf(null, 'helpers')]).toEqual(['high', 'asked', 'low', 'max']);
-    expect(helperSlotTitle({ kind: 'primary' })).toBe('Helpers, main model');
-    expect(helperSlotTitle({ kind: 'fallback', at: 1 })).toBe('Helpers, backup 2');
+    expect(helperSlotTitle({ kind: 'primary' })).toBe('Workers, main model');
+    expect(helperSlotTitle({ kind: 'fallback', at: 1 })).toBe('Workers, backup 2');
   });
 
   test('moving stops at both ends, and removing drops one', () => {

@@ -138,7 +138,7 @@ function Problems({ settings, error, outdated, partsOutdated, project }: Problem
     <Group label="Needs attention">
       {link === null ? null : <LinkRow words={link} />}
       {outdated === null ? null : <UpdateRow what={outdated.label} project={project} />}
-      {partsOutdated ? <UpdateRow what="the helper models and the effort" project={project} /> : null}
+      {partsOutdated ? <UpdateRow what="the worker models and the effort" project={project} /> : null}
       {lines.map((line) => (
         <NoteRow key={line} text={line} danger />
       ))}

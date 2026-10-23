@@ -106,7 +106,7 @@ interface ChainWords {
 }
 
 const MAIN_WORDS: ChainWords = { missing: 'A route needs a primary model. To remove a route, delete it.', primary: 'primary', fallback: 'each fallback', list: 'fallbacks' };
-const HELPER_WORDS: ChainWords = { missing: 'Helpers need a main model. To let helpers use the main models, send helpers: null.', primary: 'helpers.primary', fallback: 'each helper fallback', list: 'helper fallbacks' };
+const HELPER_WORDS: ChainWords = { missing: 'Workers need a main model. To let workers use the main models, send helpers: null.', primary: 'helpers.primary', fallback: 'each worker fallback', list: 'worker fallbacks' };
 
 function chainInput(body: Record<string, unknown>, words: ChainWords): RouteChain {
   if (body.primary === null || body.primary === undefined) throw bad(words.missing);

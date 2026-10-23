@@ -99,7 +99,7 @@ describe('every page of an agent has a place under one of its six tabs', () => {
       { kind: 'claude', project: AGENT },
       { kind: 'server', project: AGENT },
       { kind: 'run', project: AGENT },
-      { kind: 'run', project: AGENT, view: 'helper', id: 'task-1' },
+      { kind: 'run', project: AGENT, view: 'worker', id: 'task-1' },
       { kind: 'backup', project: AGENT },
       { kind: 'agent-profile', project: AGENT },
       { kind: 'launch-log', project: AGENT },

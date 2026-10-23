@@ -113,7 +113,7 @@ function taskTools(task: RunnerTask, tools: RunnerTool[], clock: Clock): string 
 
 function taskTitle(task: RunnerTask): string {
   if (task.description !== undefined && task.description !== null) return task.description;
-  const who = task.agent === null || task.agent === 'general-purpose' ? 'Helper' : `${task.agent.charAt(0).toUpperCase()}${task.agent.slice(1)} helper`;
+  const who = task.agent === null || task.agent === 'general-purpose' || task.agent === 'worker' ? 'Worker' : `${task.agent.charAt(0).toUpperCase()}${task.agent.slice(1)} worker`;
   return task.lastTool === null ? `${who}, no description given` : `${who}, last used ${task.lastTool}`;
 }
 

@@ -325,11 +325,11 @@ describe('helpers and effort', () => {
     expect(await refused({ effort: { helpers: 3 } })).toBe('effort.helpers must be one of low, medium, high, max, asked');
     expect(await refused({ effort: { worker: 'low' } })).toBe('effort takes main and helpers, not worker');
     expect(await refused({ effort: 'low' })).toContain('effort must be an object');
-    expect(await refused({ helpers: { fallbacks: [primary] } })).toBe('Helpers need a main model. To let helpers use the main models, send helpers: null.');
+    expect(await refused({ helpers: { fallbacks: [primary] } })).toBe('Workers need a main model. To let workers use the main models, send helpers: null.');
     expect(await refused({ helpers: 'same' })).toContain('helpers must be an object');
     expect(await refused({ helpers: { primary: { connection: or.id, model: '' } } })).toBe('helpers.primary needs a model');
     expect(await refused({ helpers: { primary: { connection: 'local:session', model: 'm' } } })).toContain('add a Claude subscription');
-    expect(await refused({ helpers: { primary, fallbacks: Array.from({ length: 9 }, (_, i) => ({ connection: or.id, model: `m${String(i)}` })) } })).toBe('A route keeps at most 8 helper fallbacks.');
+    expect(await refused({ helpers: { primary, fallbacks: Array.from({ length: 9 }, (_, i) => ({ connection: or.id, model: `m${String(i)}` })) } })).toBe('A route keeps at most 8 worker fallbacks.');
     expect(await refused({ helpers: { primary: { connection: theirs.id, model: 'm' } } })).toBe('A route can only name model connections of this organization.');
     expect((await data<{ default: unknown }>(await call('GET', '/api/models'))).default).toBeNull();
   });

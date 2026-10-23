@@ -25,14 +25,14 @@ const session = (activity: Partial<Activity> | null, over: Partial<ClaudeSession
 });
 
 describe('Right now on Home', () => {
-  test('lists the helpers at work, newest first, and the one waiting on an approval', () => {
+  test('lists the workers at work, newest first, and the one waiting on an approval', () => {
     const view = rightNow(session({
       tasks: [task('a', 'running', NOW - 60_000), task('b', 'running', NOW - 120_000), task('c', 'completed')],
       events: [{ at: NOW - 30_000, kind: 'approval_waiting', tool: 'mcp__metro__send', taskId: 'b' }],
     }), NOW);
     expect(view.helpers.map((row) => [row.title, row.subtitle, row.dot])).toEqual([
-      ['Task a', 'Helper', 'success'],
-      ['Task b', 'Helper, waiting for you', 'white'],
+      ['Task a', 'Worker', 'success'],
+      ['Task b', 'Worker, waiting for you', 'white'],
     ]);
     expect(sinceLabel(view.helpers[0]?.since ?? null, NOW)).toBe('1 min');
   });

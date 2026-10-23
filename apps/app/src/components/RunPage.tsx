@@ -145,7 +145,7 @@ function RunBody({ project, view, id, data, now, initialWorker, onActivity, ...a
   const main = (
     <>
       <RunFacts {...agent} data={data} />
-      <RunCurrent status={data.status} now={now} disconnected={data.session.isError} onSession={() => { open('session'); }} onHelper={(helper) => { open('helper', helper); }} />
+      <RunCurrent status={data.status} now={now} disconnected={data.session.isError} onSession={() => { open('session'); }} onHelper={(helper) => { open('worker', helper); }} />
       <RunTimeline data={timeline} entries={data.entries} onSelect={(target) => { open('event', target); }}
         notice={<FeedNotice unsupported={data.unsupported} pending={data.feed.isPending} error={data.feed.error} updatedAt={data.feed.dataUpdatedAt} catchingUp={data.feedData?.hasMore === true} />} />
     </>

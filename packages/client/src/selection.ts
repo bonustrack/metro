@@ -51,7 +51,7 @@ export type Selection =
   | { kind: 'access-keys'; project: string }
   | { kind: 'agent-activity'; project: string };
 
-export type RunView = 'session' | 'about' | 'helper' | 'event';
+export type RunView = 'session' | 'about' | 'worker' | 'event';
 
 export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;

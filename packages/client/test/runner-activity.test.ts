@@ -48,15 +48,15 @@ describe('main agent and worker activity', () => {
     expect(view({ tasks: [{ ...reported, status: 'completed' }] }).workers[0]).toMatchObject({ title: reported.description, lastObservedModel: reported.lastObservedModel });
     for (const unknown of [{ ...task }, { ...task, description: null, lastObservedModel: null }, { ...task, description: '\nprivate', lastObservedModel: '<synthetic>' }]) {
       const row = view({ tasks: [unknown], model: 'main-model', lastServed: { model: 'gateway-model' } }).workers[0];
-      expect(row).toMatchObject({ title: 'Explore helper, last used Read', lastObservedModel: 'Unknown' });
+      expect(row).toMatchObject({ title: 'Explore worker, last used Read', lastObservedModel: 'Unknown' });
       expect(row?.details).toContain('Task: No description given');
       expect(row?.details).toContain('Last observed model: Unknown');
     }
   });
 
   test('a worker without a description is named by its agent and its last tool', () => {
-    expect(view({ tasks: [{ ...task, agent: 'general-purpose', lastTool: null }] }).workers[0]?.title).toBe('Helper, no description given');
-    expect(view({ tasks: [{ ...task, agent: 'worker', lastTool: 'Bash' }] }).workers[0]?.title).toBe('Worker helper, last used Bash');
+    expect(view({ tasks: [{ ...task, agent: 'general-purpose', lastTool: null }] }).workers[0]?.title).toBe('Worker, no description given');
+    expect(view({ tasks: [{ ...task, agent: 'worker', lastTool: 'Bash' }] }).workers[0]?.title).toBe('Worker, last used Bash');
   });
 
   test('unassigned worker tools never appear as main tools and older snapshots stay compatible', () => {

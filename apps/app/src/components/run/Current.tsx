@@ -61,7 +61,7 @@ interface NotesInput {
 
 function countsNote({ activity, state, observed }: NotesInput): string | null {
   if (activity === null || activity === undefined || !observed) return null;
-  return `${state === 'Fresh' ? '' : 'At last report: '}${String(activity.pending)} queued · ${String(activity.workers)} helpers · ${String(activity.approvals)} approvals`;
+  return `${state === 'Fresh' ? '' : 'At last report: '}${String(activity.pending)} queued · ${String(activity.workers)} workers · ${String(activity.approvals)} approvals`;
 }
 
 function notesOf(input: NotesInput, technical: boolean): (string | null)[] {
@@ -134,7 +134,7 @@ function WorkerControls({ filter, expanded, count, onFilter, onExpand }: WorkerC
   const label = WORKER_FILTERS.find((option) => option.value === filter)?.label ?? 'All';
   return (
     <Row gap={12} align="center">
-      <Dropdown label="Filter helper status" button={{ label: `${label} helpers`, color: 'secondary', size: 'sm' }} items={WORKER_FILTERS.map((option) => ({
+      <Dropdown label="Filter worker status" button={{ label: `${label} workers`, color: 'secondary', size: 'sm' }} items={WORKER_FILTERS.map((option) => ({
         label: option.label, selected: option.value === filter, onSelect: () => { onFilter(option.value); },
       }))} />
       {count > 3 ? (
@@ -154,15 +154,15 @@ function CurrentWorkers({ workers, observed, onHelper }: Pick<Props, 'onHelper'>
   if (workers.length === 0 && filter === 'all') return null;
   return (
     <Col gap={10} testID="current-workers">
-      <Group wide label={observed ? 'Helpers' : 'Last reported helpers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
+      <Group wide label={observed ? 'Workers' : 'Last reported workers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
         onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} />}>
         {shown.map((row) => (
           <Item key={row.id} title={row.title} subtitle={technical ? `${row.stateLabel} · ${row.tools}` : TASK_WORD[row.status]} subtitleTone={row.danger ? 'danger' : 'secondary'} detail={technical ? row.progress : undefined}
-            leading={<StateMark row={row} />} onPress={() => { onHelper(row.id); }} label={`Details for helper ${row.id}`} />
+            leading={<StateMark row={row} />} onPress={() => { onHelper(row.id); }} label={`Details for worker ${row.id}`} />
         ))}
       </Group>
       <Text size="xs" role="secondary" accessibilityLiveRegion="polite">
-        {matching.length === 0 ? 'No helpers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}, finished ones included.`}
+        {matching.length === 0 ? 'No workers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}, finished ones included.`}
       </Text>
     </Col>
   );
