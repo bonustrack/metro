@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { withoutCacheTtl, withoutTtlBeta } from './cache-ttl.js';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
+import { noteFailure, type FailureSite } from './failures.js';
 import { errorFrame, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { Connection } from './model-config.js';
 import { estimateTokens } from './subscription.js';
@@ -177,7 +178,7 @@ function eventTypeOf(event: string): string {
   }
 }
 
-function eventFrame(message: EventStreamMessage): string {
+function eventFrame(message: EventStreamMessage, site: FailureSite): string {
   if (message.headers[':message-type'] === 'event') {
     const parsed = JSON.parse(message.payload.toString('utf8')) as { bytes?: unknown };
     if (typeof parsed.bytes !== 'string') return '';
@@ -185,14 +186,16 @@ function eventFrame(message: EventStreamMessage): string {
     return `event: ${eventTypeOf(event)}\ndata: ${event}\n\n`;
   }
   const errorType = message.headers[':exception-type'] ?? message.headers[':error-code'] ?? null;
-  return errorFrame(errorKind(500, errorType), upstreamMessage(message.payload.toString('utf8'), 'Bedrock stream error'));
+  const text = upstreamMessage(message.payload.toString('utf8'), 'Bedrock stream error');
+  noteFailure(site, { code: errorType ?? '', message: text }, 'gateway: the provider sent an error in the middle of its stream');
+  return errorFrame(errorKind(500, errorType), text);
 }
 
-function relayStream(upstream: Response, res: ServerResponse, watch: Watch, key: string): Promise<void> {
+function relayStream(upstream: Response, res: ServerResponse, watch: Watch, key: string, site: FailureSite): Promise<void> {
   const decoder = new EventStreamDecoder();
   return relayFrames(upstream, res, watch, key, {
     push: (chunk, emit) => {
-      for (const message of decoder.push(Buffer.from(chunk))) emit(eventFrame(message));
+      for (const message of decoder.push(Buffer.from(chunk))) emit(eventFrame(message, site));
     },
     close: () => '',
     idle: (message) => errorFrame('api_error', message),
@@ -218,7 +221,7 @@ export async function bedrockMessages(
     return;
   }
   if (rewritten.stream) {
-    await relayStream(upstream, res, up.watch, up.settings.id);
+    await relayStream(upstream, res, up.watch, up.settings.id, { connection: up.settings.label, model });
     return;
   }
   const text = await upstream.text();

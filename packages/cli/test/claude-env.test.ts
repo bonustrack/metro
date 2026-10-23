@@ -16,6 +16,12 @@ describe('inference goes through the daemon gateway', () => {
     expect(env.PATH).toBe('/usr/bin');
   });
 
+  test("Claude Code's gateway hint headers are on, so the gateway can tell a compaction apart, unless the user set them", () => {
+    expect(gatewayEnv(base, 'mk_secret', 8420).CLAUDE_CODE_GATEWAY_HINT_HEADERS).toBe('1');
+    expect(gatewayEnv({ ...base, CLAUDE_CODE_GATEWAY_HINT_HEADERS: '0' }, 'mk_secret', 8420).CLAUDE_CODE_GATEWAY_HINT_HEADERS).toBe('0');
+    expect(gatewayEnv(base, null, 8420).CLAUDE_CODE_GATEWAY_HINT_HEADERS).toBeUndefined();
+  });
+
   test('an existing custom header line is kept in front of ours', () => {
     const env = gatewayEnv({ ...base, ANTHROPIC_CUSTOM_HEADERS: 'x-team: a' }, 'mk_secret', 8420);
     expect(env.ANTHROPIC_CUSTOM_HEADERS).toBe('x-team: a\nx-metro-key: mk_secret');

@@ -12,6 +12,7 @@ const RM_PROMPT_OFF = 'CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT';
 const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 const CACHE_TTLS = ['CLAUDE_CODE_PROMPT_CACHE_TTL', 'CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL'];
 const LONG_CACHE = '1h';
+const HINT_HEADERS = 'CLAUDE_CODE_GATEWAY_HINT_HEADERS';
 
 export const AGENT_VIEW_OFF = 'CLAUDE_CODE_DISABLE_AGENT_VIEW';
 export const NO_UPDATES = { DISABLE_AUTOUPDATER: '1' } as const;
@@ -32,6 +33,7 @@ export function gatewayEnv(base: NodeJS.ProcessEnv, agentKey: string | null, por
     ANTHROPIC_BASE_URL: `http://127.0.0.1:${String(port)}/gateway`,
     ANTHROPIC_CUSTOM_HEADERS: own === '' ? mine : `${own}\n${mine}`,
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: '1',
+    [HINT_HEADERS]: set(base, HINT_HEADERS) ? base[HINT_HEADERS] : '1',
   };
 }
 

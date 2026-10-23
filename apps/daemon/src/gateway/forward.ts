@@ -1,4 +1,5 @@
 import type { IncomingMessage, OutgoingHttpHeader, OutgoingHttpHeaders, ServerResponse } from 'node:http';
+import { StreamErrors, type FailureSite } from './failures.js';
 import { UsageScanner } from './usage.js';
 
 export class GatewayError extends Error {
@@ -156,6 +157,7 @@ export interface PipeOptions {
   keepalive?: boolean;
   ownCredential?: boolean;
   scanner?: UsageScanner;
+  site?: FailureSite;
 }
 
 function openResponse(upstream: Response, res: ServerResponse, opts: PipeOptions): boolean {
@@ -167,14 +169,27 @@ function openResponse(upstream: Response, res: ServerResponse, opts: PipeOptions
   return (upstream.headers.get('content-type') ?? '').startsWith('text/event-stream');
 }
 
-async function pump(body: ReadableStream<Uint8Array>, res: ServerResponse, watch: Watch, scanner?: UsageScanner): Promise<void> {
+type Tap = (chunk: Uint8Array) => void;
+
+function tapOf(opts: PipeOptions, streaming: boolean): Tap | null {
+  const scanner = opts.scanner;
+  const errors = streaming && opts.site !== undefined ? new StreamErrors(opts.site) : null;
+  if (scanner === undefined && errors === null) return null;
+  const decoder = new TextDecoder();
+  return (chunk) => {
+    const text = decoder.decode(chunk, { stream: true });
+    scanner?.feed(text);
+    errors?.feed(text);
+  };
+}
+
+async function pump(body: ReadableStream<Uint8Array>, res: ServerResponse, watch: Watch, tap: Tap | null): Promise<void> {
   const reader = body.getReader();
-  const decoder = scanner === undefined ? null : new TextDecoder();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) return;
     watch.touch();
-    if (decoder !== null) scanner?.feed(decoder.decode(value, { stream: true }));
+    tap?.(value);
     res.write(value);
   }
 }
@@ -188,7 +203,7 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
   }
   const ping = opts.keepalive === true && streaming ? setInterval(() => res.write(PING_FRAME), PING_MS) : null;
   try {
-    await pump(body, res, watch, opts.scanner);
+    await pump(body, res, watch, tapOf(opts, streaming));
   } catch (err) {
     if (!watch.idle()) throw err;
     if (streaming) res.write(errorFrame('api_error', idleMessage(watch.ms)));

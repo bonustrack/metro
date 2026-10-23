@@ -610,6 +610,11 @@ describe('the Codex route', () => {
     expect(last?.headers).toMatchObject({ authorization: 'Bearer at-2', 'chatgpt-account-id': 'acct_1', originator: 'codex_cli_rs', 'openai-beta': 'responses=experimental', 'session-id': 'sess-2' });
     expect(String(last?.headers['user-agent'])).toMatch(/^codex_cli_rs\/\d+\.\d+\.\d+ \(.+\) metro$/);
     expect((JSON.parse(last?.body ?? '{}') as { model: string; prompt_cache_key: string })).toMatchObject({ model: 'gpt-5.4', prompt_cache_key: 'sess-2' });
+    await (await post('/gateway/v1/messages', message('gpt-5.4', true), { 'x-claude-code-session-id': 'sess-2', 'x-claude-code-agent-id': 'a1b2c3' })).text();
+    const worker = codexBackend.seen.at(-1);
+    const workerKey = (JSON.parse(worker?.body ?? '{}') as { prompt_cache_key: string }).prompt_cache_key;
+    expect(workerKey).not.toBe('sess-2');
+    expect(worker?.headers['session-id']).toBe(workerKey);
   });
 
   test('a code sign-in announces the latest Codex CLI on npm, learned in the background, and an override wins', async () => {

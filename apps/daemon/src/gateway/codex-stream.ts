@@ -1,6 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { encodeSignature } from './codex-translate.js';
 import { errorFrame } from './forward.js';
+import type { Failure } from './failures.js';
 import { frame, messageEnd, messageStart, type Usage } from './frames.js';
 import { stringOf } from '@metro-labs/http/api-http';
 
@@ -13,6 +14,7 @@ interface Block {
 }
 
 const responseOf = (data: Item): Item => (isRecord(data.response) ? data.response : {});
+const reasonOf = (response: Item): string => (isRecord(response.incomplete_details) ? stringOf(response.incomplete_details.reason) : '');
 const itemOf = (data: Item): Item => (isRecord(data.item) ? data.item : {});
 
 const PLAN_LIMIT = 'subscription_sharing_usage_limit_exceeded';
@@ -53,6 +55,7 @@ export class CodexEventTranslator {
   private done = false;
   private readonly model: string;
   private readonly restore: (name: string) => string;
+  private readonly report: (failure: Failure) => void;
   private readonly handlers: Record<string, (data: Item) => string> = {
     'response.created': (d) => this.start(responseOf(d)),
     'response.output_item.added': (d) => this.start({}) + this.itemAdded(itemOf(d)),
@@ -67,9 +70,10 @@ export class CodexEventTranslator {
     error: (d) => this.failed({ error: d }, 'Codex stream error'),
   };
 
-  constructor(model: string, restore: (name: string) => string = (name) => name) {
+  constructor(model: string, restore: (name: string) => string = (name) => name, report: (failure: Failure) => void = () => undefined) {
     this.model = model;
     this.restore = restore;
+    this.report = report;
   }
 
   get finished(): boolean {
@@ -154,16 +158,18 @@ export class CodexEventTranslator {
   }
 
   private incomplete(response: Item): string {
-    const details = isRecord(response.incomplete_details) ? response.incomplete_details : {};
-    if (details.reason === 'max_output_tokens') return this.start(response) + this.completed(response, 'max_tokens');
-    return this.failed(response, `Codex left the response incomplete (${stringOf(details.reason) || 'no reason given'})`);
+    const reason = reasonOf(response);
+    if (reason === 'max_output_tokens') return this.start(response) + this.completed(response, 'max_tokens');
+    return this.failed(response, `Codex left the response incomplete (${reason || 'no reason given'})`);
   }
 
   private failed(response: Item, fallback: string): string {
     this.done = true;
     const error = isRecord(response.error) ? response.error : {};
     const code = stringOf(error.code);
-    return errorFrame(errorKind(code), withUsageLink(code, stringOf(error.message) || fallback));
+    const message = stringOf(error.message) || fallback;
+    this.report({ code: code || reasonOf(response), message });
+    return errorFrame(errorKind(code), withUsageLink(code, message));
   }
 
   push(event: string, data: Item): string {
@@ -174,6 +180,7 @@ export class CodexEventTranslator {
   close(message = 'Codex ended the stream before completing the response'): string {
     if (this.done) return '';
     this.done = true;
+    this.report({ code: '', message });
     return errorFrame('api_error', message);
   }
 }

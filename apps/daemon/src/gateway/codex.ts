@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { arch, platform, release } from 'node:os';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -7,6 +7,8 @@ import { stringOf } from '@metro-labs/http/api-http';
 import { codexVersion, learnCodexVersion } from './codex-version.js';
 import { CodexEventTranslator, withUsageLink } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
+import { agentIdOf } from './effort.js';
+import { noteFailure, type Failure, type FailureSite } from './failures.js';
 import { GatewayError, providerStatus, sendError, upstreamMessage, type Watch } from './forward.js';
 import { parseEvent, SseParser, type SseEvent } from './frames.js';
 import { CODEX_SIGN_IN, type CodexAccess, type Connection } from './model-config.js';
@@ -46,24 +48,30 @@ function headersFor(access: CodexAccess, sessionId: string): Record<string, stri
 interface Call {
   body: Record<string, unknown>;
   model: string;
-  sessionId: string;
+  threadKey: string;
   watch: Watch;
   deps: CodexDeps;
   names: ToolNames;
 }
 
+function threadKey(req: IncomingMessage): string {
+  const session = sessionHeader(req) || randomUUID();
+  const agent = agentIdOf(req);
+  return agent === '' ? session : createHash('sha256').update(`${session}\n${agent}`).digest('base64url');
+}
+
 function send(call: Call, access: CodexAccess): Promise<Response> {
-  const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.sessionId, names: call.names });
+  const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names });
   return (call.deps.fetchImpl ?? fetch)(`${baseFor(access, call.deps)}/responses`, {
     method: 'POST',
-    headers: headersFor(access, call.sessionId),
+    headers: headersFor(access, call.threadKey),
     body: JSON.stringify(request),
     signal: call.watch.signal,
     redirect: 'manual',
   });
 }
 
-function refusalOf(text: string, status: number): string {
+function refusalOf(text: string, status: number): Failure {
   let code = '';
   try {
     const parsed: unknown = JSON.parse(text);
@@ -71,7 +79,7 @@ function refusalOf(text: string, status: number): string {
   } catch {
     code = '';
   }
-  return withUsageLink(code, upstreamMessage(text, `OpenAI answered ${String(status)}`));
+  return { code, message: upstreamMessage(text, `OpenAI answered ${String(status)}`), status };
 }
 
 let learning: Promise<unknown> | null = null;
@@ -99,15 +107,23 @@ async function reach(call: Call, conn: Connection): Promise<Response> {
 }
 
 export async function codexMessages(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, model: string, conn: Connection, deps: CodexDeps, watch: Watch): Promise<void> {
-  const call: Call = { body, model, sessionId: sessionHeader(req) || randomUUID(), watch, deps, names: new ToolNames() };
+  const call: Call = { body, model, threadKey: threadKey(req), watch, deps, names: new ToolNames() };
+  const site: FailureSite = { connection: conn.label, model };
   const upstream = await reach(call, conn);
   noteUsageHeaders('codex', conn.id, upstream.headers);
   if (!upstream.ok) {
-    const text = await upstream.text();
-    sendError(res, providerStatus(upstream.status), errorKind(upstream.status, INVALID), refusalOf(text, upstream.status));
+    const refusal = refusalOf(await upstream.text(), upstream.status);
+    noteFailure(site, refusal, 'gateway: Codex refused the request');
+    sendError(res, providerStatus(upstream.status), errorKind(upstream.status, INVALID), withUsageLink(refusal.code, refusal.message));
     return;
   }
-  const translator = new CodexEventTranslator(model, (name) => call.names.restore(name));
+  const translator = new CodexEventTranslator(
+    model,
+    (name) => call.names.restore(name),
+    (failure) => {
+      noteFailure(site, failure, 'gateway: Codex did not complete the response');
+    },
+  );
   const onEvent = (raw: SseEvent): string => {
     const parsed = parseEvent(raw);
     return parsed === null ? '' : translator.push(parsed.event, parsed.data);
