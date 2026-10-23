@@ -8,7 +8,8 @@ import { Icon } from '../Icon.js';
 import { Item } from '../ui/Item.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
-import { namesList, peopleOf, approverNames } from '../../lib/channel-people.js';
+import { peopleOf, approverNames } from '../../lib/channel-people.js';
+import { namesList } from '../../lib/rule-sentence.js';
 import { useBoxQuery, useModeQuery } from '../../lib/queries.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 

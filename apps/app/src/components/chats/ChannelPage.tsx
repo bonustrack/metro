@@ -15,6 +15,7 @@ import { StateBlock } from '../ui/StateBlock.js';
 import { type ChannelProps } from './channel-props.js';
 import { ChannelPeople } from './ChannelPeople.js';
 import { ChannelConnection } from './ChannelConnection.js';
+import { ChannelSummary } from './ChannelSummary.js';
 import { PairAgain } from './PairAgain.js';
 import { ChannelRules } from './ChannelRules.js';
 import { channelTitle } from './ChannelRow.js';
@@ -92,6 +93,7 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       subtitle={channelLine(stationLabel(station), row.allowlist)}
       leading={<StationIcon station={station} size={AVATAR_SIZE.header} />}
       action={<ChannelMenu project={project} agentId={agentId} found={found} onPairAgain={canPair ? () => { setPairing(row.status?.state === 'logged_out' ? 'fix' : 'replace'); } : null} />}
+      summary={<ChannelSummary agentId={agentId} found={found} view={view} />}
     >
       <ChannelConnection found={found} view={view} onPairAgain={() => { setPairing('fix'); }} />
       {pairing === null || id === null ? null : (

@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-10-23: Channel and connector pages say their setup in words
+
+Less, on a WhatsApp channel page: "we should show after the hero a human text description of the channel permissions. It should be human readable and include all the options that are set up, so someone can read a small sentence and understand how it's set up." Then: "We should do the same for the agent connector page." Both pages now open with one paragraph in large text, built from the settings the page already reads, for example "Only Marco, Mustafa and 9 others can write to Lisa here, and approval questions go to Marco or Mustafa in a private chat. Lisa can read and send freely, but must ask before deleting." Names come from the People list's own lookups, and an id without a name is only counted, so a WhatsApp `@lid` never shows. Page only.
+
 ## 2026-10-23: Connector calls in numbers, and the last 10 calls
 
 Less: "We should show on the agents page a chart with number of tool calls, with ability to break down by connector. We should also show % of failed tool calls etc." Then, the same day: "Also show only last 10 tool calls on that page and agent page."

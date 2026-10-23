@@ -1,6 +1,7 @@
 import { allowsEveryone, EVERYONE } from '@metro-labs/client/api/accounts';
 import { type RecentSender } from '@metro-labs/client/api/attach';
 import { chatLink, type SenderCard } from '@metro-labs/client/api/senders';
+import { countWords } from './rule-sentence.js';
 
 const NO_CHAT_APPROVALS = new Set(['outlook', 'gmail']);
 
@@ -73,26 +74,19 @@ export const peopleOf = (input: PeopleInput): Person[] => input.entries.map((id)
 
 export const suggestionsOf = (seen: RecentSender[], entries: string[]): RecentSender[] => seen.filter((sender) => !listed(entries, sender.id));
 
-const count = (n: number, one: string, many: string): string => `${String(n)} ${n === 1 ? one : many}`;
-
 export function writersSummary(allowlist: string[] | null): string | null {
   if (allowlist === null) return null;
   if (allowsEveryone(allowlist)) return 'Anyone';
   const entries = entriesOf(allowlist);
   const domains = entries.filter(isDomain);
   const people = entries.length - domains.length;
-  const parts = [people === 0 ? '' : count(people, 'person', 'people'), domains.length === 1 ? (domains[0] ?? '') : domains.length > 1 ? count(domains.length, 'domain', 'domains') : ''];
+  const parts = [people === 0 ? '' : countWords(people, 'person', 'people'), domains.length === 1 ? (domains[0] ?? '') : domains.length > 1 ? countWords(domains.length, 'domain', 'domains') : ''];
   return parts.filter((part) => part !== '').join(', ');
 }
 
 export function channelLine(label: string, allowlist: string[] | null): string {
   const who = writersSummary(allowlist);
   return who === null || who === '' ? label : `${label} · ${who} can write`;
-}
-
-export function namesList(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1] ?? ''}`;
 }
 
 export const approverNames = (people: Person[]): string[] => people.filter((person) => person.approves === true).map((person) => person.title);

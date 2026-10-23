@@ -19,6 +19,7 @@ interface AgentDeepPageProps {
   lead?: string;
   leading?: ReactNode;
   action?: ReactNode;
+  summary?: ReactNode;
   children?: ReactNode;
 }
 
@@ -40,7 +41,7 @@ function Lead({ text }: { text: string | undefined }): ReactNode {
   );
 }
 
-export function AgentDeepPage({ project, tab, trail, title, subtitle, lead, leading, action, children }: AgentDeepPageProps): ReactNode {
+export function AgentDeepPage({ project, tab, trail, title, subtitle, lead, leading, action, summary, children }: AgentDeepPageProps): ReactNode {
   const items = useTrail(project, tab, trail);
   return (
     <Tabbed.Provider value>
@@ -51,6 +52,7 @@ export function AgentDeepPage({ project, tab, trail, title, subtitle, lead, lead
           <Col gap={6}>
             <PageHeader crumbs={items} title={title} subtitle={subtitle} leading={leading} action={action} />
             <Lead text={lead} />
+            {summary}
           </Col>
         )}
         {children}

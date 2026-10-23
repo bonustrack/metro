@@ -1,6 +1,12 @@
+import type { ConnectorTool } from '@metro-labs/client/api/connectors';
+import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { groupAccess, stricterAccess, type ToolGroup, type ToolPolicy } from '@metro-labs/client/api/policy';
-import { CHOICE_WORD, choiceOfAccess, type PermissionChoice } from './permission-words.js';
-import { TOOL_GROUPS, isChanged, type ExplorerTool } from './connector-rules.js';
+import { orgConnectorStatus } from '../components/org-connector-status.js';
+import { CHOICE_WORD, choiceOfAccess, type PermissionChoice, type PermissionGroup } from './permission-words.js';
+import { TOOL_GROUPS, explorerTools, isChanged, toolChoice, type ExplorerTool } from './connector-rules.js';
+import {
+  asksAnywhere, countWords, ownRules, ownRulesSentence, paragraph, rulesClause, toolRulesText, unanimous, type GroupBases, type GroupWords, type RuledTool,
+} from './rule-sentence.js';
 
 export interface SummaryPart {
   label: string;
@@ -59,4 +65,63 @@ export function effectiveRule(organization: ToolPolicy, own: ToolPolicy): Effect
   return { parts, tools };
 }
 
-export const toolRulesText = (count: number): string => (count === 1 ? '1 tool has its own rule' : `${String(count)} tools have their own rule`);
+export interface ConnectorFacts {
+  agent: string;
+  agentId: string;
+  connector: OrgConnector;
+  tools: readonly ConnectorTool[] | null;
+  remote: boolean;
+}
+
+const CONNECTOR_WORDS: Record<PermissionGroup, GroupWords> = {
+  read: { can: 'look things up', doing: 'looking things up' },
+  write: { can: 'make changes', doing: 'making changes' },
+  delete: { can: 'delete', doing: 'deleting' },
+};
+
+const permissionGroup = (tool: ExplorerTool): PermissionGroup => (tool.group === 'read' ? 'read' : tool.destructive ? 'delete' : 'write');
+
+function basesOf(organization: ToolPolicy, own: ToolPolicy, tools: readonly ExplorerTool[] | null): GroupBases {
+  const stored = (group: ToolGroup): PermissionChoice => choiceOfAccess(stricterAccess(groupAccess(organization, group), groupAccess(own, group)));
+  if (tools === null) return { read: stored('read'), write: stored('write') };
+  const choices = (group: PermissionGroup): PermissionChoice[] => tools.filter((tool) => permissionGroup(tool) === group).map((tool) => toolChoice({ policy: own, organization }, tool));
+  const [read, write, del] = [choices('read'), choices('write'), choices('delete')];
+  const writeBase = unanimous(write) ?? stored('write');
+  return {
+    ...(read.length === 0 ? {} : { read: unanimous(read) ?? stored('read') }),
+    ...(write.length === 0 ? {} : { write: writeBase }),
+    ...(del.length === 0 ? {} : { delete: unanimous(del) ?? writeBase }),
+  };
+}
+
+function availability({ agent, connector, tools }: ConnectorFacts): string {
+  const held = `${agent} has the organization's ${connector.name} connector`;
+  if (orgConnectorStatus(connector).bad) return `${held}, but it is signed out, so ${agent} cannot use it until an admin signs in again`;
+  if (tools === null) return held;
+  return tools.length === 0 ? `${held}, but the service lists no tools yet` : `${held}, with ${countWords(tools.length, 'tool', 'tools')}`;
+}
+
+const policyAsks = (policies: readonly ToolPolicy[]): boolean => policies.some((policy) => Object.values(policy.tools ?? {}).includes('ask'));
+
+const approvalsLine = (agent: string, remote: boolean): string =>
+  remote ? `approval questions only show on ${agent}'s page on metro.box` : "approval questions go to an approver's private chat and to metro.box";
+
+export function connectorSummary(facts: ConnectorFacts): string {
+  const { agent, agentId, connector, remote } = facts;
+  const held = connector.agents.find((row) => row.id === agentId);
+  if (held === undefined) return paragraph([`${agent} does not have the organization's ${connector.name} connector`]);
+  const organization = connector.policy;
+  const own = held.policy;
+  const tools = facts.tools === null ? null : explorerTools(facts.tools, [own, organization]);
+  const bases = basesOf(organization, own, tools);
+  const ruled = tools === null ? [] : ownRules(tools.map((tool): RuledTool => ({ label: tool.title, group: permissionGroup(tool), choice: toolChoice({ policy: own, organization }, tool) })), bases);
+  const counted = effectiveRule(organization, own).tools;
+  const clause = rulesClause(bases, CONNECTOR_WORDS);
+  const asks = asksAnywhere(bases, ruled) || (tools === null && policyAsks([organization, own]));
+  return paragraph([
+    availability(facts),
+    clause === null ? null : `${agent} ${clause}`,
+    tools === null ? (counted === 0 ? null : toolRulesText(counted)) : ownRulesSentence(ruled),
+    asks ? approvalsLine(agent, remote) : null,
+  ]);
+}

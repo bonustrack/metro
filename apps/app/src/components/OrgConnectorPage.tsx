@@ -1,15 +1,17 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { completeOrgConnectorSignIn, setOrgConnectorPolicy, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import type { ToolPolicy } from '@metro-labs/client/api/policy';
-import { serverLabel } from '@metro-labs/client/api/servers';
+import { isRemote, serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import type { ConnectorTab } from '@metro-labs/client/selection';
 import { AgentFace } from './connectors/AgentFace.js';
 import { AgentRules, ResetRules, agentSubtitle } from './connectors/AgentRules.js';
 import { useAddAgent, ConnectorAgents } from './connectors/ConnectorAgents.js';
 import { ConnectorHeader, RefreshTools, type ConnectorTabId } from './connectors/ConnectorHeader.js';
+import { ConnectorSummary } from './connectors/ConnectorSummary.js';
 import { ConnectorSettings } from './connectors/ConnectorSettings.js';
 import { ToolExplorer, type NamedPolicy } from './connectors/ToolExplorer.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -109,8 +111,11 @@ function AgentPage({ connector, agentId, admin }: { connector: OrgConnector; age
   ];
   return (
     <Groups>
-      <PageHeader crumbs={crumbs} title={name} subtitle={agentSubtitle(connector, name)} leading={server === undefined ? undefined : <AgentFace server={server} dot={row?.line.dot ?? null} size={AVATAR_SIZE.header} />}
-        action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined} />
+      <Col>
+        <PageHeader crumbs={crumbs} title={name} subtitle={agentSubtitle(connector, name)} leading={server === undefined ? undefined : <AgentFace server={server} dot={row?.line.dot ?? null} size={AVATAR_SIZE.header} />}
+          action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined} />
+        <ConnectorSummary connector={connector} agentId={agentId} name={name} remote={server !== undefined && isRemote(server)} />
+      </Col>
       <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} onRemoved={() => { go({ kind: 'org-connector', id: connector.id, tab: 'agents' }); }} />
     </Groups>
   );
