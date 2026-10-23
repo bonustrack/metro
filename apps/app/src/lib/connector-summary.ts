@@ -5,7 +5,7 @@ import { orgConnectorStatus } from '../components/org-connector-status.js';
 import { CHOICE_WORD, choiceOfAccess, type PermissionChoice, type PermissionGroup } from './permission-words.js';
 import { TOOL_GROUPS, explorerTools, isChanged, toolChoice, type ExplorerTool } from './connector-rules.js';
 import {
-  asksAnywhere, countWords, ownRules, ownRulesSentence, paragraph, rulesClause, toolRulesText, unanimous, type GroupBases, type GroupWords, type RuledTool,
+  asksAnywhere, countWords, ownRules, ownRulesSentence, paragraph, rulesClause, txt, unanimous, val, type GroupBases, type GroupWords, type RuledTool, type Segment,
 } from './rule-sentence.js';
 
 export interface SummaryPart {
@@ -74,9 +74,9 @@ export interface ConnectorFacts {
 }
 
 const CONNECTOR_WORDS: Record<PermissionGroup, GroupWords> = {
-  read: { can: 'look things up', doing: 'looking things up' },
-  write: { can: 'make changes', doing: 'making changes' },
-  delete: { can: 'delete', doing: 'deleting' },
+  read: { does: 'looks things up', ask: 'lookups', cannot: 'look things up' },
+  write: { does: 'makes changes', ask: 'changes', cannot: 'make changes' },
+  delete: { does: 'deletes', ask: 'deletions', cannot: 'delete' },
 };
 
 const permissionGroup = (tool: ExplorerTool): PermissionGroup => (tool.group === 'read' ? 'read' : tool.destructive ? 'delete' : 'write');
@@ -94,34 +94,34 @@ function basesOf(organization: ToolPolicy, own: ToolPolicy, tools: readonly Expl
   };
 }
 
-function availability({ agent, connector, tools }: ConnectorFacts): string {
-  const held = `${agent} has the organization's ${connector.name} connector`;
-  if (orgConnectorStatus(connector).bad) return `${held}, but it is signed out, so ${agent} cannot use it until an admin signs in again`;
-  if (tools === null) return held;
-  return tools.length === 0 ? `${held}, but the service lists no tools yet` : `${held}, with ${countWords(tools.length, 'tool', 'tools')}`;
+function availability({ agent, connector, tools }: ConnectorFacts): Segment[] | null {
+  if (orgConnectorStatus(connector).bad) return [val('signed out'), txt(': '), val(agent), txt(' cannot use '), val(connector.name), txt(' until an admin signs in again')];
+  if (tools === null) return null;
+  return tools.length === 0 ? [txt('no tools listed yet')] : [val(countWords(tools.length, 'tool', 'tools'))];
 }
 
 const policyAsks = (policies: readonly ToolPolicy[]): boolean => policies.some((policy) => Object.values(policy.tools ?? {}).includes('ask'));
 
-const approvalsLine = (agent: string, remote: boolean): string =>
-  remote ? `approval questions only show on ${agent}'s page on metro.box` : "approval questions go to an approver's private chat and to metro.box";
+const approvalsLine = (agent: string, remote: boolean): Segment[] =>
+  remote ? [txt('approvals only on '), val(`${agent}'s page`), txt(' on '), val('metro.box')] : [txt('approvals in a '), val('private chat'), txt(' and on '), val('metro.box')];
 
-export function connectorSummary(facts: ConnectorFacts): string {
+const countedRules = (count: number): Segment[] | null => (count === 0 ? null : [val(countWords(count, 'tool', 'tools')), txt(count === 1 ? ' has its own rule' : ' have their own rule')]);
+
+export function connectorSummary(facts: ConnectorFacts): Segment[] {
   const { agent, agentId, connector, remote } = facts;
   const held = connector.agents.find((row) => row.id === agentId);
-  if (held === undefined) return paragraph([`${agent} does not have the organization's ${connector.name} connector`]);
+  if (held === undefined) return paragraph([[val(agent), txt(' does not have '), val(connector.name)]]);
   const organization = connector.policy;
   const own = held.policy;
   const tools = facts.tools === null ? null : explorerTools(facts.tools, [own, organization]);
   const bases = basesOf(organization, own, tools);
   const ruled = tools === null ? [] : ownRules(tools.map((tool): RuledTool => ({ label: tool.title, group: permissionGroup(tool), choice: toolChoice({ policy: own, organization }, tool) })), bases);
-  const counted = effectiveRule(organization, own).tools;
   const clause = rulesClause(bases, CONNECTOR_WORDS);
   const asks = asksAnywhere(bases, ruled) || (tools === null && policyAsks([organization, own]));
   return paragraph([
     availability(facts),
-    clause === null ? null : `${agent} ${clause}`,
-    tools === null ? (counted === 0 ? null : toolRulesText(counted)) : ownRulesSentence(ruled),
+    clause === null ? null : [val(agent), txt(' '), ...clause],
+    tools === null ? countedRules(effectiveRule(organization, own).tools) : ownRulesSentence(ruled),
     asks ? approvalsLine(agent, remote) : null,
   ]);
 }

@@ -13,7 +13,7 @@ export function ChannelSummary({ agentId, found, view }: Pick<ChannelProps, 'age
   const { station, row } = found;
   const entries = entriesOf(row.allowlist);
   const cards = useSenderCards(agentId, station, row.id ?? '', entries);
-  const text = channelSummary({
+  const segments = channelSummary({
     agent,
     station,
     label: stationLabel(station),
@@ -25,5 +25,5 @@ export function ChannelSummary({ agentId, found, view }: Pick<ChannelProps, 'age
     pairAgain: view.pairAgain.includes(station),
     readOnly: station === 'gmail' && view.features.includes(GMAIL_MANAGED) && row.sendEnabled === false,
   });
-  return <Summary text={text} />;
+  return <Summary segments={segments} />;
 }
