@@ -39,7 +39,7 @@ const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
 const CLAUDE_PATH = new RegExp(`^#?/(${HOST})/(?:harness|claude)$`);
 const SKILLS_PATH = new RegExp(`^#?/(${HOST})/skills$`);
-const SECRETS_PATH = new RegExp(`^#?/(${HOST})/secrets$`);
+const SECRETS_PATH = new RegExp(`^#?/(${HOST})/secrets(?:/recent)?$`);
 const VOICE_PATH = new RegExp(`^#?/(${HOST})/voice$`);
 const SCHEDULED_PATH = new RegExp(`^#?/(${HOST})/scheduled$`);
 const SCHEDULED_JOB_PATH = new RegExp(`^#?/(${HOST})/scheduled/([^/]+)$`);
@@ -56,7 +56,6 @@ const BACKUP_PATH = new RegExp(`^#?/(${HOST})/backup$`);
 const PROFILE_PATH = new RegExp(`^#?/(${HOST})/profile$`);
 const LAUNCH_LOG_PATH = new RegExp(`^#?/(${HOST})/launch-log$`);
 const SKILLS_GITHUB_PATH = new RegExp(`^#?/(${HOST})/skills/github$`);
-const SECRETS_RECENT_PATH = new RegExp(`^#?/(${HOST})/secrets/recent$`);
 const ACCESS_KEYS_PATH = new RegExp(`^#?/(${HOST})/keys$`);
 const AGENT_ACTIVITY_PATH = new RegExp(`^#?/(${HOST})/activity$`);
 const ORG_MODEL_ADD_PATH = /^#?\/organization\/models\/add(?:\/([a-z]{1,32}))?$/;
@@ -139,7 +138,7 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [CLAUDE_PATH, (project) => ({ kind: 'claude', project })],
   [SKILLS_PATH, (project) => ({ kind: 'skills', project })],
   [SCHEDULED_PATH, (project) => ({ kind: 'scheduled', project })],
-  [SECRETS_PATH, (project) => ({ kind: 'secrets', project })],
+  [SECRETS_PATH, (project) => ({ kind: 'agent-settings', project })],
   [VOICE_PATH, (project) => ({ kind: 'voice', project })],
   [SCHEDULED_JOB_PATH, (project, id) => ({ kind: 'scheduled-job', project, id: decodeURIComponent(id) })],
   [SKILL_PATH, (project, id) => ({ kind: 'skill', project, id: decodeURIComponent(id) })],
@@ -155,7 +154,6 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [PROFILE_PATH, (project) => ({ kind: 'agent-profile', project })],
   [LAUNCH_LOG_PATH, (project) => ({ kind: 'launch-log', project })],
   [SKILLS_GITHUB_PATH, (project) => ({ kind: 'skills-github', project })],
-  [SECRETS_RECENT_PATH, (project) => ({ kind: 'secrets-recent', project })],
   [ACCESS_KEYS_PATH, (project) => ({ kind: 'access-keys', project })],
   [AGENT_ACTIVITY_PATH, (project) => ({ kind: 'agent-activity', project })],
 ];
@@ -263,7 +261,6 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   claude: () => '/harness',
   skills: () => '/skills',
   scheduled: () => '/scheduled',
-  secrets: () => '/secrets',
   voice: () => '/voice',
   'scheduled-job': (s) => `/scheduled/${s.kind === 'scheduled-job' ? encodeURIComponent(s.id) : ''}`,
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
@@ -284,7 +281,6 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   'agent-profile': () => '/profile',
   'launch-log': () => '/launch-log',
   'skills-github': () => '/skills/github',
-  'secrets-recent': () => '/secrets/recent',
   'access-keys': () => '/keys',
   'agent-activity': () => '/activity',
 };

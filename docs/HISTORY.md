@@ -11,6 +11,17 @@ Less: "We should show on the agents page a chart with number of tool calls, with
 
 Rollout: api.metro.box and the page, no migration, no box change and no Metro release; mcp.metro.box redeploys only because `packages/connectors` changed (the feed's connector filter), with no change in what it does. Against an api without the stats route the section is hidden and the feed works as before.
 
+## 2026-10-23: The secrets vault is gone
+
+Less asked to remove the Secret keys feature ("Secret keys · Protect secret keys · Off: the agent cannot use the keys below. · Add a key · Rosa sees a stand-in. The real key goes only to its website."), and then: "There isn't any server using the secret keys feature."
+
+- **What it was** (beta.197, 2026-09-25, the day an agent sent mail with the Outlook token it found on disk): Centaur's approach, one switch per box, off by default. The agent held placeholders only, iron-proxy (a Go egress proxy run as a child of the daemon) put the real value in on the way out, only toward the key's own websites, by intercepting the agent's HTTPS with a certificate authority of the box, and the helper's `METRO_AGENT` firewall chain forced the agent's traffic through it. It was never tried on a live box, and per the owner no box ever turned it on.
+- **Removed**: the daemon's `vault/` (the download, the config, the child process, the request log, the certificate authority), `/api/vault`, `METRO_VAULT_PORT`, the extra agent environment (`setAgentExtraEnv`), the scheduled jobs' settings (`agent-user/job-env.ts`: `vault.env`, the crontab block, the `11-metro-vault.conf` drop-ins), and on the page the Secret keys section of Tools, its Recent use page and the client's `api/vault`. The old addresses `#/<agent>/secrets` and `/secrets/recent` open the agent's Settings.
+- **No cleanup on boxes**, since no box had it on: there is no firewall chain, certificate trust, agent environment, crontab block or drop-in to undo. If someone added a key without turning the vault on, `<agents dir>/vault/` stays in Metro's own 700 folder, read by nothing; it can be deleted by hand.
+- **The root helper keeps its vault commands, unused** (`dropin-write` and `dropin-remove` of `11-metro-vault.conf`, `firewall-on`, `firewall-off`, `trust-ca`, `untrust-ca`, `install-nss-tools`), like `root-crontab-drop`: root installs the helper text and `HELPER_VERSION` versions it, so a change would need a root run on every box. Their tests stay while the helper has them.
+
+Rollout: a Metro release for the daemon. The page may ship first: it no longer calls `/api/vault`, and an older daemon that still answers it is harmless.
+
 ## 2026-10-23: An access key's approval stays out of the box's session
 
 Found while shipping access keys for agents with a server: a person calling a connector with an access key of a box (from their own Claude Code) and hitting Ask got the request relayed by the box's daemon to the owner's chat and page, which is right, but after the answer the daemon also posted `Approved: notion.create_page (<id>). Call tool_call again …` into the box's own agent session, which never made that call and may be confused by it.

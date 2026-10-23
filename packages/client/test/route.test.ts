@@ -45,7 +45,6 @@ describe('the first segment is the daemon', () => {
         { kind: 'memory', project, claudeProject: '-root', file: 'entities/people/less.md' },
         { kind: 'memory', project, claudeProject: '-root', file: 'entities/people' },
         { kind: 'files', project, path: '' },
-        { kind: 'secrets', project },
         { kind: 'voice', project },
         { kind: 'files', project, path: 'work/my notes/a#b.md' },
       ];
@@ -229,7 +228,6 @@ describe('pages that replaced dialogs have their own addresses', () => {
       { kind: 'agent-profile', project: agent },
       { kind: 'launch-log', project: agent },
       { kind: 'skills-github', project: agent },
-      { kind: 'secrets-recent', project: agent },
       { kind: 'access-keys', project: agent },
       { kind: 'agent-activity', project: agent },
       { kind: 'run', project: agent, view: 'session' },
@@ -250,6 +248,14 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(routeSelection(`#/stage-labs/activity/${agent}`)).toEqual({ kind: 'activity', agent });
     expect(routeSelection(`#/laptop/keys`)).toEqual({ kind: 'access-keys', project: 'laptop' });
     routeSelection('#/settings');
+  });
+
+  test('the addresses of the removed Secret keys open the agent Settings', () => {
+    for (const old of ['secrets', 'secrets/recent']) {
+      const selection = routeSelection(`#/${agent}/${old}`);
+      expect(selection).toEqual({ kind: 'agent-settings', project: agent });
+      expect(routeHash(selection)).toEndWith(`/${agent}/settings`);
+    }
   });
 
   test('a run detail without what it names opens the run page', () => {
@@ -276,7 +282,6 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(on({ kind: 'add-chat', project: agent, station: 'xmtp' })).toBe('#/suzy00000001/chats');
     expect(on({ kind: 'backup', project: agent })).toBe('#/suzy00000001/settings');
     expect(on({ kind: 'skills-github', project: agent })).toBe('#/suzy00000001/skills');
-    expect(on({ kind: 'secrets-recent', project: agent })).toBe('#/suzy00000001/tools');
     expect(on({ kind: 'run', project: agent, view: 'helper', id: 'x' })).toBe('#/suzy00000001/run');
     expect(on({ kind: 'access-keys', project: agent })).toBe('#/suzy00000001');
   });

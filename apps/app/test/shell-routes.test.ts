@@ -24,7 +24,6 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/tools', 'tools', 'Tools'],
   ['/scheduled', 'tools', 'Tools'],
   ['/scheduled/cron-agent%3A1', 'tools', 'Routine'],
-  ['/secrets', 'tools', 'Tools'],
   ['/settings', 'settings', 'Settings'],
   ['/model', 'settings', 'Model'],
   ['/harness', 'settings', 'Agent SDK setup'],
@@ -35,7 +34,6 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/chats/add', 'chats', 'Add a chat'],
   ['/chats/add/telegram-bot', 'chats', 'Add a chat'],
   ['/skills/github', 'memory', 'GitHub skills'],
-  ['/secrets/recent', 'tools', 'Recent use'],
   ['/profile', 'settings', 'Profile'],
   ['/backup', 'settings', 'Backup'],
   ['/launch-log', 'settings', 'Launch log'],
@@ -59,12 +57,12 @@ describe('every page of an agent has a place under one of its five tabs', () => 
     }
   });
 
-  test('an old link to one connector, to Secrets or to Scheduled opens on the Tools tab with its target', () => {
+  test('an old link to one connector or to Scheduled opens on the Tools tab with its target', () => {
     const connector = routeSelection(`#/${AGENT}/connector/${AGENT}`);
     expect(connector).toEqual({ kind: 'tools', project: AGENT, connector: AGENT });
     expect(agentTabOf(connector.kind).id).toBe('tools');
     expect(routeHash(connector)).toEndWith(`/${AGENT}/connector/${AGENT}`);
-    for (const old of ['/secrets', '/scheduled']) expect(agentTabOf(routeSelection(`#/${AGENT}${old}`).kind).id).toBe('tools');
+    expect(agentTabOf(routeSelection(`#/${AGENT}/scheduled`).kind).id).toBe('tools');
     expect(routeSelection(`#/${AGENT}/scheduled/timer%3Amemory-daily.timer`)).toEqual({ kind: 'scheduled-job', project: AGENT, id: 'timer:memory-daily.timer' });
   });
 
@@ -105,7 +103,6 @@ describe('every page of an agent has a place under one of its five tabs', () => 
       { kind: 'agent-profile', project: AGENT },
       { kind: 'launch-log', project: AGENT },
       { kind: 'skills-github', project: AGENT },
-      { kind: 'secrets-recent', project: AGENT },
       { kind: 'add-chat', project: AGENT },
       { kind: 'tools', project: AGENT, connector: AGENT },
     ];

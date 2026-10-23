@@ -28,7 +28,6 @@ import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeConnectorLeftovers } from '../connectors/leftovers.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { prepareAgentRunner, provisionAgentUser } from '../agent-user/provision.js';
-import { applyVault } from '../vault/index.js';
 import { blockImds } from '../metro-user/imds.js';
 import { followRelease } from '../metro-user/root-follow.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
@@ -205,8 +204,6 @@ async function startClaude(): Promise<void> {
   if (agentUser === 'ready') {
     blockImds();
     followRelease();
-    const vault = (await applyVault()).status;
-    if (vault.enabled) log.info({ running: vault.running, problem: vault.problem }, 'vault: the agent reaches the internet through the vault');
   }
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }

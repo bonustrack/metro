@@ -15,7 +15,6 @@ import type { GatewayDeps } from '../gateway/gateway.js';
 import { handleTerminalRequest, type TerminalApiDeps } from '../terminal/api.js';
 import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 import { handleFilesRequest } from '../agent-user/files-api.js';
-import { handleVaultRequest } from '../vault/api.js';
 import { handleVoiceRequest } from '../voice/api.js';
 import { handleRunEventsRequest } from '../monitor/run-events.js';
 
@@ -52,7 +51,6 @@ export function handleSessionApis(
     ...when(apis.controlApi, (d) => handleControlRequest(req, res, d)),
     () => handleSchedulesRequest(req, res),
     () => handleFilesRequest(req, res),
-    () => handleVaultRequest(req, res),
     () => handleVoiceRequest(req, res),
     ...when(apis.ownerApi, (d) => handleOwnerRequest(req, res, d)),
     ...when(apis.machineApi, (d) => handleMachineRequest(req, res, d)),

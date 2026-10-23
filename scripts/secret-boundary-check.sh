@@ -67,7 +67,7 @@ if tailscale cert --cert-file /dev/null --key-file /dev/null "$(hostname)" >/dev
 
 key=$(python3 -c "import json;print(json.load(open('$HOME/.metro/agents/agent.json'))['key'])" 2>/dev/null || true)
 api() { curl -s -o /dev/null -w '%{http_code}' -m 10 "$@"; }
-for p in /api/agents /api/model /api/connectors /api/voice /api/vault /api/claude/setup /api/server /api/files; do
+for p in /api/agents /api/model /api/connectors /api/voice /api/claude/setup /api/server /api/files; do
   code=$(api -H "Authorization: Bearer $key" "http://127.0.0.1:$PORT$p")
   if [ "$code" = 401 ] || [ "$code" = 403 ] || [ "$code" = 404 ] || [ "$code" = 405 ]; then pass "admin api $p refuses the agent key ($code)"; else fail "admin api $p answers the agent key ($code)"; fi
 done

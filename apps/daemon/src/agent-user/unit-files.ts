@@ -1,25 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { mustHelper, rootHelper } from '../metro-user/privilege.js';
+import { rootHelper } from '../metro-user/privilege.js';
 import { agentUser, asUser } from './user.js';
-
-const UNIT_DIR = '/etc/systemd/system';
 
 export interface RunResult {
   status: number | null;
   stdout: string;
   stderr?: string;
-}
-
-export function writeDropIn(service: string, name: string, text: string): void {
-  mustHelper(['dropin-write', service, name], text);
-}
-
-export function removeDropIn(service: string, name: string): boolean {
-  if (!existsSync(join(UNIT_DIR, `${service}.d`, name))) return false;
-  mustHelper(['dropin-remove', service, name]);
-  return true;
 }
 
 function agentCrontab(args: string[], input?: string): RunResult {

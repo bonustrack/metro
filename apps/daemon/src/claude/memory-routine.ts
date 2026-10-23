@@ -107,7 +107,7 @@ export function ensureMemoryJob(on: boolean, deps: MemoryJobDeps = {}): MemoryJo
   const launcher = launcherPath(user);
   if (scheduled) placeLauncher(launcher, launcherText(user, cli, port));
   const kept = marked(user, lines, on, scheduled);
-  const next = withBlock(kept, BEGIN, END, scheduled ? [cronLine(user)] : [], 'end', (l) => l.includes(launcher));
+  const next = withBlock(kept, BEGIN, END, scheduled ? [cronLine(user)] : [], (l) => l.includes(launcher));
   const changed = writeCrontab(user, runner, lines, next);
   last = { state: stateOf(scheduled, own), job: own };
   if (changed) log.info({ ...last, rewritten: kept.filter((l, i) => l !== lines[i]) }, 'memory-routine: updated the memory job');

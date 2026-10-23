@@ -321,7 +321,8 @@ updates, and the `metro` user still cannot run any code of its choice as root
   on `main` has no matching provenance (old versions published by
   `publish.yml` are refused the same way). The check rests on the Sigstore
   signature, not only on TLS, so a certificate metro added to the system store
-  (the vault's `trust-ca`) changes nothing.
+  (the helper's `trust-ca`, unused since the vault went on 2026-10-23)
+  changes nothing.
 - **When it runs:** the daemon asks at every start (`followRelease` in
   `metro-user/root-follow.ts`), so after every Update, and again at the next
   start after a failed try.
@@ -338,7 +339,8 @@ updates, and the `metro` user still cannot run any code of its choice as root
   even then. The daemon logs this command, with its version, at every start
   until it is done. Run on a box that already has it, the command only runs
   root's setup again; it never installs an older copy.
-- **The drop-in writer** (version 3): `dropin-write` takes only
+- **The drop-in writer** (version 3; unused since the vault went on
+  2026-10-23, kept so the helper text does not change): `dropin-write` takes only
   `11-metro-vault.conf` with exactly `[Service]` and
   `EnvironmentFile=-<agent home>/.metro/vault.env`, and only on a timer job
   that runs as the agent with no command run with root rights (`+`, `!`, `!!`
