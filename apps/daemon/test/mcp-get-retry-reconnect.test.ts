@@ -69,7 +69,7 @@ afterAll(async () => {
 });
 
 describe('standalone GET SSE self-heal', () => {
-  test('advertises a wide reconnect retry and replays gap events on reconnect', async () => {
+  test('advertises a short reconnect retry and replays gap events on reconnect', async () => {
     const handler = await createMetroMcp();
     handler.startInbound();
     server = createServer((req, res) => {
@@ -84,7 +84,7 @@ describe('standalone GET SSE self-heal', () => {
     const first = await openGet(url, sessionId);
     expect(first.status).toBe(200);
     await waitFor(() => first.raw().includes('retry:'));
-    expect(first.raw()).toContain('retry: 15000');
+    expect(first.raw()).toContain('retry: 1000');
 
     await settle(150);
     const live = `live-${randomUUID()}`;

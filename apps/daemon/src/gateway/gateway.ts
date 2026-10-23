@@ -6,6 +6,7 @@ import {
   bedrockBase,
   bedrockCount,
   bedrockMessages,
+  forgetAdaptations,
   freshAdaptations,
   type Adaptations,
 } from './bedrock.js';
@@ -44,7 +45,7 @@ import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Conn
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
-import { noteRoutewayRefusal, refusedWithPage, ROUTEWAY_BASE, routewayHeaders, routewayTools } from './routeway.js';
+import { noteRoutewayRefusal, refusedWithPage, ROUTEWAY_BASE, routewayBody, routewayHeaders } from './routeway.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
@@ -75,8 +76,7 @@ export function resetGatewayState(): void {
   forgetServed();
   forgetFallbackState();
   forgetUsage();
-  learned.fields.clear();
-  learned.dropBetas = false;
+  forgetAdaptations(learned);
   forgetLearnedThinking();
 }
 
@@ -190,8 +190,8 @@ async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shape
   const conn = route.connection;
   const watch = watchUpstream(res);
   const send = sender(`${deps.routewayBase ?? ROUTEWAY_BASE}${upstreamPath(req)}`, watch);
-  const sent = routewayTools(body.sent);
-  const fitted: Shaped = { raw: sent === body.sent ? body.raw : Buffer.from(JSON.stringify(sent)), sent, shaped: routewayTools(body.shaped), bind: false };
+  const sent = routewayBody(body.sent);
+  const fitted: Shaped = { raw: sent === body.sent ? body.raw : Buffer.from(JSON.stringify(sent)), sent, shaped: routewayBody(body.shaped), bind: false };
   const upstream = await shapedAttempt(send, routewayHeaders(req, conn.apiKey), fitted, route);
   noteRefusal(conn.label, route.model, upstream);
   await noteRoutewayRefusal(upstream);

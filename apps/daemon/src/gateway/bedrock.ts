@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
+import { withoutCacheTtl, withoutTtlBeta } from './cache-ttl.js';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
 import { errorFrame, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
 import type { Connection } from './model-config.js';
@@ -7,15 +8,23 @@ import { estimateTokens } from './subscription.js';
 import { UsageScanner } from './usage.js';
 
 const ANTHROPIC_VERSION = 'bedrock-2023-05-31';
-const EXTRA_INPUT_RE = /^([A-Za-z0-9_]+)(?:\.[^:]*)?: Extra inputs are not permitted/;
+const EXTRA_INPUT_RE = /^([A-Za-z0-9_.]+): Extra inputs are not permitted/;
+const CACHE_TTL_PATH = '.cache_control.ttl';
 const MAX_REPAIRS = 4;
 
 export interface Adaptations {
   fields: Set<string>;
   dropBetas: boolean;
+  dropCacheTtl: boolean;
 }
 
-export const freshAdaptations = (): Adaptations => ({ fields: new Set(), dropBetas: false });
+export const freshAdaptations = (): Adaptations => ({ fields: new Set(), dropBetas: false, dropCacheTtl: false });
+
+export function forgetAdaptations(learned: Adaptations): void {
+  learned.fields.clear();
+  learned.dropBetas = false;
+  learned.dropCacheTtl = false;
+}
 
 export interface BedrockUpstream {
   settings: Connection;
@@ -106,15 +115,28 @@ function callBedrock(up: BedrockUpstream, url: string, body: unknown, accept: st
 const without = (body: Record<string, unknown>, keys: Set<string>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(body).filter(([key]) => !keys.has(key)));
 
+function withBetas(body: Record<string, unknown>, betas: string[]): Attempt {
+  const rest = without(body, new Set(['anthropic_beta']));
+  return { body: betas.length > 0 ? { ...rest, anthropic_beta: betas } : rest, betas };
+}
+
+const withoutTtl = (attempt: Attempt): Attempt => withBetas(withoutCacheTtl(attempt.body), withoutTtlBeta(attempt.betas));
+
 function applyLearned(req: Rewritten, learned: Adaptations): Attempt {
   const dropped = new Set(learned.fields);
   if (learned.dropBetas) dropped.add('anthropic_beta');
-  return { body: without(req.body, dropped), betas: learned.dropBetas ? [] : req.betas };
+  const attempt = { body: without(req.body, dropped), betas: learned.dropBetas ? [] : req.betas };
+  return learned.dropCacheTtl ? withoutTtl(attempt) : attempt;
 }
 
 function repair(attempt: Attempt, learned: Adaptations, message: string): Attempt | null {
   const named = EXTRA_INPUT_RE.exec(message)?.[1];
-  if (named !== undefined && named in attempt.body) {
+  if (named !== undefined && named.endsWith(CACHE_TTL_PATH) && !learned.dropCacheTtl) {
+    learned.dropCacheTtl = true;
+    log.warn('gateway: Bedrock refused the one-hour cache; using the five-minute cache from now on');
+    return withoutTtl(attempt);
+  }
+  if (named !== undefined && !named.includes('.') && named in attempt.body) {
     learned.fields.add(named);
     log.warn({ field: named }, 'gateway: Bedrock refused an extra input; dropping it from every request');
     return { body: without(attempt.body, new Set([named])), betas: attempt.betas };

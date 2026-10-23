@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AGENT_VIEW_OFF, agentKey, claudeSignedIn, credentialEnv, gatewayEnv, keepInSession, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude-env.ts';
+import { AGENT_VIEW_OFF, agentKey, cacheTtlEnv, claudeSignedIn, credentialEnv, gatewayEnv, keepInSession, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude-env.ts';
 
 describe('inference goes through the daemon gateway', () => {
   const base = { PATH: '/usr/bin', HOME: '/home/less' };
@@ -72,6 +72,15 @@ describe('MCP tool search', () => {
     expect(toolSearchEnv({ HOME: '/h' })).toEqual({ HOME: '/h', ENABLE_TOOL_SEARCH: 'true' });
     const chosen = { ENABLE_TOOL_SEARCH: 'false' };
     expect(toolSearchEnv(chosen)).toBe(chosen);
+  });
+});
+
+describe('the prompt cache through the gateway', () => {
+  test('lasts an hour for the session and its workers, since a stand-in key makes Claude Code pick five minutes, unless the user chose a value', () => {
+    expect(cacheTtlEnv({ HOME: '/h' })).toEqual({ HOME: '/h', CLAUDE_CODE_PROMPT_CACHE_TTL: '1h', CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL: '1h' });
+    expect(cacheTtlEnv({ CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' })).toEqual({ CLAUDE_CODE_PROMPT_CACHE_TTL: '5m', CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL: '1h' });
+    const chosen = { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m', CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL: '5m' };
+    expect(cacheTtlEnv(chosen)).toBe(chosen);
   });
 });
 

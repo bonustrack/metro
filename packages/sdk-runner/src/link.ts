@@ -12,7 +12,7 @@ const ANSWER = 'notifications/claude/channel/permission';
 const TOOLS_CHANGED = 'notifications/tools/list_changed';
 const MODEL = 'notifications/metro/model';
 const TOOL_TIMEOUT_MS = 30 * 60_000;
-const RECONNECT = { initialReconnectionDelay: 500, maxReconnectionDelay: 5_000, reconnectionDelayGrowFactor: 1.5, maxRetries: 60 };
+const RECONNECT = { initialReconnectionDelay: 500, maxReconnectionDelay: 5_000, reconnectionDelayGrowFactor: 1.5, maxRetries: 900 };
 const GAVE_UP = 'Maximum reconnection attempts';
 
 export type Behavior = 'allow' | 'deny';

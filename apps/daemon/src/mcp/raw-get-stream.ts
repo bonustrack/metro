@@ -9,7 +9,7 @@ import type { BoundedEventStore } from './event-store.js';
 
 const STANDALONE_STREAM_ID = '_GET_stream';
 const KEEPALIVE_MS = 15_000;
-const RECONNECT_RETRY_MS = 15_000;
+const RECONNECT_RETRY_MS = 1_000;
 const COMMENT = ':\n\n';
 const RETRY_DIRECTIVE = `retry: ${RECONNECT_RETRY_MS}\n\n`;
 
