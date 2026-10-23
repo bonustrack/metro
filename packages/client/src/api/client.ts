@@ -64,6 +64,7 @@ export interface CallInit {
   checkAccount?: () => void;
   signal?: AbortSignal;
   redirect?: RequestRedirect;
+  retryOnUnauthorized?: boolean;
 }
 
 async function sendBearer(url: string, init: CallInit, token: string): Promise<Response> {
@@ -91,7 +92,7 @@ async function answered(init: CallInit): Promise<Response> {
   const token = await accessToken();
   if (token === null) throw new AuthError('not signed in');
   const res = await sendBearer(url, init, token);
-  if (res.status !== 401) return res;
+  if (res.status !== 401 || init.retryOnUnauthorized === false) return res;
   init.checkAccount?.();
   const again = await refreshAccount();
   if (again === null) throw new AuthError('not signed in');

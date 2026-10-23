@@ -11,6 +11,7 @@ import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { RoundButton } from '../ui/RoundButton.js';
 import { ConnectorFacts, KeyModal, SignInModal } from './ConnectorAccount.js';
+import { CopyConnectorRow } from './CopyConnector.js';
 import { copyText } from '../../lib/clipboard.js';
 import { logError } from '../../lib/log.js';
 import { go } from '../../lib/nav.js';
@@ -83,6 +84,7 @@ export function ConnectorSettings({ connector, admin }: { connector: OrgConnecto
       <Group label="Name">
         <Item title="Name" subtitle="What agents and people see" value={connector.name} chevron={admin} onPress={admin ? () => { setOpen('rename'); } : undefined} />
       </Group>
+      {admin ? <Group label="Copy"><CopyConnectorRow connector={connector} /></Group> : null}
       {admin ? (
         <Group label="Danger">
           <Item title={`Remove ${connector.name}`} subtitle={`Every agent loses its ${connector.name} tools at once. You can add it again later.`} danger chevron={false} onPress={removing.show} />

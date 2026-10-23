@@ -95,7 +95,7 @@ for m in apps/*/package.json packages/*/package.json; do
   cp "$m" "$IMG/$m"
 done
 (cd "$IMG" && bun install --frozen-lockfile --production --filter @metro-labs/api >"$TMP/install.log" 2>&1) || { cat "$TMP/install.log"; exit 1; }
-for d in apps/api packages/core packages/http; do
+for d in apps/api packages/core packages/http packages/connectors; do
   (cd "$d" && tar --exclude=node_modules -cf - .) | (cd "$IMG/$d" && tar -xf -)
 done
 echo "   $(ls "$IMG/node_modules/.bun/node_modules" | wc -l | tr -d ' ') packages in the image, isolated under node_modules/.bun, $(du -sh "$IMG/node_modules" | cut -f1) on disk"

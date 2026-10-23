@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { addOrgConnector, fetchOrgConnectors, replaceOrgConnectorKey } from '../src/api/org-connectors.js';
+import { addOrgConnector, copyOrgConnector, fetchOrgConnectors, replaceOrgConnectorKey } from '../src/api/org-connectors.js';
 import { clearAccount, storeAccount } from '../src/auth/account.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import { installTestAccount, testToken } from './account-fixture.js';
@@ -22,6 +22,7 @@ afterEach(() => {
 
 const operations = [
   () => addOrgConnector(input),
+  () => copyOrgConnector('conn0000001', { organization: 'org_DESTINATION0000', name: 'Copy', shareCredentials: true }),
   () => replaceOrgConnectorKey('conn0000001', 'Authorization', 'Bearer SOURCE_SECRET'),
   () => fetchOrgConnectors(),
 ];

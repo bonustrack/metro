@@ -14,7 +14,7 @@ import { sealingKey } from '@metro-labs/connectors/setup';
 import { connectorView, type ConnectorView } from './model.js';
 import { beginSignIn, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
 
-const CONNECTORS_MAX = 100;
+export const CONNECTORS_MAX = 100;
 const URL_MAX = 2048;
 
 export interface ActionDeps extends SignInDeps {

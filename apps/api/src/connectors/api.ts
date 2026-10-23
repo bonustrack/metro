@@ -4,18 +4,19 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
-import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
+import { completeSignIn, createConnector, startSignIn, viewOf, type Caller } from './actions.js';
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { connectorActivity } from './activity.js';
 import { connectorActivityStats } from './activity-stats.js';
 import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import { callbackLocation } from './sign-in.js';
+import { copyConnector, type CopyDeps } from './copy.js';
 
 const PREFIX = '/api/connectors';
 const BODY_MAX = 1024 * 1024;
 
-export interface ConnectorsApiDeps extends ActionDeps {
+export interface ConnectorsApiDeps extends CopyDeps {
   keys: SigningKeys;
   calls: McpCallStore;
 }
@@ -27,7 +28,7 @@ type Target =
   | { kind: 'callback' }
   | { kind: 'complete' }
   | { kind: 'connector'; id: string }
-  | { kind: 'sign-in'; id: string }
+  | { kind: 'sign-in' | 'copy'; id: string }
   | { kind: 'tools'; id: string }
   | { kind: 'agent' | 'agent-policy'; id: string; agent: string };
 
@@ -40,6 +41,7 @@ const METHODS: Record<Target['kind'], string[]> = {
   complete: ['POST'],
   connector: ['GET', 'PUT', 'DELETE'],
   'sign-in': ['POST'],
+  copy: ['POST'],
   agent: ['PUT', 'DELETE'],
   'agent-policy': ['PUT'],
 };
@@ -64,6 +66,7 @@ function byId(id: string, rest: string[]): Target | 'unknown' {
   if (rest.length === 0) return { kind: 'connector', id };
   if (rest.length === 1 && rest[0] === 'sign-in') return { kind: 'sign-in', id };
   if (rest.length === 1 && rest[0] === 'tools') return { kind: 'tools', id };
+  if (rest.length === 1 && rest[0] === 'copy') return { kind: 'copy', id };
   return byAgent(id, rest);
 }
 
@@ -108,6 +111,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'PUT connector': (c) => updateConnector(c.deps, c.caller, c.id, c.body),
   'DELETE connector': (c) => deleteConnector(c.deps, c.caller, c.id),
   'POST sign-in': (c) => startSignIn(c.deps, c.caller, c.id, c.body),
+  'POST copy': (c) => copyConnector(c.deps, c.caller, c.id, c.body),
   'PUT agent': (c) => assignConnector(c.deps, c.caller, c.id, c.agent, c.body),
   'PUT agent-policy': (c) => updateConnectorAgentPolicy(c.deps, c.caller, c.id, c.agent, c.body),
   'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
@@ -158,7 +162,7 @@ export function handleConnectorsApiRequest(req: IncomingMessage, res: ServerResp
   }
   answer(req, deps, target)
     .then((body) => {
-      sendJson(req, res, target.kind === 'collection' && req.method === 'POST' ? 201 : 200, body);
+      sendJson(req, res, (target.kind === 'collection' || target.kind === 'copy') && req.method === 'POST' ? 201 : 200, body);
     })
     .catch((err: unknown) => {
       apiFailure(req, res, err, 'org-connectors');

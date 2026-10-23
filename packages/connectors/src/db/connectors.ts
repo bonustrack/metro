@@ -34,6 +34,7 @@ export interface OrgConnectorStore {
   find: (owner: string, id: string) => Promise<ConnectorRow | null>;
   count: (owner: string) => Promise<number>;
   create: (row: ConnectorRow) => Promise<void>;
+  copy: (owner: string, id: string, make: (source: ConnectorRow) => ConnectorRow) => Promise<ConnectorRow>;
   edit: (owner: string, id: string, at: string, edit: (row: ConnectorRow) => ConnectorEdit | Promise<ConnectorEdit>) => Promise<ConnectorRow>;
   remove: (owner: string, id: string) => Promise<ConnectorRow>;
   assign: (input: AssignInput) => Promise<AssignmentRow>;
@@ -103,6 +104,11 @@ export function orgConnectorStore(db: () => Database): OrgConnectorStore {
     find: async (owner, id) => (await db().select().from(connectors).where(owned(owner, id)).limit(1))[0] ?? null,
     count: (owner) => db().$count(connectors, eq(connectors.owner, owner)),
     create: async (row) => { await unique(() => db().insert(connectors).values(row)); },
+    copy: (owner, id, make) => unique(() => db().transaction(async (tx) => {
+      const copied = make(await lockConnector(tx, owner, id));
+      await tx.insert(connectors).values(copied);
+      return copied;
+    })),
     edit: (owner, id, at, edit) => unique(() => db().transaction((tx) => editConnectorIn(tx, owner, id, at, edit))),
     remove: (owner, id) =>
       db().transaction(async (tx) => {
