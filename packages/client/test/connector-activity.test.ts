@@ -58,10 +58,12 @@ describe('reading the connector activity', () => {
     expect(urls).toEqual([`${BASE}?limit=50&before=${String(NOW - 1)}%3AzZ9-_xYz9Qw`]);
   });
 
-  test('since and agent reach the url', async () => {
+  test('since, agent and connector reach the url', async () => {
     serve({ calls: [] });
     await fetchConnectorActivity({ limit: 200, since: NOW - 10_000.5, agent: 'aB3-_xYz9Qw' });
     expect(urls).toEqual([`${BASE}?limit=200&since=${String(NOW - 10_001)}&agent=aB3-_xYz9Qw`]);
+    await fetchConnectorActivity({ limit: 10, agent: null, connector: 'cN3-_xYz9Qw' });
+    expect(urls.at(-1)).toBe(`${BASE}?limit=10&connector=cN3-_xYz9Qw`);
   });
 
   test('an api.metro.box without the route answers no activity rather than an error', async () => {

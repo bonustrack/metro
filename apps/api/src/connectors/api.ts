@@ -7,6 +7,7 @@ import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
 import { completeSignIn, createConnector, startSignIn, viewOf, type ActionDeps, type Caller } from './actions.js';
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { connectorActivity } from './activity.js';
+import { connectorActivityStats } from './activity-stats.js';
 import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import { callbackLocation } from './sign-in.js';
@@ -22,6 +23,7 @@ export interface ConnectorsApiDeps extends ActionDeps {
 type Target =
   | { kind: 'collection' }
   | { kind: 'activity' }
+  | { kind: 'activity-stats' }
   | { kind: 'callback' }
   | { kind: 'complete' }
   | { kind: 'connector'; id: string }
@@ -32,6 +34,7 @@ type Target =
 const METHODS: Record<Target['kind'], string[]> = {
   collection: ['GET', 'POST'],
   activity: ['GET'],
+  'activity-stats': ['GET'],
   tools: ['GET'],
   callback: ['GET'],
   complete: ['POST'],
@@ -41,7 +44,14 @@ const METHODS: Record<Target['kind'], string[]> = {
   'agent-policy': ['PUT'],
 };
 
-const NAMED: Record<string, Target> = { callback: { kind: 'callback' }, complete: { kind: 'complete' }, activity: { kind: 'activity' } };
+const NAMED: Record<string, Target> = {
+  callback: { kind: 'callback' },
+  complete: { kind: 'complete' },
+  activity: { kind: 'activity' },
+  'activity/stats': { kind: 'activity-stats' },
+};
+
+const NAMED_HEADS = new Set(Object.keys(NAMED).map((name) => name.split('/')[0]));
 
 function byAgent(id: string, rest: string[]): Target | 'unknown' {
   const agent = parseId(rest[1] ?? '');
@@ -60,9 +70,9 @@ function byId(id: string, rest: string[]): Target | 'unknown' {
 function targetOf(path: string): Target | 'unknown' | null {
   if (path === PREFIX || path === `${PREFIX}/`) return { kind: 'collection' };
   if (!path.startsWith(`${PREFIX}/`)) return null;
-  const [head = '', ...rest] = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
-  const named = NAMED[head];
-  if (named !== undefined) return rest.length === 0 ? named : 'unknown';
+  const parts = path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+  const [head = '', ...rest] = parts;
+  if (NAMED_HEADS.has(head)) return NAMED[parts.join('/')] ?? 'unknown';
   const id = parseId(head);
   return id === null ? 'unknown' : byId(id, rest);
 }
@@ -91,6 +101,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'GET collection': async (c) => ({ connectors: await listConnectors(c.deps, c.caller.owner), admin: c.caller.session.role === 'admin' }),
   'POST collection': (c) => createConnector(c.deps, c.caller, c.body),
   'GET activity': (c) => connectorActivity(c.deps.calls, c.caller.owner, c.query),
+  'GET activity-stats': (c) => connectorActivityStats(c.deps.calls, c.caller.owner, c.query, c.deps.now()),
   'GET tools': (c) => listConnectorTools(c.deps, c.caller.owner, c.id),
   'POST complete': (c) => completeSignIn(c.deps, c.caller, c.body),
   'GET connector': (c) => viewOf(c.deps, c.caller.owner, c.id),
@@ -102,7 +113,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
 };
 
-const MEMBER_READS = new Set(['GET collection', 'GET activity', 'GET connector', 'GET tools']);
+const MEMBER_READS = new Set(['GET collection', 'GET activity', 'GET activity-stats', 'GET connector', 'GET tools']);
 
 async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exclude<Target, { kind: 'callback' }>): Promise<unknown> {
   const caller = await callerOf(req, deps);

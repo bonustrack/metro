@@ -1,5 +1,16 @@
 # Metro history
 
+## 2026-10-23: Connector calls in numbers, and the last 10 calls
+
+Less: "We should show on the agents page a chart with number of tool calls, with ability to break down by connector. We should also show % of failed tool calls etc." Then, the same day: "Also show only last 10 tool calls on that page and agent page."
+
+- **Counted where the rows are**: `GET /api/connectors/activity/stats` (members) aggregates `mcp_calls` in Postgres on the owner index: buckets of an hour, 6 hours or a day for 24 h, 7, 30 or 90 days (UTC boundaries, zero-filled), the 8 connectors with the most calls plus Other, and totals with p50 and p95 (`percentile_cont`). The feed route takes `connector=` too.
+- **What failed means, written once** (`CALL_OUTCOMES` in `@metro-labs/connectors/db/mcp-call-stats`): `vendor_error`, `unavailable`, `invalid`, `signin` and `not_found` failed; `blocked` and `denied` were stopped by the owner's rules or answer, which is not a failure; `needs_approval` is waiting. Times count only calls that went to the connector, so a call refused in a millisecond does not make the typical time look fast.
+- **A connector is its id**, since its key changes with its name; calls that named a connector the agent does not have are grouped by the key they named.
+- **On the page**: the Agents pane with no agent chosen shows Connector calls (range switch, six tiles, the chart with a By connector switch, a By connector list that filters everything), then the last 10 calls with Show all; the agent chips and the chosen connector filter both. `#/<org>/activity` keeps the full feed (Show earlier) under the same section, and the phone's Live activity row opens it. An agent's Home shows its last 10 calls (it was 5) under its 7-day calls, failed share and a sparkline. The chart follows the dataviz rules: failed calls in the status red under the others, or one colour per connector, never both and never a second axis; colours are 8 kit chart steps checked for colour-blind and normal-vision separation, and a connector keeps its colour when a filter hides others. A failed share turns red from 5% of the calls, so one failure among hundreds does not paint the list red.
+
+Rollout: api.metro.box and the page, no migration, no box change and no Metro release; mcp.metro.box redeploys only because `packages/connectors` changed (the feed's connector filter), with no change in what it does. Against an api without the stats route the section is hidden and the feed works as before.
+
 ## 2026-10-23: An access key's approval stays out of the box's session
 
 Found while shipping access keys for agents with a server: a person calling a connector with an access key of a box (from their own Claude Code) and hitting Ask got the request relayed by the box's daemon to the owner's chat and page, which is right, but after the answer the daemon also posted `Approved: notion.create_page (<id>). Call tool_call again …` into the box's own agent session, which never made that call and may be confused by it.

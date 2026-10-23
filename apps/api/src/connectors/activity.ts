@@ -4,6 +4,7 @@ import { CALLS_PAGE, CALLS_PAGE_MAX, type CallCursor, type CallFilter, type Call
 
 const WHOLE = /^\d{1,15}$/;
 const CURSOR = /^(\d{1,15})(?::([A-Za-z0-9_-]{11}))?$/;
+const CONNECTOR = /^[A-Za-z0-9_-]{1,128}$/;
 
 interface ActivityCall {
   id: string;
@@ -34,7 +35,7 @@ function cursorOf(query: URLSearchParams): CallCursor | undefined {
   return found[2] === undefined ? { at: Number(found[1]) } : { at: Number(found[1]), id: found[2] };
 }
 
-function agentOf(query: URLSearchParams): string | undefined {
+export function agentOf(query: URLSearchParams): string | undefined {
   const raw = query.get('agent');
   if (raw === null || raw === '') return undefined;
   const agent = parseId(raw);
@@ -42,12 +43,26 @@ function agentOf(query: URLSearchParams): string | undefined {
   return agent;
 }
 
+export function connectorOf(query: URLSearchParams): string | undefined {
+  const raw = query.get('connector');
+  if (raw === null || raw === '') return undefined;
+  if (!CONNECTOR.test(raw)) throw new ApiError('connector must be a connector id, or the key of calls that named no connector of the agent', 400);
+  return raw;
+}
+
 function activityFilter(query: URLSearchParams): CallFilter {
   const limit = Math.min(Math.max(1, whole(query, 'limit') ?? CALLS_PAGE), CALLS_PAGE_MAX);
   const since = whole(query, 'since');
   const before = cursorOf(query);
   const agent = agentOf(query);
-  return { limit, ...(since === undefined ? {} : { since }), ...(before === undefined ? {} : { before }), ...(agent === undefined ? {} : { agent }) };
+  const connector = connectorOf(query);
+  return {
+    limit,
+    ...(since === undefined ? {} : { since }),
+    ...(before === undefined ? {} : { before }),
+    ...(agent === undefined ? {} : { agent }),
+    ...(connector === undefined ? {} : { connector }),
+  };
 }
 
 const named = (value: string | null): string | undefined => (value === null || value === '' ? undefined : value);
