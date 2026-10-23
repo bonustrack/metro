@@ -33,7 +33,7 @@ const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
 const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
-const RUN_PATH = new RegExp(`^#?/(${HOST})/run(?:/(session|about|helper|event)(?:/([A-Za-z0-9_-]{1,64}))?)?$`);
+const RUN_PATH = new RegExp(`^#?/(${HOST})/run(?:/(session|about|worker|helper|event)(?:/([A-Za-z0-9_-]{1,64}))?)?$`);
 const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
 const TERMINAL_PATH = new RegExp(`^#?/(${HOST})/terminal$`);
 const MODEL_PATH = new RegExp(`^#?/(${HOST})/model$`);
@@ -160,7 +160,8 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
 
 function runSelection(project: string, view: string, id: string): Selection {
   if (view === 'session' || view === 'about') return id === '' ? { kind: 'run', project, view } : { kind: 'run', project };
-  if ((view === 'helper' || view === 'event') && id !== '') return { kind: 'run', project, view, id };
+  if (view === 'helper' && id !== '') return { kind: 'run', project, view: 'worker', id };
+  if ((view === 'worker' || view === 'event') && id !== '') return { kind: 'run', project, view, id };
   return { kind: 'run', project };
 }
 

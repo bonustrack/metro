@@ -11,15 +11,15 @@ import { Check } from './RouteParts.js';
 import { RouteOrder, type OrderLabels, type RouteEdit } from './RouteOrder.js';
 import { EFFORT_WORD } from '../../lib/model-words.js';
 
-const HELPERS_NOTE = 'Helpers are the workers the agent starts for longer tasks.';
+const HELPERS_NOTE = 'Workers are the agents the main thread starts for longer tasks.';
 const EFFORT_NOTE = 'As the agent asks leaves the effort to the agent.';
-const HELPER_LABELS: OrderLabels = { main: 'Helper model', backups: 'Helper backups, in order' };
-const SAME = { title: 'Same as the main model', subtitle: 'Helpers use the main model and its backups' };
+const HELPER_LABELS: OrderLabels = { main: 'Worker model', backups: 'Worker backups, in order' };
+const SAME = { title: 'Same as the main model', subtitle: 'Workers use the main model and its backups' };
 const OTHER = { title: 'Other models', subtitle: 'The models below' };
 
 const THREADS: { thread: EffortThread; title: string; note: string; label: string }[] = [
   { thread: 'main', title: 'Main thread', note: 'Low by default, so it answers fast.', label: 'Effort of the main thread' },
-  { thread: 'helpers', title: 'Helpers', note: 'Max by default, so they think hard.', label: 'Effort of the helpers' },
+  { thread: 'helpers', title: 'Workers', note: 'Max by default, so they think hard.', label: 'Effort of the workers' },
 ];
 
 interface RouteSetupProps {
@@ -74,7 +74,7 @@ function HelperChoice({ own, parts }: { own: boolean; parts: Parts | null }): Re
   if (parts === null) return <Item {...(own ? OTHER : SAME)} />;
   const { route, save, helpers, busy } = parts;
   const toSame = (): void => {
-    helpers.control.run(() => save(withHelpers(route, null)), 'Could not change the helper models.');
+    helpers.control.run(() => save(withHelpers(route, null)), 'Could not change the worker models.');
   };
   const toOwn = (): void => {
     helpers.control.actions.edit({ kind: 'primary' });
@@ -82,7 +82,7 @@ function HelperChoice({ own, parts }: { own: boolean; parts: Parts | null }): Re
   return (
     <>
       <Item {...SAME} trailing={own ? undefined : <Check />} chevron={false} onPress={own && !busy ? toSame : undefined} />
-      <Item title={OTHER.title} subtitle={own ? OTHER.subtitle : 'A model and backups just for helpers'} trailing={own ? <Check /> : undefined} chevron={false} onPress={own || busy ? undefined : toOwn} />
+      <Item title={OTHER.title} subtitle={own ? OTHER.subtitle : 'A model and backups just for workers'} trailing={own ? <Check /> : undefined} chevron={false} onPress={own || busy ? undefined : toOwn} />
     </>
   );
 }
@@ -91,10 +91,10 @@ function Helpers({ items, parts }: { items: ModelOrderItem[] | null; parts: Part
   const own = items !== null;
   return (
     <>
-      <Group label="Helpers" note={HELPERS_NOTE} error={own ? null : (parts?.helpers.control.error ?? null)}>
+      <Group label="Workers" note={HELPERS_NOTE} error={own ? null : (parts?.helpers.control.error ?? null)}>
         <HelperChoice own={own} parts={parts} />
       </Group>
-      {items === null ? null : <RouteOrder items={items} who="A helper" labels={HELPER_LABELS} edit={parts?.helpers} />}
+      {items === null ? null : <RouteOrder items={items} who="A worker" labels={HELPER_LABELS} edit={parts?.helpers} />}
     </>
   );
 }

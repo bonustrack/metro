@@ -47,11 +47,11 @@ function waitingTasks(activity: Activity): Set<string> {
 }
 
 function helperRow(task: Task, waiting: boolean): NowRow {
-  const base = { id: task.id, title: task.description ?? 'A helper task', since: task.startedAt > 0 ? task.startedAt : null };
-  if (waiting) return { ...base, subtitle: 'Helper, waiting for you', dot: 'white' };
-  if (task.status === 'pending') return { ...base, subtitle: 'Helper, about to start', dot: 'quiet' };
-  if (task.status === 'paused') return { ...base, subtitle: 'Helper, paused', dot: 'quiet' };
-  return { ...base, subtitle: 'Helper', dot: 'success' };
+  const base = { id: task.id, title: task.description ?? 'A worker task', since: task.startedAt > 0 ? task.startedAt : null };
+  if (waiting) return { ...base, subtitle: 'Worker, waiting for you', dot: 'white' };
+  if (task.status === 'pending') return { ...base, subtitle: 'Worker, about to start', dot: 'quiet' };
+  if (task.status === 'paused') return { ...base, subtitle: 'Worker, paused', dot: 'quiet' };
+  return { ...base, subtitle: 'Worker', dot: 'success' };
 }
 
 function stoppedRow(status: ClaudeSessionStatus): NowRow {
@@ -83,8 +83,8 @@ export function runSummary(view: RightNow): string {
 export function workingLine(now: RightNow): string | null {
   if (!now.live) return null;
   const helpers = now.active;
-  if (now.main.dot === 'success') return helpers === 0 ? now.main.title : `${now.main.title} with ${String(helpers)} ${helpers === 1 ? 'helper' : 'helpers'}`;
-  return helpers === 0 ? null : `${String(helpers)} ${helpers === 1 ? 'helper is' : 'helpers are'} working`;
+  if (now.main.dot === 'success') return helpers === 0 ? now.main.title : `${now.main.title} with ${String(helpers)} ${helpers === 1 ? 'worker' : 'workers'}`;
+  return helpers === 0 ? null : `${String(helpers)} ${helpers === 1 ? 'worker is' : 'workers are'} working`;
 }
 
 export function sinceLabel(since: number | null, now: number): string | null {

@@ -46,7 +46,7 @@ describe('the Run page in plain words', () => {
       id: 'sdk-1', at: NOW, kind: 'Approval', title: 'Approval waiting', text: 'Approval waiting · mcp__metro__send', sender: 'worker', senderId: 'task-1', station: 'Agent SDK',
       account: '', channel: '', line: '', direction: 'system', status: 'Observed', worker: 'task-1', session: 's1', truncated: false, metadata: [],
     };
-    expect(entrySender(entry, false)).toBe('A helper');
+    expect(entrySender(entry, false)).toBe('A worker');
     expect(entryText(entry, false)).toBe('Approval waiting');
     expect(entryText(entry, true)).toBe('Approval waiting · mcp__metro__send');
     expect(entrySender({ ...entry, worker: 'Main' }, false)).toBe('Main thread');

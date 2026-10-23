@@ -23,7 +23,7 @@ interface FilterOption { value: string; label: string }
 export const DIMENSIONS: Dimension[] = ['sender', 'station', 'account', 'channel', 'worker', 'status', 'direction', 'time'];
 export const LABELS: Record<Dimension, string> = {
   sender: 'people', station: 'channels', account: 'accounts', channel: 'chats',
-  status: 'states', kind: 'events', time: 'times', worker: 'helpers', direction: 'directions',
+  status: 'states', kind: 'events', time: 'times', worker: 'workers', direction: 'directions',
 };
 
 function valueOf(entry: RunEntry, key: Dimension): string {

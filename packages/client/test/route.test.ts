@@ -232,11 +232,13 @@ describe('pages that replaced dialogs have their own addresses', () => {
       { kind: 'agent-activity', project: agent },
       { kind: 'run', project: agent, view: 'session' },
       { kind: 'run', project: agent, view: 'about' },
-      { kind: 'run', project: agent, view: 'helper', id: 'task-1' },
+      { kind: 'run', project: agent, view: 'worker', id: 'task-1' },
       { kind: 'run', project: agent, view: 'event', id: '3f9a2b1c7d4e5f60' },
     ];
     for (const selection of cases) expect(routeSelection(routeHash(selection))).toEqual(selection);
     expect(routeHash({ kind: 'run', project: agent, view: 'event', id: 'k_9-x' })).toEndWith(`/${agent}/run/event/k_9-x`);
+    expect(routeHash({ kind: 'run', project: agent, view: 'worker', id: 'task-1' })).toEndWith(`/${agent}/run/worker/task-1`);
+    expect(routeSelection(`#/${agent}/run/helper/task-1`)).toEqual({ kind: 'run', project: agent, view: 'worker', id: 'task-1' });
     expect(routeHash({ kind: 'add-chat', project: agent, station: 'xmtp' })).toEndWith(`/${agent}/chats/add/xmtp`);
     expect(routeHash({ kind: 'access-keys', project: agent })).toEndWith(`/${agent}/keys`);
     expect(routeHash({ kind: 'agent-activity', project: agent })).toEndWith(`/${agent}/activity`);
@@ -282,7 +284,7 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(on({ kind: 'add-chat', project: agent, station: 'xmtp' })).toBe('#/suzy00000001/chats');
     expect(on({ kind: 'backup', project: agent })).toBe('#/suzy00000001/settings');
     expect(on({ kind: 'skills-github', project: agent })).toBe('#/suzy00000001/skills');
-    expect(on({ kind: 'run', project: agent, view: 'helper', id: 'x' })).toBe('#/suzy00000001/run');
+    expect(on({ kind: 'run', project: agent, view: 'worker', id: 'x' })).toBe('#/suzy00000001/run');
     expect(on({ kind: 'access-keys', project: agent })).toBe('#/suzy00000001');
   });
 });

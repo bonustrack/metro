@@ -20,7 +20,7 @@ export function AdvancedGroup({ server, project }: { server: Server; project: st
   const name = serverLabel(server);
   return (
     <Group label="Advanced">
-      <Item title="Right now" subtitle={`What ${name} and its helpers are doing, on Home`} href={routeHash({ kind: 'run', project })} />
+      <Item title="Right now" subtitle={`What ${name} and its workers are doing, on Home`} href={routeHash({ kind: 'run', project })} />
       <SetupRow href={routeHash({ kind: 'claude', project })} />
       <Item
         title="Terminal"

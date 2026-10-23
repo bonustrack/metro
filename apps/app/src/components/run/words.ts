@@ -54,7 +54,7 @@ const sdkEntry = (entry: RunEntry): boolean => entry.station === 'Agent SDK';
 export function entrySender(entry: RunEntry, technical: boolean): string {
   if (technical || !sdkEntry(entry)) return entry.sender;
   if (entry.worker === 'Main') return 'Main thread';
-  return entry.worker === 'Unlinked' ? 'The agent' : 'A helper';
+  return entry.worker === 'Unlinked' ? 'The agent' : 'A worker';
 }
 
 export function entryText(entry: RunEntry, technical: boolean): string {

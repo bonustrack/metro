@@ -13,7 +13,7 @@ import { RunSessionDetails } from './SessionDetails.js';
 import { runKey, type RunEntry } from './model.js';
 import { sessionView, type Freshness } from './session.js';
 
-export const DETAIL_TITLE: Record<RunView, string> = { session: 'Session details', about: 'What is shown here', helper: 'Helper details', event: 'Event details' };
+export const DETAIL_TITLE: Record<RunView, string> = { session: 'Session details', about: 'What is shown here', worker: 'Worker details', event: 'Event details' };
 
 export interface RunDetailProps {
   view: RunView;
@@ -33,7 +33,7 @@ function HelperDetail({ id, status, now, disconnected, onActivity }: Pick<RunDet
   const dark = useKitScheme() === 'dark';
   const workers = status === undefined ? [] : (sessionView(status, now, disconnected)?.workers ?? []);
   const worker = workers.find((row) => runKey(row.id) === id);
-  if (worker === undefined) return <StateBlock icon="users" title="This helper is gone" text="Only the last 30 tasks of this session are kept." />;
+  if (worker === undefined) return <StateBlock icon="users" title="This worker is gone" text="Only the last 30 tasks of this session are kept." />;
   return (
     <Col gap={16} align="start">
       <Text size="sm" selectable>{worker.details}</Text>
@@ -51,7 +51,7 @@ function EventDetail({ id, entries, filtered, onEvent }: Pick<RunDetailProps, 'i
 export function RunDetail(props: RunDetailProps): ReactNode {
   const { view } = props;
   if (view === 'about') return <RunCoverage />;
-  if (view === 'helper') return <HelperDetail {...props} />;
+  if (view === 'worker') return <HelperDetail {...props} />;
   if (view === 'event') return <EventDetail {...props} />;
   return <RunSessionDetails status={props.status} model={props.settings} state={props.state} />;
 }

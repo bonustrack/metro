@@ -67,7 +67,7 @@ describe('the one line under an agent in the list', () => {
 
   test('a live Agent SDK snapshot says the agent works, otherwise it is just online', () => {
     const working = session({ activity: activity({ mainPhase: 'working', tasks: [task('a', 'running'), task('b', 'completed')] }) });
-    expect(agentLine(facts({ session: working }))).toEqual({ text: 'Working with 1 helper', tone: 'secondary', dot: 'success', busy: false, needsYou: false });
+    expect(agentLine(facts({ session: working }))).toEqual({ text: 'Working with 1 worker', tone: 'secondary', dot: 'success', busy: false, needsYou: false });
     const stale = session({ activity: activity({ mainPhase: 'working', updatedAt: NOW - 10 * 60_000 }) });
     expect(agentLine(facts({ session: stale })).text).toBe('Online');
     expect(agentLine(facts({ session: session({}) })).text).toBe('Online');
