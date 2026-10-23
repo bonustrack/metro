@@ -79,7 +79,7 @@ function Behaviour({ setup, project }: { setup: Setup; project: string }): React
     <Group label="Behaviour" note={BEHAVIOUR_NOTE}>
       <Approvals setup={setup} />
       <Toggle title="Privacy" note={PRIVACY} on={setup.privacy} flip={privacy} onChange={(on) => { privacy.run(() => setClaudePrivacy(on)); }} />
-      {setup.memoryRoutine === null ? null : <Item title="Daily memory" subtitle="In Tools, with the other routines" href={routeHash({ kind: 'tools', project })} />}
+      {setup.memoryRoutine === null ? null : <Item title="Daily memory" subtitle="In Scheduled, with the other routines" href={routeHash({ kind: 'scheduled', project })} />}
       {setup.skill ? <Item title="Standing rules" subtitle="What your agent follows on every task" href={routeHash({ kind: 'skill', project, id: 'user:metro' })} /> : null}
     </Group>
   );

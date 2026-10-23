@@ -11,7 +11,7 @@ export const CALLBACK_NOTE = 'Paste this as the callback URL at gateway.threema.
 function activationNote(result: AttachResult): string {
   if (!result.activated) return 'Saved, but Metro could not reload it. It goes live at the next restart.';
   if (result.station === 'webhook') return 'The endpoint is live now. Anything posted to it reaches your agent.';
-  return `The ${stationLabel(result.station)} channel is restarting to pick it up. It shows in Chats once connected.`;
+  return `The ${stationLabel(result.station)} channel is restarting to pick it up. It shows in Channels once connected.`;
 }
 
 function Secret({ label, value, note, danger = false }: { label: string; value: string; note: string; danger?: boolean }): ReactNode {

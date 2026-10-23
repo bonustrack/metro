@@ -11,7 +11,7 @@ const AGENT = 'aB3-_xYz9Qw';
 
 const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['', 'home', null],
-  ['/chats', 'chats', 'Chats'],
+  ['/chats', 'chats', 'Channels'],
   ['/channel/a1', 'chats', 'Channel'],
   ['/channel/a1/write', 'chats', 'Channel'],
   ['/channel/a1/exceptions/typing', 'chats', 'Channel'],
@@ -21,9 +21,9 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/files', 'memory', 'Files'],
   ['/skills', 'memory', 'Skills'],
   ['/skill/user%3Ax', 'memory', 'Skill'],
-  ['/tools', 'tools', 'Tools'],
-  ['/scheduled', 'tools', 'Tools'],
-  ['/scheduled/cron-agent%3A1', 'tools', 'Routine'],
+  ['/tools', 'tools', 'Connectors'],
+  ['/scheduled', 'scheduled', 'Scheduled'],
+  ['/scheduled/cron-agent%3A1', 'scheduled', 'Routine'],
   ['/settings', 'settings', 'Settings'],
   ['/model', 'settings', 'Model'],
   ['/harness', 'settings', 'Agent SDK setup'],
@@ -39,7 +39,7 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/launch-log', 'settings', 'Launch log'],
 ];
 
-describe('every page of an agent has a place under one of its five tabs', () => {
+describe('every page of an agent has a place under one of its six tabs', () => {
   test('each address opens the tab and the page it belongs to', () => {
     for (const [suffix, tab, page] of AGENT_PAGES) {
       const selection = routeSelection(`#/${AGENT}${suffix}`);
@@ -48,8 +48,8 @@ describe('every page of an agent has a place under one of its five tabs', () => 
     }
   });
 
-  test('the old Channels and Connectors addresses land on the Chats and Tools tabs', () => {
-    for (const [old, tab, page] of [['/channels', 'chats', 'Chats'], ['/connectors', 'tools', 'Tools']] as const) {
+  test('the Channels and Connectors addresses land on the Channels and Connectors tabs', () => {
+    for (const [old, tab, page] of [['/channels', 'chats', 'Channels'], ['/connectors', 'tools', 'Connectors']] as const) {
       const selection = routeSelection(`#/${AGENT}${old}`);
       expect(agentTabOf(selection.kind).id).toBe(tab);
       expect(agentPageOf(selection.kind)?.label).toBe(page);
@@ -57,12 +57,13 @@ describe('every page of an agent has a place under one of its five tabs', () => 
     }
   });
 
-  test('an old link to one connector or to Scheduled opens on the Tools tab with its target', () => {
+  test('an old link to one connector opens on the Connectors tab, Scheduled on its own tab', () => {
     const connector = routeSelection(`#/${AGENT}/connector/${AGENT}`);
     expect(connector).toEqual({ kind: 'tools', project: AGENT, connector: AGENT });
     expect(agentTabOf(connector.kind).id).toBe('tools');
     expect(routeHash(connector)).toEndWith(`/${AGENT}/connector/${AGENT}`);
-    expect(agentTabOf(routeSelection(`#/${AGENT}/scheduled`).kind).id).toBe('tools');
+    expect(agentTabOf(routeSelection(`#/${AGENT}/scheduled`).kind).id).toBe('scheduled');
+    expect(routeHash(routeSelection(`#/${AGENT}/scheduled`))).toEndWith(`/${AGENT}/scheduled`);
     expect(routeSelection(`#/${AGENT}/scheduled/timer%3Amemory-daily.timer`)).toEqual({ kind: 'scheduled-job', project: AGENT, id: 'timer:memory-daily.timer' });
   });
 
@@ -83,7 +84,7 @@ describe('every page of an agent has a place under one of its five tabs', () => 
 
   test('each tab shows one page switch at most, and only Memory has more than one page', () => {
     const shown = Object.fromEntries(AGENT_TABS.map((tab) => [tab.id, shallowPages(tab).map((page) => page.label)]));
-    expect(shown).toEqual({ home: [], chats: ['Chats'], memory: ['Notes', 'Files', 'Skills'], tools: ['Tools'], settings: ['Settings'] });
+    expect(shown).toEqual({ home: [], chats: ['Channels'], memory: ['Notes', 'Files', 'Skills'], tools: ['Connectors'], scheduled: ['Scheduled'], settings: ['Settings'] });
   });
 
   test('deeper pages open with crumbs and a title instead of the agent header', () => {
@@ -114,14 +115,15 @@ describe('every page of an agent has a place under one of its five tabs', () => 
       { kind: 'memory', project: AGENT, claudeProject: 'p', file: 'people' },
       { kind: 'skills', project: AGENT },
       { kind: 'tools', project: AGENT },
+      { kind: 'scheduled', project: AGENT },
       { kind: 'agent-settings', project: AGENT },
       { kind: 'servers' },
     ];
     for (const selection of shallow) expect(isDeepPage(selection)).toBe(false);
   });
 
-  test('the five tabs come in the order of the design', () => {
-    expect(AGENT_TABS.map((tab) => tab.label)).toEqual(['Home', 'Chats', 'Memory', 'Tools', 'Settings']);
+  test('the six tabs come in the order of the design', () => {
+    expect(AGENT_TABS.map((tab) => tab.label)).toEqual(['Home', 'Channels', 'Memory', 'Connectors', 'Scheduled', 'Settings']);
   });
 });
 

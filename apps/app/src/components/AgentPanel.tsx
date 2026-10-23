@@ -15,6 +15,7 @@ import { ChatsPage } from './chats/ChatsPage.js';
 import { Files } from './Files.js';
 import { VoicePage } from './VoicePage.js';
 import { RoutinePage } from './tools/RoutinePage.js';
+import { ScheduledPage } from './tools/ScheduledPage.js';
 import { ToolsPage } from './tools/ToolsPage.js';
 import { AgentConnectorPage } from './connectors/AgentConnectorPage.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
@@ -27,7 +28,7 @@ import { agentPageOf } from '../lib/agent-tabs.js';
 
 function toolsPage(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'tools') return selection.connector === undefined ? <ToolsPage project={project} /> : <AgentConnectorPage project={project} id={selection.connector} />;
-  if (selection.kind === 'scheduled') return <ToolsPage project={project} focus="routines" />;
+  if (selection.kind === 'scheduled') return <ScheduledPage project={project} />;
   return null;
 }
 

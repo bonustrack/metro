@@ -42,7 +42,7 @@ interface FlowProps {
 function Picker({ project, known }: { project: string; known: string[] }): ReactNode {
   const name = useAgentName();
   if (known.length === 0)
-    return <StateBlock icon="chat" title="No chat app to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Chats', onPress: () => { go({ kind: 'chats', project }); } }} />;
+    return <StateBlock icon="chat" title="No chat app to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />;
   return (
     <>
       <FocusIntro title={`Where should ${name} be reachable?`} text="Pick a chat app. Next, you sign in or paste its details." />

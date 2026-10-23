@@ -54,7 +54,7 @@ function useRows(project: string, serverId: string | null, groups: AccountGroup[
     { title: 'Metro version', glance: versionGlance(version, latest), href: routeHash({ kind: 'agent-settings', project }) },
     { title: 'Server', glance: serverGlance(machine, usage, place), href: server },
     { title: 'Up for', glance: uptimeGlance(machine), href: server },
-    { title: 'Chats', glance: chatsGlance(groups), href: routeHash({ kind: 'chats', project }) },
+    { title: 'Channels', glance: chatsGlance(groups), href: routeHash({ kind: 'chats', project }) },
   ];
 }
 

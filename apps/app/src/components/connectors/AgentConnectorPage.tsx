@@ -55,7 +55,7 @@ function Body({ project, id, remote = false }: PageProps): ReactNode {
     return <Waiting project={project} remote={remote}><ErrorState title="Could not load this connector" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /></Waiting>;
   if (data === undefined) return <Waiting project={project} remote={remote}><RowsSkeleton rows={6} /></Waiting>;
   if (connector === undefined)
-    return <Waiting project={project} remote={remote}><StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: remote ? 'Back to Connectors' : 'Back to Tools', onPress: () => { go({ kind: 'tools', project }); } }} /></Waiting>;
+    return <Waiting project={project} remote={remote}><StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: 'Back to Connectors', onPress: () => { go({ kind: 'tools', project }); } }} /></Waiting>;
   return <Page project={project} connector={connector} admin={data.admin} remote={remote} />;
 }
 

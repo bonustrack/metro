@@ -114,7 +114,7 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
 function Gone({ project }: { project: string }): ReactNode {
   return (
     <AgentDeepPage project={project} tab="chats" trail={[{ label: 'Channel' }]}>
-      <StateBlock icon="exclamationCircle" title="This channel is gone" text="It is not connected to the agent anymore." action={{ label: 'Back to Chats', onPress: () => { go({ kind: 'chats', project }); } }} />
+      <StateBlock icon="exclamationCircle" title="This channel is gone" text="It is not connected to the agent anymore." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />
     </AgentDeepPage>
   );
 }

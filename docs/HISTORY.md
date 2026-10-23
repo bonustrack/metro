@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-10-23: An agent's tabs are Channels, Connectors and Scheduled
+
+Less renamed two of an agent's tabs so they use the words the rest of the page uses: Chats became Channels and Tools became Connectors. The routines (the agent's scheduled jobs and the memory routine switch) left the Tools tab for a tab of their own, Scheduled, so an agent now has six tabs: Home, Channels, Memory, Connectors, Scheduled, Settings. The Connectors tab keeps the agent's organization connectors and its access keys (Secret keys went with the vault the same day). Only the words and the place changed: the tab ids, route kinds and addresses are the same (`#/<agent>/chats`, `#/<agent>/tools`, `#/<agent>/scheduled`, `#/<agent>/scheduled/<id>`), so every old link opens the new place. On a phone the six tabs do not fit, so the tab row scrolls the current tab into view. Page only.
+
 ## 2026-10-23: Channel and connector pages say their setup in words
 
 Less, on a WhatsApp channel page: "we should show after the hero a human text description of the channel permissions. It should be human readable and include all the options that are set up, so someone can read a small sentence and understand how it's set up." Then: "We should do the same for the agent connector page." Both pages now open with one paragraph in large text, built from the settings the page already reads, for example "Only Marco, Mustafa and 9 others can write to Lisa here, and approval questions go to Marco or Mustafa in a private chat. Lisa can read and send freely, but must ask before deleting." Names come from the People list's own lookups, and an id without a name is only counted, so a WhatsApp `@lid` never shows. Page only.
