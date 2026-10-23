@@ -33,9 +33,9 @@ import {
   cappedEffort,
   effortToApply,
   forgetLearnedThinking,
+  helperRequest,
   learnAlwaysThinks,
   plannedEffort,
-  requestKind,
   thinkingOff,
   withBlockBinding,
   withEffort,
@@ -50,6 +50,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
+import { siteOf } from './failures.js';
 import { orgModels } from './org-models.js';
 
 const GATEWAY_PREFIX = '/gateway';
@@ -183,7 +184,7 @@ async function toAnthropic(req: IncomingMessage, res: ServerResponse, body: Shap
   await refusedSubscription(conn, upstream, watch);
   noteRefusal(conn.label, route.model, upstream);
   noteUsageHeaders('anthropic', conn.id, upstream.headers);
-  await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id) });
+  await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id), site: siteOf(route) });
 }
 
 async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: GatewayDeps): Promise<void> {
@@ -196,7 +197,7 @@ async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shape
   noteRefusal(conn.label, route.model, upstream);
   await noteRoutewayRefusal(upstream);
   await refusedWithPage(upstream, watch);
-  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id) });
+  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id), site: siteOf(route) });
 }
 
 async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
@@ -220,7 +221,7 @@ async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Rec
     redirect: 'manual',
   });
   noteRefusal(conn.label, route.model, upstream);
-  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id) });
+  await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id), site: siteOf(route) });
 }
 
 function openrouterBody(body: Record<string, unknown>, model: string, zdr: boolean): Record<string, unknown> {
@@ -254,7 +255,7 @@ interface Chosen {
 }
 
 function chosenChain(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup, requested: string): Chosen {
-  const helpers = requestKind(req, sent) === 'subagent' ? helperSetup(setup) : null;
+  const helpers = helperRequest(req, sent) ? helperSetup(setup) : null;
   if (helpers === null) return { lane: 'main', setup, primary: resolveRoute(requested, setup) ?? noRoute() };
   return { lane: 'helpers', setup: helpers, primary: pinnedRoute(requested, helpers) ?? noRoute() };
 }

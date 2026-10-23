@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import type { IncomingMessage } from 'node:http';
 import {
   cappedEffort,
+  compactionRequest,
   effortToApply,
+  helperRequest,
   plannedEffort,
   requestKind,
   withBlockBinding,
@@ -10,6 +12,7 @@ import {
   withoutEffort,
   withThinkingFor,
 } from '../src/gateway/effort.ts';
+import { COMPACT_PROMPT, COMPACTION_HINTS, HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
 
 const asRequest = (headers: Record<string, string> = {}): IncomingMessage => ({ headers }) as unknown as IncomingMessage;
 
@@ -37,7 +40,56 @@ describe('telling the main thread apart from a subagent', () => {
   });
 });
 
+describe('telling a compaction apart', () => {
+  test('the summary request Claude Code sends when it compacts is recognized by its prompt, on a helper and on the main thread', () => {
+    const helper = asRequest(HELPER_HEADERS);
+    expect(requestKind(helper, helperCompaction())).toBe('compact');
+    expect(requestKind(asRequest(), mainCompaction())).toBe('compact');
+    expect(requestKind(helper, helperTurn())).toBe('subagent');
+    expect(compactionRequest(asRequest(), turn({ messages: [{ role: 'user', content: COMPACT_PROMPT }] }))).toBe(true);
+  });
+
+  test('the request class header Claude Code sends to a gateway marks it too, whatever the body says', () => {
+    expect(requestKind(asRequest(COMPACTION_HINTS), turn())).toBe('compact');
+    expect(requestKind(asRequest({ 'x-claude-code-request-class': 'subagent' }), turn())).toBe('main');
+  });
+
+  test('the prompt counts only at the start of a text in the last user message', () => {
+    const quoted = turn({ messages: [{ role: 'user', content: `Why does Claude Code say "${COMPACT_PROMPT}"?` }] });
+    expect(compactionRequest(asRequest(), quoted)).toBe(false);
+    const earlier = turn({ messages: [{ role: 'user', content: COMPACT_PROMPT }, { role: 'assistant', content: 'summary' }, { role: 'user', content: 'go on' }] });
+    expect(compactionRequest(asRequest(), earlier)).toBe(false);
+  });
+
+  test("a helper's compaction is still a helper request, so it stays on the helper models", () => {
+    expect(helperRequest(asRequest(HELPER_HEADERS), helperCompaction())).toBe(true);
+    expect(helperRequest(asRequest(), helperCompaction())).toBe(true);
+    expect(helperRequest(asRequest(), mainCompaction())).toBe(false);
+  });
+});
+
 describe('the effort metro asks for', () => {
+  test('a compaction runs at low on every thread, and no route setting raises it', () => {
+    const helper = asRequest(HELPER_HEADERS);
+    expect(plannedEffort(helper, helperCompaction())).toBe('low');
+    expect(plannedEffort(helper, helperCompaction(), { helpers: 'max' })).toBe('low');
+    expect(plannedEffort(helper, helperCompaction(), { main: 'asked', helpers: 'asked' })).toBe('low');
+    expect(plannedEffort(asRequest(), mainCompaction(), { main: 'max' })).toBe('low');
+    expect(plannedEffort(helper, helperTurn())).toBe('max');
+    expect(plannedEffort(helper, helperTurn(), { helpers: 'medium' })).toBe('medium');
+  });
+
+  test('lowering a compaction keeps its thinking as Claude Code sent it, and a compaction that is already low is left alone', () => {
+    const lowered = withEffort(helperCompaction(), 'low');
+    expect(lowered.thinking).toEqual({ type: 'adaptive', display: 'omitted' });
+    expect(lowered.output_config).toEqual({ effort: 'low' });
+    const off = { ...helperCompaction(), thinking: { type: 'disabled' }, output_config: { effort: 'max' } };
+    expect(plannedEffort(asRequest(HELPER_HEADERS), off)).toBe('low');
+    expect(withEffort(off, 'low').thinking).toEqual({ type: 'disabled' });
+    expect(plannedEffort(asRequest(), { ...mainCompaction(), output_config: { effort: 'low' } })).toBeNull();
+    expect(plannedEffort(asRequest(), { ...mainCompaction(), output_config: undefined })).toBeNull();
+  });
+
   test('the main thread is moved down to low and a subagent up to max', () => {
     expect(plannedEffort(asRequest(), turn())).toBe('low');
     expect(plannedEffort(asRequest({ 'x-claude-code-agent-id': 'a1' }), turn())).toBe('max');

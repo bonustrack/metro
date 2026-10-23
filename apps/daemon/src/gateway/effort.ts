@@ -4,11 +4,15 @@ import { isRecord } from '@metro-labs/core/is-record';
 
 export const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
 
+const COMPACT_EFFORT = 'low';
 const SUBAGENT_HEADER = 'x-claude-code-agent-id';
 const SUBAGENT_MARK = 'cc_is_subagent=true';
+const REQUEST_CLASS_HEADER = 'x-claude-code-request-class';
+const COMPACTION_CLASS = 'compaction';
+const COMPACT_PROMPT = 'CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.';
 const ABOVE_HIGH = new Set(['xhigh', 'max']);
 
-export type RequestKind = 'main' | 'subagent' | 'other';
+export type RequestKind = 'main' | 'subagent' | 'compact' | 'other';
 
 type Body = Record<string, unknown>;
 
@@ -32,22 +36,45 @@ function systemMarksSubagent(body: Body): boolean {
 
 const chore = (body: Body): boolean => record(body.output_config).format !== undefined || record(body.thinking).type === 'disabled';
 
+const messagesOf = (body: Body): unknown[] => (Array.isArray(body.messages) ? body.messages : []);
+
+function textsOf(content: unknown): string[] {
+  if (typeof content === 'string') return [content];
+  if (!Array.isArray(content)) return [];
+  return content.filter(isRecord).flatMap((block) => (block.type === 'text' && typeof block.text === 'string' ? [block.text] : []));
+}
+
+function asksForSummary(body: Body): boolean {
+  const last = messagesOf(body).map(record).findLast((message) => message.role === 'user');
+  return textsOf(last?.content).some((text) => text.trimStart().startsWith(COMPACT_PROMPT));
+}
+
+export const agentIdOf = (req: IncomingMessage): string => header(req, SUBAGENT_HEADER);
+
+export const helperRequest = (req: IncomingMessage, body: Body): boolean => agentIdOf(req) !== '' || systemMarksSubagent(body);
+
+export const compactionRequest = (req: IncomingMessage, body: Body): boolean => header(req, REQUEST_CLASS_HEADER) === COMPACTION_CLASS || asksForSummary(body);
+
 export function requestKind(req: IncomingMessage, body: Body): RequestKind {
-  if (header(req, SUBAGENT_HEADER) !== '' || systemMarksSubagent(body)) return 'subagent';
+  if (compactionRequest(req, body)) return 'compact';
+  if (helperRequest(req, body)) return 'subagent';
   return chore(body) ? 'other' : 'main';
 }
 
-const messagesOf = (body: Body): unknown[] => (Array.isArray(body.messages) ? body.messages : []);
-
 const askedEfforts = (body: Body): string[] => [body, ...messagesOf(body).map(record)].map(effortOf).filter((effort) => effort !== '');
+
+function wantedEffort(kind: RequestKind, setting: RouteEffort): string | null {
+  if (kind === 'compact') return COMPACT_EFFORT;
+  if (kind === 'other') return null;
+  const wanted = kind === 'subagent' ? (setting.helpers ?? EFFORT_DEFAULTS.helpers) : (setting.main ?? EFFORT_DEFAULTS.main);
+  return wanted === 'asked' ? null : wanted;
+}
 
 export function plannedEffort(req: IncomingMessage, body: Body, setting: RouteEffort = {}): string | null {
   const asked = askedEfforts(body);
   if (asked.length === 0) return null;
-  const kind = requestKind(req, body);
-  if (kind === 'other') return null;
-  const wanted = kind === 'subagent' ? (setting.helpers ?? EFFORT_DEFAULTS.helpers) : (setting.main ?? EFFORT_DEFAULTS.main);
-  if (wanted === 'asked') return null;
+  const wanted = wantedEffort(requestKind(req, body), setting);
+  if (wanted === null) return null;
   return asked.every((effort) => effort === wanted) ? null : wanted;
 }
 

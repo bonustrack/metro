@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { CodexEventTranslator } from '../src/gateway/codex-stream.ts';
 import { assembleMessage, parseEvent, SseParser } from '../src/gateway/frames.ts';
 import { decodeSignature } from '../src/gateway/codex-translate.ts';
+import type { Failure } from '../src/gateway/failures.ts';
 
 const events = (translator: CodexEventTranslator, list: Record<string, unknown>[]): string =>
   list.map((e) => translator.push(String(e.type), e)).join('');
@@ -167,5 +168,36 @@ describe('reasoning and endings the first cut got wrong', () => {
     const silent = new CodexEventTranslator('gpt-5.4');
     silent.push('response.created', { response: { id: 'resp_3' } });
     expect(silent.close('went quiet')).toContain('"message":"went quiet"');
+  });
+});
+
+describe('a Codex response that does not complete is reported once', () => {
+  const reported = (list: Record<string, unknown>[], closing: string | null = null): Failure[] => {
+    const seen: Failure[] = [];
+    const t = new CodexEventTranslator('gpt-6.1-sol', (name) => name, (failure) => seen.push(failure));
+    events(t, list);
+    if (closing !== null) t.close(closing);
+    t.close();
+    return seen;
+  };
+
+  test('a failed response, a stream error and an incomplete one each name the code and the message Codex gave', () => {
+    const created = { type: 'response.created', response: { id: 'r' } };
+    expect(reported([created, { type: 'response.failed', response: { id: 'r', error: { code: 'server_error', message: 'An error occurred while processing your request.' } } }])).toEqual([
+      { code: 'server_error', message: 'An error occurred while processing your request.' },
+    ]);
+    expect(reported([created, { type: 'error', code: 'context_length_exceeded', message: 'Your input exceeds the context window of this model.' }])).toEqual([
+      { code: 'context_length_exceeded', message: 'Your input exceeds the context window of this model.' },
+    ]);
+    expect(reported([created, { type: 'response.incomplete', response: { id: 'r', incomplete_details: { reason: 'content_filter' } } }])).toEqual([
+      { code: 'content_filter', message: 'Codex left the response incomplete (content_filter)' },
+    ]);
+  });
+
+  test('a stream that ends or goes quiet before completing is reported with its reason, and a completed one or a cut at max tokens is not', () => {
+    expect(reported([{ type: 'response.created', response: { id: 'r' } }])).toEqual([{ code: '', message: 'Codex ended the stream before completing the response' }]);
+    expect(reported([{ type: 'response.created', response: { id: 'r' } }], 'went quiet')).toEqual([{ code: '', message: 'went quiet' }]);
+    expect(reported([{ type: 'response.created', response: { id: 'r' } }, { type: 'response.completed', response: { id: 'r' } }])).toEqual([]);
+    expect(reported([{ type: 'response.incomplete', response: { id: 'r', incomplete_details: { reason: 'max_output_tokens' } } }])).toEqual([]);
   });
 });
