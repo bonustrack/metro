@@ -43,9 +43,8 @@ const MEMORY: AgentPage[] = [
 ];
 
 const TOOLS: AgentPage[] = [
-  { label: 'Tools', kinds: ['tools', 'scheduled', 'secrets'], target: tools },
+  { label: 'Tools', kinds: ['tools', 'scheduled'], target: tools },
   { label: 'Routine', kinds: ['scheduled-job'], target: tools, deep: true },
-  { label: 'Recent use', kinds: ['secrets-recent'], target: (project) => ({ kind: 'secrets-recent', project }), deep: true },
 ];
 
 const SETTINGS: AgentPage[] = [

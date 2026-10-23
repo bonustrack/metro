@@ -4,7 +4,6 @@ import { readAgentPath } from '../../apps/daemon/src/agent-user/files.ts';
 import { listSchedules } from '../../apps/daemon/src/agent-user/schedules.ts';
 import { runNow } from '../../apps/daemon/src/agent-user/schedule-detail.ts';
 import { inSessionScope } from '../../apps/daemon/src/claude/memory.ts';
-import { applyFirewall, removeFirewall } from '../../apps/daemon/src/vault/firewall.ts';
 import { rootHelper, runningAsMetro } from '../../apps/daemon/src/metro-user/privilege.ts';
 import { listClaudeProjects, listClaudeSessions, listMemory, readMemoryFile, readTranscript } from '../../apps/daemon/src/claude/files.ts';
 import { listClaudeSkills } from '../../apps/daemon/src/claude/skills.ts';
@@ -54,11 +53,6 @@ check('the helper refuses the old user drop-in', rootHelper(['dropin-write', 'de
 check('the helper takes only a version number for an upgrade', rootHelper(['upgrade', '../x']).status !== 0);
 check('the helper refuses a metro unit', rootHelper(['start-job', 'metro.service']).status !== 0);
 check('the helper refuses an unknown action', rootHelper(['sh']).status !== 0);
-
-applyFirewall();
-check('the vault firewall goes on through the helper', !out(...asAgent('curl', ['-s', '-m', '5', '-o', '/dev/null', 'https://example.com'])).ok);
-removeFirewall();
-check('and comes off', out(...asAgent('curl', ['-s', '-m', '15', '-o', '/dev/null', 'https://example.com'])).ok);
 
 const claudeDirOf = '/home/agent/.claude';
 check("the agent can read Metro's CLI but not its files", out(...asAgent('test', ['-r', '/var/lib/metro/.npm-global/lib/node_modules/@stage-labs/metro/dist/cli.js'])).ok && !out(...asAgent('test', ['-r', '/var/lib/metro/.metro/agents/agent.json'])).ok);

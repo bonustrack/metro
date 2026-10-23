@@ -15,13 +15,13 @@ import { notReady, primaryRoute, type ModelSetup } from '../gateway/model-config
 import { effectiveSetup } from '../gateway/effective.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
-import { agentExtraEnv, agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
+import { agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
   if (user === null) return {};
   const port = process.env.METRO_WEBHOOK_PORT?.trim() ?? '';
-  return { ...agentExtraEnv(), METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
+  return { METRO_AGENTS_DIR: agentViewDir(user), ...(port === '' ? {} : { METRO_WEBHOOK_PORT: port }) };
 }
 
 const SESSION_NAME = 'metro';

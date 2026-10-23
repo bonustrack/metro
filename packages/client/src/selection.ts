@@ -41,7 +41,6 @@ export type Selection =
   | { kind: 'scheduled'; project: string }
   | { kind: 'scheduled-job'; project: string; id: string }
   | { kind: 'files'; project: string; path: string }
-  | { kind: 'secrets'; project: string }
   | { kind: 'voice'; project: string }
   | { kind: 'skill'; project: string; id: string }
   | { kind: 'add-chat'; project: string; station?: string }
@@ -49,7 +48,6 @@ export type Selection =
   | { kind: 'agent-profile'; project: string }
   | { kind: 'launch-log'; project: string }
   | { kind: 'skills-github'; project: string }
-  | { kind: 'secrets-recent'; project: string }
   | { kind: 'access-keys'; project: string }
   | { kind: 'agent-activity'; project: string };
 
@@ -59,7 +57,7 @@ export function selectionProject(selection: Selection): string | null {
   return 'project' in selection ? selection.project : null;
 }
 
-type PlainKind = 'home' | 'run' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'chats' | 'tools' | 'claude' | 'skills' | 'scheduled' | 'secrets' | 'voice';
+type PlainKind = 'home' | 'run' | 'agent-settings' | 'server' | 'terminal' | 'model' | 'chats' | 'tools' | 'claude' | 'skills' | 'scheduled' | 'voice';
 type LandingKind = PlainKind | 'sessions' | 'memory' | 'files';
 
 const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
@@ -80,14 +78,12 @@ const LANDS_ON: Partial<Record<Selection['kind'], LandingKind>> = {
   sessions: 'sessions',
   memory: 'memory',
   files: 'files',
-  secrets: 'secrets',
   voice: 'voice',
   'add-chat': 'chats',
   backup: 'agent-settings',
   'agent-profile': 'agent-settings',
   'launch-log': 'agent-settings',
   'skills-github': 'skills',
-  'secrets-recent': 'tools',
 };
 
 export function sameViewOn(selection: Selection, project: string): Selection {

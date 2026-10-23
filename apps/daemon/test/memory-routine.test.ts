@@ -44,14 +44,14 @@ function cron(initial: string, timers: unknown[] = [], unreadable = false): Runn
 const deps = (runner: Runner): Parameters<typeof ensureMemoryJob>[1] => ({ user, runner, cli: CLI, port: '8420' });
 
 describe('the daily memory job on a box', () => {
-  test('is added once at the end of the crontab, at 00:00 and 12:00, after the vault block and the jobs already there, with its launcher and the memory skill', () => {
-    const runner = cron('# metro vault: begin\nHTTPS_PROXY=http://p\n# metro vault: end\n*/5 * * * * /home/agent/check.sh\n');
+  test('is added once at the end of the crontab, at 00:00 and 12:00, after the settings and the jobs already there, with its launcher and the memory skill', () => {
+    const runner = cron('MAILTO=agent@example.com\n*/5 * * * * /home/agent/check.sh\n');
     expect(ensureMemoryJob(true, deps(runner))).toEqual({ state: 'scheduled', job: null });
     const line = cronLine(user);
     expect(line).toBe(`0 0,12 * * * ${launcherPath(user)} ${home}/.claude/skills/memory/SKILL.md >> ${home}/.metro/memory-routine.log 2>&1`);
     expect(skillPath(user)).toBe(`${home}/.claude/skills/memory/SKILL.md`);
     expect(runner.tab()).toBe(
-      `# metro vault: begin\nHTTPS_PROXY=http://p\n# metro vault: end\n*/5 * * * * /home/agent/check.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`,
+      `MAILTO=agent@example.com\n*/5 * * * * /home/agent/check.sh\n# metro memory routine: begin\n${line}\n# metro memory routine: end\n`,
     );
     const launcher = readFileSync(launcherPath(user), 'utf8');
     expect(launcher).toContain(`exec node '${CLI}' memory "$@"`);

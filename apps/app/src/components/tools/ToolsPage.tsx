@@ -4,14 +4,13 @@ import { currentServer } from '@metro-labs/client/auth/daemon';
 import { AccessKeys } from './AccessKeys.js';
 import { Groups } from '../ui/Group.js';
 import { Routines } from './Routines.js';
-import { SecretKeys } from './SecretKeys.js';
 import { ToolConnectors } from './ToolConnectors.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
 import { useScrollToAnchor } from '../../lib/scroll-anchor.js';
 import { webOnly } from '../../lib/style.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
-type ToolsFocus = 'routines' | 'secret-keys';
+type ToolsFocus = 'routines';
 
 const ANCHOR = webOnly({ scrollMarginTop: 180 });
 
@@ -33,9 +32,6 @@ export function ToolsPage({ project, focus = null }: ToolsPageProps): ReactNode 
       </View>
       <View nativeID="routines" style={ANCHOR}>
         <Routines project={project} />
-      </View>
-      <View nativeID="secret-keys" style={ANCHOR}>
-        <SecretKeys />
       </View>
     </Groups>
   );

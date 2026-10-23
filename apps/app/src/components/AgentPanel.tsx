@@ -23,13 +23,11 @@ import { GitHubSourcePage } from './GitHubSourcePage.js';
 import { LaunchLogPage } from './LaunchLogPage.js';
 import { BackupPage } from './settings/BackupPage.js';
 import { ProfilePage } from './settings/ProfilePage.js';
-import { RecentUsePage } from './tools/KeyModals.js';
 import { agentPageOf } from '../lib/agent-tabs.js';
 
 function toolsPage(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'tools') return selection.connector === undefined ? <ToolsPage project={project} /> : <AgentConnectorPage project={project} id={selection.connector} />;
   if (selection.kind === 'scheduled') return <ToolsPage project={project} focus="routines" />;
-  if (selection.kind === 'secrets') return <ToolsPage project={project} focus="secret-keys" />;
   return null;
 }
 
@@ -65,7 +63,6 @@ function replacedDialog(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'agent-profile') return <ProfilePage project={project} />;
   if (selection.kind === 'launch-log') return <LaunchLogPage project={project} />;
   if (selection.kind === 'skills-github') return <GitHubSourcePage project={project} />;
-  if (selection.kind === 'secrets-recent') return <RecentUsePage project={project} />;
   return null;
 }
 
