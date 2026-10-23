@@ -105,7 +105,7 @@ export function RoutinePage({ project, id }: { project: string; id: string }): R
   return (
     <AgentDeepPage
       project={project}
-      tab="tools"
+      tab="scheduled"
       trail={[{ label: title }]}
       title={title}
       subtitle={detail.data === undefined ? undefined : scheduleWords(detail.data.schedule)}

@@ -2,7 +2,7 @@ import type { Selection } from '@metro-labs/client/selection';
 
 type Kind = Selection['kind'];
 
-export type AgentTabId = 'home' | 'chats' | 'memory' | 'tools' | 'settings';
+export type AgentTabId = 'home' | 'chats' | 'memory' | 'tools' | 'scheduled' | 'settings';
 
 export interface AgentPage {
   label: string;
@@ -22,12 +22,13 @@ export interface AgentTab {
 const chats = (project: string): Selection => ({ kind: 'chats', project });
 const notes = (project: string): Selection => ({ kind: 'memory', project, claudeProject: null, file: null });
 const tools = (project: string): Selection => ({ kind: 'tools', project });
+const scheduled = (project: string): Selection => ({ kind: 'scheduled', project });
 const settings = (project: string): Selection => ({ kind: 'agent-settings', project });
 
 const HOME_PAGES: AgentPage[] = [{ label: 'Right now', kinds: ['run'], target: (project) => ({ kind: 'run', project }), deep: true }];
 
 const CHATS: AgentPage[] = [
-  { label: 'Chats', kinds: ['chats'], target: chats },
+  { label: 'Channels', kinds: ['chats'], target: chats },
   { label: 'Channel', kinds: ['station'], target: chats, deep: true },
   { label: 'Voice calls', kinds: ['voice'], target: (project) => ({ kind: 'voice', project }), deep: true },
   { label: 'Conversations', kinds: ['sessions'], target: (project) => ({ kind: 'sessions', project, claudeProject: null, id: null }), deep: true },
@@ -42,9 +43,13 @@ const MEMORY: AgentPage[] = [
   { label: 'GitHub skills', kinds: ['skills-github'], target: (project) => ({ kind: 'skills-github', project }), deep: true },
 ];
 
-const TOOLS: AgentPage[] = [
-  { label: 'Tools', kinds: ['tools', 'scheduled'], target: tools },
-  { label: 'Routine', kinds: ['scheduled-job'], target: tools, deep: true },
+const CONNECTORS: AgentPage[] = [
+  { label: 'Connectors', kinds: ['tools'], target: tools },
+];
+
+const SCHEDULED: AgentPage[] = [
+  { label: 'Scheduled', kinds: ['scheduled'], target: scheduled },
+  { label: 'Routine', kinds: ['scheduled-job'], target: scheduled, deep: true },
 ];
 
 const SETTINGS: AgentPage[] = [
@@ -62,9 +67,10 @@ const HOME: AgentTab = { id: 'home', label: 'Home', target: (project) => ({ kind
 
 export const AGENT_TABS: readonly AgentTab[] = [
   HOME,
-  { id: 'chats', label: 'Chats', target: chats, pages: CHATS },
+  { id: 'chats', label: 'Channels', target: chats, pages: CHATS },
   { id: 'memory', label: 'Memory', target: notes, pages: MEMORY },
-  { id: 'tools', label: 'Tools', target: tools, pages: TOOLS },
+  { id: 'tools', label: 'Connectors', target: tools, pages: CONNECTORS },
+  { id: 'scheduled', label: 'Scheduled', target: scheduled, pages: SCHEDULED },
   { id: 'settings', label: 'Settings', target: settings, pages: SETTINGS },
 ];
 

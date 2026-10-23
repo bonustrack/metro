@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, channelLine, namesList, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
+  approverNames, approvesInChat, entriesOf, keptApprovers, channelLine, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
 } from '../src/lib/channel-people.ts';
+import { namesList } from '../src/lib/rule-sentence.ts';
 
 const CARDS = [
   { id: '111', name: 'Less', handle: '@lessbt' },

@@ -64,11 +64,11 @@ function Channels({ project, agentId, accounts, onAdd }: ChannelsProps): ReactNo
 
 export function ChatsPage({ project }: { project: string }): ReactNode {
   const { data, error, refetch } = useStationsQuery();
-  useDocumentTitle('Chats');
+  useDocumentTitle('Channels');
   if (data === undefined)
     return (
       <Group label="Channels">
-        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not load the chats" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
+        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not load the channels" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
       </Group>
     );
   const agent = data.agent;

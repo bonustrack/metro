@@ -29,7 +29,7 @@ export interface JumpTarget {
 
 export type JumpItem = JumpEntry<JumpTarget>;
 
-const TAB_ICONS: Record<AgentTabId, IconName> = { home: 'home', chats: 'chat', memory: 'documentText', tools: 'plug', settings: 'cog' };
+const TAB_ICONS: Record<AgentTabId, IconName> = { home: 'home', chats: 'chat', memory: 'documentText', tools: 'plug', scheduled: 'clock', settings: 'cog' };
 
 const REMOTE_ICONS: Record<RemoteTabId, IconName> = { connectors: 'plug', keys: 'key', activity: 'chartBar' };
 

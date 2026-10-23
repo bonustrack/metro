@@ -10,8 +10,8 @@ const ENTRIES: JumpEntry<null>[] = [
   entry('agent:tony', 'agents', ['Tony'], { idle: true }),
   entry('section:models', 'pages', ['Models'], { idle: true }),
   entry('page:emma:home', 'pages', ['Emma', 'Home']),
-  entry('page:emma:chats', 'pages', ['Emma', 'Chats']),
-  entry('page:emma:chats:voice', 'pages', ['Emma', 'Chats', 'Voice']),
+  entry('page:emma:chats', 'pages', ['Emma', 'Channels']),
+  entry('page:emma:chats:voice', 'pages', ['Emma', 'Channels', 'Voice']),
   entry('page:emma:settings', 'pages', ['Emma', 'Settings']),
   entry('page:emma:settings:model', 'pages', ['Emma', 'Settings', 'Model']),
   entry('page:tony:settings:model', 'pages', ['Tony', 'Settings', 'Model']),
@@ -41,7 +41,7 @@ describe('Jump search', () => {
     const models = keys('model');
     expect(models[0]).toBe('section:models');
     expect(models.indexOf('page:emma:settings:model')).toBeLessThan(models.indexOf('page:tony:settings:model'));
-    expect(jumpScore(entry('a', 'pages', ['Emma', 'Chats']), ['chat'])).toBeLessThan(jumpScore(entry('b', 'pages', ['Chats']), ['chat']) ?? 0);
+    expect(jumpScore(entry('a', 'pages', ['Emma', 'Channels']), ['channel'])).toBeLessThan(jumpScore(entry('b', 'pages', ['Channels']), ['channel']) ?? 0);
     expect(jumpScore(entry('c', 'pages', ['Emma']), ['xyz'])).toBeNull();
   });
 

@@ -1,38 +1,19 @@
 import { type ReactNode } from 'react';
-import { View } from 'react-native';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { AccessKeys } from './AccessKeys.js';
 import { Groups } from '../ui/Group.js';
-import { Routines } from './Routines.js';
 import { ToolConnectors } from './ToolConnectors.js';
 import { useConnectorScope } from '../../lib/org-connector-queries.js';
-import { useScrollToAnchor } from '../../lib/scroll-anchor.js';
-import { webOnly } from '../../lib/style.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
-type ToolsFocus = 'routines';
-
-const ANCHOR = webOnly({ scrollMarginTop: 180 });
-
-interface ToolsPageProps {
-  project: string;
-  focus?: ToolsFocus | null;
-}
-
-export function ToolsPage({ project, focus = null }: ToolsPageProps): ReactNode {
+export function ToolsPage({ project }: { project: string }): ReactNode {
   const scope = useConnectorScope();
   const agent = currentServer()?.id ?? '';
-  useDocumentTitle('Tools');
-  useScrollToAnchor(focus);
+  useDocumentTitle('Connectors');
   return (
     <Groups>
       <ToolConnectors key={`${String(scope)}:${agent}`} project={project} />
-      <View nativeID="access-keys" style={ANCHOR}>
-        <AccessKeys key={`${String(scope)}:${agent}`} agent={agent} />
-      </View>
-      <View nativeID="routines" style={ANCHOR}>
-        <Routines project={project} />
-      </View>
+      <AccessKeys key={`${String(scope)}:${agent}`} agent={agent} />
     </Groups>
   );
 }

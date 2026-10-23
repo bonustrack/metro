@@ -6,7 +6,8 @@ import { addressProblem, nameFromAddress } from '../src/lib/connector-address.ts
 import {
   explorerTools, filterCounts, filterTools, groupChoice, groupFloor, isChanged, stricterAgents, toolChoice, toolFloor, visibleFilters, withGroupChoice, withToolChoice, type ExplorerTool,
 } from '../src/lib/connector-rules.ts';
-import { agentRuleSummary, effectiveRule, summaryText, toolRulesText } from '../src/lib/connector-summary.ts';
+import { agentRuleSummary, effectiveRule, summaryText } from '../src/lib/connector-summary.ts';
+import { toolRulesText } from '../src/lib/rule-sentence.ts';
 import { looserThan } from '../src/lib/permission-words.ts';
 
 const tool = (name: string, readOnly: boolean, extra: Partial<ConnectorTool> = {}): ConnectorTool => ({

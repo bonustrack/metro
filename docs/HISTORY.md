@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-10-23: An agent's tabs are Channels, Connectors and Scheduled
+
+Less renamed two of an agent's tabs so they use the words the rest of the page uses: Chats became Channels and Tools became Connectors. The routines (the agent's scheduled jobs and the memory routine switch) left the Tools tab for a tab of their own, Scheduled, so an agent now has six tabs: Home, Channels, Memory, Connectors, Scheduled, Settings. The Connectors tab keeps the agent's organization connectors and its access keys (Secret keys went with the vault the same day). Only the words and the place changed: the tab ids, route kinds and addresses are the same (`#/<agent>/chats`, `#/<agent>/tools`, `#/<agent>/scheduled`, `#/<agent>/scheduled/<id>`), so every old link opens the new place. On a phone the six tabs do not fit, so the tab row scrolls the current tab into view. Page only.
+
+## 2026-10-23: Channel and connector pages say their setup in words
+
+Less, on a WhatsApp channel page: "we should show after the hero a human text description of the channel permissions. It should be human readable and include all the options that are set up, so someone can read a small sentence and understand how it's set up." Then: "We should do the same for the agent connector page." Both pages now open with one paragraph in large text, built from the settings the page already reads, for example "Marco Rossi, Mustafa and 9 others can write. Marco Rossi and Mustafa approve in a private chat. Lisa reads and sends freely, asks before deleting. Exceptions: Create groups blocked, Ask with a poll needs approval." After trying it, Less asked for it "a bit more concise" and to "show in white everything that are variables": the filler words went, and every value (names, counts, rules, tool names, places, the connection state) is in the primary text colour while the joining words stay grey. Names come from the People list's own lookups, and an id without a name is only counted, so a WhatsApp `@lid` never shows. Page only.
+
 ## 2026-10-23: Connector calls in numbers, and the last 10 calls
 
 Less: "We should show on the agents page a chart with number of tool calls, with ability to break down by connector. We should also show % of failed tool calls etc." Then, the same day: "Also show only last 10 tool calls on that page and agent page."
