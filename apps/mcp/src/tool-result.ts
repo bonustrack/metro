@@ -1,5 +1,6 @@
 export interface ToolResult {
   content: Record<string, unknown>[];
+  structuredContent?: Record<string, unknown>;
   isError?: true;
 }
 

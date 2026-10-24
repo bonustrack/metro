@@ -1,5 +1,5 @@
 import { MCP_CALLS_MAX } from '@metro-labs/http/mcp-server-protocol';
-import { mcpServerTools, type ApprovalPlace, type McpServerTool } from '@metro-labs/http/mcp-server-tools';
+import { mcpServerTools, type ApprovalPlace, type ConnectorLabel, type McpServerTool } from '@metro-labs/http/mcp-server-tools';
 import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 
@@ -40,4 +40,4 @@ export function approvalPlace(identity: DeliveryIdentity): ApprovalPlace {
 
 export const instructionsFor = (place: ApprovalPlace): string => INSTRUCTIONS[place];
 
-export const toolList = (keys: string[], place: ApprovalPlace): McpServerTool[] => mcpServerTools(keys, place);
+export const toolList = (connectors: ConnectorLabel[], place: ApprovalPlace): McpServerTool[] => mcpServerTools(connectors, place);

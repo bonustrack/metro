@@ -1,25 +1,34 @@
 import { describe, expect, test } from 'bun:test';
 import { mcpCallsOf, TOOL_CALL_EXAMPLE } from '../src/mcp-server-protocol.ts';
-import { mcpServerTools, TOOL_CALL_DESCRIPTION, toolSearchDescription } from '../src/mcp-server-tools.ts';
+import { connectorLabel, mcpServerTools, TOOL_CALL_DESCRIPTION, toolSearchDescription, type ConnectorLabel } from '../src/mcp-server-tools.ts';
 
-const MANY = Array.from({ length: 40 }, (_, i) => `connector-number-${String(i)}`);
+const named = (...keys: string[]): ConnectorLabel[] => keys.map((key) => ({ key, name: key }));
+const MANY = Array.from({ length: 40 }, (_, i) => ({ key: `connector-number-${String(i)}`, name: `A long connector name for number ${String(i)}` }));
 
 describe('the two connector tools every agent sees', () => {
   test('are tool_search and tool_call, read-only and destructive, in that order', () => {
-    const [search, call] = mcpServerTools(['notion']);
+    const [search, call] = mcpServerTools(named('notion'));
     expect([search?.name, call?.name]).toEqual(['tool_search', 'tool_call']);
     expect(search?.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });
     expect(call?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, openWorldHint: true });
   });
 
   test('stay well under the 2,048 characters Claude Code keeps of a description, even with many connectors', () => {
-    for (const keys of [null, [], ['notion', 'n8n-anderra'], MANY]) expect(toolSearchDescription(keys).length).toBeLessThan(2048);
-    expect(toolSearchDescription(['notion']).length).toBeLessThan(1800);
+    for (const keys of [null, [], named('notion', 'n8n-anderra'), MANY]) expect(toolSearchDescription(keys).length).toBeLessThan(2048);
+    expect(toolSearchDescription(named('notion')).length).toBeLessThan(1800);
     expect(TOOL_CALL_DESCRIPTION.length).toBeLessThan(1800);
   });
 
+  test('name each connector after its key, unless the name is only the key in other letters', () => {
+    expect(connectorLabel({ key: 'x50-rosa-bonustrack-co', name: 'X50 rosa@bonustrack.co' })).toBe('x50-rosa-bonustrack-co (X50 rosa@bonustrack.co)');
+    expect(connectorLabel({ key: 'notion', name: 'Notion' })).toBe('notion');
+    expect(connectorLabel({ key: 'n8n', name: ' n8n\n prod ' })).toBe('n8n (n8n prod)');
+    expect(toolSearchDescription([{ key: 'notion', name: 'Notion' }, { key: 'n8n-anderra', name: 'n8n Anderra' }])).toContain("This agent's connectors: notion, n8n-anderra (n8n Anderra).");
+    expect(toolSearchDescription(MANY)).toContain('connectors: connector-number-0, connector-number-1,');
+  });
+
   test('say how to search and how to call, with an example of each form and of every answer line', () => {
-    const search = toolSearchDescription(['notion', 'linear']);
+    const search = toolSearchDescription(named('notion', 'linear'));
     expect(search).toContain("Claude Code's ToolSearch");
     expect(search).toContain("This agent's connectors: notion, linear.");
     for (const example of ['"select:notion.search"', '"notion create page"', '"+linear issue"', '<connector>.<tool>', 'tool_call']) expect(search).toContain(example);
@@ -31,14 +40,14 @@ describe('the two connector tools every agent sees', () => {
   });
 
   test('the approval line follows where the owner answers: the box session, the page of an agent without a server, or a key of a box', () => {
-    const page = mcpServerTools(['notion'], 'page')[1]?.description ?? '';
+    const page = mcpServerTools(named('notion'), 'page')[1]?.description ?? '';
     expect(page).toContain('- needs_approval: the owner must approve it on this agent\'s page on metro.box.');
     expect(page).not.toContain('channel message');
-    const owner = mcpServerTools(['notion'], 'owner')[1]?.description ?? '';
+    const owner = mcpServerTools(named('notion'), 'owner')[1]?.description ?? '';
     expect(owner).toContain('- needs_approval: the agent\'s owner was asked in chat and on its page on metro.box.');
     expect(owner).not.toContain('channel message');
     for (const text of [page, owner]) expect(text.length).toBeLessThan(1800);
-    expect(mcpServerTools(['notion'])[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
+    expect(mcpServerTools(named('notion'))[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
   });
 
   test('a malformed tool_call answers with the expected shape', () => {

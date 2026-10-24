@@ -49,7 +49,7 @@ async function fakeServer(): Promise<Fake> {
     url: '',
     seen: [],
     status: 200,
-    tools: mcpServerTools(['notion']) as unknown as Record<string, unknown>[],
+    tools: mcpServerTools([{ key: 'notion', name: 'Notion' }]) as unknown as Record<string, unknown>[],
     answer: () => ({ result: { content: [{ type: 'text', text: '[1] notion.search' }] } }),
     close: () => Promise.resolve(),
   };
@@ -174,11 +174,11 @@ describe('the descriptions come from mcp.metro.box', () => {
     let told = 0;
     const stop = onConnectorToolsChanged(() => { told += 1; });
     try {
-      fake.tools = mcpServerTools(['notion', 'n8n-anderra']) as unknown as Record<string, unknown>[];
+      fake.tools = mcpServerTools([{ key: 'notion', name: 'Notion' }, { key: 'n8n-anderra', name: 'n8n Anderra' }]) as unknown as Record<string, unknown>[];
       const before = connectorToolsVersion();
       expect(await refreshConnectorTools(deps())).toBe(true);
       expect(connectorToolsVersion()).toBe(before + 1);
-      expect(connectorTools()[0]?.description).toContain("This agent's connectors: notion, n8n-anderra.");
+      expect(connectorTools()[0]?.description).toContain("This agent's connectors: notion, n8n-anderra (n8n Anderra).");
       expect(await refreshConnectorTools(deps())).toBe(false);
       fake.status = 503;
       expect(await refreshConnectorTools(deps())).toBe(false);
@@ -204,7 +204,7 @@ describe('the descriptions come from mcp.metro.box', () => {
     try {
       const sessionId = await initSession(url);
       const stream = await openGet(url, sessionId);
-      fake.tools = mcpServerTools(['linear']) as unknown as Record<string, unknown>[];
+      fake.tools = mcpServerTools([{ key: 'linear', name: 'Linear' }]) as unknown as Record<string, unknown>[];
       expect(await refreshConnectorTools(deps())).toBe(true);
       for (let i = 0; i < 50 && !stream.raw().includes('notifications/tools/list_changed'); i += 1) await Bun.sleep(20);
       expect(stream.raw()).toContain('notifications/tools/list_changed');

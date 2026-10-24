@@ -4,7 +4,7 @@ import { METRO_VERSION } from '@metro-labs/core/version';
 import { mcpCallsOf, mcpFindRequestOf } from '@metro-labs/http/mcp-server-protocol';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { callTools } from './call.js';
-import { agentConnectors, visibleKeys } from './catalog.js';
+import { agentConnectors, labelsOf } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { findTools } from './find.js';
 import { errorResult, type ToolResult } from './tool-result.js';
@@ -68,7 +68,7 @@ async function result(ctx: RpcContext, method: string, params: Record<string, un
   const place = approvalPlace(ctx.identity);
   if (method === 'initialize') return initialize(params, place);
   if (method === 'ping') return {};
-  if (method === 'tools/list') return { tools: toolList(visibleKeys(await agentConnectors(ctx.deps, ctx.identity)), place) };
+  if (method === 'tools/list') return { tools: toolList(labelsOf(await agentConnectors(ctx.deps, ctx.identity)), place) };
   if (method === 'tools/call') return toolCall(ctx, params);
   throw new RpcError(-32601, `Method not found: ${method.slice(0, 64)}`);
 }

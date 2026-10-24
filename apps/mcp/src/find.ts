@@ -1,7 +1,7 @@
 import { splitMcpTool, type McpFindRequest } from '@metro-labs/http/mcp-server-protocol';
 import type { RemoteTool } from '@metro-labs/http/connector-tools';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
-import { agentConnectors, connectorsSentence, visibleKeys, type AgentConnector } from './catalog.js';
+import { agentConnectors, connectorsSentence, labelsOf, visibleConnectors, type AgentConnector } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { connectorTools, failureOf, groupsOf } from './listing.js';
 import { functionsText, searchTools, selectedNames, type SearchTool } from './search.js';
@@ -42,16 +42,23 @@ const BROADER = ' Try a broader query with fewer words, or "select:<connector>.<
 
 function noMatch(query: string, connectors: AgentConnector[], listings: Listing[]): string {
   const failures = listings.filter((listing) => listing.failure !== undefined).map((listing) => `${listing.connector.key}: ${listing.failure ?? ''}`);
-  const hint = visibleKeys(connectors).length === 0 ? '' : BROADER;
+  const hint = visibleConnectors(connectors).length === 0 ? '' : BROADER;
   return [`No tool matched "${query}". ${connectorsSentence(connectors)}${hint}`, ...failures].join('\n');
 }
 
 const callFooter = (found: SearchTool[]): string => `Call these with tool_call: {"calls":[{"tool":"${found[0]?.name ?? '<name>'}","arguments":{…}}]}`;
 
+function structured(connectors: AgentConnector[], found: SearchTool[]): Record<string, unknown> {
+  return {
+    connectors: labelsOf(connectors),
+    tools: found.map((tool) => ({ name: tool.name, title: tool.title, connector: splitMcpTool(tool.name)?.connector ?? '' })),
+  };
+}
+
 export async function findTools(deps: McpDeps, identity: DeliveryIdentity, request: McpFindRequest): Promise<ToolResult> {
-  const connectors = (await agentConnectors(deps, identity)).filter((connector) => !connector.access.blocked);
+  const connectors = visibleConnectors(await agentConnectors(deps, identity));
   const listings = await Promise.all(wanted(connectors, request.query).map((connector) => listingOf(deps, identity, connector)));
   const found = searchTools(listings.flatMap(searchable), request.query, request.max_results);
   const text = found.length === 0 ? noMatch(request.query, connectors, listings) : `${functionsText(found)}\n${callFooter(found)}`;
-  return { content: [textBlock(text)] };
+  return { content: [textBlock(text)], structuredContent: structured(connectors, found) };
 }

@@ -42,10 +42,19 @@ function hintsOf(annotations: Record<string, unknown>): Pick<RemoteTool, 'destru
   return { ...(annotations.destructiveHint === true ? { destructive: true } : {}), ...(annotations.openWorldHint === true ? { openWorld: true } : {}) };
 }
 
+export function toolTitleOf(name: string): string {
+  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[\s_\-.]+/).filter((word) => word !== '');
+  if (words.length === 0) return name;
+  const text = words.map((word, at) => (at > 0 && word !== word.toUpperCase() ? word.toLowerCase() : word)).join(' ');
+  return `${text.slice(0, 1).toUpperCase()}${text.slice(1)}`;
+}
+
+const filled = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
+
 function toTool(raw: unknown): RemoteTool | null {
   if (!isRecord(raw) || typeof raw.name !== 'string') return null;
   const annotations = isRecord(raw.annotations) ? raw.annotations : {};
-  const title = typeof raw.title === 'string' && raw.title !== '' ? raw.title : raw.name;
+  const title = filled(raw.title) ?? filled(annotations.title) ?? toolTitleOf(raw.name);
   return { name: raw.name, title, description: typeof raw.description === 'string' ? raw.description : '', readOnly: annotations.readOnlyHint === true, ...hintsOf(annotations), ...(isRecord(raw.inputSchema) ? { inputSchema: raw.inputSchema } : {}) };
 }
 

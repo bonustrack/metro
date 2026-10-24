@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomInt } from 'node:crypto';
-import { listRemoteTools } from '@metro-labs/http/connector-tools';
+import { listRemoteTools, toolTitleOf } from '@metro-labs/http/connector-tools';
 import { ConnectorVerifyError } from '@metro-labs/http/connector-url';
 
 interface Seen {
@@ -46,7 +46,7 @@ beforeAll(async () => {
       else if (body.method === 'tools/list') {
         const page = body.params?.cursor === 'p2' ? 2 : 1;
         answer(res, 2, {
-          tools: malformed ? [{ name: 'valid' }, { nope: 1 }] : page === 1 ? [{ name: 'search', title: 'Search', description: 'Finds things', annotations: { readOnlyHint: true } }, { name: 'delete_thing' }] : [{ name: 'page_two' }],
+          tools: malformed ? [{ name: 'valid' }, { nope: 1 }] : page === 1 ? [{ name: 'search', title: 'Search', description: 'Finds things', annotations: { readOnlyHint: true } }, { name: 'delete_thing' }] : [{ name: 'page_two', annotations: { title: 'Second page' } }],
           ...(page === 1 && pages > 1 ? { nextCursor: 'p2' } : {}),
         });
       } else res.writeHead(405).end();
@@ -68,13 +68,17 @@ beforeEach(() => {
 });
 
 describe('listing a connector\'s tools live', () => {
-  test('opens a session, walks every page, ends the session, and reads title, description and the read-only hint', async () => {
+  test('a tool with no title is named by its id in words', () => {
+    expect(['attach_receipt', 'createPage', 'get_URL', 'list-items.v2', 'search', '_'].map(toolTitleOf)).toEqual(['Attach receipt', 'Create page', 'Get URL', 'List items v2', 'Search', '_']);
+  });
+
+  test('opens a session, walks every page, ends the session, and reads title (else the annotation title, else the name in words), description and the read-only hint', async () => {
     pages = 2;
     const tools = await listRemoteTools(new URL(`${origin}/mcp`), { kind: 'header', name: 'Authorization', value: 'Bearer v1' });
     expect(tools).toEqual([
       { name: 'search', title: 'Search', description: 'Finds things', readOnly: true },
-      { name: 'delete_thing', title: 'delete_thing', description: '', readOnly: false },
-      { name: 'page_two', title: 'page_two', description: '', readOnly: false },
+      { name: 'delete_thing', title: 'Delete thing', description: '', readOnly: false },
+      { name: 'page_two', title: 'Second page', description: '', readOnly: false },
     ]);
     expect(seen.map((s) => s.rpc || s.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/list', 'DELETE']);
     for (const frame of seen.slice(1)) {

@@ -57,7 +57,7 @@ describe('tool_search against a real connector', () => {
   test('keywords return the <functions> encoding with the vendor schema, and no credential', async () => {
     const result = await find('notion page update');
     const [text] = texts(result);
-    expect(text?.startsWith('<functions>\n<function>{"name":"notion.update_page"')).toBe(true);
+    expect(text?.startsWith('<functions>\n<function>{"name":"notion.update_page","title":"Update page"')).toBe(true);
     expect(text).toContain('"parameters":{"type":"object","properties":{"page_id":{"type":"string"}');
     expect(text).not.toContain('URL_SECRET');
     expect(text).not.toContain('VENDOR_KEY');
@@ -74,6 +74,19 @@ describe('tool_search against a real connector', () => {
 
   test('no match names the agent\'s connectors', async () => {
     expect(texts(await find('spreadsheet'))[0]).toBe('No tool matched "spreadsheet". This agent\'s connectors: notion. Try a broader query with fewer words, or "select:<connector>.<tool>" with an exact name.');
+  });
+
+  test('the answer carries every connector\'s key and name, and the connector of each tool', async () => {
+    await addConnector(held.db, 'conn0000009', 'X50 rosa@bonustrack.co', headerSecret());
+    await assign(held.db, 'conn0000009', agent.row.agent);
+    const result = await find('select:notion.search');
+    expect(result.structuredContent).toEqual({
+      connectors: [{ key: 'notion', name: 'Notion' }, { key: 'x50-rosa-bonustrack-co', name: 'X50 rosa@bonustrack.co' }],
+      tools: [{ name: 'notion.search', title: 'Search pages', connector: 'notion' }],
+    });
+    const miss = await find('spreadsheet');
+    expect(texts(miss)[0]).toContain("This agent's connectors: notion, x50-rosa-bonustrack-co (X50 rosa@bonustrack.co).");
+    expect(miss.structuredContent?.tools).toEqual([]);
   });
 
   test('blocked tools are never returned', async () => {
