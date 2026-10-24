@@ -179,7 +179,8 @@ describe('safe organization tool discovery', () => {
     listed = names.map((name) => ({ name, annotations: { readOnlyHint: true } }));
     const response = await call(`/${row.id}/tools`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ tools: names.map((name) => ({ name, title: name, description: '', readOnly: true })) });
+    const titles = ['Files/read', 'Files:read', `X${'x'.repeat(255)}`];
+    expect(await response.json()).toEqual({ tools: names.map((name, at) => ({ name, title: titles[at], description: '', readOnly: true })) });
   });
 
   test('no auth or another organization cannot discover or infer a connector', async () => {

@@ -94,8 +94,21 @@ export function apiFailure(
     sendJson(req, res, err.status, { error: err.message });
     return;
   }
-  log.warn({ err: errMsg(err) }, `${label}: request failed`);
+  log.warn({ err: errMsg(err), ...causesOf(err) }, `${label}: request failed`);
   if (!res.headersSent) sendJson(req, res, 500, { error: `${label} failed` });
+}
+
+const CAUSES_MAX = 3;
+
+export function causesOf(err: unknown): { causes?: string[] } {
+  const causes: string[] = [];
+  let at = err instanceof Error ? err.cause : undefined;
+  while (at !== undefined && at !== null && causes.length < CAUSES_MAX) {
+    const code = typeof at === 'object' && 'code' in at && typeof at.code === 'string' ? `${at.code} ` : '';
+    causes.push(`${code}${errMsg(at)}`.slice(0, 300));
+    at = at instanceof Error ? at.cause : undefined;
+  }
+  return causes.length === 0 ? {} : { causes };
 }
 
 export interface SessionRoute {
