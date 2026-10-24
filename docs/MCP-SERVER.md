@@ -47,13 +47,24 @@ the same two tools with the same schemas, descriptions and annotations (one sour
 
   ```
   <functions>
-  <function>{"name":"notion.search","description":"…","parameters":{…JSON schema…}}</function>
+  <function>{"name":"notion.search","title":"Search pages","description":"…","parameters":{…JSON schema…}}</function>
   </functions>
   Call these with tool_call: {"calls":[{"tool":"notion.search","arguments":{…}}]}
   ```
 
   No match answers `No tool matched "<query>".`, names the agent's connectors and suggests a
   broader query or `select:` with an exact name.
+- Every answer also carries `structuredContent`, for clients that build their own interface:
+  `{connectors: [{key, name}], tools: [{name, title, connector}]}`. `connectors` is every
+  connector the agent may use (not only those the query touched), with the name the owner gave
+  it on metro.box; `tools` is what this search found, `connector` being its key. No
+  `outputSchema` is declared.
+- A tool's `title` is the vendor's `title`, else its `annotations.title`, else its id in words
+  (`attach_receipt` reads `Attach receipt`, `toolTitleOf` in `@metro-labs/http/connector-tools`).
+  The page's connector explorer shows the same title.
+- Text names a connector as its key, followed by its name in brackets when the name is more
+  than the key in other letters: `notion, x50-rosa-bonustrack-co (X50 rosa@bonustrack.co)`
+  (`connectorLabel`). In the tool's description the names are dropped past 900 characters.
 - The tool's description (from `tools/list`) names the agent's connectors. The daemon reads
   it at start, every 5 minutes and after it registers the token, and tells the session with
   `notifications/tools/list_changed` when it changes.

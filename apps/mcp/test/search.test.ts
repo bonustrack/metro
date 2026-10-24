@@ -67,6 +67,6 @@ describe('tool_search search', () => {
 
   test('the output is the ToolSearch <functions> encoding, one function per line', () => {
     const text = functionsText([TOOLS[0] ?? tool('x')]);
-    expect(text).toBe('<functions>\n<function>{"name":"notion.search","description":"Search pages and databases in the workspace.","parameters":{"type":"object","properties":{}}}</function>\n</functions>');
+    expect(text).toBe('<functions>\n<function>{"name":"notion.search","title":"Search","description":"Search pages and databases in the workspace.","parameters":{"type":"object","properties":{}}}</function>\n</functions>');
   });
 });

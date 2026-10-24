@@ -137,9 +137,15 @@ export async function rpc(app: TestApp, token: string | null, body: unknown, hea
   return fetch(`${app.base}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(token === null ? {} : { authorization: `Bearer ${token}` }), ...headers }, body: JSON.stringify(body) });
 }
 
-export async function callTool(app: TestApp, token: string, name: string, args: unknown): Promise<{ content: { type: string; text?: string }[]; isError?: boolean }> {
+export interface CallAnswer {
+  content: { type: string; text?: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+}
+
+export async function callTool(app: TestApp, token: string, name: string, args: unknown): Promise<CallAnswer> {
   const res = await rpc(app, token, { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name, arguments: args } });
-  const body = await res.json() as { result: { content: { type: string; text?: string }[]; isError?: boolean } };
+  const body = await res.json() as { result: CallAnswer };
   return body.result;
 }
 

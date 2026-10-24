@@ -45,15 +45,29 @@ const callSchema = {
   additionalProperties: false,
 };
 
-function connectorsLine(keys: string[] | null): string {
-  if (keys === null) return 'The connectors of this agent are named here once Metro reaches mcp.metro.box.';
-  return keys.length === 0 ? 'This agent has no connectors it may use yet.' : `This agent's connectors: ${keys.join(', ')}.`;
+export interface ConnectorLabel {
+  key: string;
+  name: string;
 }
 
-export const toolSearchDescription = (keys: string[] | null): string =>
+const LABELS_MAX = 900;
+
+export function connectorLabel(connector: ConnectorLabel): string {
+  const name = connector.name.replace(/\s+/g, ' ').trim();
+  return name === '' || name.toLowerCase() === connector.key ? connector.key : `${connector.key} (${name})`;
+}
+
+function connectorsLine(connectors: ConnectorLabel[] | null): string {
+  if (connectors === null) return 'The connectors of this agent are named here once Metro reaches mcp.metro.box.';
+  if (connectors.length === 0) return 'This agent has no connectors it may use yet.';
+  const labels = connectors.map(connectorLabel).join(', ');
+  return `This agent's connectors: ${labels.length > LABELS_MAX ? connectors.map((connector) => connector.key).join(', ') : labels}.`;
+}
+
+export const toolSearchDescription = (connectors: ConnectorLabel[] | null): string =>
   [
     'Search the tools of every connector assigned to this agent: third-party services such as Notion, n8n, Linear or Gmail, run by mcp.metro.box. Same design as Claude Code\'s ToolSearch, for connectors.',
-    connectorsLine(keys),
+    connectorsLine(connectors),
     'Three query forms, one example each:',
     '- "select:notion.search" loads exact tools by name (comma separated for several).',
     '- "notion create page" ranks tools by the words in their name and description.',
@@ -84,12 +98,12 @@ const toolCallDescription = (place: ApprovalPlace): string =>
 
 export const TOOL_CALL_DESCRIPTION = toolCallDescription('session');
 
-export function mcpServerTools(keys: string[] | null, place: ApprovalPlace = 'session'): McpServerTool[] {
+export function mcpServerTools(connectors: ConnectorLabel[] | null, place: ApprovalPlace = 'session'): McpServerTool[] {
   return [
     {
       name: TOOL_SEARCH,
       title: 'Search connector tools',
-      description: toolSearchDescription(keys),
+      description: toolSearchDescription(connectors),
       inputSchema: searchSchema,
       annotations: { title: 'Search connector tools', readOnlyHint: true, openWorldHint: false },
     },

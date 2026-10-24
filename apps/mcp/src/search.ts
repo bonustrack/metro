@@ -104,6 +104,6 @@ export function closestNames(wanted: string, names: string[], max: number): stri
 }
 
 export function functionsText(tools: SearchTool[]): string {
-  const lines = tools.map((tool) => `<function>${JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters })}</function>`);
+  const lines = tools.map((tool) => `<function>${JSON.stringify({ name: tool.name, title: tool.title, description: tool.description, parameters: tool.parameters })}</function>`);
   return ['<functions>', ...lines, '</functions>'].join('\n');
 }

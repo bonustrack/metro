@@ -85,7 +85,7 @@ describe('MCP over HTTP', () => {
     const body = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 3, method: 'tools/list' })).json() as { result: { tools: { name: string; description: string; inputSchema: { required: string[] }; annotations: Record<string, unknown> }[] } };
     const [find, call] = body.result.tools;
     expect(body.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call']);
-    expect(find?.description).toContain("This agent's connectors: n8n-anderra, notion.");
+    expect(find?.description).toContain("This agent's connectors: n8n-anderra (n8n Anderra), notion.");
     expect(find?.description).not.toContain('hidden');
     expect(find?.inputSchema.required).toEqual(['query']);
     expect(find?.annotations).toMatchObject({ readOnlyHint: true });

@@ -1,3 +1,4 @@
+import { connectorLabel, type ConnectorLabel } from '@metro-labs/http/mcp-server-tools';
 import { connectorKeys } from '@metro-labs/connectors/connector-keys';
 import type { AssignedConnector, DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { McpDeps } from './deps.js';
@@ -19,9 +20,11 @@ export async function agentConnectors(deps: Pick<McpDeps, 'store'>, identity: De
     .sort((a, b) => (a.key < b.key ? -1 : 1));
 }
 
-export const visibleKeys = (connectors: AgentConnector[]): string[] => connectors.filter((connector) => !connector.access.blocked).map((connector) => connector.key);
+export const visibleConnectors = (connectors: AgentConnector[]): AgentConnector[] => connectors.filter((connector) => !connector.access.blocked);
+
+export const labelsOf = (connectors: AgentConnector[]): ConnectorLabel[] => visibleConnectors(connectors).map((connector) => ({ key: connector.key, name: connector.name }));
 
 export function connectorsSentence(connectors: AgentConnector[]): string {
-  const keys = visibleKeys(connectors);
-  return keys.length === 0 ? 'This agent has no connectors it may use.' : `This agent's connectors: ${keys.join(', ')}.`;
+  const labels = labelsOf(connectors);
+  return labels.length === 0 ? 'This agent has no connectors it may use.' : `This agent's connectors: ${labels.map(connectorLabel).join(', ')}.`;
 }
