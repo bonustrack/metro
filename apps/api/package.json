@@ -11,7 +11,7 @@
   "scripts": {
     "start": "bun src/server.ts",
     "build": "tsc",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun src/db/migrate.ts",
     "test": "tsc --noEmit && bun test test/"
   },
   "dependencies": {
