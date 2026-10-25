@@ -72,6 +72,7 @@ function sectionEntries(admin: boolean): JumpItem[] {
   return [
     ...SHELL_SECTIONS.map((section): JumpItem => ({ key: `section:${section.id}`, group: 'pages', crumbs: [section.label], idle: true, payload: go(section.target, SECTION_ICONS[section.id]) })),
     { key: 'section:route', group: 'pages', crumbs: ['Gateway', 'Default route'], words: ['backup', 'fallback'], payload: go({ kind: 'org-route' }, 'route') },
+    { key: 'section:usage', group: 'pages', crumbs: ['Gateway', 'Usage'], words: ['spend', 'cost', 'tokens', 'models'], payload: go({ kind: 'org-usage' }, 'chart') },
     ...(admin ? [launch] : []),
   ];
 }

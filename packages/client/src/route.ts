@@ -30,6 +30,7 @@ const ORG_MODELS_PATH = /^#?\/organization\/models$/;
 const ORG_CONNECTOR_NEW_PATH = /^#?\/organization\/connectors\/new$/;
 const ORG_CONNECTOR_PATH = new RegExp(`^#?/organization/connectors/(${ID})(?:/(settings)|/(agents)(?:/(${ID}))?)?$`);
 const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
+const ORG_USAGE_PATH = /^#?\/organization\/models\/usage$/;
 const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
@@ -102,6 +103,7 @@ function activitySelection(path: string): Selection | null {
 function organizationSelection(path: string): Selection | null {
   if (ORG_MODELS_PATH.test(path)) return { kind: 'org-models' };
   if (ORG_ROUTE_PATH.test(path)) return { kind: 'org-route' };
+  if (ORG_USAGE_PATH.test(path)) return { kind: 'org-usage' };
   return orgModelSelection(path) ?? orgConnectorSelection(path);
 }
 
@@ -212,6 +214,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   'org-connector-new': 'organization/connectors/new',
   'org-models': 'organization/models',
   'org-route': 'organization/models/default',
+  'org-usage': 'organization/models/usage',
   'org-aws': 'organization/aws',
 };
 

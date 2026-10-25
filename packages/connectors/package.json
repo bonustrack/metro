@@ -36,7 +36,8 @@
     "./codex-tokens": "./src/codex-tokens.ts",
     "./db/models": "./src/db/models.ts",
     "./db/model-delivery": "./src/db/model-delivery.ts",
-    "./db/model-calls": "./src/db/model-calls.ts"
+    "./db/model-calls": "./src/db/model-calls.ts",
+    "./db/model-call-stats": "./src/db/model-call-stats.ts"
   },
   "scripts": {
     "build": "tsc",

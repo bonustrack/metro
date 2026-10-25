@@ -32,12 +32,20 @@ const styles = StyleSheet.create({
   key: { width: KEY_WIDTH, height: KEY_HEIGHT, borderRadius: 1 },
 });
 
+export interface ChartUnits {
+  value: (value: number) => string;
+  total: (value: number) => string;
+}
+
+const CALL_UNITS: ChartUnits = { value: countWords, total: callsWords };
+
 interface CallChartProps {
   series: StackSeries[];
   times: number[];
   bucketMs: number;
   range: StatsRange;
   summary: string;
+  units?: ChartUnits;
 }
 
 interface Geometry {
@@ -58,10 +66,10 @@ interface TipRow {
 
 const textWidth = (text: string): number => text.length * LABEL * CHAR_EM;
 
-function geometryOf(width: number, totals: number[]): Geometry {
+function geometryOf(width: number, totals: number[], units: ChartUnits): Geometry {
   const ticks = niceTicks(Math.max(0, ...totals));
   const top = ticks.at(-1) ?? 1;
-  const left = Math.ceil(Math.max(...ticks.map((tick) => textWidth(countWords(tick))))) + TICK_PAD;
+  const left = Math.ceil(Math.max(...ticks.map((tick) => textWidth(units.value(tick))))) + TICK_PAD;
   const band = (width - left) / Math.max(1, totals.length);
   return { left, right: width, band, bar: Math.max(1, Math.min(BAR_MAX, band - GAP)), ticks, y: (value) => TOP + (PLOT - TOP) * (1 - value / top) };
 }
@@ -87,7 +95,7 @@ function Bars({ series, index, geometry }: { series: StackSeries[]; index: numbe
   });
 }
 
-function Axes({ geometry, times, range }: { geometry: Geometry; times: number[]; range: StatsRange }): ReactNode {
+function Axes({ geometry, times, range, units }: { geometry: Geometry; times: number[]; range: StatsRange; units: ChartUnits }): ReactNode {
   const palette = useKitPalette();
   const shown = labelIndices(range, times.length, Math.floor((geometry.right - geometry.left) / LABEL_ROOM));
   return (
@@ -96,7 +104,7 @@ function Axes({ geometry, times, range }: { geometry: Geometry; times: number[];
         <G key={tick}>
           <Line x1={geometry.left} x2={geometry.right} y1={geometry.y(tick)} y2={geometry.y(tick)} stroke={palette.border} strokeWidth={1} />
           <SvgText x={geometry.left - TICK_PAD} y={geometry.y(tick) + LABEL * 0.35} textAnchor="end" fill={palette.sub} fontSize={LABEL} fontFamily={fontName.sans}>
-            {countWords(tick)}
+            {units.value(tick)}
           </SvgText>
         </G>
       ))}
@@ -116,14 +124,14 @@ function Axes({ geometry, times, range }: { geometry: Geometry; times: number[];
   );
 }
 
-function tipRows(series: StackSeries[], index: number): TipRow[] {
+function tipRows(series: StackSeries[], index: number, units: ChartUnits): TipRow[] {
   return [...series]
     .reverse()
     .filter((one) => one.tip && (one.values[index] ?? 0) > 0)
-    .map((one) => ({ key: one.key, color: one.color, value: countWords(one.values[index] ?? 0), label: one.label }));
+    .map((one) => ({ key: one.key, color: one.color, value: units.value(one.values[index] ?? 0), label: one.label }));
 }
 
-function Tip({ series, index, total, title, geometry }: { series: StackSeries[]; index: number; total: number; title: string; geometry: Geometry }): ReactNode {
+function Tip({ series, index, total, title, geometry, units }: { series: StackSeries[]; index: number; total: number; title: string; geometry: Geometry; units: ChartUnits }): ReactNode {
   const palette = useKitPalette();
   const centre = geometry.left + (index + 0.5) * geometry.band;
   const side = centre <= (geometry.left + geometry.right) / 2 ? { left: centre + TIP_OFFSET } : { right: geometry.right - centre + TIP_OFFSET };
@@ -134,9 +142,9 @@ function Tip({ series, index, total, title, geometry }: { series: StackSeries[];
         {title}
       </Text>
       <Text size="xs" numberOfLines={1}>
-        {callsWords(total)}
+        {units.total(total)}
       </Text>
-      {tipRows(series, index).map((row) => (
+      {tipRows(series, index, units).map((row) => (
         <Row key={row.key} gap={8} align="center">
           <View style={StyleSheet.flatten([styles.key, { backgroundColor: row.color }])} />
           <Text size="xs" numberOfLines={1}>
@@ -164,13 +172,13 @@ function Hits({ count, geometry, words, onActive }: { count: number; geometry: G
   });
 }
 
-export function CallChart({ series, times, bucketMs, range, summary }: CallChartProps): ReactNode {
+export function CallChart({ series, times, bucketMs, range, summary, units = CALL_UNITS }: CallChartProps): ReactNode {
   const palette = useKitPalette();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
   const totals = times.map((_, index) => series.reduce((sum, one) => sum + (one.values[index] ?? 0), 0));
-  const geometry = geometryOf(width, totals);
-  const words = (index: number): string => [`${bucketWords(times[index] ?? 0, bucketMs)}: ${callsWords(totals[index] ?? 0)}`, ...tipRows(series, index).map((row) => `${row.label} ${row.value}`)].join(', ');
+  const geometry = geometryOf(width, totals, units);
+  const words = (index: number): string => [`${bucketWords(times[index] ?? 0, bucketMs)}: ${units.total(totals[index] ?? 0)}`, ...tipRows(series, index, units).map((row) => `${row.label} ${row.value}`)].join(', ');
   const onLayout = (e: LayoutChangeEvent): void => {
     setWidth(Math.floor(e.nativeEvent.layout.width));
   };
@@ -180,11 +188,11 @@ export function CallChart({ series, times, bucketMs, range, summary }: CallChart
         <>
           <Svg width={width} height={HEIGHT}>
             {active === null ? null : <Rect x={geometry.left + active * geometry.band} y={TOP} width={geometry.band} height={PLOT - TOP} fill={hoverColor(palette)} />}
-            <Axes geometry={geometry} times={times} range={range} />
+            <Axes geometry={geometry} times={times} range={range} units={units} />
             {times.map((at, index) => <G key={at}><Bars series={series} index={index} geometry={geometry} /></G>)}
           </Svg>
           <Hits count={times.length} geometry={geometry} words={words} onActive={setActive} />
-          {active === null ? null : <Tip series={series} index={active} total={totals[active] ?? 0} title={bucketWords(times[active] ?? 0, bucketMs)} geometry={geometry} />}
+          {active === null ? null : <Tip series={series} index={active} total={totals[active] ?? 0} title={bucketWords(times[active] ?? 0, bucketMs)} geometry={geometry} units={units} />}
         </>
       )}
     </View>

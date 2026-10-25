@@ -1,5 +1,6 @@
 import { type ReactElement } from 'react';
 import { IconArrowDown } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowDown';
+import { IconChart1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChart1';
 import { IconArrowLeft } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowLeft';
 import { IconArrowRight } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowRight';
 import { IconArrowUp } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowUp';
@@ -62,6 +63,7 @@ const ICONS = {
   ban: IconCircleBanSign,
   bookmark: IconBookmark,
   chartBar: IconChart3,
+  chart: IconChart1,
   chat: IconBubble3,
   check: IconCheckmark1,
   checkCircle: IconCircleCheck,

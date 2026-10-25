@@ -25,6 +25,7 @@ import { TabRoot } from './shell/TabRoot.js';
 import { isAdminSelection, shellSectionOf } from '../lib/shell-sections.js';
 import { isFocusPage } from '../lib/focus-pages.js';
 import { useIsNarrow } from '../lib/media.js';
+import { OrgUsagePage } from './models/OrgUsagePage.js';
 
 interface PageProps {
   selection: Selection;
@@ -47,6 +48,7 @@ function OrganizationRoot({ onLock }: { onLock: () => void }): ReactNode {
 function modelsPage(selection: Selection, narrow: boolean): ReactNode {
   if (selection.kind === 'org-models') return narrow ? <ModelList pane={false} /> : <DefaultRoute />;
   if (selection.kind === 'org-route') return <DefaultRoute />;
+  if (selection.kind === 'org-usage') return <OrgUsagePage />;
   if (selection.kind === 'org-model') return <ModelAccount id={selection.id} />;
   return null;
 }
@@ -72,6 +74,7 @@ function SectionPage(props: PageProps): ReactNode {
 
 function modelPick(selection: Selection): ModelPick {
   if (selection.kind === 'org-model') return { kind: 'account', id: selection.id };
+  if (selection.kind === 'org-usage') return { kind: 'usage' };
   return selection.kind === 'org-models' || selection.kind === 'org-route' ? { kind: 'route' } : null;
 }
 

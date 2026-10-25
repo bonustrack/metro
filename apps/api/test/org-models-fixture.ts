@@ -6,6 +6,7 @@ import { agentKeyId, rawPublicKey, signAgentRequest } from '@metro-labs/http/age
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { agentKeyStore, type AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
+import { modelUsageStore } from '@metro-labs/connectors/db/model-call-stats';
 import { modelDeliveryStore } from '@metro-labs/connectors/db/model-delivery';
 import { orgModelStore } from '@metro-labs/connectors/db/models';
 import { handleAgentModelsRequest, type AgentModelsDeps } from '../src/models/agent-api.ts';
@@ -83,7 +84,7 @@ export async function startApi(db: () => Database, now: () => number, send: Fetc
   const store = orgModelStore(db);
   const models: ModelsDeps = {
     key: () => key, keys: await testKeys(), store, fetch: send, now, openrouterCallback: CALLBACK,
-    codexLogins: codexLogins(), devices: deviceLogins(), openrouterLogins: openrouterLogins(), lists: new ListCache(now),
+    codexLogins: codexLogins(), devices: deviceLogins(), openrouterLogins: openrouterLogins(), lists: new ListCache(now), usage: modelUsageStore(db),
   };
   const agents: AgentModelsDeps = {
     key: () => key, identities: agentKeyStore(db), nonces: agentNonceStore(db, now), auth: new AgentAuth('', now), store, delivery: modelDeliveryStore(db), fetch: send, now,

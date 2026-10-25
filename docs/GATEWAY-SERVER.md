@@ -230,7 +230,7 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
      deploy token for that app only. Access keys with the `gateway`
      scope work from here: the dashboard can start. Tests: the gateway tests, a PGlite e2e
      like `apps/mcp`, the canary test.
-2. **The page**: Models renamed Gateway everywhere, the scopes on access keys, a docs page for services, and usage and spend
+2. **The page** (shipped 2026-10-26: access key scopes #385, the Gateway name #386, the Usage page and the agent's usage section): Models renamed Gateway everywhere, the scopes on access keys, a docs page for services, and usage and spend
    from api.metro.box on the Models page (per account and per agent), the agent's Model page and
    Home, with the connector charts' pieces (`CallChart`, tiles). A box before phase 3 still
    answers `GET /api/model`, so the page reads both until phase 4.
