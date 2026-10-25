@@ -11,7 +11,7 @@ import { handleControlRequest, type ControlApiDeps } from '../server/control.js'
 import { handleOwnerRequest, type OwnerApiDeps } from '../server/owner.js';
 import { handleMachineRequest, type MachineApiDeps } from '../server/machine.js';
 import { handleModelRequest, type ModelApiDeps } from '../gateway/model-api.js';
-import type { GatewayDeps } from '../gateway/gateway.js';
+import type { GatewayDeps } from '@metro-labs/inference/gateway';
 import { handleTerminalRequest, type TerminalApiDeps } from '../terminal/api.js';
 import { handleSchedulesRequest } from '../agent-user/schedules-api.js';
 import { handleFilesRequest } from '../agent-user/files-api.js';

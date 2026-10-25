@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import { chainOf, chainStatus, holdOf, routesToTry } from '../src/gateway/fallback.ts';
-import { noteUsage } from '../src/gateway/usage.ts';
-import { lastServed } from '../src/gateway/served.ts';
-import type { ModelSetup, Route } from '../src/gateway/model-config.ts';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import { chainOf, chainStatus, holdOf, routesToTry } from '@metro-labs/inference/fallback';
+import { noteUsage } from '@metro-labs/inference/usage';
+import { lastServed } from '@metro-labs/inference/served';
+import type { ModelSetup, Route } from '@metro-labs/inference/model-config';
 import { deliveredOf } from '../src/gateway/delivered.ts';
 import { conn, connectionId, makeConnection, setupOf } from './model-fixture.ts';
 

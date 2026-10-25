@@ -1,6 +1,6 @@
 import { log } from '@metro-labs/core/log';
 import type { Delivered } from './delivered.js';
-import { emptySetup, primaryRoute, runnerModel, type ModelSetup } from './model-config.js';
+import { emptySetup, primaryRoute, runnerModel, type ModelSetup } from '@metro-labs/inference/model-config';
 import { deliveredSetup, type OrgModels } from './org-models.js';
 
 export function setupOf(delivered: Delivered | null): ModelSetup {

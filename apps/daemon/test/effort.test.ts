@@ -11,7 +11,7 @@ import {
   withEffort,
   withoutEffort,
   withThinkingFor,
-} from '../src/gateway/effort.ts';
+} from '@metro-labs/inference/effort';
 import { COMPACT_PROMPT, COMPACTION_HINTS, HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
 
 const asRequest = (headers: Record<string, string> = {}): IncomingMessage => ({ headers }) as unknown as IncomingMessage;

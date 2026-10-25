@@ -1,4 +1,4 @@
-import { isProvider, type CodexAccess, type Connection, type Fallback, type ModelSetup, type Provider } from '../src/gateway/model-config.ts';
+import { isProvider, type CodexAccess, type Connection, type Fallback, type ModelSetup, type Provider } from '@metro-labs/inference/model-config';
 
 export const connectionId = (provider: Provider): string => `cn-${provider}`;
 

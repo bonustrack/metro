@@ -104,6 +104,7 @@
         "@metro-labs/discord-bot": "workspace:*",
         "@metro-labs/gmail": "workspace:*",
         "@metro-labs/http": "workspace:*",
+        "@metro-labs/inference": "workspace:*",
         "@metro-labs/outlook": "workspace:*",
         "@metro-labs/telegram": "workspace:*",
         "@metro-labs/telegram-bot": "workspace:*",
@@ -147,7 +148,7 @@
     },
     "packages/cli": {
       "name": "@stage-labs/metro",
-      "version": "0.1.0-beta.303",
+      "version": "0.1.0-beta.321",
       "bin": {
         "metro": "dist/cli.js",
       },
@@ -238,6 +239,21 @@
       "version": "0.1.0",
       "dependencies": {
         "@metro-labs/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@stage-labs/config": "0.1.0-beta.3",
+        "eslint": "^10.3.0",
+        "knip": "^6.15.0",
+        "madge": "^8.0.0",
+        "typescript": "^5",
+      },
+    },
+    "packages/inference": {
+      "name": "@metro-labs/inference",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metro-labs/core": "workspace:*",
+        "@metro-labs/http": "workspace:*",
       },
       "devDependencies": {
         "@stage-labs/config": "0.1.0-beta.3",
@@ -868,6 +884,8 @@
     "@metro-labs/gmail": ["@metro-labs/gmail@workspace:packages/gmail"],
 
     "@metro-labs/http": ["@metro-labs/http@workspace:packages/http"],
+
+    "@metro-labs/inference": ["@metro-labs/inference@workspace:packages/inference"],
 
     "@metro-labs/mcp": ["@metro-labs/mcp@workspace:apps/mcp"],
 

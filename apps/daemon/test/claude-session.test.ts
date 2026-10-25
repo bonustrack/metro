@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
 import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
-import { emptySetup } from '../src/gateway/model-config.ts';
+import { emptySetup } from '@metro-labs/inference/model-config';
 import { makeConnection, setupOf } from './model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';

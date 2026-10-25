@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
-import { agentIdForKey } from '../agents/keys.js';
 import {
   bedrockBase,
   bedrockCount,
@@ -36,11 +35,15 @@ import {
   helperRequest,
   learnAlwaysThinks,
   plannedEffort,
+  requestKind,
   thinkingOff,
   withBlockBinding,
   withEffort,
   withThinkingFor,
+  type RequestKind,
 } from './effort.js';
+import { currentAttempt, type OnCall } from './attempts.js';
+import { measured } from './measure.js';
 import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
@@ -51,7 +54,6 @@ import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
 import { siteOf } from './failures.js';
-import { orgModels } from './org-models.js';
 
 const GATEWAY_PREFIX = '/gateway';
 const MESSAGES = '/v1/messages';
@@ -63,15 +65,19 @@ const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll i
 
 export interface GatewayDeps {
   setup: () => ModelSetup;
-  identify?: (key: string) => boolean;
+  identify: (key: string) => boolean;
   anthropicBase?: string;
   bedrockBase?: string;
   openrouterBase?: string;
   routewayBase?: string;
   codex?: Partial<CodexDeps>;
+  onCall?: OnCall;
+  scope?: string;
 }
 
 const learned: Adaptations = freshAdaptations();
+
+const noRefresh = (): Promise<Connection | null> => Promise.resolve(null);
 
 export function resetGatewayState(): void {
   forgetServed();
@@ -81,14 +87,10 @@ export function resetGatewayState(): void {
   forgetLearnedThinking();
 }
 
-const refreshCodex = (conn: Connection): Promise<Connection | null> => orgModels()?.refresh(conn) ?? Promise.resolve(null);
-
 const keyOf = (req: IncomingMessage): string => {
   const raw = req.headers['x-metro-key'];
   return (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
 };
-
-const defaultIdentify = (key: string): boolean => key !== '' && agentIdForKey(key) !== undefined;
 
 function routesOf(setup: ModelSetup): Route[] {
   return [...(setup.primary === null ? [] : [setup.primary]), ...setup.fallbacks].flatMap((ref) => {
@@ -240,7 +242,7 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
 
 async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
   if (path === COUNT) countTokens(res, body);
-  else await codexMessages(req, res, body, route.model, route.connection, { refresh: refreshCodex, ...deps.codex }, watchUpstream(res));
+  else await codexMessages(req, res, body, route.model, route.connection, { refresh: noRefresh, ...deps.codex }, watchUpstream(res));
 }
 
 function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup): Record<string, unknown> {
@@ -264,6 +266,8 @@ const bytesOf = (raw: Buffer, parsed: Record<string, unknown>, sent: Record<stri
 
 interface Request {
   path: string;
+  lane: Lane;
+  kind: RequestKind;
   raw: Buffer;
   parsed: Record<string, unknown>;
   sent: Record<string, unknown>;
@@ -277,7 +281,7 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   const reason = notReady(route);
   if (reason !== null) throw new GatewayError(400, 'invalid_request_error', reason);
-  if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
+  if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() }, deps.scope);
   if (conn.provider === 'bedrock') {
     const up = { settings: conn, base: deps.bedrockBase ?? bedrockBase(conn.region), learned, watch: watchUpstream(res) };
     if (path === COUNT) await bedrockCount(req, res, body, route.model, up);
@@ -302,6 +306,7 @@ async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route
     await attempt(req, held.res, ask, route, deps);
   } catch (err) {
     if (!(err instanceof SubscriptionRefused)) throw err;
+    currentAttempt()?.answered(401);
     return { status: 401, headers: new Headers() };
   }
   return held.refusal();
@@ -314,16 +319,17 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
   const { lane, setup: chain, primary } = chosenChain(req, sent, setup, requested);
-  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
+  const ask: Request = { path, lane, kind: requestKind(req, sent), raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
   const routes = routesToTry(chainOf(primary, chain, requested));
   for (const [at, route] of routes.entries()) {
     const next = routes[at + 1];
-    if (path === MESSAGES) noteChoice(primary, route, lane);
+    if (path === MESSAGES) noteChoice(primary, route, lane, Date.now(), deps.scope);
     if (next === undefined) {
-      await attempt(req, res, ask, route, deps);
+      await measured(res, ask, route, at, deps.onCall, (out) => attempt(req, out, ask, route, deps));
       return;
     }
-    const refusal = await heldAttempt(req, holdLimitRefusal(res), ask, route, deps);
+    const held = holdLimitRefusal(res);
+    const refusal = await measured(held.res, ask, route, at, deps.onCall, (out) => heldAttempt(req, { res: out, refusal: held.refusal }, ask, route, deps));
     if (refusal === null) return;
     noteRefused(route, refusal.status, refusal.headers, next);
   }
@@ -366,7 +372,7 @@ export function handleGatewayRequest(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
   if (cameThroughProxy(req)) sendError(res, 401, 'authentication_error', 'metro gateway: the agent key works only on this machine, not through its public address');
-  else if ((deps.identify ?? defaultIdentify)(keyOf(req))) answer(req, res, path, deps);
+  else if (keyOf(req) !== '' && deps.identify(keyOf(req))) answer(req, res, path, deps);
   else sendError(res, 401, 'authentication_error', 'metro gateway: no agent key (x-metro-key); start the agent with metro agent');
   return true;
 }

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { query } from '../../packages/sdk-runner/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs';
 import { isRecord } from '../../packages/core/src/is-record.ts';
-import { CodexEventTranslator } from '../../apps/daemon/src/gateway/codex-stream.ts';
-import { frame, parseEvent, SseParser } from '../../apps/daemon/src/gateway/frames.ts';
+import { CodexEventTranslator } from '@metro-labs/inference/codex-stream';
+import { frame, parseEvent, SseParser } from '@metro-labs/inference/frames';
 import { SessionWatch } from '../../packages/sdk-runner/src/session-watch.ts';
 
 const EXPECTED = 24_565;

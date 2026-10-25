@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { codexToolName, decodeSignature, effortOf, encodeSignature, inputItems, systemText, ToolNames, toolChoiceOf, toolItems, toResponsesRequest } from '../src/gateway/codex-translate.ts';
+import { codexToolName, decodeSignature, effortOf, encodeSignature, inputItems, systemText, ToolNames, toolChoiceOf, toolItems, toResponsesRequest } from '@metro-labs/inference/codex-translate';
 
 const opts = { promptCacheKey: 'sess' };
 

@@ -10,7 +10,7 @@ import {
   usageSeen,
   UsageScanner,
   windowLabel,
-} from '../src/gateway/usage.ts';
+} from '@metro-labs/inference/usage';
 
 const NOW = new Date('2026-09-17T10:00:00.000Z');
 const RESET = Math.floor(new Date('2026-09-17T12:30:00.000Z').getTime() / 1000);

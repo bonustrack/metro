@@ -13,6 +13,7 @@ const CORE_SOURCES = [
   ['apps/daemon', 'daemon'],
   ['packages/core', 'core'],
   ['packages/http', 'http'],
+  ['packages/inference', 'inference'],
 ];
 const STATION_SOURCES = [
   ['packages/xmtp', 'xmtp'],

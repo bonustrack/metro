@@ -21,7 +21,7 @@ interface Cooling {
 export type Lane = 'main' | 'helpers';
 
 const cooling = new Map<string, Cooling>();
-const lastChoice = new Map<Lane, string>();
+const lastChoice = new Map<string, string>();
 
 const keyOf = (route: Route): string => `${route.connection.id}\n${route.model}`;
 
@@ -98,11 +98,12 @@ export function noteRefused(route: Route, status: number, headers: Headers, next
   log.warn({ from: routeLabel(route), to: next === undefined ? null : routeLabel(next), status }, why);
 }
 
-export function noteChoice(primary: Route, chosen: Route, lane: Lane, now = Date.now()): void {
+export function noteChoice(primary: Route, chosen: Route, lane: Lane, now = Date.now(), scope = ''): void {
   const key = keyOf(chosen);
-  const last = lastChoice.get(lane);
+  const at = `${scope}\n${lane}`;
+  const last = lastChoice.get(at);
   if (key === last) return;
-  lastChoice.set(lane, key);
+  lastChoice.set(at, key);
   if (key === keyOf(primary)) {
     if (last !== undefined) log.info({ lane, model: routeLabel(chosen), connection: chosen.connection.label }, 'gateway: back on the first model of the fallback list');
     return;

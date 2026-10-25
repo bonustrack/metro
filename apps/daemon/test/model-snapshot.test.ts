@@ -5,10 +5,10 @@ import * as ids from '@metro-labs/core/ids';
 import * as secureFs from '@metro-labs/core/secure-fs';
 import { setBearerSessions } from '@metro-labs/http/api-http';
 import { handleModelRequest, settingsBody, type ModelApiDeps } from '../src/gateway/model-api.js';
-import type { ModelSetup } from '../src/gateway/model-config.js';
-import { forgetServed, noteServed } from '../src/gateway/served.js';
-import { forgetUsage, noteUsage, tallyTokens } from '../src/gateway/usage.js';
-import * as usageRefresh from '../src/gateway/usage-refresh.js';
+import type { ModelSetup } from '@metro-labs/inference/model-config';
+import { forgetServed, noteServed } from '@metro-labs/inference/served';
+import { forgetUsage, noteUsage, tallyTokens } from '@metro-labs/inference/usage';
+import * as usageRefresh from '@metro-labs/inference/usage-refresh';
 import { codexAccess, makeConnection } from './model-fixture.js';
 
 const SNAPSHOT = '/api/model/snapshot';

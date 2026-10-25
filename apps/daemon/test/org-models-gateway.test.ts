@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { randomInt } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { effectiveSetup } from '../src/gateway/effective.ts';
-import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
+import { handleGatewayRequest, resetGatewayState } from '@metro-labs/inference/gateway';
 import type { OrgModels } from '../src/gateway/org-models.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsFor, type FakeApi } from './org-models-fixture.ts';
 

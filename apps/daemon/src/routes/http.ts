@@ -1,5 +1,5 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
-import { handleGatewayRequest } from '../gateway/gateway.js';
+import { handleGatewayRequest } from '@metro-labs/inference/gateway';
 import { handleThreemaCallback } from './threema-callback.js';
 import { BodyTooLargeError, readBody, WEBHOOK_BODY_MAX } from './body.js';
 

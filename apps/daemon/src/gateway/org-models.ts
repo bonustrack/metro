@@ -2,7 +2,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentKey } from '../connectors/agent-key.js';
 import { agentCall, MetroApiRefusal, type MetroApi } from '../connectors/metro-api.js';
 import { deliveredOf, refreshedConnection, type Delivered } from './delivered.js';
-import type { Connection } from './model-config.js';
+import type { Connection } from '@metro-labs/inference/model-config';
 
 const MODELS_PATH = '/api/agents/models';
 const REFRESH_PATH = '/api/agents/models/refresh';

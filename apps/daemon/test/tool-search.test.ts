@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveToolSearch } from '../src/gateway/tool-search.ts';
+import { resolveToolSearch } from '@metro-labs/inference/tool-search';
 import { afterSearch, firstTurn, pinnedTool, secretFunction, secretSchema, secretTool, toolSearchTool } from './tool-search-fixture.ts';
 
 type Sent = { tools: Record<string, unknown>[]; messages: { role: string; content: unknown }[] };

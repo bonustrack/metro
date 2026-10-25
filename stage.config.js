@@ -78,6 +78,10 @@ export default defineConfig({
         project: ['src/**/*.ts'],
       },
     },
+    'packages/inference': {
+      type: 'library',
+      knip: { project: ['src/**/*.ts'] },
+    },
     'packages/sdk-runner': {
       type: 'library',
       knip: {

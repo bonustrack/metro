@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomInt } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
-import { encodeFrame } from '../src/gateway/eventstream.ts';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import { holdOf } from '../src/gateway/fallback.ts';
-import { runnerModel, type Chain, type ModelSetup, type Provider } from '../src/gateway/model-config.ts';
+import { encodeFrame } from '@metro-labs/inference/eventstream';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import { holdOf } from '@metro-labs/inference/fallback';
+import { runnerModel, type Chain, type ModelSetup, type Provider } from '@metro-labs/inference/model-config';
 import { codexAccess, connectionId, makeConnection } from './model-fixture.ts';
 import { HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
 

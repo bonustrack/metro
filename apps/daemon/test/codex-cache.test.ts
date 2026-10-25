@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomInt } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { encodeSignature } from '../src/gateway/codex-translate.ts';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import type { ModelSetup } from '../src/gateway/model-config.ts';
+import { encodeSignature } from '@metro-labs/inference/codex-translate';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import type { ModelSetup } from '@metro-labs/inference/model-config';
 import { codexAccess, connectionId, makeConnection } from './model-fixture.ts';
 
 interface Sent {
