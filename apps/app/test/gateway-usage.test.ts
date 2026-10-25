@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelUsage } from '@metro-labs/client/api/gateway-usage';
 import { routeHash, routeSelection } from '@metro-labs/client/route';
-import { connectionName, secondsWords, usageMeasure, usageSeries, usageTiles } from '../src/lib/gateway-usage.ts';
+import { chartTitle, connectionName, secondsWords, usageMeasure, usageSeries, usageTiles } from '../src/lib/gateway-usage.ts';
 
 const usage = toModelUsage({
   range: '7d',
@@ -28,6 +28,8 @@ describe('the Gateway usage view', () => {
       ['First token', '640 ms', 'Typical. Slowest 5%: 2.3 s', false],
     ]);
     expect(secondsWords(null)).toBe('No answer yet');
+    expect(usageTiles({ ...usage.totals, unpriced: 1 }, '7d')[0]?.detail).toBe('1 call on a plan or with no list price');
+    expect([chartTitle('spend', '7d'), chartTitle('calls', '24h')]).toEqual(['Spend per 6 hours', 'Model calls per hour']);
   });
 
   test('the chart stacks spend per account in spend order, Other last, and falls back to calls with no spend', () => {
