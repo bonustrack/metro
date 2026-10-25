@@ -127,6 +127,26 @@
         "typescript": "^5",
       },
     },
+    "apps/gateway": {
+      "name": "@metro-labs/gateway",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metro-labs/connectors": "workspace:*",
+        "@metro-labs/core": "workspace:*",
+        "@metro-labs/http": "workspace:*",
+        "@metro-labs/inference": "workspace:*",
+        "drizzle-orm": "^0.44.0",
+        "postgres": "^3.4.5",
+      },
+      "devDependencies": {
+        "@electric-sql/pglite": "^0.5.8",
+        "@stage-labs/config": "0.1.0-beta.3",
+        "eslint": "^10.3.0",
+        "knip": "^6.15.0",
+        "madge": "^8.0.0",
+        "typescript": "^5",
+      },
+    },
     "apps/mcp": {
       "name": "@metro-labs/mcp",
       "version": "0.1.0",
@@ -880,6 +900,8 @@
     "@metro-labs/daemon": ["@metro-labs/daemon@workspace:apps/daemon"],
 
     "@metro-labs/discord-bot": ["@metro-labs/discord-bot@workspace:packages/discord-bot"],
+
+    "@metro-labs/gateway": ["@metro-labs/gateway@workspace:apps/gateway"],
 
     "@metro-labs/gmail": ["@metro-labs/gmail@workspace:packages/gmail"],
 

@@ -6,7 +6,7 @@ import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentKeys, agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
 import { MCP_PATHS, mcpApprovalsOf } from '@metro-labs/http/mcp-server-protocol';
 import { KEY_INSTRUCTIONS, REMOTE_INSTRUCTIONS } from '../src/tools.ts';
-import { TOUCH_EVERY_MS } from '../src/token.ts';
+import { TOUCH_EVERY_MS } from '@metro-labs/connectors/db/bearers';
 import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, signed, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
 

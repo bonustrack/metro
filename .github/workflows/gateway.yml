@@ -1,0 +1,33 @@
+name: Deploy gateway.metro.box
+
+# Started by hand until the Fly app metro-gateway exists and its first deploy went through
+# (docs/GATEWAY-SERVER.md). Then add the push trigger that mcp.yml has.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-gateway
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: Test
+        run: bun --filter @metro-labs/inference --filter @metro-labs/gateway test
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        run: flyctl deploy . --config apps/gateway/fly.toml --dockerfile apps/gateway/Dockerfile --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

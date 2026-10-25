@@ -5,9 +5,10 @@ import { codexStale, refreshModelConnection } from '@metro-labs/connectors/model
 import { modelDetailOf, openModelSecret, type CodexSecret, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { modelKey, refreshDeps, type Caller, type ModelsDeps } from './deps.js';
 import { learnCodexVersion } from './codex-version.js';
-import { fingerprint, type ListedModel } from './list-cache.js';
+import type { ListedModel } from '@metro-labs/connectors/model-lists';
+import { fingerprint } from './list-cache.js';
 import { anthropicModels, bedrockModels, codexModels, KNOWN_CLAUDE, openrouterModels, subscriptionModels } from './provider-lists.js';
-import { routewayModels } from './routeway.js';
+import { routewayModels } from '@metro-labs/connectors/model-lists';
 
 const SIGNED_OUT = 'This Codex connection is signed out. Sign in again on the Models page.';
 

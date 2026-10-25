@@ -44,6 +44,7 @@ import {
 } from './effort.js';
 import { currentAttempt, type OnCall } from './attempts.js';
 import { measured } from './measure.js';
+import { NAMED_MODELS, namedChoice, WORKERS, type Chosen } from './named.js';
 import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
@@ -53,7 +54,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
-import { siteOf } from './failures.js';
+import { providerText, siteOf } from './failures.js';
 
 const GATEWAY_PREFIX = '/gateway';
 const MESSAGES = '/v1/messages';
@@ -63,9 +64,8 @@ const HELLO = '/api/hello';
 const ANTHROPIC_API = 'https://api.anthropic.com';
 const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll it with its organization and choose a model on the organization's Models page";
 
-export interface GatewayDeps {
+export interface ModelDeps {
   setup: () => ModelSetup;
-  identify: (key: string) => boolean;
   anthropicBase?: string;
   bedrockBase?: string;
   openrouterBase?: string;
@@ -73,6 +73,11 @@ export interface GatewayDeps {
   codex?: Partial<CodexDeps>;
   onCall?: OnCall;
   scope?: string;
+  named?: boolean;
+}
+
+export interface GatewayDeps extends ModelDeps {
+  identify: (key: string) => boolean;
 }
 
 const learned: Adaptations = freshAdaptations();
@@ -147,7 +152,7 @@ async function asAnthropicWants(send: Send, base: Record<string, string>, payloa
   const { metro, asSent, bound } = payloads;
   const upstream = await send(metro, bound ? addBeta(base, BINDING_BETA) : base);
   if (upstream.status !== 400 || asSent === null) return upstream;
-  const reason = upstreamMessage(await upstream.text().catch(() => ''), '').slice(0, 300);
+  const reason = providerText(upstreamMessage(await upstream.text().catch(() => ''), ''));
   log.warn({ connection, model, reason }, 'gateway: the provider refused the request metro shaped, so it was sent again as Claude Code wrote it');
   return send(asSent, base);
 }
@@ -176,9 +181,12 @@ async function shapedAttempt(send: Send, base: Record<string, string>, body: Sha
 const sender = (url: string, watch: Watch): Send => (payload, headers) =>
   fetch(url, { method: 'POST', headers, body: new Uint8Array(payload), signal: watch.signal, redirect: 'manual' });
 
-const upstreamPath = (req: IncomingMessage): string => (req.url ?? '').slice(GATEWAY_PREFIX.length);
+const upstreamPath = (req: IncomingMessage): string => {
+  const url = req.url ?? '';
+  return url.startsWith(`${GATEWAY_PREFIX}/`) ? url.slice(GATEWAY_PREFIX.length) : url;
+};
 
-async function toAnthropic(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: GatewayDeps): Promise<void> {
+async function toAnthropic(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: ModelDeps): Promise<void> {
   const conn = route.connection;
   const watch = watchUpstream(res);
   const send = sender(`${deps.anthropicBase ?? ANTHROPIC_API}${upstreamPath(req)}`, watch);
@@ -189,7 +197,7 @@ async function toAnthropic(req: IncomingMessage, res: ServerResponse, body: Shap
   await pipeResponse(upstream, res, watch, { ownCredential: true, scanner: new UsageScanner(conn.id), site: siteOf(route) });
 }
 
-async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: GatewayDeps): Promise<void> {
+async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shaped, route: Route, deps: ModelDeps): Promise<void> {
   const conn = route.connection;
   const watch = watchUpstream(res);
   const send = sender(`${deps.routewayBase ?? ROUTEWAY_BASE}${upstreamPath(req)}`, watch);
@@ -202,7 +210,7 @@ async function toRouteway(req: IncomingMessage, res: ServerResponse, body: Shape
   await pipeResponse(upstream, res, watch, { keepalive: true, ownCredential: true, scanner: new UsageScanner(conn.id), site: siteOf(route) });
 }
 
-async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
+async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, route: Route, deps: ModelDeps): Promise<void> {
   const conn = route.connection;
   const headers: Record<string, string> = {
     'content-type': 'application/json',
@@ -240,20 +248,14 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
   if (!upstream.ok) log.warn({ connection, model, status: upstream.status }, 'gateway: the provider refused the request');
 }
 
-async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
+async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: ModelDeps): Promise<void> {
   if (path === COUNT) countTokens(res, body);
   else await codexMessages(req, res, body, route.model, route.connection, { refresh: noRefresh, ...deps.codex }, watchUpstream(res));
 }
 
-function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup): Record<string, unknown> {
-  const effort = plannedEffort(req, sent, setup.effort);
+function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup, kind: RequestKind): Record<string, unknown> {
+  const effort = plannedEffort(req, sent, setup.effort, kind);
   return effort === null ? sent : withEffort(sent, effort);
-}
-
-interface Chosen {
-  lane: Lane;
-  setup: ModelSetup;
-  primary: Route;
 }
 
 function chosenChain(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup, requested: string): Chosen {
@@ -275,7 +277,7 @@ interface Request {
   setup: ModelSetup;
 }
 
-async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: GatewayDeps): Promise<void> {
+async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: ModelDeps): Promise<void> {
   const { path, body } = ask;
   const conn = route.connection;
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
@@ -301,7 +303,7 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   await (conn.provider === 'routeway' ? toRouteway : toAnthropic)(req, res, shaped, route, deps);
 }
 
-async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route: Route, deps: GatewayDeps): Promise<Refusal | null> {
+async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route: Route, deps: ModelDeps): Promise<Refusal | null> {
   try {
     await attempt(req, held.res, ask, route, deps);
   } catch (err) {
@@ -312,14 +314,16 @@ async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route
   return held.refusal();
 }
 
-async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): Promise<void> {
+async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: ModelDeps): Promise<void> {
   const setup = deps.setup();
   const raw = await readBody(req);
   const parsed = parseJson(raw);
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
-  const { lane, setup: chain, primary } = chosenChain(req, sent, setup, requested);
-  const ask: Request = { path, lane, kind: requestKind(req, sent), raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
+  const named = deps.named === true ? namedChoice(requested, setup) : null;
+  const { lane, setup: chain, primary } = named ?? chosenChain(req, sent, setup, requested);
+  const kind: RequestKind = named === null ? requestKind(req, sent) : requested === WORKERS ? 'subagent' : 'main';
+  const ask: Request = { path, lane, kind, raw, parsed, sent, body: shapedFor(req, sent, setup, kind), setup };
   const routes = routesToTry(chainOf(primary, chain, requested));
   for (const [at, route] of routes.entries()) {
     const next = routes[at + 1];
@@ -348,10 +352,10 @@ function failed(res: ServerResponse, err: unknown): void {
   sendError(res, 502, 'api_error', `metro gateway: ${errMsg(err)}`);
 }
 
-function answer(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayDeps): void {
+export function answerModels(req: IncomingMessage, res: ServerResponse, path: string, deps: ModelDeps): void {
   if (req.method === 'GET' && path === MODELS) {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(modelsBody(deps.setup())));
+    res.end(JSON.stringify(deps.named === true ? NAMED_MODELS : modelsBody(deps.setup())));
     return;
   }
   if (req.method === 'POST' && (path === MESSAGES || path === COUNT)) {
@@ -372,7 +376,7 @@ export function handleGatewayRequest(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
   if (cameThroughProxy(req)) sendError(res, 401, 'authentication_error', 'metro gateway: the agent key works only on this machine, not through its public address');
-  else if (keyOf(req) !== '' && deps.identify(keyOf(req))) answer(req, res, path, deps);
+  else if (keyOf(req) !== '' && deps.identify(keyOf(req))) answerModels(req, res, path, deps);
   else sendError(res, 401, 'authentication_error', 'metro gateway: no agent key (x-metro-key); start the agent with metro agent');
   return true;
 }

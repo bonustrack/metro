@@ -217,9 +217,17 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
    - 1b: the migration (`model_calls`, `model_windows`, `agent_tokens.scopes`) and their
      store functions in `packages/connectors`; mcp.metro.box refuses a key without
      `connectors`.
-   - 1c: the Codex refresh moves from `apps/api` to `packages/connectors`.
-   - 1d: `apps/gateway` (auth, setup from Postgres, the `Router`, usage and cost rows, the
-     price table), the Fly app, DNS only, its deploy workflow. Access keys with the `gateway`
+   - 1c: not needed: the Codex refresh was already shared (`@metro-labs/connectors/model-refresh`).
+   - 1d: `apps/gateway` (auth, setup from Postgres, usage and cost rows, the price table),
+     the Fly config and a deploy workflow started by hand. The router reports each attempt
+     to an `onCall` hook (`attempts.ts`), and access keys name `metro` or `metro-workers`.
+     Usage windows are saved but not read back yet, so holds stay per machine; reading them
+     back is a follow-up.
+   - To bring it up (owner): `fly apps create metro-gateway`; `fly secrets set -a
+     metro-gateway DATABASE_URL=… METRO_CONNECTORS_KEY=…` (api.metro.box's values); run the
+     Deploy gateway.metro.box workflow; `fly certs add gateway.metro.box -a metro-gateway`
+     and a DNS only (grey cloud) record on Cloudflare; then add the push trigger to the
+     workflow. Access keys with the `gateway`
      scope work from here: the dashboard can start. Tests: the gateway tests, a PGlite e2e
      like `apps/mcp`, the canary test.
 2. **The page**: Models renamed Gateway everywhere, the scopes on access keys, a docs page for services, and usage and spend
@@ -245,7 +253,7 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
   metro.box, which reads them through api.metro.box from the same database, as the Live
   activity feed reads `mcp_calls`.
 - Access keys may use every account, subscriptions included.
-- One access key with scopes (Connectors, Models).
+- One access key with scopes (Connectors, Gateway).
 - Every usage row kept for good.
 - Spend in dollars from day one.
 - `iad` only at first; measure, then decide on `fra`.

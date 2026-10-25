@@ -33,6 +33,13 @@ export default defineConfig({
         project: ['src/**/*.ts'],
       },
     },
+    'apps/gateway': {
+      type: 'library',
+      knip: {
+        entry: ['test/**/*.ts'],
+        project: ['src/**/*.ts'],
+      },
+    },
     'apps/mcp': {
       type: 'library',
       knip: {

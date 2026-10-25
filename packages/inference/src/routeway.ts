@@ -1,6 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
+import { providerText } from './failures.js';
 import { withoutCacheTtl, withoutTtlBeta } from './cache-ttl.js';
 import { anthropicHeaders, GatewayError, type Watch } from './forward.js';
 
@@ -84,5 +85,5 @@ export async function noteRoutewayRefusal(upstream: Response): Promise<void> {
   const error = isRecord(body) && isRecord(body.error) ? body.error : null;
   if (error === null) return;
   const text = (value: unknown): string | null => (typeof value === 'string' ? value.slice(0, 300) : null);
-  log.warn({ status: upstream.status, reason: text(error.message), param: text(error.param) }, 'gateway: Routeway refused the request');
+  log.warn({ status: upstream.status, reason: providerText(text(error.message) ?? ''), param: providerText(text(error.param) ?? '') }, 'gateway: Routeway refused the request');
 }

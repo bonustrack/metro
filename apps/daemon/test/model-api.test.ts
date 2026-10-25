@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { setupOf } from '../src/gateway/effective.ts';
+import { setupOf } from '@metro-labs/inference/delivered';
 import { handleModelRequest, type ModelApiDeps } from '../src/gateway/model-api.ts';
 import type { OrgModels } from '../src/gateway/org-models.ts';
 import { forgetUsage, noteUsageHeaders } from '@metro-labs/inference/usage';

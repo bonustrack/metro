@@ -19,6 +19,11 @@ export interface ModelDeliveryStore {
   setup: (identity: AgentKeyRow) => Promise<AgentModelSetup>;
 }
 
+export interface AgentOf {
+  agent: string;
+  owner: string;
+}
+
 async function holds(tx: Database, identity: AgentKeyRow): Promise<void> {
   const rows = await tx
     .select({ agent: agentKeys.agent })
@@ -31,6 +36,10 @@ async function holds(tx: Database, identity: AgentKeyRow): Promise<void> {
 
 async function setupIn(tx: Database, identity: AgentKeyRow): Promise<AgentModelSetup> {
   await holds(tx, identity);
+  return agentSetupIn(tx, identity);
+}
+
+async function agentSetupIn(tx: Database, identity: AgentOf): Promise<AgentModelSetup> {
   const routes = await tx.select().from(modelRoutes).where(and(eq(modelRoutes.owner, identity.owner), or(eq(modelRoutes.agent, identity.agent), isNull(modelRoutes.agent))));
   const own = routes.find((held) => held.agent === identity.agent);
   const chosen = own ?? routes.find((held) => held.agent === null);
@@ -45,4 +54,8 @@ export function modelDeliveryStore(db: () => Database): ModelDeliveryStore {
   return {
     setup: (identity) => db().transaction((tx) => setupIn(tx, identity)),
   };
+}
+
+export function agentModelSetup(db: Database, identity: AgentOf): Promise<AgentModelSetup> {
+  return db.transaction((tx) => agentSetupIn(tx, identity));
 }

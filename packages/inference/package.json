@@ -10,6 +10,7 @@
     "./codex-stream": "./src/codex-stream.ts",
     "./codex-translate": "./src/codex-translate.ts",
     "./codex-version": "./src/codex-version.ts",
+    "./delivered": "./src/delivered.ts",
     "./effort": "./src/effort.ts",
     "./eventstream": "./src/eventstream.ts",
     "./failures": "./src/failures.ts",

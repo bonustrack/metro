@@ -30,8 +30,8 @@ const { setTrainCallBackend } = await import('../../apps/daemon/src/stations/tra
 const { setPolicies } = await import('../../apps/daemon/src/policy/policy.ts');
 const { watchPolicySnapshot } = await import('../../apps/daemon/src/mcp/policy-snapshot.ts');
 const { handleGatewayRequest } = await import('../../packages/inference/src/gateway.ts');
-const { setupOf } = await import('../../apps/daemon/src/gateway/effective.ts');
-const { deliveredOf } = await import('../../apps/daemon/src/gateway/delivered.ts');
+const { setupOf } = await import('../../packages/inference/src/delivered.ts');
+const { deliveredOf } = await import('../../packages/inference/src/delivered.ts');
 const { startAgent } = await import('../../packages/sdk-runner/src/app.ts');
 const { runnerConfig } = await import('../../packages/sdk-runner/src/config.ts');
 

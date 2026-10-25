@@ -6,6 +6,14 @@ import { parseEvent, SseParser } from './frames.js';
 import type { Route } from './model-config.js';
 
 const MESSAGE_MAX = 300;
+
+let keepProviderText = true;
+
+export const quietProviderText = (): void => {
+  keepProviderText = false;
+};
+
+export const providerText = (text: string): string | undefined => (keepProviderText ? text.slice(0, MESSAGE_MAX) : undefined);
 const ERROR_DATA = /^\{\s*"type"\s*:\s*"error"/;
 
 export interface FailureSite {
@@ -23,7 +31,7 @@ export const siteOf = (route: Route): FailureSite => ({ connection: route.connec
 
 export function noteFailure(site: FailureSite, failure: Failure, what: string): void {
   currentAttempt()?.failed();
-  log.warn({ connection: site.connection, model: site.model, ...failure, message: failure.message.slice(0, MESSAGE_MAX) }, what);
+  log.warn({ connection: site.connection, model: site.model, ...failure, message: providerText(failure.message) }, what);
 }
 
 export class StreamErrors {
