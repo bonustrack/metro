@@ -12,8 +12,8 @@ import { CallTiles } from '../activity/CallTiles.js';
 import { Group, GroupTitle } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
-import { countWords, perWords, rangeWords } from '../../lib/call-stats.js';
-import { callWords, connectionName, usageMeasure, usageSeries, usageSummary, usageTiles } from '../../lib/gateway-usage.js';
+import { countWords, rangeWords } from '../../lib/call-stats.js';
+import { callWords, chartTitle, connectionName, usageMeasure, usageSeries, usageSummary, usageTiles } from '../../lib/gateway-usage.js';
 import { useGatewayUsage } from '../../lib/gateway-usage-query.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { SERIES_COLORS } from '../../lib/theme.js';
@@ -30,7 +30,7 @@ function Chart({ usage }: { usage: ModelUsage }): ReactNode {
   return (
     <Col gap={12}>
       <Text size="xs" role="secondary">
-        {`${measure === 'spend' ? 'Spend' : 'Model calls'} ${perWords(usage.range)}`}
+        {chartTitle(measure, usage.range)}
       </Text>
       <CallChart series={series} times={usage.buckets.map((bucket) => bucket.at)} bucketMs={usage.bucketMs} range={usage.range} summary={usageSummary(usage)} units={measure === 'spend' ? SPEND_UNITS : CALL_UNITS} />
       <CallLegend series={series} />

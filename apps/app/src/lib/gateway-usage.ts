@@ -11,6 +11,12 @@ export interface UsageColors {
 
 const MS_PER_SECOND = 1000;
 
+const STEP_WORDS: Record<StatsRange, string> = { '24h': 'hour', '7d': '6 hours', '30d': 'day', '90d': 'day' };
+
+export const callWords = (calls: number): string => (calls === 1 ? '1 call' : `${countWords(calls)} calls`);
+
+export const chartTitle = (measure: UsageMeasure, range: StatsRange): string => `${measure === 'spend' ? 'Spend' : 'Model calls'} per ${STEP_WORDS[range]}`;
+
 export function secondsWords(ms: number | null): string {
   if (ms === null) return 'No answer yet';
   if (ms < MS_PER_SECOND) return `${String(Math.round(ms))} ms`;
@@ -31,7 +37,7 @@ export function usageTiles(totals: UsageTotals, range: StatsRange): StatTile[] {
     {
       label: 'Spend',
       value: dollarsWords(totals.spendMicros),
-      detail: totals.unpriced > 0 ? `${countWords(totals.unpriced)} calls on a plan or with no list price` : rangeWords(range),
+      detail: totals.unpriced > 0 ? `${callWords(totals.unpriced)} on a plan or with no list price` : rangeWords(range),
       danger: false,
     },
     {
@@ -68,8 +74,6 @@ export function usageSeries(usage: ModelUsage, measure: UsageMeasure, colors: Us
     tip: true,
   }));
 }
-
-export const callWords = (calls: number): string => (calls === 1 ? '1 call' : `${countWords(calls)} calls`);
 
 export function usageSummary(usage: ModelUsage): string {
   return `${dollarsWords(usage.totals.spendMicros)} ${rangeWords(usage.range)}, ${callWords(usage.totals.calls)}, ${percentWords(usage.totals.failed, usage.totals.calls)} failed`;
