@@ -10,12 +10,13 @@ import type { Caller, ModelsDeps } from './deps.js';
 import { listConnectionModels } from './lists.js';
 import { createModel, deleteModel, deleteRoute, listModels, patchModel, putRoute } from './manage.js';
 import { beginOpenRouter, openRouterCallback } from './openrouter-login.js';
+import { modelUsage } from './usage.js';
 
 const PREFIX = '/api/models';
 const BODY_MAX = 64 * 1024;
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 
-type Kind = 'collection' | 'route' | 'codex-login' | 'codex-callback' | 'codex-device' | 'codex-poll' | 'openrouter-login' | 'openrouter-callback' | 'connection' | 'models';
+type Kind = 'collection' | 'usage' | 'route' | 'codex-login' | 'codex-callback' | 'codex-device' | 'codex-poll' | 'openrouter-login' | 'openrouter-callback' | 'connection' | 'models';
 
 interface Target {
   kind: Kind;
@@ -24,6 +25,7 @@ interface Target {
 
 const METHODS: Record<Kind, string[]> = {
   collection: ['GET', 'POST'],
+  usage: ['GET'],
   route: ['PUT', 'DELETE'],
   'codex-login': ['POST'],
   'codex-callback': ['POST'],
@@ -36,6 +38,7 @@ const METHODS: Record<Kind, string[]> = {
 };
 
 const NAMED: Record<string, Kind> = {
+  usage: 'usage',
   route: 'route',
   'codex/login': 'codex-login',
   'codex/callback': 'codex-callback',
@@ -44,7 +47,7 @@ const NAMED: Record<string, Kind> = {
   'openrouter/callback': 'openrouter-callback',
 };
 
-const MEMBER_READS = new Set(['GET collection', 'GET models']);
+const MEMBER_READS = new Set(['GET collection', 'GET models', 'GET usage']);
 
 const CALLBACK_HEADERS = { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' };
 
@@ -87,6 +90,7 @@ interface Context {
 
 const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'GET collection': (c) => listModels(c.deps, c.caller.owner),
+  'GET usage': (c) => modelUsage(c.deps.usage, c.caller.owner, c.query, c.deps.now()),
   'POST collection': (c) => createModel(c.deps, c.caller, c.body),
   'PUT route': (c) => putRoute(c.deps, c.caller, c.body),
   'DELETE route': (c) => deleteRoute(c.deps, c.caller, c.query),

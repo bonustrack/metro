@@ -27,6 +27,7 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   'org-connector-new': 'connectors',
   'org-models': 'models',
   'org-route': 'models',
+  'org-usage': 'models',
   'org-model': 'models',
   'org-model-add': 'models',
   'org-model-sign-in': 'models',
@@ -54,6 +55,7 @@ export const isTabRoot = (selection: Selection): boolean => TAB_ROOTS.has(select
 
 const BACK_TO: Partial<Record<Kind, Selection>> = {
   'org-route': { kind: 'org-models' },
+  'org-usage': { kind: 'org-models' },
   'org-model': { kind: 'org-models' },
   'org-model-add': { kind: 'org-models' },
 };

@@ -7,7 +7,7 @@ import type { OrgModelConnection, OrgModels } from '@metro-labs/client/api/org-m
 import { providerInfo } from '@metro-labs/client/api/providers';
 import { routeHash } from '@metro-labs/client/route';
 import { boxesOf } from '@metro-labs/client/api/servers';
-import { Icon } from '../Icon.js';
+import { Icon, type IconName } from '../Icon.js';
 import { ProviderLogo } from '../ProviderLogo.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { RoundButton } from '../ui/RoundButton.js';
@@ -31,13 +31,15 @@ const ICON = 24;
 
 const styles = StyleSheet.create({ mark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' } });
 
-export type ModelPick = { kind: 'route' } | { kind: 'account'; id: string } | null;
+export type ModelPick = { kind: 'route' } | { kind: 'usage' } | { kind: 'account'; id: string } | null;
 
-function RouteMark(): ReactNode {
+const USAGE_LINE = 'Spend and model calls through gateway.metro.box';
+
+function RouteMark({ icon = 'route' }: { icon?: IconName }): ReactNode {
   const palette = useKitPalette();
   return (
     <View style={styles.mark}>
-      <Icon name="route" size={ICON} color={palette.link} />
+      <Icon name={icon} size={ICON} color={palette.link} />
     </View>
   );
 }
@@ -77,10 +79,12 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
   const count = useDefaultCount(list);
   const accounts = list.connections.map((c) => <AccountRow key={c.id} connection={c} pane={pane} selected={pick?.kind === 'account' && pick.id === c.id} />);
   const href = routeHash({ kind: 'org-route' });
+  const usage = routeHash({ kind: 'org-usage' });
   if (pane)
     return (
       <Col>
         <ListPaneRow title="Default route" line={routeSummary(list.default)} avatar={<RouteMark />} selected={pick?.kind === 'route'} href={href} />
+        <ListPaneRow title="Usage" line={USAGE_LINE} avatar={<RouteMark icon="chart" />} selected={pick?.kind === 'usage'} href={usage} />
         <PaneLabel text="Accounts" />
         {accounts.length === 0 ? <Col padding={{ x: 12 }}><Text size="xs" role="secondary">No account yet.</Text></Col> : accounts}
       </Col>
@@ -89,6 +93,7 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
     <Col gap={40}>
       <Group>
         <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={agentsWord(count)} href={href} />
+        <Item title="Usage" subtitle={USAGE_LINE} leading={<RouteMark icon="chart" />} href={usage} />
       </Group>
       <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>
     </Col>

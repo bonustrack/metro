@@ -63,6 +63,7 @@ import { egressFetch } from '@metro-labs/connectors/egress';
 import type { Handoff, SignInState } from './connectors/sign-in.js';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { mcpCallStore } from '@metro-labs/connectors/db/mcp-calls';
+import { modelUsageStore } from '@metro-labs/connectors/db/model-call-stats';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { orgModelStore } from '@metro-labs/connectors/db/models';
 import { modelDeliveryStore } from '@metro-labs/connectors/db/model-delivery';
@@ -185,6 +186,7 @@ const modelsApi: ModelsDeps = {
   codexLogins: codexLogins(),
   devices: deviceLogins(),
   openrouterLogins: openrouterLogins(),
+  usage: modelUsageStore(getDb),
   lists: new ListCache(() => Date.now()),
 };
 

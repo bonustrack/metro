@@ -21,6 +21,7 @@ export type Selection =
   | { kind: 'org-connector-new' }
   | { kind: 'org-models' }
   | { kind: 'org-route' }
+  | { kind: 'org-usage' }
   | { kind: 'org-model'; id: string }
   | { kind: 'org-model-add'; provider?: string }
   | { kind: 'org-model-sign-in'; id: string }

@@ -26,6 +26,7 @@ import { useAgentName } from '../../lib/agent-hooks.js';
 import { useOutdatedProvider } from '../../lib/outdated-provider.js';
 import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
+import { GatewayUsage } from '../models/GatewayUsage.js';
 
 const NO_CONNECTION = 'No account yet. Add one on the organization’s Gateway page, a Claude subscription included.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
@@ -157,6 +158,17 @@ function Editable({ org, agent, settings, name }: { org: OrgModels; agent: strin
   );
 }
 
+function UsageAndLinks({ agent }: { agent: string | null }): ReactNode {
+  return (
+    <>
+      {agent === null ? null : <GatewayUsage agent={agent} />}
+      <Group label="Organization">
+        <Item title="Accounts and the default route" subtitle="On the organization’s Gateway page" href={routeHash({ kind: 'org-models' })} />
+      </Group>
+    </>
+  );
+}
+
 export function ModelRoutePage({ project }: { project: string }): ReactNode {
   useDocumentTitle('Gateway');
   const model = useModelQuery();
@@ -174,9 +186,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
     <Groups>
       <Problems settings={model.data} error={model.error} outdated={outdated} partsOutdated={partsOutdated} project={project} />
       {admin && org.data !== undefined && agent !== null ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
-      <Group label="Organization">
-        <Item title="Accounts and the default route" subtitle="On the organization’s Gateway page" href={routeHash({ kind: 'org-models' })} />
-      </Group>
+      <UsageAndLinks agent={agent} />
     </Groups>
   );
 }

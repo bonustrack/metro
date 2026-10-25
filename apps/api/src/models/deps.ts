@@ -5,6 +5,7 @@ import type { OrgModelStore } from '@metro-labs/connectors/db/models';
 import type { ModelRefreshDeps } from '@metro-labs/connectors/model-refresh';
 import { OwnerTickets } from '../agents/tickets.js';
 import type { ListCache } from './list-cache.js';
+import type { ModelUsageStore } from '@metro-labs/connectors/db/model-call-stats';
 
 const DEVICE_TTL_MS = 15 * 60_000;
 
@@ -48,6 +49,7 @@ export interface ModelsDeps {
   devices: OwnerTickets<DevicePending>;
   openrouterLogins: OwnerTickets<OpenRouterPending>;
   lists: ListCache;
+  usage: ModelUsageStore;
 }
 
 export interface Caller {
