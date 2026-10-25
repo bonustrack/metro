@@ -10,7 +10,7 @@ const MIGRATIONS = fileURLToPath(new URL('../../drizzle', import.meta.url));
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL?.trim() ?? '';
   if (url === '') throw new Error('DATABASE_URL is not set');
-  const sql = postgres(url, { max: 1, prepare: false, onnotice: () => undefined });
+  const sql = postgres(url, { max: 1, prepare: false, connection: { application_name: 'metro-api-migrate' }, onnotice: () => undefined });
   try {
     await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS });
   } finally {
