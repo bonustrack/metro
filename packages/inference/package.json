@@ -15,6 +15,7 @@
     "./eventstream": "./src/eventstream.ts",
     "./failures": "./src/failures.ts",
     "./fallback": "./src/fallback.ts",
+    "./forward": "./src/forward.ts",
     "./frames": "./src/frames.ts",
     "./gateway": "./src/gateway.ts",
     "./model-config": "./src/model-config.ts",

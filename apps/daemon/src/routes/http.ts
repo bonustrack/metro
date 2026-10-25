@@ -1,5 +1,4 @@
 import { handleSessionApis, type SessionApis } from './session-apis.js';
-import { handleGatewayRequest } from '@metro-labs/inference/gateway';
 import { handleThreemaCallback } from './threema-callback.js';
 import { BodyTooLargeError, readBody, WEBHOOK_BODY_MAX } from './body.js';
 
@@ -329,7 +328,7 @@ function handleSignInRoutes(
 
 function handleEarlyRoutes(req: IncomingMessage, res: ServerResponse, apis: SessionApis): boolean {
   if (handleHealth(req, res)) return true;
-  if (apis.gateway !== undefined && handleGatewayRequest(req, res, apis.gateway)) return true;
+  if (apis.gateway?.(req, res) === true) return true;
   if (handleSignInRoutes(req, res, apis)) return true;
   return handleSessionApis(req, res, apis);
 }

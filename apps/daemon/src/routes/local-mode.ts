@@ -24,7 +24,7 @@ import {
   localOwner,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
-import { boxGateway } from '../gateway/box-gateway.js';
+import { boxGatewayHandler } from '../gateway/box-gateway.js';
 import type { StationName } from '@metro-labs/core/station-names';
 
 export interface LocalModeDeps {
@@ -148,7 +148,7 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     ownerApi: { setOwner: setLocalOwner },
     machineApi: {},
     modelApi: {},
-    gateway: boxGateway(),
+    gateway: boxGatewayHandler(),
     terminalApi: {},
     mode: localModeInfo,
   };
