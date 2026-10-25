@@ -4,6 +4,9 @@ import postgres from 'postgres';
 import { log } from '@metro-labs/core/log';
 import * as schema from './schema.js';
 
+const IDLE_SECONDS = 20;
+const LIFETIME_SECONDS = 30 * 60;
+
 export type Db = PostgresJsDatabase<typeof schema>;
 
 export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -23,6 +26,9 @@ export function getDb(): Db {
   if (!db) {
     sql = postgres(url, {
       max: 4,
+      idle_timeout: IDLE_SECONDS,
+      max_lifetime: LIFETIME_SECONDS,
+      connection: { application_name: 'metro-api' },
       prepare: false,
       onnotice: (notice) => {
         log.debug({ notice: notice.message }, 'postgres notice');
