@@ -11,7 +11,7 @@ export const PGLITE_START_MS = 60_000;
 export const PGLITE_STEP_MS = 20_000;
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', 'drizzle');
-const TABLES = ['model_routes', 'model_connections', 'model_hosts', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'aws_connections', 'aws_external_ids', 'organizations', 'users', 'agents'];
+const TABLES = ['model_calls', 'model_windows', 'model_routes', 'model_connections', 'model_hosts', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'aws_connections', 'aws_external_ids', 'organizations', 'users', 'agents'];
 
 export interface TestDb {
   db: Database;

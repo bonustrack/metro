@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
 import { agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
 import { APPROVAL_TTL_MS, GRANT_WINDOW_MS, PENDING_MAX, REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { argsDigest, canonicalJson, PREVIEW_MAX, previewOf } from '../src/digest.ts';
-import { createAgentToken } from '@metro-labs/connectors/db/agent-tokens';
+import { createAgentToken, newAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import { enrollAgent, PGLITE_START_MS, testDb, type TestAgent, type TestDb } from './helpers.ts';
 
 let held: TestDb;
@@ -147,7 +147,8 @@ describe('before api.metro.box adds the origin column', () => {
 
   test('requests and deliveries keep working without who made the call, and pick it up once the migration runs', async () => {
     const earlyStore = approvalStore(() => early.db);
-    const laptop = await createAgentToken(early.db, { owner: early1.row.owner, agent: early1.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now: T0 });
+    const laptop = { row: { id: 'laptop00001' } };
+    await early.db.execute(sql`INSERT INTO agent_tokens (id, owner, agent, label, token_hash, created_by, created_at) VALUES (${laptop.row.id}, ${early1.row.owner}, ${early1.row.agent}, 'Laptop', ${tokenHashOf(newAgentToken())}, 'user_01TEST', ${T0})`);
     const old = await earlyStore.request(early1.row, call({ page: 1 }), T0);
     expect(await earlyStore.request(early1.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 1)).toBe(old);
     expect((await earlyStore.deliver(early1.row, T0 + 10)).map((row) => [row.id, row.origin, row.token, row.keyLabel])).toEqual([[old, null, null, null]]);

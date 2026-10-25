@@ -1,12 +1,20 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { newId } from '@metro-labs/core/ids';
+import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './database.js';
+import { isUndefinedColumn } from './errors.js';
 import { agents, agentTokens } from './schema.js';
 
 export const AGENT_TOKENS_MAX = 20;
 export const TOKEN_LABEL_MAX = 64;
+
+export const TOKEN_SCOPES = ['connectors', 'gateway'] as const;
+
+export type TokenScope = (typeof TOKEN_SCOPES)[number];
+
+const BEFORE_SCOPES: TokenScope[] = ['connectors'];
 
 export type AgentTokenRow = typeof agentTokens.$inferSelect;
 
@@ -15,6 +23,7 @@ export interface AgentTokenIdentity {
   owner: string;
   tokenId: string;
   remote: boolean;
+  scopes: TokenScope[];
 }
 
 export interface NewAgentToken {
@@ -23,6 +32,7 @@ export interface NewAgentToken {
   label: string;
   createdBy: string;
   now: number;
+  scopes?: TokenScope[];
 }
 
 export const tokenHashOf = (token: string): string => createHash('sha256').update(token, 'utf8').digest('base64url');
@@ -43,7 +53,7 @@ async function createIn(tx: Database, input: NewAgentToken): Promise<{ row: Agen
   const live = await tx.$count(agentTokens, and(eq(agentTokens.agent, input.agent), eq(agentTokens.owner, input.owner), isNull(agentTokens.revokedAt)));
   if (live >= AGENT_TOKENS_MAX) throw new ApiError(`This agent already has ${String(AGENT_TOKENS_MAX)} access keys. Revoke one first.`, 409);
   const token = newAgentToken();
-  const row: AgentTokenRow = { id: newId(), owner: input.owner, agent: input.agent, label: input.label, tokenHash: tokenHashOf(token), createdBy: input.createdBy, createdAt: input.now, lastUsedAt: null, revokedAt: null };
+  const row: AgentTokenRow = { id: newId(), owner: input.owner, agent: input.agent, label: input.label, tokenHash: tokenHashOf(token), createdBy: input.createdBy, createdAt: input.now, lastUsedAt: null, revokedAt: null, scopes: input.scopes ?? BEFORE_SCOPES };
   await tx.insert(agentTokens).values(row);
   return { row, token };
 }
@@ -65,15 +75,33 @@ export async function revokeAgentToken(db: Database, owner: string, agent: strin
   return held[0];
 }
 
-export async function findAgentToken(db: Database, tokenHash: string): Promise<AgentTokenIdentity | null> {
+const scopesOf = (value: string[]): TokenScope[] => TOKEN_SCOPES.filter((scope) => value.includes(scope));
+
+let migrating = false;
+
+async function liveToken(db: Database, tokenHash: string, withScopes: boolean): Promise<AgentTokenIdentity | null> {
   const rows = await db
-    .select({ agent: agentTokens.agent, owner: agentTokens.owner, tokenId: agentTokens.id, kind: agents.kind })
+    .select({ agent: agentTokens.agent, owner: agentTokens.owner, tokenId: agentTokens.id, kind: agents.kind, ...(withScopes ? { scopes: agentTokens.scopes } : {}) })
     .from(agentTokens)
     .innerJoin(agents, and(eq(agents.id, agentTokens.agent), eq(agents.owner, agentTokens.owner)))
     .where(and(eq(agentTokens.tokenHash, tokenHash), isNull(agentTokens.revokedAt)))
     .limit(1);
   const row = rows[0];
-  return row === undefined ? null : { agent: row.agent, owner: row.owner, tokenId: row.tokenId, remote: row.kind === 'remote' };
+  if (row === undefined) return null;
+  return { agent: row.agent, owner: row.owner, tokenId: row.tokenId, remote: row.kind === 'remote', scopes: row.scopes === undefined ? BEFORE_SCOPES : scopesOf(row.scopes) };
+}
+
+export async function findAgentToken(db: Database, tokenHash: string): Promise<AgentTokenIdentity | null> {
+  try {
+    const found = await liveToken(db, tokenHash, true);
+    migrating = false;
+    return found;
+  } catch (err) {
+    if (!isUndefinedColumn(err)) throw err;
+    if (!migrating) log.warn('access keys: agent_tokens has no scopes column yet, so every key reads as connectors only until api.metro.box migrates');
+    migrating = true;
+    return liveToken(db, tokenHash, false);
+  }
 }
 
 export async function agentTokenLabels(db: Database, identity: { agent: string; owner: string }, ids: string[]): Promise<Map<string, string>> {

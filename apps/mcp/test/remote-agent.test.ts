@@ -177,6 +177,16 @@ describe('an agent without a server, signed in with an access key', () => {
   });
 });
 
+describe('the scopes of an access key', () => {
+  test('a key made for the gateway only is refused here, one with both scopes works', async () => {
+    const only = await createAgentToken(held.db, { owner: OWNER, agent: REMOTE, label: 'Dashboard', createdBy: 'user_01TEST', now: START, scopes: ['gateway'] });
+    expect((await rpc(app, only.token, initialize)).status).toBe(401);
+    const both = await createAgentToken(held.db, { owner: OWNER, agent: REMOTE, label: 'Both', createdBy: 'user_01TEST', now: START, scopes: ['connectors', 'gateway'] });
+    expect((await rpc(app, both.token, initialize)).status).toBe(200);
+    expect((await rpc(app, key, initialize)).status).toBe(200);
+  });
+});
+
 describe('before api.metro.box has migrated', () => {
   let early: TestDb;
   let earlyApp: TestApp;
@@ -200,4 +210,17 @@ describe('before api.metro.box has migrated', () => {
       await earlyApp.close();
     }
   });
+
+  test('a database without the scopes column reads every key as connectors only', async () => {
+    const before = await testDb();
+    const made = await addRemote(before.db, 'remote00009');
+    await before.db.execute(sql`ALTER TABLE agent_tokens DROP COLUMN scopes`);
+    const beforeApp = await startApp(before.db, rewrite(vendor.base));
+    try {
+      expect((await rpc(beforeApp, made.key, initialize)).status).toBe(200);
+    } finally {
+      await beforeApp.close();
+      await before.close();
+    }
+  }, PGLITE_START_MS);
 });
