@@ -3,12 +3,12 @@ import { EFFORT_DEFAULTS } from '@metro-labs/core/effort';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
 import { effectiveSetup } from './effective.js';
-import { chainStatus } from './fallback.js';
-import { helperSetup, notReady, primaryRoute, type Connection, type ModelSetup } from './model-config.js';
+import { chainStatus } from '@metro-labs/inference/fallback';
+import { helperSetup, notReady, primaryRoute, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
 import { orgModels, type SyncStatus } from './org-models.js';
-import { lastServed } from './served.js';
-import { refreshUsage, type UsageDeps } from './usage-refresh.js';
-import { usageSeen } from './usage.js';
+import { lastServed } from '@metro-labs/inference/served';
+import { refreshUsage, type UsageDeps } from '@metro-labs/inference/usage-refresh';
+import { usageSeen } from '@metro-labs/inference/usage';
 
 const PATH = '/api/model';
 const SNAPSHOT = '/api/model/snapshot';

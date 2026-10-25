@@ -1,6 +1,6 @@
 import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
-import { isProvider, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
+import { isProvider, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from '@metro-labs/inference/model-config';
 
 export interface DeliveredRoute {
   primary: Fallback | null;

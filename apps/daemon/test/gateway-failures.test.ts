@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, spyOn, te
 import { randomInt } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
-import { encodeFrame } from '../src/gateway/eventstream.ts';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import type { ModelSetup, Provider } from '../src/gateway/model-config.ts';
+import { encodeFrame } from '@metro-labs/inference/eventstream';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import type { ModelSetup, Provider } from '@metro-labs/inference/model-config';
 import { codexAccess, connectionId, makeConnection } from './model-fixture.ts';
 
 const SECRET = 'the private plan for Tuesday';

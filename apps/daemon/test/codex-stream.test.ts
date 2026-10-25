@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { CodexEventTranslator } from '../src/gateway/codex-stream.ts';
-import { assembleMessage, parseEvent, SseParser } from '../src/gateway/frames.ts';
-import { decodeSignature } from '../src/gateway/codex-translate.ts';
-import type { Failure } from '../src/gateway/failures.ts';
+import { CodexEventTranslator } from '@metro-labs/inference/codex-stream';
+import { assembleMessage, parseEvent, SseParser } from '@metro-labs/inference/frames';
+import { decodeSignature } from '@metro-labs/inference/codex-translate';
+import type { Failure } from '@metro-labs/inference/failures';
 
 const events = (translator: CodexEventTranslator, list: Record<string, unknown>[]): string =>
   list.map((e) => translator.push(String(e.type), e)).join('');

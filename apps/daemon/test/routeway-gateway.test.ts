@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { randomInt } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import { BINDING_BETA } from '../src/gateway/effort.ts';
-import { resolveRoute, runnerModel, type ModelSetup } from '../src/gateway/model-config.ts';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import { BINDING_BETA } from '@metro-labs/inference/effort';
+import { resolveRoute, runnerModel, type ModelSetup } from '@metro-labs/inference/model-config';
 import { connectionId, makeConnection, setupOf } from './model-fixture.ts';
 
 const KEY = 'routeway-test-key';

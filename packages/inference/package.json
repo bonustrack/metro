@@ -1,0 +1,39 @@
+{
+  "name": "@metro-labs/inference",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The model router: Anthropic, Routeway, OpenRouter, Bedrock and Codex, backups with holds, effort per thread, tool search fitting and usage from headers and stream frames. Run by the daemon's /gateway today, by gateway.metro.box next (docs/GATEWAY-SERVER.md). Imports only core and http, never a station.",
+  "type": "module",
+  "exports": {
+    "./codex": "./src/codex.ts",
+    "./codex-stream": "./src/codex-stream.ts",
+    "./codex-translate": "./src/codex-translate.ts",
+    "./codex-version": "./src/codex-version.ts",
+    "./effort": "./src/effort.ts",
+    "./eventstream": "./src/eventstream.ts",
+    "./failures": "./src/failures.ts",
+    "./fallback": "./src/fallback.ts",
+    "./frames": "./src/frames.ts",
+    "./gateway": "./src/gateway.ts",
+    "./model-config": "./src/model-config.ts",
+    "./served": "./src/served.ts",
+    "./tool-search": "./src/tool-search.ts",
+    "./usage": "./src/usage.ts",
+    "./usage-refresh": "./src/usage-refresh.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@metro-labs/core": "workspace:*",
+    "@metro-labs/http": "workspace:*"
+  },
+  "devDependencies": {
+    "@stage-labs/config": "0.1.0-beta.3",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

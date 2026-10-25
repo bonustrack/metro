@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { setupOf } from '../src/gateway/effective.ts';
 import { handleModelRequest, type ModelApiDeps } from '../src/gateway/model-api.ts';
 import type { OrgModels } from '../src/gateway/org-models.ts';
-import { forgetUsage, noteUsageHeaders } from '../src/gateway/usage.ts';
+import { forgetUsage, noteUsageHeaders } from '@metro-labs/inference/usage';
 import { auth } from './identity-helper.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsFor, type FakeApi } from './org-models-fixture.ts';
 

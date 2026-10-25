@@ -38,7 +38,7 @@ beforeEach(() => {
   mkdirSync(join(cli, 'scripts'), { recursive: true });
   copyFileSync(join(CLI, 'scripts', 'stage-runtime.mjs'), join(cli, 'scripts', 'stage-runtime.mjs'));
   copyFileSync(join(CLI, 'package.json'), join(cli, 'package.json'));
-  for (const source of ['apps/daemon', 'packages/core', 'packages/http', 'packages/sdk-runner', ...STATIONS.map((name) => `packages/${name}`)]) {
+  for (const source of ['apps/daemon', 'packages/core', 'packages/http', 'packages/inference', 'packages/sdk-runner', ...STATIONS.map((name) => `packages/${name}`)]) {
     mkdirSync(join(root, source, 'src'), { recursive: true });
     copyFileSync(join(REPO, source, 'package.json'), join(root, source, 'package.json'));
   }

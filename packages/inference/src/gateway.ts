@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
-import { agentIdForKey } from '../agents/keys.js';
 import {
   bedrockBase,
   bedrockCount,
@@ -51,7 +50,6 @@ import { forgetServed, noteServed } from './served.js';
 import { forgetUsage, noteUsageHeaders, UsageScanner } from './usage.js';
 import { fitToolSearch } from './tool-search.js';
 import { siteOf } from './failures.js';
-import { orgModels } from './org-models.js';
 
 const GATEWAY_PREFIX = '/gateway';
 const MESSAGES = '/v1/messages';
@@ -63,7 +61,7 @@ const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll i
 
 export interface GatewayDeps {
   setup: () => ModelSetup;
-  identify?: (key: string) => boolean;
+  identify: (key: string) => boolean;
   anthropicBase?: string;
   bedrockBase?: string;
   openrouterBase?: string;
@@ -73,6 +71,8 @@ export interface GatewayDeps {
 
 const learned: Adaptations = freshAdaptations();
 
+const noRefresh = (): Promise<Connection | null> => Promise.resolve(null);
+
 export function resetGatewayState(): void {
   forgetServed();
   forgetFallbackState();
@@ -81,14 +81,10 @@ export function resetGatewayState(): void {
   forgetLearnedThinking();
 }
 
-const refreshCodex = (conn: Connection): Promise<Connection | null> => orgModels()?.refresh(conn) ?? Promise.resolve(null);
-
 const keyOf = (req: IncomingMessage): string => {
   const raw = req.headers['x-metro-key'];
   return (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
 };
-
-const defaultIdentify = (key: string): boolean => key !== '' && agentIdForKey(key) !== undefined;
 
 function routesOf(setup: ModelSetup): Route[] {
   return [...(setup.primary === null ? [] : [setup.primary]), ...setup.fallbacks].flatMap((ref) => {
@@ -240,7 +236,7 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
 
 async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: GatewayDeps): Promise<void> {
   if (path === COUNT) countTokens(res, body);
-  else await codexMessages(req, res, body, route.model, route.connection, { refresh: refreshCodex, ...deps.codex }, watchUpstream(res));
+  else await codexMessages(req, res, body, route.model, route.connection, { refresh: noRefresh, ...deps.codex }, watchUpstream(res));
 }
 
 function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup): Record<string, unknown> {
@@ -366,7 +362,7 @@ export function handleGatewayRequest(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
   if (cameThroughProxy(req)) sendError(res, 401, 'authentication_error', 'metro gateway: the agent key works only on this machine, not through its public address');
-  else if ((deps.identify ?? defaultIdentify)(keyOf(req))) answer(req, res, path, deps);
+  else if (keyOf(req) !== '' && deps.identify(keyOf(req))) answer(req, res, path, deps);
   else sendError(res, 401, 'authentication_error', 'metro gateway: no agent key (x-metro-key); start the agent with metro agent');
   return true;
 }

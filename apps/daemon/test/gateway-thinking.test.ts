@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { handleGatewayRequest, resetGatewayState } from '../src/gateway/gateway.ts';
-import type { ModelSetup } from '../src/gateway/model-config.ts';
+import { handleGatewayRequest, resetGatewayState } from '@metro-labs/inference/gateway';
+import type { ModelSetup } from '@metro-labs/inference/model-config';
 import { connectionId, makeConnection, setupOf } from './model-fixture.ts';
 import { THINKING_OFF_REFUSAL } from './claude-models-fixture.ts';
 

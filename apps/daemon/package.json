@@ -25,6 +25,7 @@
   "dependencies": {
     "@metro-labs/core": "workspace:*",
     "@metro-labs/http": "workspace:*",
+    "@metro-labs/inference": "workspace:*",
     "@metro-labs/discord-bot": "workspace:*",
     "@metro-labs/telegram": "workspace:*",
     "@metro-labs/telegram-bot": "workspace:*",

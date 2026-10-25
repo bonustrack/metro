@@ -11,7 +11,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
-import { notReady, primaryRoute, type ModelSetup } from '../gateway/model-config.js';
+import { notReady, primaryRoute, type ModelSetup } from '@metro-labs/inference/model-config';
 import { effectiveSetup } from '../gateway/effective.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';

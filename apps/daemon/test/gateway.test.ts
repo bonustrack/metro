@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '../src/gateway/gateway.ts';
-import { lastServed } from '../src/gateway/served.ts';
-import { codexVersion } from '../src/gateway/codex-version.ts';
-import { userAgent } from '../src/gateway/codex.ts';
-import { usageSeen } from '../src/gateway/usage.ts';
-import { encodeFrame } from '../src/gateway/eventstream.ts';
-import { emptySetup, type Connection, type ModelSetup } from '../src/gateway/model-config.ts';
+import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
+import { lastServed } from '@metro-labs/inference/served';
+import { codexVersion } from '@metro-labs/inference/codex-version';
+import { userAgent } from '@metro-labs/inference/codex';
+import { usageSeen } from '@metro-labs/inference/usage';
+import { encodeFrame } from '@metro-labs/inference/eventstream';
+import { emptySetup, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
 import { codexAccess, conn, connectionId, makeConnection, setupOf, use } from './model-fixture.ts';
 import { afterSearch, firstTurn, secretFunction, TOOL_SEARCH_BETAS } from './tool-search-fixture.ts';
 

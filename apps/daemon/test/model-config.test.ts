@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { modelViewText, setupOf as effective } from '../src/gateway/effective.ts';
-import { notReady, primaryRoute, resolveRoute, routeLabel, runnerModel, type ModelSetup } from '../src/gateway/model-config.ts';
+import { notReady, primaryRoute, resolveRoute, routeLabel, runnerModel, type ModelSetup } from '@metro-labs/inference/model-config';
 import { deliveredConnection } from '../src/gateway/delivered.ts';
 import { codexAccess, conn, connectionId, makeConnection, setupOf, use } from './model-fixture.ts';
 
