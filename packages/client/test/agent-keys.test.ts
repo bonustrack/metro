@@ -5,7 +5,7 @@ import { fetchApprovals } from '../src/api/approvals.js';
 import { fetchMode } from '../src/api/mode.js';
 import { syncModel } from '../src/api/model.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
-import { claudeCommand, createAgentKey, decideRemoteApproval, fetchAgentKeys, fetchRemoteApprovals, MCP_URL } from '../src/api/agent-keys.js';
+import { claudeCommand, createAgentKey, decideRemoteApproval, fetchAgentKeys, fetchRemoteApprovals, GATEWAY_URL, gatewaySnippet, MCP_URL, setAgentKeyScopes } from '../src/api/agent-keys.js';
 import { approvalCard } from '../src/api/approval-card.js';
 import { agentSeed, boxesOf, fetchServers, serverLabel, toServer } from '../src/api/servers.js';
 import { installTestAccount } from './account-fixture.js';
@@ -74,18 +74,33 @@ describe('an agent without a server in the agent list', () => {
 });
 
 describe('access keys', () => {
-  test('the list keeps what it can read and never a secret', async () => {
-    serve({ tokens: [{ id: 'key00000001', label: 'Claude Code', createdAt: NOW, lastUsedAt: null, revokedAt: null }, { id: 'x' }] });
-    expect(await fetchAgentKeys(AGENT)).toEqual([{ id: 'key00000001', label: 'Claude Code', createdAt: NOW, lastUsedAt: null, revokedAt: null }]);
+  test('the list keeps what it can read and never a secret; a key from an older api reads as connectors only', async () => {
+    serve({ tokens: [{ id: 'key00000001', label: 'Claude Code', createdAt: NOW, lastUsedAt: null, revokedAt: null }, { id: 'key00000002', label: 'Dashboard', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['gateway', 'other'] }, { id: 'x' }] });
+    expect(await fetchAgentKeys(AGENT)).toEqual([
+      { id: 'key00000001', label: 'Claude Code', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['connectors'] },
+      { id: 'key00000002', label: 'Dashboard', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['gateway'] },
+    ]);
     expect(sent[0]?.url).toBe(`${BASE}/tokens`);
   });
 
   test('creating one answers the secret once, and a malformed one is refused', async () => {
-    serve({ token: { id: 'key00000001', label: 'Laptop', createdAt: NOW, lastUsedAt: null, revokedAt: null }, key: SECRET }, 201);
-    expect(await createAgentKey(AGENT, '  Laptop ')).toEqual({ key: { id: 'key00000001', label: 'Laptop', createdAt: NOW, lastUsedAt: null, revokedAt: null }, secret: SECRET });
-    expect(sent[0]).toEqual({ url: `${BASE}/tokens`, method: 'POST', body: '{"label":"Laptop"}' });
+    serve({ token: { id: 'key00000001', label: 'Laptop', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['connectors', 'gateway'] }, key: SECRET }, 201);
+    expect(await createAgentKey(AGENT, '  Laptop ', ['connectors', 'gateway'])).toEqual({ key: { id: 'key00000001', label: 'Laptop', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['connectors', 'gateway'] }, secret: SECRET });
+    expect(sent[0]).toEqual({ url: `${BASE}/tokens`, method: 'POST', body: '{"label":"Laptop","scopes":["connectors","gateway"]}' });
     serve({ token: { id: 'key00000001', label: 'Laptop', createdAt: NOW }, key: 'not-a-key' }, 201);
-    expect(createAgentKey(AGENT, 'Laptop')).rejects.toThrow('unexpected response');
+    expect(createAgentKey(AGENT, 'Laptop', ['connectors'])).rejects.toThrow('unexpected response');
+  });
+
+  test('changing what a key can use sends only its scopes', async () => {
+    serve({ token: { id: 'key00000001', label: 'Laptop', createdAt: NOW, lastUsedAt: null, revokedAt: null, scopes: ['gateway'] } });
+    expect((await setAgentKeyScopes(AGENT, 'key00000001', ['gateway'])).scopes).toEqual(['gateway']);
+    expect(sent[0]).toEqual({ url: `${BASE}/tokens/key00000001`, method: 'PATCH', body: '{"scopes":["gateway"]}' });
+  });
+
+  test('the gateway snippet uses the official SDK with the gateway as its base URL and the metro model', () => {
+    expect(GATEWAY_URL).toBe('https://gateway.metro.box');
+    expect(gatewaySnippet(SECRET)).toContain(`new Anthropic({ baseURL: 'https://gateway.metro.box', apiKey: '${SECRET}' })`);
+    expect(gatewaySnippet(SECRET)).toContain("model: 'metro'");
   });
 
   test('the Claude Code command names the one endpoint and the key as a bearer header', () => {

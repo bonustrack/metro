@@ -3,7 +3,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import { agentApprovals, agentTokens, answerAgentApproval, dropAgentToken, newAgentToken, type RemoteDeps } from './remote.js';
+import { agentApprovals, agentTokens, answerAgentApproval, changeAgentToken, dropAgentToken, newAgentToken, type RemoteDeps } from './remote.js';
 
 const ROUTE = /^\/api\/agents\/([^/]+)\/(tokens|approvals)(?:\/([^/]+))?\/?$/;
 
@@ -19,7 +19,7 @@ interface Target {
 
 const ALLOWED: Record<string, string[]> = {
   'tokens:list': ['GET', 'POST'],
-  'tokens:item': ['DELETE'],
+  'tokens:item': ['DELETE', 'PATCH'],
   'approvals:list': ['GET'],
   'approvals:item': ['POST'],
 };
@@ -54,6 +54,7 @@ async function answer(req: IncomingMessage, deps: RemoteAgentsApiDeps, target: T
   if (method === 'POST') return newAgentToken(deps, session, owner, target.agent, await readJsonBody(req));
   const id = parseId(target.item ?? '');
   if (id === null) throw new ApiError('no such access key', 404);
+  if (method === 'PATCH') return changeAgentToken(deps, session, owner, target.agent, id, await readJsonBody(req));
   return dropAgentToken(deps, session, owner, target.agent, id);
 }
 
