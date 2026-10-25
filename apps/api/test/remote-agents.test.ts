@@ -23,7 +23,7 @@ let server: Server;
 let base = '';
 let now = NOW;
 
-interface TokenView { id: string; label: string; createdAt: number; lastUsedAt: number | null; revokedAt: number | null }
+interface TokenView { id: string; label: string; createdAt: number; lastUsedAt: number | null; revokedAt: number | null; scopes: string[] }
 
 async function call(path: string, init: { method?: string; body?: unknown; who?: string; role?: 'admin' | 'member' } = {}): Promise<Response> {
   const headers: Record<string, string> = { authorization: await auth(init.who ?? TEST_OWNER, init.role ?? 'admin') };
@@ -156,6 +156,27 @@ describe('access keys', () => {
     expect((await call(`/api/agents/${REMOTE}/tokens`, { method: 'POST', body: { label: 'one more' } })).status).toBe(409);
     await call(`/api/agents/${REMOTE}/tokens/${first.token.id}`, { method: 'DELETE' });
     await created(REMOTE, 'one more');
+  });
+
+  test('a key carries connectors unless it says otherwise, and its scopes are checked', async () => {
+    expect((await created()).token.scopes).toEqual(['connectors']);
+    const both = await call(`/api/agents/${REMOTE}/tokens`, { method: 'POST', body: { label: 'Dashboard', scopes: ['gateway', 'connectors', 'gateway'] } });
+    expect(((await both.json()) as { token: TokenView }).token.scopes).toEqual(['connectors', 'gateway']);
+    for (const scopes of [[], ['models'], 'gateway', [1]]) expect((await call(`/api/agents/${REMOTE}/tokens`, { method: 'POST', body: { label: 'x', scopes } })).status).toBe(400);
+  });
+
+  test('an admin changes what a live key can use; a member cannot, and a revoked key stays revoked', async () => {
+    const made = await created();
+    const path = `/api/agents/${REMOTE}/tokens/${made.token.id}`;
+    expect((await call(path, { method: 'PATCH', body: { scopes: ['gateway'] }, role: 'member' })).status).toBe(403);
+    const changed = await call(path, { method: 'PATCH', body: { scopes: ['gateway'] } });
+    expect(changed.status).toBe(200);
+    expect(((await changed.json()) as { token: TokenView }).token.scopes).toEqual(['gateway']);
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toMatchObject({ scopes: ['gateway'] });
+    expect((await call(path, { method: 'PATCH', body: {} })).status).toBe(400);
+    expect((await call(`/api/agents/${REMOTE}/tokens/nosuchkey00`, { method: 'PATCH', body: { scopes: ['gateway'] } })).status).toBe(404);
+    await call(path, { method: 'DELETE' });
+    expect((await call(path, { method: 'PATCH', body: { scopes: ['connectors'] } })).status).toBe(409);
   });
 
   test('an agent with a server gets access keys too, which a move drops and a delete removes', async () => {

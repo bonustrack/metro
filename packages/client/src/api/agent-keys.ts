@@ -4,6 +4,11 @@ import { approvalOf, type Approval, type Decision } from './approvals.js';
 import { orgCall } from './org-connectors.js';
 
 export const MCP_URL = 'https://mcp.metro.box/mcp';
+export const GATEWAY_URL = 'https://gateway.metro.box';
+
+export const KEY_SCOPES = ['connectors', 'gateway'] as const;
+
+export type KeyScope = (typeof KEY_SCOPES)[number];
 
 export interface AgentKey {
   id: string;
@@ -11,6 +16,7 @@ export interface AgentKey {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  scopes: KeyScope[];
 }
 
 export interface NewAgentKey {
@@ -35,7 +41,12 @@ function keyOf(value: unknown): AgentKey | null {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.label !== 'string') return null;
   const createdAt = time(value.createdAt);
   if (createdAt === null) return null;
-  return { id: value.id, label: value.label, createdAt, lastUsedAt: time(value.lastUsedAt), revokedAt: time(value.revokedAt) };
+  return { id: value.id, label: value.label, createdAt, lastUsedAt: time(value.lastUsedAt), revokedAt: time(value.revokedAt), scopes: scopesOf(value.scopes) };
+}
+
+function scopesOf(value: unknown): KeyScope[] {
+  if (!Array.isArray(value)) return ['connectors'];
+  return KEY_SCOPES.filter((scope) => value.includes(scope));
 }
 
 export async function fetchAgentKeys(agent: string): Promise<AgentKey[]> {
@@ -47,11 +58,18 @@ export async function fetchAgentKeys(agent: string): Promise<AgentKey[]> {
   });
 }
 
-export async function createAgentKey(agent: string, label: string): Promise<NewAgentKey> {
-  const body = recordOf(await orgCall({ method: 'POST', base: base(agent), path: '/tokens', headers: JSON_HEADERS, body: JSON.stringify({ label: label.trim() }) }));
+export async function createAgentKey(agent: string, label: string, scopes: KeyScope[]): Promise<NewAgentKey> {
+  const body = recordOf(await orgCall({ method: 'POST', base: base(agent), path: '/tokens', headers: JSON_HEADERS, body: JSON.stringify({ label: label.trim(), scopes }) }));
   const key = keyOf(body.token);
   if (key === null || typeof body.key !== 'string' || !SECRET_RE.test(body.key)) throw unexpected();
   return { key, secret: body.key };
+}
+
+export async function setAgentKeyScopes(agent: string, id: string, scopes: KeyScope[]): Promise<AgentKey> {
+  const body = recordOf(await orgCall({ method: 'PATCH', base: base(agent), path: `/tokens/${encodeURIComponent(id)}`, headers: JSON_HEADERS, body: JSON.stringify({ scopes }) }));
+  const key = keyOf(body.token);
+  if (key === null) throw unexpected();
+  return key;
 }
 
 export async function revokeAgentKey(agent: string, id: string): Promise<void> {
@@ -59,6 +77,9 @@ export async function revokeAgentKey(agent: string, id: string): Promise<void> {
 }
 
 export const claudeCommand = (secret: string): string => `claude mcp add --transport http metro ${MCP_URL} --header "Authorization: Bearer ${secret}"`;
+
+export const gatewaySnippet = (secret: string): string =>
+  ["import Anthropic from '@anthropic-ai/sdk';", '', `const ai = new Anthropic({ baseURL: '${GATEWAY_URL}', apiKey: '${secret}' });`, "await ai.messages.create({ model: 'metro', max_tokens: 1024, messages: [{ role: 'user', content: 'Hello' }] });"].join('\n');
 
 function remoteApprovalOf(raw: unknown): RemoteApproval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string' || typeof raw.connector !== 'string') return null;

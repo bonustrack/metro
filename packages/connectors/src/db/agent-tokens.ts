@@ -66,6 +66,15 @@ export async function listAgentTokens(db: Database, owner: string, agent: string
   return db.select().from(agentTokens).where(and(eq(agentTokens.agent, agent), eq(agentTokens.owner, owner))).orderBy(desc(agentTokens.createdAt), desc(agentTokens.id));
 }
 
+export async function setAgentTokenScopes(db: Database, owner: string, agent: string, id: string, scopes: TokenScope[]): Promise<AgentTokenRow> {
+  const mine = and(eq(agentTokens.id, id), eq(agentTokens.agent, agent), eq(agentTokens.owner, owner));
+  const changed = await db.update(agentTokens).set({ scopes }).where(and(mine, isNull(agentTokens.revokedAt))).returning();
+  if (changed[0] !== undefined) return changed[0];
+  const held = await db.select({ id: agentTokens.id }).from(agentTokens).where(mine).limit(1);
+  if (held[0] === undefined) throw new ApiError('no such access key', 404);
+  throw new ApiError('This access key is revoked. Create a new one instead.', 409);
+}
+
 export async function revokeAgentToken(db: Database, owner: string, agent: string, id: string, now: number): Promise<AgentTokenRow> {
   const mine = and(eq(agentTokens.id, id), eq(agentTokens.agent, agent), eq(agentTokens.owner, owner));
   const revoked = await db.update(agentTokens).set({ revokedAt: now }).where(and(mine, isNull(agentTokens.revokedAt))).returning();

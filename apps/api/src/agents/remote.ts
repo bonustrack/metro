@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
 import type { Session } from '@metro-labs/http/workos-token';
 import { connectorKeys } from '@metro-labs/connectors/connector-keys';
-import { createAgentToken, listAgentTokens, revokeAgentToken, TOKEN_LABEL_MAX, type AgentTokenRow } from '@metro-labs/connectors/db/agent-tokens';
+import { createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore, type ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';
 import { agents, connectorAgents, connectors } from '../db/schema.js';
@@ -21,6 +21,7 @@ interface TokenView {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  scopes: TokenScope[];
 }
 
 interface ApprovalView {
@@ -34,7 +35,7 @@ interface ApprovalView {
   requestedAt: number;
 }
 
-const tokenView = (row: AgentTokenRow): TokenView => ({ id: row.id, label: row.label, createdAt: row.createdAt, lastUsedAt: row.lastUsedAt, revokedAt: row.revokedAt });
+const tokenView = (row: AgentTokenRow): TokenView => ({ id: row.id, label: row.label, createdAt: row.createdAt, lastUsedAt: row.lastUsedAt, revokedAt: row.revokedAt, scopes: TOKEN_SCOPES.filter((scope) => row.scopes.includes(scope)) });
 
 const noAgent = (): ApiError => new ApiError('no such agent', 404);
 
@@ -56,6 +57,15 @@ function labelOf(body: unknown): string {
   return label;
 }
 
+const SCOPES_HINT = `Give the key access to connectors, the gateway or both: "scopes" is a list of ${TOKEN_SCOPES.map((scope) => `"${scope}"`).join(' and ')}.`;
+
+function scopesOf(body: unknown, fallback: TokenScope[] | null): TokenScope[] {
+  const raw = isRecord(body) ? body.scopes : undefined;
+  if (raw === undefined && fallback !== null) return fallback;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.some((scope) => !(TOKEN_SCOPES as readonly unknown[]).includes(scope))) throw new ApiError(SCOPES_HINT, 400);
+  return TOKEN_SCOPES.filter((scope) => raw.includes(scope));
+}
+
 export async function agentTokens(deps: RemoteDeps, owner: string, agent: string): Promise<{ tokens: TokenView[] }> {
   const db = deps.db();
   await agentKind(db, owner, agent);
@@ -64,9 +74,17 @@ export async function agentTokens(deps: RemoteDeps, owner: string, agent: string
 
 export async function newAgentToken(deps: RemoteDeps, session: Session, owner: string, agent: string, body: unknown): Promise<{ token: TokenView; key: string }> {
   const label = labelOf(body);
-  const made = await createAgentToken(deps.db(), { owner, agent, label, createdBy: session.userId, now: deps.now() });
-  log.info({ owner, agent, token: made.row.id, by: session.userId }, 'agents: an access key was created');
+  const scopes = scopesOf(body, ['connectors']);
+  const made = await createAgentToken(deps.db(), { owner, agent, label, createdBy: session.userId, now: deps.now(), scopes });
+  log.info({ owner, agent, token: made.row.id, scopes, by: session.userId }, 'agents: an access key was created');
   return { token: tokenView(made.row), key: made.token };
+}
+
+export async function changeAgentToken(deps: RemoteDeps, session: Session, owner: string, agent: string, id: string, body: unknown): Promise<{ token: TokenView }> {
+  const scopes = scopesOf(body, null);
+  const row = await setAgentTokenScopes(deps.db(), owner, agent, id, scopes);
+  log.info({ owner, agent, token: id, scopes, by: session.userId }, 'agents: the scopes of an access key changed');
+  return { token: tokenView(row) };
 }
 
 export async function dropAgentToken(deps: RemoteDeps, session: Session, owner: string, agent: string, id: string): Promise<{ token: TokenView }> {
