@@ -109,10 +109,10 @@ await ai.messages.create({ model: 'metro', max_tokens: 1024, messages: [{ role: 
   accepted only for an agent with a host), so enrollment, re-registration after a 401 and
   rotation work unchanged. Docs then call it the agent token.
 - **An access key** (`agent_tokens`) gets scopes, one key for both (owner's decision,
-  2026-10-26): a new column `scopes`, `{connectors}` for every existing key (no key gains
-  power silently), and the page offers Connectors and Models when a key is created; an
-  admin can change a key's scopes later. mcp.metro.box refuses a key without
-  `connectors`, gateway.metro.box one without `models`. A key uses the model order of its agent: an agent without a
+  2026-10-26): a new column `scopes` (`connectors`, `gateway`), `{connectors}` for every
+  existing key (no key gains power silently), and the page offers Connectors and Gateway
+  when a key is created; an admin can change a key's scopes later. mcp.metro.box refuses a
+  key without `connectors`, gateway.metro.box one without `gateway`. A key uses the model order of its agent: an agent without a
   server named "Dashboard" with its own route override is how a service gets its own setup
   and its own usage line.
 - **Provider credentials** are opened on gateway.metro.box only (`METRO_CONNECTORS_KEY`,
@@ -219,10 +219,10 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
      `connectors`.
    - 1c: the Codex refresh moves from `apps/api` to `packages/connectors`.
    - 1d: `apps/gateway` (auth, setup from Postgres, the `Router`, usage and cost rows, the
-     price table), the Fly app, DNS only, its deploy workflow. Access keys with the Models
+     price table), the Fly app, DNS only, its deploy workflow. Access keys with the `gateway`
      scope work from here: the dashboard can start. Tests: the gateway tests, a PGlite e2e
      like `apps/mcp`, the canary test.
-2. **The page**: the scopes on access keys, a docs page for services, and usage and spend
+2. **The page**: Models renamed Gateway everywhere, the scopes on access keys, a docs page for services, and usage and spend
    from api.metro.box on the Models page (per account and per agent), the agent's Model page and
    Home, with the connector charts' pieces (`CallChart`, tiles). A box before phase 3 still
    answers `GET /api/model`, so the page reads both until phase 4.
@@ -249,6 +249,9 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
 - Every usage row kept for good.
 - Spend in dollars from day one.
 - `iad` only at first; measure, then decide on `fra`.
+- The page calls it Gateway everywhere, not Models: the rail section, the organization
+  page, the agent's Settings page and the access key scope (code and wire keep `model`
+  names where they exist; the new scope is `gateway`).
 
 ## Risks
 
