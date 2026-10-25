@@ -223,11 +223,11 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
      to an `onCall` hook (`attempts.ts`), and access keys name `metro` or `metro-workers`.
      Usage windows are saved but not read back yet, so holds stay per machine; reading them
      back is a follow-up.
-   - To bring it up (owner): `fly apps create metro-gateway`; `fly secrets set -a
-     metro-gateway DATABASE_URL=… METRO_CONNECTORS_KEY=…` (api.metro.box's values); run the
-     Deploy gateway.metro.box workflow; `fly certs add gateway.metro.box -a metro-gateway`
-     and a DNS only (grey cloud) record on Cloudflare; then add the push trigger to the
-     workflow. Access keys with the `gateway`
+   - Brought up 2026-10-25: Fly app `metro-gateway` (shared IPv4 `66.241.125.125`, its own
+     IPv6), secrets copied from `metro-mcp` (same fingerprints), first deploy from a local
+     `fly deploy`, certificate for gateway.metro.box (DNS only CNAME to
+     `metro-gateway.fly.dev`). The workflow deploys on merges with `FLY_GATEWAY_API_TOKEN`, a
+     deploy token for that app only. Access keys with the `gateway`
      scope work from here: the dashboard can start. Tests: the gateway tests, a PGlite e2e
      like `apps/mcp`, the canary test.
 2. **The page**: Models renamed Gateway everywhere, the scopes on access keys, a docs page for services, and usage and spend
