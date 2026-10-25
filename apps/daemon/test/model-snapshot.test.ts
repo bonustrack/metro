@@ -125,7 +125,7 @@ test('snapshot with no route and no recorded usage starts no provider probe, and
   expect(answer.status).toBe(200);
   expect(answer.body).toEqual(settingsBody(deps()));
   expect(answer.body).toMatchObject({ usage: {}, lastServed: null, route: '', ready: false, source: null });
-  expect((answer.body as { reason: string }).reason).toContain("organization's Models page");
+  expect((answer.body as { reason: string }).reason).toContain("organization's Gateway page");
   expectReadOnly();
 });
 

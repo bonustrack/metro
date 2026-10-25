@@ -259,7 +259,7 @@ describe('recent sanitized events and polling', () => {
   });
 
   test('legacy last errors are historical unless the main agent still reports error', () => {
-    const lastError = 'SDK turn failed (provider_error). Check Conversations and the Model page.';
+    const lastError = 'SDK turn failed (provider_error). Check Conversations and the Gateway page.';
     expect(view({ mainPhase: 'idle', lastError }).failures[0]).toEqual({ text: `Historical failure: ${lastError} (time not reported)`, danger: false });
     expect(view({ mainPhase: 'error', lastError }).failures[0]).toEqual({ text: `Current failure: ${lastError} (time not reported)`, danger: true });
     expect(view({ mainPhase: 'working', lastError }).failures[0]?.danger).toBe(false);

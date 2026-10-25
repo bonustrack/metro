@@ -10,7 +10,7 @@ import { fingerprint } from './list-cache.js';
 import { anthropicModels, bedrockModels, codexModels, KNOWN_CLAUDE, openrouterModels, subscriptionModels } from './provider-lists.js';
 import { routewayModels } from '@metro-labs/connectors/model-lists';
 
-const SIGNED_OUT = 'This Codex connection is signed out. Sign in again on the Models page.';
+const SIGNED_OUT = 'This Codex connection is signed out. Sign in again on the Gateway page.';
 
 async function freshCodex(deps: ModelsDeps, key: Buffer, row: ModelConnectionRow): Promise<CodexSecret> {
   const current = codexStale(key, row, deps.now()) ? await refreshModelConnection(refreshDeps(deps, key), row.owner, row.id) : row;

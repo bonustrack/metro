@@ -121,7 +121,7 @@ test('the Claude Code package is the one the SDK itself would pick for this mach
   expect(runnerDependencies(manifest, claudePackage('linux', 'x64', false))).toEqual({ pino: '^9' });
 });
 
-test('the runner is told where metro is, its key, the permission mode, the Harness prompt, and the one model the Model page picked', () => {
+test('the runner is told where metro is, its key, the permission mode, the Harness prompt, and the one model the Gateway page picked', () => {
   expect(runnerEnv('mk_x', 8420, null, 'bypass', null, '/s/claude')).toEqual({
     METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp',
     METRO_RUNNER_CLAUDE: '/s/claude',

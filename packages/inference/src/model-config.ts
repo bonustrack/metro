@@ -57,7 +57,7 @@ export interface Route {
   model: string;
 }
 
-export const CODEX_SIGN_IN = "Codex is not signed in: sign in again on the organization's Models page.";
+export const CODEX_SIGN_IN = "Codex is not signed in: sign in again on the organization's Gateway page.";
 
 const PREFIX_RE = /^(anthropic|bedrock|openrouter|codex|routeway):(.+)$/;
 const SMALL_RE = /haiku/i;
@@ -78,22 +78,22 @@ export function primaryRoute(setup: ModelSetup): Route | null {
 }
 
 const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {
-  anthropic: [[(r) => r.connection.apiKey === '' && r.connection.claudeToken === '', "Anthropic has no API key or Claude subscription: add one on the organization's Models page."]],
+  anthropic: [[(r) => r.connection.apiKey === '' && r.connection.claudeToken === '', "Anthropic has no API key or Claude subscription: add one on the organization's Gateway page."]],
   bedrock: [
-    [(r) => r.connection.apiKey === '', "Bedrock has no API key: add it on the organization's Models page."],
-    [(r) => r.connection.region === '', "Bedrock needs a region: add it on the organization's Models page."],
+    [(r) => r.connection.apiKey === '', "Bedrock has no API key: add it on the organization's Gateway page."],
+    [(r) => r.connection.region === '', "Bedrock needs a region: add it on the organization's Gateway page."],
   ],
   openrouter: [
-    [(r) => r.connection.apiKey === '', "OpenRouter has no API key: add it on the organization's Models page."],
-    [(r) => r.model === '', "OpenRouter needs a model id: choose one on the organization's Models page."],
+    [(r) => r.connection.apiKey === '', "OpenRouter has no API key: add it on the organization's Gateway page."],
+    [(r) => r.model === '', "OpenRouter needs a model id: choose one on the organization's Gateway page."],
   ],
   codex: [
     [(r) => r.connection.codex === null, CODEX_SIGN_IN],
-    [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Models page."],
+    [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Gateway page."],
   ],
   routeway: [
-    [(r) => r.connection.apiKey === '', "Routeway has no API key: add it on the organization's Models page."],
-    [(r) => r.model === '', "Routeway needs a model id: choose one on the organization's Models page."],
+    [(r) => r.connection.apiKey === '', "Routeway has no API key: add it on the organization's Gateway page."],
+    [(r) => r.model === '', "Routeway needs a model id: choose one on the organization's Gateway page."],
   ],
 };
 

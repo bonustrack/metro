@@ -14,7 +14,7 @@ export interface ShellSection {
 export const SHELL_SECTIONS: readonly ShellSection[] = [
   { id: 'agents', label: 'Agents', target: { kind: 'servers' } },
   { id: 'connectors', label: 'Connectors', target: { kind: 'org-connectors' } },
-  { id: 'models', label: 'Models', target: { kind: 'org-models' } },
+  { id: 'models', label: 'Gateway', target: { kind: 'org-models' } },
   { id: 'organization', label: 'Organization', target: { kind: 'organization' } },
 ];
 

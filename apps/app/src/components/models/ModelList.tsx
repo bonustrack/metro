@@ -130,7 +130,7 @@ export function ModelList({ pane, pick = null }: { pane: boolean; pick?: ModelPi
   const admin = useAdmin();
   if (pane)
     return (
-      <ListPane title="Models" action={admin ? <AddAccount /> : undefined}>
+      <ListPane title="Gateway" action={admin ? <AddAccount /> : undefined}>
         <Body key={scope} pane pick={pick} />
       </ListPane>
     );
@@ -138,9 +138,9 @@ export function ModelList({ pane, pick = null }: { pane: boolean; pick?: ModelPi
 }
 
 function ModelsRoot({ scope, admin }: { scope: number; admin: boolean }): ReactNode {
-  useDocumentTitle('Models');
+  useDocumentTitle('Gateway');
   return (
-    <TabRoot title="Models" action={admin ? <AddAccount /> : undefined}>
+    <TabRoot title="Gateway" action={admin ? <AddAccount /> : undefined}>
       <PageBody key={scope} />
     </TabRoot>
   );

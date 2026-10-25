@@ -137,7 +137,7 @@ describe('Sign in with a code', () => {
 });
 
 describe('OpenRouter sign-in', () => {
-  test('the callback stores the key and sends the admin back to the Models page', async () => {
+  test('the callback stores the key and sends the admin back to the Gateway page', async () => {
     const res = await call('POST', '/api/models/openrouter/login', { returnTo: 'http://localhost:8081/' });
     const url = new URL((await data<{ authorizeUrl: string }>(res)).authorizeUrl);
     expect(url.origin + url.pathname).toBe('https://openrouter.ai/auth');

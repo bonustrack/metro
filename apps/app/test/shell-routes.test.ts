@@ -25,7 +25,7 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/scheduled', 'scheduled', 'Scheduled'],
   ['/scheduled/cron-agent%3A1', 'scheduled', 'Routine'],
   ['/settings', 'settings', 'Settings'],
-  ['/model', 'settings', 'Model'],
+  ['/model', 'settings', 'Gateway'],
   ['/harness', 'settings', 'Agent SDK setup'],
   ['/server', 'settings', 'Server'],
   ['/terminal', 'settings', 'Terminal'],

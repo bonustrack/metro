@@ -8,17 +8,17 @@ export type RunnerTaskState = (typeof TASK_STATES)[number];
 export type RunnerEventKind = (typeof EVENTS)[number];
 
 const FAILURE = {
-  authentication: 'The provider refused authentication. Check the Model page.',
-  billing: 'The provider refused billing. Check the Model page.',
-  rate_limit: 'The provider rate limit was reached. Retry later or check the Model page.',
-  provider_unavailable: 'The provider is unavailable. Retry later or check the Model page.',
-  invalid_request: 'The provider rejected the request. Check Conversations and the Model page.',
+  authentication: 'The provider refused authentication. Check the Gateway page.',
+  billing: 'The provider refused billing. Check the Gateway page.',
+  rate_limit: 'The provider rate limit was reached. Retry later or check the Gateway page.',
+  provider_unavailable: 'The provider is unavailable. Retry later or check the Gateway page.',
+  invalid_request: 'The provider rejected the request. Check Conversations and the Gateway page.',
   output_limit: 'The model reached its output token limit. Check Conversations.',
-  provider_error: 'SDK turn failed (provider_error). Check Conversations and the Model page.',
-  error_during_execution: 'SDK turn failed (error_during_execution). Check Conversations and the Model page.',
-  error_max_turns: 'SDK turn failed (error_max_turns). Check Conversations and the Model page.',
-  error_max_budget_usd: 'SDK turn failed (error_max_budget_usd). Check Conversations and the Model page.',
-  error_max_structured_output_retries: 'SDK turn failed (error_max_structured_output_retries). Check Conversations and the Model page.',
+  provider_error: 'SDK turn failed (provider_error). Check Conversations and the Gateway page.',
+  error_during_execution: 'SDK turn failed (error_during_execution). Check Conversations and the Gateway page.',
+  error_max_turns: 'SDK turn failed (error_max_turns). Check Conversations and the Gateway page.',
+  error_max_budget_usd: 'SDK turn failed (error_max_budget_usd). Check Conversations and the Gateway page.',
+  error_max_structured_output_retries: 'SDK turn failed (error_max_structured_output_retries). Check Conversations and the Gateway page.',
   read_token_limit: 'Read exceeded its token limit. Read a smaller range with offset and limit, or search the file.',
   tool_error: 'A tool failed. See its result in Conversations.',
   task_error: 'A background task failed. See Conversations and Terminal.',
@@ -27,12 +27,12 @@ const FAILURE = {
   saved_state: 'The saved Agent SDK state cannot be read. Restore it before starting.',
   executable: 'The SDK executable could not start. Prepare the SDK runtime again.',
   module: 'The SDK runtime could not load a required module. Prepare the SDK runtime again.',
-  configuration: 'The SDK launch configuration is missing or invalid. Check Harness and the Model page before starting.',
+  configuration: 'The SDK launch configuration is missing or invalid. Check Harness and the Gateway page before starting.',
   process_exit: 'The SDK process exited unexpectedly. Check its reported exit code or signal before retrying.',
   connection: 'The SDK connection failed. Check the server and provider connection.',
   session_ended: 'The Agent SDK session ended unexpectedly.',
   interrupted: 'The SDK stopped before finishing a chat request. Check Conversations before retrying; actions may already have run.',
-  session_error: 'The Agent SDK session failed. Check Terminal and the Model page.',
+  session_error: 'The Agent SDK session failed. Check Terminal and the Gateway page.',
 } as const;
 export type RunnerFailureCode = keyof typeof FAILURE;
 

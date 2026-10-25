@@ -36,7 +36,7 @@ afterAll(() => {
 
 const READING = { at: '2026-10-15T10:00:00.000Z', windows: [{ label: 'Weekly', used: 0.5 }] };
 
-describe('what the Model page reads from the box', () => {
+describe('what the Gateway page reads from the box', () => {
   test('the effective route, its source and the delivered connections, with no credential', () => {
     const settings = toModelSettings({
       route: 'orA00000001',

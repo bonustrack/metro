@@ -155,7 +155,7 @@ describe('one session per box', () => {
     expect(body).toContain(gap);
   }, 30000);
 
-  test('a new model from the Model page reaches the session holding the slot, only while its stream is open', async () => {
+  test('a new model from the Gateway page reaches the session holding the slot, only while its stream is open', async () => {
     const sessionId = await initSession(url());
     expect(switchModel('openrouter:anthropic/claude-sonnet-5.5')).toBe(false);
     const stream = await openGet(url(), sessionId);

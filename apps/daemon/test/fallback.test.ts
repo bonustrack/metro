@@ -259,7 +259,7 @@ describe('a real limit answer moves the request to the next model', () => {
     cfg = { ...cfg, fallbacks: [] };
     const alone = await ask('claude-revoked-1');
     expect(alone.status).toBe(403);
-    expect(((await alone.json()) as { error: { message: string } }).error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Models page');
+    expect(((await alone.json()) as { error: { message: string } }).error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Gateway page');
   });
 
   test('a model that answers is used as it is, and nothing else is asked', async () => {

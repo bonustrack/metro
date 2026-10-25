@@ -222,7 +222,7 @@ describe('the session reaches connectors through the metro server only', () => {
   });
 });
 
-describe('the session thinks with the one model the Model page picked', () => {
+describe('the session thinks with the one model the Gateway page picked', () => {
   const tools: MetroTools = { config: { type: 'sdk', name: 'metro', instance: null as never }, readOnly: () => false, changed: () => undefined };
   const base = { METRO_RUNNER_MCP_URL: 'http://127.0.0.1:8420/mcp', METRO_AGENT_KEY: 'mk_x', HOME: '/home/agent', PATH: '/usr/bin' };
   const allow = (): Promise<{ behavior: 'deny'; message: string }> => Promise.resolve({ behavior: 'deny', message: 'no' });

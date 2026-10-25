@@ -131,7 +131,7 @@ test('forged exception wrappers reject unknown and inherited failure codes', () 
   for (const code of ['SYNTHETIC_PRIVATE', 'constructor', '__proto__', null, {}]) {
     const forged: unknown = Object.setPrototypeOf({ failure: { code, diagnostic: { source: 'exception', exitCode: 1, message: privateText } } }, SessionError.prototype);
     expect(sessionFailure(forged)).toEqual({ code: 'session_error' });
-    expect(failureSummary(forged)).toBe('The Agent SDK session failed. Check Terminal and the Model page.');
+    expect(failureSummary(forged)).toBe('The Agent SDK session failed. Check Terminal and the Gateway page.');
   }
 });
 

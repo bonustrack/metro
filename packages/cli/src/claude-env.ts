@@ -100,13 +100,13 @@ async function verdict(): Promise<Verdict> {
 }
 
 function gatewayLaunchEnv(key: string, port: number, claude: string, say: (line: string) => void): NodeJS.ProcessEnv {
-  say(`inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Model page decides where)`);
+  say(`inference goes through the daemon at http://127.0.0.1:${String(port)}/gateway (the Gateway page decides where)`);
   const pointed = routeModelEnv(gatewayEnv(process.env, key, port), currentRoute());
   const searched = toolSearchEnv(pointed);
   if (searched !== pointed) say('MCP tool search is on, so connector tools load when Claude needs them instead of all at start');
   const routed = cacheTtlEnv(searched);
   const env = credentialEnv(routed, key, claudeSignedIn(claude));
-  if (env !== routed) say("Claude Code has no login of its own here, so metro's key stands in as its credential; the organization's Models page decides where requests go");
+  if (env !== routed) say("Claude Code has no login of its own here, so metro's key stands in as its credential; the organization's Gateway page decides where requests go");
   return env;
 }
 

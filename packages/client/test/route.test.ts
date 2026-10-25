@@ -199,7 +199,7 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection(`#/stage-labs/organization/connectors/${id}/tools`).kind).toBe('none');
   });
 
-  test('the organization Models page is an organization page, and an agent keeps its own Model page', () => {
+  test('the organization Gateway page is an organization page, and an agent keeps its own Gateway page', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: null });
     expect(routeSelection('#/organization/models')).toEqual({ kind: 'org-models' });
     expect(routeHash({ kind: 'org-models' })).toEndWith('/organization/models');

@@ -128,7 +128,7 @@ export function prepareRunnerStore(): Promise<void> {
   });
 }
 
-const NO_MODEL = "the organization routes this agent to no model yet: choose one on the organization's Models page";
+const NO_MODEL = "the organization routes this agent to no model yet: choose one on the organization's Gateway page";
 
 function credentialReady(deps: SessionDeps): string | null {
   try {

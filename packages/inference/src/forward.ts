@@ -34,7 +34,7 @@ const RESPONSE_DROP = new Set(['content-length', 'content-encoding', 'transfer-e
 
 export class SubscriptionRefused extends GatewayError {
   constructor(label: string) {
-    super(403, 'permission_error', `Anthropic refused the Claude subscription ${label}: sign in again on the Models page`);
+    super(403, 'permission_error', `Anthropic refused the Claude subscription ${label}: sign in again on the Gateway page`);
   }
 }
 

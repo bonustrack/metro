@@ -40,7 +40,7 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     callState: (state) => { runner.calls.reconcile(state.route); },
     toolsChanged: () => { tools?.changed(); },
     model: (model) => {
-      log.info({ model }, 'sdk-runner: the Model page picked a model');
+      log.info({ model }, 'sdk-runner: the Gateway page picked a model');
       runner.switchModel(model).catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'sdk-runner: could not switch the model');
       });

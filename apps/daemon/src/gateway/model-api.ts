@@ -21,7 +21,7 @@ export interface ModelApiDeps extends UsageDeps {
 }
 
 const NO_SYNC: SyncStatus = { enrolled: false, at: null, error: null };
-const NO_MODEL = "No model is set up for this agent yet: choose one on the organization's Models page.";
+const NO_MODEL = "No model is set up for this agent yet: choose one on the organization's Gateway page.";
 
 function publicConnection(c: Connection): Record<string, unknown> {
   return {

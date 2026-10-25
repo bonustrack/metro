@@ -12,7 +12,7 @@ describe('runner activity is optional, validated and bounded', () => {
   test('keeps display fields only and supplies backward-compatible approval count', () => {
     expect(parseRunnerActivity({ ...valid, key: 'private' })).toEqual({ ...valid, approvals: 0, mainPhase: 'idle', mainStartedAt: null, activeTools: [], tasks: [], events: [] });
     expect(parseRunnerActivity({ ...valid, sessionId: '../bad', pending: Infinity, workers: -1, approvals: 2, tools: ['Bash', 'bad\nname', ...Array<string>(100).fill('Read')], lastError: 'x'.repeat(500) })).toMatchObject({
-      sessionId: null, pending: 0, workers: 0, approvals: 2, tools: ['Bash', ...Array<string>(19).fill('Read')], lastError: 'The Agent SDK session failed. Check Terminal and the Model page.',
+      sessionId: null, pending: 0, workers: 0, approvals: 2, tools: ['Bash', ...Array<string>(19).fill('Read')], lastError: 'The Agent SDK session failed. Check Terminal and the Gateway page.',
     });
   });
 
