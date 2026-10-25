@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, index, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, integer, pgTable, primaryKey, real, smallint, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable(
   'agents',
@@ -77,6 +77,7 @@ export const agentTokens = pgTable(
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     lastUsedAt: bigint('last_used_at', { mode: 'number' }),
     revokedAt: bigint('revoked_at', { mode: 'number' }),
+    scopes: text('scopes').array().notNull().default(sql`'{connectors}'`),
   },
   (t) => [uniqueIndex('agent_tokens_token_hash_idx').on(t.tokenHash), index('agent_tokens_agent_idx').on(t.agent, t.createdAt)],
 );
@@ -175,3 +176,51 @@ export const modelHosts = pgTable('model_hosts', {
   owner: text('owner').primaryKey(),
   chatgptHostId: text('chatgpt_host_id').notNull(),
 });
+
+export const modelCalls = pgTable(
+  'model_calls',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').notNull(),
+    agentName: text('agent_name'),
+    origin: text('origin').notNull(),
+    token: text('token'),
+    lane: text('lane').notNull(),
+    kind: text('kind').notNull(),
+    connection: text('connection'),
+    provider: text('provider'),
+    model: text('model').notNull(),
+    attempt: smallint('attempt').notNull(),
+    outcome: text('outcome').notNull(),
+    status: smallint('status').notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    cacheReadTokens: integer('cache_read_tokens').notNull(),
+    cacheWrite5mTokens: integer('cache_write_5m_tokens').notNull(),
+    cacheWrite1hTokens: integer('cache_write_1h_tokens').notNull(),
+    costMicros: bigint('cost_micros', { mode: 'number' }),
+    ms: integer('ms').notNull(),
+    firstTokenMs: integer('first_token_ms'),
+    at: bigint('at', { mode: 'number' }).notNull(),
+  },
+  (t) => [
+    index('model_calls_owner_at_idx').on(t.owner, t.at.desc(), t.id.desc()),
+    index('model_calls_owner_agent_at_idx').on(t.owner, t.agent, t.at.desc()),
+    index('model_calls_owner_connection_at_idx').on(t.owner, t.connection, t.at.desc()),
+  ],
+);
+
+export const modelWindows = pgTable(
+  'model_windows',
+  {
+    owner: text('owner').notNull(),
+    connection: text('connection').notNull(),
+    label: text('label').notNull(),
+    used: real('used'),
+    resetAt: bigint('reset_at', { mode: 'number' }),
+    detail: text('detail'),
+    at: bigint('at', { mode: 'number' }).notNull(),
+  },
+  (t) => [primaryKey({ name: 'model_windows_pk', columns: [t.connection, t.label] }), index('model_windows_owner_idx').on(t.owner)],
+);

@@ -98,7 +98,8 @@ export function tokenStore(db: () => Database, now: () => number = Date.now): To
       const box = await boxOf(db(), tokenHash);
       if (box !== null) return box;
       const remote = await accessKeyOf(tokenHash);
-      if (remote !== null) touches.note(remote.tokenId);
+      if (remote === null || !remote.scopes.includes('connectors')) return null;
+      touches.note(remote.tokenId);
       return remote;
     },
     setHash: async (identity, tokenHash) => {

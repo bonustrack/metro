@@ -134,7 +134,7 @@ describe('access keys', () => {
     expect((await call(`/api/agents/${REMOTE}/tokens`, { method: 'POST', body: { label: 'x' }, who: TEST_STRANGER })).status).toBe(404);
     expect((await call(`/api/agents/${REMOTE}/tokens/${made.token.id}`, { method: 'DELETE', who: TEST_STRANGER })).status).toBe(404);
     expect((await call(`/api/agents/${THEIRS}/tokens`, { method: 'POST', body: { label: 'x' } })).status).toBe(404);
-    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: REMOTE, owner: TEST_OWNER, tokenId: made.token.id, remote: true });
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: REMOTE, owner: TEST_OWNER, tokenId: made.token.id, remote: true, scopes: ['connectors'] });
   });
 
   test('a revoked key stays listed as revoked and no longer names its agent', async () => {
@@ -160,7 +160,7 @@ describe('access keys', () => {
 
   test('an agent with a server gets access keys too, which a move drops and a delete removes', async () => {
     const made = await created(BOX, 'Laptop');
-    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: BOX, owner: TEST_OWNER, tokenId: made.token.id, remote: false });
+    expect(await findAgentToken(held.db, tokenHashOf(made.key))).toEqual({ agent: BOX, owner: TEST_OWNER, tokenId: made.token.id, remote: false, scopes: ['connectors'] });
     expect((await (await tokensOf(BOX, TEST_OWNER, 'member')).json()) as { tokens: TokenView[] }).toEqual({ tokens: [made.token] });
     expect((await call(`/api/agents/${BOX}/tokens`, { method: 'POST', body: { label: 'x' }, role: 'member' })).status).toBe(403);
     await held.db.transaction((tx) => leaveOrganization(tx, BOX));
