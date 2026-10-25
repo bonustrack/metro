@@ -234,7 +234,7 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
    from api.metro.box on the Models page (per account and per agent), the agent's Model page and
    Home, with the connector charts' pieces (`CallChart`, tiles). A box before phase 3 still
    answers `GET /api/model`, so the page reads both until phase 4.
-3. **Boxes through the gateway**: a daemon release replaces its use of
+3. **Boxes through the gateway** (relay built 2026-10-26, `apps/daemon/src/gateway/relay.ts`, in the release after beta.321): a daemon release replaces its use of
    `packages/inference` with the relay
    (`METRO_GATEWAY_URL`, default `https://gateway.metro.box`; tests point it at a stand-in).
    Check on one box with `sdk-runner-check` and `sdk-runner-model`, then publish.
