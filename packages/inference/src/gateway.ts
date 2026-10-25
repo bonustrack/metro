@@ -35,11 +35,15 @@ import {
   helperRequest,
   learnAlwaysThinks,
   plannedEffort,
+  requestKind,
   thinkingOff,
   withBlockBinding,
   withEffort,
   withThinkingFor,
+  type RequestKind,
 } from './effort.js';
+import { currentAttempt, type OnCall } from './attempts.js';
+import { measured } from './measure.js';
 import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
 import { codexMessages, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
@@ -67,6 +71,8 @@ export interface GatewayDeps {
   openrouterBase?: string;
   routewayBase?: string;
   codex?: Partial<CodexDeps>;
+  onCall?: OnCall;
+  scope?: string;
 }
 
 const learned: Adaptations = freshAdaptations();
@@ -260,6 +266,8 @@ const bytesOf = (raw: Buffer, parsed: Record<string, unknown>, sent: Record<stri
 
 interface Request {
   path: string;
+  lane: Lane;
+  kind: RequestKind;
   raw: Buffer;
   parsed: Record<string, unknown>;
   sent: Record<string, unknown>;
@@ -273,7 +281,7 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
   log.info({ route: routeLabel(route), connection: conn.label, path }, 'gateway: routing');
   const reason = notReady(route);
   if (reason !== null) throw new GatewayError(400, 'invalid_request_error', reason);
-  if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() });
+  if (path === MESSAGES) noteServed({ connection: conn.id, provider: conn.provider, model: route.model, at: new Date().toISOString() }, deps.scope);
   if (conn.provider === 'bedrock') {
     const up = { settings: conn, base: deps.bedrockBase ?? bedrockBase(conn.region), learned, watch: watchUpstream(res) };
     if (path === COUNT) await bedrockCount(req, res, body, route.model, up);
@@ -298,6 +306,7 @@ async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route
     await attempt(req, held.res, ask, route, deps);
   } catch (err) {
     if (!(err instanceof SubscriptionRefused)) throw err;
+    currentAttempt()?.answered(401);
     return { status: 401, headers: new Headers() };
   }
   return held.refusal();
@@ -310,16 +319,17 @@ async function dispatch(req: IncomingMessage, res: ServerResponse, path: string,
   const sent = fitToolSearch(req, parsed);
   const requested = requestedModel(sent);
   const { lane, setup: chain, primary } = chosenChain(req, sent, setup, requested);
-  const ask: Request = { path, raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
+  const ask: Request = { path, lane, kind: requestKind(req, sent), raw, parsed, sent, body: shapedFor(req, sent, setup), setup };
   const routes = routesToTry(chainOf(primary, chain, requested));
   for (const [at, route] of routes.entries()) {
     const next = routes[at + 1];
-    if (path === MESSAGES) noteChoice(primary, route, lane);
+    if (path === MESSAGES) noteChoice(primary, route, lane, Date.now(), deps.scope);
     if (next === undefined) {
-      await attempt(req, res, ask, route, deps);
+      await measured(res, ask, route, at, deps.onCall, (out) => attempt(req, out, ask, route, deps));
       return;
     }
-    const refusal = await heldAttempt(req, holdLimitRefusal(res), ask, route, deps);
+    const held = holdLimitRefusal(res);
+    const refusal = await measured(held.res, ask, route, at, deps.onCall, (out) => heldAttempt(req, { res: out, refusal: held.refusal }, ask, route, deps));
     if (refusal === null) return;
     noteRefused(route, refusal.status, refusal.headers, next);
   }

@@ -1,6 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { stringOf } from '@metro-labs/http/api-http';
+import { currentAttempt } from './attempts.js';
 import { parseEvent, SseParser } from './frames.js';
 import type { Route } from './model-config.js';
 
@@ -21,6 +22,7 @@ export interface Failure {
 export const siteOf = (route: Route): FailureSite => ({ connection: route.connection.label, model: route.model });
 
 export function noteFailure(site: FailureSite, failure: Failure, what: string): void {
+  currentAttempt()?.failed();
   log.warn({ connection: site.connection, model: site.model, ...failure, message: failure.message.slice(0, MESSAGE_MAX) }, what);
 }
 

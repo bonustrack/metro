@@ -5,14 +5,14 @@ export interface Served {
   at: string;
 }
 
-let last: Served | null = null;
+const last = new Map<string, Served>();
 
-export const noteServed = (served: Served): void => {
-  last = served;
+export const noteServed = (served: Served, scope = ''): void => {
+  last.set(scope, served);
 };
 
-export const lastServed = (): Served | null => last;
+export const lastServed = (scope = ''): Served | null => last.get(scope) ?? null;
 
 export const forgetServed = (): void => {
-  last = null;
+  last.clear();
 };

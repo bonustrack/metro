@@ -1,3 +1,4 @@
+import { currentAttempt } from './attempts.js';
 type Key = string;
 
 export interface UsageWindow {
@@ -92,28 +93,49 @@ export function tallyTokens(key: Key, counted: Counted, now = new Date()): void 
   });
 }
 
-const TOKEN_FIELD = /"(input_tokens|output_tokens|cache_read_input_tokens|cache_creation_input_tokens)"\s*:\s*(\d+)/g;
+const TOKEN_FIELD = /"(input_tokens|output_tokens|cache_read_input_tokens|cache_creation_input_tokens|ephemeral_5m_input_tokens|ephemeral_1h_input_tokens|cost)"\s*:\s*(\d+(?:\.\d+)?)/g;
+
+const FIELDS: Record<string, keyof Seen> = {
+  input_tokens: 'input',
+  output_tokens: 'output',
+  cache_read_input_tokens: 'read',
+  cache_creation_input_tokens: 'creation',
+  ephemeral_5m_input_tokens: 'write5m',
+  ephemeral_1h_input_tokens: 'write1h',
+  cost: 'cost',
+};
+
+interface Seen {
+  input: number;
+  output: number;
+  read: number;
+  creation: number;
+  write5m: number;
+  write1h: number;
+  cost: number;
+}
 
 export class UsageScanner {
   private carry = '';
-  private readonly max = { input: 0, output: 0, read: 0, creation: 0 };
+  private readonly max: Seen = { input: 0, output: 0, read: 0, creation: 0, write5m: 0, write1h: 0, cost: 0 };
   private touched = false;
+  private costed = false;
 
   constructor(private readonly key: Key) {}
 
   private scan(text: string): void {
     for (const hit of text.matchAll(TOKEN_FIELD)) {
+      const field = FIELDS[hit[1] ?? ''];
       const value = Number(hit[2]);
-      if (!Number.isFinite(value)) continue;
-      this.touched = true;
-      if (hit[1] === 'input_tokens') this.max.input = Math.max(this.max.input, value);
-      else if (hit[1] === 'output_tokens') this.max.output = Math.max(this.max.output, value);
-      else if (hit[1] === 'cache_read_input_tokens') this.max.read = Math.max(this.max.read, value);
-      else this.max.creation = Math.max(this.max.creation, value);
+      if (field === undefined || !Number.isFinite(value)) continue;
+      if (field === 'cost') this.costed = true;
+      else this.touched = true;
+      this.max[field] = Math.max(this.max[field], value);
     }
   }
 
   feed(text: string): void {
+    currentAttempt()?.firstByte();
     const joined = this.carry + text;
     const cut = joined.lastIndexOf('\n');
     if (cut === -1) {
@@ -128,7 +150,10 @@ export class UsageScanner {
     if (this.carry !== '') this.scan(this.carry);
     this.carry = '';
     if (!this.touched) return;
-    tallyTokens(this.key, { input: this.max.input, output: this.max.output, cached: this.max.read + this.max.creation }, now);
+    const { input, output, read, creation, write5m, write1h, cost } = this.max;
+    const split = write5m + write1h;
+    currentAttempt()?.counted({ input, output, cacheRead: read, cacheWrite5m: split > 0 ? write5m : creation, cacheWrite1h: write1h }, this.costed ? cost : null);
+    tallyTokens(this.key, { input, output, cached: read + creation }, now);
     this.touched = false;
   }
 }
