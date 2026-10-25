@@ -1,16 +1,9 @@
 import { createHash } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
+import type { ListedModel } from '@metro-labs/connectors/model-lists';
 
 export const LIST_TTL_MS = 60 * 60_000;
 const KEPT_MAX = 2000;
-
-export interface ListedModel {
-  id: string;
-  name: string;
-  price?: { prompt: number | null; completion: number | null };
-  zdr?: boolean;
-  context?: number;
-}
 
 export class ListCache {
   private readonly kept = new Map<string, { at: number; list: ListedModel[] }>();

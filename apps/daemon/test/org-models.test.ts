@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { setupOf, watchModelChanges } from '../src/gateway/effective.ts';
+import { setupOf } from '@metro-labs/inference/delivered';
+import { watchModelChanges } from '../src/gateway/effective.ts';
 import { primaryRoute } from '@metro-labs/inference/model-config';
 import { OrgModels } from '../src/gateway/org-models.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, metroApi, orgModelsFor, OWNER, type FakeApi } from './org-models-fixture.ts';

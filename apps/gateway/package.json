@@ -1,0 +1,32 @@
+{
+  "name": "@metro-labs/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "gateway.metro.box: the model router every agent and access key goes through. It records usage (tokens, cost, timings) and never the content (docs/GATEWAY-SERVER.md).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "bun src/server.ts",
+    "build": "tsc",
+    "test": "tsc --noEmit && bun test test/"
+  },
+  "dependencies": {
+    "@metro-labs/connectors": "workspace:*",
+    "@metro-labs/core": "workspace:*",
+    "@metro-labs/http": "workspace:*",
+    "@metro-labs/inference": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@stage-labs/config": "0.1.0-beta.3",
+    "eslint": "^10.3.0",
+    "knip": "^6.15.0",
+    "madge": "^8.0.0",
+    "typescript": "^5"
+  }
+}

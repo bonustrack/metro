@@ -1,6 +1,6 @@
 import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
-import { isProvider, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from '@metro-labs/inference/model-config';
+import { emptySetup, isProvider, type ModelSetup, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
 
 export interface DeliveredRoute {
   primary: Fallback | null;
@@ -99,4 +99,10 @@ export function deliveredOf(raw: Record<string, unknown>): Delivered | null {
 
 export function refreshedConnection(raw: Record<string, unknown>): Connection | null {
   return deliveredConnection(isRecord(raw.connection) ? raw.connection : raw);
+}
+
+export function setupOf(delivered: Delivered | null): ModelSetup {
+  const route = delivered?.route ?? null;
+  if (delivered === null || route === null) return { ...emptySetup(), source: delivered?.source ?? null };
+  return { primary: route.primary, fallbacks: route.fallbacks, connections: delivered.connections, source: delivered.source, helpers: route.helpers, effort: route.effort };
 }

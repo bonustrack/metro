@@ -8,12 +8,11 @@ import { apiFailure, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyRow, AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import type { AgentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
-import type { ModelDeliveryStore, RouteSource } from '@metro-labs/connectors/db/model-delivery';
+import type { ModelDeliveryStore } from '@metro-labs/connectors/db/model-delivery';
 import type { OrgModelStore } from '@metro-labs/connectors/db/models';
-import { codexStale, refreshModelConnection } from '@metro-labs/connectors/model-refresh';
-import type { ModelRoute } from '@metro-labs/connectors/model-route';
+import { refreshModelConnection } from '@metro-labs/connectors/model-refresh';
 import { modelKey, refreshDeps } from './deps.js';
-import { agentConnection, type AgentConnection } from './view.js';
+import { agentConnection, agentModelsOf, type AgentConnection, type AgentModels } from '@metro-labs/connectors/model-agent';
 
 const MODELS = '/api/agents/models';
 const REFRESH = '/api/agents/models/refresh';
@@ -28,13 +27,6 @@ export interface AgentModelsDeps {
   delivery: ModelDeliveryStore;
   fetch: FetchLike;
   now: () => number;
-}
-
-export interface AgentModels {
-  route: ModelRoute | null;
-  source: RouteSource;
-  connections: AgentConnection[];
-  chatgptHostId: string;
 }
 
 interface Signed {
@@ -64,12 +56,7 @@ async function signed(req: IncomingMessage, deps: AgentModelsDeps): Promise<Sign
 }
 
 async function delivered(deps: AgentModelsDeps, identity: AgentKeyRow): Promise<AgentModels> {
-  const key = modelKey(deps);
-  const setup = await deps.delivery.setup(identity);
-  const stale = setup.connections.filter((row) => codexStale(key, row, deps.now()));
-  const fresh = await Promise.all(stale.map((row) => refreshModelConnection(refreshDeps(deps, key), identity.owner, row.id)));
-  const rows = setup.connections.map((row) => fresh.find((held) => held.id === row.id) ?? row);
-  return { route: setup.route, source: setup.source, connections: rows.map((row) => agentConnection(key, row)), chatgptHostId: setup.hostId };
+  return agentModelsOf(refreshDeps(deps, modelKey(deps)), await deps.delivery.setup(identity), identity.owner);
 }
 
 function refreshInput(body: unknown): { connection: string; revision: number } {

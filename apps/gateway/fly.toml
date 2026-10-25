@@ -1,0 +1,51 @@
+# Fly.io deployment for gateway.metro.box (apps/gateway), deployed by .github/workflows/gateway.yml
+# from the repository root:
+#   flyctl deploy . --config apps/gateway/fly.toml --dockerfile apps/gateway/Dockerfile --remote-only
+#
+# Two always-on machines and nothing on disk: model requests of every agent go through this
+# app, so one machine restarting must not stop them. It reads api.metro.box's Postgres and runs
+# no migration (they run from apps/api's release_command only). Cloudflare DNS for
+# gateway.metro.box must be DNS only (grey cloud): a proxied stream that is quiet for 125 s is
+# cut with a 524 (docs/GATEWAY-SERVER.md).
+
+app = "metro-gateway"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  METRO_HTTP_HOST = "0.0.0.0"
+  METRO_HTTP_PORT = "8440"
+  METRO_LOG_LEVEL = "info"
+
+# Secrets are NOT stored here. Set them with `fly secrets set -a metro-gateway`, with the same
+# values as api.metro.box:
+#   DATABASE_URL          the Postgres api.metro.box uses
+#   METRO_CONNECTORS_KEY  the key that seals model and connector secrets
+# Without either, the server refuses to start.
+
+[http_service]
+  internal_port = 8440
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 2
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 500
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

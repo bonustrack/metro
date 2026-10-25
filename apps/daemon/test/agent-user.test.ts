@@ -6,7 +6,8 @@ import { Readable } from 'node:stream';
 import { agentUser, agentUserExpected, asUser, CLAUDE_ENV, claudeBin, forgetAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
 import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/agent-user/home-fs.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
-import { modelViewText, setupOf } from '../src/gateway/effective.ts';
+import { setupOf } from '@metro-labs/inference/delivered';
+import { modelViewText } from '../src/gateway/effective.ts';
 import { makeConnection } from './model-fixture.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };

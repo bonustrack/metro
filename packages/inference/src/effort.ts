@@ -70,10 +70,10 @@ function wantedEffort(kind: RequestKind, setting: RouteEffort): string | null {
   return wanted === 'asked' ? null : wanted;
 }
 
-export function plannedEffort(req: IncomingMessage, body: Body, setting: RouteEffort = {}): string | null {
+export function plannedEffort(req: IncomingMessage, body: Body, setting: RouteEffort = {}, kind: RequestKind = requestKind(req, body)): string | null {
   const asked = askedEfforts(body);
   if (asked.length === 0) return null;
-  const wanted = wantedEffort(requestKind(req, body), setting);
+  const wanted = wantedEffort(kind, setting);
   if (wanted === null) return null;
   return asked.every((effort) => effort === wanted) ? null : wanted;
 }

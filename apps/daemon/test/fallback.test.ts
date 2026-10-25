@@ -6,7 +6,7 @@ import { chainOf, chainStatus, holdOf, routesToTry } from '@metro-labs/inference
 import { noteUsage } from '@metro-labs/inference/usage';
 import { lastServed } from '@metro-labs/inference/served';
 import type { ModelSetup, Route } from '@metro-labs/inference/model-config';
-import { deliveredOf } from '../src/gateway/delivered.ts';
+import { deliveredOf } from '@metro-labs/inference/delivered';
 import { conn, connectionId, makeConnection, setupOf } from './model-fixture.ts';
 
 const NOW = Date.parse('2026-10-03T23:00:00.000Z');

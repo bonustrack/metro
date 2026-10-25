@@ -8,7 +8,7 @@ import { stringOf } from '@metro-labs/http/api-http';
 import { OPENAI_API } from '@metro-labs/connectors/codex-tokens';
 import type { CodexSecret } from '@metro-labs/connectors/model-secret';
 import { codexVersion } from './codex-version.js';
-import type { ListedModel } from './list-cache.js';
+import type { ListedModel } from '@metro-labs/connectors/model-lists';
 
 const ANTHROPIC_API = 'https://api.anthropic.com';
 const ANTHROPIC_VERSION = '2023-06-01';
