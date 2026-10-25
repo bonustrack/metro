@@ -18,7 +18,7 @@ const list = toOrgModels({
 });
 const box = toModelSettings({ route: ROUTE.primary.connection, model: ROUTE.primary.model, fallbacks: ROUTE.fallbacks, source: 'organization', connections: [{ id: 'orA00000001', provider: 'openrouter', label: 'OpenRouter' }] });
 
-describe('the organization Models page', () => {
+describe('the organization Gateway page', () => {
   test('a Claude subscription holds no key', () => {
     const subscription = list.connections[3];
     expect(subscription).toMatchObject({ subscription: true, hasKey: false });
@@ -33,7 +33,7 @@ describe('the organization Models page', () => {
   });
 });
 
-describe('the agent Model page', () => {
+describe('the agent Gateway page', () => {
   test('the note names where the order comes from', () => {
     expect(sourceLine('agent', ROUTE)).toContain('its own model order');
     expect(sourceLine('organization', ROUTE)).toContain('organization’s default');

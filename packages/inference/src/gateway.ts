@@ -62,7 +62,7 @@ const COUNT = '/v1/messages/count_tokens';
 const MODELS = '/v1/models';
 const HELLO = '/api/hello';
 const ANTHROPIC_API = 'https://api.anthropic.com';
-const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll it with its organization and choose a model on the organization's Models page";
+const NO_ROUTE = "metro gateway: no model is set up for this agent yet: enroll it with its organization and choose a model on the organization's Gateway page";
 
 export interface ModelDeps {
   setup: () => ModelSetup;

@@ -226,11 +226,11 @@ describe('the session on any connection', () => {
     expect(JSON.parse(anthropic.seen[0]?.body ?? '{}')).toMatchObject({ model: 'claude-opus-5', output_config: { effort: 'low' } });
   });
 
-  test('no model set up for the agent is a 503 that names the Models page, and nothing reaches a provider', async () => {
+  test('no model set up for the agent is a 503 that names the Gateway page, and nothing reaches a provider', async () => {
     cfg = emptySetup();
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5'), { authorization: 'Bearer claude-login' });
     expect(res.status).toBe(503);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("organization's Models page");
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("organization's Gateway page");
     expect(anthropic.seen).toHaveLength(0);
   });
 });
@@ -262,13 +262,13 @@ describe('the Anthropic route', () => {
     expect(JSON.stringify(anthropic.seen[0]?.headers)).not.toContain('mk_ok');
   });
 
-  test('a token Anthropic refuses is a 403 saying to sign in again on the Models page, never a 401', async () => {
+  test('a token Anthropic refuses is a 403 saying to sign in again on the Gateway page, never a 401', async () => {
     conn(cfg, 'anthropic').claudeToken = SIGNED_OUT_TOKEN;
     const res = await post('/gateway/v1/messages', message('claude-sonnet-5', true));
     expect(res.status).toBe(403);
     const body = (await res.json()) as { error: { type: string; message: string } };
     expect(body.error.type).toBe('permission_error');
-    expect(body.error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Models page');
+    expect(body.error.message).toBe('Anthropic refused the Claude subscription anthropic: sign in again on the Gateway page');
     expect(anthropic.seen).toHaveLength(1);
   });
 
@@ -355,7 +355,7 @@ describe('the Anthropic route', () => {
     }
   });
 
-  test('the quota Anthropic states on the answer is kept for the Model page, never sent upstream and never asked for', async () => {
+  test('the quota Anthropic states on the answer is kept for the Gateway page, never sent upstream and never asked for', async () => {
     const answer = anthropic.answer;
     anthropic.answer = (_req, res) => {
       res.writeHead(200, {
@@ -589,7 +589,7 @@ describe('the Codex route', () => {
     renewed = () => null;
     const refused = await post('/gateway/v1/messages', message('gpt-5.4'));
     expect(refused.status).toBe(403);
-    expect(((await refused.json()) as { error: { type: string; message: string } }).error).toMatchObject({ type: 'permission_error', message: expect.stringContaining('Models page') });
+    expect(((await refused.json()) as { error: { type: string; message: string } }).error).toMatchObject({ type: 'permission_error', message: expect.stringContaining('Gateway page') });
     renewed = (c) => c;
     const again = await post('/gateway/v1/messages', message('gpt-5.4'));
     expect(again.status).toBe(403);
@@ -659,7 +659,7 @@ describe('the Codex route', () => {
     conn(cfg, 'codex').codex = null;
     const refused = await post('/gateway/v1/messages', message('claude-sonnet-5'));
     expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Models page');
+    expect(((await refused.json()) as { error: { message: string } }).error.message).toContain('Gateway page');
     expect(refreshes).toHaveLength(0);
   });
 });
@@ -703,7 +703,7 @@ describe('what keeps a session alive through a bad hour', () => {
   });
 });
 
-describe('what the Model page can show about traffic', () => {
+describe('what the Gateway page can show about traffic', () => {
   test('a served message is remembered with its route, a token count is not, and a reset forgets it', async () => {
     expect(lastServed()).toBeNull();
     await post('/gateway/v1/messages', message('claude-sonnet-5'));

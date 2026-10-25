@@ -243,7 +243,7 @@ export class Runner {
         debugFailure('model switch', err);
         const failure = new SessionError(this.diagnostics.failure(err));
         this.parts.activity?.fail(failure);
-        log.warn({ reason: failure.failure.code, diagnostic: failure.failure.diagnostic, summary: failureSummary(failure) }, 'sdk-runner: the session could not take the model the Model page picked');
+        log.warn({ reason: failure.failure.code, diagnostic: failure.failure.diagnostic, summary: failureSummary(failure) }, 'sdk-runner: the session could not take the model the Gateway page picked');
       });
   }
 

@@ -87,10 +87,10 @@ interface Shown {
 
 const shown = async (path = '/api/model'): Promise<Shown> => (await (await call('GET', path)).json()) as Shown;
 
-describe('the Model page reads what the organization delivered', () => {
+describe('the Gateway page reads what the organization delivered', () => {
   test('a sync from the page fetches the setup at once and answers the effective route with no secret', async () => {
     const before = await shown('/api/model/snapshot');
-    expect(before).toMatchObject({ source: null, route: '', ready: false, reason: "No model is set up for this agent yet: choose one on the organization's Models page.", connections: [], chain: [] });
+    expect(before).toMatchObject({ source: null, route: '', ready: false, reason: "No model is set up for this agent yet: choose one on the organization's Gateway page.", connections: [], chain: [] });
     expect(before).not.toHaveProperty('claude');
     const res = await call('POST', '/api/model/sync');
     expect(res.status).toBe(200);
@@ -127,7 +127,7 @@ describe('the Model page reads what the organization delivered', () => {
     expect(after.route).toBe('or000000001');
   });
 
-  test('the routes of the old Model page are gone, and every other method is refused', async () => {
+  test('the routes of the old Gateway page are gone, and every other method is refused', async () => {
     for (const [method, path] of [
       ['PUT', '/api/model'],
       ['POST', '/api/model/connections'],

@@ -18,7 +18,7 @@ import { noteUsageHeaders } from './usage.js';
 const CODEX_BACKEND = 'https://chatgpt.com/backend-api/codex';
 const OPENAI_API = 'https://api.openai.com/v1';
 const INVALID = [400, 404, 422];
-const RENEW_FAILED = "Codex refused its sign-in and api.metro.box could not renew it: sign in again on the organization's Models page.";
+const RENEW_FAILED = "Codex refused its sign-in and api.metro.box could not renew it: sign in again on the organization's Gateway page.";
 
 export interface CodexDeps {
   base?: string;

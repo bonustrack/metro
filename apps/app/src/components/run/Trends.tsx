@@ -62,6 +62,6 @@ export function RunTrends({ entries, selected, onSelect }: { entries: RunEntry[]
       <Text size="md" role="secondary">Partial history: only events still kept are counted, so zero does not mean idle.</Text>
     </> : <Text size="sm" role="secondary">{mode === 'workers'
       ? 'The runner keeps no worker history. The latest count is above.'
-      : 'Session cost is not reported. Usage on the Model page covers more than this session.'}</Text>}
+      : 'Session cost is not reported. Usage on the Gateway page covers more than this session.'}</Text>}
   </Col>;
 }

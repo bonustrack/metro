@@ -92,7 +92,7 @@ function targetInput(raw: unknown, what: string): RouteTarget {
   if (!isRecord(raw) || typeof raw.connection !== 'string') throw bad(`${what} must be an object with a connection and a model`);
   const connection = raw.connection.trim();
   const model = modelInput(raw, what);
-  if (connection.startsWith(LOCAL_PREFIX)) throw bad(`${what} names a Claude login of a box. Those are gone: add a Claude subscription on the organization’s Models page.`);
+  if (connection.startsWith(LOCAL_PREFIX)) throw bad(`${what} names a Claude login of a box. Those are gone: add a Claude subscription on the organization’s Gateway page.`);
   if (!ID_RE.test(connection)) throw bad(`${what} names no model connection`);
   if (model === '') throw bad(`${what} needs a model`);
   return { connection, model };

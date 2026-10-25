@@ -50,7 +50,7 @@ function useRows(project: string, serverId: string | null, groups: AccountGroup[
   const place = usePlace(serverId);
   const server = routeHash({ kind: 'server', project });
   return [
-    { title: 'Model', glance: model === undefined ? undefined : modelGlance(model, now, outdated === null ? null : outdatedLine(outdated)), href: routeHash({ kind: 'model', project }) },
+    { title: 'Gateway', glance: model === undefined ? undefined : modelGlance(model, now, outdated === null ? null : outdatedLine(outdated)), href: routeHash({ kind: 'model', project }) },
     { title: 'Metro version', glance: versionGlance(version, latest), href: routeHash({ kind: 'agent-settings', project }) },
     { title: 'Server', glance: serverGlance(machine, usage, place), href: server },
     { title: 'Up for', glance: uptimeGlance(machine), href: server },

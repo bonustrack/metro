@@ -13,7 +13,7 @@ One Bun process that:
 - relays to the owner the approvals mcp.metro.box asks for the organization's connectors,
   and keeps the agent's token for it (connector credentials never reach the box),
 - serves the model gateway at `/gateway`, which sends Claude Code's inference to the
-  provider chosen on the Model page,
+  provider chosen on the Gateway page,
 - keeps a Claude Code session running in tmux, and serves the Terminal tab.
 
 The agent and its channels are plain files under `~/.metro/agents` (`METRO_AGENTS_DIR`
@@ -35,7 +35,7 @@ database.
 | `monitor/` | `GET /api/tail`, the live event stream `metro tail` reads. |
 | `connectors/` | Enrollment with the organization and its signed api.metro.box client. |
 | `mcp-server/` | The client of mcp.metro.box: the agent's MCP token, the approval relay and the forwarding of `tool_search` and `tool_call`. |
-| `gateway/` | The model gateway and the Model page API. |
+| `gateway/` | The model gateway and the Gateway page API. |
 | `claude/` | Claude Code on the box: sessions, memory, settings, skills, login, setup and the hooks in its settings. |
 | `terminal/` | The Terminal tab's WebSocket and tmux. |
 | `files/` | Attachment links and uploads. |

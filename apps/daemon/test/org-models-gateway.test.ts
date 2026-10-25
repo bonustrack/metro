@@ -132,7 +132,7 @@ describe('the gateway on the setup the organization delivered', () => {
     await models.sync();
     const res = await post('claude-sonnet-5');
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain('Models page');
+    expect(await res.text()).toContain('Gateway page');
     expect(seen).toHaveLength(0);
   });
 

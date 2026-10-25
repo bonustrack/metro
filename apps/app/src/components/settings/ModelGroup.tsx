@@ -49,7 +49,7 @@ export function ModelGroup({ project }: { project: string }): ReactNode {
   const model = useModelQuery();
   const href = routeHash({ kind: 'model', project });
   return (
-    <Group label="Model">
+    <Group label="Gateway">
       {model.data === undefined ? (
         model.error === null ? <RowsSkeleton rows={1} /> : <ErrorState title="Could not read the model" text={queryError(model.error, 'The agent did not answer.')} onRetry={model.refetch} />
       ) : (

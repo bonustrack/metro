@@ -54,7 +54,7 @@ const SCHEDULED: AgentPage[] = [
 
 const SETTINGS: AgentPage[] = [
   { label: 'Settings', kinds: ['agent-settings'], target: settings },
-  { label: 'Model', kinds: ['model'], target: (project) => ({ kind: 'model', project }), deep: true },
+  { label: 'Gateway', kinds: ['model'], target: (project) => ({ kind: 'model', project }), deep: true },
   { label: 'Agent SDK setup', kinds: ['claude'], target: (project) => ({ kind: 'claude', project }), deep: true },
   { label: 'Server', kinds: ['server'], target: (project) => ({ kind: 'server', project }), deep: true },
   { label: 'Profile', kinds: ['agent-profile'], target: (project) => ({ kind: 'agent-profile', project }), deep: true },

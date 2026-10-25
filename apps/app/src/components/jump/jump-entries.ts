@@ -71,7 +71,7 @@ function sectionEntries(admin: boolean): JumpItem[] {
   const launch: JumpItem = { key: 'action:launch', group: 'actions', crumbs: ['New agent'], words: ['launch', 'create'], idle: true, payload: go({ kind: 'launch' }, 'plus') };
   return [
     ...SHELL_SECTIONS.map((section): JumpItem => ({ key: `section:${section.id}`, group: 'pages', crumbs: [section.label], idle: true, payload: go(section.target, SECTION_ICONS[section.id]) })),
-    { key: 'section:route', group: 'pages', crumbs: ['Models', 'Default route'], words: ['backup', 'fallback'], payload: go({ kind: 'org-route' }, 'route') },
+    { key: 'section:route', group: 'pages', crumbs: ['Gateway', 'Default route'], words: ['backup', 'fallback'], payload: go({ kind: 'org-route' }, 'route') },
     ...(admin ? [launch] : []),
   ];
 }

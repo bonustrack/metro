@@ -176,7 +176,7 @@ describe('the organization models client', () => {
     expect(calls[0]?.body).toEqual({ connection: 'orA00000001', returnTo: 'https://metro.box/' });
   });
 
-  test('the OpenRouter return on the Models page is read once and taken out of the address', () => {
+  test('the OpenRouter return on the Gateway page is read once and taken out of the address', () => {
     expect(readOpenRouterReturn('#/org_01TESTOWNER000000/organization/models?openrouter=orA00000001')).toEqual({ result: { kind: 'done', connection: 'orA00000001' }, hash: '#/org_01TESTOWNER000000/organization/models' });
     expect(readOpenRouterReturn('#/organization/models?openrouter_error=Access%20denied&x=1')).toEqual({ result: { kind: 'error', error: 'Access denied' }, hash: '#/organization/models?x=1' });
     expect(readOpenRouterReturn('#/organization/models')).toEqual({ result: null, hash: '#/organization/models' });

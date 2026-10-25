@@ -27,7 +27,7 @@ const conn = (over: Partial<Connection> = {}): Connection => ({ id: 'conn0000001
 const noRouteway = new RoutewayPrices(() => Promise.reject(new Error('offline')));
 
 describe('the Claude price table', () => {
-  test('every Claude model the Models page offers has a price', () => {
+  test('every Claude model the Gateway page offers has a price', () => {
     for (const id of OFFERED) expect(claudePrice(id)).not.toBeNull();
   });
 

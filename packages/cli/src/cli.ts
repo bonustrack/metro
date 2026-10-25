@@ -31,7 +31,7 @@ const USAGE = `metro: run your agent on this machine
                   follow this machine's inbound events, one JSON line each
   metro whoami    print the agent this machine runs
   metro agent     run chat, calls and background workers in one Agent SDK conversation,
-                  using the Model page's model through the daemon's model gateway;
+                  using the Gateway page's model through the daemon's model gateway;
                   resume it after a restart; call audio runs independently
   metro agent --prepare
                   install the Agent SDK runtime and the Claude Code it bundles if needed,

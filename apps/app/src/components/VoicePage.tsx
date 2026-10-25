@@ -28,7 +28,7 @@ import { useDocumentTitle } from '../lib/title.js';
 import { TextLink } from './TextLink.js';
 
 const INTRO =
-  'Call your agent from Stage and talk live, with voice by ElevenLabs. The call goes into the agent’s own conversation, on the model of the Model page, with all its tools, and it knows the chat you call from. It answers only people who can approve there.';
+  'Call your agent from Stage and talk live, with voice by ElevenLabs. The call goes into the agent’s own conversation, on the model of the Gateway page, with all its tools, and it knows the chat you call from. It answers only people who can approve there.';
 const PORTS_NOTE = 'The server needs inbound UDP ports 40000 to 40100 open for the call audio.';
 const KEY_NOTE = 'Give the key Speech to Text and Text to Speech access. Create one in ElevenLabs:';
 const VOICE_NOTE = 'Empty means Sarah, the default. Paste any voice ID from the ElevenLabs library:';

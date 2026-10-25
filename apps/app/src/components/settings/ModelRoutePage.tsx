@@ -27,7 +27,7 @@ import { useOutdatedProvider } from '../../lib/outdated-provider.js';
 import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
-const NO_CONNECTION = 'No account yet. Add one on the organization’s Models page, a Claude subscription included.';
+const NO_CONNECTION = 'No account yet. Add one on the organization’s Gateway page, a Claude subscription included.';
 const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
 
@@ -158,7 +158,7 @@ function Editable({ org, agent, settings, name }: { org: OrgModels; agent: strin
 }
 
 export function ModelRoutePage({ project }: { project: string }): ReactNode {
-  useDocumentTitle('Model');
+  useDocumentTitle('Gateway');
   const model = useModelQuery();
   const org = useOrgModelsQuery();
   const name = useAgentName();
@@ -175,7 +175,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
       <Problems settings={model.data} error={model.error} outdated={outdated} partsOutdated={partsOutdated} project={project} />
       {admin && org.data !== undefined && agent !== null ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
       <Group label="Organization">
-        <Item title="Accounts and the default route" subtitle="On the organization’s Models page" href={routeHash({ kind: 'org-models' })} />
+        <Item title="Accounts and the default route" subtitle="On the organization’s Gateway page" href={routeHash({ kind: 'org-models' })} />
       </Group>
     </Groups>
   );
