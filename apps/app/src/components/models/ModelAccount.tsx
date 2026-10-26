@@ -15,6 +15,8 @@ import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { Icon } from '../Icon.js';
 import { NameModal } from '../NameModal.js';
 import { ProviderLogo } from '../ProviderLogo.js';
+import { AccountLimits } from './AccountLimits.js';
+import { GatewayUsage } from './GatewayUsage.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { PageHeader } from '../ui/PageHeader.js';
@@ -102,6 +104,8 @@ function Body({ id }: { id: string }): ReactNode {
   return (
     <Groups>
       <PageHeader title={connection.label} subtitle={headerLine(connection)} leading={<ProviderLogo provider={providerInfo(connection.provider)} size={AVATAR_SIZE.header} />} />
+      <AccountLimits connection={connection} />
+      <GatewayUsage agent={null} connection={connection.id} />
       {data.admin ? <Manage connection={connection} /> : <Text size="md" role="secondary">Only an admin of the organization can change the accounts.</Text>}
       <UsedIn list={data} connection={connection} />
       {technical ? <Facts connection={connection} /> : null}
