@@ -1,5 +1,6 @@
 import { and, eq, gte, inArray, lt, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import type { Database } from './database.js';
+import { modelWindowsOf, type ModelWindowRow } from './model-calls.js';
 import { agents, modelCalls, modelConnections } from './schema.js';
 
 export const MODEL_OUTCOMES = {
@@ -69,6 +70,7 @@ export interface ModelStats {
 
 export interface ModelUsageStore {
   stats: (scope: ModelStatsScope) => Promise<ModelStats>;
+  windows: (owner: string) => Promise<ModelWindowRow[]>;
 }
 
 const NO_CONNECTION = '';
@@ -174,4 +176,4 @@ export async function modelStats(db: Database, scope: ModelStatsScope): Promise<
   return { slots, connections, agents: agentRows, totals };
 }
 
-export const modelUsageStore = (db: () => Database): ModelUsageStore => ({ stats: (scope) => modelStats(db(), scope) });
+export const modelUsageStore = (db: () => Database): ModelUsageStore => ({ stats: (scope) => modelStats(db(), scope), windows: (owner) => modelWindowsOf(db(), owner) });
