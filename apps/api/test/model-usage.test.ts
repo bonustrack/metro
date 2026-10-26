@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { recordModelCalls, type NewModelCall } from '@metro-labs/connectors/db/model-calls';
+import { recordModelCalls, saveModelWindows, type NewModelCall } from '@metro-labs/connectors/db/model-calls';
 import { modelConnections } from '../src/db/schema.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, addRemoteAgent, PGLITE_START_MS, testDb, type TestDb } from './pglite-db.ts';
@@ -115,6 +115,14 @@ describe('the organization model usage', () => {
     expect(((await (await usage('?range=90d')).json()) as Answer).totals.calls).toBe(8);
     expect(((await (await usage(`?agent=${DASHBOARD}`)).json()) as Answer).totals).toMatchObject({ calls: 1, spendMicros: 9000 });
     expect(((await (await usage(`?connection=${CLAUDE}`)).json()) as Answer).totals).toMatchObject({ calls: 5, spendMicros: 2000 });
+  });
+
+  test('the usage windows the gateway saved are listed for the organization only', async () => {
+    await saveModelWindows(held.db, TEST_OWNER, CLAUDE, [{ label: '5-hour window', used: 0.5, resetAt: NOW + HOUR, detail: null }], NOW);
+    await saveModelWindows(held.db, TEST_STRANGER, 'conn0000099', [{ label: '5-hour window', used: 1, resetAt: null, detail: null }], NOW);
+    const res = await fetch(`${api.base}/api/models/windows`, { headers: { authorization: await auth(TEST_OWNER, 'member') } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ windows: [{ connection: CLAUDE, label: '5-hour window', used: 0.5, resetAt: NOW + HOUR, detail: null, at: NOW }] });
   });
 
   test('bad filters are 400, no session is 401, and another organization sees only its own calls', async () => {

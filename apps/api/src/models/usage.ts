@@ -1,6 +1,7 @@
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { AgentUsage, ConnectionUsage, ModelStats, ModelStatsScope, ModelTotals, ModelUsageStore } from '@metro-labs/connectors/db/model-call-stats';
+import type { ModelWindowRow } from '@metro-labs/connectors/db/model-calls';
 import { agentOf } from '../connectors/activity.js';
 
 const HOUR_MS = 3_600_000;
@@ -96,4 +97,12 @@ export async function modelUsage(store: ModelUsageStore, owner: string, query: U
     agents: [...stats.agents].sort(bySpend).slice(0, TOP_AGENTS),
     totals: stats.totals,
   };
+}
+
+type WindowView = Omit<ModelWindowRow, 'owner'>;
+
+const windowView = (row: ModelWindowRow): WindowView => ({ connection: row.connection, label: row.label, used: row.used, resetAt: row.resetAt, detail: row.detail, at: row.at });
+
+export async function modelWindows(store: ModelUsageStore, owner: string): Promise<{ windows: WindowView[] }> {
+  return { windows: (await store.windows(owner)).map(windowView) };
 }
