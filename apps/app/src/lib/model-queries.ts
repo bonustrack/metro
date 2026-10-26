@@ -14,7 +14,7 @@ const STATUS_POLL_MS = 15_000;
 const WINDOWS_POLL_MS = 30_000;
 const NO_WINDOWS: GatewayWindow[] = [];
 
-const useGatewayWindows = (poll: boolean): GatewayWindow[] =>
+export const useGatewayWindows = (poll: boolean): GatewayWindow[] =>
   useQuery({
     queryKey: orgKey('gateway-windows', String(accountScopeIdentity())),
     queryFn: ({ signal }) => fetchGatewayWindows(signal),

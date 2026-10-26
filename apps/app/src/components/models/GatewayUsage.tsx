@@ -4,7 +4,8 @@ import { Col } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { DEFAULT_STATS_RANGE, STATS_RANGES, type StatsRange } from '@metro-labs/client/api/connector-stats';
-import { dollarsWords, type ModelUsage } from '@metro-labs/client/api/gateway-usage';
+import { dollarsWords, OTHER_CONNECTIONS, type ConnectionUsage, type ModelUsage } from '@metro-labs/client/api/gateway-usage';
+import { routeHash } from '@metro-labs/client/route';
 import { Choice } from '../Choice.js';
 import { CallChart, type ChartUnits } from '../activity/CallChart.js';
 import { CallLegend } from '../activity/CallLegend.js';
@@ -38,11 +39,14 @@ function Chart({ usage }: { usage: ModelUsage }): ReactNode {
   );
 }
 
+const accountHref = (row: ConnectionUsage): string | undefined =>
+  row.connection === '' || row.connection === OTHER_CONNECTIONS || row.label === null ? undefined : routeHash({ kind: 'org-model', id: row.connection });
+
 function ByAccount({ usage }: { usage: ModelUsage }): ReactNode {
   return (
     <Group label="By account" wide>
       {usage.connections.map((row) => (
-        <Item key={row.connection} title={connectionName(row)} chevron={false}
+        <Item key={row.connection} title={connectionName(row)} href={accountHref(row)} chevron={accountHref(row) !== undefined}
           subtitle={`${callWords(row.calls)} · ${countWords(row.inputTokens + row.cacheReadTokens + row.cacheWriteTokens)} tokens in, ${countWords(row.outputTokens)} out${row.unpriced > 0 ? ' · not all priced' : ''}`}
           value={dollarsWords(row.spendMicros)} />
       ))}
@@ -61,7 +65,12 @@ function ByAgent({ usage }: { usage: ModelUsage }): ReactNode {
   );
 }
 
-function Body({ usage, agent }: { usage: ModelUsage; agent: string | null }): ReactNode {
+interface Scope {
+  agent: string | null;
+  connection: string | null;
+}
+
+function Body({ usage, scope }: { usage: ModelUsage; scope: Scope }): ReactNode {
   if (usage.totals.calls === 0)
     return (
       <Text size="md" role="secondary">
@@ -72,16 +81,16 @@ function Body({ usage, agent }: { usage: ModelUsage; agent: string | null }): Re
     <Col gap={32}>
       <CallTiles tiles={usageTiles(usage.totals, usage.range)} />
       <Chart usage={usage} />
-      <ByAccount usage={usage} />
-      {agent === null ? <ByAgent usage={usage} /> : null}
+      {scope.connection === null ? <ByAccount usage={usage} /> : null}
+      {scope.agent === null ? <ByAgent usage={usage} /> : null}
     </Col>
   );
 }
 
-export function GatewayUsage({ agent, label = 'Usage' }: { agent: string | null; label?: string }): ReactNode {
+export function GatewayUsage({ agent, connection = null, label = 'Usage' }: { agent: string | null; connection?: string | null; label?: string }): ReactNode {
   const narrow = useIsNarrow();
   const [range, setRange] = useState<StatsRange>(DEFAULT_STATS_RANGE);
-  const query = useGatewayUsage({ range, agent });
+  const query = useGatewayUsage({ range, agent, connection });
   const usage = query.data;
   if (usage === null || (usage === undefined && query.error !== null)) return null;
   const choice = <Choice label="Time range" value={range} options={STATS_RANGES} onChange={setRange} />;
@@ -93,7 +102,7 @@ export function GatewayUsage({ agent, label = 'Usage' }: { agent: string | null;
         <RowsSkeleton rows={3} leading={false} />
       ) : (
         <View style={query.isPlaceholderData ? styles.dim : undefined}>
-          <Body usage={usage} agent={agent} />
+          <Body usage={usage} scope={{ agent, connection }} />
         </View>
       )}
     </Col>
