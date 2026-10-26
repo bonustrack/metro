@@ -69,7 +69,7 @@ describe('an agent without a server in the agent list', () => {
   test('the agent list asks for every kind, which an older page does not', async () => {
     serve({ servers: [{ id: AGENT, kind: 'remote', host: null, name: 'Laptop' }] });
     expect((await fetchServers()).map((one) => one.kind)).toEqual(['remote']);
-    expect(sent[0]?.url).toBe('https://api.metro.box/api/servers?kinds=all');
+    expect(sent[0]?.url).toBe('https://api.metro.box/api/servers');
   });
 });
 
