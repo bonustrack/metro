@@ -155,6 +155,13 @@
       "when": 1792800000000,
       "tag": "0021_gateway_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792886400000,
+      "tag": "0022_drop_agents_owner_idx",
+      "breakpoints": true
     }
   ]
 }

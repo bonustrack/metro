@@ -17,7 +17,7 @@ export const agents = pgTable(
     slug: text('slug'),
     awsConnection: text('aws_connection'),
   },
-  (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), uniqueIndex('agents_owner_slug_idx').on(t.owner, t.slug), index('agents_owner_idx').on(t.owner)],
+  (t) => [uniqueIndex('agents_owner_host_idx').on(t.owner, t.host), uniqueIndex('agents_owner_slug_idx').on(t.owner, t.slug)],
 );
 
 export const connectors = pgTable(
