@@ -3,7 +3,6 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentKeyRow } from './agent-keys.js';
 import { findAgentToken, touchAgentToken, type AgentTokenIdentity } from './agent-tokens.js';
 import type { Database } from './database.js';
-import { isUndefinedTable } from './errors.js';
 import { agentKeys, agents } from './schema.js';
 
 export const TOUCH_EVERY_MS = 60_000;
@@ -59,18 +58,4 @@ export async function boxByTokenHash(db: Database, tokenHash: string): Promise<A
   return rows[0] ?? null;
 }
 
-export function accessKeyLookup(db: () => Database, app: string): (tokenHash: string) => Promise<AgentTokenIdentity | null> {
-  let waiting = false;
-  return async (tokenHash) => {
-    try {
-      const found = await findAgentToken(db(), tokenHash);
-      waiting = false;
-      return found;
-    } catch (err) {
-      if (!isUndefinedTable(err)) throw err;
-      if (!waiting) log.warn(`${app}: the agent_tokens table does not exist yet, so access keys are refused until api.metro.box migrates`);
-      waiting = true;
-      return null;
-    }
-  };
-}
+export const accessKeyLookup = (db: () => Database): ((tokenHash: string) => Promise<AgentTokenIdentity | null>) => (tokenHash) => findAgentToken(db(), tokenHash);

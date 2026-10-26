@@ -12,7 +12,6 @@ let store: ApprovalStore;
 let agent: TestAgent;
 let other: TestAgent;
 const T0 = Date.parse('2026-10-14T10:00:00.000Z');
-const BEFORE_ORIGIN = 19;
 
 const call = (args: Record<string, unknown>, tool = 'update_page', connector = 'conn0000001'): ApprovalRequest => ({ connector, tool, digest: argsDigest(args), preview: previewOf(args) });
 const stateOf = async (id: string): Promise<string | undefined> => (await held.db.select().from(mcpApprovals).where(eq(mcpApprovals.id, id)))[0]?.state;
@@ -135,30 +134,3 @@ describe('the approval state machine', () => {
   });
 });
 
-describe('before api.metro.box adds the origin column', () => {
-  let early: TestDb;
-  let early1: TestAgent;
-
-  beforeAll(async () => {
-    early = await testDb(BEFORE_ORIGIN);
-    early1 = await enrollAgent(early.db, 'agent000009');
-  }, PGLITE_START_MS);
-  afterAll(async () => { await early.close(); });
-
-  test('requests and deliveries keep working without who made the call, and pick it up once the migration runs', async () => {
-    const earlyStore = approvalStore(() => early.db);
-    const laptop = { row: { id: 'laptop00001' } };
-    await early.db.execute(sql`INSERT INTO agent_tokens (id, owner, agent, label, token_hash, created_by, created_at) VALUES (${laptop.row.id}, ${early1.row.owner}, ${early1.row.agent}, 'Laptop', ${tokenHashOf(newAgentToken())}, 'user_01TEST', ${T0})`);
-    const old = await earlyStore.request(early1.row, call({ page: 1 }), T0);
-    expect(await earlyStore.request(early1.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 1)).toBe(old);
-    expect((await earlyStore.deliver(early1.row, T0 + 10)).map((row) => [row.id, row.origin, row.token, row.keyLabel])).toEqual([[old, null, null, null]]);
-    expect(await earlyStore.answer(early1.row, old, 'allow', T0 + 20)).toBe(true);
-    expect(await earlyStore.redeem(early1.row, old, call({ page: 1 }), T0 + 30)).toBe('used');
-
-    await early.migrateAll();
-    const waiting = await earlyStore.request(early1.row, call({ page: 2 }), T0 + 40);
-    const keyed = await earlyStore.request(early1.row, { ...call({ page: 2 }), token: laptop.row.id }, T0 + 41);
-    expect(keyed).not.toBe(waiting);
-    expect((await earlyStore.deliver(early1.row, T0 + 50)).map((row) => [row.id, row.origin, row.keyLabel])).toEqual([[waiting, 'box', null], [keyed, 'key', 'Laptop']]);
-  });
-});
