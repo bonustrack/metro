@@ -34,7 +34,7 @@ export function dropCredentials(req: IncomingMessage): void {
 
 export function callerLookup(db: () => Database, now: () => number = Date.now): CallerOf {
   const touches = new Touches(db, now, 'gateway');
-  const accessKeyOf = accessKeyLookup(db, 'gateway');
+  const accessKeyOf = accessKeyLookup(db);
   return async (token) => {
     const hash = tokenHashOf(token);
     const box = await boxByTokenHash(db(), hash);

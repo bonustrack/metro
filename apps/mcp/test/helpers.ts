@@ -1,7 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateKeyPairSync, randomBytes, randomInt, type KeyObject } from 'node:crypto';
@@ -34,35 +32,21 @@ export interface TestDb {
   db: Database;
   client: PGlite;
   reset: () => Promise<void>;
-  migrateAll: () => Promise<void>;
   close: () => Promise<void>;
 }
 
-function migrationsThrough(last: number): string {
-  const dir = mkdtempSync(join(tmpdir(), 'metro-mcp-migrations-'));
-  cpSync(MIGRATIONS, dir, { recursive: true });
-  const path = join(dir, 'meta', '_journal.json');
-  const journal = JSON.parse(readFileSync(path, 'utf8')) as { entries: { idx: number }[] };
-  journal.entries = journal.entries.filter((entry) => entry.idx <= last);
-  writeFileSync(path, JSON.stringify(journal));
-  return dir;
-}
-
-export async function testDb(through?: number): Promise<TestDb> {
+export async function testDb(): Promise<TestDb> {
   const client = new PGlite();
   const db = drizzle(client, { schema });
-  const folder = through === undefined ? MIGRATIONS : migrationsThrough(through);
-  await migrate(db, { migrationsFolder: folder });
+  await migrate(db, { migrationsFolder: MIGRATIONS });
   return {
     db,
     client,
     reset: async () => {
       await client.exec(`TRUNCATE ${TABLES.map((table) => `"${table}"`).join(', ')} CASCADE`);
     },
-    migrateAll: () => migrate(db, { migrationsFolder: MIGRATIONS }),
     close: async () => {
       await client.close();
-      if (folder !== MIGRATIONS) rmSync(folder, { recursive: true, force: true });
     },
   };
 }

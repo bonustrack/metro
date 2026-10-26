@@ -2,7 +2,6 @@ import { isRecord } from '@metro-labs/core/is-record';
 
 const UNIQUE_VIOLATION = '23505';
 const UNDEFINED_TABLE = '42P01';
-const UNDEFINED_COLUMN = '42703';
 const DEPTH = 4;
 
 function hasCode(err: unknown, code: string): boolean {
@@ -17,5 +16,3 @@ function hasCode(err: unknown, code: string): boolean {
 export const isUniqueViolation = (err: unknown): boolean => hasCode(err, UNIQUE_VIOLATION);
 
 export const isUndefinedTable = (err: unknown): boolean => hasCode(err, UNDEFINED_TABLE);
-
-export const isUndefinedColumn = (err: unknown): boolean => hasCode(err, UNDEFINED_COLUMN);

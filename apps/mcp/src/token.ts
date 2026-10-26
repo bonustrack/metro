@@ -24,7 +24,7 @@ export function bearerToken(header: string | undefined): string | null {
 
 export function tokenStore(db: () => Database, now: () => number = Date.now): TokenStore {
   const touches = new Touches(db, now, 'mcp');
-  const accessKeyOf = accessKeyLookup(db, 'mcp');
+  const accessKeyOf = accessKeyLookup(db);
   return {
     agentOf: async (tokenHash) => {
       const box = await boxByTokenHash(db(), tokenHash);

@@ -49,18 +49,15 @@ async function added(deps: ServersApiDeps, session: Session, body: unknown): Pro
   return isRemote(body) ? deps.addRemote(owner, body) : deps.add(owner, body);
 }
 
-const everyKind = (req: IncomingMessage): boolean => new URLSearchParams((req.url ?? '').split('?')[1] ?? '').get('kinds') === 'all';
-
-async function listed(req: IncomingMessage, deps: ServersApiDeps, owner: string): Promise<{ servers: ServerEntry[] }> {
-  const servers = await deps.list(owner);
-  return { servers: everyKind(req) ? servers : servers.filter((server) => server.kind === 'box') };
+async function listed(deps: ServersApiDeps, owner: string): Promise<{ servers: ServerEntry[] }> {
+  return { servers: await deps.list(owner) };
 }
 
 async function answer(req: IncomingMessage, deps: ServersApiDeps, session: Session, tgt: Known): Promise<unknown> {
   const owner = session.organization ?? '';
   if (tgt.kind === 'move') return deps.move(session, tgt.id, await readJsonBody(req));
   if (tgt.kind === 'index')
-    return req.method === 'GET' ? listed(req, deps, owner) : added(deps, session, await readJsonBody(req));
+    return req.method === 'GET' ? listed(deps, owner) : added(deps, session, await readJsonBody(req));
   if (tgt.kind === 'avatar') return deps.avatar(owner, tgt.id, await readJsonBody(req, AVATAR_BODY_MAX));
   return req.method === 'DELETE' ? deps.remove(session, tgt.id) : deps.rename(owner, tgt.id, await readJsonBody(req));
 }
