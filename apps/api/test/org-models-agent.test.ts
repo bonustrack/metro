@@ -89,14 +89,14 @@ describe('the delivered setup', () => {
     await route(null, { primary: { connection: 'conn0000001', model: 'openai/gpt-5.2' }, fallbacks: [] });
     const org = await delivered();
     expect(org.source).toBe('organization');
-    expect(org.connections).toEqual([expect.objectContaining({ id: 'conn0000001', provider: 'openrouter', zdr: true, revision: 1, credential: { apiKey: 'sk-or-secret' } }) as unknown as Delivered['connections'][number]]);
+    expect(org.connections).toEqual([expect.objectContaining({ id: 'conn0000001', provider: 'openrouter', zdr: true, revision: 1, credential: null, auth: 'key' }) as unknown as Delivered['connections'][number]]);
     await route('agent000001', { primary: { connection: 'conn0000002', model: 'claude-sonnet-5-5' }, fallbacks: [] });
     const own = await delivered();
     expect(own.source).toBe('agent');
     expect(own.connections.map((c) => c.id)).toEqual(['conn0000002']);
   });
 
-  test('the helpers and the effort ride with the route, and every connection the helpers name is sent with its credential', async () => {
+  test('the helpers and the effort ride with the route, and every connection the helpers name is sent, with no credential', async () => {
     await seed('conn0000011', 'openrouter', { kind: 'key', apiKey: 'sk-or-main' });
     await seed('conn0000012', 'anthropic', { kind: 'key', apiKey: 'sk-ant-helpers' });
     await seed('conn0000013', 'anthropic', { kind: 'key', apiKey: 'sk-ant-unused' });
@@ -104,17 +104,19 @@ describe('the delivered setup', () => {
     await route(null, { primary: { connection: 'conn0000011', model: 'openai/gpt-5.2' }, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } });
     const answer = await delivered();
     expect(answer.route).toEqual({ primary: { connection: 'conn0000011', model: 'openai/gpt-5.2' }, fallbacks: [], helpers, effort: { main: 'medium', helpers: 'asked' } });
-    expect(answer.connections.map((c) => [c.id, c.credential])).toEqual([['conn0000011', { apiKey: 'sk-or-main' }], ['conn0000012', { apiKey: 'sk-ant-helpers' }]]);
+    expect(answer.connections.map((c) => [c.id, c.auth, c.credential])).toEqual([['conn0000011', 'key', null], ['conn0000012', 'key', null]]);
+    expect(JSON.stringify(answer)).not.toContain('sk-or-main');
   });
 
-  test('a Claude subscription is delivered as its token, and a stored route naming a box login drops that step', async () => {
+  test('a Claude subscription is delivered as a subscription, never its token, and a stored route naming a box login drops that step', async () => {
     const token = `sk-ant-oat01-${'t'.repeat(90)}`;
     await seed('conn0000010', 'anthropic', { kind: 'claude', token }, { detail: modelDetailText({ subscription: true, signedInAt: new Date(now).toISOString() }) });
     await held.db.insert(modelRoutes).values({ id: 'routeLocal1', owner: TEST_OWNER, agent: null, updatedBy: 'user:test', updatedAt: new Date(now).toISOString(), route: JSON.stringify({ primary: { connection: 'local:session', model: '' }, fallbacks: [{ connection: 'conn0000010', model: 'claude-opus-5-5' }, { connection: 'local:Xyz12345678', model: 'm' }] }) });
     const answer = await delivered();
     expect(answer.route).toEqual({ primary: { connection: 'conn0000010', model: 'claude-opus-5-5' }, fallbacks: [] });
-    expect(answer.connections).toEqual([expect.objectContaining({ id: 'conn0000010', provider: 'anthropic', revision: 1, credential: { claudeToken: token } }) as unknown as Delivered['connections'][number]]);
+    expect(answer.connections).toEqual([expect.objectContaining({ id: 'conn0000010', provider: 'anthropic', revision: 1, credential: null, auth: 'subscription' }) as unknown as Delivered['connections'][number]]);
     expect(answer.connections[0]).toMatchObject({ auth: 'subscription', signedOut: false });
+    expect(JSON.stringify(answer)).not.toContain(token);
   });
 
   test('a signed-out connection carries no credential and no refresh token ever leaves', async () => {
@@ -160,7 +162,8 @@ describe('Codex refresh', () => {
     await route(null, { primary: { connection: 'conn0000004', model: 'gpt-5.2' }, fallbacks: [] });
     vendor.replies.set(TOKEN, () => answered('ACCESS_NEW'));
     const answer = await delivered();
-    expect(answer.connections[0]).toMatchObject({ revision: 2, credential: { accessToken: 'ACCESS_NEW', method: 'chatgpt', accountId: null }, account: { email: 'new@example.com' } });
+    expect(answer.connections[0]).toMatchObject({ revision: 2, credential: null, auth: 'codex', account: { email: 'new@example.com' } });
+    expect(JSON.stringify(answer)).not.toContain('ACCESS_NEW');
     expect(JSON.stringify(answer)).not.toContain('REFRESH');
     const form = new URLSearchParams(vendor.sent[0]?.body ?? '');
     expect(Object.fromEntries(form)).toEqual({ grant_type: 'refresh_token', client_id: 'oaiapp_client', refresh_token: 'REFRESH_OLD', resource: 'https://api.openai.com/v1' });
@@ -181,7 +184,7 @@ describe('Codex refresh', () => {
     gate.resolve();
     const answers = (await Promise.all((await both).map((res) => res.json()))) as Delivered['connections'];
     expect(answers.map((a) => a.revision)).toEqual([2, 2]);
-    expect(answers.map((a) => a.credential?.accessToken)).toEqual(['ACCESS_FORCED', 'ACCESS_FORCED']);
+    expect(answers.map((a) => a.credential)).toEqual([null, null]);
     expect(vendor.sent).toHaveLength(1);
     const stale = (await (await call(REFRESH, { connection: 'conn0000005', revision: 1 })).json()) as Delivered['connections'][number];
     expect(stale.revision).toBe(2);
@@ -194,7 +197,7 @@ describe('Codex refresh', () => {
     vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
     const ask = async (revision: number): Promise<Delivered['connections'][number]> => (await (await call(REFRESH, { connection: 'conn0000008', revision })).json()) as Delivered['connections'][number];
     expect((await ask(1)).revision).toBe(2);
-    for (let i = 0; i < 3; i += 1) expect(await ask(2)).toMatchObject({ revision: 2, credential: { accessToken: 'ACCESS_FORCED' } });
+    for (let i = 0; i < 3; i += 1) expect(await ask(2)).toMatchObject({ revision: 2, credential: null });
     expect(vendor.sent).toHaveLength(1);
     now += 61_000;
     expect((await ask(2)).revision).toBe(3);
@@ -205,7 +208,7 @@ describe('Codex refresh', () => {
     await seed('conn0000009', 'codex', codex(now + 3_600_000), { detail: modelDetailText({ method: 'chatgpt', signedInAt: new Date(now).toISOString() }) });
     await route(null, { primary: { connection: 'conn0000009', model: 'gpt-5.2' }, fallbacks: [] });
     vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
-    expect(await (await call(REFRESH, { connection: 'conn0000009', revision: 1 })).json()).toMatchObject({ revision: 1, credential: { accessToken: 'ACCESS_OLD' } });
+    expect(await (await call(REFRESH, { connection: 'conn0000009', revision: 1 })).json()).toMatchObject({ revision: 1, credential: null });
     expect(vendor.sent).toHaveLength(0);
   });
 
