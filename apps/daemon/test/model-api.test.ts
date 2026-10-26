@@ -4,7 +4,6 @@ import type { AddressInfo } from 'node:net';
 import { setupOf } from '@metro-labs/inference/delivered';
 import { handleModelRequest, type ModelApiDeps } from '../src/gateway/model-api.ts';
 import type { OrgModels } from '../src/gateway/org-models.ts';
-import { forgetUsage, noteUsageHeaders } from '@metro-labs/inference/usage';
 import { auth } from './identity-helper.ts';
 import { deliveredRow, delivery, enrolledKey, fakeApi, keyCredential, orgModelsFor, type FakeApi } from './org-models-fixture.ts';
 
@@ -13,25 +12,13 @@ const CLAUDE_TOKEN = `sk-ant-oat01-${'f'.repeat(80)}`;
 const key = enrolledKey();
 
 let server: Server;
-let backend: Server;
 let api: FakeApi;
 let models: OrgModels;
 let base = '';
-let backendBase = '';
-const creditsAuth: string[] = [];
 let deps: ModelApiDeps = {};
 
 beforeAll(async () => {
   api = await fakeApi(key);
-  backend = createServer((req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    creditsAuth.push(String(req.headers.authorization ?? ''));
-    res.end(JSON.stringify({ data: { limit: 50, limit_remaining: 37.5, usage: 80 } }));
-  });
-  await new Promise<void>((r) => {
-    backend.listen(0, '127.0.0.1', r);
-  });
-  backendBase = `http://127.0.0.1:${String((backend.address() as AddressInfo).port)}`;
   server = createServer((req, res) => {
     if (!handleModelRequest(req, res, deps)) res.writeHead(404).end();
   });
@@ -44,12 +31,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await api.close();
   server.close();
-  backend.close();
 });
 
 beforeEach(() => {
-  forgetUsage();
-  creditsAuth.length = 0;
   api.asked.length = 0;
   api.answer = null;
   api.delivery = delivery({ connection: 'or000000001', model: 'openai/gpt-5.2' }, [
@@ -62,8 +46,6 @@ beforeEach(() => {
     setup: () => setupOf(models.current()),
     sync: () => models.requested(),
     syncStatus: () => models.syncStatus(),
-    openrouterBase: backendBase,
-    usageWaitMs: 2_000,
   };
 });
 
@@ -82,7 +64,6 @@ interface Shown {
   chain: { connection: string; model: string; active: boolean }[];
   helpers: { route: string; model: string; fallbacks: unknown[]; chain: { connection: string; model: string; active: boolean }[] } | null;
   effort: { main: string; helpers: string };
-  usage: Record<string, { windows: { label: string; used: number | null }[] } | undefined>;
 }
 
 const shown = async (path = '/api/model'): Promise<Shown> => (await (await call('GET', path)).json()) as Shown;
@@ -153,25 +134,5 @@ describe('the Gateway page reads what the organization delivered', () => {
     expect((await call('GET', '/api/model', null)).status).toBe(401);
     expect((await call('GET', '/api/model/sync')).status).toBe(405);
     expect((await call('POST', '/api/model/snapshot')).status).toBe(405);
-  });
-});
-
-describe('usage asked for before the agent sends anything', () => {
-  test('an OpenRouter key is described once per five minutes, and a Codex connection or a Claude subscription is never asked', async () => {
-    await models.sync();
-    noteUsageHeaders('codex', 'cx000000001', new Headers({ 'x-codex-primary-used-percent': '42', 'x-codex-primary-window-minutes': '300' }));
-    const first = await shown();
-    expect(first.usage.or000000001?.windows).toEqual([{ label: 'Credits', used: 0.25, resetAt: null, detail: '$12.50 of $50.00 used' }]);
-    expect(first.usage.cx000000001?.windows).toEqual([{ label: '5-hour window', used: 0.42, resetAt: null, detail: null }]);
-    expect(first.usage.an000000001).toBeUndefined();
-    expect(creditsAuth).toEqual(['Bearer sk-or-secret']);
-    await shown();
-    expect(creditsAuth).toHaveLength(1);
-  });
-
-  test('a Claude subscription shows the usage the headers of its real answers carried', async () => {
-    await models.sync();
-    noteUsageHeaders('anthropic', 'an000000001', new Headers({ 'anthropic-ratelimit-unified-5h-utilization': '0.4', 'anthropic-ratelimit-unified-7d-utilization': '0.2' }));
-    expect((await shown()).usage.an000000001?.windows.map((w) => [w.label, w.used])).toEqual([['5-hour window', 0.4], ['Weekly, all models', 0.2]]);
   });
 });

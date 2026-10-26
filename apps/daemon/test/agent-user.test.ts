@@ -8,7 +8,7 @@ import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/age
 import { viewFiles } from '../src/agent-user/view.ts';
 import { setupOf } from '@metro-labs/inference/delivered';
 import { modelViewText } from '../src/gateway/effective.ts';
-import { makeConnection } from './model-fixture.ts';
+import { makeConnection } from '../../../packages/inference/test/model-fixture.ts';
 
 const AGENT: AgentUser = { name: 'agent', uid: 1001, gid: 1001, home: '/home/agent' };
 const host = (over: Partial<UserHost> = {}): UserHost => ({ metro: true, lookup: (name) => (name === 'agent' ? AGENT : null), ...over });

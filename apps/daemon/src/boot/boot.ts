@@ -58,9 +58,8 @@ import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
 import { startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
-import { watchFallbackUsage } from '@metro-labs/inference/usage-refresh';
 import { startOrgModels, stopOrgModels } from '../gateway/org-models.js';
-import { effectiveSetup, watchModelChanges } from '../gateway/effective.js';
+import { watchModelChanges } from '../gateway/effective.js';
 import { removeModelLeftovers } from '../gateway/model-leftovers.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { METRO_API } from '../connectors/metro-api.js';
@@ -180,7 +179,6 @@ installBearerSessions(agentsDir(), localOwner);
   });
   watchConnectorTools();
   startCloudWatchPublisher();
-  watchFallbackUsage(() => effectiveSetup());
   announceLocalEndpoint();
   tunnel?.start();
   log.info(

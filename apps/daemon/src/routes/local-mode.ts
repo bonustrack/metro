@@ -24,7 +24,7 @@ import {
   localOwner,
   readLocalAgentFile,
 } from '../agents/file-admin.js';
-import { boxGatewayHandler } from '../gateway/box-gateway.js';
+import { boxGatewayHandler } from '../gateway/relay.js';
 import type { StationName } from '@metro-labs/core/station-names';
 
 export interface LocalModeDeps {

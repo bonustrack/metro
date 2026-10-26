@@ -8,7 +8,7 @@ import { handleClaudeRequest } from '../src/claude/api.js';
 import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
 import { auth } from './identity-helper.ts';
 import { emptySetup } from '@metro-labs/inference/model-config';
-import { makeConnection, setupOf } from './model-fixture.ts';
+import { makeConnection, setupOf } from '../../../packages/inference/test/model-fixture.ts';
 
 const OWNER = '0xef8305e140ac520225daf050e2f71d5fbcc543e7';
 const KEY = `mk_${'a'.repeat(43)}`;
@@ -20,7 +20,6 @@ let calls = '';
 let running = '';
 let priorConfigDir: string | undefined;
 let priorClaudeDir: string | undefined;
-let priorGateway: string | undefined;
 
 function fakeTmux(): void {
   writeFileSync(
@@ -62,10 +61,6 @@ function activity(pid: number): void {
   writeFileSync(join(dir, 'home', '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, procStart, updatedAt: Date.now(), phase: 'working' }));
 }
 
-const routeLocally = (): void => {
-  process.env.METRO_GATEWAY_URL = '';
-};
-
 const recorded = (): string[] => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : []);
 
 beforeEach(() => {
@@ -78,8 +73,6 @@ beforeEach(() => {
   mkdirSync(join(dir, 'config'));
   priorConfigDir = process.env.CLAUDE_CONFIG_DIR;
   priorClaudeDir = process.env.METRO_CLAUDE_DIR;
-  priorGateway = process.env.METRO_GATEWAY_URL;
-  delete process.env.METRO_GATEWAY_URL;
   process.env.CLAUDE_CONFIG_DIR = join(dir, 'config');
   process.env.METRO_CLAUDE_DIR = join(dir, 'config');
   fakeTmux();
@@ -91,8 +84,6 @@ afterEach(() => {
   else process.env.CLAUDE_CONFIG_DIR = priorConfigDir;
   if (priorClaudeDir === undefined) delete process.env.METRO_CLAUDE_DIR;
   else process.env.METRO_CLAUDE_DIR = priorClaudeDir;
-  if (priorGateway === undefined) delete process.env.METRO_GATEWAY_URL;
-  else process.env.METRO_GATEWAY_URL = priorGateway;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -104,17 +95,6 @@ describe('what stands in the way of a session', () => {
     expect(sessionBlocked(deps())).toBeNull();
   });
 
-  test('routing locally, an Anthropic route needs an API key or a Claude subscription, never a login of the box', () => {
-    routeLocally();
-    agent();
-    const keyed = setupOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })]);
-    expect(sessionBlocked(deps({ model: () => keyed }))).toBeNull();
-    const subscribed = setupOf('anthropic', [makeConnection('anthropic', { claudeToken: `sk-ant-oat01-${'a'.repeat(80)}` })]);
-    expect(sessionBlocked(deps({ model: () => subscribed }))).toBeNull();
-    const bare = setupOf('anthropic', [makeConnection('anthropic')]);
-    expect(sessionBlocked(deps({ model: () => bare }))).toContain('no API key or Claude subscription');
-  });
-
   test('a runner store the boot could not prepare holds nothing back: Start and the watcher run metro agent, which prepares it', () => {
     agent();
     const unprepared = deps({ metro: undefined });
@@ -123,15 +103,7 @@ describe('what stands in the way of a session', () => {
     expect(recorded().find((c) => c.startsWith('new-session'))).toEndWith(' agent');
   });
 
-  test('routing locally, a delivered route to a ready provider counts, and one that is not ready names what is missing', () => {
-    routeLocally();
-    agent();
-    expect(sessionBlocked(deps({ model: () => READY }))).toBeNull();
-    const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
-    expect(sessionBlocked(deps({ model: () => keyless }))).toContain('OpenRouter has no API key');
-  });
-
-  test('relaying to gateway.metro.box, the box needs no credential: only a model id, a region, and an account that is not signed out', () => {
+  test('the box needs no credential, since gateway.metro.box routes: only a model id, a region, and an account that is not signed out', () => {
     agent();
     const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
     expect(sessionBlocked(deps({ model: () => keyless }))).toBeNull();

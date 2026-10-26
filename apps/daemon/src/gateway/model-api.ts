@@ -4,18 +4,14 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
 import { effectiveSetup } from './effective.js';
 import { chainStatus } from '@metro-labs/inference/fallback';
-import { helperSetup, primaryRoute, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
-import { routeReadiness } from './box-gateway.js';
+import { helperSetup, primaryRoute, setupNotReady, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
 import { orgModels, type SyncStatus } from './org-models.js';
-import { lastServed } from '@metro-labs/inference/served';
-import { refreshUsage, type UsageDeps } from '@metro-labs/inference/usage-refresh';
-import { usageSeen } from '@metro-labs/inference/usage';
 
 const PATH = '/api/model';
 const SNAPSHOT = '/api/model/snapshot';
 const SYNC = '/api/model/sync';
 
-export interface ModelApiDeps extends UsageDeps {
+export interface ModelApiDeps {
   setup?: () => ModelSetup;
   sync?: () => Promise<void>;
   syncStatus?: () => SyncStatus;
@@ -53,7 +49,7 @@ function helpersBody(setup: ModelSetup): Record<string, unknown> | null {
 export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
   const setup = setupOf(deps);
   const primary = primaryRoute(setup);
-  const reason = primary === null ? NO_MODEL : routeReadiness(primary);
+  const reason = primary === null ? NO_MODEL : setupNotReady(primary);
   return {
     source: setup.source,
     sync: (deps.syncStatus ?? (() => orgModels()?.syncStatus() ?? NO_SYNC))(),
@@ -66,14 +62,7 @@ export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
     chain: chainStatus(setup),
     helpers: helpersBody(setup),
     effort: { ...EFFORT_DEFAULTS, ...setup.effort },
-    lastServed: lastServed(),
-    usage: usageSeen(),
   };
-}
-
-async function withUsage(deps: ModelApiDeps): Promise<Record<string, unknown>> {
-  await refreshUsage(setupOf(deps), deps);
-  return settingsBody(deps);
 }
 
 async function synced(deps: ModelApiDeps): Promise<Record<string, unknown>> {
@@ -84,7 +73,7 @@ async function synced(deps: ModelApiDeps): Promise<Record<string, unknown>> {
 type Run = () => Promise<unknown>;
 
 const ROUTES: Record<string, [string, (deps: ModelApiDeps) => Promise<unknown>]> = {
-  [PATH]: ['GET', withUsage],
+  [PATH]: ['GET', (deps) => Promise.resolve(settingsBody(deps))],
   [SNAPSHOT]: ['GET', (deps) => Promise.resolve(settingsBody(deps))],
   [SYNC]: ['POST', synced],
 };

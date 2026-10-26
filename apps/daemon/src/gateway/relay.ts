@@ -2,7 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cameThroughProxy } from '@metro-labs/http/api-http';
 import { forwardedHeaders, pipeResponse, readBody, sendError, watchUpstream } from '@metro-labs/inference/forward';
+import { agentsDir } from '../agents/files.js';
+import { agentIdForKey } from '../agents/keys.js';
 import { usableServerUrl } from '../mcp-server/config.js';
+import { reregisterMcpToken } from '../mcp-server/link.js';
+import { readMcpToken } from '../mcp-server/token.js';
 
 const PREFIX = '/gateway';
 const HELLO = '/api/hello';
@@ -11,10 +15,11 @@ const DEFAULT_URL = 'https://gateway.metro.box';
 const DROPPED = ['authorization', 'x-api-key', 'cookie'];
 const NOT_LINKED = 'metro gateway: this agent is not linked to its organization yet, so it cannot reach its models. It links once an admin of the organization opens its page on metro.box.';
 const NOT_ACCEPTED = 'metro gateway: gateway.metro.box did not accept this agent yet. It registers again; Claude Code retries.';
+const NO_GATEWAY = 'metro gateway: this Metro has no model gateway, since METRO_GATEWAY_URL is empty or not an https url.';
 const UNREACHABLE = 'metro gateway: gateway.metro.box could not be reached. Claude Code retries.';
 
 export interface RelayDeps {
-  url: string;
+  url: string | null;
   identify: (key: string) => boolean;
   token: () => string | null;
   reregister: () => void;
@@ -29,7 +34,7 @@ export function gatewayUrl(env: NodeJS.ProcessEnv = process.env): string | null 
   if (usableServerUrl(raw)) return raw.replace(/\/+$/, '');
   if (refused !== raw) {
     refused = raw;
-    log.warn({ url: raw }, 'gateway: METRO_GATEWAY_URL must be an https url (http only on this machine), so the box routes its models itself');
+    log.warn({ url: raw }, 'gateway: METRO_GATEWAY_URL must be an https url (http only on this machine), so this box has no model gateway');
   }
   return null;
 }
@@ -45,20 +50,26 @@ function upstreamHeaders(req: IncomingMessage, token: string): Record<string, st
   return { ...headers, authorization: `Bearer ${token}` };
 }
 
-async function relay(req: IncomingMessage, res: ServerResponse, path: string, deps: RelayDeps): Promise<void> {
+function targetOf(deps: RelayDeps): { url: string; token: string } | string {
+  if (deps.url === null) return NO_GATEWAY;
   const token = deps.token();
-  if (token === null) {
+  return token === null ? NOT_LINKED : { url: deps.url, token };
+}
+
+async function relay(req: IncomingMessage, res: ServerResponse, path: string, deps: RelayDeps): Promise<void> {
+  const target = targetOf(deps);
+  if (typeof target === 'string') {
     req.resume();
-    sendError(res, 503, 'api_error', NOT_LINKED);
+    sendError(res, 503, 'api_error', target);
     return;
   }
   const body = req.method === 'POST' ? await readBody(req) : undefined;
   const watch = watchUpstream(res);
   let upstream: Response;
   try {
-    upstream = await (deps.fetch ?? fetch)(`${deps.url}${path}`, {
+    upstream = await (deps.fetch ?? fetch)(`${target.url}${path}`, {
       method: req.method ?? 'GET',
-      headers: upstreamHeaders(req, token),
+      headers: upstreamHeaders(req, target.token),
       ...(body === undefined ? {} : { body: new Uint8Array(body) }),
       signal: watch.signal,
       redirect: 'manual',
@@ -105,4 +116,12 @@ export function handleGatewayRelay(req: IncomingMessage, res: ServerResponse, de
     else res.end();
   });
   return true;
+}
+
+export function boxGatewayHandler(): (req: IncomingMessage, res: ServerResponse) => boolean {
+  const url = gatewayUrl();
+  if (url === null) log.warn('gateway: METRO_GATEWAY_URL is empty, so model requests are refused');
+  else log.info({ url }, 'gateway: model requests go through gateway.metro.box');
+  const deps: RelayDeps = { url, identify: (key) => agentIdForKey(key) !== undefined, token: () => readMcpToken(agentsDir()), reregister: reregisterMcpToken };
+  return (req, res) => handleGatewayRelay(req, res, deps);
 }
