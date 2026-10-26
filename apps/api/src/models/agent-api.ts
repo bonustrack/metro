@@ -55,8 +55,11 @@ async function signed(req: IncomingMessage, deps: AgentModelsDeps): Promise<Sign
   return { identity, body: bodyOf(bytes) };
 }
 
+const factsOnly = (connection: AgentConnection): AgentConnection => ({ ...connection, credential: null });
+
 async function delivered(deps: AgentModelsDeps, identity: AgentKeyRow): Promise<AgentModels> {
-  return agentModelsOf(refreshDeps(deps, modelKey(deps)), await deps.delivery.setup(identity), identity.owner);
+  const models = await agentModelsOf(refreshDeps(deps, modelKey(deps)), await deps.delivery.setup(identity), identity.owner);
+  return { ...models, connections: models.connections.map(factsOnly) };
 }
 
 function refreshInput(body: unknown): { connection: string; revision: number } {
@@ -75,7 +78,7 @@ async function refreshed(deps: AgentModelsDeps, identity: AgentKeyRow, body: unk
   if (row === undefined) throw new ApiError('The model route of this agent does not name that connection.', 404);
   const current = row.provider === 'codex' && row.revision === revision ? await refreshModelConnection(refreshDeps(deps, key), identity.owner, row.id, revision) : row;
   log.info({ agent: identity.agent, connection, revision, now: current.revision }, 'models: an agent asked for a fresh credential');
-  return agentConnection(key, current);
+  return factsOnly(agentConnection(key, current));
 }
 
 async function route(path: string, req: IncomingMessage, deps: AgentModelsDeps): Promise<unknown> {
