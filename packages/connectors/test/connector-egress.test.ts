@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { LookupAddress } from 'node:dns';
-import { egressFetch, publicAddress, type Resolve } from '../src/egress.ts';
+import { publicConnectorAddress as publicAddress } from '@metro-labs/http/connector-public-url';
+import { egressFetch, type Resolve } from '../src/egress.ts';
 
 const resolving = (addresses: LookupAddress[]): Resolve => () => Promise.resolve(addresses);
 

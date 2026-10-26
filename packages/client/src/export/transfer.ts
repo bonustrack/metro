@@ -92,7 +92,7 @@ async function gatherClaude(sections: Set<Section>, leftOut: string[]): Promise<
   return out;
 }
 
-export interface Gathered {
+interface Gathered {
   payload: Payload;
   leftOut: string[];
 }

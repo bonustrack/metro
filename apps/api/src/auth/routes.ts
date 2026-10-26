@@ -16,6 +16,7 @@ import {
   acceptInvitationsFor,
   addMembership,
   authorizationUrl,
+  configOf,
   createOrganization,
   exchangeCode,
   isProvider,
@@ -67,10 +68,6 @@ const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
 
 const challengeOf = (verifier: string): string => createHash('sha256').update(verifier).digest('base64url');
 
-function invitationOf(query: URLSearchParams): { invitation?: string } {
-  return invitationFrom(query.get('invitation_token') ?? '');
-}
-
 const states = new Map<string, Pending<Started>>();
 const handoffs = new Map<string, Pending<Handoff>>();
 
@@ -120,8 +117,7 @@ function appChallenge(returnTo: string, challenge: string): { challenge?: string
 }
 
 function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const provider = query.get('provider');
   const returnTo = query.get('return_to') ?? '';
   if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
@@ -130,7 +126,7 @@ function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, que
   prune(states, STATE_TTL_MS, now);
   const state = token();
   const intent = query.get('intent') === 'waitlist' ? 'waitlist' : 'login';
-  states.set(state, { value: { returnTo, intent, ...invitationOf(query), ...app }, at: now });
+  states.set(state, { value: { returnTo, intent, ...invitationFrom(query.get('invitation_token') ?? ''), ...app }, at: now });
   redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
 }
 
@@ -185,8 +181,7 @@ function exchangeRefusal(err: unknown): Refusal {
 }
 
 async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const now = (deps.now ?? Date.now)();
   const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
   if (started === null && query.get('code') !== null) {
@@ -223,8 +218,7 @@ async function tokensPayload(t: Tokens, cfg: WorkosConfig, deps: AuthApiDeps): P
 }
 
 async function updateAccount(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const body = await readJsonBody(req, AVATAR_BODY_MAX);
   const hasName = isRecord(body) && 'name' in body;
   const hasAvatar = isRecord(body) && 'avatar' in body;
@@ -244,10 +238,7 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   const verifier = isRecord(body) && typeof body.verifier === 'string' ? body.verifier : '';
   const handoff = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
   if (handoff === null || (handoff.challenge !== undefined && challengeOf(verifier) !== handoff.challenge)) throw new ApiError('that sign-in has already been used or has expired', 404);
-  const tokens = handoff.tokens;
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  return tokensPayload(tokens, cfg, deps);
+  return tokensPayload(handoff.tokens, configOf(deps), deps);
 }
 
 const lasting = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429;
@@ -258,8 +249,7 @@ function refreshRefusal(err: WorkosError): ApiError {
 }
 
 async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const body = await readJsonBody(req);
   const refreshToken = stringOf(bodyField(body, 'refreshToken'));
   const organization = stringOf(bodyField(body, 'organization'));
@@ -283,8 +273,7 @@ async function logout(session: Session, deps: AuthApiDeps): Promise<unknown> {
 }
 
 async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const body = await readJsonBody(req);
   const organization = isRecord(body) && typeof body.organization === 'string' ? body.organization : '';
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
@@ -309,8 +298,7 @@ async function agentsPayload(deps: AuthApiDeps, organization: string): Promise<{
 }
 
 async function organizationsOf(deps: AuthApiDeps, session: Session): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const mine = await userOrganizations(cfg, session.userId);
   const avatars = await deps.orgAvatars.avatars(mine.map((o) => o.id));
   return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null, ...(await agentsPayload(deps, o.id)) }))) };
@@ -319,8 +307,7 @@ async function organizationsOf(deps: AuthApiDeps, session: Session): Promise<unk
 const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
 
 async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  const cfg = configOf(deps);
   const body = await readJsonBody(req);
   const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
   const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';

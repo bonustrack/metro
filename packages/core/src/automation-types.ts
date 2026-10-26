@@ -5,7 +5,7 @@ export const AUTOMATION_PROMPT_MAX = 64 * 1024;
 const PROMPT_JSON_MAX = 128 * 1024 + 2;
 export const AUTOMATION_REQUEST_MAX = 512;
 export const AUTOMATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-export const AUTOMATION_ROUTINE_RE = /^[a-z][a-z0-9-]{0,63}$/;
+const AUTOMATION_ROUTINE_RE = /^[a-z][a-z0-9-]{0,63}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const STATES = ['dispatched', 'consumed', 'awaiting-completion', 'completed', 'failed', 'interrupted', 'coalesced', 'cancelled'] as const;
 const DETAILS = ['sdk-completed', 'sdk-failed', 'runner-interrupted', 'newer-slot', 'owner-cancelled', 'worker-blocked', 'worker-completed'] as const;
@@ -29,7 +29,7 @@ const ERRORS = {
 
 export type AutomationUuid = `${string}-${string}-${string}-${string}-${string}`;
 export type AutomationState = (typeof STATES)[number];
-export type AutomationDetail = (typeof DETAILS)[number];
+type AutomationDetail = (typeof DETAILS)[number];
 export type AutomationOutcome = 'completed' | 'blocked';
 export type AutomationErrorCode = keyof typeof ERRORS;
 

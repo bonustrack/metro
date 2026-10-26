@@ -4,7 +4,7 @@ import { isRecord } from '../read.js';
 export type Access = 'allow' | 'ask' | 'deny';
 export type ToolGroup = 'read' | 'write';
 
-export const ACCESS_CHOICES: readonly Access[] = ['allow', 'ask', 'deny'];
+const ACCESS_CHOICES: readonly Access[] = ['allow', 'ask', 'deny'];
 
 export interface ToolPolicy {
   read?: Access;
@@ -55,9 +55,6 @@ export const effectiveAccess = (policy: ToolPolicy, tool: GroupedTool): Access =
 
 export const stricterAccess = (left: Access, right: Access): Access => ACCESS_CHOICES.indexOf(left) > ACCESS_CHOICES.indexOf(right) ? left : right;
 
-export const inheritedToolAccess = (organization: ToolPolicy, agent: ToolPolicy, tool: GroupedTool): Access =>
-  stricterAccess(effectiveAccess(organization, tool), effectiveAccess(agent, tool));
-
 export function withGroup(policy: ToolPolicy, group: ToolGroup, access: Access | undefined): ToolPolicy {
   const next = { ...policy };
   if (access !== undefined) next[group] = access;
@@ -74,8 +71,3 @@ export function withTool(policy: ToolPolicy, name: string, access: Access | unde
   if (Object.keys(tools).length > 0) next.tools = tools;
   return next;
 }
-
-export const toolsIn = (tools: GroupedTool[], group: ToolGroup): GroupedTool[] => tools.filter((t) => t.group === group);
-
-export const connectorToolGroups = (tools: readonly { name: string; readOnly: boolean }[]): GroupedTool[] =>
-  tools.map((tool) => ({ name: tool.name, group: tool.readOnly ? 'read' : 'write' }));

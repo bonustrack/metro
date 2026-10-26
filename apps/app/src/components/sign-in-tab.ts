@@ -27,7 +27,7 @@ export async function inNewTab<T>(begin: () => Promise<T>, urlOf: (started: T) =
   }
 }
 
-export interface SignInTab<T> {
+interface SignInTab<T> {
   starting: boolean;
   started: T | null;
   link: string | null;

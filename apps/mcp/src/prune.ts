@@ -2,7 +2,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { pruneApprovals } from '@metro-labs/connectors/db/mcp-approvals';
 
-export const PRUNE_EVERY_MS = 60 * 60_000;
+const PRUNE_EVERY_MS = 60 * 60_000;
 
 export async function pruneOnce(db: () => Database, now: () => number): Promise<number | null> {
   try {

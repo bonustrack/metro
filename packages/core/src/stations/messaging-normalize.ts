@@ -1,6 +1,6 @@
 type Args = Record<string, unknown>;
 
-export interface Normalized {
+interface Normalized {
   action: string;
   args: Args;
 }

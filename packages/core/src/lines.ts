@@ -2,8 +2,6 @@ export type Line = string & { readonly __line: unique symbol };
 export const asLine = (s: string): Line => s as Line;
 
 const PREFIX = 'metro://';
-const build = (station: string, ...seg: (string | number)[]): Line =>
-  asLine(`${PREFIX}${station}/${seg.map(String).join('/')}`);
 
 function parseAccountScoped(
   line: Line | string,
@@ -42,11 +40,7 @@ function parseTelegramLine(
 }
 
 export const Line = {
-  claude: (orgId: string, sessionId: string): Line =>
-    build('claude', orgId, sessionId),
-  webhook: (endpointId: string): Line => build('webhook', endpointId),
-  user: (station: string, id: string | number): Line =>
-    build(station, 'user', id),
+  webhook: (endpointId: string): Line => asLine(`${PREFIX}webhook/${endpointId}`),
 
   parse(line: Line | string): { station: string; path: string[] } | null {
     if (!line.startsWith(PREFIX)) return null;
@@ -68,7 +62,7 @@ export const Line = {
   parseDiscord: (line: Line | string) =>
     parseAccountScoped(line, 'discord-bot', isSnowflake),
 
-  parseTelegram: (line: Line | string) => parseTelegramLine(line),
+  parseTelegram: parseTelegramLine,
 
   parseThreema: (line: Line | string) =>
     parseAccountScoped(line, 'threema', isThreemaResource),

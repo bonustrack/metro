@@ -13,7 +13,7 @@ import { accountItems } from '../AccountMenu.js';
 import { RailOrgSwitch } from './OrgSwitch.js';
 import { hideRailTip, railTip } from './RailTip.js';
 import { SECTION_ICONS } from './section-icons.js';
-import { SHELL_SECTIONS, type ShellSection, type ShellSectionId } from '../../lib/shell-sections.js';
+import { SHELL_SECTIONS, type ShellSectionId } from '../../lib/shell-sections.js';
 import { setTechnicalDetails, useTechnicalDetails } from '../../lib/technical.js';
 import { hoverColor } from '../../lib/theme.js';
 import { openJump } from '../../lib/jump-store.js';
@@ -42,10 +42,6 @@ function RailLink({ to, label, icon, active }: { to: string; label: string; icon
       <Icon name={icon} size={ICON} color={active ? palette.link : palette.sub} />
     </RouteLink>
   );
-}
-
-function RailItem({ section, active }: { section: ShellSection; active: boolean }): ReactNode {
-  return <RailLink to={routeHash(section.target)} label={section.label} icon={SECTION_ICONS[section.id]} active={active} />;
 }
 
 function RailAdmin({ active }: { active: boolean }): ReactNode {
@@ -88,7 +84,7 @@ export function Rail({ section, admin = false, onLock }: { section: ShellSection
         <RailOrgSwitch />
       </Col>
       {SHELL_SECTIONS.map((s) => (
-        <RailItem key={s.id} section={s} active={s.id === section} />
+        <RailLink key={s.id} to={routeHash(s.target)} label={s.label} icon={SECTION_ICONS[s.id]} active={s.id === section} />
       ))}
       <Col flex={1} />
       <RailAdmin active={admin} />

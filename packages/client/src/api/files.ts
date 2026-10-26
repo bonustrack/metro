@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { isRecord } from '../read.js';
+import { isRecord, str } from '../read.js';
 
 export interface FileEntry {
   name: string;
@@ -13,7 +13,6 @@ export type AgentPath =
   | { kind: 'folder'; path: string; root: string; entries: FileEntry[]; more: boolean }
   | { kind: 'file'; path: string; root: string; bytes: number; modifiedAt: string; text: string | null; truncated: boolean };
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 function entryOf(raw: unknown): FileEntry | null {

@@ -1,4 +1,4 @@
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { mailEnvelope, noteSeen, pollForever } from '@metro-labs/core/stations/mail';
 import type { Screened } from '@metro-labs/core/stations/mail-trust';
 import { emitInbound, reportAttachment } from '@metro-labs/core/stations/train-events';
@@ -26,11 +26,9 @@ function fresh(acct: Account, m: GraphMessage, since: string): boolean {
   return Date.parse(m.receivedDateTime ?? '') >= Date.parse(since);
 }
 
-const reasonOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
-
 async function screened(acct: Account, m: GraphMessage): Promise<Screened> {
   return screen(acct, m).catch((err: unknown) => {
-    process.stderr.write(`outlook[${acct.id}] could not read the headers of a message, so it counts as unverified: ${reasonOf(err)}\n`);
+    process.stderr.write(`outlook[${acct.id}] could not read the headers of a message, so it counts as unverified: ${errMsg(err)}\n`);
     return { verified: false };
   });
 }
@@ -44,7 +42,7 @@ async function deliver(acct: Account, m: GraphMessage): Promise<boolean> {
   const files: MailFile[] =
     m.hasAttachments === true
       ? await listFiles(acct, m.id).catch((err: unknown) => {
-          process.stderr.write(`outlook[${acct.id}] could not list the files of a message: ${reasonOf(err)}\n`);
+          process.stderr.write(`outlook[${acct.id}] could not list the files of a message: ${errMsg(err)}\n`);
           return [];
         })
       : [];

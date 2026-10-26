@@ -1,3 +1,5 @@
+import { isRecord } from '@metro-labs/client/read';
+
 export interface ToolInput {
   name: string;
   type: string;
@@ -11,12 +13,10 @@ const MAX_CHOICES = 8;
 
 type Schema = Record<string, unknown>;
 
-const isSchema = (value: unknown): value is Schema => typeof value === 'object' && value !== null && !Array.isArray(value);
-
 const stringsOf = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
 
 function variantTypes(schema: Schema): string[] {
-  const variants = [schema.anyOf, schema.oneOf].flatMap((list) => (Array.isArray(list) ? list.filter(isSchema) : []));
+  const variants = [schema.anyOf, schema.oneOf].flatMap((list) => (Array.isArray(list) ? list.filter(isRecord) : []));
   return variants.flatMap((variant) => stringsOf([variant.type].flat()));
 }
 
@@ -26,7 +26,7 @@ function inputType(schema: Schema): string {
   const shown = [...new Set(types)].filter((type) => type !== 'null');
   if (shown.length > 0) return shown.join(' or ');
   if (Array.isArray(schema.enum)) return 'choice';
-  if (isSchema(schema.properties)) return 'object';
+  if (isRecord(schema.properties)) return 'object';
   return 'any';
 }
 
@@ -44,16 +44,16 @@ function describe(schema: Schema): string {
 }
 
 function children(schema: Schema, name: string): [Schema, string] | null {
-  if (isSchema(schema.properties)) return [schema, name];
-  if (isSchema(schema.items) && isSchema(schema.items.properties)) return [schema.items, `${name}[]`];
+  if (isRecord(schema.properties)) return [schema, name];
+  if (isRecord(schema.items) && isRecord(schema.items.properties)) return [schema.items, `${name}[]`];
   return null;
 }
 
 function walk(schema: Schema, prefix: string, depth: number, out: ToolInput[]): void {
-  const properties = isSchema(schema.properties) ? schema.properties : {};
+  const properties = isRecord(schema.properties) ? schema.properties : {};
   const required = new Set(stringsOf(schema.required));
   for (const [key, value] of Object.entries(properties)) {
-    if (out.length >= MAX_ROWS || !isSchema(value)) continue;
+    if (out.length >= MAX_ROWS || !isRecord(value)) continue;
     const name = prefix === '' ? key : `${prefix}.${key}`;
     out.push({ name, type: inputType(value), required: required.has(key), description: describe(value) });
     const next = children(value, name);

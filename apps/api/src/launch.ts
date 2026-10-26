@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import { AGENT_NAME_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
@@ -12,6 +12,7 @@ import { LaunchError, type BootView, type Launched, type LaunchInput } from './a
 import { TailscaleError, type TailscaleClient } from './aws/tailscale-key.js';
 import type { LaunchRecord, ServerLaunch } from './db/servers.js';
 import { ADD_AGENT_ADMIN, type ServerEntry } from './server-types.js';
+import { callerOf } from './server-route.js';
 
 const PREFIX = '/api/launch';
 const IN_FLIGHT_MS = 60_000;
@@ -183,16 +184,8 @@ async function route(
   deps: LaunchApiDeps,
   tgt: Exclude<Target, { kind: 'unknown' } | null>,
 ): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    if (session === null || session.organization === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    sendJson(req, res, 200, await answer(req, deps, session, tgt));
-  } catch (err) {
-    apiFailure(req, res, err, 'launch-api');
-  }
+  const { session } = await callerOf(req, deps.keys);
+  sendJson(req, res, 200, await answer(req, deps, session, tgt));
 }
 
 export function handleLaunchApiRequest(

@@ -20,7 +20,7 @@ export interface VendorTarget {
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;
 type CredentialDeps = Pick<McpDeps, 'key' | 'store' | 'fetch' | 'now' | 'refreshes'>;
 
-export const signinError = (name: string): CallError => new CallError('signin', `${name} needs to be signed in again on metro.box (Connectors), so Metro cannot use it now.`);
+const signinError = (name: string): CallError => new CallError('signin', `${name} needs to be signed in again on metro.box (Connectors), so Metro cannot use it now.`);
 const unavailableError = (name: string): CallError => new CallError('unavailable', `${name} cannot be used right now. Try again in a few minutes.`);
 const missingError = (): CallError => new CallError('not_found', 'That connector is no longer assigned to this agent.');
 
@@ -72,7 +72,7 @@ async function refreshed(deps: CredentialDeps, identity: DeliveryIdentity, conne
   });
 }
 
-export async function vendorTarget(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, forced?: string): Promise<VendorTarget> {
+async function vendorTarget(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, forced?: string): Promise<VendorTarget> {
   let row = await currentRow(deps, identity, connectorId);
   if (forced !== undefined || needsRefresh(opened(deps, row), deps.now())) {
     await refreshed(deps, identity, connectorId, forced);

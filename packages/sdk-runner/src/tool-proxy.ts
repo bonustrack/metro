@@ -4,7 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolRequest, ty
 
 export const METRO_SERVER = 'metro';
 
-export interface ToolSource {
+interface ToolSource {
   readonly instructions: string | undefined;
   listTools(): Promise<ListToolsResult>;
   callTool(params: CallToolRequest['params'], signal: AbortSignal): Promise<CallToolResult>;

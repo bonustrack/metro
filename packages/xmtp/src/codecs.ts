@@ -8,6 +8,12 @@ const enc = (o: unknown): Uint8Array =>
   new TextEncoder().encode(JSON.stringify(o));
 const dec = (e: EncodedContent): unknown =>
   JSON.parse(new TextDecoder().decode(e.content));
+const contentTypeId = (authorityId: string, typeId: string): ContentTypeId => ({
+  authorityId,
+  typeId,
+  versionMajor: 1,
+  versionMinor: 0,
+});
 
 const makeJsonCodec = <T>(
   contentType: ContentTypeId,
@@ -38,12 +44,7 @@ const makeJsonCodec = <T>(
     }
   };
 
-export const ContentTypePoll: ContentTypeId = {
-  authorityId: 'metro.box',
-  typeId: 'poll',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypePoll = contentTypeId('metro.box', 'poll');
 export interface PollOption {
   label: string;
   description?: string;
@@ -127,12 +128,7 @@ export function buildPollContent(
   };
 }
 
-export const ContentTypeSignatureRequest: ContentTypeId = {
-  authorityId: 'metro.box',
-  typeId: 'signatureRequest',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypeSignatureRequest = contentTypeId('metro.box', 'signatureRequest');
 export interface SignatureRequestContent {
   id?: string;
   kind?: 'eip712' | 'personal';
@@ -149,12 +145,7 @@ export const SignatureRequestCodec = makeJsonCodec<SignatureRequestContent>(
       : '[Signature request]',
 );
 
-export const ContentTypeSignatureReference: ContentTypeId = {
-  authorityId: 'metro.box',
-  typeId: 'signatureReference',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypeSignatureReference = contentTypeId('metro.box', 'signatureReference');
 export interface SignatureReferenceContent {
   requestId?: string;
   signature: string;
@@ -166,30 +157,19 @@ export const SignatureReferenceCodec =
     c.signature ? `[Signature] ${c.signature}` : '[Signature]',
   );
 
-const xmtpOrg = (typeId: string): ContentTypeId => ({
-  authorityId: 'xmtp.org',
-  typeId,
-  versionMajor: 1,
-  versionMinor: 0,
-});
 export const WalletSendCallsCodec = makeJsonCodec<{ calls?: { metadata?: { description?: string } }[] }>(
-  xmtpOrg('walletSendCalls'),
+  contentTypeId('xmtp.org', 'walletSendCalls'),
   (c) => {
     const desc = c.calls?.[0]?.metadata?.description;
     return desc ? `[Transaction request] ${desc}` : '[Transaction request]';
   },
 );
 export const TransactionReferenceCodec = makeJsonCodec<{ reference?: string }>(
-  xmtpOrg('transactionReference'),
+  contentTypeId('xmtp.org', 'transactionReference'),
   (c) => (c.reference ? `[Transaction] ${c.reference}` : '[Transaction]'),
 );
 
-export const ContentTypeFrame: ContentTypeId = {
-  authorityId: 'stage.box',
-  typeId: 'frame',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypeFrame = contentTypeId('stage.box', 'frame');
 export interface FrameContent {
   title?: string;
   description?: string;
@@ -204,12 +184,7 @@ export const frameFallback = (c: FrameContent): string => {
 };
 export const FrameCodec = makeJsonCodec<FrameContent>(ContentTypeFrame, frameFallback);
 
-export const ContentTypeFrameAction: ContentTypeId = {
-  authorityId: 'stage.box',
-  typeId: 'frameAction',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypeFrameAction = contentTypeId('stage.box', 'frameAction');
 export interface FrameActionContent {
   frameId: string;
   action: { type: string; payload?: Record<string, unknown> };
@@ -221,20 +196,10 @@ export const frameActionText = (c: FrameActionContent): string => {
 };
 const FrameActionCodec = makeJsonCodec<FrameActionContent>(ContentTypeFrameAction, frameActionText);
 
-export const ContentTypeDeleteRequest: ContentTypeId = {
-  authorityId: 'stage.box',
-  typeId: 'deleteRequest',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+export const ContentTypeDeleteRequest = contentTypeId('stage.box', 'deleteRequest');
 const DeleteRequestCodec = makeJsonCodec<{ messageId: string }>(ContentTypeDeleteRequest, () => 'Message deleted');
 
-const ContentTypeDeleteMessage: ContentTypeId = {
-  authorityId: 'xmtp.org',
-  typeId: 'deleteMessage',
-  versionMajor: 1,
-  versionMinor: 0,
-};
+const ContentTypeDeleteMessage = contentTypeId('xmtp.org', 'deleteMessage');
 
 const varint = (value: number): number[] => {
   const out: number[] = [];
@@ -257,18 +222,12 @@ export function encodeDeleteMessage(messageId: string): EncodedContent {
 }
 
 export const CALL_TYPES = new Set(['callInvite', 'callSignal']);
-const callContentType = (typeId: string): ContentTypeId => ({
-  authorityId: 'stage.box',
-  typeId,
-  versionMajor: 1,
-  versionMinor: 0,
-});
-const CallInviteCodec = makeJsonCodec<{ video?: unknown }>(callContentType('callInvite'), (c) =>
+const CallInviteCodec = makeJsonCodec<{ video?: unknown }>(contentTypeId('stage.box', 'callInvite'), (c) =>
   c.video === true ? '📞 Video call' : '📞 Voice call',
 );
 export const isCallSignal = (m: { contentType?: ContentTypeId }): boolean =>
   m.contentType?.authorityId === 'stage.box' && m.contentType.typeId === 'callSignal';
-export const CallSignalCodec = makeJsonCodec<Record<string, unknown>>(callContentType('callSignal'), () => undefined, false);
+export const CallSignalCodec = makeJsonCodec<Record<string, unknown>>(contentTypeId('stage.box', 'callSignal'), () => undefined, false);
 
 export const CODECS = (): ContentCodec[] => [
   new PollCodec(),

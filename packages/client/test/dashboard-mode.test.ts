@@ -3,7 +3,6 @@ import { ForbiddenError } from '../src/api/client.js';
 import { toRuntimeSnapshot } from '../src/api/claude-box.js';
 import { toModelSettings } from '../src/api/model.js';
 import { DashboardPoll, initialDashboard, type DashboardSource } from '../src/api/dashboard-poll.js';
-import { dashboardReadingStale } from '../src/api/dashboard.js';
 
 const organization = { id: 'fixture-org', name: 'Fixture', slug: null, role: 'member' as const,
   agents: [{ id: 'fixture-agent', host: 'fixture.example.invalid', name: null, slug: null, avatar: null }] };
@@ -46,7 +45,6 @@ test('a mode failure retains only the dated version while other successful readi
   const row = run.row();
   if (row === undefined) throw new Error('missing fixture');
   expect(row.mode).toMatchObject({ data: MODE, at, error: 'mode unavailable' });
-  expect(dashboardReadingStale(row.mode, Date.now())).toBe(true);
   expect(row.session).toMatchObject({ data: SESSION, error: null });
 });
 

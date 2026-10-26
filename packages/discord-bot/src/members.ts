@@ -97,38 +97,6 @@ export function mapRecipients(users: DiscordUser[]): MetroMember[] {
     });
 }
 
-async function fetchRoles(
-  accountId: string,
-  guildId: string,
-): Promise<Map<string, RoleInfo>> {
-  try {
-    const roles = await rest<DiscordRole[]>(
-      accountId,
-      'GET',
-      `/guilds/${guildId}/roles`,
-    );
-    return indexRoles(roles);
-  } catch {
-    return new Map();
-  }
-}
-
-async function fetchOwnerId(
-  accountId: string,
-  guildId: string,
-): Promise<string | undefined> {
-  try {
-    const g = await rest<{ owner_id?: string }>(
-      accountId,
-      'GET',
-      `/guilds/${guildId}`,
-    );
-    return g.owner_id;
-  } catch {
-    return undefined;
-  }
-}
-
 interface Collected {
   raw: DiscordGuildMember[];
   exhausted: boolean;
@@ -168,8 +136,12 @@ export async function listGuildMembers(
   limit?: number,
 ): Promise<MemberList> {
   const cap = Math.min(Math.max(1, limit ?? PAGE), 10_000);
-  const roles = await fetchRoles(accountId, guildId);
-  const ownerId = await fetchOwnerId(accountId, guildId);
+  const roles = await rest<DiscordRole[]>(accountId, 'GET', `/guilds/${guildId}/roles`)
+    .then(indexRoles)
+    .catch(() => new Map<string, RoleInfo>());
+  const ownerId = await rest<{ owner_id?: string }>(accountId, 'GET', `/guilds/${guildId}`)
+    .then((g) => g.owner_id)
+    .catch(() => undefined);
   try {
     const { raw, exhausted } = await paginate(accountId, guildId, cap);
     const members = mapGuildMembers(raw, roles, ownerId);

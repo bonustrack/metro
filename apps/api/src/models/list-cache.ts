@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { ListedModel } from '@metro-labs/connectors/model-lists';
 
-export const LIST_TTL_MS = 60 * 60_000;
+const LIST_TTL_MS = 60 * 60_000;
 const KEPT_MAX = 2000;
 
 export class ListCache {

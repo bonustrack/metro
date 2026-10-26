@@ -7,6 +7,7 @@ import {
 import { listEndpoints } from '../stations/webhook-endpoints.js';
 import { hookUrl, threemaCallbackUrl } from '../stations/attach.js';
 import { accountStatusOf } from '@metro-labs/core/stations/account-status';
+import { isRecord } from '@metro-labs/core/is-record';
 import { accountEnabled, agentIdForAccount, allowlistForAccount, approversForAccount, knownAccounts, type KnownAccount } from '../agents/map.js';
 
 const accountId = (acc: unknown): string | undefined => {
@@ -14,16 +15,9 @@ const accountId = (acc: unknown): string | undefined => {
   return typeof id === 'string' ? id : undefined;
 };
 
-const asRecord = (acc: unknown): Record<string, unknown> | undefined =>
-  typeof acc === 'object' && acc !== null && !Array.isArray(acc)
-    ? (acc as Record<string, unknown>)
-    : undefined;
-
 function withAgentId(station: string, acc: unknown): unknown {
-  const rec = asRecord(acc);
-  if (rec === undefined) return acc;
-  const id = typeof rec.id === 'string' ? rec.id : undefined;
-  if (id === undefined) return acc;
+  if (!isRecord(acc) || typeof acc.id !== 'string') return acc;
+  const id = acc.id;
   const agentId = agentIdForAccount(station, id);
   if (agentId === undefined) return acc;
   const allowlist = allowlistForAccount(station, id);
@@ -31,7 +25,7 @@ function withAgentId(station: string, acc: unknown): unknown {
   const policy = stored === undefined ? {} : { policy: stored };
   const approvers = approversForAccount(station, id);
   const extra = approvers.length === 0 ? policy : { ...policy, approvers };
-  const tagged = allowlist === undefined ? { ...rec, agentId, ...extra } : { ...rec, agentId, allowlist, ...extra };
+  const tagged = allowlist === undefined ? { ...acc, agentId, ...extra } : { ...acc, agentId, allowlist, ...extra };
   return accountEnabled(station, id) ? tagged : { ...tagged, enabled: false };
 }
 
@@ -79,17 +73,15 @@ function inCoreAccounts(station: string): unknown[] {
 }
 
 function withCallbackUrl(acc: unknown): unknown {
-  const rec = asRecord(acc);
-  if (rec === undefined) return acc;
-  const { callbackId, callbackToken, ...rest } = rec;
+  if (!isRecord(acc)) return acc;
+  const { callbackId, callbackToken, ...rest } = acc;
   if (typeof callbackId !== 'string' || typeof callbackToken !== 'string') return rest;
   return { ...rest, callback: threemaCallbackUrl(callbackId, callbackToken) };
 }
 
 function withStatus(reports: boolean, acc: unknown): unknown {
-  const rec = asRecord(acc);
-  if (rec === undefined || !('status' in rec)) return acc;
-  const { status, ...rest } = rec;
+  if (!isRecord(acc) || !('status' in acc)) return acc;
+  const { status, ...rest } = acc;
   const live = reports ? accountStatusOf(status) : null;
   return live === null ? rest : { ...rest, status: live };
 }
@@ -168,9 +160,8 @@ async function loadStations(): Promise<ScopedAccounts> {
 const URL_SECRETS = new Set(['endpoint', 'callback']);
 
 function withoutUrlSecrets(acc: unknown): unknown {
-  const rec = asRecord(acc);
-  if (rec === undefined) return acc;
-  return Object.fromEntries(Object.entries(rec).filter(([key]) => !URL_SECRETS.has(key)));
+  if (!isRecord(acc)) return acc;
+  return Object.fromEntries(Object.entries(acc).filter(([key]) => !URL_SECRETS.has(key)));
 }
 
 export async function gatherAccounts(

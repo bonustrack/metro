@@ -3,8 +3,8 @@ import { TrainError } from '../train-error.js';
 export const PROFILE_FIELDS = ['name', 'bio', 'avatar'] as const;
 export type ProfileField = (typeof PROFILE_FIELDS)[number];
 
-export const NAME_MAX = 64;
-export const BIO_MAX = 512;
+const NAME_MAX = 64;
+const BIO_MAX = 512;
 
 export interface ProfileAvatar {
   path: string;

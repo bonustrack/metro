@@ -22,21 +22,18 @@ function membersOf(args: Record<string, unknown>): string[] {
   return raw.filter((v) => typeof v === 'string' && v.length > 0) as string[];
 }
 
-async function addThreadMembers(
+async function threadMembers(
   rest: RestFn,
   accountId: string,
   threadId: string,
-  members: string[],
+  args: Record<string, unknown>,
+  method: 'PUT' | 'DELETE',
 ): Promise<MemberOutcome[]> {
   const outcomes: MemberOutcome[] = [];
-  for (const userId of members) {
+  for (const userId of membersOf(args)) {
     try {
-      await rest(
-        accountId,
-        'PUT',
-        `/channels/${threadId}/thread-members/${userId}`,
-      );
-      outcomes.push({ id: userId, status: 'added' });
+      await rest(accountId, method, `/channels/${threadId}/thread-members/${userId}`);
+      outcomes.push({ id: userId, status: method === 'PUT' ? 'added' : 'removed' });
     } catch (e) {
       outcomes.push({ id: userId, status: 'failed', reason: errMsg(e) });
     }
@@ -60,12 +57,7 @@ export async function groupCreate(
     `/channels/${parentChannelId}/threads`,
     { name, type, auto_archive_duration: AUTO_ARCHIVE },
   );
-  const members = await addThreadMembers(
-    rest,
-    accountId,
-    thread.id,
-    membersOf(args),
-  );
+  const members = await threadMembers(rest, accountId, thread.id, args, 'PUT');
   return {
     capability: { supported: true },
     line: lineOf(accountId, thread.id),
@@ -82,12 +74,7 @@ export async function groupAddMembers(
   line: string,
   args: Record<string, unknown>,
 ): Promise<GroupResult> {
-  const members = await addThreadMembers(
-    rest,
-    accountId,
-    threadId,
-    membersOf(args),
-  );
+  const members = await threadMembers(rest, accountId, threadId, args, 'PUT');
   return { capability: { supported: true }, line, id: threadId, members };
 }
 
@@ -98,18 +85,6 @@ export async function groupRemoveMembers(
   line: string,
   args: Record<string, unknown>,
 ): Promise<GroupResult> {
-  const outcomes: MemberOutcome[] = [];
-  for (const userId of membersOf(args)) {
-    try {
-      await rest(
-        accountId,
-        'DELETE',
-        `/channels/${threadId}/thread-members/${userId}`,
-      );
-      outcomes.push({ id: userId, status: 'removed' });
-    } catch (e) {
-      outcomes.push({ id: userId, status: 'failed', reason: errMsg(e) });
-    }
-  }
-  return { capability: { supported: true }, line, id: threadId, members: outcomes };
+  const members = await threadMembers(rest, accountId, threadId, args, 'DELETE');
+  return { capability: { supported: true }, line, id: threadId, members };
 }

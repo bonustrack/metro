@@ -4,15 +4,17 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult, LaunchConfig } from './launch-config.js';
 import type { Access, AwsAccount } from './aws/access.js';
-import { AWS_REFUSED, AwsError, type AwsCredentials } from './aws/ec2.js';
+import { AwsError, type AwsCredentials } from './aws/ec2.js';
 import { accountOfRole, ROLE_ARN_RE, type Caller } from './aws/sts.js';
 import { quickCreateUrl, type Templates } from './aws/templates.js';
 import type { InstanceFacts } from './aws/teardown.js';
 import type { AwsStore, Connection } from './db/aws.js';
 import { explain } from './aws/resize.js';
+import { fromAws } from './size.js';
+import { callerOf } from './server-route.js';
 
 const PREFIX = '/api/aws';
 const REGIONS_TTL_MS = 60 * 60_000;
@@ -20,7 +22,7 @@ const NOT_OURS = 'This Metro deployment has no AWS account, so it cannot connect
 const NO_ROLE = 'Metro has no AWS role of its own yet, so it cannot connect another AWS account. The operator sets it up once (docs/ISSUING-SERVERS.md).';
 const NO_BUCKET = 'Metro has no bucket for its AWS template yet (METRO_AWS_TEMPLATES), so it cannot make the link.';
 
-export interface ConnectionAws {
+interface ConnectionAws {
   caller: (credentials: AwsCredentials) => Promise<Caller>;
   regions: (credentials: AwsCredentials) => Promise<string[]>;
   instances: (credentials: AwsCredentials, region: string) => Promise<InstanceFacts[]>;
@@ -84,15 +86,6 @@ function admin(session: Session): void {
   if (session.role !== 'admin') throw new ApiError('connecting an AWS account needs the admin role in your organization', 403);
 }
 
-async function aws<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (err) {
-    if (err instanceof AwsError) throw new ApiError(explain(err, ''), AWS_REFUSED);
-    throw err;
-  }
-}
-
 async function overview(deps: AwsConnectionsDeps, owner: string): Promise<unknown> {
   const state = readiness(deps);
   const config = deps.config();
@@ -108,7 +101,7 @@ async function overview(deps: AwsConnectionsDeps, owner: string): Promise<unknow
 async function link(deps: AwsConnectionsDeps, owner: string): Promise<unknown> {
   const at = ready(deps);
   const externalId = await deps.store.ensureExternalId(owner, deps.externalId());
-  const templateUrl = await aws(() => deps.aws.publish(deps.access.metroRole(at.role), at.templates));
+  const templateUrl = await fromAws(() => deps.aws.publish(deps.access.metroRole(at.role), at.templates));
   return { url: quickCreateUrl(templateUrl, { ExternalId: externalId, MetroRoleArn: at.role }), externalId, templateUrl };
 }
 
@@ -218,17 +211,8 @@ async function answer(req: IncomingMessage, deps: AwsConnectionsDeps, session: S
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: AwsConnectionsDeps, target: Target): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const owner = session?.organization ?? null;
-    if (session === null || owner === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    sendJson(req, res, 200, await answer(req, deps, session, owner, target));
-  } catch (err) {
-    apiFailure(req, res, err, 'aws-api');
-  }
+  const { session, owner } = await callerOf(req, deps.keys);
+  sendJson(req, res, 200, await answer(req, deps, session, owner, target));
 }
 
 export function handleAwsConnectionsRequest(req: IncomingMessage, res: ServerResponse, deps: AwsConnectionsDeps): boolean {

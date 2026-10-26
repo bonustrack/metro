@@ -64,7 +64,7 @@ async function fromPathAs(
   path: string,
 ): Promise<ResolvedAttachment> {
   const proc = Bun.spawn(agentCommand(['cat', '--', path]), { stdout: 'pipe', stderr: 'pipe' });
-  const name = a.name ?? basenameOf(path) ?? 'attachment';
+  const name = a.name ?? basenameOf(path);
   let saved: Awaited<ReturnType<typeof streamToTemp>>;
   try {
     saved = await streamToTemp(proc.stdout, name);
@@ -101,7 +101,7 @@ async function fromPath(
   return {
     path,
     mime: a.mime ?? guessMime(path),
-    name: a.name ?? basenameOf(path) ?? 'attachment',
+    name: a.name ?? basenameOf(path),
     bytes: file.size,
   };
 }
@@ -129,7 +129,7 @@ async function fromUrlAs(
   url: string,
 ): Promise<ResolvedAttachment> {
   const proc = Bun.spawn(agentCommand(curlArgs(url)), { stdout: 'pipe', stderr: 'pipe' });
-  const name = a.name ?? basenameOf(url) ?? 'attachment';
+  const name = a.name ?? basenameOf(url);
   const said = new Response(proc.stderr).text().catch((err: unknown) => {
     log.debug({ err: String(err) }, 'send: could not read what curl said');
     return '';
@@ -167,7 +167,7 @@ async function fromUrl(
   assertContentLength(res.headers.get('content-length'));
   const mime =
     a.mime ?? res.headers.get('content-type')?.split(';')[0] ?? guessMime(url);
-  const name = a.name ?? basenameOf(url) ?? 'attachment';
+  const name = a.name ?? basenameOf(url);
   if (res.body === null) throw new Error(`attachment fetch returned no body for '${url}'`);
   const { dir, path, bytes } = await streamToTemp(res.body, name);
   return { path, mime, name, bytes, temp: dir };
@@ -223,8 +223,8 @@ const sourcesOf = (a: CanonicalAttachment): string[] =>
 
 async function resolveAttachment(
   a: CanonicalAttachment,
-  budget: InlineBudget = { used: 0 },
-  opts: ResolveOptions = {},
+  budget: InlineBudget,
+  opts: ResolveOptions,
 ): Promise<ResolvedAttachment> {
   const sources = sourcesOf(a);
   if (sources.length === 0)

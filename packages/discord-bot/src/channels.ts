@@ -4,6 +4,7 @@ import {
   type ChannelEntry,
   type ChannelSnapshot,
 } from '@metro-labs/core/stations/channel-directory';
+import { isRecord } from '@metro-labs/core/is-record';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { TrainError } from '@metro-labs/core/train-error';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
@@ -42,8 +43,7 @@ function visible(channel: DiscordChannelMetadata): boolean {
 }
 
 function inaccessible(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'status' in error &&
-    (error.status === 403 || error.status === 404);
+  return isRecord(error) && (error.status === 403 || error.status === 404);
 }
 
 class Snapshot {

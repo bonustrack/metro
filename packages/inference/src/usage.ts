@@ -76,7 +76,7 @@ export function mayProbe(key: Key, now: number, every: number): boolean {
   return true;
 }
 
-export interface Counted {
+interface Counted {
   input: number;
   output: number;
   cached: number;

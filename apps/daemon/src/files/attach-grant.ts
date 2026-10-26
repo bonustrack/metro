@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { ID_RE } from '@metro-labs/core/ids';
+import { isRecord } from '@metro-labs/core/is-record';
 import { readFileSync } from 'node:fs';
 import { resolveCachedAttachment } from '@metro-labs/core/stations/attachments';
 import { writeSecure } from '@metro-labs/core/secure-fs';
@@ -23,8 +24,8 @@ function parseGrant(raw: string): AttachmentGrant | undefined {
   } catch {
     return undefined;
   }
-  if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const { token, agentId, mintedAt } = parsed as Record<string, unknown>;
+  if (!isRecord(parsed)) return undefined;
+  const { token, agentId, mintedAt } = parsed;
   if (typeof token !== 'string' || token === '') return undefined;
   if (typeof agentId !== 'string' || !ID_RE.test(agentId)) return undefined;
   return {

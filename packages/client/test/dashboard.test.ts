@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { dashboardKey, dashboardModel, dashboardSession, emptyReading, type DashboardReading } from '../src/api/dashboard.js';
-import { toRuntimeSnapshot, type RuntimeSnapshot } from '../src/api/claude-box.js';
+import { dashboardKey, dashboardModel } from '../src/api/dashboard.js';
 import { toModelSettings } from '../src/api/model.js';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -15,12 +14,6 @@ const settings = () => toModelSettings({
   source: 'organization', connections: [connection('a'), connection('b')],
   chain: [{ connection: 'a', model: 'gpt-test', active: true }, { connection: 'b', model: 'gpt-test', active: false }],
   usage: { a: report(0.47), b: report(0) },
-});
-const runtime = (runner: string | null = 'sdk', running = true, phase = 'working', updatedAt = NOW): RuntimeSnapshot => toRuntimeSnapshot({
-  runner, running, activity: { runner: 'sdk', pid: 42, phase, updatedAt },
-});
-const reading = (data: RuntimeSnapshot, at: number | null = NOW): DashboardReading<RuntimeSnapshot> => ({
-  data, at, error: null, unavailable: false,
 });
 
 describe('dashboard identity and model selection', () => {
@@ -115,48 +108,5 @@ describe('dashboard identity and model selection', () => {
     expect(dashboardModel(value, NOW).usage).toBe('Usage window reset. Waiting for a new reading.');
     delete value.usage.a;
     expect(dashboardModel(value, NOW)).toMatchObject({ usage: expect.stringContaining('Usage unavailable'), report: null });
-  });
-});
-
-describe('dashboard observed runtime status', () => {
-  test.each([
-    ['starting', 'Starting'], ['idle', 'Idle'], ['working', 'Working'], ['approval', 'Waiting for approval'],
-    ['compacting', 'Compacting'], ['error', 'Error'], ['stopped', 'Running'],
-  ])('fresh SDK phase %s is %s', (phase, status) => {
-    expect(dashboardSession(reading(runtime('sdk', true, phase)), NOW)).toEqual({ status, observed: expect.stringContaining('Checked') });
-  });
-
-  test('stale, future and absent SDK activity cannot pretend the process is working', () => {
-    for (const at of [NOW - 30_001, NOW + 30_001]) {
-      expect(dashboardSession(reading(runtime('sdk', true, 'working', at)), NOW).status).toBe('Running · activity stale');
-    }
-    expect(dashboardSession(reading({ ...runtime(), activity: null }), NOW).status).toBe('Running');
-    expect(dashboardSession(reading(runtime(null)), NOW).status).toBe('Working');
-  });
-
-  test('an old daemon that still runs Claude Code never inherits SDK activity', () => {
-    expect(dashboardSession(reading(runtime('cli')), NOW).status).toBe('Running');
-  });
-
-  test('a stopped runtime does not present the agent as observed running', () => {
-    expect(dashboardSession(reading(runtime('sdk', false)), NOW).status).toBe('Stopped');
-    expect(runtime('cli', false).legacyRunner).toBe(false);
-  });
-
-  test('checking, unreachable and unsupported do not masquerade as stopped', () => {
-    const empty = emptyReading<RuntimeSnapshot>();
-    expect(dashboardSession(empty, NOW)).toEqual({ status: 'Checking…', observed: null });
-    expect(dashboardSession({ ...empty, error: 'offline' }, NOW)).toEqual({ status: 'Unreachable', observed: 'offline' });
-    expect(dashboardSession({ ...empty, unavailable: true, error: '404' }, NOW)).toMatchObject({ status: 'Status unavailable', observed: 'Update Metro to see runtime status.' });
-  });
-
-  test('old, future, undated or failed observations show unknown and preserve last-seen context', () => {
-    for (const at of [NOW - 60_001, NOW + 1, null]) {
-      expect(dashboardSession(reading(runtime('cli'), at), NOW).status).toBe('Status unknown');
-    }
-    expect(dashboardSession({ ...reading(runtime('sdk')), error: 'offline' }, NOW)).toMatchObject({
-      status: 'Status unknown', observed: expect.stringContaining('Agent did not answer'),
-    });
-    expect(dashboardSession(reading(runtime('cli'), NOW - 60_000), NOW).status).toBe('Running');
   });
 });

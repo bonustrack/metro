@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
@@ -45,7 +45,7 @@ export function viewFiles(dir = agentsDir(), model: () => string | null = () => 
     ['agent.json', agentFile(dir)],
     ['model.json', model()],
   ]);
-  for (const name of COPIED) files.set(name, existsSync(join(dir, name)) ? readText(join(dir, name)) : null);
+  for (const name of COPIED) files.set(name, readText(join(dir, name)));
   for (const name of NEVER_COPIED) files.set(name, null);
   return files;
 }
@@ -58,7 +58,7 @@ export function syncAgentView(user: AgentUser | null = agentUser(), dir = agents
   let changed = 0;
   for (const [name, text] of viewFiles(dir)) {
     const path = join(target, name);
-    if (written.has(path) && written.get(path) === text) continue;
+    if (written.get(path) === text) continue;
     if (text === null) removeHome(path, false, user);
     else writeHomeText(path, text, 0o600, undefined, user);
     written.set(path, text);

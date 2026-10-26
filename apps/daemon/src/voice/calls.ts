@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
+import { stringOf } from '@metro-labs/http/api-http';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
 import { agentIdForLine, allowlistForLine, lineReceives, mayApprove, senderPermitted } from '../agents/map.js';
 import { Call, trainCall, type CallStart } from './call.js';
@@ -22,10 +23,9 @@ const INVITES_MAX = 256;
 const makeCall: MakeCall = (start, cfg, onOver) => new Call(start, cfg, onOver);
 
 const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
-const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
-const contentTypeOf = (env: TrainEvent): string => str(record(env.payload).contentType);
-const sourceIdOf = (env: TrainEvent): string => str(env.message_id) || str(env.id) || randomUUID();
+const contentTypeOf = (env: TrainEvent): string => stringOf(record(env.payload).contentType);
+const sourceIdOf = (env: TrainEvent): string => stringOf(env.message_id) || stringOf(env.id) || randomUUID();
 
 export const isCallEvent = (env: TrainEvent): boolean => CALL_TYPES.has(contentTypeOf(env));
 
@@ -46,16 +46,16 @@ function decline(line: string, callId: string): void {
 }
 
 function ringing(env: TrainEvent): boolean {
-  const sent = Date.parse(str(env.ts));
+  const sent = Date.parse(stringOf(env.ts));
   const age = Date.now() - sent;
   return Number.isFinite(age) && age >= -5_000 && age < RING_MS;
 }
 
 function invite(env: TrainEvent, body: Record<string, unknown>, create: MakeCall): void {
-  const line = str(env.line);
-  const from = str(env.from);
-  const callId = str(body.callId);
-  const callerPeer = str(body.from);
+  const line = stringOf(env.line);
+  const from = stringOf(env.from);
+  const callId = stringOf(body.callId);
+  const callerPeer = stringOf(body.from);
   const key = JSON.stringify([line, from, callId]);
   if (callId === '' || callerPeer === '' || invites.has(key)) return;
   if (!ringing(env)) {
@@ -85,16 +85,16 @@ function invite(env: TrainEvent, body: Record<string, unknown>, create: MakeCall
 
 function authenticated(env: TrainEvent): boolean {
   if (env.sender_verified === false || (env.station !== undefined && env.station !== 'xmtp')) return false;
-  const line = str(env.line);
+  const line = stringOf(env.line);
   const match = /^metro:\/\/xmtp\/([^/]+)\/[^/]+$/.exec(line);
-  return match !== null && str(env.from).startsWith(`metro://xmtp/${String(match[1])}/user/`) && str(env.from).split('/').length === 6;
+  return match !== null && stringOf(env.from).startsWith(`metro://xmtp/${String(match[1])}/user/`) && stringOf(env.from).split('/').length === 6;
 }
 
 export function onCallEvent(env: TrainEvent, train = 'xmtp', create: MakeCall = makeCall): void {
   if (train !== 'xmtp' || !authenticated(env)) return;
   const body = record(record(env.payload).call);
   if (contentTypeOf(env) === 'callInvite') invite(env, body, create);
-  else if (contentTypeOf(env) === 'callSignal' && current !== null && sameCaller(current, str(env.line), str(env.from)))
+  else if (contentTypeOf(env) === 'callSignal' && current !== null && sameCaller(current, stringOf(env.line), stringOf(env.from)))
     current.signalled(body);
 }
 
@@ -117,7 +117,7 @@ function leftoversOf(result: unknown): Leftover[] {
   const rows = isRecord(result) && Array.isArray(result.calls) ? result.calls : [];
   return rows
     .map((row) => record(row))
-    .map((row) => ({ line: str(row.line), callId: str(row.callId), peer: str(row.peer) }))
+    .map((row) => ({ line: stringOf(row.line), callId: stringOf(row.callId), peer: stringOf(row.peer) }))
     .filter((row) => row.line !== '' && row.callId !== '' && row.peer !== '');
 }
 

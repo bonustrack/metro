@@ -23,8 +23,8 @@ import {
   renameServerForOwner,
   setAvatarForOwner, moveServerForOwner } from './db/servers.js';
 import { announceLaunchConfig, readLaunchConfig } from './launch-config.js';
-import { bootView, instanceStateOf, launchBox } from './aws/launch.js';
-import { describeInstanceTypes, describeRegions } from './aws/ec2.js';
+import { bootView, launchBox } from './aws/launch.js';
+import { describeInstance, describeInstanceTypes, describeRegions } from './aws/ec2.js';
 import { access } from './aws/access.js';
 import { callerIdentity } from './aws/sts.js';
 import { publishTemplate, templatesOf } from './aws/templates.js';
@@ -111,7 +111,7 @@ const launchApi: LaunchApiDeps = {
   config: () => readLaunchConfig(),
   launch: (input) => launchBox(input),
   regions: describeRegions,
-  state: instanceStateOf,
+  state: describeInstance,
   boot: bootView,
   record: addLaunchedServer,
   lookup: launchForOwner,
@@ -244,7 +244,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLaunchApiRequest(req, res, launchApi),
 ];
 
-export function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
+function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
   if (HANDLERS.some((handle) => handle(req, res))) return;
   res.writeHead(404).end();
 }

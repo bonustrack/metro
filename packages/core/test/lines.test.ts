@@ -1,7 +1,7 @@
 /**
  * Unit tests for `src/stations/lines.ts` — the `metro://` URI vocabulary.
  *
- * Covers the builders (claude/webhook/user), the generic `parse`/`station`
+ * Covers the webhook builder, the generic `parse`/`station`
  * split, the account-scoped forms, `isLocal`, and malformed input.
  *
  * Pure in-process; no fs / network.
@@ -11,17 +11,8 @@ import { describe, expect, test } from 'bun:test';
 import { Line, asLine } from '../src/lines.ts';
 
 describe('Line builders', () => {
-  test('claude full-session builder', () => {
-    expect(Line.claude('org1', 'sess1')).toBe(asLine('metro://claude/org1/sess1'));
-  });
-
   test('webhook', () => {
     expect(Line.webhook('gh-main')).toBe(asLine('metro://webhook/gh-main'));
-  });
-
-  test('user participant builder', () => {
-    expect(Line.user('discord-bot', 'alice')).toBe(asLine('metro://discord-bot/user/alice'));
-    expect(Line.user('telegram-bot', 99)).toBe(asLine('metro://telegram-bot/user/99'));
   });
 });
 

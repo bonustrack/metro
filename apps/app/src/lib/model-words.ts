@@ -2,7 +2,7 @@ import { usesKey, type ConnectionRow } from '@metro-labs/client/api/model';
 import { providerLabel } from '@metro-labs/client/api/providers';
 import { routeSteps, type EffortLevel, type ModelRoute } from '@metro-labs/client/api/model-route';
 
-export const DEFAULT_MODEL_WORD = 'Default model';
+const DEFAULT_MODEL_WORD = 'Default model';
 
 export const EFFORT_WORD: Record<EffortLevel, string> = { low: 'Low', medium: 'Medium', high: 'High', max: 'Max', asked: 'As the agent asks' };
 
@@ -24,7 +24,7 @@ export function namesLine(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1] ?? ''}`;
 }
 
-export interface AccountLine {
+interface AccountLine {
   text: string;
   bad: boolean;
 }

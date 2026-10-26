@@ -34,7 +34,7 @@ function useOrganizationUsage(organizations: string[]): Record<string, Record<st
 
 const keepUpdating = (host: string, status: Parameters<typeof duringUpdate>[1]): ReturnType<typeof duringUpdate> => duringUpdate(baseFromSegment(host), status);
 
-export interface AdminAgentsView {
+interface AdminAgentsView {
   rows: AdminAgent[];
   dashboard: DashboardState;
   everyAgent: UseQueryResult<AgentRow[]>;

@@ -12,7 +12,7 @@ import {
   outgoingFiles,
   type OutgoingFile,
 } from './send-files.js';
-import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { readProfile, setProfile } from './profile.js';
 import { discordMembers } from './members.js';
 import { listChannels } from './channels.js';
@@ -28,29 +28,13 @@ async function sendMessage(
   body: Record<string, unknown>,
   files: OutgoingFile[],
 ): Promise<{ id: string; delivered: string[] }> {
-  if (files.length === 0) {
-    const plain = await rest<{ id: string }>(
-      accountId,
-      'POST',
-      `/channels/${channel}/messages`,
-      body,
-    );
-    return { id: plain.id, delivered: [] };
-  }
+  const path = `/channels/${channel}/messages`;
+  if (files.length === 0) return { id: (await rest<{ id: string }>(accountId, 'POST', path, body)).id, delivered: [] };
   const form = new FormData();
   form.append('payload_json', JSON.stringify(body));
   const delivered = await appendFiles(form, files);
-  const res = await rest<{ id: string }>(
-    accountId,
-    'POST',
-    `/channels/${channel}/messages`,
-    form,
-    true,
-  );
-  return { id: res.id, delivered };
+  return { id: (await rest<{ id: string }>(accountId, 'POST', path, form, true)).id, delivered };
 }
-
-export type { CallMsg };
 
 async function send(id: string, args: Record<string, unknown>): Promise<void> {
   const { line, text, replyTo, account } = args as {
@@ -198,9 +182,7 @@ async function listMembers(
 }
 
 const HANDLERS: Record<string, StationHandler> = {
-  accounts: (id) => {
-    listAccounts(id);
-  },
+  accounts: listAccounts,
   groupCreate: groupCreateHandler,
   groupAddMembers: groupAddHandler,
   groupRemoveMembers: groupRemoveHandler,

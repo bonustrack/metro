@@ -2,6 +2,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { Connection } from '@metro-labs/inference/model-config';
 import { probes, probeUsage, PROBE_EVERY_MS, type ProbeDeps } from '@metro-labs/inference/probes';
 import { mayProbe } from '@metro-labs/inference/usage';
+import type { WindowSaver } from './windows.js';
 
 const TICK_MS = 60_000;
 const FORGET_MS = 60 * 60_000;
@@ -13,17 +14,13 @@ interface Tracked {
   at: number;
 }
 
-export interface ProbeSink {
-  seen: (owner: string, connection: string) => void;
-}
-
 export class UsageProbes {
   private readonly tracked = new Map<string, Tracked>();
   private readonly failing = new Set<string>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
-    private readonly sink: ProbeSink,
+    private readonly sink: Pick<WindowSaver, 'seen'>,
     private readonly deps: ProbeDeps = {},
     private readonly now: () => number = Date.now,
   ) {}

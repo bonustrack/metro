@@ -22,12 +22,7 @@ import {
 } from '../agents/map.js';
 import { setKeyMap } from '../agents/keys.js';
 import { STATIONS, type StationName } from '@metro-labs/core/station-names';
-
-interface StationTarget {
-  file: string;
-  fileEnv: string;
-  trainImport: string | null;
-}
+import { stationByName } from './registry.js';
 
 export interface LoadedAccount {
   station: StationName;
@@ -48,58 +43,14 @@ export interface LoadedAgent {
 
 const METRO_DIR = join(homedir(), '.metro');
 
-const STATION_TARGETS: Record<StationName, StationTarget> = {
-  xmtp: {
-    file: 'xmtp-accounts.json',
-    fileEnv: 'XMTP_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/xmtp/train',
-  },
-  'telegram-bot': {
-    file: 'telegram-bot-accounts.json',
-    fileEnv: 'TELEGRAM_BOT_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/telegram-bot/train',
-  },
-  'telegram': {
-    file: 'telegram-accounts.json',
-    fileEnv: 'TELEGRAM_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/telegram/train',
-  },
-  'discord-bot': {
-    file: 'discord-bot-accounts.json',
-    fileEnv: 'DISCORD_BOT_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/discord-bot/train',
-  },
-  whatsapp: {
-    file: 'whatsapp-accounts.json',
-    fileEnv: 'WHATSAPP_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/whatsapp/train',
-  },
-  threema: {
-    file: 'threema-accounts.json',
-    fileEnv: 'THREEMA_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/threema/train',
-  },
-  outlook: {
-    file: 'outlook-accounts.json',
-    fileEnv: 'OUTLOOK_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/outlook/train',
-  },
-  gmail: {
-    file: 'gmail-accounts.json',
-    fileEnv: 'GMAIL_ACCOUNTS_FILE',
-    trainImport: '@metro-labs/gmail/train',
-  },
-  webhook: {
-    file: 'webhook-accounts.json',
-    fileEnv: 'WEBHOOK_ACCOUNTS_FILE',
-    trainImport: null,
-  },
-};
+const STATION_SET = new Set<string>(STATIONS);
 
 export function accountFilePath(station: StationName): string {
-  const target = STATION_TARGETS[station];
-  return process.env[target.fileEnv] ?? join(METRO_DIR, target.file);
+  return process.env[`${station.toUpperCase().replace(/-/g, '_')}_ACCOUNTS_FILE`] ?? join(METRO_DIR, `${station}-accounts.json`);
 }
+
+const trainImport = (station: StationName): string | null =>
+  stationByName(station)?.hasTrain === false ? null : `@metro-labs/${station}/train`;
 
 export type StationSource = () => Promise<LoadedAgent[]>;
 
@@ -154,7 +105,7 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   for (const agent of list) {
     names[agent.id] = agent.name;
     for (const a of agent.accounts) {
-      if (!(a.station in STATION_TARGETS)) {
+      if (!STATION_SET.has(a.station)) {
         log.error(
           { station: a.station, id: a.id },
           'unknown station — this metro is older or newer than the row; skipping it',
@@ -185,9 +136,9 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
       writeSecure(path, content);
       changed.push(station);
     }
-    const { trainImport } = STATION_TARGETS[station];
-    if (trainImport !== null)
-      writeIfChanged(trainStubPath(station), `import '${trainImport}';\n`);
+    const train = trainImport(station);
+    if (train !== null)
+      writeIfChanged(trainStubPath(station), `import '${train}';\n`);
     active.set(station, accts.length);
   }
   return { active, changed };
@@ -197,9 +148,9 @@ const BLANKED = '[]\n';
 
 function pruneStations(present: Map<StationName, number>): StationName[] {
   const removed: StationName[] = [];
-  for (const station of Object.keys(STATION_TARGETS) as StationName[]) {
+  for (const station of STATIONS) {
     if (present.has(station)) continue;
-    const hasTrain = STATION_TARGETS[station].trainImport !== null;
+    const hasTrain = trainImport(station) !== null;
     const stub = trainStubPath(station);
     const stubGone = !hasTrain || !existsSync(stub);
     const file = currentText(accountFilePath(station));

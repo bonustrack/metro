@@ -25,7 +25,7 @@ export async function connectorTools(deps: McpDeps, identity: DeliveryIdentity, 
   if (cached !== undefined) return cached;
   return deps.listings.run(connector.id, async () => {
     try {
-      const tools = await withCredential(deps, identity, connector.id, async (target) => publicTools(await listRemoteTools(target.url, target.auth, deps.fetch), target.secret, true));
+      const tools = await withCredential(deps, identity, connector.id, async (target) => publicTools(await listRemoteTools(target.url, target.auth, deps.fetch), target.secret));
       deps.tools.set(connector.id, tools);
       return tools;
     } catch (err) {

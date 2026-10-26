@@ -19,7 +19,7 @@ export interface AgentKeyStore {
   find: (keyId: string) => Promise<AgentKeyRow | null>;
 }
 
-const columns = {
+export const agentKeyColumns = {
   agent: agentKeys.agent,
   owner: agentKeys.owner,
   keyId: agentKeys.keyId,
@@ -65,7 +65,7 @@ export function agentKeyStore(db: () => Database): AgentKeyStore {
     },
     find: async (keyId) => {
       const rows = await db()
-        .select(columns)
+        .select(agentKeyColumns)
         .from(agentKeys)
         .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner), isNotNull(agents.host)))
         .where(eq(agentKeys.keyId, keyId))

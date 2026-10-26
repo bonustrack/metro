@@ -27,7 +27,7 @@ export interface PermissionAsk {
   call?: CallSource;
 }
 
-export interface LinkEvents {
+interface LinkEvents {
   channel(event: ChannelEvent): void;
   call?(notice: CallNotice): void;
   callState?(state: CallState): void;

@@ -1,5 +1,6 @@
 import { checkAddress, filesOf, isAddress, mailLine, str, subjectOf, threadOfLine, type OutgoingFile } from '@metro-labs/core/stations/mail';
 import { escapeHtml } from '@metro-labs/core/stations/mail-text';
+import { errMsg } from '@metro-labs/core/log';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { TrainError } from '@metro-labs/core/train-error';
 import { accountOf, type Account } from './accounts.js';
@@ -22,14 +23,11 @@ export async function latestInConversation(acct: Account, conversationId: string
 
 async function discard(acct: Account, draftId: string): Promise<void> {
   await graph(acct, messagePath(draftId), { method: 'DELETE' }).catch((err: unknown) => {
-    process.stderr.write(`outlook[${acct.id}] could not remove an unsent draft: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`outlook[${acct.id}] could not remove an unsent draft: ${errMsg(err)}\n`);
   });
 }
 
-async function withFiles(acct: Account, target: string, verb: 'reply' | 'replyAll', comment: string, files: OutgoingFile[]): Promise<string[]> {
-  const draft = await graphJson<{ id?: string }>(acct, `${messagePath(target)}/${verb === 'reply' ? 'createReply' : 'createReplyAll'}`, jsonInit('POST', { comment }));
-  const draftId = draft.id;
-  if (draftId === undefined) throw new TrainError('outlook_graph_error', 'Outlook did not open a reply draft', { retryable: true });
+async function sendDraft(acct: Account, draftId: string, files: OutgoingFile[]): Promise<string[]> {
   const labels: string[] = [];
   try {
     for (const file of files) labels.push(await attachFile(acct, draftId, file));
@@ -41,6 +39,12 @@ async function withFiles(acct: Account, target: string, verb: 'reply' | 'replyAl
   return labels;
 }
 
+async function withFiles(acct: Account, target: string, verb: 'reply' | 'replyAll', comment: string, files: OutgoingFile[]): Promise<string[]> {
+  const draft = await graphJson<{ id?: string }>(acct, `${messagePath(target)}/${verb === 'reply' ? 'createReply' : 'createReplyAll'}`, jsonInit('POST', { comment }));
+  if (draft.id === undefined) throw new TrainError('outlook_graph_error', 'Outlook did not open a reply draft', { retryable: true });
+  return sendDraft(acct, draft.id, files);
+}
+
 async function compose(id: string, acct: Account, to: string, args: Args, text: string, files: OutgoingFile[]): Promise<void> {
   checkAddress('outlook', to);
   const draft = await graphJson<{ id?: string; conversationId?: string }>(acct, '/me/messages', jsonInit('POST', {
@@ -49,14 +53,7 @@ async function compose(id: string, acct: Account, to: string, args: Args, text: 
     toRecipients: [{ emailAddress: { address: to } }],
   }));
   if (draft.id === undefined) throw new TrainError('outlook_graph_error', 'Outlook did not open a draft', { retryable: true });
-  const labels: string[] = [];
-  try {
-    for (const file of files) labels.push(await attachFile(acct, draft.id, file));
-    await graph(acct, `${messagePath(draft.id)}/send`, { method: 'POST' });
-  } catch (err) {
-    await discard(acct, draft.id);
-    throw err;
-  }
+  const labels = await sendDraft(acct, draft.id, files);
   const line = draft.conversationId === undefined ? undefined : mailLine('outlook', acct.id, draft.conversationId);
   respond(id, { result: { account: acct.id, messageId: draft.id, ...(line === undefined ? {} : { line }), ...(labels.length > 0 ? { attachments: labels } : {}) } });
 }

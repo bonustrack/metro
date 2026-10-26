@@ -242,16 +242,6 @@ function pollPayload(
   };
 }
 
-function labeledPayload(
-  base: Record<string, unknown>,
-  typeId: string,
-  text: string,
-  key: string,
-  c: unknown,
-): Record<string, unknown> {
-  return { ...base, text, payload: { contentType: typeId, [key]: c } };
-}
-
 function attachmentEnvelope(
   base: Record<string, unknown>,
   typeId: string,
@@ -275,32 +265,21 @@ function attachmentEnvelope(
   return undefined;
 }
 
+const REF_TEXT = new Map([
+  ['walletSendCalls', 'Payment request'],
+  ['transactionReference', 'Transaction'],
+  ['signatureRequest', 'Signature request'],
+  ['signatureReference', 'Signature'],
+]);
+
 function refEnvelope(
   base: Record<string, unknown>,
   typeId: string | undefined,
   c: object,
 ): Record<string, unknown> | undefined {
-  if (typeId === 'walletSendCalls')
-    return labeledPayload(
-      base,
-      typeId,
-      'Payment request',
-      'walletSendCalls',
-      c,
-    );
-  if (typeId === 'transactionReference')
-    return labeledPayload(
-      base,
-      typeId,
-      'Transaction',
-      'transactionReference',
-      c,
-    );
-  if (typeId === 'signatureRequest')
-    return labeledPayload(base, typeId, 'Signature request', 'signatureRequest', c);
-  if (typeId === 'signatureReference')
-    return labeledPayload(base, typeId, 'Signature', 'signatureReference', c);
-  return undefined;
+  if (typeId === undefined) return undefined;
+  const text = REF_TEXT.get(typeId);
+  return text === undefined ? undefined : { ...base, text, payload: { contentType: typeId, [typeId]: c } };
 }
 
 function frameEnvelope(

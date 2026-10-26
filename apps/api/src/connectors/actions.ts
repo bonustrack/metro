@@ -32,7 +32,7 @@ export interface Created {
   authorizeUrl?: string;
 }
 
-const at = (deps: ActionDeps): string => new Date(deps.now()).toISOString();
+export const at = (deps: ActionDeps): string => new Date(deps.now()).toISOString();
 
 function connectorUrl(deps: ActionDeps, raw: unknown): URL {
   const url = deps.httpsOnly ? parsePublicConnectorUrl(raw) : parseConnectorUrl(raw);

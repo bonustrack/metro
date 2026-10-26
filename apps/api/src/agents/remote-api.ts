@@ -2,7 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import { callerOf } from '../server-route.js';
 import { agentApprovals, agentTokens, answerAgentApproval, changeAgentToken, dropAgentToken, newAgentToken, type RemoteDeps } from './remote.js';
 
 const ROUTE = /^\/api\/agents\/([^/]+)\/(tokens|approvals)(?:\/([^/]+))?\/?$/;
@@ -34,19 +35,12 @@ function targetOf(path: string): Target | 'unknown' | null {
 
 const routeKey = (target: Target): string => `${target.section}:${target.item === null ? 'list' : 'item'}`;
 
-async function sessionOf(req: IncomingMessage, deps: RemoteAgentsApiDeps): Promise<{ session: Session; owner: string }> {
-  const session = await bearerSession(req, deps.keys);
-  const owner = session?.organization ?? null;
-  if (session === null || owner === null) throw new ApiError('unauthorized', 401);
-  return { session, owner };
-}
-
 function admin(session: Session): void {
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
 }
 
 async function answer(req: IncomingMessage, deps: RemoteAgentsApiDeps, target: Target): Promise<unknown> {
-  const { session, owner } = await sessionOf(req, deps);
+  const { session, owner } = await callerOf(req, deps.keys);
   const method = req.method ?? 'GET';
   if (method === 'GET') return target.section === 'tokens' ? agentTokens(deps, owner, target.agent) : agentApprovals(deps, owner, target.agent);
   if (target.section === 'approvals') return answerAgentApproval(deps, session, owner, target.agent, target.item ?? '', await readJsonBody(req));

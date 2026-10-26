@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { filled, isRecord } from '../read.js';
+import { filled, isRecord, str } from '../read.js';
 
 export interface ScheduledJob {
   id: string;
@@ -18,14 +18,13 @@ const KINDS = new Set(['timer', 'cron-agent']);
 
 function toJob(raw: unknown): ScheduledJob | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.kind !== 'string' || !KINDS.has(raw.kind)) return null;
-  const s = (v: unknown): string => (typeof v === 'string' ? v : '');
   return {
     id: raw.id,
     kind: raw.kind as ScheduledJob['kind'],
-    name: s(raw.name),
-    schedule: s(raw.schedule),
-    command: s(raw.command),
-    runsAs: s(raw.runsAs),
+    name: str(raw.name),
+    schedule: str(raw.schedule),
+    command: str(raw.command),
+    runsAs: str(raw.runsAs),
     next: filled(raw.next),
     last: filled(raw.last),
     lastResult: filled(raw.lastResult),
@@ -57,9 +56,8 @@ function toDetail(body: unknown): JobDetail {
   const raw = isRecord(body) ? body.job : null;
   const job = toJob(raw);
   if (job === null || !isRecord(raw)) throw new Error('Metro returned an unexpected response.');
-  const s = (v: unknown): string => (typeof v === 'string' ? v : '');
   const script = isRecord(raw.script) && typeof raw.script.path === 'string' && typeof raw.script.text === 'string' ? { path: raw.script.path, text: raw.script.text } : null;
-  return { ...job, definition: s(raw.definition), logs: s(raw.logs), logSource: filled(raw.logSource), script };
+  return { ...job, definition: str(raw.definition), logs: str(raw.logs), logSource: filled(raw.logSource), script };
 }
 
 export async function fetchScheduleDetail(id: string): Promise<JobDetail> {

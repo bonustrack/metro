@@ -3,13 +3,14 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { SigningKeys } from '@metro-labs/http/workos-token';
 import type { ConfigResult } from './launch-config.js';
 import type { MetricsLink, UsageRow } from './db/usage.js';
 import { associateProfile, AWS_REFUSED, AwsError, BOX_ROLE, NODE_TAG, type AwsCredentials } from './aws/ec2.js';
 import { getMetricData, listMetrics } from './aws/cloudwatch.js';
 import { describeInstanceFacts, type InstanceFacts } from './aws/teardown.js';
 import { access } from './aws/access.js';
+import { callerOf } from './server-route.js';
 import { readUsage, USAGE_RANGES, type Usage, type UsageAws, type UsageRange } from './aws/usage.js';
 
 const PATH_RE = /^\/api\/servers\/([^/]+)\/usage\/?$/;
@@ -22,7 +23,7 @@ const WAITING = 'No memory or disk readings yet. Update Metro on this server: it
 const GAVE_ROLE = `Metro gave this server the ${BOX_ROLE} role. Memory and disk show a few minutes after Metro on the server is updated.`;
 const NOT_OURS = `Memory and disk need the ${BOX_ROLE} role on this server. Metro did not launch it, so give it the role in the AWS console: Actions, Security, Modify IAM role.`;
 
-export interface RoleAws {
+interface RoleAws {
   describe: (credentials: AwsCredentials, region: string, instanceId: string) => Promise<InstanceFacts[]>;
   associate: (credentials: AwsCredentials, region: string, instanceId: string, profile: string) => Promise<void>;
 }
@@ -112,18 +113,9 @@ const rangeOf = (url: string): UsageRange => {
 };
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: UsageApiDeps, id: string): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const owner = session?.organization ?? null;
-    if (session === null || owner === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    const range = rangeOf(req.url ?? '');
-    sendJson(req, res, 200, await view(deps, await deps.lookup(owner, id), range));
-  } catch (err) {
-    apiFailure(req, res, err, 'usage-api');
-  }
+  const { owner } = await callerOf(req, deps.keys);
+  const range = rangeOf(req.url ?? '');
+  sendJson(req, res, 200, await view(deps, await deps.lookup(owner, id), range));
 }
 
 export function handleUsageApiRequest(req: IncomingMessage, res: ServerResponse, deps: UsageApiDeps): boolean {

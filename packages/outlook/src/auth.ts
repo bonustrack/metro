@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { postForm, seconds, SignInError, tokensOf, type FetchLike, type OAuthBody, type Tokens } from '@metro-labs/core/stations/oauth';
 import { clientId, loginBase, NOT_SET_UP, SCOPES } from './config.js';
 
@@ -64,7 +65,7 @@ function decodeClaims(jwt: string): Body | null {
   if (part === undefined) return null;
   try {
     const raw: unknown = JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
-    return typeof raw === 'object' && raw !== null ? (raw as Body) : null;
+    return isRecord(raw) ? raw : null;
   } catch {
     return null;
   }

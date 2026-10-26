@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { SignInError, type FetchLike, type Tokens } from '@metro-labs/core/stations/oauth';
 
 const BASE = 'https://api.metro.box/api/gmail';
@@ -25,8 +26,8 @@ export async function managedRequest(path: 'start' | 'exchange' | 'cancel' | 're
     throw new SignInError(`Metro could not complete managed Gmail sign-in. ${retry}`);
   }
   const value: unknown = await response.json().catch(() => null);
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new SignInError('Metro returned an invalid Gmail answer.');
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) throw new SignInError('Metro returned an invalid Gmail answer.');
+  return value;
 }
 
 export function managedTokens(value: Record<string, unknown>): ManagedTokens {

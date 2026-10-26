@@ -63,7 +63,7 @@ function redactedRecord(value: Record<string, unknown>, redact: (text: string) =
   return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactedValue(item, redact)]));
 }
 
-export function publicTools(tools: RemoteTool[], secret: ConnectorSecret, withSchemas = false): RemoteTool[] {
+export function publicTools(tools: RemoteTool[], secret: ConnectorSecret): RemoteTool[] {
   const known = credentials(secret);
   const paths = pathCredentials(new URL(secret.targetUrl).pathname);
   const hidden = redactionKeys([...known, ...paths.metadata]);
@@ -78,7 +78,7 @@ export function publicTools(tools: RemoteTool[], secret: ConnectorSecret, withSc
       log.warn({}, 'connectors: a tool name holds an address or a credential, so the tool list was refused');
       throw catalogueUnavailable();
     }
-    const schema = withSchemas && tool.inputSchema !== undefined ? { inputSchema: redactedRecord(tool.inputSchema, redact) } : {};
+    const schema = tool.inputSchema === undefined ? {} : { inputSchema: redactedRecord(tool.inputSchema, redact) };
     const hints = { ...(tool.destructive === true ? { destructive: true } : {}), ...(tool.openWorld === true ? { openWorld: true } : {}) };
     return { name: tool.name, title: redact(tool.title).slice(0, 256), description: redact(tool.description).slice(0, 4096), readOnly: tool.readOnly, ...hints, ...schema };
   });
@@ -97,7 +97,7 @@ async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): 
   const current = await deps.store.find(owner, row.id);
   if (current === null) throw new ApiError('no such connector', 404);
   if (credentialRevision(key, current) !== credentialRevision(key, row)) throw new ApiError('This connector changed. Refresh its tool list.', 409);
-  return publicTools(tools, secret, true);
+  return publicTools(tools, secret);
 }
 
 export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {

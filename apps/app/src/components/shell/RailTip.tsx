@@ -2,7 +2,7 @@ import { hideRailTip, showRailTip } from '../../lib/rail-tip-store.js';
 
 const GAP = 10;
 
-export interface TipHandlers {
+interface TipHandlers {
   onHoverIn: (event: { currentTarget: unknown }) => void;
   onHoverOut: () => void;
 }

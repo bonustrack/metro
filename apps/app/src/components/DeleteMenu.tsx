@@ -5,7 +5,7 @@ import { type MenuItem } from './Dropdown.js';
 import { DELETE_WORD } from './confirm.js';
 import { queryError } from '../lib/queries.js';
 
-export interface Confirming {
+interface Confirming {
   open: boolean;
   busy: boolean;
   error: string | null;

@@ -34,11 +34,6 @@ async function holds(tx: Database, identity: AgentKeyRow): Promise<void> {
   if (rows.length === 0) throw new AgentKeyMissing();
 }
 
-async function setupIn(tx: Database, identity: AgentKeyRow): Promise<AgentModelSetup> {
-  await holds(tx, identity);
-  return agentSetupIn(tx, identity);
-}
-
 async function agentSetupIn(tx: Database, identity: AgentOf): Promise<AgentModelSetup> {
   const routes = await tx.select().from(modelRoutes).where(and(eq(modelRoutes.owner, identity.owner), or(eq(modelRoutes.agent, identity.agent), isNull(modelRoutes.agent))));
   const own = routes.find((held) => held.agent === identity.agent);
@@ -52,7 +47,10 @@ async function agentSetupIn(tx: Database, identity: AgentOf): Promise<AgentModel
 
 export function modelDeliveryStore(db: () => Database): ModelDeliveryStore {
   return {
-    setup: (identity) => db().transaction((tx) => setupIn(tx, identity)),
+    setup: (identity) => db().transaction(async (tx) => {
+      await holds(tx, identity);
+      return agentSetupIn(tx, identity);
+    }),
   };
 }
 

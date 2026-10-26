@@ -36,9 +36,9 @@ export interface MediaCtx {
   callMeta?: () => Record<string, string>;
 }
 
-export function capSet(set: Set<string>, max: number): void {
+export function capSize(set: Set<string> | Map<string, unknown>, max: number): void {
   while (set.size > max) {
-    const oldest = set.values().next();
+    const oldest = set.keys().next();
     if (oldest.done) break;
     set.delete(oldest.value);
   }

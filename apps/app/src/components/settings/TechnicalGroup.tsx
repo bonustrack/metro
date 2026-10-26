@@ -21,11 +21,6 @@ function Runner(): ReactNode {
   return <Fact label="Runner" value={runnerValue(session.legacyRunner, setup?.permissionMode)} />;
 }
 
-function LaunchLog({ server }: { server: BoxServer }): ReactNode {
-  if (server.instanceId === null) return null;
-  return <Item title="Launch log" subtitle="What the server printed while it set itself up" href={routeHash({ kind: 'launch-log', project: server.id })} />;
-}
-
 export function TechnicalGroup({ server }: { server: BoxServer }): ReactNode {
   return (
     <Group label="Technical details">
@@ -34,7 +29,7 @@ export function TechnicalGroup({ server }: { server: BoxServer }): ReactNode {
       {server.instanceId === null ? null : <Fact label="Instance" value={server.instanceId} copy />}
       <Runner />
       <Started />
-      <LaunchLog server={server} />
+      {server.instanceId === null ? null : <Item title="Launch log" subtitle="What the server printed while it set itself up" href={routeHash({ kind: 'launch-log', project: server.id })} />}
     </Group>
   );
 }

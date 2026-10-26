@@ -1,6 +1,6 @@
 import { tg, targetOf } from './accounts.js';
 import { selfUri } from '@metro-labs/core/stations/train-events';
-import { emit, mintId, respond } from '@metro-labs/core/stations/station-runtime';
+import { emit, mintId } from '@metro-labs/core/stations/station-runtime';
 import { appendFile } from '@metro-labs/core/stations/attachments';
 
 export function emitOutbound(
@@ -22,21 +22,6 @@ export function emitOutbound(
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
     payload: { account: accountId },
-  });
-}
-
-export function finishSend(
-  id: string,
-  accountId: string,
-  line: string,
-  messageId: string,
-  label: string,
-  replyTo?: string,
-  extra?: Record<string, unknown>,
-): void {
-  emitOutbound(accountId, line, messageId, label, replyTo);
-  respond(id, {
-    result: { messageId, account: accountId, ...extra },
   });
 }
 

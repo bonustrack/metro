@@ -1,6 +1,6 @@
 import type { DecodedMessage } from '@xmtp/node-sdk';
-import { kindOf } from '@metro-labs/core/stations/attachments';
-import { saveInlineAttachment, saveRemoteAttachment, type RemoteEntry, type SavedAttachment } from './attachments.js';
+import { kindOf, type SavedAttachment } from '@metro-labs/core/stations/attachments';
+import { saveInlineAttachment, saveRemoteAttachment, type RemoteEntry } from './attachments.js';
 
 interface ReadAttachment {
   name?: string;

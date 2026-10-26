@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 
-export type ConnectorDecision = 'allow' | 'ask' | 'deny';
+type ConnectorDecision = 'allow' | 'ask' | 'deny';
 
 type ToolGroup = 'read' | 'write';
 
@@ -43,11 +43,6 @@ function toolPolicyOf(value: unknown): Record<string, ConnectorDecision> {
     out[name] = rule;
   }
   return out;
-}
-
-export function connectorPolicyLayersOf(value: unknown): ConnectorPolicyLayers {
-  if (!isRecord(value) || Object.keys(value).some((key) => !['organization', 'agent'].includes(key))) throw new Error('Invalid connector policy layers.');
-  return { organization: connectorPolicyOf(value.organization), agent: connectorPolicyOf(value.agent) };
 }
 
 const strictest = (...values: (ConnectorDecision | undefined)[]): ConnectorDecision => values.reduce<ConnectorDecision>((held, next) => next !== undefined && RANK[next] > RANK[held] ? next : held, 'allow');

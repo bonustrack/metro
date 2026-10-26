@@ -16,7 +16,7 @@ import type { Tone } from '../../lib/tone.js';
 const COPY_ICON = 18;
 const styles = StyleSheet.create({ copy: { padding: 4, marginRight: -4 } });
 
-export function CopyButton({ value, label }: { value: string; label: string }): ReactNode {
+function CopyButton({ value, label }: { value: string; label: string }): ReactNode {
   const palette = useKitPalette();
   const [copied, setCopied] = useState(false);
   const copy = (): void => {

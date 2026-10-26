@@ -139,10 +139,6 @@ function refusal(m: MessageArgs, text: string | undefined, requested: CanonicalA
   return undefined;
 }
 
-function noteSent(m: MessageArgs, messageId: string | undefined): void {
-  if (messageId !== undefined) m.onSent?.(messageId);
-}
-
 async function handleSend(m: MessageArgs): Promise<ToolResult> {
   if (m.a.speech !== undefined) return sendSpeech(m.line, m.a);
   const text = m.a.text as string | undefined;
@@ -161,7 +157,7 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
       ? await sendNative(m, text, replyTo, atts)
       : await sendForwarded(m, text, replyTo, atts);
     if (!sent.labels.length) return errResult(NOTHING_TO_SEND);
-    noteSent(m, sent.messageId);
+    if (sent.messageId !== undefined) m.onSent?.(sent.messageId);
     const done = withId(`sent: ${sent.labels.join(', ')}`, sent.messageId);
     return ok(sent.thread === undefined ? done : `${done} — new thread line: ${sent.thread}`);
   } finally {

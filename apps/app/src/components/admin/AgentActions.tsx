@@ -56,7 +56,7 @@ export function useAgentActions(): AgentActions {
   return { notes, asking, ask: setAsking, update, restart, updateAll };
 }
 
-export function agentMenuItems(row: AdminAgent, actions: AgentActions, latest: string | null): MenuItem[] {
+function agentMenuItems(row: AdminAgent, actions: AgentActions, latest: string | null): MenuItem[] {
   const open: MenuItem[] = row.href === null ? [] : [{ label: `Open ${row.name}`, icon: 'arrowRight', onSelect: () => { goHash(row.href ?? ''); } }];
   const update: MenuItem[] = canUpdate(row) && latest !== null ? [{ label: `Update to ${shortVersion(latest)}`, icon: 'update', onSelect: () => { actions.update(row).catch(logError('update agent')); } }] : [];
   const restart: MenuItem[] = row.member && row.state === 'online' ? [{ label: 'Restart', icon: 'refresh', onSelect: () => { actions.ask({ kind: 'restart', row }); } }] : [];

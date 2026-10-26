@@ -27,7 +27,6 @@ interface GroupProps {
   label?: string;
   note?: string;
   action?: ReactNode;
-  right?: ReactNode;
   error?: string | null;
   wide?: boolean;
   children: ReactNode;
@@ -56,10 +55,10 @@ export function GroupTitle({ label, action }: { label?: string | undefined; acti
   );
 }
 
-export function Group({ label, note, action, right, error, wide = false, children }: GroupProps): ReactNode {
+export function Group({ label, note, action, error, wide = false, children }: GroupProps): ReactNode {
   return (
     <Col width="100%" maxWidth={wide ? undefined : READABLE_WIDTH}>
-      <GroupTitle label={label} action={action ?? right} />
+      <GroupTitle label={label} action={action} />
       <Rows>{children}</Rows>
       <Line text={note} role="secondary" />
       <Line text={error} role="danger" />

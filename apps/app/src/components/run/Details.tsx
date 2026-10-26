@@ -15,7 +15,7 @@ import { sessionView, type Freshness } from './session.js';
 
 export const DETAIL_TITLE: Record<RunView, string> = { session: 'Session details', about: 'What is shown here', worker: 'Worker details', event: 'Event details' };
 
-export interface RunDetailProps {
+interface RunDetailProps {
   view: RunView;
   id: string | undefined;
   entries: RunEntry[];

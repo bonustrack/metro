@@ -96,8 +96,6 @@ const toolCallDescription = (place: ApprovalPlace): string =>
     '- vendor_error: the connector answered with its own error, shown as it came.',
   ].join('\n');
 
-export const TOOL_CALL_DESCRIPTION = toolCallDescription('session');
-
 export function mcpServerTools(connectors: ConnectorLabel[] | null, place: ApprovalPlace = 'session'): McpServerTool[] {
   return [
     {

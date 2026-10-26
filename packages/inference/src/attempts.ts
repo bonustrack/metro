@@ -3,11 +3,11 @@ import type { OutgoingHttpHeader, OutgoingHttpHeaders, ServerResponse } from 'no
 import type { RequestKind } from './effort.js';
 import type { Route } from './model-config.js';
 
-export type AttemptOutcome = 'ok' | 'rate_limited' | 'refused' | 'provider_error' | 'cancelled';
+type AttemptOutcome = 'ok' | 'rate_limited' | 'refused' | 'provider_error' | 'cancelled';
 
-export type AttemptKind = 'main' | 'subagent' | 'compaction' | 'chore';
+type AttemptKind = 'main' | 'subagent' | 'compaction' | 'chore';
 
-export interface AttemptTokens {
+interface AttemptTokens {
   input: number;
   output: number;
   cacheRead: number;

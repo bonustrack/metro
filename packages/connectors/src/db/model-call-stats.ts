@@ -3,7 +3,7 @@ import type { Database } from './database.js';
 import { modelWindowsOf, type ModelWindowRow } from './model-calls.js';
 import { agents, modelCalls, modelConnections } from './schema.js';
 
-export const MODEL_OUTCOMES = {
+const MODEL_OUTCOMES = {
   failed: ['provider_error', 'refused', 'no_route'],
   limited: ['rate_limited'],
 } as const;
@@ -17,7 +17,7 @@ export interface ModelStatsScope {
   connection?: string;
 }
 
-export interface ModelSlot {
+interface ModelSlot {
   slot: number;
   connection: string;
   calls: number;
@@ -171,7 +171,7 @@ async function totalsOf(db: Database, scope: ModelStatsScope): Promise<ModelTota
   return rows[0] ?? NO_TOTALS;
 }
 
-export async function modelStats(db: Database, scope: ModelStatsScope): Promise<ModelStats> {
+async function modelStats(db: Database, scope: ModelStatsScope): Promise<ModelStats> {
   const [slots, connections, agentRows, totals] = await Promise.all([slotsOf(db, scope), connectionsOf(db, scope), agentsOf(db, scope), totalsOf(db, scope)]);
   return { slots, connections, agents: agentRows, totals };
 }

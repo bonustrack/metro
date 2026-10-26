@@ -9,14 +9,14 @@ const TOP = 8;
 const OTHER_KEY = '~other';
 const OTHER_NAME = 'Other';
 
-const RANGES = {
+export const RANGES = {
   '24h': { bucketMs: HOUR_MS, count: 24 },
   '7d': { bucketMs: 6 * HOUR_MS, count: 28 },
   '30d': { bucketMs: DAY_MS, count: 30 },
   '90d': { bucketMs: DAY_MS, count: 90 },
 } as const;
 
-type StatsRange = keyof typeof RANGES;
+export type StatsRange = keyof typeof RANGES;
 
 const DEFAULT_RANGE: StatsRange = '7d';
 
@@ -47,7 +47,7 @@ interface StatsAnswer {
 
 const isRange = (value: string): value is StatsRange => Object.hasOwn(RANGES, value);
 
-function rangeOf(query: URLSearchParams): StatsRange {
+export function rangeOf(query: URLSearchParams): StatsRange {
   const raw = query.get('range');
   if (raw === null || raw === '') return DEFAULT_RANGE;
   if (!isRange(raw)) throw new ApiError(`range must be one of ${Object.keys(RANGES).join(', ')}`, 400);

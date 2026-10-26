@@ -1,12 +1,5 @@
 import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
-
-export interface TgUser {
-  id: number;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  is_bot?: boolean;
-}
+import type { TgUser } from './types.js';
 
 export interface TgChatMember {
   user: TgUser;

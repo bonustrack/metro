@@ -8,7 +8,7 @@ import { parseSlug, slugify, withSuffix, type SlugStore } from '../slug.js';
 
 const TRIES = 20;
 
-export type OrganizationStore = SlugStore & OrganizationAvatars;
+type OrganizationStore = SlugStore & OrganizationAvatars;
 
 export function organizationStore(db: () => Database): OrganizationStore {
   async function current(organization: string): Promise<string | null> {

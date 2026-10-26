@@ -152,7 +152,7 @@ function sessionOf(path: string, id: string, mtime: number, size: number): Claud
   return {
     id,
     title: (titled === undefined ? null : str(titled.aiTitle)) ?? firstPrompt(head) ?? 'Untitled session',
-    startedAt: str(head.find((l) => str(l.timestamp) !== null)?.timestamp) ?? null,
+    startedAt: str(head.find((l) => str(l.timestamp) !== null)?.timestamp),
     lastAt: new Date(mtime).toISOString(),
     bytes: size,
     gitBranch: str(meta.gitBranch),

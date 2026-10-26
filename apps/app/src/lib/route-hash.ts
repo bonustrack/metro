@@ -24,7 +24,7 @@ function sameRoute(hash: string, routed: string): boolean {
   }
 }
 
-export function useRouteHash(): string {
+function useRouteHash(): string {
   const pathname = usePathname();
   const params = useGlobalSearchParams();
   const routed = `#${pathname}${queryOf(params)}`;

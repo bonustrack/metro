@@ -37,11 +37,8 @@ const VAGUE_MIMES = new Set([
 
 const mib = (n: number): string => `${Math.round(n / (1024 * 1024))} MiB`;
 
-const uploadLimit = (): string =>
-  `${mib(MAX_UPLOAD_BYTES)} (${MAX_UPLOAD_BYTES} bytes)`;
-
 const tooLarge = (): string =>
-  `upload exceeds the ${uploadLimit()} per-file limit; ` +
+  `upload exceeds the ${mib(MAX_UPLOAD_BYTES)} (${MAX_UPLOAD_BYTES} bytes) per-file limit; ` +
   'send a link in `text` for anything larger';
 
 const noRoom = (): string =>
@@ -96,9 +93,8 @@ function declaredLength(req: IncomingMessage): number | undefined {
 
 function assertRoomForDeclared(req: IncomingMessage, room: number): void {
   const declared = declaredLength(req);
-  if (declared === undefined) return;
-  if (declared > MAX_UPLOAD_BYTES) throw new ApiError(tooLarge(), 413);
-  if (declared > room) throw new ApiError(noRoom(), 507);
+  const over = declared === undefined ? undefined : overflowAt(declared, room);
+  if (over !== undefined) throw over;
 }
 
 async function drainInto(

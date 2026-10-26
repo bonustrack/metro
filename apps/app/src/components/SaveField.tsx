@@ -57,7 +57,6 @@ interface SaveFieldProps {
   name: string;
   label: string;
   placeholder?: string;
-  editable?: boolean;
   secret?: boolean;
 }
 
@@ -66,7 +65,7 @@ function SaveNote({ saving }: { saving: Saving }): ReactNode {
   return saving.saved ? <Text size="md" role="secondary">Saved.</Text> : null;
 }
 
-export function SaveField({ saving, name, label, placeholder, editable = true, secret = false }: SaveFieldProps): ReactNode {
+export function SaveField({ saving, name, label, placeholder, secret = false }: SaveFieldProps): ReactNode {
   const dark = useKitScheme() === 'dark';
   return (
     <>
@@ -78,11 +77,11 @@ export function SaveField({ saving, name, label, placeholder, editable = true, s
           value={saving.value}
           placeholder={placeholder}
           dark={dark}
-          disabled={saving.busy || !editable}
+          disabled={saving.busy}
           onChangeText={saving.setValue}
           {...(secret ? { inputType: 'password', inputProps: { autoComplete: 'off' } } : {})}
         />
-        {editable && (saving.ready || saving.busy) ? (
+        {saving.ready || saving.busy ? (
           <Button size="lg" color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
         ) : null}
       </Row>

@@ -23,7 +23,7 @@ export interface ModelEdit {
   credential?: boolean;
 }
 
-export interface RouteWrite {
+interface RouteWrite {
   owner: string;
   agent: string | null;
   route: RouteChain;
@@ -33,12 +33,12 @@ export interface RouteWrite {
   at: string;
 }
 
-export interface HeldRoute {
+interface HeldRoute {
   agent: string | null;
   route: ModelRoute;
 }
 
-export interface OrgModels {
+interface OrgModels {
   connections: ModelConnectionRow[];
   routes: HeldRoute[];
 }

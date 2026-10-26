@@ -371,7 +371,7 @@ export async function detachAccount(
   });
 }
 
-export interface AccountName {
+interface AccountName {
   name: string | null;
   canClaim: boolean;
 }

@@ -5,10 +5,7 @@ import { isRecord } from '../read.js';
 import { noteUpdate } from './servers.js';
 
 export interface UpdateCheck {
-  running: string;
   current: string;
-  latest: string;
-  newer: boolean;
 }
 
 export interface UpdateResult {
@@ -23,12 +20,7 @@ const unexpected = (): Error => new Error('Metro returned an unexpected response
 export async function fetchUpdate(): Promise<UpdateCheck> {
   const body = await call({ method: 'GET', base: updateUrl() });
   if (!isRecord(body) || typeof body.current !== 'string' || typeof body.latest !== 'string') throw unexpected();
-  return {
-    running: typeof body.running === 'string' ? body.running : body.current,
-    current: body.current,
-    latest: body.latest,
-    newer: body.newer === true,
-  };
+  return { current: body.current };
 }
 
 function updateResult(base: string, body: unknown): UpdateResult {

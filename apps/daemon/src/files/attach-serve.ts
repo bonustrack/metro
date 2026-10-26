@@ -40,7 +40,7 @@ export function attachmentUrl(
   pathOrName: string,
   agentId: string,
 ): string | null {
-  const base = publicBaseUrl() ?? loopbackBase();
+  const base = publicBaseOrDefault();
   if (!base) return null;
   const name = pathOrName.split('/').pop();
   if (!name || !resolveCachedAttachment(name)) return null;

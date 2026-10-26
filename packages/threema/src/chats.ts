@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { accountFiles } from '@metro-labs/core/stations/account-files';
 import { DIRECTORY_LIMIT } from '@metro-labs/core/stations/channel-directory';
@@ -17,10 +18,10 @@ const nameOf = (name: unknown): string | undefined =>
   typeof name === 'string' ? Array.from(name.trim()).slice(0, 256).join('') || undefined : undefined;
 
 function directChat(entry: unknown): DirectChat | undefined {
-  if (!entry || typeof entry !== 'object' || !('id' in entry) || typeof entry.id !== 'string') return undefined;
+  if (!isRecord(entry) || typeof entry.id !== 'string') return undefined;
   const id = normalizeThreemaId(entry.id);
   if (!isThreemaId(id)) return undefined;
-  const name = nameOf('name' in entry ? entry.name : undefined);
+  const name = nameOf(entry.name);
   return { id, ...(name ? { name } : {}) };
 }
 
@@ -36,7 +37,7 @@ function readChats(path: string): Map<string, DirectChat> {
     }
     return chats;
   } catch (err) {
-    if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT'))
+    if (!(isRecord(err) && err.code === 'ENOENT'))
       log.warn({ err, path }, 'threema: could not load chat metadata');
     return new Map();
   }

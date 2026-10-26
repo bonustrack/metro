@@ -1,10 +1,4 @@
-import {
-  saveBufferToCache,
-  assertContentLength,
-} from '@metro-labs/core/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
-
-export type { SavedAttachment };
+import { assertContentLength, saveBufferToCache, type SavedAttachment } from '@metro-labs/core/stations/attachments';
 
 export interface DiscordAttachmentRef {
   url: string;

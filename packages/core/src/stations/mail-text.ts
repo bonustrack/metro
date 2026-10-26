@@ -1,4 +1,4 @@
-export const MAX_TEXT_CHARS = 20_000;
+const MAX_TEXT_CHARS = 20_000;
 
 const ENTITIES: Record<string, string> = {
   amp: '&',
@@ -52,9 +52,9 @@ export function tidy(text: string): string {
     .trim();
 }
 
-export function capText(text: string, max = MAX_TEXT_CHARS): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max)}\n[... ${String(text.length - max)} more characters]`;
+export function capText(text: string): string {
+  if (text.length <= MAX_TEXT_CHARS) return text;
+  return `${text.slice(0, MAX_TEXT_CHARS)}\n[... ${String(text.length - MAX_TEXT_CHARS)} more characters]`;
 }
 
 export function bodyText(body: { contentType?: unknown; content?: unknown } | undefined): string {

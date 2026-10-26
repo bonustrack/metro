@@ -3,14 +3,8 @@ import {
   RemoteAttachmentCodec,
   ContentTypeAttachment,
 } from '@xmtp/content-type-remote-attachment';
-import {
-  saveBufferToCache,
-  assertAttachmentSize,
-} from '@metro-labs/core/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
+import { assertAttachmentSize, saveBufferToCache, type SavedAttachment } from '@metro-labs/core/stations/attachments';
 import { errMsg } from '@metro-labs/core/log';
-
-export type { SavedAttachment };
 
 interface FetchSchedule {
   delaysMs: readonly number[];

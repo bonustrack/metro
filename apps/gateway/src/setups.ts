@@ -8,7 +8,7 @@ import { deliveredOf, refreshedConnection, setupOf } from '@metro-labs/inference
 import type { Connection, ModelSetup } from '@metro-labs/inference/model-config';
 import type { Caller } from './callers.js';
 
-export const SETUP_TTL_MS = 10_000;
+const SETUP_TTL_MS = 10_000;
 const HELD_MAX = 5_000;
 
 export interface SetupDeps {

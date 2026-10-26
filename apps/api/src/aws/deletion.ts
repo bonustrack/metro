@@ -33,7 +33,7 @@ export interface Owned {
   addedAt: string;
 }
 
-export interface PlannedDisk {
+interface PlannedDisk {
   volumeId: string;
   sizeGib: number;
   device: string;

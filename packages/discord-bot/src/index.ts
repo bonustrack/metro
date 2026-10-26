@@ -70,7 +70,7 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
   });
 
   client.on(Events.MessageReactionAdd, (r, u) => {
-    void (async () => {
+    (async () => {
       try {
         if (r.partial) await r.fetch();
         if (u.partial) await u.fetch();
@@ -85,18 +85,12 @@ async function bootAccount(cfg: AccountConfig): Promise<void> {
     });
   });
 
-  client.on(Events.MessageUpdate, (_old, _new) => {
-    void (async () => {
-      try {
-        onEdit(accountId, _new.partial ? await _new.fetch() : _new);
-      } catch (err) {
-        process.stderr.write(
-          `discord-bot[${accountId}] message update fetch failed: ${errMsg(err)}\n`,
-        );
-      }
+  client.on(Events.MessageUpdate, (_old, updated) => {
+    (async () => {
+      onEdit(accountId, updated.partial ? await updated.fetch() : updated);
     })().catch((err: unknown) => {
       process.stderr.write(
-        `discord-bot[${accountId}] message update handler failed: ${errMsg(err)}\n`,
+        `discord-bot[${accountId}] message update fetch failed: ${errMsg(err)}\n`,
       );
     });
   });

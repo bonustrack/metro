@@ -1,4 +1,5 @@
 import { TrainError } from '@metro-labs/core/train-error';
+import type { GroupResult } from '@metro-labs/core/stations/types';
 import { errMsg } from '@metro-labs/core/log';
 import {
   makeStation,
@@ -204,33 +205,13 @@ function makeGroupCreate(clientFor: ClientFor): StationHandler {
   };
 }
 
-function makeGroupAdd(clientFor: ClientFor): StationHandler {
-  return async (id, args) => {
-    const { client, chatId } = resolve(args, clientFor);
-    const line = lineOfArgs(args);
-    respond(id, {
-      result: await guard(() => groupAddMembers(client, chatId, line, args)),
-    });
-  };
-}
+type GroupOp = (client: UserClient, chatId: number, line: string, args: Args) => Promise<GroupResult>;
 
-function makeGroupRemove(clientFor: ClientFor): StationHandler {
+function makeGroupOp(clientFor: ClientFor, op: GroupOp): StationHandler {
   return async (id, args) => {
     const { client, chatId } = resolve(args, clientFor);
     const line = lineOfArgs(args);
-    respond(id, {
-      result: await guard(() => groupRemoveMembers(client, chatId, line, args)),
-    });
-  };
-}
-
-function makeGroupInvite(clientFor: ClientFor): StationHandler {
-  return async (id, args) => {
-    const { client, chatId } = resolve(args, clientFor);
-    const line = lineOfArgs(args);
-    respond(id, {
-      result: await guard(() => groupInviteLink(client, chatId, line)),
-    });
+    respond(id, { result: await guard(() => op(client, chatId, line, args)) });
   };
 }
 
@@ -264,9 +245,9 @@ export function makeHandleCall(
       listChannels: makeListChannels(clientFor),
       listMembers: makeListMembers(clientFor),
       groupCreate: makeGroupCreate(clientFor),
-      groupAddMembers: makeGroupAdd(clientFor),
-      groupRemoveMembers: makeGroupRemove(clientFor),
-      groupInviteLink: makeGroupInvite(clientFor),
+      groupAddMembers: makeGroupOp(clientFor, groupAddMembers),
+      groupRemoveMembers: makeGroupOp(clientFor, groupRemoveMembers),
+      groupInviteLink: makeGroupOp(clientFor, groupInviteLink),
       set_profile: makeSetProfile(clientFor),
       profile: makeReadProfile(clientFor),
     },

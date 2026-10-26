@@ -45,7 +45,7 @@ async function resolveOrganization(segment: string): Promise<string | null> {
   return mine.find((o) => o.slug === segment)?.id ?? null;
 }
 
-export type OrganizationOpening =
+type OrganizationOpening =
   | { kind: 'open'; organization: string }
   | { kind: 'refused'; message: string }
   | { kind: 'failed'; message: string }
@@ -96,9 +96,9 @@ export async function openOrganization(segment: string, alive: () => boolean = (
   return openedNow(segment, organization) ?? { kind: 'failed', message: 'Could not open that organization. Try again.' };
 }
 
-export async function enterOrganization(organization: string, prefetch: (organization: string) => Promise<void>, page = ''): Promise<void> {
+export async function enterOrganization(organization: string, prefetch: (organization: string) => Promise<void>): Promise<void> {
   if (currentOrganization() !== organization) await switchOrganization(organization);
   await prefetch(organization);
   routed = null;
-  location().push(`#/${names(activeAccount()) ?? organization}${page}`);
+  location().push(`#/${names(activeAccount()) ?? organization}`);
 }

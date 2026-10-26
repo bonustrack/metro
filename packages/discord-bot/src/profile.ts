@@ -9,7 +9,7 @@ import {
   type ProfileChange,
 } from '@metro-labs/core/stations/profile';
 import type { SenderProfile } from '@metro-labs/core/stations/sender-profile';
-import { accountFor, accounts } from './accounts.js';
+import { accountFor, accounts, type Account } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 
 export async function applyProfile(
@@ -32,29 +32,26 @@ export async function applyProfile(
   }
 }
 
+function accountOf(args: Record<string, unknown>): Account {
+  const accountId = accountFor({ account: args.account as string | undefined });
+  const acct = accounts.get(accountId);
+  if (!acct) throw new Error(`unknown account '${accountId}'`);
+  return acct;
+}
+
 export async function setProfile(
   id: string,
   args: Record<string, unknown>,
 ): Promise<void> {
-  const accountId = accountFor({ account: args.account as string | undefined });
-  const acct = accounts.get(accountId);
-  if (!acct) {
-    respond(id, { error: `unknown account '${accountId}'` });
-    return;
-  }
+  const acct = accountOf(args);
   const change = parseProfileChange(args);
   await applyProfile(acct.client, change);
-  const result: ProfileApplied = { account: accountId, applied: fieldsOf(change) };
+  const result: ProfileApplied = { account: acct.cfg.id, applied: fieldsOf(change) };
   respond(id, { result });
 }
 
 export async function readProfile(id: string, args: Record<string, unknown>): Promise<void> {
-  const accountId = accountFor({ account: args.account as string | undefined });
-  const acct = accounts.get(accountId);
-  if (!acct) {
-    respond(id, { error: `unknown account '${accountId}'` });
-    return;
-  }
+  const acct = accountOf(args);
   const user = typeof args.user === 'string' ? args.user.trim() : '';
   if (!/^\d+$/.test(user)) throw new TrainError('discord_user_required', 'profile needs the Discord id of the person', { retryable: false });
   const found = await acct.client.users.fetch(user);

@@ -66,7 +66,7 @@ export interface ModelSync {
   error: string | null;
 }
 
-export interface HelperModels {
+interface HelperModels {
   route: ModelRoute;
   chain: ChainRow[];
 }

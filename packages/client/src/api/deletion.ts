@@ -3,12 +3,12 @@ import { call } from './client.js';
 import { builtInDaemon } from '../auth/daemon.js';
 import { regionLabel } from '../aws/regions.js';
 
-export interface DeletionVolume {
+interface DeletionVolume {
   volumeId: string;
   sizeGib: number;
 }
 
-export interface DeletionOwner {
+interface DeletionOwner {
   id: string;
   name: string | null;
 }

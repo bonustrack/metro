@@ -1,3 +1,4 @@
+import { errMsg } from '@metro-labs/core/log';
 import { makeAccountStore, resolveAccountId, type Die } from '@metro-labs/core/stations/account-store';
 import { threadOfLine } from '@metro-labs/core/stations/mail';
 import { TokenKeeper, type FetchLike } from '@metro-labs/core/stations/oauth';
@@ -27,7 +28,7 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
 });
 
 const signedOut = (err: unknown): never => {
-  throw new TrainError('outlook_signed_out', err instanceof Error ? err.message : String(err), { retryable: false });
+  throw new TrainError('outlook_signed_out', errMsg(err), { retryable: false });
 };
 
 export class Account {
@@ -65,14 +66,11 @@ export class Account {
 
 export const accounts = new Map<string, Account>();
 
-function accountFor(id: string): Account {
-  const acct = accounts.get(id);
-  if (!acct) throw new Error(`unknown account '${id}' (have: ${[...accounts.keys()].join(', ')})`);
-  return acct;
-}
-
 export function accountOf(args: { account?: unknown; line?: unknown }): Account {
   const line = typeof args.line === 'string' && args.line !== '' ? args.line : undefined;
   const account = typeof args.account === 'string' && args.account !== '' ? args.account : undefined;
-  return accountFor(resolveAccountId(accounts, { account, line }, (l) => threadOfLine('outlook', l)?.accountId));
+  const id = resolveAccountId(accounts, { account, line }, (l) => threadOfLine('outlook', l)?.accountId);
+  const acct = accounts.get(id);
+  if (!acct) throw new Error(`unknown account '${id}'`);
+  return acct;
 }

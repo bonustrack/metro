@@ -3,7 +3,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { SigningKeys } from '@metro-labs/http/workos-token';
 import { completeSignIn, createConnector, startSignIn, viewOf, type Caller } from './actions.js';
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { connectorActivity } from './activity.js';
@@ -12,6 +12,7 @@ import { assignConnector, deleteConnector, listConnectors, unassignConnector, up
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import { callbackLocation } from './sign-in.js';
 import { copyConnector, type CopyDeps } from './copy.js';
+import { callerOf } from '../server-route.js';
 
 const PREFIX = '/api/connectors';
 const BODY_MAX = 1024 * 1024;
@@ -84,13 +85,6 @@ function admin(caller: Caller): void {
   if (caller.session.role !== 'admin') throw new ApiError('managing connectors needs the admin role in your organization', 403);
 }
 
-async function callerOf(req: IncomingMessage, deps: ConnectorsApiDeps): Promise<Caller> {
-  const session = await bearerSession(req, deps.keys);
-  const owner = session?.organization ?? null;
-  if (session === null || owner === null) throw new ApiError('unauthorized', 401);
-  return { session, owner };
-}
-
 interface Context {
   deps: ConnectorsApiDeps;
   caller: Caller;
@@ -120,7 +114,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
 const MEMBER_READS = new Set(['GET collection', 'GET activity', 'GET activity-stats', 'GET connector', 'GET tools']);
 
 async function answer(req: IncomingMessage, deps: ConnectorsApiDeps, target: Exclude<Target, { kind: 'callback' }>): Promise<unknown> {
-  const caller = await callerOf(req, deps);
+  const caller = await callerOf(req, deps.keys);
   const method = req.method ?? 'GET';
   const route = `${method} ${target.kind}`;
   if (!MEMBER_READS.has(route)) admin(caller);

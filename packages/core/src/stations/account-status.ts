@@ -1,6 +1,6 @@
 import { isRecord } from '../is-record.js';
 
-export const ACCOUNT_STATES = ['connected', 'connecting', 'logged_out', 'disconnected'] as const;
+const ACCOUNT_STATES = ['connected', 'connecting', 'logged_out', 'disconnected'] as const;
 
 export type AccountState = (typeof ACCOUNT_STATES)[number];
 

@@ -6,13 +6,12 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
 import type { LoadedAccount, LoadedAgent } from '../stations/materialize.js';
-import { STATIONS } from '@metro-labs/core/station-names';
 import { approversOf } from './files.js';
+import { isStationName } from './account-attach.js';
 
 const AGENTS = '/api/agents';
 const RESTORE_PATH = `${AGENTS}/restore`;
 const BUNDLE_MAX = 2 * 1024 * 1024;
-const STATION_NAMES = new Set<string>(STATIONS);
 
 export interface AgentBundle {
   version: 1;
@@ -50,7 +49,7 @@ function parseMode(raw: unknown): ImportMode {
 const bad = (what: string): ApiError => new ApiError(`bundle: ${what}`, 400);
 
 function stationOf(raw: unknown): LoadedAccount {
-  if (!isRecord(raw) || typeof raw.station !== 'string' || !STATION_NAMES.has(raw.station))
+  if (!isRecord(raw) || !isStationName(raw.station))
     throw bad('a station is not a known station');
   if (typeof raw.id !== 'string' || !isRecord(raw.config)) throw bad('a station has no id or config');
   const allowlist = Array.isArray(raw.allowlist)
@@ -58,7 +57,7 @@ function stationOf(raw: unknown): LoadedAccount {
     : null;
   const policy = parsePolicy(raw.policy, `bundle ${raw.station}/${raw.id}`);
   return {
-    station: raw.station as LoadedAccount['station'],
+    station: raw.station,
     id: raw.id,
     allowlist,
     ...approversOf(raw.approvers),

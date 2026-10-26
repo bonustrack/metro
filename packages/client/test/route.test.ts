@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { currentSelection, routeHash, routeSelection } from '../src/route.js';
-import { configurePlatform, location, memoryKeyValue, type Location } from '../src/platform.js';
-import { sameViewOn, type Selection } from '../src/selection.js';
+import { routeHash, routeSelection } from '../src/route.js';
+import { configurePlatform, memoryKeyValue } from '../src/platform.js';
+import type { Selection } from '../src/selection.js';
 import { noteRoutedOrganization, routedOrganization, splitOrganization } from '../src/auth/org-route.js';
 import { routedDaemon, routedSegment } from '../src/auth/daemon.js';
 import { installTestAccount, TEST_ORGANIZATION } from './account-fixture.js';
@@ -94,7 +94,6 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/demo-agent/run')).toEqual({ kind: 'run', project: 'demo-agent' });
     expect(routeSelection('#/demo-org/demo-agent/run')).toEqual({ kind: 'run', project: 'demo-agent' });
     expect(routeHash({ kind: 'run', project: 'demo-agent' })).toBe('#/demo-org/demo-agent/run');
-    expect(sameViewOn({ kind: 'run', project: 'agent-one' }, 'agent-two')).toEqual({ kind: 'run', project: 'agent-two' });
   });
 
   test('an agent slug named run remains scoped to the known organization', () => {
@@ -109,7 +108,6 @@ describe('the first segment is the daemon', () => {
     const selection: Selection = { kind: 'run', project: 'run' };
     expect(routeHash(selection)).toBe('#/demo-org/run/run');
     expect(routeSelection(routeHash(selection))).toEqual(selection);
-    expect(sameViewOn({ kind: 'run', project: 'another-agent' }, 'run')).toEqual(selection);
     expect(routeSelection('#/another-agent/run')).toEqual({ kind: 'run', project: 'another-agent' });
   });
 
@@ -278,32 +276,11 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(routeSelection('#/stage-labs/organization/models/add')).toEqual({ kind: 'org-model-add' });
     routeSelection('#/settings');
   });
-
-  test('switching agents from one of them lands on its tab', () => {
-    const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));
-    expect(on({ kind: 'add-chat', project: agent, station: 'xmtp' })).toBe('#/suzy00000001/chats');
-    expect(on({ kind: 'backup', project: agent })).toBe('#/suzy00000001/settings');
-    expect(on({ kind: 'skills-github', project: agent })).toBe('#/suzy00000001/skills');
-    expect(on({ kind: 'run', project: agent, view: 'worker', id: 'x' })).toBe('#/suzy00000001/run');
-    expect(on({ kind: 'access-keys', project: agent })).toBe('#/suzy00000001');
-  });
 });
 
-describe('switching server keeps the page', () => {
-  test('a page of the box carries over, and anything that names a thing on the old box falls back to its list', () => {
-    const on = (selection: Selection): string => routeHash(sameViewOn(selection, 'suzy00000001'));
-    expect(on({ kind: 'terminal', project: 'lisa000000001' })).toBe('#/suzy00000001/terminal');
-    expect(on({ kind: 'model', project: 'lisa000000001' })).toBe('#/suzy00000001/model');
-    expect(on({ kind: 'claude', project: 'lisa000000001' })).toBe('#/suzy00000001/harness');
+describe('box page addresses', () => {
+  test('the old claude address opens the harness page', () => {
     expect(routeSelection('#/suzy00000001/claude')).toEqual({ kind: 'claude', project: 'suzy00000001' });
-    expect(on({ kind: 'home', project: 'lisa000000001' })).toBe('#/suzy00000001');
-    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1' })).toBe('#/suzy00000001/chats');
-    expect(on({ kind: 'station', project: 'lisa000000001', accountId: 'a1', rule: 'delete' })).toBe('#/suzy00000001/chats');
-    expect(on({ kind: 'tools', project: 'lisa000000001' })).toBe('#/suzy00000001/tools');
-    expect(on({ kind: 'skill', project: 'lisa000000001', id: 'user:x' })).toBe('#/suzy00000001/skills');
-    expect(on({ kind: 'sessions', project: 'lisa000000001', claudeProject: 'p', id: 's' })).toBe('#/suzy00000001/sessions');
-    expect(on({ kind: 'memory', project: 'lisa000000001', claudeProject: 'p', file: 'f.md' })).toBe('#/suzy00000001/memory');
-    expect(on({ kind: 'servers' })).toBe('#/suzy00000001');
   });
 });
 
@@ -399,21 +376,5 @@ describe('a connector link the daemon builds without an organization or an agent
     expect(routeSelection('#/connectors')).toEqual({ kind: 'tools', project: 'agent000001' });
     configurePlatform({ kv: memoryKeyValue() });
     expect(routeSelection('#/connector/conn0000001')).toEqual({ kind: 'none' });
-  });
-});
-
-describe('the current address comes from the platform location', () => {
-  test('two organizations on the same page kind give two distinct selections', () => {
-    const before = location();
-    let hash = '#/stage';
-    const fake: Location = { ...before, hash: () => hash };
-    configurePlatform({ location: fake });
-    const first = currentSelection();
-    hash = '#/mci';
-    const second = currentSelection();
-    configurePlatform({ location: before });
-    expect(first).toEqual({ kind: 'servers' });
-    expect(second).toEqual({ kind: 'servers' });
-    expect(first).not.toBe(second);
   });
 });

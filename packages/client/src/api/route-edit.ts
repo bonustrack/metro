@@ -86,11 +86,11 @@ export function movedFallback(route: ModelRoute, at: number, by: number): ModelR
 
 export const removedFallback = (route: ModelRoute, at: number): ModelRoute => ({ ...route, fallbacks: route.fallbacks.filter((_, other) => other !== at) });
 
-export function promotedFallback(route: ModelRoute, at: number, primaryModel = route.primary.model): ModelRoute {
+export function promotedFallback(route: ModelRoute, at: number): ModelRoute {
   const picked = route.fallbacks[at];
   if (picked === undefined) return route;
   const rest = route.fallbacks.filter((_, other) => other !== at);
-  const old = { connection: route.primary.connection, model: primaryModel };
+  const old = { connection: route.primary.connection, model: route.primary.model };
   const keep = old.model !== '' && !rest.some((step) => sameStep(step, old)) && !sameStep(old, picked);
   return { ...route, primary: picked, fallbacks: keep ? [...rest.slice(0, at), old, ...rest.slice(at)] : rest };
 }

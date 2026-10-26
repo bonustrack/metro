@@ -8,6 +8,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import {
+  configOf,
   isRole,
   listInvitations,
   listMembers,
@@ -26,7 +27,7 @@ const PREFIX = '/api/organization';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ID_RE = /^[A-Za-z0-9_]{6,80}$/;
 
-export interface MembersApiDeps {
+interface MembersApiDeps {
   config: () => WorkosConfig | null;
   keys: SigningKeys;
   slugs: SlugStore;
@@ -64,12 +65,6 @@ const METHODS: Record<Exclude<NonNullable<Target>, { kind: 'unknown' }>['kind'],
   invitation: ['POST'],
   member: ['PUT', 'DELETE'],
 };
-
-function ready(deps: MembersApiDeps): WorkosConfig {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  return cfg;
-}
 
 const admin = (session: Session): void => {
   if (session.role !== 'admin') throw new ApiError('this needs the admin role in your organization', 403);
@@ -159,7 +154,7 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   const session = await bearerSession(req, deps.keys);
   if (session === null) throw new ApiError('unauthorized', 401);
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
-  const cfg = ready(deps);
+  const cfg = configOf(deps);
   if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, cfg, session, session.organization) : overview(deps, cfg, session, session.organization);
   if (tgt.kind === 'avatar') return setAvatar(req, deps, cfg, session, session.organization);
   if (tgt.kind === 'invitations') return invite(req, cfg, session, session.organization);

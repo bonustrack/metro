@@ -42,7 +42,7 @@ function applies(window: UsageWindow, route: Route, now: number): boolean {
   return scope === null || route.model.toLowerCase().split(/[^a-z0-9]+/).includes(scope);
 }
 
-export function windowsFor(route: Route, now = Date.now()): UsageWindow[] {
+function windowsFor(route: Route, now = Date.now()): UsageWindow[] {
   return (usageOf(route.connection.id)?.windows ?? []).filter((w) => applies(w, route, now));
 }
 

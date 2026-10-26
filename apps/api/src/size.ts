@@ -42,11 +42,11 @@ export const resizing = (region: string, instanceId: string): boolean => {
   return claims.has(key) || jobRunning(jobs.get(key));
 };
 
-export async function fromAws<T>(work: () => Promise<T>, type = ''): Promise<T> {
+export async function fromAws<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (err) {
-    if (err instanceof AwsError) throw new ApiError(explain(err, type), AWS_REFUSED);
+    if (err instanceof AwsError) throw new ApiError(explain(err, ''), AWS_REFUSED);
     throw err;
   }
 }
@@ -135,7 +135,7 @@ async function resize(deps: SizeApiDeps, session: Session, owner: string, id: st
   const target = await targetOf(deps, owner, id);
   if (typeof target === 'string') throw new ApiError(target, 400);
   const key = keyOf(target);
-  if (claims.has(key) || jobRunning(jobs.get(key))) throw new ApiError('this server is already changing size. Wait for it to finish', 409);
+  if (resizing(target.region, target.instanceId)) throw new ApiError('this server is already changing size. Wait for it to finish', 409);
   if (deps.growing(target.region, target.instanceId)) throw new ApiError('the disk of this server is growing. Wait for it to finish', 409);
   claims.add(key);
   try {

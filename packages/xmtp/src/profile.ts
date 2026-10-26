@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { encodeFunctionData, encodePacked, keccak256, namehash, stringToBytes, type Hex } from 'viem';
 import { normalize } from 'viem/ens';
+import { errMsg } from '@metro-labs/core/log';
 import { TrainError } from '@metro-labs/core/train-error';
 import {
   assertImage,
@@ -93,7 +94,7 @@ export async function setUpName(smart: SmartAccount, name: string): Promise<bool
     await sendSponsoredCalls(smart, nameSetupCalls(name, smart.address, resolver));
     return true;
   } catch (err) {
-    process.stderr.write(`xmtp: the name ${name} is claimed but its address and primary name are not set for ${smart.address}: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`xmtp: the name ${name} is claimed but its address and primary name are not set for ${smart.address}: ${errMsg(err)}\n`);
     return false;
   }
 }

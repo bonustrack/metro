@@ -12,14 +12,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const dayStart = (ms: number): number => Math.floor(ms / DAY_MS) * DAY_MS;
 
-function signupsByDay(users: { createdAt: string | null }[], now: number, days = DAYS): number[] {
-  const first = dayStart(now) - (days - 1) * DAY_MS;
-  const counts = new Array<number>(days).fill(0);
+function signupsByDay(users: { createdAt: string | null }[], now: number): number[] {
+  const first = dayStart(now) - (DAYS - 1) * DAY_MS;
+  const counts = new Array<number>(DAYS).fill(0);
   for (const user of users) {
     if (user.createdAt === null) continue;
     const at = Date.parse(user.createdAt);
     if (Number.isNaN(at) || at < first) continue;
-    const slot = Math.min(days - 1, Math.floor((at - first) / DAY_MS));
+    const slot = Math.min(DAYS - 1, Math.floor((at - first) / DAY_MS));
     counts[slot] = (counts[slot] ?? 0) + 1;
   }
   return counts;

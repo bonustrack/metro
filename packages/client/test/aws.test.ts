@@ -17,7 +17,7 @@ describe('what the page shows about the AWS account of a server', () => {
   });
 
   test('an instance is named by its Name tag when it has one, with its id, region and state', () => {
-    const base = { connection: 'c1', accountId: '111122223333', region: 'eu-central-2', instanceId: 'i-0abc', state: 'running', type: 't4g.medium', node: null, agentId: null };
+    const base = { connection: 'c1', accountId: '111122223333', region: 'eu-central-2', instanceId: 'i-0abc', state: 'running', node: null, agentId: null };
     expect(instanceLabel({ ...base, name: 'Andy' })).toBe('Andy · i-0abc · eu-central-2 · running');
     expect(instanceLabel({ ...base, name: null })).toBe('i-0abc · eu-central-2 · running');
   });

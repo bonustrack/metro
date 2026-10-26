@@ -1,10 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from './api-error.js';
+import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 
 const BODY_MAX = 4 * 1024;
 
-export type Role = 'admin' | 'member';
+type Role = 'admin' | 'member';
 
 export interface ApiSession {
   subject: string;
@@ -151,9 +152,7 @@ export function sessionRoute(
 }
 
 export function bodyField(body: unknown, key: string): unknown {
-  return typeof body === 'object' && body !== null && !Array.isArray(body)
-    ? (body as Record<string, unknown>)[key]
-    : undefined;
+  return isRecord(body) ? body[key] : undefined;
 }
 
 export const stringOf = (value: unknown): string => (typeof value === 'string' ? value : '');

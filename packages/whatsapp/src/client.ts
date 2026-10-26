@@ -121,7 +121,7 @@ function onClose(st: State, closed: Closed): void {
   }
   resetGate(st);
   process.stderr.write(`whatsapp[${st.account.id}] reconnecting\n`);
-  void connect(st).catch((e: unknown) => {
+  connect(st).catch((e: unknown) => {
     process.stderr.write(
       `whatsapp[${st.account.id}] reconnect failed: ${errMsg(e)}\n`,
     );

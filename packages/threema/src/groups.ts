@@ -21,11 +21,9 @@ export function parseGroupKey(resource: string): GroupRef | null {
 
 export const groupFiles = accountFiles('THREEMA_GROUPS_DIR', 'threema-groups-');
 
-const groupsFile = (accountId: string): string => groupFiles.path(accountId);
-
 function readRosters(accountId: string): Map<string, GroupRoster> {
   try {
-    const raw: unknown = JSON.parse(readFileSync(groupsFile(accountId), 'utf8'));
+    const raw: unknown = JSON.parse(readFileSync(groupFiles.path(accountId), 'utf8'));
     const out = new Map<string, GroupRoster>();
     if (Array.isArray(raw))
       for (const entry of raw) {
@@ -87,7 +85,7 @@ export class GroupStore {
   }
 
   private save(): void {
-    const path = groupsFile(this.accountId);
+    const path = groupFiles.path(this.accountId);
     mkdirSync(dirname(path), { recursive: true });
     const tmp = `${path}.${String(process.pid)}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.list()), { mode: 0o600 });

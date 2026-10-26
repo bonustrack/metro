@@ -70,9 +70,7 @@ async function sendMediaSet(
 ): Promise<{ messageId: string; labels: string[] }> {
   const labels: string[] = [];
   let messageId = '';
-  for (let i = 0; i < atts.length; i++) {
-    const att = atts[i];
-    if (!att) continue;
+  for (const [i, att] of atts.entries()) {
     const path = att.path;
     const kind = att.kind ?? kindOf(att.mime ?? '', path);
     messageId = await guard(() =>

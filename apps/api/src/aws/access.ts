@@ -48,7 +48,7 @@ export class RoleCache {
   }
 }
 
-export interface AccessDeps {
+interface AccessDeps {
   webIdentity: (roleArn: string) => Promise<RoleKeys>;
   assume: (base: AwsCredentials, roleArn: string, externalId: string, sessionName: string) => Promise<RoleKeys>;
   now: () => number;

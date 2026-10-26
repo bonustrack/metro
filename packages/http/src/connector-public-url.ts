@@ -40,14 +40,16 @@ export function parsePublicConnectorUrl(raw: unknown): URL {
   return url;
 }
 
+const RESOURCE_REFUSED = 'The public OAuth resource must be a public HTTPS identifier without a query, user information or a fragment. Do not enter credentials.';
+
 export function publicOAuthResource(raw: unknown): string {
   try {
     const url = parsePublicConnectorUrl(raw);
     if (typeof raw === 'string' && !raw.includes('?') && url.search === '') return raw;
   } catch {
-    throw refused('The public OAuth resource must be a public HTTPS identifier without a query, user information or a fragment. Do not enter credentials.');
+    throw refused(RESOURCE_REFUSED);
   }
-  throw refused('The public OAuth resource must be a public HTTPS identifier without a query, user information or a fragment. Do not enter credentials.');
+  throw refused(RESOURCE_REFUSED);
 }
 
 export function optionalOAuthResource(raw: unknown): string | undefined {

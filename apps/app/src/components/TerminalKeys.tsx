@@ -55,7 +55,7 @@ function fitVisibleViewport(node: HTMLDivElement | null, on: boolean): (() => vo
   };
 }
 
-export interface KeyBarState {
+interface KeyBarState {
   page: RefObject<HTMLDivElement | null>;
   touch: boolean;
   ctrl: boolean;

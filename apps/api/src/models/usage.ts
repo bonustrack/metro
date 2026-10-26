@@ -3,23 +3,11 @@ import { ApiError } from '@metro-labs/http/api-error';
 import type { AgentUsage, ConnectionUsage, ModelStats, ModelStatsScope, ModelTotals, ModelUsageStore } from '@metro-labs/connectors/db/model-call-stats';
 import type { ModelWindowRow } from '@metro-labs/connectors/db/model-calls';
 import { agentOf } from '../connectors/activity.js';
+import { RANGES, rangeOf, type StatsRange } from '../connectors/activity-stats.js';
 
-const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
 const TOP_CONNECTIONS = 8;
 const TOP_AGENTS = 20;
 const OTHER_KEY = '~other';
-
-const RANGES = {
-  '24h': { bucketMs: HOUR_MS, count: 24 },
-  '7d': { bucketMs: 6 * HOUR_MS, count: 28 },
-  '30d': { bucketMs: DAY_MS, count: 30 },
-  '90d': { bucketMs: DAY_MS, count: 90 },
-} as const;
-
-type UsageRange = keyof typeof RANGES;
-
-const DEFAULT_RANGE: UsageRange = '7d';
 
 interface Part {
   calls: number;
@@ -33,21 +21,12 @@ interface UsageBucket extends Part {
 }
 
 interface UsageAnswer {
-  range: UsageRange;
+  range: StatsRange;
   bucketMs: number;
   buckets: UsageBucket[];
   connections: ConnectionUsage[];
   agents: AgentUsage[];
   totals: ModelTotals;
-}
-
-const isRange = (value: string): value is UsageRange => Object.hasOwn(RANGES, value);
-
-function rangeOf(query: URLSearchParams): UsageRange {
-  const raw = query.get('range');
-  if (raw === null || raw === '') return DEFAULT_RANGE;
-  if (!isRange(raw)) throw new ApiError(`range must be one of ${Object.keys(RANGES).join(', ')}`, 400);
-  return raw;
 }
 
 function connectionOf(query: URLSearchParams): string | undefined {
@@ -58,7 +37,7 @@ function connectionOf(query: URLSearchParams): string | undefined {
   return id;
 }
 
-function scopeOf(owner: string, query: URLSearchParams, range: UsageRange, now: number): ModelStatsScope {
+function scopeOf(owner: string, query: URLSearchParams, range: StatsRange, now: number): ModelStatsScope {
   const { bucketMs, count } = RANGES[range];
   const to = Math.floor(now / bucketMs) * bucketMs + bucketMs;
   const agent = agentOf(query);

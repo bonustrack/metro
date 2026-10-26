@@ -217,7 +217,6 @@ async function prepareThreema(input: AttachInput): Promise<PreparedAccount> {
       },
     };
   } catch (err) {
-    if (err instanceof StationAttachError) throw err;
     return rejected(
       err,
       err instanceof ThreemaGatewayError,

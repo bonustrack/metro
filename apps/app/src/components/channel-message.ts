@@ -1,4 +1,4 @@
-export interface ChannelMessage {
+interface ChannelMessage {
   text: string;
   from: string | null;
   line: string | null;

@@ -3,7 +3,7 @@ import type { Database } from '@metro-labs/connectors/db/database';
 import { modelWindowsOf, saveModelWindows, type ModelWindow, type ModelWindowRow } from '@metro-labs/connectors/db/model-calls';
 import { noteUsage, usageOf, type UsageWindow } from '@metro-labs/inference/usage';
 
-export const SAVE_EVERY_MS = 10_000;
+const SAVE_EVERY_MS = 10_000;
 const DETAIL_MAX = 256;
 const LABEL_MAX = 128;
 const KNOWN_MAX = 10_000;

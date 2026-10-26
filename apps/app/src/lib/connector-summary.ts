@@ -8,7 +8,7 @@ import {
   asksAnywhere, countWords, ownRules, ownRulesSentence, paragraph, rulesClause, txt, unanimous, val, type GroupBases, type GroupWords, type RuledTool, type Segment,
 } from './rule-sentence.js';
 
-export interface SummaryPart {
+interface SummaryPart {
   label: string;
   choice: PermissionChoice;
 }
@@ -54,7 +54,7 @@ export function summaryText(summary: RuleSummary): string {
   return `Stricter on ${String(summary.count)} ${summary.count === 1 ? 'tool' : 'tools'}`;
 }
 
-export interface EffectiveRule {
+interface EffectiveRule {
   parts: SummaryPart[];
   tools: number;
 }

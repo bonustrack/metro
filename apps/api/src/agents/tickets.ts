@@ -5,7 +5,7 @@ const TICKET_MS = 10 * 60_000;
 const TICKETS_MAX = 1000;
 const TICKETS_PER_OWNER = 20;
 
-export interface EnrollTicket {
+interface EnrollTicket {
   owner: string;
   agent: string;
   userId: string;
@@ -16,7 +16,7 @@ interface Open<T> {
   expiresAt: number;
 }
 
-export interface TicketLimits {
+interface TicketLimits {
   what: string;
   ttlMs?: number;
 }

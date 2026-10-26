@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export interface ListStep {
+interface ListStep {
   cursor: number | null;
   open: number | null;
 }

@@ -6,7 +6,7 @@ import { timeoutSignal } from '../platform.js';
 
 export type DaemonState = 'live' | 'stopped' | 'offline';
 
-export interface Pace {
+interface Pace {
   everyMs: number;
   maxMs: number;
 }
@@ -40,7 +40,7 @@ export async function startDaemon(base = daemonBase()): Promise<void> {
   );
 }
 
-const daemonState = (base = daemonBase()): Promise<DaemonState> =>
+const daemonState = (base: string): Promise<DaemonState> =>
   fetchMode(base).then(
     (mode): DaemonState => (mode.stopped ? 'stopped' : 'live'),
     (): DaemonState => 'offline',

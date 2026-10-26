@@ -19,9 +19,8 @@ export interface BootView {
   at: string | null;
 }
 
-export interface InstanceView {
+interface InstanceView {
   state: string;
-  publicIp: string | null;
 }
 
 export interface LaunchOverview {
@@ -32,14 +31,11 @@ export interface LaunchOverview {
 export interface Launched {
   server: Server;
   host: string;
-  node: string;
   region: string;
-  zone: string | null;
 }
 
 const launchUrl = (): string => `${builtInDaemon()}/api/launch`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
-
 
 const STATES: StepState[] = ['pending', 'active', 'done', 'failed'];
 
@@ -67,16 +63,14 @@ export async function launchServer(name: string, region: string): Promise<Launch
   return {
     server: toServer(body.server),
     host: str(body.host),
-    node: str(body.node),
     region: str(body.region),
-    zone: filled(body.zone),
   };
 }
 
 export async function fetchInstanceView(serverId: string): Promise<InstanceView> {
   const body = await call({ method: 'GET', base: launchUrl(), path: `/${serverId}` });
   if (!isRecord(body)) throw unexpected();
-  return { state: str(body.state) || 'unknown', publicIp: filled(body.publicIp) };
+  return { state: str(body.state) || 'unknown' };
 }
 
 export async function fetchBootView(serverId: string): Promise<BootView> {

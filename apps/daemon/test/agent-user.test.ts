@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { agentUser, agentUserExpected, asUser, CLAUDE_ENV, claudeBin, forgetAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
+import { agentUser, agentUserExpected, asUser, forgetAgentUser, type AgentUser, type UserHost } from '../src/agent-user/user.ts';
 import { moveHome, receiveHomeFile, removeHome, writeHomeText } from '../src/agent-user/home-fs.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
 import { setupOf } from '@metro-labs/inference/delivered';
@@ -43,24 +43,6 @@ describe('which user Claude Code runs as', () => {
     expect(args).toContain('EXTRA=1');
     expect(args.find((a) => a.startsWith('PATH='))).toStartWith('PATH=/home/agent/.local/bin:');
     expect(args.slice(-4)).toEqual(['tmux', 'has-session', '-t', 'metro']);
-  });
-
-  test('Claude Code is the binary the Agent SDK bundles in the runner store, whichever libc build was installed', () => {
-    const owner: AgentUser = { ...AGENT, home: dir };
-    const modules = join(dir, '.metro', 'sdk-runner', 'node_modules', '@anthropic-ai');
-    const name = `claude-agent-sdk-${process.platform}-${process.arch}`;
-    const place = (pkg: string): string => {
-      mkdirSync(join(modules, pkg), { recursive: true });
-      writeFileSync(join(modules, pkg, 'claude'), '');
-      return join(modules, pkg, 'claude');
-    };
-    expect([join(modules, name, 'claude'), join(modules, `${name}-musl`, 'claude')]).toContain(claudeBin(owner));
-    const musl = place(`${name}-musl`);
-    expect(claudeBin(owner)).toBe(musl);
-    rmSync(join(modules, `${name}-musl`), { recursive: true });
-    const glibc = place(name);
-    expect(claudeBin(owner)).toBe(glibc);
-    expect(CLAUDE_ENV).toEqual({ DISABLE_AUTOUPDATER: '1' });
   });
 });
 

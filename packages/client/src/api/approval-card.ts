@@ -1,13 +1,13 @@
 import type { Approval } from './approvals.js';
-import { isRecord } from '../read.js';
+import { isRecord, str } from '../read.js';
 import { sizeLabel } from './when.js';
 
-export interface CardField {
+interface CardField {
   label: string;
   value: string;
 }
 
-export interface CardFile {
+interface CardFile {
   name: string;
   size: string | null;
 }
@@ -61,7 +61,6 @@ const TITLES: Record<string, string> = {
   group_info: 'Read the group details',
 };
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const shorten = (value: string, max: number): string => (value.length > max ? `${value.slice(0, max).trimEnd()}…` : value);
 
@@ -81,11 +80,11 @@ export function lineTarget(line: string): Target | null {
 }
 
 function targetOf(input: Record<string, unknown> | null): Target | null {
-  const fromLine = lineTarget(text(input?.line));
+  const fromLine = lineTarget(str(input?.line));
   if (fromLine !== null) return fromLine;
-  const station = text(input?.station);
+  const station = str(input?.station);
   if (station === '') return null;
-  const account = text(input?.account);
+  const account = str(input?.account);
   return { station, account: account === '' ? null : account, resource: '' };
 }
 
@@ -114,7 +113,7 @@ const baseName = (path: string): string => path.split(/[/\\]/).filter((part) => 
 function fileOf(raw: unknown, bytes: number | null): CardFile {
   const size = bytes === null ? null : sizeLabel(bytes);
   if (!isRecord(raw)) return { name: 'A file', size };
-  const name = text(raw.name) || baseName(text(raw.path)) || baseName(text(raw.url).split('?')[0] ?? '') || 'A file';
+  const name = str(raw.name) || baseName(str(raw.path)) || baseName(str(raw.url).split('?')[0] ?? '') || 'A file';
   return { name, size };
 }
 
@@ -133,13 +132,13 @@ function metroTitle(tool: string, target: Target | null): string {
 
 function emailFields(tool: string, target: Target | null, input: Record<string, unknown> | null): CardField[] {
   if (tool !== 'send' || target === null || !EMAIL.has(target.station) || !target.resource.includes('@')) return [];
-  const said = text(input?.text);
-  const subject = text(input?.subject).trim() || (said.split('\n')[0] ?? '').trim().slice(0, SUBJECT_MAX);
+  const said = str(input?.text);
+  const subject = str(input?.subject).trim() || (said.split('\n')[0] ?? '').trim().slice(0, SUBJECT_MAX);
   return [{ label: 'To', value: target.resource }, ...(subject === '' ? [] : [{ label: 'Subject', value: subject }])];
 }
 
 function bodyOf(tool: string, input: Record<string, unknown> | null): string | null {
-  const said = tool === 'react' || tool === 'unreact' ? text(input?.emoji) : text(input?.text);
+  const said = tool === 'react' || tool === 'unreact' ? str(input?.emoji) : str(input?.text);
   const flat = said.replace(/\s+/g, ' ').trim();
   return flat === '' ? null : shorten(flat, BODY_MAX);
 }

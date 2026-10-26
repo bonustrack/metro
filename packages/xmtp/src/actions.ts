@@ -10,7 +10,7 @@ import {
   type Attachment,
 } from '@xmtp/content-type-remote-attachment';
 import type { EncodedContent } from '@xmtp/content-type-primitives';
-import { convOf, type Account } from './accounts.js';
+import { accounts, openConv, type Account } from './accounts.js';
 import { resolveMsgId } from './wire.js';
 import { emitOutbound } from './emit.js';
 import { CallSignalCodec, FrameCodec, PollCodec, buildPollContent, encodeDeleteMessage } from './codecs.js';
@@ -25,12 +25,10 @@ import { claimNameAction, nameAction, setProfile } from './profile.js';
 import { profileAction } from './sender.js';
 import { resolveSenderAction } from './resolve.js';
 import { listChannels } from './channels.js';
-import { makeStation, respond, type CallMsg } from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond } from '@metro-labs/core/stations/station-runtime';
 
 type Args = Record<string, unknown>;
 
-const noConv = (line: string): TrainError =>
-  new TrainError('NOT_FOUND', `conversation not found for ${line}`);
 const badArgs = (message: string): TrainError =>
   new TrainError('INVALID_ARGS', message);
 
@@ -45,8 +43,7 @@ async function send(id: string, args: Args): Promise<void> {
     ...(args.frame === undefined ? [] : [framePart(args.frame)]),
     ...(args.wallet === undefined ? [] : [buildWalletContent(args.wallet)]),
   ];
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   let messageId: string | undefined;
   if (text || parts.length === 0) {
     messageId = await conv.sendText(text);
@@ -61,8 +58,7 @@ async function send(id: string, args: Args): Promise<void> {
 
 async function ask(id: string, args: Args): Promise<void> {
   const { line } = args as { line: string };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const mintedId = crypto.randomUUID();
   const { poll, title } = buildPollContent(args, mintedId);
   const sentId = await conv.send(new PollCodec().encode(poll));
@@ -85,8 +81,7 @@ async function react(id: string, args: Args): Promise<void> {
     emoji: string;
     action?: 'added' | 'removed';
   };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const xmtpMsgId = resolveMsgId(messageId);
   const removed = reactAction === 'removed';
   const sentId = await conv.sendReaction({
@@ -112,8 +107,7 @@ async function reply(id: string, args: Args): Promise<void> {
     replyTo: string;
     text: string;
   };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const { encodeText } = await import('@xmtp/node-bindings');
   const xmtpReplyTo = resolveMsgId(replyTo);
   const sentId = await conv.sendReply({
@@ -147,8 +141,7 @@ function assertDeletable(acct: Account, conv: Conversation, messageId: string): 
 
 async function remove(id: string, args: Args): Promise<void> {
   const { line, messageId } = args as { line: string; messageId: string };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const target = resolveMsgId(messageId);
   assertDeletable(acct, conv, target);
   const sentId = await conv.send(encodeDeleteMessage(target), { shouldPush: false });
@@ -158,8 +151,7 @@ async function remove(id: string, args: Args): Promise<void> {
 async function callSignal(id: string, args: Args): Promise<void> {
   const { line, signal } = args as { line: string; signal?: unknown };
   if (typeof signal !== 'object' || signal === null) throw badArgs('callSignal requires a signal object');
-  const { conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { conv } = await openConv(line);
   const messageId = await conv.send(new CallSignalCodec().encode(signal as Record<string, unknown>), { shouldPush: false });
   respond(id, { result: { messageId } });
 }
@@ -171,8 +163,7 @@ async function sendAttachment(id: string, args: Args): Promise<void> {
     mime: string;
     dataB64: string;
   };
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const sentId = await conv.sendAttachment({
     filename: name,
     mimeType: mime,
@@ -202,8 +193,7 @@ function imageFilename(path: string): string {
 async function sendImage(id: string, args: Args): Promise<void> {
   const { line, path } = args as { line: string; path?: string };
   if (!path) throw badArgs('sendImage requires path');
-  const { acct, conv } = await convOf(line);
-  if (!conv) throw noConv(line);
+  const { acct, conv } = await openConv(line);
   const { readFileSync } = await import('node:fs');
   const mime = imageMime(path);
   const fname = imageFilename(path);
@@ -217,8 +207,7 @@ async function sendImage(id: string, args: Args): Promise<void> {
   respond(id, { result: { messageId: sentId } });
 }
 
-async function accountsAction(id: string): Promise<void> {
-  const { accounts } = await import('./accounts.js');
+function accountsAction(id: string): Promise<void> {
   respond(id, {
     result: {
       accounts: [...accounts.values()].map((a) => ({
@@ -231,10 +220,11 @@ async function accountsAction(id: string): Promise<void> {
       })),
     },
   });
+  return Promise.resolve();
 }
 
 const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
-  accounts: (id) => accountsAction(id),
+  accounts: accountsAction,
   listChannels,
   set_profile: setProfile,
   claim_name: claimNameAction,
@@ -247,13 +237,11 @@ const handlers: Record<string, (id: string, args: Args) => Promise<void>> = {
   reply,
   delete: remove,
   callSignal,
-  callLeftovers: (id) => callLeftovers(id),
+  callLeftovers,
   sendAttachment,
   sendImage,
   ...convHandlers,
 };
-
-export type { CallMsg };
 
 export const handleCall = makeStation({
   handlers: Object.fromEntries(Object.entries(handlers).map(([action, handler]) => [

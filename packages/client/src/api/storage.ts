@@ -13,7 +13,7 @@ export interface GrowJob {
   error: string | null;
 }
 
-export interface DiskChange {
+interface DiskChange {
   state: string;
   progress: number;
   targetGib: number;

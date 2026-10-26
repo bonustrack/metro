@@ -13,12 +13,10 @@ const TOOL = {
 };
 
 describe('the public tool list', () => {
-  test('the page view carries no schema, and the agent view carries a redacted one', () => {
-    const [page] = publicTools([TOOL], SECRET);
-    expect(page).toEqual({ name: 'search', title: 'Search', description: 'Calls [address withheld] with [redacted]', readOnly: true });
-    const [agent] = publicTools([TOOL], SECRET, true);
-    expect(agent?.inputSchema).toEqual({ type: 'object', properties: { q: { type: 'string', description: 'see [redacted]', enum: ['[redacted]', 'plain'] } } });
-    expect(JSON.stringify(agent)).not.toMatch(/SECRET/);
+  test('the tool list carries a redacted schema', () => {
+    const [tool] = publicTools([TOOL], SECRET);
+    expect(tool).toEqual({ name: 'search', title: 'Search', description: 'Calls [address withheld] with [redacted]', readOnly: true, inputSchema: { type: 'object', properties: { q: { type: 'string', description: 'see [redacted]', enum: ['[redacted]', 'plain'] } } } });
+    expect(JSON.stringify(tool)).not.toMatch(/SECRET/);
   });
 
   test('a tool name carrying a credential fails the whole list', () => {

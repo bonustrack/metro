@@ -2,15 +2,15 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { pkcePair } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
-import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { ModelConnectionRow } from '@metro-labs/connectors/db/models';
 import { modelDetailOf, modelDetailText, sealModelSecret } from '@metro-labs/connectors/model-secret';
 import { isoNow, modelKey, type Caller, type ModelsDeps, type OpenRouterPending } from './deps.js';
 import { connectionArg, labelFor, newModelRow } from './input.js';
 import { roomFor } from './manage.js';
+import { returnToOf as pageReturnTo } from '../connectors/sign-in.js';
 
 export const OPENROUTER_CALLBACK = 'https://api.metro.box/api/models/openrouter/callback';
-export const DEFAULT_RETURN = 'https://metro.box/';
+const DEFAULT_RETURN = 'https://metro.box/';
 const OPENROUTER_AUTH = 'https://openrouter.ai/auth';
 const OPENROUTER_KEYS = 'https://openrouter.ai/api/v1/auth/keys';
 const KEY_MAX = 512;
@@ -18,12 +18,7 @@ const STALE = 'This OpenRouter sign-in expired or was already used. Start again.
 const FAILED = 'OpenRouter sign-in did not finish. Try again or use an API key. Manage any unused key in OpenRouter.';
 const CHANGED = 'This connection changed during sign-in. Start again.';
 
-function returnToOf(raw: unknown): string {
-  if (raw === undefined || raw === null || raw === '') return DEFAULT_RETURN;
-  const returnTo = typeof raw === 'string' ? raw.trim() : '';
-  if (isAppReturn(returnTo) || !validateReturnTo(returnTo)) throw new ApiError('that return address is not one Metro will send you back to', 400);
-  return returnTo;
-}
+const returnToOf = (raw: unknown): string => (raw === undefined || raw === null || raw === '' ? DEFAULT_RETURN : pageReturnTo(raw));
 
 async function revisionOf(deps: ModelsDeps, owner: string, connection: string | null): Promise<number | null> {
   if (connection === null) return null;

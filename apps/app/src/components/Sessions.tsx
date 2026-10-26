@@ -12,17 +12,12 @@ import { StateBlock } from './ui/StateBlock.js';
 import { Item } from './ui/Item.js';
 import { routeHash } from '@metro-labs/client/route';
 import { type Selection } from '@metro-labs/client/selection';
-import { type ClaudeSession } from '@metro-labs/client/api/claude';
 import { queryError, useClaudeSessionsQuery } from '../lib/queries.js';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { useDocumentTitle } from '../lib/title.js';
 import { go } from '../lib/nav.js';
 
 const LABEL = 'Conversations';
-
-function SessionRow({ session, target }: { session: ClaudeSession; target: Selection }): ReactNode {
-  return <Item title={sessionTitle(session)} subtitle={session.lastAt === null ? undefined : whenLabel(session.lastAt)} href={routeHash(target)} />;
-}
 
 function SessionList({ project, claudeProject }: { project: string; claudeProject: string }): ReactNode {
   const { data, error, refetch } = useClaudeSessionsQuery(claudeProject);
@@ -32,7 +27,7 @@ function SessionList({ project, claudeProject }: { project: string; claudeProjec
   return (
     <Group>
       {data.map((s) => (
-        <SessionRow key={s.id} session={s} target={{ kind: 'sessions', project, claudeProject, id: s.id }} />
+        <Item key={s.id} title={sessionTitle(s)} subtitle={s.lastAt === null ? undefined : whenLabel(s.lastAt)} href={routeHash({ kind: 'sessions', project, claudeProject, id: s.id })} />
       ))}
     </Group>
   );

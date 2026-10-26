@@ -3,7 +3,7 @@ import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
 import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
-import { agentConnectors, connectorsSentence, type AgentConnector } from './catalog.js';
+import { agentConnectors, connectorsSentence, visibleConnectors, type AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
 import { argsDigest, previewOf } from './digest.js';
@@ -36,18 +36,18 @@ interface CallContext {
 
 const AGAIN = (id: string): string => `call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer.`;
 
-export function needsApprovalText(name: string, id: string, place: ApprovalPlace = 'session'): string {
+function needsApprovalText(name: string, id: string, place: ApprovalPlace = 'session'): string {
   if (place === 'page')
     return `The owner must approve ${name} with these arguments first (approval ${id}), on this agent's page on metro.box. Tell the person what is waiting and ask them to approve it there. Once it is approved, ${AGAIN(id)}`;
   if (place === 'owner')
     return `The owner must approve ${name} with these arguments first (approval ${id}). The agent's owner was asked in chat and on its page on metro.box. Tell the person what is waiting. Once it is approved, ${AGAIN(id)}`;
-  return `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer. Do not ask the owner to approve it in the terminal.`;
+  return `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
 }
 
 const SUGGESTIONS = 3;
 
 async function usableNames(ctx: CallContext, within: AgentConnector | undefined): Promise<string[]> {
-  const pool = within === undefined ? ctx.connectors.filter((connector) => !connector.access.blocked) : [within];
+  const pool = within === undefined ? visibleConnectors(ctx.connectors) : [within];
   const lists = await Promise.all(
     pool.map(async (connector) => {
       const tools = await connectorTools(ctx.deps, ctx.identity, connector).catch(() => []);

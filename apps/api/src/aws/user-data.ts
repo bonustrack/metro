@@ -13,7 +13,7 @@ const METRO_HOME = '/var/lib/metro';
 const PREFIX = `${METRO_HOME}/.npm-global`;
 const AGENTS = `${METRO_HOME}/.metro/agents`;
 
-export interface BoxSpec {
+interface BoxSpec {
   hostname: string;
   node: string;
   owner: string;

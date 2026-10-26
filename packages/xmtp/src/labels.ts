@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { TrainError } from '@metro-labs/core/train-error';
 
 export interface GroupLike {
@@ -41,10 +42,10 @@ export function readAppDataObject(
 ): Record<string, unknown> {
   if (!existingAppData?.trim()) return {};
   const parsed: unknown = JSON.parse(existingAppData);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  if (!isRecord(parsed)) {
     throw new TrainError('INVALID_ARGS', 'Channel appData must be a JSON object');
   }
-  return parsed as Record<string, unknown>;
+  return parsed;
 }
 
 export function normalizeAssigned(value: unknown): string[] {
@@ -62,14 +63,13 @@ export function normalizeAssigned(value: unknown): string[] {
 }
 
 export function metadataPatch(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isRecord(value)) {
     throw new TrainError('INVALID_ARGS', 'metadata must be a JSON object');
   }
-  const patch = value as Record<string, unknown>;
-  if (Object.hasOwn(patch, 'v')) {
+  if (Object.hasOwn(value, 'v')) {
     throw new TrainError('INVALID_ARGS', 'metadata cannot change the reserved v field');
   }
-  return patch;
+  return value;
 }
 
 function trimmedString(v: unknown): string | undefined {
@@ -94,9 +94,8 @@ export function readAppData(appData: string | undefined): {
 } {
   if (!appData?.trim()) return { labels: [] };
   try {
-    const p: unknown = JSON.parse(appData);
-    if (!p || typeof p !== 'object' || Array.isArray(p)) return { labels: [] };
-    const rec = p as Record<string, unknown>;
+    const rec: unknown = JSON.parse(appData);
+    if (!isRecord(rec)) return { labels: [] };
     return {
       labels: cleanLabels(rec.labels),
       category: cleanMetadataText(rec.category),

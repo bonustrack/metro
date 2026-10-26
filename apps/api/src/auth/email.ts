@@ -4,7 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readJsonBody } from '@metro-labs/http/api-http';
 import type { Intent } from './operator.js';
-import { exchangeMagicCode, sendMagicCode, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
+import { configOf, exchangeMagicCode, sendMagicCode, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
 
 const INVITATION_RE = /^[A-Za-z0-9_-]{8,200}$/;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
@@ -42,12 +42,6 @@ function spend(map: Map<string, number[]>, key: string, limit: number, now: numb
     map.delete(first);
   }
   return true;
-}
-
-function configOf(deps: EmailDeps): WorkosConfig {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  return cfg;
 }
 
 interface EmailBody {

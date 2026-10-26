@@ -3,7 +3,7 @@ import type { Database } from '@metro-labs/connectors/db/database';
 import { isUndefinedTable } from '@metro-labs/connectors/db/errors';
 import { recordModelCalls, type NewModelCall } from '@metro-labs/connectors/db/model-calls';
 
-export const FLUSH_MS = 2_000;
+const FLUSH_MS = 2_000;
 export const BATCH_MAX = 100;
 const QUEUE_MAX = 10_000;
 

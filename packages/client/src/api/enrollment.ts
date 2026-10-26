@@ -6,7 +6,7 @@ import type { BoxServer } from './servers.js';
 import { toMode } from './mode.js';
 import { olderThan } from './version.js';
 
-export interface EnrollmentResult {
+interface EnrollmentResult {
   server: string;
   organization: string;
 }

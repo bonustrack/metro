@@ -10,8 +10,6 @@ import {
 
 const KEEPALIVE_MS = 25_000;
 
-const monitorEnabled = (): boolean => hasAnyKey();
-
 function cors(req: IncomingMessage): Record<string, string> {
   return {
     'access-control-allow-origin': req.headers.origin ?? '*',
@@ -104,7 +102,7 @@ function routeApi(
 }
 
 function preflight(req: IncomingMessage, res: ServerResponse): boolean {
-  if (!monitorEnabled()) {
+  if (!hasAnyKey()) {
     sendJson(res, req, 404, { error: 'not found' });
     return true;
   }

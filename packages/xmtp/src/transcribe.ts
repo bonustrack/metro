@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { errMsg } from '@metro-labs/core/log';
 import { emitInbound, selfUri } from '@metro-labs/core/stations/train-events';
 import { mintId } from '@metro-labs/core/stations/station-runtime';
@@ -8,59 +12,32 @@ const WHISPER_MODEL =
   `${process.env.HOME}/.cache/whisper-cpp/ggml-base.bin`;
 const FFMPEG_BIN = process.env.METRO_FFMPEG_BIN ?? 'ffmpeg';
 
+const run = (bin: string, args: string[]): Promise<void> =>
+  new Promise((res, rej) => {
+    const p = spawn(bin, args, { stdio: 'ignore' });
+    p.on('error', rej);
+    p.on('exit', (c) => {
+      if (c === 0) res();
+      else rej(new Error(`${bin} ${String(c)}`));
+    });
+  });
+
 export async function transcribeAndEmit(
   audio: Uint8Array,
   line: string,
   accountId: string,
   sourceMsgId: string,
 ): Promise<void> {
-  const {
-    existsSync: ex,
-    readFileSync: rf,
-    writeFileSync: wf,
-    unlinkSync,
-    mkdtempSync,
-  } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const path = await import('node:path');
-  const j = (...parts: string[]): string => path.join(...parts);
-  const { spawn } = await import('node:child_process');
-  if (!ex(WHISPER_MODEL)) return;
-  const dir = mkdtempSync(j(tmpdir(), 'xmtp-tx-'));
-  const inFile = j(dir, 'in.m4a');
-  const wav = j(dir, 'in.wav');
-  const out = j(dir, 'in');
-  const run = (bin: string, args: string[]): Promise<void> =>
-    new Promise((res, rej) => {
-      const p = spawn(bin, args, { stdio: 'ignore' });
-      p.on('error', rej);
-      p.on('exit', (c) => {
-        if (c === 0) res();
-        else rej(new Error(`${bin} ${String(c)}`));
-      });
-    });
+  if (!existsSync(WHISPER_MODEL)) return;
+  const dir = mkdtempSync(join(tmpdir(), 'xmtp-tx-'));
+  const inFile = join(dir, 'in.m4a');
+  const wav = join(dir, 'in.wav');
+  const out = join(dir, 'in');
   try {
-    wf(inFile, audio);
-    await run(FFMPEG_BIN, [
-      '-y',
-      '-i',
-      inFile,
-      '-ar',
-      '16000',
-      '-ac',
-      '1',
-      wav,
-    ]);
-    await run(WHISPER_BIN, [
-      '-m',
-      WHISPER_MODEL,
-      '-f',
-      wav,
-      '--output-txt',
-      '-of',
-      out,
-    ]);
-    const text = rf(`${out}.txt`, 'utf8').trim();
+    writeFileSync(inFile, audio);
+    await run(FFMPEG_BIN, ['-y', '-i', inFile, '-ar', '16000', '-ac', '1', wav]);
+    await run(WHISPER_BIN, ['-m', WHISPER_MODEL, '-f', wav, '--output-txt', '-of', out]);
+    const text = readFileSync(`${out}.txt`, 'utf8').trim();
     if (!text) return;
     emitInbound(accountId, {
       id: mintId(),

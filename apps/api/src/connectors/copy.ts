@@ -9,7 +9,7 @@ import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
 import { userMemberships, type UserOrganization, type WorkosConfig } from '../auth/workos.js';
-import { CONNECTORS_MAX, type ActionDeps, type Caller } from './actions.js';
+import { at, CONNECTORS_MAX, type ActionDeps, type Caller } from './actions.js';
 import { connectorView, type ConnectorView } from './model.js';
 
 export interface CopyDeps extends ActionDeps {
@@ -98,7 +98,7 @@ export async function copyConnector(deps: CopyDeps, caller: Caller, id: string, 
   if (!admins.has(caller.owner) || !admins.has(input.organization)) throw new ApiError('Copying a connector needs active admin membership in both organizations.', 403);
   const key = sealingKey(deps);
   if ((await deps.store.count(input.organization)) >= CONNECTORS_MAX) throw new ApiError(`An organization keeps at most ${String(CONNECTORS_MAX)} connectors. Remove one first.`, 400);
-  const now = new Date(deps.now()).toISOString();
+  const now = at(deps);
   const row = await deps.store.copy(caller.owner, id, (source) => copiedRow(key, source, caller, input, now, deps.httpsOnly));
   return { organization: input.organization, connector: connectorView(row, []) };
 }

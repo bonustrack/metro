@@ -107,10 +107,6 @@ function ActivityLink(): ReactNode {
   );
 }
 
-function SearchAgents(): ReactNode {
-  return <RoundButton label="Jump" icon="search" onPress={openJump} />;
-}
-
 function NewAgent(): ReactNode {
   if (!mayAddAgent(activeAccount()?.role)) return null;
   return <RoundButton label="New agent" icon="plus" onPress={() => { go({ kind: 'launch' }); }} />;
@@ -129,7 +125,7 @@ export function AgentList({ pane, selected = null }: { pane: boolean; selected?:
 function AgentsRoot(): ReactNode {
   useDocumentTitle('Agents');
   return (
-    <TabRoot title="Agents" action={<><SearchAgents /><NewAgent /></>}>
+    <TabRoot title="Agents" action={<><RoundButton label="Jump" icon="search" onPress={openJump} /><NewAgent /></>}>
       <Body pane={false} selected={null} />
     </TabRoot>
   );

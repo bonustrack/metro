@@ -2,7 +2,7 @@ import type { ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { Attempt, inAttempt, tracked, type AttemptCall, type OnCall } from './attempts.js';
 import type { RequestKind } from './effort.js';
-import { GatewayError, SubscriptionRefused } from './forward.js';
+import { GatewayError } from './forward.js';
 import type { Route } from './model-config.js';
 
 const MESSAGES = '/v1/messages';
@@ -15,8 +15,7 @@ export interface Asked {
 
 function statusOf(failure: unknown, res: ServerResponse): number {
   if (failure === null) return res.statusCode;
-  if (failure instanceof GatewayError) return failure.status;
-  return failure instanceof SubscriptionRefused ? 401 : 502;
+  return failure instanceof GatewayError ? failure.status : 502;
 }
 
 function report(onCall: OnCall, call: AttemptCall): void {

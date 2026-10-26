@@ -12,7 +12,7 @@ export interface AgentPage {
   deep?: boolean;
 }
 
-export interface AgentTab {
+interface AgentTab {
   id: AgentTabId;
   label: string;
   target: (project: string) => Selection;

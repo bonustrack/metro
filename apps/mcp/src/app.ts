@@ -19,7 +19,7 @@ import { Waiters } from './waiters.js';
 
 const APPROVAL_POLL_MS = 1000;
 
-export interface AppSetup {
+interface AppSetup {
   key: Buffer;
   db: () => Database;
   publicHost: string;

@@ -1,4 +1,5 @@
 import { mintId } from '../ids.js';
+import { isRecord } from '../is-record.js';
 import { Line } from '../lines.js';
 import { TrainError } from '../train-error.js';
 import { capText } from './mail-text.js';
@@ -47,7 +48,7 @@ export interface ReadQuery {
   limit: number;
 }
 
-export const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 50;
 const SEEN_MAX = 500;
 const SUBJECT_MAX = 255;
@@ -160,7 +161,7 @@ export function subjectOf(station: MailStation, subject: string, text: string): 
 
 export const filesOf = (raw: unknown): OutgoingFile[] =>
   (Array.isArray(raw) ? raw : [])
-    .map((a) => (a ?? {}) as Record<string, unknown>)
+    .filter(isRecord)
     .filter((a) => typeof a.path === 'string' && a.path !== '')
     .map((a) => ({
       path: String(a.path),

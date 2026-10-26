@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { connectorName } from '@metro-labs/http/connector-input';
-import {
-  connectorUrlText,
-  parseConnectorUrl,
-} from '@metro-labs/http/connector-url';
-
-const stored = (raw: string): string => connectorUrlText(parseConnectorUrl(raw));
 
 describe('a connector name is a label, not an identifier', () => {
   test('spaces, punctuation and unicode all survive', () => {
@@ -31,35 +25,5 @@ describe('a connector name is a label, not an identifier', () => {
   test('it is capped, so a row cannot carry an essay', () => {
     expect(connectorName('a'.repeat(64))).toHaveLength(64);
     expect(() => connectorName('a'.repeat(65))).toThrow('64 characters or fewer');
-  });
-});
-
-describe('a stored url keeps the shape it was given', () => {
-  test('a bare host is not given a trailing slash', () => {
-    expect(stored('https://mysql-mcp.snapshot.box')).toBe(
-      'https://mysql-mcp.snapshot.box',
-    );
-  });
-
-  test('a host typed with a trailing slash settles on the same value', () => {
-    expect(stored('https://mysql-mcp.snapshot.box/')).toBe(
-      'https://mysql-mcp.snapshot.box',
-    );
-  });
-
-  test('a real path is left exactly alone', () => {
-    expect(stored('https://mcp.linear.app/mcp')).toBe('https://mcp.linear.app/mcp');
-    expect(stored('https://example.com/mcp/')).toBe('https://example.com/mcp/');
-  });
-
-  test('a query survives, slash and all, because stripping it would move the target', () => {
-    expect(stored('https://example.com/?tenant=acme')).toBe(
-      'https://example.com/?tenant=acme',
-    );
-  });
-
-  test('what it returns still parses, so a re-check reaches the same host', () => {
-    const text = stored('https://mysql-mcp.snapshot.box');
-    expect(parseConnectorUrl(text).hostname).toBe('mysql-mcp.snapshot.box');
   });
 });

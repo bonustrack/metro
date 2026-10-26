@@ -65,9 +65,8 @@ function forwardArgs(a: Record<string, unknown>): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   const members = strList(a.members);
   if (members.length) args.members = members;
-  for (const key of ['name', 'account', 'parent', 'addresses', 'inboxIds'])
+  for (const key of ['name', 'account', 'parent', 'addresses', 'inboxIds', 'private'])
     if (a[key] !== undefined) args[key] = a[key];
-  if (a.private !== undefined) args.private = a.private;
   return args;
 }
 

@@ -27,7 +27,7 @@ export async function startPairAgain(
   return { kind: 'pending', session: toSession(body) };
 }
 
-export interface ConnectionWords {
+interface ConnectionWords {
   title: string;
   note: string;
   tone: 'default' | 'secondary' | 'danger';

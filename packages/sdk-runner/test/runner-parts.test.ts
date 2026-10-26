@@ -66,7 +66,7 @@ describe('the session watch', () => {
   const toolUse = (id: string, name: string): Record<string, unknown> => ({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name }], usage: { input_tokens: 10, cache_read_input_tokens: 1000, cache_creation_input_tokens: 5 } } });
   const toolResult = (id: string): Record<string, unknown> => ({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: id }] } });
 
-  test('holds a priority push while the front runs a metro write, never for reads or worker calls', async () => {
+  test('holds a priority push while the front runs a metro write, never for reads or worker calls', () => {
     const watch = new SessionWatch((tool) => tool === 'read');
     watch.observe(toolUse('t1', 'mcp__metro__read'));
     watch.observe({ ...toolUse('t2', 'mcp__metro__send'), parent_tool_use_id: 'toolu_worker' });
@@ -74,37 +74,19 @@ describe('the session watch', () => {
     watch.observe(toolUse('t3', 'mcp__metro__send'));
     expect(watch.writing).toBe(true);
     expect(watch.context).toBe(1015);
-    let released = false;
-    const waiting = watch.whenNotWriting().then(() => {
-      released = true;
-    });
-    await Bun.sleep(20);
-    expect(released).toBe(false);
     watch.observe(toolResult('t3'));
-    await waiting;
-    expect(released).toBe(true);
+    expect(watch.writing).toBe(false);
   });
 
-  test('waits for evidence that writes and compaction ended, never an elapsed cap', async () => {
+  test('a write and compaction end only on evidence that they ended', () => {
     const watch = new SessionWatch(() => false);
     watch.observe(toolUse('t1', 'mcp__metro__send'));
-    let written = false;
-    const writing = watch.whenNotWriting().then(() => { written = true; });
-    await Bun.sleep(50);
-    expect(written).toBe(false);
+    expect(watch.writing).toBe(true);
     watch.observe(toolResult('t1'));
-    await writing;
+    expect(watch.writing).toBe(false);
     watch.observe({ type: 'system', subtype: 'status', status: 'compacting' });
     expect(watch.compacting).toBe(true);
-    let after = false;
-    const held = watch.whenNotCompacting().then(() => {
-      after = true;
-    });
-    await Bun.sleep(20);
-    expect(after).toBe(false);
     watch.observe({ type: 'system', subtype: 'compact_boundary' });
-    await held;
-    expect(after).toBe(true);
     expect(watch.compacting).toBe(false);
     expect(watch.context).toBe(0);
     watch.observe({ type: 'result' });

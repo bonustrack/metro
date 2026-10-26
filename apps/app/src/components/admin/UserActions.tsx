@@ -47,7 +47,7 @@ export function useUserActions(): UserActions {
   };
 }
 
-export function userMenuItems(user: UserRow, actions: UserActions): MenuItem[] {
+function userMenuItems(user: UserRow, actions: UserActions): MenuItem[] {
   return [
     { label: `Open ${userName(user)}`, icon: 'arrowRight', onSelect: () => { goHash(routeHash({ kind: 'admin-user', id: user.id })); } },
     ...(mayApprove(user) ? [{ label: 'Approve', icon: 'checkCircle' as const, onSelect: () => { actions.approve(user); } }] : []),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  CHOICE_WORD, GROUP_WORD, MIXED_WORD, PERMISSION_CHOICES, accessOfChoice, apiGroupOf, choiceOf, choiceOfAccess, choiceStates, groupValue, looserThan, permissionGroupOf, strictest, valueWord,
+  CHOICE_WORD, GROUP_WORD, MIXED_WORD, PERMISSION_CHOICES, accessOfChoice, choiceOfAccess, choiceStates, groupValue, looserThan, permissionGroupOf, strictest,
 } from '../src/lib/permission-words.ts';
 
 describe('the one permission vocabulary', () => {
@@ -18,21 +18,10 @@ describe('the one permission vocabulary', () => {
     for (const choice of PERMISSION_CHOICES) expect(choiceOfAccess(accessOfChoice(choice))).toBe(choice);
   });
 
-  test('an unknown or missing value reads as no choice', () => {
-    expect(choiceOf('deny')).toBe('block');
-    expect(choiceOf('block')).toBe('block');
-    expect(choiceOf('ask')).toBe('ask');
-    expect(choiceOf(undefined)).toBeNull();
-    expect(choiceOf('maybe')).toBeNull();
-  });
-
   test('a group is mixed when its tools differ, and empty when it has none', () => {
     expect(groupValue(['ask', 'ask'])).toBe('ask');
     expect(groupValue(['allow', 'block'])).toBe('mixed');
     expect(groupValue([])).toBeNull();
-    expect(valueWord('mixed')).toBe('Mixed');
-    expect(valueWord('block')).toBe('Block');
-    expect(valueWord(null)).toBeNull();
   });
 
   test('the strictest choice wins, as the daemon decides', () => {
@@ -49,8 +38,6 @@ describe('the one permission vocabulary', () => {
     expect(permissionGroupOf({ group: 'read', destructive: true })).toBe('read');
     expect(permissionGroupOf({ group: 'write' })).toBe('write');
     expect(permissionGroupOf({ group: 'write', destructive: true })).toBe('delete');
-    expect(apiGroupOf('delete')).toBe('write');
-    expect(apiGroupOf('read')).toBe('read');
   });
 });
 

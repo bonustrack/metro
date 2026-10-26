@@ -103,12 +103,6 @@ export class RunnerCalls {
     const active = this.active;
     if (active === null || active.sources.has(source.sourceId) || active.sources.size >= SOURCES_MAX) return;
     active.sources.add(source.sourceId);
-    this.enqueue(text);
-  }
-
-  private enqueue(text: string): void {
-    const active = this.active;
-    if (active === null) return;
     try {
       active.inputs.push(this.inbox.push('call', text));
     } catch {

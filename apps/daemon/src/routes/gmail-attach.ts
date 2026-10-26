@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ApiError } from '@metro-labs/http/api-error';
 import { stringOf } from '@metro-labs/http/api-http';
+import { isRecord } from '@metro-labs/core/is-record';
 import { publicBaseUrl } from '../files/attach-serve.js';
 import { localOwner, readLocalAgentFile, localRenewGmail } from '../agents/file-admin.js';
 import { startManagedGmail } from '../stations/attach-gmail.js';
@@ -57,9 +58,8 @@ export const startGmailAttach: StartAttach = async (_station, input, hooks, owne
 };
 
 export function finishGmailUpgrade(owner: AttachOwner, config: Record<string, unknown>): ReturnType<typeof localRenewGmail> | null {
-  const value = config.gmailUpgrade;
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  const upgrade = value as Record<string, unknown>;
+  const upgrade = config.gmailUpgrade;
+  if (!isRecord(upgrade)) return null;
   assertGmailNotDeleting(owner.agentId, stringOf(upgrade.accountId));
   const saved = { ...config };
   delete saved.gmailUpgrade;

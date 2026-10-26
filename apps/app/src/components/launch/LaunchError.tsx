@@ -6,7 +6,7 @@ import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-
 import { Icon } from '../Icon.js';
 import { TechnicalLog } from './LaunchFrame.js';
 
-export interface ErrorAction {
+interface ErrorAction {
   label: string;
   note?: string;
   busy?: boolean;

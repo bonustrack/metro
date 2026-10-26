@@ -23,7 +23,7 @@ export interface PreparedRuntime {
   manifest: string;
 }
 
-export interface PrepareOptions {
+interface PrepareOptions {
   sources?: string;
   store?: string;
   agents?: string;

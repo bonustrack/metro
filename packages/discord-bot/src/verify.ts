@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { API } from './api-base.js';
 
 export class DiscordTokenError extends Error {}
@@ -25,9 +26,7 @@ function botFetch(token: string, path: string): Promise<Response> {
 async function readJson(res: Response): Promise<Record<string, unknown>> {
   try {
     const body: unknown = await res.json();
-    return typeof body === 'object' && body !== null
-      ? (body as Record<string, unknown>)
-      : {};
+    return isRecord(body) ? body : {};
   } catch {
     throw new DiscordTokenError('Discord returned a response Metro could not read');
   }

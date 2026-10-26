@@ -36,7 +36,7 @@ export function pkcePair(verifier = randomBytes(32).toString('base64url')): Pkce
   return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') };
 }
 
-export const newState = (): string => randomBytes(24).toString('base64url');
+const newState = (): string => randomBytes(24).toString('base64url');
 
 export function parseMailbox(value: unknown): string | null {
   const mailbox = (typeof value === 'string' ? value.trim() : '').toLowerCase();

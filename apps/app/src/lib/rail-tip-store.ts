@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export interface RailTipState {
+interface RailTipState {
   label: string;
   shortcut?: string;
   x: number;

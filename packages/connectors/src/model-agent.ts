@@ -11,7 +11,7 @@ export interface AccountView {
   method: CodexMethod | null;
 }
 
-export type Credential = { apiKey: string } | { claudeToken: string } | { accessToken: string; expiresAt: number; method: CodexMethod; accountId: string | null } | null;
+type Credential = { apiKey: string } | { claudeToken: string } | { accessToken: string; expiresAt: number; method: CodexMethod; accountId: string | null } | null;
 
 export interface AgentConnection {
   id: string;
@@ -27,7 +27,7 @@ export interface AgentConnection {
   credential: Credential;
 }
 
-export type CredentialKind = 'key' | 'subscription' | 'codex';
+type CredentialKind = 'key' | 'subscription' | 'codex';
 
 export const accountOf = (detail: ModelDetail): AccountView => ({ email: detail.email ?? null, plan: detail.plan ?? null, method: detail.method ?? null });
 

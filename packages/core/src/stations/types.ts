@@ -82,7 +82,7 @@ export interface MemberOutcome {
   reason?: string;
 }
 
-export interface GroupCapability {
+interface GroupCapability {
   supported: boolean;
   reason?: string;
 }
@@ -98,7 +98,7 @@ export interface GroupResult {
 
 export type ReadFilter = 'account' | 'query' | 'from' | 'until' | 'unread_only' | 'message_id';
 
-export type AttachmentMode = 'canonical' | 'native' | 'none';
+type AttachmentMode = 'canonical' | 'native' | 'none';
 
 export interface Station {
   name: string;

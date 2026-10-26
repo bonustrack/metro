@@ -22,7 +22,7 @@ const LABELS: Record<ModelProvider, string> = {
 };
 const SUBSCRIPTION_LABEL = 'Claude subscription';
 
-const bad = (message: string): ApiError => new ApiError(message, 400);
+export const bad = (message: string): ApiError => new ApiError(message, 400);
 
 export function labelFor(taken: ModelConnectionRow[], provider: ModelProvider, given: string, subscription = false): string {
   if (given !== '') return given;

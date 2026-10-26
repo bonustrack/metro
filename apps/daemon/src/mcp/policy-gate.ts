@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { str } from '@metro-labs/core/str';
 import type { ToolResult } from '@metro-labs/core/stations/types';
 import { accountFromLine, knownAccounts } from '../agents/map.js';
@@ -22,7 +23,7 @@ function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget
   if (UNGATED.has(name)) return [];
   if (name === 'get_profile') {
     const line = profileScopeLine(a);
-    return line === undefined ? [] : fromLine(line, undefined);
+    return line === undefined ? [] : fromLine(line);
   }
   const account = str(a.account);
   if (name === 'list_channels') return accountTargets(name, { account });
@@ -79,10 +80,8 @@ function effectivePolicy(target: ChannelTarget): EffectivePolicy {
 export function withEffectivePolicy(byStation: Record<string, unknown[]>): Record<string, unknown[]> {
   const out: Record<string, unknown[]> = {};
   for (const [station, rows] of Object.entries(byStation))
-    out[station] = rows.map((row) => {
-      if (typeof row !== 'object' || row === null || Array.isArray(row)) return row;
-      const id = (row as { id?: unknown }).id;
-      return typeof id === 'string' ? { ...row, policy: effectivePolicy({ kind: 'channel', station, account: id }) } : row;
-    });
+    out[station] = rows.map((row) =>
+      isRecord(row) && typeof row.id === 'string' ? { ...row, policy: effectivePolicy({ kind: 'channel', station, account: row.id }) } : row,
+    );
   return out;
 }

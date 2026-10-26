@@ -101,7 +101,7 @@ function Jobs({ project }: { project: string }): ReactNode {
   return (
     <>
       {memoryOn === null ? null : <MemoryRow on={memoryOn} job={setup.data?.memoryJob ?? null} routine={routine} project={project} />}
-      {jobs.map((job) => <RoutineRow key={job.id} job={job} project={project} agentUser={schedules.data?.agentUser ?? 'agent'} />)}
+      {jobs.map((job) => <RoutineRow key={job.id} job={job} project={project} agentUser={schedules.data.agentUser ?? 'agent'} />)}
       {jobs.length === 0 && memoryOn === null ? <NoRoutine /> : null}
     </>
   );

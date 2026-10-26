@@ -1,3 +1,4 @@
+import { errMsg } from '@metro-labs/core/log';
 import type { Account } from './accounts.js';
 import { emitInbound } from '@metro-labs/core/stations/train-events';
 import {
@@ -22,7 +23,7 @@ function askForRoster(acct: Account, group: GroupRef): void {
   if (acct.groups.get(group) !== undefined || acct.requestedRosters.has(key)) return;
   acct.requestedRosters.add(key);
   requestSync(acct, group).catch((err: unknown) => {
-    process.stderr.write(`threema[${acct.cfg.id}]: could not ask ${group.creator} for the group roster: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`threema[${acct.cfg.id}]: could not ask ${group.creator} for the group roster: ${errMsg(err)}\n`);
   });
 }
 

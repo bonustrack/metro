@@ -11,7 +11,7 @@ import { isMetroNotice } from './notice.js';
 import { replyMeta } from './addressed.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
-  capSet,
+  capSize,
   displayNameMeta,
   missingAttachmentNames,
   senderMeta,
@@ -76,7 +76,7 @@ export class InboundRelay {
   noteSent(messageId: string): void {
     if (!messageId) return;
     this.sentIds.add(messageId);
-    capSet(this.sentIds, SENT_IDS_MAX);
+    capSize(this.sentIds, SENT_IDS_MAX);
   }
 
   private notify(method: string, params: Record<string, unknown>): Promise<void> {
@@ -283,7 +283,7 @@ export class InboundRelay {
     }
     if (!base.line) return;
     this.allowedLines.add(base.line);
-    capSet(this.allowedLines, ALLOWED_LINES_MAX);
+    capSize(this.allowedLines, ALLOWED_LINES_MAX);
   }
 
   private droppedSender(ev: Record<string, unknown>, from: string, line: string): boolean {

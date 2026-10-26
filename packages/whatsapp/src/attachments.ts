@@ -8,8 +8,6 @@ import { TrainError } from '@metro-labs/core/train-error';
 import { baileysLogger } from './logger.js';
 import type { WAMediaRef } from './media.js';
 
-export type { SavedAttachment };
-
 const IDLE_TIMEOUT_MS = 60_000;
 
 export type ReuploadRequest = (m: WAMessage) => Promise<WAMessage>;

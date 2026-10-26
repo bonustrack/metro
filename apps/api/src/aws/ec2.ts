@@ -260,7 +260,7 @@ export async function describeInstanceTypes(credentials: AwsCredentials, region:
   throw new AwsError('TooManyPages', `EC2 listed the instance types of ${region} in more than ${String(TYPE_PAGES_MAX)} pages.`, 'ec2:DescribeInstanceTypes');
 }
 
-export interface ConsoleOutput {
+interface ConsoleOutput {
   text: string;
   at: string | null;
 }

@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { isRecord } from '../read.js';
+import { isRecord, str } from '../read.js';
 
 export const VOICE_SINCE = '0.1.0-beta.237';
 export const ELEVENLABS_KEYS_URL = 'https://elevenlabs.io/app/settings/api-keys';
@@ -23,7 +23,6 @@ export interface VoicePatch {
   enabled?: boolean;
 }
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 function toVoice(body: unknown): VoiceSettings {
   if (!isRecord(body)) throw new Error('Metro returned an unexpected response.');

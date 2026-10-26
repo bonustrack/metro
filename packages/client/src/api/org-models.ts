@@ -18,7 +18,7 @@ export interface OrgModels {
   admin: boolean;
 }
 
-export interface NewOrgModel {
+interface NewOrgModel {
   provider: Provider;
   label: string;
   apiKey?: string;
@@ -44,7 +44,7 @@ export interface DeviceLogin {
   interval: number;
 }
 
-export type DevicePoll = { status: 'pending' } | { status: 'done' } | { status: 'failed'; error: string };
+type DevicePoll = { status: 'pending' } | { status: 'done' } | { status: 'failed'; error: string };
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');

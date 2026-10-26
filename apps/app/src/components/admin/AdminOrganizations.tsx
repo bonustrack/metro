@@ -38,7 +38,7 @@ const FLEX: Record<OrganizationSortKey, number> = { name: 2.6, agents: 1.2, role
 const LABEL: Record<OrganizationSortKey, string> = { name: 'Organization', agents: 'Agents', role: 'You', created: 'Created' };
 const COLUMNS: OrganizationSortKey[] = ['name', 'agents', 'role', 'created'];
 
-export const organizationHref = (row: AdminOrganization): string => routeHash({ kind: 'admin-organization', id: row.id });
+const organizationHref = (row: AdminOrganization): string => routeHash({ kind: 'admin-organization', id: row.id });
 
 export const addressOf = (row: AdminOrganization): string => `metro.box/${row.slug ?? row.id}`;
 

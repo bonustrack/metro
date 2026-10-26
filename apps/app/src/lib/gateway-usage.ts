@@ -2,9 +2,9 @@ import type { StatsRange } from '@metro-labs/client/api/connector-stats';
 import { dollarsWords, OTHER_CONNECTIONS, type ConnectionUsage, type ModelUsage, type UsageTotals } from '@metro-labs/client/api/gateway-usage';
 import { countWords, failedAlarm, percentWords, rangeWords, type StackSeries, type StatTile } from './call-stats.js';
 
-export type UsageMeasure = 'spend' | 'calls';
+type UsageMeasure = 'spend' | 'calls';
 
-export interface UsageColors {
+interface UsageColors {
   slots: readonly string[];
   other: string;
 }

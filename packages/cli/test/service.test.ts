@@ -40,7 +40,7 @@ function fake(host: ServiceHost, over: Partial<ServiceDeps> = {}): Fake {
       host,
       run: (command) => {
         ran.push(command.args.join(' '));
-        return { status: 0, output: '' };
+        return { status: 0 };
       },
       running: () => null,
       preflight: () => undefined,
@@ -255,7 +255,7 @@ describe('metro service install, uninstall and status', () => {
     f.files.set('/home/less/.config/systemd/user/metro.service', 'x');
     expect(await service(['status'], f.deps)).toBe(0);
     expect(f.lines[1]).toContain('running as a systemd service');
-    const down = fake(linuxUser, { run: () => ({ status: 3, output: 'inactive' }) });
+    const down = fake(linuxUser, { run: () => ({ status: 3 }) });
     down.files.set('/home/less/.config/systemd/user/metro.service', 'x');
     expect(await service(['status'], down.deps)).toBe(1);
     expect(down.lines[0]).toContain('not running');

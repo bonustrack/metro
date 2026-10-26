@@ -21,12 +21,12 @@ export interface HoldInfo {
   lockFile: string | null;
 }
 
-export interface HoldDeps {
+interface HoldDeps {
   signals?: EventEmitter;
   log?: (line: string) => void;
 }
 
-export type HoldEnd = 'start' | 'exit';
+type HoldEnd = 'start' | 'exit';
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 

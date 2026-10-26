@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyLayersOf, connectorPolicyOf, effectiveConnectorPolicy, type ConnectorPolicy } from '../src/connector-policy.js';
+import { combineConnectorPolicies, connectorPoliciesBlocked, connectorPolicyOf, effectiveConnectorPolicy, type ConnectorPolicy } from '../src/connector-policy.js';
 
 type Access = 'allow' | 'ask' | 'deny';
 const RULES: Access[] = ['allow', 'ask', 'deny'];
@@ -89,13 +89,5 @@ describe('organization and agent policy layers', () => {
       expect(combineConnectorPolicies(value, { read: 'allow', write: 'allow' })).toEqual(value);
     }
     expect(combineConnectorPolicies({ write: 'deny', tools: { special: 'ask' } }, { tools: { special: 'deny' } }).tools?.special).toBe('deny');
-  });
-
-  test('policy layers are read strictly', () => {
-    const layers = { organization: { write: 'deny', tools: { find: 'allow' } }, agent: { read: 'ask' } };
-    expect(connectorPolicyLayersOf(layers)).toEqual(layers);
-    for (const invalid of [null, {}, { ...layers, extra: {} }, { organization: { read: 'unknown' }, agent: {} }, { organization: {}, agent: { tools: { constructor: 'allow' } } }]) {
-      expect(() => connectorPolicyLayersOf(invalid)).toThrow();
-    }
   });
 });
