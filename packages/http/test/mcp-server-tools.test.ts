@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { mcpCallsOf, TOOL_CALL_EXAMPLE } from '../src/mcp-server-protocol.ts';
-import { connectorLabel, mcpServerTools, TOOL_CALL_DESCRIPTION, toolSearchDescription, type ConnectorLabel } from '../src/mcp-server-tools.ts';
+import { connectorLabel, mcpServerTools, toolSearchDescription, type ConnectorLabel } from '../src/mcp-server-tools.ts';
 
 const named = (...keys: string[]): ConnectorLabel[] => keys.map((key) => ({ key, name: key }));
+const TOOL_CALL_DESCRIPTION = mcpServerTools(null, 'session')[1]?.description ?? '';
 const MANY = Array.from({ length: 40 }, (_, i) => ({ key: `connector-number-${String(i)}`, name: `A long connector name for number ${String(i)}` }));
 
 describe('the two connector tools every agent sees', () => {

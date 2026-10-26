@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { chatgptUsage, ProbeRefused, probes, probeUsage, type ProbeDeps } from '@metro-labs/inference/probes';
+import { chatgptUsage, probes, probeUsage, type ProbeDeps } from '@metro-labs/inference/probes';
 import { forgetUsage, noteUsageHeaders, usageOf } from '@metro-labs/inference/usage';
 import { codexAccess, makeConnection } from './model-fixture.ts';
 
@@ -80,7 +80,7 @@ describe('a ChatGPT plan signed in with a code', () => {
     expect(chatgptUsage('no')).toBeNull();
     const { deps } = fakeFetch(() => new Response('no', { status: 401 }));
     const conn = makeConnection('codex', { codex: codexAccess({ method: 'code' }) });
-    await expect(probeUsage(conn, deps, NOW)).rejects.toBeInstanceOf(ProbeRefused);
+    await expect(probeUsage(conn, deps, NOW)).rejects.toThrow('ChatGPT would not report its usage (401)');
     expect(usageOf(conn.id)).toBeUndefined();
   });
 

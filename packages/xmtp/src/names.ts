@@ -1,3 +1,5 @@
+import { isRecord } from '@metro-labs/core/is-record';
+import { errMsg } from '@metro-labs/core/log';
 import { TrainError } from '@metro-labs/core/train-error';
 
 export const STAGE_NAMES_PARENT = 'stage.base.eth';
@@ -27,10 +29,10 @@ async function ask(path: string, init: RequestInit, fetchImpl: typeof fetch): Pr
   try {
     res = await fetchImpl(`${proxyBase()}/names/${path}`, { ...init, headers: HEADERS, signal: AbortSignal.timeout(30_000) });
   } catch (err) {
-    throw new TrainError('names_unreachable', `could not reach the stage name service: ${err instanceof Error ? err.message : String(err)}`);
+    throw new TrainError('names_unreachable', `could not reach the stage name service: ${errMsg(err)}`);
   }
   const body: unknown = await res.json().catch(() => null);
-  const record = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  const record = isRecord(body) ? body : {};
   if (!res.ok) throw new TrainError('names_refused', typeof record.error === 'string' ? record.error : `the stage name service answered ${String(res.status)}`);
   return record;
 }

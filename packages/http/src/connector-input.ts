@@ -10,7 +10,7 @@ const CLIENT_ID_RE = /^[\x21-\x7e]{1,256}$/;
 const CLIENT_SECRET_RE = /^[\x21-\x7e]{1,1024}$/;
 const DEFAULT_HEADER = 'Authorization';
 
-export class ConnectorError extends ApiError {}
+class ConnectorError extends ApiError {}
 
 function hasControlChar(value: string): boolean {
   for (const ch of value) {

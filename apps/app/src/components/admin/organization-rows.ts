@@ -3,7 +3,7 @@ import { adminOrganizations, type AdminOrganization } from '../../lib/admin-peop
 import { useAdminAgents, useAdminOrganizations } from '../../lib/admin-queries.js';
 import { useOrganizationsQuery } from '../../lib/queries.js';
 
-export interface OrganizationRows {
+interface OrganizationRows {
   rows: AdminOrganization[] | undefined;
   agents: AdminAgent[];
   error: Error | null;

@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 export const attachDir = (): string =>
   process.env.METRO_XMTP_ATTACH_DIR ??
   `${process.env.HOME}/.cache/metro/messenger-uploads`;
@@ -89,14 +93,9 @@ const cachePathFor = async (
   index: number,
   meta: { mime?: string; name?: string },
 ): Promise<string> => {
-  const { mkdir } = await import('node:fs/promises');
-  const nodePath = await import('node:path');
   const dir = attachDir();
   await mkdir(dir, { recursive: true });
-  return nodePath.join(
-    dir,
-    cacheFileName(messageId, index, meta.name, meta.mime),
-  );
+  return join(dir, cacheFileName(messageId, index, meta.name, meta.mime));
 };
 
 export const saveBufferToCache = async (
@@ -106,8 +105,6 @@ export const saveBufferToCache = async (
   meta: { mime?: string; name?: string },
 ): Promise<SavedAttachment> => {
   assertAttachmentSize(data.length);
-  const { writeFile, rename, rm } = await import('node:fs/promises');
-  const { randomUUID } = await import('node:crypto');
   const path = await cachePathFor(messageId, index, meta);
   const part = `${await cachePathFor(randomUUID(), index, meta)}.part`;
   try {
@@ -125,7 +122,6 @@ export const saveStreamToCache = async (
   index: number,
   meta: { mime?: string; name?: string },
 ): Promise<SavedAttachment> => {
-  const { open, rename, rm } = await import('node:fs/promises');
   const path = await cachePathFor(messageId, index, meta);
   const part = `${path}.part`;
   const handle = await open(part, 'w');

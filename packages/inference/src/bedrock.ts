@@ -27,7 +27,7 @@ export function forgetAdaptations(learned: Adaptations): void {
   learned.dropCacheTtl = false;
 }
 
-export interface BedrockUpstream {
+interface BedrockUpstream {
   settings: Connection;
   base: string;
   learned: Adaptations;

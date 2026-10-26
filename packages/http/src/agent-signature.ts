@@ -1,7 +1,7 @@
 import { createHash, createPublicKey, randomBytes, sign, verify, type KeyObject } from 'node:crypto';
 import { strongEd25519 } from './ed25519.js';
 
-export const AGENT_SCHEME = 'MetroAgent';
+const AGENT_SCHEME = 'MetroAgent';
 export const AGENT_CLOCK_SKEW_MS = 5 * 60_000;
 
 const VERSION = 'metro-agent-request/v1';

@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { bytesToHex, hexToBytes } from './crypto.js';
 
 export const MSG_TEXT = 0x01;
@@ -118,7 +119,7 @@ const hexOf = (v: unknown, length: number): string | null => {
 function parseJson(raw: Uint8Array): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(utf8(raw));
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }

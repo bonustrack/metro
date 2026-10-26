@@ -6,20 +6,13 @@ export interface AwsConnection {
   id: string;
   accountId: string;
   roleArn: string;
-  addedAt: string;
 }
 
 export interface AwsOverview {
   ready: boolean;
   reason: string | null;
-  metroRole: string | null;
   externalId: string | null;
   connections: AwsConnection[];
-}
-
-export interface AwsLinkStart {
-  url: string;
-  externalId: string;
 }
 
 export interface FoundInstance {
@@ -29,7 +22,6 @@ export interface FoundInstance {
   instanceId: string;
   name: string | null;
   state: string;
-  type: string;
   node: string | null;
   agentId: string | null;
 }
@@ -50,7 +42,7 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
 const records = (value: unknown): Record<string, unknown>[] => (Array.isArray(value) ? value.filter(isRecord) : []);
 
-const toConnection = (value: Record<string, unknown>): AwsConnection => ({ id: str(value.id), accountId: str(value.accountId), roleArn: str(value.roleArn), addedAt: str(value.addedAt) });
+const toConnection = (value: Record<string, unknown>): AwsConnection => ({ id: str(value.id), accountId: str(value.accountId), roleArn: str(value.roleArn) });
 
 export async function fetchAws(): Promise<AwsOverview> {
   const body = await call({ method: 'GET', base: awsUrl() });
@@ -58,16 +50,15 @@ export async function fetchAws(): Promise<AwsOverview> {
   return {
     ready: body.ready === true,
     reason: filled(body.reason),
-    metroRole: filled(body.metroRole),
     externalId: filled(body.externalId),
     connections: records(body.connections).map(toConnection),
   };
 }
 
-export async function startAwsLink(): Promise<AwsLinkStart> {
+export async function startAwsLink(): Promise<{ url: string }> {
   const body = await call({ method: 'POST', base: awsUrl(), path: '/link' });
   if (!isRecord(body) || typeof body.url !== 'string') throw unexpected();
-  return { url: body.url, externalId: str(body.externalId) };
+  return { url: body.url };
 }
 
 export async function connectAws(roleArn: string): Promise<void> {
@@ -85,7 +76,6 @@ const toInstance = (v: Record<string, unknown>): FoundInstance => ({
   instanceId: str(v.instanceId),
   name: filled(v.name),
   state: str(v.state),
-  type: str(v.type),
   node: filled(v.node),
   agentId: filled(v.agentId),
 });

@@ -197,7 +197,7 @@ export class McpSession {
     if (sink !== undefined) {
       this.lastStreamAttachedAt = new Date().toISOString();
       this.announceCallState();
-      this.announceToolSchema();
+      this.toolsChanged();
     }
   }
 
@@ -216,10 +216,6 @@ export class McpSession {
   }
 
   toolsChanged(): void {
-    this.announceToolSchema();
-  }
-
-  private announceToolSchema(): void {
     if (!this.streamAttached) return;
     this.deliverSchemaNotice(
       () => this.server.sendToolListChanged(),

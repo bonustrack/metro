@@ -10,7 +10,7 @@ import { currentModel, permissionMode, systemPrompt, type PermissionMode } from 
 import { installDependencies, ranges, readOrNull } from './runtime-install.js';
 import { findBun, localPort, runtimeDir } from './runtime.js';
 
-export const RUNNER_SOURCES = 'sdk-runner';
+const RUNNER_SOURCES = 'sdk-runner';
 const STAMP = 'runner.json';
 const ENTRY = join('src', 'main.ts');
 const METRO_MODULES = join('node_modules', '@metro-labs');
@@ -19,7 +19,7 @@ const SDK = '@anthropic-ai/claude-agent-sdk';
 const PREPARE_LOCK = '.prepare.lock';
 const PREPARE_WAIT = { staleMs: 20 * 60_000, waitMs: 20 * 60_000, pollMs: 250 };
 
-export interface RunnerManifest {
+interface RunnerManifest {
   version: string;
   dependencies: Record<string, string>;
 }
@@ -37,7 +37,7 @@ export function readRunnerManifest(text: string): RunnerManifest {
   };
 }
 
-export interface ClaudePackage {
+interface ClaudePackage {
   name: string;
   binary: string;
 }
@@ -56,12 +56,12 @@ export function runnerDependencies(manifest: RunnerManifest, pkg: ClaudePackage)
   return sdk === undefined ? manifest.dependencies : { ...manifest.dependencies, [pkg.name]: sdk };
 }
 
-export interface PreparedRunner {
+interface PreparedRunner {
   entry: string;
   claude: string;
 }
 
-export interface RunnerPrepare {
+interface RunnerPrepare {
   sources?: string;
   store?: string;
   bun?: string;

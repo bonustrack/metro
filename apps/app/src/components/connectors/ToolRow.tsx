@@ -26,7 +26,7 @@ export interface StricterName {
   choice: PermissionChoice;
 }
 
-export interface ToolRowProps {
+interface ToolRowProps {
   tool: ExplorerTool;
   choice: PermissionChoice;
   floor: PermissionChoice | null;

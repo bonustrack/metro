@@ -21,7 +21,7 @@ running on the **XMTP production network**. Lines are
 - Message verbs: `send`, `reply`, `react`, `unreact`, `read`.
 - Groups & DMs: create groups, open 1:1 DMs, group info / add & remove members /
   set channel metadata / close channel (`actions-conv.ts`, `actions-meta.ts`,
-  `actions-close.ts`, `member-args.ts`).
+  `actions-close.ts`).
 - Content-type codecs: text, reactions, replies, remote attachments, wallet-send-calls,
   plus push notifications and AskUserQuestion-style polls (`codecs.ts`, `push.ts`,
   `actions-push.ts`). Attachments are saved/normalized via `attachments.ts`; voice

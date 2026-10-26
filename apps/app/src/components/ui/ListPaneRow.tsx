@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, minHeight: 62 },
 });
 
-export interface ListPaneRowProps {
+interface ListPaneRowProps {
   title: string;
   line: string;
   lineTone?: Tone;

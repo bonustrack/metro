@@ -102,7 +102,7 @@ export class WhatsappLogin {
     }
     if (this.pairingRequested || this.auth.state.creds.registered) return;
     this.pairingRequested = true;
-    void sock
+    sock
       .requestPairingCode(this.phone)
       .then((code) => {
         if (!this.settled) this.events.onPairingCode(code);

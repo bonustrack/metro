@@ -92,6 +92,15 @@ function CodeEntry({
   );
 }
 
+interface StepProps {
+  agentId: string;
+  base: string;
+  identity: AccountIdentity | null;
+  session: Session;
+  busy: boolean;
+  onSubmit: (input: StepInput) => void;
+}
+
 function BrowserStep({
   agentId,
   base,
@@ -99,14 +108,7 @@ function BrowserStep({
   session,
   busy,
   onSubmit,
-}: {
-  agentId: string;
-  base: string;
-  identity: AccountIdentity | null;
-  session: Session;
-  busy: boolean;
-  onSubmit: (input: StepInput) => void;
-}): ReactNode {
+}: StepProps): ReactNode {
   if (session.step === 'device')
     return session.userCode === null ? (
       <Waiting label="Asking Microsoft for a sign-in code." />
@@ -144,14 +146,7 @@ function StepBody({
   session,
   busy,
   onSubmit,
-}: {
-  agentId: string;
-  base: string;
-  identity: AccountIdentity | null;
-  session: Session;
-  busy: boolean;
-  onSubmit: (input: StepInput) => void;
-}): ReactNode {
+}: StepProps): ReactNode {
   const { step, qr, pairingCode } = session;
   if (step === 'browser' || step === 'device')
     return <BrowserStep agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={onSubmit} />;

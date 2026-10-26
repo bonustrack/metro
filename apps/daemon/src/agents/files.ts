@@ -2,15 +2,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AGENT_NAME_RE, ID_RE } from '@metro-labs/core/ids';
-import { STATIONS, type StationName } from '@metro-labs/core/station-names';
 import type { LoadedAccount, LoadedAgent, StationSource } from '../stations/materialize.js';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parsePolicy } from '../policy/policy.js';
+import { isStationName } from './account-attach.js';
 
 const AGENT_FILE = 'agent.json';
 
 const KEY_RE = /^[A-Za-z0-9_-]{16,128}$/;
-const STATION_NAMES = new Set<string>(STATIONS);
 
 export class AgentFileError extends Error {}
 
@@ -33,10 +32,6 @@ export function agentsDir(): string {
 
 function fail(path: string, reason: string): never {
   throw new AgentFileError(`${path}: ${reason}`);
-}
-
-function isStationName(value: unknown): value is StationName {
-  return typeof value === 'string' && STATION_NAMES.has(value);
 }
 
 function allowlistOf(raw: unknown, path: string, where: string): string[] | null {

@@ -16,7 +16,7 @@ export interface Templates {
   base: string;
 }
 
-export interface StackParams {
+interface StackParams {
   ExternalId: string;
   MetroRoleArn: string;
 }

@@ -1,3 +1,4 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { TrainError } from '@metro-labs/core/train-error';
 import type { FrameActionContent, FrameContent } from './codecs.js';
 
@@ -13,9 +14,6 @@ const TEXT_TYPES = new Set(['Text', 'Caption', 'Markdown']);
 
 type Node = Record<string, unknown>;
 
-export const isNode = (v: unknown): v is Node =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
-
 export const bad = (message: string): TrainError => new TrainError('INVALID_ARGS', message);
 
 function plain(value: unknown): string {
@@ -30,8 +28,8 @@ function plain(value: unknown): string {
 
 function childrenOf(node: Node): Node[] {
   const c = node.children;
-  if (Array.isArray(c)) return c.filter(isNode);
-  return isNode(c) ? [c] : [];
+  if (Array.isArray(c)) return c.filter(isRecord);
+  return isRecord(c) ? [c] : [];
 }
 
 export function frameSummary(widget: Node): { title?: string; description?: string } {
@@ -73,7 +71,7 @@ function checkSize(value: unknown, name: string): void {
 
 function parseWidget(raw: unknown, name = 'frame widget'): Node {
   const widget = parseJson(raw, name);
-  if (!isNode(widget) || typeof widget.type !== 'string' || widget.type === '')
+  if (!isRecord(widget) || typeof widget.type !== 'string' || widget.type === '')
     throw bad(`${name} must be a ChatKit widget object with a \`type\` (Card, ListView or Basic)`);
   checkSize(widget, name);
   return widget;
@@ -82,7 +80,7 @@ function parseWidget(raw: unknown, name = 'frame widget'): Node {
 function parseScreen(id: string, raw: unknown): { screen: Node; widget: Node } {
   const name = `frame screen "${id}"`;
   const given = parseJson(raw, name);
-  if (!isNode(given) || given.type !== undefined || given.widget === undefined) {
+  if (!isRecord(given) || given.type !== undefined || given.widget === undefined) {
     const widget = parseWidget(given, name);
     return { screen: widget, widget };
   }
@@ -97,9 +95,9 @@ function openTargets(root: unknown): string[] {
   while (stack.length > 0) {
     const value = stack.pop();
     if (Array.isArray(value)) stack.push(...(value as unknown[]));
-    else if (isNode(value)) {
+    else if (isRecord(value)) {
       if (value.type === FRAME_OPEN)
-        targets.push(isNode(value.payload) && typeof value.payload.screen === 'string' ? value.payload.screen : '');
+        targets.push(isRecord(value.payload) && typeof value.payload.screen === 'string' ? value.payload.screen : '');
       stack.push(...Object.values(value));
     }
   }
@@ -130,7 +128,7 @@ interface FrameBody {
 
 function parseScreens(raw: unknown, start: unknown): FrameBody {
   const given = parseJson(raw, 'frame screens');
-  if (!isNode(given))
+  if (!isRecord(given))
     throw bad('frame screens must be an object of screen id to widget: {"home": {…}, "story": {"title": "…", "widget": {…}}}');
   const ids = screenIds(given);
   const parsed = ids.map((id) => [id, parseScreen(id, given[id])] as const);
@@ -153,7 +151,7 @@ function frameBody(args: Node): FrameBody {
 
 function sourcePart(raw: unknown): Pick<FrameContent, 'source'> {
   if (raw === undefined) return {};
-  const url = isNode(raw) && typeof raw.url === 'string' ? raw.url.trim() : '';
+  const url = isRecord(raw) && typeof raw.url === 'string' ? raw.url.trim() : '';
   if (url.length > MAX_SOURCE_URL)
     throw bad(`frame source url is ${url.length} characters; the limit is ${MAX_SOURCE_URL}`);
   if (!URL.canParse(url) || new URL(url).protocol !== 'https:')
@@ -163,7 +161,7 @@ function sourcePart(raw: unknown): Pick<FrameContent, 'source'> {
 
 export function buildFrameContent(raw: unknown): { frame: FrameContent; title: string } {
   const args = parseJson(raw, 'frame');
-  if (!isNode(args))
+  if (!isRecord(args))
     throw bad('frame must be an object: {widget, title?, description?} or {screens, start, title?, description?}');
   const body = frameBody(args);
   const derived = frameSummary(body.first);
@@ -180,8 +178,8 @@ export function buildFrameContent(raw: unknown): { frame: FrameContent; title: s
 
 export function asFrameAction(c: object): FrameActionContent | undefined {
   const v = c as Partial<FrameActionContent>;
-  if (typeof v.frameId !== 'string' || !isNode(v.action) || typeof v.action.type !== 'string') return undefined;
-  const payload = isNode(v.action.payload) ? v.action.payload : undefined;
+  if (typeof v.frameId !== 'string' || !isRecord(v.action) || typeof v.action.type !== 'string') return undefined;
+  const payload = isRecord(v.action.payload) ? v.action.payload : undefined;
   return {
     frameId: v.frameId,
     action: payload ? { type: v.action.type, payload } : { type: v.action.type },

@@ -13,9 +13,7 @@ export interface EgressLimits {
 
 const DEFAULT_LIMITS: EgressLimits = { bodyMax: 64 * 1024 * 1024, idleMs: 20_000 };
 
-export class EgressRefused extends Error {}
-
-export const publicAddress = publicConnectorAddress;
+class EgressRefused extends Error {}
 
 export type Resolve = (hostname: string) => Promise<LookupAddress[]>;
 
@@ -42,7 +40,7 @@ function guardedLookup(resolve: Resolve): (hostname: string, options: { all?: bo
         const wanted = family === 0 ? found : found.filter((a) => a.family === family);
         const first = wanted[0];
         if (first === undefined) throw new EgressRefused(`${hostname} has no address`);
-        if (!wanted.every((a) => publicAddress(a.address, a.family))) throw new EgressRefused(`${hostname} is a private address, which an organization connector may not use`);
+        if (!wanted.every((a) => publicConnectorAddress(a.address, a.family))) throw new EgressRefused(`${hostname} is a private address, which an organization connector may not use`);
         if (options.all === true) done(null, wanted);
         else done(null, first.address, first.family);
       })

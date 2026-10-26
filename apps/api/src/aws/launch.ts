@@ -3,14 +3,12 @@ import {
   AwsError,
   BOX_ROLE,
   consoleOutput,
-  describeInstance,
   describeZones,
   INSTANCE_TYPE,
   latestUbuntuArm64Image,
   runInstance,
   type AwsCredentials,
   type InstanceSpec,
-  type InstanceState,
 } from './ec2.js';
 import { metroSetupLines, progressOf, type Progress } from './boot-log.js';
 import { hostOf, randomNodeName, slugOf } from './names.js';
@@ -53,7 +51,7 @@ export const LIVE: LaunchDeps = {
   latestImage: async (credentials, region) => (await latestUbuntuArm64Image(credentials, region)).imageId,
   run: runInstance,
   zones: describeZones,
-  authKey: (client, node) => mintAuthKey(client, node),
+  authKey: mintAuthKey,
   node: randomNodeName,
   token: () => crypto.randomUUID(),
 };
@@ -141,9 +139,3 @@ export async function bootView(
   const log = metroSetupLines(redactKeys(output.text));
   return { ...progressOf(log), lines: log.lines, at: output.at };
 }
-
-export const instanceStateOf = (
-  credentials: AwsCredentials,
-  region: string,
-  instanceId: string,
-): Promise<InstanceState> => describeInstance(credentials, region, instanceId);

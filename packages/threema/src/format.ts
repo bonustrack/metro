@@ -118,13 +118,7 @@ export function receiptEnvelope(
   return emoji === undefined ? null : reactionEnvelope(accountId, m, emoji, targetId, false, room, 'receipt');
 }
 
-export function emitOutbound(
-  accountId: string,
-  line: string,
-  messageId: string,
-  text: string,
-  replyTo?: string,
-): void {
+function emitOwn(accountId: string, line: string, messageId: string, fields: Record<string, unknown>): void {
   emit({
     id: mintId(),
     ts: new Date().toISOString(),
@@ -133,10 +127,22 @@ export function emitOutbound(
     from: selfUri(),
     to: line,
     message_id: messageId,
+    ...fields,
+    payload: { account: accountId },
+  });
+}
+
+export function emitOutbound(
+  accountId: string,
+  line: string,
+  messageId: string,
+  text: string,
+  replyTo?: string,
+): void {
+  emitOwn(accountId, line, messageId, {
     text,
     reply_to: replyTo,
     ...(replyTo ? { event: { type: 'reply', replyTo } } : {}),
-    payload: { account: accountId },
   });
 }
 
@@ -148,17 +154,9 @@ export function emitOutboundReaction(
   targetId: string,
   removed: boolean,
 ): void {
-  emit({
-    id: mintId(),
-    ts: new Date().toISOString(),
-    station: 'threema',
-    line,
-    from: selfUri(),
-    to: line,
-    message_id: messageId,
+  emitOwn(accountId, line, messageId, {
     text: `[react ${emoji}${removed ? ' (removed)' : ''}]`,
     emoji,
     event: { type: 'react', emoji, targetId, ...(removed ? { removed: true } : {}) },
-    payload: { account: accountId },
   });
 }

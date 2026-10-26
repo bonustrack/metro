@@ -5,7 +5,6 @@ import type { ModeInfo } from './mode.js';
 import { modelOrder, type ModelOrderItem } from './model-order.js';
 import { filled } from '../read.js';
 import { limitingWindow, missingUsage, modelWindows, usageDetail, usageReported } from './model-usage.js';
-import { activityIsStale } from './runner.js';
 import { windowLine, type UsageWindow } from './usage.js';
 
 export interface DashboardReading<T> {
@@ -69,39 +68,4 @@ export function dashboardModel(settings: ModelSettings, now = Date.now()): { mod
     report: item.usage === undefined ? null : usageReported(item.usage, now),
     note: routeNote(item),
   };
-}
-
-const stamp = (at: number): string => new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-function missingStatus(reading: DashboardReading<RuntimeSnapshot>): string {
-  if (reading.unavailable) return 'Status unavailable';
-  if (reading.error === 'Metro is stopped.') return 'Metro stopped';
-  return reading.error === null ? 'Checking…' : 'Unreachable';
-}
-
-function sessionState(data: RuntimeSnapshot, now: number): string {
-  if (!data.running) return 'Stopped';
-  const activity = data.activity;
-  if (data.legacyRunner || activity === null) return 'Running';
-  if (activityIsStale(activity.updatedAt, now)) return 'Running · activity stale';
-  const phases = { starting: 'Starting', idle: 'Idle', working: 'Working', approval: 'Waiting for approval', compacting: 'Compacting', stopped: 'Running', error: 'Error' };
-  return phases[activity.phase];
-}
-
-function observation(reading: DashboardReading<RuntimeSnapshot>, stale: boolean, status: string): string {
-  if (reading.at === null) return 'Observation time unavailable.';
-  return `${stale ? `Last seen ${status.toLowerCase()}` : 'Checked'} ${stamp(reading.at)}${reading.error === null ? '' : '. Agent did not answer.'}`;
-}
-
-export const dashboardReadingStale = <T>(reading: DashboardReading<T>, now: number): boolean => reading.error !== null || reading.at === null || now - reading.at > 60_000 || reading.at > now;
-
-export function dashboardSession(reading: DashboardReading<RuntimeSnapshot>, now = Date.now()): { status: string; observed: string | null } {
-  const { data } = reading;
-  if (data === null) return {
-    status: missingStatus(reading),
-    observed: reading.unavailable ? 'Update Metro to see runtime status.' : reading.error,
-  };
-  const stale = dashboardReadingStale(reading, now);
-  const status = sessionState(data, now);
-  return { status: stale ? 'Status unknown' : status, observed: observation(reading, stale, status) };
 }

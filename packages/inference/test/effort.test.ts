@@ -9,7 +9,6 @@ import {
   requestKind,
   withBlockBinding,
   withEffort,
-  withoutEffort,
   withThinkingFor,
 } from '@metro-labs/inference/effort';
 import { COMPACT_PROMPT, COMPACTION_HINTS, HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
@@ -127,10 +126,8 @@ describe('the effort metro asks for', () => {
     expect(moved.messages).toEqual([{ role: 'user', content: 'hi' }, perTurn('low'), { role: 'assistant', content: 'ok' }, perTurn('low')]);
   });
 
-  test('writing the effort keeps the rest of output_config, and taking it away leaves the field only when something else is in it', () => {
+  test('writing the effort keeps the rest of output_config', () => {
     expect(withEffort(turn({ output_config: { effort: 'high', keep: 1 } }), 'low').output_config).toEqual({ effort: 'low', keep: 1 });
-    expect(withoutEffort(turn({ output_config: { effort: 'low', keep: 1 } })).output_config).toEqual({ keep: 1 });
-    expect(withoutEffort(turn())).not.toHaveProperty('output_config');
   });
 
   test('a provider that stops at high is given high, and a chore hands a provider nothing to apply', () => {

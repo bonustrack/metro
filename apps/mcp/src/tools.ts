@@ -1,5 +1,5 @@
 import { MCP_CALLS_MAX } from '@metro-labs/http/mcp-server-protocol';
-import { mcpServerTools, type ApprovalPlace, type ConnectorLabel, type McpServerTool } from '@metro-labs/http/mcp-server-tools';
+import type { ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
 import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 
@@ -31,13 +31,9 @@ export const KEY_INSTRUCTIONS = [
   'Tools the owner blocked never appear. When a call answers needs_approval, tell the person what is waiting: the agent\'s owner was asked in chat and on its page on metro.box. Once approved, repeat the same call with the same arguments and the approval id, within 10 minutes. An approval works once.',
 ].join(' ');
 
-const INSTRUCTIONS: Record<ApprovalPlace, string> = { session: MCP_INSTRUCTIONS, page: REMOTE_INSTRUCTIONS, owner: KEY_INSTRUCTIONS };
+export const INSTRUCTIONS: Record<ApprovalPlace, string> = { session: MCP_INSTRUCTIONS, page: REMOTE_INSTRUCTIONS, owner: KEY_INSTRUCTIONS };
 
 export function approvalPlace(identity: DeliveryIdentity): ApprovalPlace {
   if (!isTokenIdentity(identity)) return 'session';
   return identity.remote ? 'page' : 'owner';
 }
-
-export const instructionsFor = (place: ApprovalPlace): string => INSTRUCTIONS[place];
-
-export const toolList = (connectors: ConnectorLabel[], place: ApprovalPlace): McpServerTool[] => mcpServerTools(connectors, place);

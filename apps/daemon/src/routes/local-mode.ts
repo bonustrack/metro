@@ -115,10 +115,6 @@ function bundleApi(deps: LocalModeDeps): BundleApiDeps {
   };
 }
 
-function localModeInfo(): ModeInfo {
-  return { mode: 'local', owner: localOwner(), version: METRO_VERSION };
-}
-
 async function accountCall(
   station: StationName,
   action: string,
@@ -150,6 +146,6 @@ export function localSessionApis(deps: LocalModeDeps): SessionApis {
     modelApi: {},
     gateway: boxGatewayHandler(),
     terminalApi: {},
-    mode: localModeInfo,
+    mode: (): ModeInfo => ({ mode: 'local', owner: localOwner(), version: METRO_VERSION }),
   };
 }

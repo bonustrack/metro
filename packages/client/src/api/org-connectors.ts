@@ -6,9 +6,9 @@ import { accountIdentity, accountScopeIdentity, checkAccountIdentity } from '../
 import { connectorToolsOf, type ConnectorTool } from './connectors.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 
-export type OrgConnectorAuth = 'none' | 'header' | 'oauth';
+type OrgConnectorAuth = 'none' | 'header' | 'oauth';
 
-export interface OrgConnectorAgent {
+interface OrgConnectorAgent {
   id: string;
   readOnly: boolean;
   policy: ToolPolicy;
@@ -47,7 +47,7 @@ export interface NewOrgConnector {
   oauthResource?: string;
 }
 
-export interface CopyOrgConnectorInput {
+interface CopyOrgConnectorInput {
   organization: string;
   name: string;
   shareCredentials: true;
@@ -58,7 +58,7 @@ export interface CopiedOrgConnector {
   connector: OrgConnector;
 }
 
-export type OrgAddResult = { kind: 'added'; connector: OrgConnector } | { kind: 'oauth'; connector: OrgConnector; authorizeUrl: string };
+type OrgAddResult = { kind: 'added'; connector: OrgConnector } | { kind: 'oauth'; connector: OrgConnector; authorizeUrl: string };
 export type OrgConnectorReturn = { kind: 'handoff'; handoff: string } | { kind: 'error'; error: string };
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -103,7 +103,7 @@ export function toOrgConnector(value: unknown): OrgConnector {
   };
 }
 
-export const isWebAddress = (url: string): boolean => {
+const isWebAddress = (url: string): boolean => {
   try {
     const protocol = new URL(url).protocol;
     return protocol === 'https:' || protocol === 'http:';
@@ -182,10 +182,9 @@ export const signInOrgConnector = async (id: string, checkAccount?: () => void, 
 export const completeOrgConnectorSignIn = async (handoff: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'POST', base: base(), path: '/complete', headers: JSON_HEADERS, body: JSON.stringify({ handoff }) }));
 
-const assignment = async (id: string, agent: string, body: Record<string, unknown>): Promise<OrgConnector> =>
-  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}`, headers: JSON_HEADERS, body: JSON.stringify(body) }));
+export const assignOrgConnector = async (id: string, agent: string): Promise<OrgConnector> =>
+  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}`, headers: JSON_HEADERS, body: JSON.stringify({}) }));
 
-export const assignOrgConnector = (id: string, agent: string, readOnly?: boolean): Promise<OrgConnector> => assignment(id, agent, readOnly === undefined ? {} : { readOnly });
 export const setOrgConnectorAgentPolicy = async (id: string, agent: string, policy: ToolPolicy): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/policy`, headers: JSON_HEADERS, body: JSON.stringify({ policy }) }));
 

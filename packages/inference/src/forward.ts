@@ -1,4 +1,5 @@
 import type { IncomingMessage, OutgoingHttpHeader, OutgoingHttpHeaders, ServerResponse } from 'node:http';
+import { isRecord } from '@metro-labs/core/is-record';
 import { StreamErrors, type FailureSite } from './failures.js';
 import { UsageScanner } from './usage.js';
 
@@ -108,9 +109,8 @@ export function parseJson(raw: Buffer): Record<string, unknown> {
   } catch {
     throw new GatewayError(400, 'invalid_request_error', 'body must be JSON');
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-    throw new GatewayError(400, 'invalid_request_error', 'body must be a JSON object');
-  return parsed as Record<string, unknown>;
+  if (!isRecord(parsed)) throw new GatewayError(400, 'invalid_request_error', 'body must be a JSON object');
+  return parsed;
 }
 
 export function forwardedHeaders(req: IncomingMessage): Record<string, string> {
@@ -153,7 +153,7 @@ export function addBeta(headers: Record<string, string>, beta: string): Record<s
   return { ...headers, 'anthropic-beta': [...listed, beta].join(',') };
 }
 
-export interface PipeOptions {
+interface PipeOptions {
   keepalive?: boolean;
   ownCredential?: boolean;
   scanner?: UsageScanner;
@@ -215,7 +215,7 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
   }
 }
 
-export interface Relayed {
+interface Relayed {
   push: (chunk: Uint8Array, emit: (frames: string) => void) => void;
   close: () => string;
   idle: (message: string) => string;

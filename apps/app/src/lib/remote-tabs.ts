@@ -2,7 +2,7 @@ import type { Selection } from '@metro-labs/client/selection';
 
 export type RemoteTabId = 'connectors' | 'keys' | 'activity';
 
-export interface RemoteTab {
+interface RemoteTab {
   id: RemoteTabId;
   label: string;
   target: (project: string) => Selection;

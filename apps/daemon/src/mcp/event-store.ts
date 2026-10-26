@@ -5,6 +5,7 @@ import type {
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { str } from '@metro-labs/core/str';
+import { isRecord } from '@metro-labs/core/is-record';
 import { eventInScope } from '../agents/scope.js';
 import { CALL_NOTICE, CALL_STATE } from '@metro-labs/core/call';
 
@@ -28,10 +29,8 @@ const SEP = '_';
 
 function frameLine(message: JSONRPCMessage): string | undefined {
   const params: unknown = (message as { params?: unknown }).params;
-  if (typeof params !== 'object' || params === null) return undefined;
-  const meta: unknown = (params as { meta?: unknown }).meta;
-  if (typeof meta !== 'object' || meta === null) return undefined;
-  return str((meta as { line?: unknown }).line) || undefined;
+  if (!isRecord(params) || !isRecord(params.meta)) return undefined;
+  return str(params.meta.line) || undefined;
 }
 
 const isCallNotice = (message: JSONRPCMessage): boolean => 'method' in message && (message.method === CALL_NOTICE || message.method === CALL_STATE);

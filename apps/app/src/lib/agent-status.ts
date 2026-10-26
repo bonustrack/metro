@@ -18,7 +18,7 @@ const approvalsOptions = (base: string, enabled: boolean): UseQueryOptions<Appro
   retry: false,
 });
 
-export interface ApprovalRead {
+interface ApprovalRead {
   data?: Approval[] | undefined;
   error: unknown;
 }

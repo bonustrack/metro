@@ -1,8 +1,8 @@
 import { STATION_FORMS, type StationForm } from './attach.js';
 
 export const GMAIL_MANAGED = 'gmail-managed';
-export const GMAIL_UPDATE = 'Update Metro on this box for keyless and read-only Gmail. This version may also request permission to send.';
-export const GMAIL_READ_ONLY = 'Google grants read-only access, so the agent cannot send. Metro Write permission starts blocked. Allow sending later in this channel’s settings.';
+const GMAIL_UPDATE = 'Update Metro on this box for keyless and read-only Gmail. This version may also request permission to send.';
+const GMAIL_READ_ONLY = 'Google grants read-only access, so the agent cannot send. Metro Write permission starts blocked. Allow sending later in this channel’s settings.';
 export const GMAIL_SENDING_CONSENT = 'Lets Metro send from this mailbox at Google. The agent still cannot send until you set Metro Write permission to Allow or Ask below.';
 
 export type GmailMode = 'managed' | 'byo';

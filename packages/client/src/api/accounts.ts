@@ -111,7 +111,7 @@ const IDENTITY = new Set(['id', 'handle', 'url', 'endpoint', 'callback']);
 const present = (value: string | undefined): string | undefined =>
   value === undefined || value === '' || value === '-' ? undefined : value;
 
-export interface StationFields {
+interface StationFields {
   handle: string | undefined;
   url: string | undefined;
   endpoint: string | undefined;

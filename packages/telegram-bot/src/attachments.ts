@@ -1,12 +1,6 @@
-import {
-  saveBufferToCache,
-  assertContentLength,
-} from '@metro-labs/core/stations/attachments';
-import type { SavedAttachment } from '@metro-labs/core/stations/attachments';
+import { assertContentLength, saveBufferToCache, type SavedAttachment } from '@metro-labs/core/stations/attachments';
 import { tg, accounts } from './accounts.js';
 import type { TgMsg } from './types.js';
-
-export type { SavedAttachment };
 
 function isOggRef(mime: string | undefined, ref: string | undefined): boolean {
   const ext = ref?.split('?')[0]?.split('.').pop()?.toLowerCase();

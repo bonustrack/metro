@@ -1,10 +1,11 @@
 import type { IncomingMessage } from 'node:http';
 import { createPublicKey, verify, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { isRecord } from '@metro-labs/core/is-record';
 
 const WORKOS_API = 'https://api.workos.com';
 const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
 export const isOrganizationId = (value: string): boolean => ORG_RE.test(value);
-export const DEFAULT_CLIENT_ID = 'client_01M2TJJJ6RM9CT081QB4XZK3G2';
+const DEFAULT_CLIENT_ID = 'client_01M2TJJJ6RM9CT081QB4XZK3G2';
 const SKEW_S = 60;
 const REFETCH_COOLDOWN_MS = 60_000;
 const FETCH_MS = 10_000;
@@ -34,14 +35,12 @@ export const jwksUrl = (id: string, base = WORKOS_API): string => `${base}/sso/j
 function jwksKeys(text: string): Map<string, KeyObject> {
   const keys = new Map<string, KeyObject>();
   const parsed: unknown = JSON.parse(text);
-  const list = typeof parsed === 'object' && parsed !== null ? (parsed as { keys?: unknown }).keys : undefined;
+  const list = isRecord(parsed) ? parsed.keys : undefined;
   if (!Array.isArray(list)) return keys;
   for (const jwk of list) {
-    if (typeof jwk !== 'object' || jwk === null) continue;
-    const { kid, kty } = jwk as { kid?: unknown; kty?: unknown };
-    if (typeof kid !== 'string' || kty !== 'RSA') continue;
+    if (!isRecord(jwk) || typeof jwk.kid !== 'string' || jwk.kty !== 'RSA') continue;
     try {
-      keys.set(kid, createPublicKey({ key: jwk as JsonWebKey, format: 'jwk' }));
+      keys.set(jwk.kid, createPublicKey({ key: jwk as JsonWebKey, format: 'jwk' }));
     } catch {
       continue;
     }
@@ -93,7 +92,7 @@ const b64url = (text: string): Buffer => Buffer.from(text.replace(/-/g, '+').rep
 function jsonPart(text: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(b64url(text).toString('utf8'));
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }

@@ -6,10 +6,10 @@ import { asForm, CODEX_ISSUER, CodexTokenError, decodeJwtPayload, emailOf, grant
 import { modelDetailOf, openModelSecret, type CodexSecret } from '@metro-labs/connectors/model-secret';
 import { modelKey, type Caller, type CodexPending, type ModelsDeps } from './deps.js';
 import { codexRow, OTHER_ACCOUNT, saveCodex } from './codex-save.js';
-import { connectionArg } from './input.js';
+import { bad, connectionArg } from './input.js';
 import type { ConnectionView } from './view.js';
 
-export const CODEX_REDIRECT = 'http://127.0.0.1:1455/auth/callback';
+const CODEX_REDIRECT = 'http://127.0.0.1:1455/auth/callback';
 const NEW_CLIENT = 'dynamic_agent_client';
 const APP_NAME = 'Metro';
 const PLAN_SCOPE = 'chatgpt.tokens.use.direct';
@@ -21,8 +21,6 @@ interface Previous {
   subject: string | null;
   email: string | null;
 }
-
-const bad = (message: string): ApiError => new ApiError(message, 400);
 
 async function previousOf(deps: ModelsDeps, key: Buffer, owner: string, id: string): Promise<Previous | null> {
   const row = await codexRow(deps, owner, id);

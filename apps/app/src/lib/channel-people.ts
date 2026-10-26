@@ -13,7 +13,7 @@ export const listed = (list: readonly string[], id: string): boolean => list.som
 
 export const entriesOf = (allowlist: string[] | null): string[] => (allowlist ?? []).filter((entry) => entry !== EVERYONE);
 
-export type Writers = 'anyone' | 'some';
+type Writers = 'anyone' | 'some';
 
 export const writersOf = (allowlist: string[] | null): Writers => (allowsEveryone(allowlist) ? 'anyone' : 'some');
 
@@ -91,7 +91,7 @@ export function channelLine(label: string, allowlist: string[] | null): string {
 
 export const approverNames = (people: Person[]): string[] => people.filter((person) => person.approves === true).map((person) => person.title);
 
-export interface QuestionsGoTo {
+interface QuestionsGoTo {
   title: string;
   subtitle: string;
 }

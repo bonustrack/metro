@@ -17,7 +17,7 @@ export interface ActivityCall {
   at: number;
 }
 
-export interface ActivityQuery {
+interface ActivityQuery {
   since?: number;
   before?: ActivityCall;
   limit: number;
@@ -34,7 +34,7 @@ export interface ActivityFeed {
   cap: number;
 }
 
-export type FeedAction =
+type FeedAction =
   | { type: 'newer'; calls: ActivityCall[] | null }
   | { type: 'older'; calls: ActivityCall[] | null; asked: number }
   | { type: 'hold'; held: boolean };

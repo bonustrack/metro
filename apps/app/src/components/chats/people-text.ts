@@ -20,7 +20,7 @@ export const WHERE_TO_FIND: Record<string, string> = {
   xmtp: 'Their inbox id, not their wallet address. Easiest: have them write once, then pick them below.',
 };
 
-export interface LookupText {
+interface LookupText {
   placeholder: string;
   hint: string;
   notFound: string;

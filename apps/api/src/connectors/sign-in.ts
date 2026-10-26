@@ -36,7 +36,7 @@ export interface SignInDeps {
   now: () => number;
 }
 
-export interface Prepared {
+interface Prepared {
   resource: string;
   server: OAuthServer;
   client: OAuthClient;

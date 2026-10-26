@@ -1,3 +1,4 @@
+import { errMsg } from '@metro-labs/core/log';
 import { appendFile } from '@metro-labs/core/stations/attachments';
 import {
   assertImage,
@@ -74,7 +75,7 @@ const senders = makeProfileCache<SenderProfile>(
       ...(avatar === undefined ? {} : { avatar }),
     };
   },
-  { onError: (key, err) => process.stderr.write(`telegram-bot: could not read the profile of ${key}: ${err instanceof Error ? err.message : String(err)}\n`) },
+  { onError: (key, err) => process.stderr.write(`telegram-bot: could not read the profile of ${key}: ${errMsg(err)}\n`) },
 );
 
 export async function readProfile(id: string, args: Record<string, unknown>): Promise<void> {

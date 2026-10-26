@@ -35,7 +35,7 @@ function organizationItems(rows: OrganizationRow[], shown: string | null, enter:
   ];
 }
 
-export interface OrganizationMenu {
+interface OrganizationMenu {
   name: string;
   avatar: string | null;
   items: MenuItem[];

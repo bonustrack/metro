@@ -38,7 +38,7 @@ interface Command {
   mayFail?: boolean;
 }
 
-export interface ServicePlan {
+interface ServicePlan {
   kind: 'systemd' | 'launchd';
   file: string;
   content: string;
@@ -52,7 +52,7 @@ export interface ServicePlan {
 
 export interface ServiceDeps {
   host: ServiceHost;
-  run: (command: Command) => { status: number; output: string };
+  run: (command: Command) => { status: number };
   running: () => number | null;
   preflight: (args: ServeArgs, agents?: string) => void;
   account: (name: string) => RunAs | null;
@@ -191,7 +191,8 @@ function systemdPlan(host: ServiceHost, serveArgs: string[], runAs?: RunAs): Ser
   };
 }
 
-function launchdPlan(host: ServiceHost, exec: string[]): ServicePlan {
+function launchdPlan(host: ServiceHost, serveArgs: string[]): ServicePlan {
+  const exec = [host.node, host.cli, 'serve', ...serveArgs];
   const file = join(host.home, 'Library', 'LaunchAgents', `${LABEL}.plist`);
   const domain = `gui/${String(host.uid)}`;
   const logFile = join(cacheDir(host), 'metro', 'serve', 'service.log');
@@ -212,11 +213,10 @@ function launchdPlan(host: ServiceHost, exec: string[]): ServicePlan {
 }
 
 export function servicePlan(host: ServiceHost, serveArgs: string[], runAs?: RunAs): ServicePlan {
-  const exec = [host.node, host.cli, 'serve', ...serveArgs];
   if (runAs !== undefined && (host.platform !== 'linux' || host.uid !== 0))
     throw new Error('--user installs a system service for another user: run it as root on Linux');
   if (host.platform === 'linux') return systemdPlan(host, serveArgs, runAs);
-  if (host.platform === 'darwin') return launchdPlan(host, exec);
+  if (host.platform === 'darwin') return launchdPlan(host, serveArgs);
   throw new Error(`metro service supports Linux (systemd) and macOS (launchd), not ${host.platform}`);
 }
 
@@ -345,7 +345,7 @@ export function serviceStopHint(
   return `metro runs as a ${plan.kind} service here (${plan.file}), so it starts again on its own in a moment. To keep it stopped:  ${keep}`;
 }
 
-function lookupAccount(name: string): { name: string; home: string } | null {
+function lookupAccount(name: string): RunAs | null {
   const run = spawnSync('getent', ['passwd', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   const home = run.status === 0 ? (run.stdout.trim().split(':')[5] ?? '') : '';
   return home.startsWith('/') ? { name, home } : null;
@@ -362,7 +362,7 @@ function realDeps(): ServiceDeps {
         const said = [result.stderr, result.stdout, result.error?.message].find((t) => typeof t === 'string' && t.trim() !== '') ?? '';
         throw new Error(`${command.args.join(' ')} failed (exit ${String(code)}): ${said.trim()}`);
       }
-      return { status: code, output: `${result.stdout}${result.stderr}` };
+      return { status: code };
     },
     running: serveLockedBy,
     account: lookupAccount,

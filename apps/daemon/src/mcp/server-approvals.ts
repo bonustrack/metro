@@ -4,6 +4,7 @@ import type { McpApproval, McpDecision } from '@metro-labs/http/mcp-server-proto
 import { holdPrompt, isPromptHeld, type Behavior } from '../approvals/pending.js';
 import { ownerLine } from '../approvals/owner-line.js';
 import { metroNotice } from '../channels/notice.js';
+import { capSize } from '../channels/pending.js';
 import { announcedLine, noteAnnounced } from '../mcp-server/announced.js';
 import type { AnswerOutcome } from '../mcp-server/link.js';
 import { serverPromptBody } from './permission-prompt.js';
@@ -32,11 +33,7 @@ const noticeLineFor = (line: string | undefined): string | undefined => line ?? 
 function remember(id: string, now = Date.now()): void {
   for (const [seen, at] of recent) if (now - at >= RECENT_MS) recent.delete(seen);
   recent.set(id, now);
-  while (recent.size > RECENT_MAX) {
-    const oldest = recent.keys().next();
-    if (oldest.done) break;
-    recent.delete(oldest.value);
-  }
+  capSize(recent, RECENT_MAX);
 }
 
 const answeredRecently = (id: string, now = Date.now()): boolean => now - (recent.get(id) ?? -Infinity) < RECENT_MS;

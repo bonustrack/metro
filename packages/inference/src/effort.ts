@@ -86,12 +86,6 @@ export function withEffort(body: Body, effort: string): Body {
   return { ...top, messages: body.messages.map((message: unknown) => (isRecord(message) ? withOwnEffort(message, effort) : message)) };
 }
 
-export function withoutEffort(body: Body): Body {
-  const config = Object.fromEntries(Object.entries(record(body.output_config)).filter(([key]) => key !== 'effort'));
-  if (Object.keys(config).length > 0) return { ...body, output_config: config };
-  return Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'output_config'));
-}
-
 export function effortToApply(body: Body): string | null {
   if (chore(body)) return null;
   const effort = effortOf(body);

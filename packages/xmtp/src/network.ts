@@ -1,12 +1,11 @@
+import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg } from '@metro-labs/core/log';
 import { TrainError } from '@metro-labs/core/train-error';
 
 const RATE_DELAY_MS = 60_000;
 const MAX_DELAY_MS = 300_000;
 
-function recordOf(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
-}
+const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 function retryAfter(error: unknown, now: number): number {
   const fields = recordOf(error);

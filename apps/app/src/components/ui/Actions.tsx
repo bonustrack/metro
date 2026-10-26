@@ -6,7 +6,7 @@ import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { useIsStacked } from '../../lib/media.js';
 import { FULL_WIDTH } from '../../lib/style.js';
 
-export interface MainAction {
+interface MainAction {
   label: string;
   onPress: () => void;
   disabled?: boolean;
@@ -14,7 +14,7 @@ export interface MainAction {
   danger?: boolean;
 }
 
-export interface CancelAction {
+interface CancelAction {
   label?: string;
   onPress: () => void;
   disabled?: boolean;

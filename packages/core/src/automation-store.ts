@@ -8,7 +8,7 @@ import {
 } from './automation-types.js';
 import { isRecord } from './is-record.js';
 
-export type { AutomationOutcome, AutomationRequest, AutomationResolution, AutomationStatus, AutomationState, AutomationUuid } from './automation-types.js';
+export type { AutomationOutcome, AutomationRequest, AutomationResolution, AutomationStatus } from './automation-types.js';
 
 function payload<T extends { uuid: string }>(row: unknown, parse: (value: unknown) => T): T {
   try {

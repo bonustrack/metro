@@ -10,16 +10,13 @@ export interface ClaudeProject {
   cwd: string | null;
   sessions: number;
   lastActiveAt: string | null;
-  hasMemory: boolean;
 }
 
 export interface ClaudeSession {
   id: string;
   title: string;
-  startedAt: string | null;
   lastAt: string | null;
   bytes: number;
-  gitBranch: string | null;
 }
 
 export type Block =
@@ -44,7 +41,6 @@ export interface TranscriptPage {
 
 export interface MemoryFile {
   name: string;
-  bytes: number;
   modifiedAt: string;
 }
 
@@ -64,7 +60,6 @@ function toProject(v: unknown): ClaudeProject | null {
     cwd: filled(v.cwd),
     sessions: num(v.sessions),
     lastActiveAt: filled(v.lastActiveAt),
-    hasMemory: v.hasMemory === true,
   };
 }
 
@@ -73,10 +68,8 @@ function toSession(v: unknown): ClaudeSession | null {
   return {
     id: v.id,
     title: filled(v.title) ?? 'Untitled session',
-    startedAt: filled(v.startedAt),
     lastAt: filled(v.lastAt),
     bytes: num(v.bytes),
-    gitBranch: filled(v.gitBranch),
   };
 }
 
@@ -165,7 +158,7 @@ export async function fetchMemory(project: string): Promise<MemoryListing> {
   const files = Array.isArray(body.files)
     ? body.files.flatMap((f: unknown) =>
         isRecord(f) && typeof f.name === 'string'
-          ? [{ name: f.name, bytes: num(f.bytes), modifiedAt: filled(f.modifiedAt) ?? '' }]
+          ? [{ name: f.name, modifiedAt: filled(f.modifiedAt) ?? '' }]
           : [],
       )
     : [];

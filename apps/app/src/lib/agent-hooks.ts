@@ -10,7 +10,7 @@ export function useAgentName(): string {
   return server === undefined ? 'the agent' : serverLabel(server);
 }
 
-export interface HomeProject {
+interface HomeProject {
   loading: boolean;
   project: string | null;
 }

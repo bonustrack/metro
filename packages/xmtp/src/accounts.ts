@@ -14,6 +14,7 @@ import {
   resolveAccountId,
 } from '@metro-labs/core/stations/account-store';
 import { Line } from '@metro-labs/core/lines';
+import { TrainError } from '@metro-labs/core/train-error';
 
 export interface AccountConfig {
   id: string;
@@ -100,4 +101,10 @@ export async function convOf(
     acct,
     conv: await acct.client.conversations.getConversationById(parsed.convId),
   };
+}
+
+export async function openConv(line: string): Promise<{ acct: Account; conv: Conversation }> {
+  const { acct, conv } = await convOf(line);
+  if (!conv) throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  return { acct, conv };
 }

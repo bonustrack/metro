@@ -3,7 +3,7 @@ import type { OrganizationRow } from '../src/api/auth.js';
 import { AuthError, ForbiddenError, NotFoundError, StoppedError } from '../src/api/client.js';
 import { toRuntimeSnapshot, type RuntimeSnapshot } from '../src/api/claude-box.js';
 import { DashboardPoll, initialDashboard, type DashboardSource } from '../src/api/dashboard-poll.js';
-import { dashboardSession, type DashboardState } from '../src/api/dashboard.js';
+import type { DashboardState } from '../src/api/dashboard.js';
 import { toModelSettings, type ModelSettings } from '../src/api/model.js';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -302,7 +302,7 @@ describe('dashboard polling controller', () => {
     nextPoll(); await flush();
     const stopped = run.latest().rows[0];
     if (stopped === undefined) throw new Error('missing row');
-    expect(dashboardSession(stopped.session, NOW).status).toBe('Metro stopped');
+    expect(stopped.session).toMatchObject({ data: null, error: 'Metro is stopped.' });
   });
 
   test('an unreported agents list remains different from a confirmed empty organization', async () => {

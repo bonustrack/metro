@@ -3,6 +3,7 @@ import { base } from 'viem/chains';
 import { normalize } from 'viem/ens';
 import { makeProfileCache, type SenderProfile as Profile } from '@metro-labs/core/stations/sender-profile';
 import { respond } from '@metro-labs/core/stations/station-runtime';
+import { errMsg } from '@metro-labs/core/log';
 import { TrainError } from '@metro-labs/core/train-error';
 import { accountForCall, accounts, type Account } from './accounts.js';
 import { resolveAddresses } from './conv-helpers.js';
@@ -85,7 +86,7 @@ const senders = makeProfileCache<SenderProfile>(
     const address = (await resolveAddresses(acct, [inboxId]))[inboxId];
     return address === undefined ? null : profileOf(address);
   },
-  { onError: (k, err) => process.stderr.write(`xmtp: could not resolve the sender ${k}: ${err instanceof Error ? err.message : String(err)}\n`) },
+  { onError: (k, err) => process.stderr.write(`xmtp: could not resolve the sender ${k}: ${errMsg(err)}\n`) },
 );
 
 export const senderFields = (p: SenderProfile | null): Record<string, string> =>

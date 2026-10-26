@@ -4,12 +4,18 @@ const uidToXmtp = new Map<string, string>();
 const INBOX_ETH_CACHE_MAX = 5000;
 export const inboxEthCache = new Map<string, string>();
 
+const SENT_MAX = 5000;
+const sentIds = new Set<string>();
+
+function dropOldest(held: Map<string, string> | Set<string>, max: number): void {
+  if (held.size <= max) return;
+  const oldest = held.keys().next().value;
+  if (oldest !== undefined) held.delete(oldest);
+}
+
 export function cacheInboxEth(inboxId: string, eth: string): void {
   inboxEthCache.set(inboxId, eth);
-  if (inboxEthCache.size > INBOX_ETH_CACHE_MAX) {
-    const oldest = inboxEthCache.keys().next().value;
-    if (oldest !== undefined) inboxEthCache.delete(oldest);
-  }
+  dropOldest(inboxEthCache, INBOX_ETH_CACHE_MAX);
 }
 
 export function rememberUid(
@@ -18,10 +24,7 @@ export function rememberUid(
 ): void {
   if (!uid || !xmtpId || !uid.startsWith('msg_')) return;
   uidToXmtp.set(uid, xmtpId);
-  if (uidToXmtp.size > UID_MAP_MAX) {
-    const oldest = uidToXmtp.keys().next().value;
-    if (oldest !== undefined) uidToXmtp.delete(oldest);
-  }
+  dropOldest(uidToXmtp, UID_MAP_MAX);
 }
 
 export function resolveMsgId(rawId: string): string {
@@ -34,16 +37,10 @@ export function resolveMsgId(rawId: string): string {
   );
 }
 
-const SENT_MAX = 5000;
-const sentIds = new Set<string>();
-
 export function rememberSent(xmtpId: string | undefined): void {
   if (!xmtpId) return;
   sentIds.add(xmtpId);
-  if (sentIds.size > SENT_MAX) {
-    const oldest = sentIds.values().next().value;
-    if (oldest !== undefined) sentIds.delete(oldest);
-  }
+  dropOldest(sentIds, SENT_MAX);
 }
 
 export const sentByMe = (xmtpId: string): boolean => sentIds.has(xmtpId);

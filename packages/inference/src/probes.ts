@@ -19,15 +19,6 @@ export interface ProbeDeps {
   anthropicBase?: string;
 }
 
-export class ProbeRefused extends Error {
-  constructor(
-    readonly provider: string,
-    readonly status: number,
-  ) {
-    super(`${provider} would not report its usage (${String(status)})`);
-  }
-}
-
 const numberOf = (value: unknown): number | null => {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : null;
@@ -64,7 +55,7 @@ export function chatgptUsage(body: unknown, now = new Date()): Reported | null {
 async function answer(res: Response, provider: string): Promise<Response> {
   if (res.ok) return res;
   await res.body?.cancel();
-  throw new ProbeRefused(provider, res.status);
+  throw new Error(`${provider} would not report its usage (${String(res.status)})`);
 }
 
 async function chatgptProbe(conn: Connection, deps: ProbeDeps, now: Date): Promise<Reported | null> {

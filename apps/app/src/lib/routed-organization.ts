@@ -7,13 +7,13 @@ interface Opened {
   organization: string;
 }
 
-export interface OpenFailure {
+interface OpenFailure {
   segment: string;
   text: string;
   refused: boolean;
 }
 
-export interface RoutedOrganization {
+interface RoutedOrganization {
   mismatch: boolean;
   failure: OpenFailure | null;
   retry: () => void;
@@ -32,7 +32,7 @@ export function useRoutedOrganization(wanted: string | null, onLock: () => void)
   const settled = opened !== null && opened.segment === wanted && opened.organization === account?.organization;
   const mismatch = wanted !== null && account !== null && !isCurrentOrganization(wanted, account) && !settled;
   useEffect(() => {
-    if (!mismatch || wanted === null) return undefined;
+    if (!mismatch) return undefined;
     let alive = true;
     setFailure(null);
     openOrganization(wanted, () => alive)

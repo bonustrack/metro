@@ -5,12 +5,6 @@ import { coerceErrorInfo, type TrainErrorInfo } from './train-error.js';
 import type { StructuredEvent } from './events.js';
 import type { CallMsg } from './stations/station-runtime.js';
 
-export {
-  TrainError,
-  serializeTrainError,
-  type TrainErrorInfo,
-} from './train-error.js';
-
 const CALL_TIMEOUT_MS = 60_000;
 
 export interface Pending {

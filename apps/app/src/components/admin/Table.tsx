@@ -99,7 +99,7 @@ export function TableRow({ href, label, menu, children }: TableRowProps): ReactN
   );
 }
 
-export function TwoLines({ top, bottom, topTone, bottomTone = 'secondary' }: { top: ReactNode; bottom?: string | null; topTone?: 'danger' | 'secondary'; bottomTone?: 'danger' | 'secondary' }): ReactNode {
+export function TwoLines({ top, bottom, topTone }: { top: ReactNode; bottom?: string | null; topTone?: 'danger' | 'secondary' }): ReactNode {
   return (
     <Col gap={2} minWidth={0}>
       {typeof top === 'string' ? (
@@ -110,7 +110,7 @@ export function TwoLines({ top, bottom, topTone, bottomTone = 'secondary' }: { t
         top
       )}
       {bottom === undefined || bottom === null ? null : (
-        <Text size="2xs" role={bottomTone} numberOfLines={1}>
+        <Text size="2xs" role="secondary" numberOfLines={1}>
           {bottom}
         </Text>
       )}

@@ -9,9 +9,9 @@ import type { AutomationStore } from '@metro-labs/core/automation-store';
 const HOUR_MS = 3_600_000;
 const SLOT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
-export class AutomationCommandError extends Error {}
+class AutomationCommandError extends Error {}
 
-export interface AutomationCommandDeps {
+interface AutomationCommandDeps {
   store: Pick<AutomationStore, 'validate' | 'submit' | 'requests' | 'statuses' | 'finish'>;
   now?: () => number;
   readPrompt?: (path: string) => string;

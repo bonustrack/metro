@@ -12,7 +12,7 @@ export interface StackSeries {
   tip: boolean;
 }
 
-export interface SeriesColors {
+interface SeriesColors {
   slots: readonly string[];
   other: string;
   calls: string;

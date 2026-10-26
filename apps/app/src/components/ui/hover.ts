@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export interface HoverHandlers {
+interface HoverHandlers {
   onHoverIn: () => void;
   onHoverOut: () => void;
 }

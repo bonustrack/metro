@@ -3,10 +3,11 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
 import { ADD_AGENT_ADMIN, type ServerEntry } from './server-types.js';
 import { parseId } from '@metro-labs/core/ids';
 import { AVATAR_BODY_MAX } from './avatar.js';
+import { callerOf } from './server-route.js';
 
 const PREFIX = '/api/servers';
 
@@ -63,19 +64,10 @@ async function answer(req: IncomingMessage, deps: ServersApiDeps, session: Sessi
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: ServersApiDeps, tgt: Known): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const organization = session?.organization ?? null;
-    if (session === null || organization === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    const body = await answer(req, deps, session, tgt);
-    if (req.method !== 'GET') log.info({ method: req.method, target: tgt }, 'servers-api: list changed');
-    sendJson(req, res, 200, body);
-  } catch (err) {
-    apiFailure(req, res, err, 'servers-api');
-  }
+  const { session } = await callerOf(req, deps.keys);
+  const body = await answer(req, deps, session, tgt);
+  if (req.method !== 'GET') log.info({ method: req.method, target: tgt }, 'servers-api: list changed');
+  sendJson(req, res, 200, body);
 }
 
 export function handleServersApiRequest(req: IncomingMessage, res: ServerResponse, deps: ServersApiDeps): boolean {

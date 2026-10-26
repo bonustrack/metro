@@ -30,7 +30,7 @@ interface TriggerButton {
 const MENU_GAP = 8;
 const EDGE = 8;
 
-export interface Anchor {
+interface Anchor {
   x: number;
   y: number;
   width: number;
@@ -94,7 +94,7 @@ function MenuItems({ items, onClose }: { items: MenuItem[]; onClose: () => void 
   ));
 }
 
-export function AnchoredPanel({ at, onClose, children }: { at: Placement | null; onClose: () => void; children: ReactNode }): ReactNode {
+function AnchoredPanel({ at, onClose, children }: { at: Placement | null; onClose: () => void; children: ReactNode }): ReactNode {
   const { maxHeight, minWidth, ...edges } = at ?? { maxHeight: 0 };
   const position: ViewStyle = { position: 'absolute', ...edges, ...(minWidth === undefined ? {} : { minWidth }) };
   return (

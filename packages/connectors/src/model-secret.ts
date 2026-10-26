@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { parsedJson } from './model.js';
 import { openSecret, sealSecret } from './secrets.js';
 
-export const MODEL_PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'] as const;
+const MODEL_PROVIDERS = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'] as const;
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
 export const KEY_PROVIDERS: readonly ModelProvider[] = ['anthropic', 'bedrock', 'openrouter', 'routeway'];
 
@@ -38,7 +38,7 @@ const DETAIL_TEXT = ['email', 'plan', 'accountId', 'signedInAt', 'refreshedAt'] 
 
 export const isModelProvider = (value: unknown): value is ModelProvider => typeof value === 'string' && (MODEL_PROVIDERS as readonly string[]).includes(value);
 
-export const isCodexMethod = (value: unknown): value is CodexMethod => value === 'chatgpt' || value === 'code';
+const isCodexMethod = (value: unknown): value is CodexMethod => value === 'chatgpt' || value === 'code';
 
 interface Sealed {
   owner: string;

@@ -96,7 +96,7 @@ async function run(command: string | undefined): Promise<number> {
   const handler = command === undefined ? undefined : COMMANDS[command];
   if (handler !== undefined) return handler();
   process.stderr.write(USAGE);
-  return Promise.resolve(HELP.has(command) ? 0 : 1);
+  return HELP.has(command) ? 0 : 1;
 }
 
 const code = await run(process.argv[2]).catch((err: unknown) => {

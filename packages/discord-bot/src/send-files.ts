@@ -32,9 +32,7 @@ export async function appendFiles(
   files: OutgoingFile[],
 ): Promise<string[]> {
   const delivered: string[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (!file) continue;
+  for (const [i, file] of files.entries()) {
     await appendFile(form, `files[${i}]`, file.path, file.name);
     delivered.push(file.kind);
   }

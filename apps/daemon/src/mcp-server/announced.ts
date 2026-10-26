@@ -37,7 +37,7 @@ function prune(now: number): void {
 
 function save(): void {
   if (file === undefined) return;
-  const announced = Object.fromEntries([...known].map(([id, entry]) => [id, { line: entry.line, at: entry.at }]));
+  const announced = Object.fromEntries(known);
   try {
     writeSecure(file, `${JSON.stringify({ version: 1, announced })}\n`);
   } catch (err) {

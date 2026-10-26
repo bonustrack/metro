@@ -9,12 +9,11 @@ import type { ConnectorEdit, ConnectorRow } from '@metro-labs/connectors/db/conn
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
 import { connectorView, isReadOnly, readOnlyPolicy, simplePolicy, type ConnectorView } from './model.js';
-import { viewOf, type ActionDeps, type Caller } from './actions.js';
+import { at, viewOf, type ActionDeps, type Caller } from './actions.js';
 
 type Change = { kind: 'name'; name: string } | { kind: 'readOnly'; readOnly: boolean } | { kind: 'policy'; policy: ConnectorPolicy } | { kind: 'key'; header: unknown; value: unknown };
 
 const actorOf = (caller: Caller): string => `user:${caller.session.userId}`;
-const at = (deps: ActionDeps): string => new Date(deps.now()).toISOString();
 
 export async function listConnectors(deps: ActionDeps, owner: string): Promise<ConnectorView[]> {
   const { connectors, assignments } = await deps.store.list(owner);

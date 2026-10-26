@@ -31,7 +31,7 @@ export interface Encoded {
 
 export const asForm = (fields: Record<string, string>): Encoded => ({ type: 'application/x-www-form-urlencoded', body: new URLSearchParams(fields).toString() });
 
-export const asJson = (fields: Record<string, string>): Encoded => ({ type: 'application/json', body: JSON.stringify(fields) });
+const asJson = (fields: Record<string, string>): Encoded => ({ type: 'application/json', body: JSON.stringify(fields) });
 
 export const nonEmpty = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
 

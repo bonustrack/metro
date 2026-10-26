@@ -2,7 +2,7 @@ import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
 import { emptySetup, isProvider, type AuthKind, type ModelSetup, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
 
-export interface DeliveredRoute {
+interface DeliveredRoute {
   primary: Fallback | null;
   fallbacks: Fallback[];
   helpers: Chain | null;

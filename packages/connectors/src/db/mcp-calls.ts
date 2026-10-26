@@ -54,7 +54,7 @@ function beforeOf(cursor: CallCursor | undefined): SQL | undefined {
   return sql`(${mcpCalls.at}, ${mcpCalls.id}) < (${cursor.at}, ${cursor.id})`;
 }
 
-export async function recentCalls(db: Database, owner: string, filter: CallFilter): Promise<CallView[]> {
+async function recentCalls(db: Database, owner: string, filter: CallFilter): Promise<CallView[]> {
   const limit = Math.min(Math.max(1, Math.floor(filter.limit)), CALLS_PAGE_MAX);
   const scope = and(
     eq(mcpCalls.owner, owner),

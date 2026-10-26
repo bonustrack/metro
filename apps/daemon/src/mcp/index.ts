@@ -15,6 +15,7 @@ import {
   serveChannelGet,
 } from './raw-get-stream.js';
 import { errMsg } from '@metro-labs/core/log';
+import { isRecord } from '@metro-labs/core/is-record';
 import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
 import { connectCallBridge } from './call-bridge.js';
@@ -22,10 +23,7 @@ import { connectServerApprovals } from './server-approvals.js';
 import { handleIncomingDiagnostic } from './diagnostics.js';
 import { onConnectorToolsChanged } from '../mcp-server/connector-tools.js';
 
-const isInitialize = (b: unknown): boolean =>
-  !!b &&
-  typeof b === 'object' &&
-  (b as { method?: string }).method === 'initialize';
+const isInitialize = (b: unknown): boolean => isRecord(b) && b.method === 'initialize';
 
 const MCP_BODY_MAX = 32 * 1024 * 1024;
 

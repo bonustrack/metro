@@ -15,7 +15,7 @@ const USER_URGENCY: Record<UserState, number> = { waitlist: 3, none: 2, rejected
 
 export const userName = (user: UserRow): string => user.name ?? user.email ?? user.id;
 
-export interface UserCounts {
+interface UserCounts {
   total: number;
   waiting: number;
   week: number;
@@ -97,7 +97,7 @@ export function adminOrganizations(organizations: readonly OrganizationSummary[]
   }));
 }
 
-export interface OrganizationCounts {
+interface OrganizationCounts {
   total: number;
   agents: number;
   member: number;

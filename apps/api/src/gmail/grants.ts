@@ -17,7 +17,7 @@ export interface GmailIdentity {
   sendEnabled: boolean;
 }
 
-export interface GmailGrant extends GmailIdentity {
+interface GmailGrant extends GmailIdentity {
   clientId: string;
   refreshDigest: string;
   issuedAt: number;

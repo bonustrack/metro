@@ -5,9 +5,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ISSUER, isRecord, isVersion, PUBLISHER, RELEASE_DIR, type Published, type ReleaseDeps } from './root-release.js';
-import { PACKAGE_NAME } from './version.js';
+import { PACKAGE_NAME, REGISTRY } from './version.js';
 
-const REGISTRY = 'https://registry.npmjs.org';
 const ENCODED = PACKAGE_NAME.replace('/', '%2F');
 const ROOT_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 const SETUP = join('runtime', 'node_modules', '@metro-labs', 'daemon', 'src', 'metro-user', 'install.ts');

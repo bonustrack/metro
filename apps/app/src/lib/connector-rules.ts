@@ -16,7 +16,7 @@ export type ToolFilter = 'all' | 'read' | 'write' | 'changed';
 
 export const TOOL_GROUPS: readonly ToolGroup[] = ['read', 'write'];
 
-export const TOOL_FILTERS: readonly ToolFilter[] = ['all', 'read', 'write', 'changed'];
+const TOOL_FILTERS: readonly ToolFilter[] = ['all', 'read', 'write', 'changed'];
 
 export const FILTER_WORD: Record<ToolFilter, string> = { all: 'All', read: 'Read', write: 'Write', changed: 'Changed' };
 
@@ -34,7 +34,7 @@ const rank = (choice: PermissionChoice): number => PERMISSION_CHOICES.indexOf(ch
 
 const inGroup = (tools: readonly ExplorerTool[], group: ToolGroup): ExplorerTool[] => tools.filter((tool) => tool.group === group);
 
-export const orgChoice = (organization: ToolPolicy, tool: ExplorerTool): PermissionChoice => choiceOfAccess(effectiveAccess(organization, tool));
+const orgChoice = (organization: ToolPolicy, tool: ExplorerTool): PermissionChoice => choiceOfAccess(effectiveAccess(organization, tool));
 
 export function toolChoice(scope: RuleScope, tool: ExplorerTool): PermissionChoice {
   const own = effectiveAccess(scope.policy, tool);
@@ -105,12 +105,12 @@ export function visibleFilters(counts: Record<ToolFilter, number>, current: Tool
   return TOOL_FILTERS.filter((filter) => filter === 'all' || filter === current || counts[filter] > 0);
 }
 
-export interface AgentPolicy {
+interface AgentPolicy {
   id: string;
   policy: ToolPolicy;
 }
 
-export interface StricterAgent {
+interface StricterAgent {
   id: string;
   choice: PermissionChoice;
 }

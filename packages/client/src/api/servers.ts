@@ -27,7 +27,7 @@ export interface RemoteServer extends AgentRow {
 
 export type Server = BoxServer | RemoteServer;
 
-export const isBox = (server: Server): server is BoxServer => server.kind === 'box';
+const isBox = (server: Server): server is BoxServer => server.kind === 'box';
 
 export const isRemote = (server: Server): server is RemoteServer => server.kind === 'remote';
 
@@ -87,15 +87,8 @@ export async function addRemoteAgent(name: string): Promise<Server> {
   return server;
 }
 
-export async function addServer(host: string, name?: string): Promise<Server> {
-  const server = toServer(
-    await call({
-      method: 'POST',
-      base: listUrl(),
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(name === undefined ? { host } : { host, name }),
-    }),
-  );
+export async function addServer(host: string): Promise<Server> {
+  const server = toServer(await call({ method: 'POST', base: listUrl(), headers: { 'content-type': 'application/json' }, body: JSON.stringify({ host }) }));
   rememberAgents([server]);
   return server;
 }

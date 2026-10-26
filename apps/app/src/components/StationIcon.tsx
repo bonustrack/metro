@@ -12,7 +12,7 @@ const STATION_SITES: Record<string, string> = {
   gmail: 'https://mail.google.com',
 };
 
-export interface StationIconProps {
+interface StationIconProps {
   station: string;
   size?: number;
 }

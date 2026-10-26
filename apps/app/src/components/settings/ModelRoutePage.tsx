@@ -185,7 +185,7 @@ export function ModelRoutePage({ project }: { project: string }): ReactNode {
   return (
     <Groups>
       <Problems settings={model.data} error={model.error} outdated={outdated} partsOutdated={partsOutdated} project={project} />
-      {admin && org.data !== undefined && agent !== null ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
+      {admin && org.data !== undefined ? <Editable org={org.data} agent={agent} settings={model.data} name={name} /> : <ReadOnlyModels settings={model.data} org={org.data} orgError={org.error} name={name} />}
       <UsageAndLinks agent={agent} />
     </Groups>
   );

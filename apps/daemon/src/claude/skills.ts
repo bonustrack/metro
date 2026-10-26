@@ -104,7 +104,7 @@ const skillTemplate = (name: string): string =>
   ['---', `name: ${name}`, 'description: what this skill does, and when Claude should reach for it', '---', '', `# ${name}`, '', 'Write the instructions here.', ''].join('\n');
 
 export function createClaudeSkill(name: string, text: string | undefined, dir = claudeDir()): ClaudeSkill {
-  if (typeof name !== 'string' || !SKILL_NAME_RE.test(name))
+  if (!SKILL_NAME_RE.test(name))
     throw new ApiError('a skill name is lowercase letters, digits and dashes, up to 64 characters', 400);
   const path = join(userSkillsRoot(dir), name, FILE);
   if (existsSync(path)) throw new ApiError('a skill by that name already lives there', 409);

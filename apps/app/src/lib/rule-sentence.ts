@@ -1,6 +1,6 @@
 import { PERMISSION_CHOICES, type PermissionChoice, type PermissionGroup } from './permission-words.js';
 
-export type Joiner = 'and' | 'or';
+type Joiner = 'and' | 'or';
 
 export interface Segment {
   text: string;
@@ -15,9 +15,9 @@ export const val = (text: string): Segment => ({ text, value: true });
 
 export const txt = (text: string): Segment => ({ text, value: false });
 
-function joinWords(items: readonly string[], joiner: Joiner = 'and'): string {
+function joinWords(items: readonly string[]): string {
   if (items.length <= 1) return items[0] ?? '';
-  return `${items.slice(0, -1).join(', ')} ${joiner} ${items[items.length - 1] ?? ''}`;
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
 }
 
 export const namesList = (names: string[]): string => joinWords(names);

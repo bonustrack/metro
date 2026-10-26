@@ -33,8 +33,6 @@ interface Stored {
   file: AgentFile;
 }
 
-const missing = (): AgentAdminError => new AgentAdminError('no such agent', 404);
-
 function parseOwner(raw: string): string | null {
   const text = raw.trim();
   return isOrganizationId(text) ? text : null;
@@ -66,7 +64,7 @@ function save(stored: Stored): void {
 
 function agentOrThrow(id: string, dir: string): Stored {
   const found = storedAgents(dir).find((s) => s.file.id === id);
-  if (found === undefined) throw missing();
+  if (found === undefined) throw new AgentAdminError('no such agent', 404);
   return found;
 }
 
@@ -84,9 +82,8 @@ function freshId(taken: Set<string>): string {
 
 export async function localCreateAgent(rawName?: string, dir = agentsDir()): Promise<CreatedAgent> {
   const name = rawName === undefined ? null : normalizeAgentName(rawName);
-  const existing = storedAgents(dir);
-  if (existing.length > 0) throw new AgentAdminError('this box already has its agent', 409);
-  const id = freshId(new Set());
+  if (storedAgents(dir).length > 0) throw new AgentAdminError('this box already has its agent', 409);
+  const id = newId();
   const key = newApiKey();
   ensureSecureDir(dir);
   save({
@@ -228,9 +225,7 @@ export function localPairAgain(agentId: string, station: StationName, accountId:
 }
 
 export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFile {
-  const found = storedAgents(dir).find((s) => s.file.id === agentId);
-  if (found === undefined) throw missing();
-  return found.file;
+  return agentOrThrow(agentId, dir).file;
 }
 
 const UNIQUE_CREDENTIALS: Record<string, string> = {

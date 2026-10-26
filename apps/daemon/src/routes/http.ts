@@ -11,6 +11,7 @@ import {
 } from 'node:http';
 import { Line } from '@metro-labs/core/lines';
 import { MCP_STATUS_PATH } from '../mcp/diagnostics.js';
+import { capSize } from '../channels/pending.js';
 import { errMsg, log } from '@metro-labs/core/log';
 import {
   classifyEvent,
@@ -50,7 +51,7 @@ export interface DedupSeq {
 }
 
 export function makeDedupSeq(): DedupSeq {
-  const seen = new Map<string, true>();
+  const seen = new Set<string>();
   const seqByLine = new Map<string, number>();
 
   log.info('dedup+seq: live-from-boot (no persisted seed)');
@@ -72,20 +73,12 @@ export function makeDedupSeq(): DedupSeq {
           );
           return null;
         }
-        seen.set(key, true);
-        while (seen.size > LRU_CAP) {
-          const oldest = seen.keys().next();
-          if (oldest.done) break;
-          seen.delete(oldest.value);
-        }
+        seen.add(key);
+        capSize(seen, LRU_CAP);
       }
       const next = (seqByLine.get(entry.line) ?? 0) + 1;
       seqByLine.set(entry.line, next);
-      while (seqByLine.size > LRU_CAP) {
-        const oldest = seqByLine.keys().next();
-        if (oldest.done) break;
-        seqByLine.delete(oldest.value);
-      }
+      capSize(seqByLine, LRU_CAP);
       return next;
     },
   };
@@ -318,18 +311,10 @@ async function handleWebhookRoute(
   return true;
 }
 
-function handleSignInRoutes(
-  req: IncomingMessage,
-  res: ServerResponse,
-  apis: SessionApis,
-): boolean {
-  return apis.mode !== undefined && handleModeRequest(req, res, apis.mode);
-}
-
 function handleEarlyRoutes(req: IncomingMessage, res: ServerResponse, apis: SessionApis): boolean {
   if (handleHealth(req, res)) return true;
   if (apis.gateway?.(req, res) === true) return true;
-  if (handleSignInRoutes(req, res, apis)) return true;
+  if (apis.mode !== undefined && handleModeRequest(req, res, apis.mode)) return true;
   return handleSessionApis(req, res, apis);
 }
 

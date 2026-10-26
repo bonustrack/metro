@@ -78,16 +78,15 @@ interface PermissionControlProps {
   disabled?: boolean;
   atLeast?: PermissionChoice | null;
   size?: ControlSize;
-  showMixed?: boolean;
 }
 
-export function PermissionControl({ label, value, onChange, disabled = false, atLeast = null, size = 'md', showMixed = true }: PermissionControlProps): ReactNode {
+export function PermissionControl({ label, value, onChange, disabled = false, atLeast = null, size = 'md' }: PermissionControlProps): ReactNode {
   const palette = useKitPalette();
   const states = choiceStates(value, { disabled, atLeast });
   const track = StyleSheet.flatten([styles.track, { borderColor: palette.border }, disabled ? { opacity: DIM } : null]);
   return (
     <Row align="center" gap={12}>
-      {value === 'mixed' && showMixed ? (
+      {value === 'mixed' ? (
         <Text size="xs" color={palette.text}>
           {MIXED_WORD}
         </Text>

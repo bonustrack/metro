@@ -1,7 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
-import { authHeaders, INITIALIZE, mcpPost, payloadOf, type ConnectorAuth } from './connector-mcp.js';
+import { authHeaders, INITIALIZE, mcpPost, resultOf, type ConnectorAuth } from './connector-mcp.js';
 import { ConnectorUnauthorized, refused } from './connector-url.js';
 
 export interface RemoteTool {
@@ -17,16 +17,6 @@ export interface RemoteTool {
 const TIMEOUT_MS = 15_000;
 const MAX_PAGES = 100;
 const MAX_TOOLS = 2000;
-
-function resultOf(text: string, contentType: string): Record<string, unknown> | null {
-  let parsed: unknown = null;
-  try {
-    parsed = JSON.parse(payloadOf(text, contentType));
-  } catch {
-    return null;
-  }
-  return isRecord(parsed) && isRecord(parsed.result) ? parsed.result : null;
-}
 
 async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike): Promise<Record<string, unknown> | null> {
   const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: Object.fromEntries(session), fetch: fetchImpl });

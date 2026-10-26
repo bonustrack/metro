@@ -15,7 +15,7 @@ const DEFAULT_INTERVAL_S = 5;
 const CALL_TIMEOUT_MS = 15_000;
 const AGAIN = 'press Sign in with a code again';
 
-export interface DeviceStart {
+interface DeviceStart {
   id: string;
   user_code: string;
   verify_url: string;
@@ -24,7 +24,7 @@ export interface DeviceStart {
 
 type Claimed = { status: 'pending' } | { status: 'failed'; error: string } | { status: 'done'; secret: CodexSecret; detail: ModelDetail };
 
-export type DeviceAnswer = { status: 'pending' } | { status: 'failed'; error: string } | { status: 'done'; connection: ConnectionView };
+type DeviceAnswer = { status: 'pending' } | { status: 'failed'; error: string } | { status: 'done'; connection: ConnectionView };
 
 const post = (deps: ModelsDeps, url: string, body: unknown): Promise<Response> =>
   deps.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body), redirect: 'manual', signal: AbortSignal.timeout(CALL_TIMEOUT_MS) });

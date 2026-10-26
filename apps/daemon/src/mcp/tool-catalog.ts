@@ -41,21 +41,19 @@ export const declaredGroup = (name: string): ToolGroup | undefined => BY_NAME.ge
 
 export const toolGroupOf = (name: string): ToolGroup => declaredGroup(name) ?? 'write';
 
-export type ToolAnnotations = Record<string, unknown>;
-
 export interface PublishedTool {
   name: string;
   title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  annotations: ToolAnnotations;
+  annotations: Record<string, unknown>;
   _meta?: Record<string, boolean>;
 }
 
 const ALWAYS_LOADED = new Set(['react', 'typing', 'send', 'reply']);
 const ALWAYS_LOAD = { 'anthropic/alwaysLoad': true };
 
-const annotationsOf = (def: ToolDef): ToolAnnotations =>
+const annotationsOf = (def: ToolDef): Record<string, unknown> =>
   toolGroupOf(def.name) === 'read'
     ? { readOnlyHint: true }
     : { readOnlyHint: false, destructiveHint: def.destructive === true };

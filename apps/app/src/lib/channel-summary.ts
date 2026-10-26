@@ -5,7 +5,7 @@ import { approvesInChat, isDomain, type Person } from './channel-people.js';
 import { isDeleteTool, listedTools, ruleRows } from './channel-rules.js';
 import { choiceOfAccess, type PermissionGroup } from './permission-words.js';
 import {
-  cappedList, countWords, joinSegments, ownRules, ownRulesSentence, paragraph, rulesClause, txt, val, type GroupBases, type GroupWords, type Joiner, type RuledTool, type Segment,
+  cappedList, countWords, joinSegments, ownRules, ownRulesSentence, paragraph, rulesClause, txt, val, type GroupBases, type GroupWords, type RuledTool, type Segment,
 } from './rule-sentence.js';
 import { toolLabel } from './tool-labels.js';
 
@@ -36,11 +36,11 @@ const isNamed = (person: Person): boolean => person.title !== person.id || isAdd
 
 const restWords = (count: number, none: boolean): string => (none ? countWords(count, 'person', 'people') : countWords(count, 'other', 'others'));
 
-function whoWords(people: readonly Person[], joiner: Joiner = 'and'): Segment[] {
+function whoWords(people: readonly Person[]): Segment[] {
   const persons = people.filter((person) => !isDomain(person.id));
   const domains = people.filter((person) => isDomain(person.id)).map((person) => [txt('anyone at '), val(person.id)]);
   const named = cappedList(persons.filter(isNamed).map((person) => person.title), persons.length, restWords).map((name) => [val(name)]);
-  return joinSegments([...domains, ...named], joiner);
+  return joinSegments([...domains, ...named]);
 }
 
 function connectionLine({ label, row, reportsStatus, pairAgain }: ChannelFacts): Segment[] | null {

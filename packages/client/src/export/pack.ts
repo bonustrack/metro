@@ -51,7 +51,7 @@ export interface Payload {
   sessions?: PackedSession[];
 }
 
-export interface MetroFile {
+interface MetroFile {
   metro: number;
   kind: string;
   envelope: PassphraseEnvelope;

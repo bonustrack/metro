@@ -9,7 +9,7 @@ import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aw
 import { leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
 import type { AwsAccount } from '../aws/access.js';
 import { agentKindOf, parseServerHost, parseServerName, type AgentKind, type ServerEntry } from '../server-types.js';
-import { parseAvatar } from '../avatar.js';
+import { parseAvatar, storedAvatar } from '../avatar.js';
 import { parseSlug, slugify, withSuffix } from '../slug.js';
 import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
 import { userOrganizations, type WorkosConfig } from '../auth/workos.js';
@@ -127,7 +127,7 @@ export async function listAllServers(): Promise<AgentSummary[]> {
     .select({ id: agents.id, owner: agents.owner, kind: agents.kind, host: agents.host, name: agents.name, slug: agents.slug, addedAt: agents.addedAt, avatar: agents.avatar, instanceId: agents.instanceId })
     .from(agents)
     .orderBy(desc(agents.addedAt));
-  return rows.map((r) => ({ ...r, kind: agentKindOf(r.kind), avatar: r.avatar?.startsWith('data:image/png;base64,') === true ? r.avatar : null }));
+  return rows.map((r) => ({ ...r, kind: agentKindOf(r.kind), avatar: storedAvatar(r.avatar) }));
 }
 
 export async function listServersForOwner(subject: string): Promise<ServerEntry[]> {

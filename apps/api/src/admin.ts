@@ -5,7 +5,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
 import { isOperatorEmail } from './auth/operator.js';
-import { listOrganizations, organizationName, type WorkosConfig } from './auth/workos.js';
+import { configOf, listOrganizations, organizationName, type WorkosConfig } from './auth/workos.js';
 import type { AgentSummary, DeletionRow } from './db/servers.js';
 import { confirmDeletion, deletionView, noteRefusal, type DeletionCore } from './deletion.js';
 import type { SlugStore } from './slug.js';
@@ -16,7 +16,7 @@ const PREFIX = '/api/admin';
 const STATUS_RE = /^\/users\/([A-Za-z0-9_]+)\/status$/;
 const DELETION_RE = /^\/servers\/([^/]+)\/deletion$/;
 
-export interface AdminDeletionDeps extends DeletionCore {
+interface AdminDeletionDeps extends DeletionCore {
   lookup: (id: string) => Promise<DeletionRow>;
 }
 
@@ -67,9 +67,7 @@ async function setStatus(req: IncomingMessage, deps: AdminApiDeps, session: Sess
 }
 
 async function organizations(deps: AdminApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
-  const rows = await listOrganizations(cfg);
+  const rows = await listOrganizations(configOf(deps));
   const avatars = await deps.orgAvatars.avatars(rows.map((o) => o.id));
   return { organizations: await Promise.all(rows.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null }))) };
 }

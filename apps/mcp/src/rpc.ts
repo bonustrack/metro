@@ -8,10 +8,10 @@ import { agentConnectors, labelsOf } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { findTools } from './find.js';
 import { errorResult, type ToolResult } from './tool-result.js';
-import type { ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
-import { approvalPlace, instructionsFor, TOOL_CALL, TOOL_SEARCH, toolList } from './tools.js';
+import { mcpServerTools, type ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
+import { approvalPlace, INSTRUCTIONS, TOOL_CALL, TOOL_SEARCH } from './tools.js';
 
-export const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
 type Reply = Record<string, unknown>;
 type RequestId = string | number | null;
@@ -38,7 +38,7 @@ function initialize(params: Record<string, unknown>, place: ApprovalPlace): Repl
     protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
     capabilities: { tools: {} },
     serverInfo: { name: 'metro', version: METRO_VERSION },
-    instructions: instructionsFor(place),
+    instructions: INSTRUCTIONS[place],
   };
 }
 
@@ -68,7 +68,7 @@ async function result(ctx: RpcContext, method: string, params: Record<string, un
   const place = approvalPlace(ctx.identity);
   if (method === 'initialize') return initialize(params, place);
   if (method === 'ping') return {};
-  if (method === 'tools/list') return { tools: toolList(labelsOf(await agentConnectors(ctx.deps, ctx.identity)), place) };
+  if (method === 'tools/list') return { tools: mcpServerTools(labelsOf(await agentConnectors(ctx.deps, ctx.identity)), place) };
   if (method === 'tools/call') return toolCall(ctx, params);
   throw new RpcError(-32601, `Method not found: ${method.slice(0, 64)}`);
 }

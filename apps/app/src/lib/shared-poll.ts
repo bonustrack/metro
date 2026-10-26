@@ -6,7 +6,7 @@ const MAX_MS = 5 * 60_000;
 const KEY_PART = '\u0000';
 const KEY_END = '\u0001';
 
-export interface PollState {
+interface PollState {
   error: unknown;
   dataUpdatedAt: number;
   errorUpdatedAt: number;

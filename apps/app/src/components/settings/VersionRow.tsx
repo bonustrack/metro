@@ -16,7 +16,7 @@ function noteOf(u: MetroUpdate, facts: Facts, offered: boolean): { text: string;
   return { text: facts.modeStale ? 'Version not known right now' : facts.availability.label, danger: false };
 }
 
-export function UpdateButton({ u }: { u: MetroUpdate }): ReactNode {
+function UpdateButton({ u }: { u: MetroUpdate }): ReactNode {
   const dark = useKitScheme() === 'dark';
   return <Button size="sm" color="secondary" dark={dark} label={u.busy ? 'Updating…' : 'Update'} loading={u.busy} disabled={u.busy} onPress={u.update} />;
 }

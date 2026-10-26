@@ -13,12 +13,12 @@ const HASH_LEN = 8;
 
 type Item = Record<string, unknown>;
 
-export interface TranslateOptions {
+interface TranslateOptions {
   promptCacheKey: string;
   names?: ToolNames;
 }
 
-export interface ResponsesRequest {
+interface ResponsesRequest {
   model: string;
   instructions?: string;
   input: Item[];

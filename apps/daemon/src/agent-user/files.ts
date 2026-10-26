@@ -69,7 +69,8 @@ function parseFile(root: string, path: string, out: Buffer): FilesAnswer {
   return { root, path, kind: 'file', bytes, modifiedAt: stamp(Number(mtime)), ...preview(out.subarray(end + 1), bytes) };
 }
 
-function readAsAgent(user: AgentUser, path: string): FilesAnswer {
+export function readAgentPath(user: AgentUser | null, path: string): FilesAnswer {
+  if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine, so there is no agent folder to show', 409);
   const target = join(user.home, ...segmentsOf(path));
   const [file, argv] = asUser(user, 'sh', ['-c', SCRIPT, 'metro', target, String(PREVIEW_BYTES + 1)]);
   const run = spawnSync(file, argv, { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024, timeout: 20_000 });
@@ -81,9 +82,4 @@ function readAsAgent(user: AgentUser, path: string): FilesAnswer {
 export function answerOf(root: string, path: string, out: Buffer): FilesAnswer {
   const body = out.subarray(2);
   return out.subarray(0, 1).toString() === 'D' ? folderAnswer(root, path, parseListing(body)) : parseFile(root, path, body);
-}
-
-export function readAgentPath(user: AgentUser | null, path: string): FilesAnswer {
-  if (user === null) throw new ApiError('Claude Code does not run as its own user on this machine, so there is no agent folder to show', 409);
-  return readAsAgent(user, path);
 }

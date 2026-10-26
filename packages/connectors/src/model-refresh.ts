@@ -4,7 +4,7 @@ import { isDeadGrant, refreshCodex, type Refreshed } from './codex-tokens.js';
 import type { ModelConnectionRow, ModelEdit, OrgModelStore } from './db/models.js';
 import { modelDetailOf, modelDetailText, openModelSecret, sealModelSecret, type CodexSecret, type ModelDetail, type ModelSecret } from './model-secret.js';
 
-export const REFRESH_BEFORE_MS = 5 * 60_000;
+const REFRESH_BEFORE_MS = 5 * 60_000;
 const FORCED_GAP_MS = 60_000;
 
 export interface ModelRefreshDeps {

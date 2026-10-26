@@ -1,5 +1,5 @@
 import { IdentifierKind, type DecodedMessage } from '@xmtp/node-sdk';
-import { accountForCall, convOf, lineOf, type Account } from './accounts.js';
+import { accountForCall, lineOf, openConv, type Account } from './accounts.js';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { resolveMsgId } from './wire.js';
 import { serializeTrainError, TrainError } from '@metro-labs/core/train-error';
@@ -69,9 +69,7 @@ function messageOf(acct: Account, m: DecodedMessage, deleted: Set<string>): Reco
 
 async function read(id: string, args: Args): Promise<void> {
   const { line, limit, before, messageId } = args as { line: string; limit?: number; before?: string; messageId?: string };
-  const { acct, conv } = await convOf(line);
-  if (!conv)
-    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const { acct, conv } = await openConv(line);
   await syncConversation(acct.client, conv);
   const all = await conv.messages();
   if (messageId) {
@@ -97,17 +95,13 @@ async function read(id: string, args: Args): Promise<void> {
 
 async function groupInfo(id: string, args: Args): Promise<void> {
   const { line } = args as { line: string };
-  const { acct, conv } = await convOf(line);
-  if (!conv)
-    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const { acct, conv } = await openConv(line);
   respond(id, { result: await buildGroupInfo(line, acct, conv) });
 }
 
 async function listMembers(id: string, args: Args): Promise<void> {
   const { line } = args as { line: string };
-  const { conv } = await convOf(line);
-  if (!conv)
-    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const { conv } = await openConv(line);
   respond(id, { result: await buildMemberList(conv) });
 }
 

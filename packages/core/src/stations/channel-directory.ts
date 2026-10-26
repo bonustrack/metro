@@ -14,7 +14,7 @@ export interface ChannelEntry {
   kind: 'direct' | 'group' | 'channel' | 'thread';
 }
 
-export interface ChannelCapability {
+interface ChannelCapability {
   supported: boolean;
   complete: boolean;
   source: 'remote' | 'local' | 'mixed' | 'unsupported';

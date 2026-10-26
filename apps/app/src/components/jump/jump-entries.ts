@@ -20,7 +20,7 @@ export type JumpAction =
   | { kind: 'update'; server: BoxServer; version: string }
   | { kind: 'terminal'; server: BoxServer };
 
-export interface JumpTarget {
+interface JumpTarget {
   icon: IconName | null;
   server: Server | null;
   sub: string | null;
@@ -35,7 +35,7 @@ const REMOTE_ICONS: Record<RemoteTabId, IconName> = { connectors: 'plug', keys: 
 
 const STATE_WORD: Record<ServerStatus['state'], string> = { live: 'Online', offline: 'Offline', stopped: 'Stopped', updating: 'Updating' };
 
-const go = (target: Selection, icon: IconName | null, server: Server | null = null): JumpTarget => ({ icon, server, sub: null, action: { kind: 'go', target } });
+const go = (target: Selection, icon: IconName | null): JumpTarget => ({ icon, server: null, sub: null, action: { kind: 'go', target } });
 
 function pagesOf(server: Server): JumpItem[] {
   const name = serverLabel(server);

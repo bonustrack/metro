@@ -6,7 +6,7 @@ import {
   publishedVersion,
 } from './version.js';
 
-export type Manager = 'bun' | 'npm';
+type Manager = 'bun' | 'npm';
 
 export function managerFor(location: string): Manager {
   return location.includes('/.bun/') ? 'bun' : 'npm';

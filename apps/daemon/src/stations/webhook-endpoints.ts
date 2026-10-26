@@ -1,8 +1,7 @@
 import type { Endpoint } from '@metro-labs/core/endpoints';
 import { timingSafeEqual } from 'node:crypto';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { readJson } from '@metro-labs/core/secure-fs';
+import { accountFilePath } from './materialize.js';
 
 interface AccountRecord {
   id?: unknown;
@@ -11,10 +10,6 @@ interface AccountRecord {
   secret?: unknown;
   createdAt?: unknown;
 }
-
-const accountsFile = (): string =>
-  process.env.WEBHOOK_ACCOUNTS_FILE ??
-  join(homedir(), '.metro', 'webhook-accounts.json');
 
 const str = (v: unknown): string | undefined =>
   typeof v === 'string' && v !== '' ? v : undefined;
@@ -32,7 +27,7 @@ function toEndpoint(raw: AccountRecord): Endpoint | null {
 }
 
 export function listEndpoints(): Endpoint[] {
-  const raw = readJson<AccountRecord[]>(accountsFile(), [], {
+  const raw = readJson<AccountRecord[]>(accountFilePath('webhook'), [], {
     warn: 'webhook-accounts.json: malformed, ignoring',
   });
   if (!Array.isArray(raw)) return [];

@@ -1,9 +1,5 @@
 import { TrainError } from '@metro-labs/core/train-error';
-import {
-  makeStation,
-  respond,
-  type CallMsg,
-} from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond } from '@metro-labs/core/stations/station-runtime';
 import { messagingAliases } from '@metro-labs/core/stations/messaging-normalize';
 import { accountFor, accounts, publicKeyFor, targetOf, type Account } from './accounts.js';
 import { hexToBytes, macMatches, open } from './crypto.js';
@@ -14,9 +10,6 @@ import { deliver } from './inbound.js';
 import { isThreemaId, normalizeThreemaId } from './ids.js';
 import { decode } from './messages.js';
 import { react, send } from './outbound.js';
-
-export type { CallMsg };
-export { MAX_TEXT_BYTES } from './outbound.js';
 
 type Args = Record<string, unknown>;
 

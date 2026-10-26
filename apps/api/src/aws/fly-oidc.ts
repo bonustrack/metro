@@ -1,7 +1,7 @@
 import { request } from 'node:http';
 import { AwsError } from './ec2.js';
 
-export const FLY_API_SOCKET = '/.fly/api';
+const FLY_API_SOCKET = '/.fly/api';
 export const STS_AUDIENCE = 'sts.amazonaws.com';
 
 const TIMEOUT_MS = 5_000;

@@ -9,7 +9,7 @@ const KEY_MAX = 128;
 const OUTCOME_MAX = 32;
 const MS_MAX = 2_147_483_647;
 
-export interface CallRecord {
+interface CallRecord {
   connector: string | null;
   connectorKey: string;
   connectorName: string | null;

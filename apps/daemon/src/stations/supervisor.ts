@@ -44,10 +44,6 @@ export class TrainSupervisor {
 
   constructor(private dir: string = trainsDir()) {}
 
-  running(): string[] {
-    return [...this.trains.keys()];
-  }
-
   onTrainEvent(handler: (event: TrainEvent, train: string) => void): void {
     this.onEvent = handler;
   }
@@ -89,13 +85,7 @@ export class TrainSupervisor {
       clearTimeout(timer);
       this.reloadTimers.delete(name);
     }
-    t.stopped = true;
-    if (t.restartTimer) {
-      clearTimeout(t.restartTimer);
-      t.restartTimer = null;
-    }
-    failAllPending(t.pending, `train '${name}' stopped`);
-    const wait = killGracefully(t.proc);
+    const wait = this.halt(t, `train '${name}' stopped`);
     if (wait) await wait;
     this.trains.delete(name);
     log.info({ name }, 'train: stopped, last account detached');
@@ -133,13 +123,7 @@ export class TrainSupervisor {
     this.reloadTimers.clear();
     const tasks: Promise<unknown>[] = [];
     for (const t of this.trains.values()) {
-      t.stopped = true;
-      if (t.restartTimer) {
-        clearTimeout(t.restartTimer);
-        t.restartTimer = null;
-      }
-      failAllPending(t.pending, 'train shutting down');
-      const wait = killGracefully(t.proc);
+      const wait = this.halt(t, 'train shutting down');
       if (wait) tasks.push(wait);
     }
     await Promise.all(tasks);
@@ -148,18 +132,22 @@ export class TrainSupervisor {
   async restart(name: string): Promise<void> {
     const t = this.trains.get(name);
     if (!t) throw new Error(`no train named '${name}'`);
-    if (t.restartTimer) {
-      clearTimeout(t.restartTimer);
-      t.restartTimer = null;
-    }
-    failAllPending(t.pending, `train '${name}' restarting`);
-    t.stopped = true;
-    const wait = killGracefully(t.proc);
+    const wait = this.halt(t, `train '${name}' restarting`);
     if (wait) await wait;
     t.stopped = false;
     t.failCount = 0;
     t.proc = null;
     this.spawn(t);
+  }
+
+  private halt(t: TrainState, reason: string): Promise<unknown> | null {
+    t.stopped = true;
+    if (t.restartTimer) {
+      clearTimeout(t.restartTimer);
+      t.restartTimer = null;
+    }
+    failAllPending(t.pending, reason);
+    return killGracefully(t.proc);
   }
 
   async call(

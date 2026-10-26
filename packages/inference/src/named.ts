@@ -10,8 +10,8 @@ export interface Chosen {
 
 const NO_ROUTE = "metro gateway: no model is set up for this agent yet: choose one on the organization's Gateway page";
 
-const noRoute = (message: string): never => {
-  throw new GatewayError(503, 'api_error', message);
+const noRoute = (): never => {
+  throw new GatewayError(503, 'api_error', NO_ROUTE);
 };
 
 const MAIN = 'metro';
@@ -32,5 +32,5 @@ export function namedChoice(requested: string, setup: ModelSetup): Chosen {
   if (requested !== MAIN && requested !== WORKERS) throw new GatewayError(400, 'invalid_request_error', NAMES);
   const helpers = requested === WORKERS ? helperSetup(setup) : null;
   const chain = helpers ?? setup;
-  return { lane: helpers === null ? 'main' : 'helpers', setup: chain, primary: primaryRoute(chain) ?? noRoute(NO_ROUTE) };
+  return { lane: helpers === null ? 'main' : 'helpers', setup: chain, primary: primaryRoute(chain) ?? noRoute() };
 }

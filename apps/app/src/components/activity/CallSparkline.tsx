@@ -7,10 +7,10 @@ const HEIGHT = 32;
 const PAD = 4;
 const DOT = 4;
 
-function sparkPath(values: number[], width = WIDTH, height = HEIGHT): string {
+function sparkPath(values: number[]): string {
   const top = Math.max(1, ...values);
-  const step = (width - 2 * PAD) / Math.max(1, values.length - 1);
-  return values.map((value, i) => `${i === 0 ? 'M' : 'L'}${(PAD + i * step).toFixed(1)},${(height - PAD - (value / top) * (height - 2 * PAD)).toFixed(1)}`).join('');
+  const step = (WIDTH - 2 * PAD) / Math.max(1, values.length - 1);
+  return values.map((value, i) => `${i === 0 ? 'M' : 'L'}${(PAD + i * step).toFixed(1)},${(HEIGHT - PAD - (value / top) * (HEIGHT - 2 * PAD)).toFixed(1)}`).join('');
 }
 
 export function CallSparkline({ values, label }: { values: number[]; label: string }): ReactNode {

@@ -1,6 +1,6 @@
 import { daemonBase } from '../auth/daemon.js';
 import { call } from './client.js';
-import { isRecord } from '../read.js';
+import { isRecord, str } from '../read.js';
 
 export type Decision = 'allow' | 'deny';
 
@@ -22,7 +22,6 @@ const CODE_POINTS = /(?:\\n|\n)⋯ (\d+) code points elided ⋯(?:\\n|\n)/g;
 const HIDDEN = /\uE000(\d+)\uE001/g;
 const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[\s\S]*$/;
 
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 const toolLabel = (tool: string): string => METRO_TOOL.exec(tool)?.[1] ?? tool;
 
@@ -67,25 +66,25 @@ function fileBytes(input: Record<string, unknown> | null): (number | null)[] {
 }
 
 function previewOf(preview: string, input: Record<string, unknown> | null): string {
-  const said = text(input?.text);
+  const said = str(input?.text);
   const shown = said !== '' ? `"${said}"` : preview;
   return shown.length > PREVIEW_MAX ? `${shown.slice(0, PREVIEW_MAX)}…` : shown;
 }
 
 export function approvalOf(raw: unknown): Approval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string') return null;
-  const parsed = previewInput(text(raw.preview));
+  const parsed = previewInput(str(raw.preview));
   const shown = visible(parsed);
   const input = isRecord(shown) ? shown : null;
-  const line = text(raw.line);
+  const line = str(raw.line);
   return {
     id: raw.id,
     name: raw.tool,
     tool: toolLabel(raw.tool),
-    preview: previewOf(text(raw.preview), input),
+    preview: previewOf(str(raw.preview), input),
     input,
     line,
-    requestedAt: text(raw.requestedAt),
+    requestedAt: str(raw.requestedAt),
     inChat: line !== '',
     fileBytes: fileBytes(parsed),
   };

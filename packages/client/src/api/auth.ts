@@ -18,7 +18,7 @@ import {
   withAccountLock,
   type Account,
 } from '../auth/account.js';
-import { isRecord, pngAvatar } from '../read.js';
+import { filled, isRecord, pngAvatar } from '../read.js';
 import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
 export type Provider = 'google' | 'microsoft' | 'github';
@@ -63,7 +63,7 @@ export const returnTo = (): string => signInReturnUrl();
 
 export type Intent = 'login' | 'waitlist';
 
-export interface AppReturn {
+interface AppReturn {
   returnTo: string;
   challenge: string;
 }
@@ -174,7 +174,6 @@ async function freshAccount(scope: number): Promise<Account> {
   return current;
 }
 
-const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
 
 function rotated(answer: unknown, current: Account, scope: number, organization?: string): Account {
   try {
@@ -182,7 +181,7 @@ function rotated(answer: unknown, current: Account, scope: number, organization?
     if (!tokenMatchesAccount(next) || next.user.id !== current.user.id || (organization !== undefined && next.organization !== organization)) throw unexpected();
     return next;
   } catch (err) {
-    const refreshToken = isRecord(answer) ? text(answer.refreshToken) : null;
+    const refreshToken = isRecord(answer) ? filled(answer.refreshToken) : null;
     if (refreshToken !== null && refreshToken !== current.refreshToken) keepRefreshToken(refreshToken, scope);
     throw err;
   }
@@ -232,7 +231,7 @@ function agentsOf(value: unknown): OrgAgent[] | null {
   if (!Array.isArray(value)) return null;
   return value.flatMap((a: unknown) =>
     isRecord(a) && typeof a.id === 'string' && typeof a.host === 'string'
-      ? [{ id: a.id, host: a.host, name: text(a.name), slug: text(a.slug), avatar: pngAvatar(a.avatar) }]
+      ? [{ id: a.id, host: a.host, name: filled(a.name), slug: filled(a.slug), avatar: pngAvatar(a.avatar) }]
       : [],
   );
 }

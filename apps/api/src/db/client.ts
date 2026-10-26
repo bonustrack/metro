@@ -7,21 +7,15 @@ import * as schema from './schema.js';
 const IDLE_SECONDS = 20;
 const LIFETIME_SECONDS = 30 * 60;
 
-export type Db = PostgresJsDatabase<typeof schema>;
+type Db = PostgresJsDatabase<typeof schema>;
 
 export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 let sql: ReturnType<typeof postgres> | null = null;
 let db: Db | null = null;
 
-function databaseUrl(): string | undefined {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) return undefined;
-  return url;
-}
-
 export function getDb(): Db {
-  const url = databaseUrl();
+  const url = process.env.DATABASE_URL?.trim();
   if (!url) throw new Error('DATABASE_URL is not set');
   if (!db) {
     sql = postgres(url, {

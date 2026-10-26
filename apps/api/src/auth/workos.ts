@@ -1,5 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
+import { ApiError } from '@metro-labs/http/api-error';
 import { filled, workosBase } from '@metro-labs/http/workos-token';
 
 export const PROVIDERS = { google: 'GoogleOAuth', microsoft: 'MicrosoftOAuth', github: 'GitHubOAuth' } as const;
@@ -38,6 +39,12 @@ export function readWorkosConfig(env: NodeJS.ProcessEnv = process.env): WorkosCo
   const clientId = filled(env.WORKOS_CLIENT_ID);
   if (apiKey === null || clientId === null) return null;
   return { apiKey, clientId, base: workosBase(env) };
+}
+
+export function configOf(deps: { config: () => WorkosConfig | null }): WorkosConfig {
+  const cfg = deps.config();
+  if (cfg === null) throw new ApiError('sign-in is not configured on this server', 503);
+  return cfg;
 }
 
 export function authorizationUrl(cfg: WorkosConfig, provider: Provider, redirectUri: string, state: string): string {
@@ -233,10 +240,6 @@ export const ORGANIZATION_NAME_RE = /^[^\p{Cc}]{2,64}$/u;
 
 const names = new Map<string, string>();
 
-function rememberOrganizationName(id: string, name: string): void {
-  names.set(id, name);
-}
-
 export async function organizationName(cfg: WorkosConfig, id: string): Promise<string | null> {
   const held = names.get(id);
   if (held !== undefined) return held;
@@ -293,7 +296,7 @@ export async function listOrganizations(cfg: WorkosConfig): Promise<Organization
 export async function createOrganization(cfg: WorkosConfig, name: string): Promise<string> {
   const id = str((await api(cfg, '/organizations', { name })).id);
   if (id === null) throw new WorkosError('WorkOS created the organization without an id', null, 503);
-  rememberOrganizationName(id, name);
+  names.set(id, name);
   return id;
 }
 
@@ -304,7 +307,7 @@ export async function updateUserName(cfg: WorkosConfig, userId: string, first: s
 export async function renameOrganization(cfg: WorkosConfig, id: string, name: string): Promise<string> {
   const answer = await request(cfg, 'PUT', `/organizations/${id}`, { name });
   const saved = str(answer.name) ?? name;
-  rememberOrganizationName(id, saved);
+  names.set(id, saved);
   return saved;
 }
 

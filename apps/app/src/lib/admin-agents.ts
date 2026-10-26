@@ -151,7 +151,7 @@ export function adminAgents(sources: AgentSources): AdminAgent[] {
   return [...members, ...others];
 }
 
-export interface AgentCounts {
+interface AgentCounts {
   total: number;
   online: number;
   updating: number;

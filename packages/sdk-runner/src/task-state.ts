@@ -9,7 +9,7 @@ const STATES = ['running', 'completed', 'failed', 'stopped', 'interrupted'] as c
 const REASONS = ['task_error', 'rate_limit', 'worker_restart', 'interrupted', 'provider_error'] as const;
 export type TaskReason = (typeof REASONS)[number];
 
-export interface TaskNotice {
+interface TaskNotice {
   token: string;
   reason: TaskReason;
   attempt: number;

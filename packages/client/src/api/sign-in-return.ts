@@ -1,6 +1,6 @@
 import { checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { call } from './client.js';
-import { isRecord } from '../read.js';
+import { isRecord, str } from '../read.js';
 import { toSession, type AttachSession } from './attach-session.js';
 import { location, readItem, writeItem } from '../platform.js';
 
@@ -18,7 +18,7 @@ export type ReturnedSignIn =
   | { kind: 'code'; code: string; state: string }
   | { kind: 'error'; error: string; description: string; state: string };
 
-export type ReturnPlan =
+type ReturnPlan =
   | { kind: 'expired' }
   | { kind: 'refused'; message: string }
   | { kind: 'post'; entry: PendingSignIn; body: Record<string, string> };
@@ -28,13 +28,12 @@ const TTL_MS = 15 * 60_000;
 const KEPT = 5;
 const EXPIRED = 'This sign-in link expired. Start again from the Channels page.';
 
-const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 function identityOf(raw: unknown): AccountIdentity | null {
   if (!isRecord(raw)) return null;
-  const user = text(raw.user);
-  const organization = text(raw.organization);
-  const session = text(raw.session);
+  const user = str(raw.user);
+  const organization = str(raw.organization);
+  const session = str(raw.session);
   return user === '' || organization === '' || session === '' ? null : { user, organization, session };
 }
 
@@ -43,11 +42,11 @@ function entryOf(raw: unknown): PendingSignIn | null {
   const identity = identityOf(raw.identity);
   if (identity === null) return null;
   const entry = {
-    state: text(raw.state),
-    agentsBase: text(raw.agentsBase),
-    agentId: text(raw.agentId),
-    attachId: text(raw.attachId),
-    backHash: text(raw.backHash),
+    state: str(raw.state),
+    agentsBase: str(raw.agentsBase),
+    agentId: str(raw.agentId),
+    attachId: str(raw.attachId),
+    backHash: str(raw.backHash),
     startedAt: typeof raw.startedAt === 'number' ? raw.startedAt : 0,
     identity,
   };

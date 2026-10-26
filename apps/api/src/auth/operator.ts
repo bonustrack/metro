@@ -9,7 +9,7 @@ export type Intent = 'login' | 'waitlist';
 
 export type Refusal = 'no-account' | 'waiting' | 'not-open' | 'unverified' | 'cancelled' | 'failed';
 
-export type Admission = { kind: 'in' } | { kind: 'waiting' } | { kind: 'refused'; reason: Refusal };
+type Admission = { kind: 'in' } | { kind: 'waiting' } | { kind: 'refused'; reason: Refusal };
 
 const letIn = (status: UserStatus | null, t: Tokens): boolean => status === 'approved' || isOperatorEmail(t.user.email) || t.organization !== null;
 

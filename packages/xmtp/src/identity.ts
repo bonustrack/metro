@@ -1,4 +1,5 @@
 import { IdentifierKind, type Signer } from '@xmtp/node-sdk';
+import { hexToBytes } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -15,19 +16,12 @@ export interface Identity {
   smart: SmartAccount | null;
 }
 
-const bytesOf = (sig: string): Uint8Array => {
-  const hex = sig.slice(2);
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-};
-
 export function signerFor(privateKey: string): Identity {
   const acct = privateKeyToAccount(privateKey as `0x${string}`);
   const signer: Signer = {
     type: 'EOA',
     getIdentifier: () => Promise.resolve({ identifier: acct.address, identifierKind: IdentifierKind.Ethereum }),
-    signMessage: async (msg: string) => bytesOf(await acct.signMessage({ message: msg })),
+    signMessage: async (msg: string) => hexToBytes(await acct.signMessage({ message: msg })),
   };
   return { signer, address: acct.address, smart: null };
 }
@@ -37,7 +31,7 @@ export async function smartSignerFor(privateKey: string, rpc?: string): Promise<
   const signer: Signer = {
     type: 'SCW',
     getIdentifier: () => Promise.resolve({ identifier: smart.address, identifierKind: IdentifierKind.Ethereum }),
-    signMessage: async (msg: string) => bytesOf(await smart.signMessage(msg)),
+    signMessage: async (msg: string) => hexToBytes(await smart.signMessage(msg)),
     getChainId: () => BigInt(SMART_CHAIN_ID),
   };
   return { signer, address: smart.address, smart };

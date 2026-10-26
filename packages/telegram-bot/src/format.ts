@@ -4,8 +4,6 @@ import { mintId } from '@metro-labs/core/stations/station-runtime';
 import { mediaRefOf, saveTelegramMedia } from './attachments.js';
 import type { TgMsg, TgReaction, TgReactionCount, TgUser } from './types.js';
 
-export type { TgMsg, TgReaction, TgReactionCount };
-
 function lineForMsg(
   accountId: string,
   m: TgMsg,

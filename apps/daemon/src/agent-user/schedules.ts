@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
+import { stringOf } from '@metro-labs/http/api-http';
 import type { AgentUser } from './user.js';
 import { helperRun, type RunResult } from './unit-files.js';
 
@@ -64,22 +65,21 @@ function listTimers(runner: Runner): Record<string, unknown>[] {
   }
 }
 
-const text = (v: unknown): string => (typeof v === 'string' ? v : '');
 const orRoot = (user: string | undefined): string => (user === undefined || user === '' ? 'root' : user);
 
 function timerJob(runner: Runner, t: Record<string, unknown>): ScheduledJob | null {
-  const unit = text(t.unit);
-  const service = text(t.activates);
+  const unit = stringOf(t.unit);
+  const service = stringOf(t.activates);
   if (unit === '' || service === '' || OWN_UNITS.test(service)) return null;
   const timer = showProps(runner, unit, ['FragmentPath', 'TimersCalendar', 'TimersMonotonic']);
-  if (!text(timer.FragmentPath).startsWith(`${UNIT_DIR}/`)) return null;
+  if (!stringOf(timer.FragmentPath).startsWith(`${UNIT_DIR}/`)) return null;
   const svc = showProps(runner, service, ['ExecStart', 'User', 'Result']);
-  const command = execArgv(text(svc.ExecStart)).join(' ');
+  const command = execArgv(stringOf(svc.ExecStart)).join(' ');
   return {
     id: `timer:${unit}`,
     kind: 'timer',
     name: unit.replace(/\.timer$/, ''),
-    schedule: calendarOf(`${text(timer.TimersCalendar)} ${text(timer.TimersMonotonic)}`),
+    schedule: calendarOf(`${stringOf(timer.TimersCalendar)} ${stringOf(timer.TimersMonotonic)}`),
     command,
     runsAs: orRoot(svc.User),
     next: stamp(t.next),

@@ -19,7 +19,7 @@ interface MediaMeta {
 }
 
 function fallbackMime(media: DownloadableMedia): string | undefined {
-  const type = (media as { type?: unknown }).type;
+  const type = mediaType(media);
   if (type === 'photo') return 'image/jpeg';
   if (type === 'sticker') return 'image/webp';
   return undefined;

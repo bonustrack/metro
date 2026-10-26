@@ -6,12 +6,12 @@ import { ConnectorUnauthorized, refused } from '@metro-labs/http/connector-url';
 import type { VendorTarget } from './credential.js';
 import { CallError } from './errors.js';
 
-export const VENDOR_INIT_MS = 15_000;
+const VENDOR_INIT_MS = 15_000;
 export const VENDOR_CALL_MS = 60_000;
 const CALL_ID = 2;
 const MESSAGE_MAX = 500;
 
-export interface VendorAnswer {
+interface VendorAnswer {
   content: Record<string, unknown>[];
   isError: boolean;
   structuredContent?: unknown;

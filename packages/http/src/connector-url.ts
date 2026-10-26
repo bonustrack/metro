@@ -29,9 +29,3 @@ export function parseConnectorUrl(raw: unknown): URL {
   refuseShape(url);
   return url;
 }
-
-export function connectorUrlText(url: URL): string {
-  const text = url.toString();
-  if (url.pathname !== '/' || url.search !== '') return text;
-  return text.endsWith('/') ? text.slice(0, -1) : text;
-}

@@ -57,7 +57,7 @@ export function runnerOptions(cfg: RunnerConfig, tools: MetroTools, canUseTool: 
   };
 }
 
-export interface CompactState {
+interface CompactState {
   context: number;
   floor: number | null;
   limit: number;
@@ -68,7 +68,7 @@ export const compactDue = (s: CompactState): boolean => !s.busy && s.context >= 
 
 export type OpenSession = (params: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => Query;
 
-export interface RunnerParts {
+interface RunnerParts {
   store: SessionStore;
   readOnly: (tool: string) => boolean;
   compactAt?: number;

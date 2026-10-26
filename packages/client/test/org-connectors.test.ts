@@ -75,8 +75,8 @@ describe('the organization connectors client', () => {
 
   test('assignments are a PUT and a DELETE on the agent under the connector', async () => {
     serve(ROW);
-    await assignOrgConnector('aB3-_xYz9Qw', 'zz9-_xYz9Qw', true);
-    expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'PUT', body: { readOnly: true } });
+    await assignOrgConnector('aB3-_xYz9Qw', 'zz9-_xYz9Qw');
+    expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'PUT', body: {} });
     serve(ROW);
     await unassignOrgConnector('aB3-_xYz9Qw', 'zz9-_xYz9Qw');
     expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'DELETE', body: undefined });

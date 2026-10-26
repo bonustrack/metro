@@ -1,21 +1,12 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { errMsg, log } from '@metro-labs/core/log';
-import type { AgentKeyRow } from './agent-keys.js';
+import { agentKeyColumns, type AgentKeyRow } from './agent-keys.js';
 import { findAgentToken, touchAgentToken, type AgentTokenIdentity } from './agent-tokens.js';
 import type { Database } from './database.js';
 import { agentKeys, agents } from './schema.js';
 
 export const TOUCH_EVERY_MS = 60_000;
 const TOUCHED_MAX = 10_000;
-
-const identityColumns = {
-  agent: agentKeys.agent,
-  owner: agentKeys.owner,
-  keyId: agentKeys.keyId,
-  signingKey: agentKeys.signingKey,
-  enrolledBy: agentKeys.enrolledBy,
-  enrolledAt: agentKeys.enrolledAt,
-};
 
 export class Touches {
   private readonly last = new Map<string, number>();
@@ -50,7 +41,7 @@ export class Touches {
 
 export async function boxByTokenHash(db: Database, tokenHash: string): Promise<AgentKeyRow | null> {
   const rows = await db
-    .select(identityColumns)
+    .select(agentKeyColumns)
     .from(agentKeys)
     .innerJoin(agents, and(eq(agents.id, agentKeys.agent), eq(agents.owner, agentKeys.owner), isNotNull(agents.host)))
     .where(eq(agentKeys.mcpTokenHash, tokenHash))

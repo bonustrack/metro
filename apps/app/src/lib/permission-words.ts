@@ -22,13 +22,6 @@ export const accessOfChoice = (choice: PermissionChoice): Access => ACCESS_OF[ch
 
 export const choiceOfAccess = (access: Access): PermissionChoice => CHOICE_OF[access];
 
-export function choiceOf(value: unknown): PermissionChoice | null {
-  if (value === 'allow' || value === 'ask' || value === 'deny') return CHOICE_OF[value];
-  return value === 'block' ? 'block' : null;
-}
-
-export const valueWord = (value: PermissionValue): string | null => (value === null ? null : value === 'mixed' ? MIXED_WORD : CHOICE_WORD[value]);
-
 export function groupValue(choices: readonly PermissionChoice[]): PermissionValue {
   const first = choices[0];
   if (first === undefined) return null;
@@ -47,8 +40,6 @@ export function permissionGroupOf(tool: { group: ToolGroup; destructive?: boolea
   if (tool.group === 'read') return 'read';
   return tool.destructive === true ? 'delete' : 'write';
 }
-
-export const apiGroupOf = (group: PermissionGroup): ToolGroup => (group === 'read' ? 'read' : 'write');
 
 export interface ChoiceState {
   choice: PermissionChoice;

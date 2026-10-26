@@ -51,7 +51,7 @@ export interface UsageAws {
   data: (credentials: AwsCredentials, region: string, queries: MetricQuery[], from: number, to: number) => Promise<Map<string, Point[]>>;
 }
 
-export interface UsageTarget {
+interface UsageTarget {
   instanceId: string;
   region: string;
 }
@@ -63,7 +63,7 @@ export function agentMetric(metrics: Metric[], name: string, path?: string): Met
   return metrics.filter((m) => m.namespace === AGENT_NAMESPACE && m.name === name && onPath(m)).sort(fewestDimensions)[0];
 }
 
-export function restartsOf(data: Map<string, Point[]>, from: number, to: number): Restart[] {
+function restartsOf(data: Map<string, Point[]>, from: number, to: number): Restart[] {
   const all = STARTS.flatMap(([kind]) => (data.get(kind) ?? []).map((p): Restart => ({ at: p.value * 1000, kind })))
     .filter((r) => r.at >= from && r.at <= to)
     .sort((a, b) => a.at - b.at);
@@ -73,7 +73,7 @@ export function restartsOf(data: Map<string, Point[]>, from: number, to: number)
   });
 }
 
-export function usageWindow(range: UsageRange, now: number): { from: number; to: number } {
+function usageWindow(range: UsageRange, now: number): { from: number; to: number } {
   const step = PERIODS[range].ec2Seconds * 1000;
   const to = Math.ceil(now / step) * step;
   return { from: to - PERIODS[range].ms, to };

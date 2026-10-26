@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentsDir } from './local.js';
 
-const PROVIDERS = new Set(['bedrock', 'openrouter', 'codex', 'gemini', 'routeway']);
+const PROVIDERS = new Set(['bedrock', 'openrouter', 'codex', 'routeway']);
 const ANTHROPIC = 'anthropic';
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');

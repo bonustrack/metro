@@ -1,13 +1,13 @@
-import { filled, isRecord } from '../read.js';
+import { filled, isRecord, recordOf } from '../read.js';
 import type { Usage, UsageWindow } from './usage.js';
 import { builtInDaemon } from '../auth/daemon.js';
 import { NotFoundError } from './client.js';
-import { STATS_RANGES, type StatsRange } from './connector-stats.js';
+import { count, isRange, kept, ms, unexpected, type StatsRange } from './connector-stats.js';
 import { orgCall } from './org-connectors.js';
 
 export const OTHER_CONNECTIONS = '~other';
 
-export interface UsagePart {
+interface UsagePart {
   calls: number;
   spendMicros: number;
 }
@@ -67,17 +67,12 @@ export interface UsageQuery {
 
 const MICROS = 1_000_000;
 
-const unexpected = (): Error => new Error('Metro returned an unexpected response.');
-const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
-const ms = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null);
-const isRange = (value: unknown): value is StatsRange => STATS_RANGES.some((range) => range.value === value);
-const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
-const partOf = (value: unknown): UsagePart => ({ calls: count(record(value).calls), spendMicros: count(record(value).spendMicros) });
+const partOf = (value: unknown): UsagePart => ({ calls: count(recordOf(value).calls), spendMicros: count(recordOf(value).spendMicros) });
 
 function bucketOf(value: unknown): UsageBucket | null {
   if (!isRecord(value) || typeof value.at !== 'number' || !Number.isFinite(value.at)) return null;
-  const parts = Object.entries(record(value.byConnection)).map(([key, part]): [string, UsagePart] => [key, partOf(part)]);
+  const parts = Object.entries(recordOf(value.byConnection)).map(([key, part]): [string, UsagePart] => [key, partOf(part)]);
   return { at: value.at, ...partOf(value), failed: count(value.failed), byConnection: Object.fromEntries(parts) };
 }
 
@@ -99,7 +94,7 @@ function agentOf(value: unknown): AgentUsage | null {
 }
 
 function totalsOf(value: unknown): UsageTotals {
-  const totals = record(value);
+  const totals = recordOf(value);
   return {
     calls: count(totals.calls),
     ok: count(totals.ok),
@@ -112,8 +107,6 @@ function totalsOf(value: unknown): UsageTotals {
     p95FirstTokenMs: ms(totals.p95FirstTokenMs),
   };
 }
-
-const kept = <T>(rows: unknown, read: (value: unknown) => T | null): T[] => (Array.isArray(rows) ? rows.map(read).filter((row): row is T => row !== null) : []);
 
 export function toModelUsage(value: unknown): ModelUsage {
   if (!isRecord(value) || !isRange(value.range) || !Array.isArray(value.buckets)) throw unexpected();
@@ -163,7 +156,7 @@ function gatewayWindowOf(value: unknown): GatewayWindow | null {
   return { connection: value.connection, label: value.label, used, resetAt: isoOf(value.resetAt), detail: filled(value.detail), at: value.at };
 }
 
-export const toGatewayWindows = (value: unknown): GatewayWindow[] => kept(record(value).windows, gatewayWindowOf);
+export const toGatewayWindows = (value: unknown): GatewayWindow[] => kept(recordOf(value).windows, gatewayWindowOf);
 
 export async function fetchGatewayWindows(signal?: AbortSignal): Promise<GatewayWindow[]> {
   try {

@@ -7,7 +7,7 @@ const ANSI = /\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\r/g;
 const KERNEL_STAMP = /^\[\s*\d+\.\d+\]\s*/;
 const CLOUD_INIT = /^cloud-init\[\d+\]:\s?/;
 
-export interface BootLog {
+interface BootLog {
   lines: string[];
   started: boolean;
   done: boolean;

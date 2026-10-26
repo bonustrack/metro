@@ -1,12 +1,12 @@
 const PREVIEW = /^([a-z0-9-]+--)?metro-ui\.netlify\.app$/;
 
-export function allowedWebHost(host: string): boolean {
+function allowedWebHost(host: string): boolean {
   if (host === 'metro.box' || host === 'localhost' || host === '127.0.0.1')
     return true;
   return PREVIEW.test(host);
 }
 
-export const APP_RETURN = 'metro://auth';
+const APP_RETURN = 'metro://auth';
 
 export const isAppReturn = (returnTo: string): boolean => returnTo === APP_RETURN;
 

@@ -7,10 +7,10 @@ import type { Asker } from './link.js';
 const DENIED = 'The owner did not approve this.';
 
 export interface ApprovalAsk { tool: string; worker: string | null }
-export type ApprovalWatch = (id: string, ask: ApprovalAsk | null) => void;
+type ApprovalWatch = (id: string, ask: ApprovalAsk | null) => void;
 
 export interface ApprovalBinding { call: CallSource; signal: AbortSignal }
-export type BindApproval = (tool: string, input: Record<string, unknown>) => ApprovalBinding | null | undefined;
+type BindApproval = (tool: string, input: Record<string, unknown>) => ApprovalBinding | null | undefined;
 
 export function approvalsThrough(asker: Asker, waiting: ApprovalWatch = () => undefined, bind: BindApproval = () => undefined): CanUseTool {
   return async (tool, input, options) => {

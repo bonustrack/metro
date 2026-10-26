@@ -6,8 +6,6 @@ import type { MemberList, MetroMember } from '@metro-labs/core/stations/types';
 import { readAppData, readAppDataObject, type GroupLike } from './labels.js';
 import { network, syncConversation } from './network.js';
 
-export { parseMemberArgs, resolveMembers } from './member-args.js';
-
 type Conv = Awaited<ReturnType<typeof convOf>>['conv'] & object;
 export interface EthId {
   identifier: string;
@@ -56,9 +54,7 @@ export async function resolveAddresses(
   if (!missing.length) return addresses;
   try {
     const states = await acct.client.preferences.fetchInboxStates(missing);
-    for (let i = 0; i < missing.length; i++) {
-      const key = missing[i];
-      if (key === undefined) continue;
+    for (const [i, key] of missing.entries()) {
       const eth = states[i]?.identifiers.find(
         (it: { identifierKind: IdentifierKind }) =>
           it.identifierKind === IdentifierKind.Ethereum,
@@ -71,7 +67,6 @@ export async function resolveAddresses(
   } catch (error) {
     network.note(error);
     if (network.remaining() > 0) throw error;
-    return addresses;
   }
   return addresses;
 }

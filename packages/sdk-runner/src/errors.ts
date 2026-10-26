@@ -10,7 +10,7 @@ const ERROR_FAILURES: Record<NonNullable<RunnerDiagnostic['errorCode']>, RunnerF
 };
 const KNOWN = ['status_unavailable', 'session_ended', 'interrupted', 'saved_state', 'authentication', 'executable', 'connection', 'module', 'configuration', 'process_exit', 'session_error'] as const;
 
-export interface SessionFailure {
+interface SessionFailure {
   code: RunnerFailureCode;
   diagnostic?: RunnerDiagnostic;
 }

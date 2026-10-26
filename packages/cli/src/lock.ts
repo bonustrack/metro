@@ -2,7 +2,7 @@ import { closeSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeSy
 import { dirname } from 'node:path';
 import { readOrNull } from './runtime-install.js';
 
-export interface LockWait {
+interface LockWait {
   staleMs: number;
   waitMs: number;
   pollMs: number;

@@ -1,12 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type SigningKeys } from '@metro-labs/http/workos-token';
+import type { SigningKeys } from '@metro-labs/http/workos-token';
 import type { AwsCredentials } from './aws/ec2.js';
 import { access, type AwsAccount } from './aws/access.js';
 import type { LinkedRow } from './db/usage.js';
 import { readLatest, type Latest } from './aws/latest.js';
 import type { MetricsCore } from './usage.js';
+import { callerOf } from './server-route.js';
 
 const PATH_RE = /^\/api\/servers\/usage\/?$/;
 const CACHE_MS = 60_000;
@@ -76,17 +77,8 @@ function cached(deps: LatestApiDeps, owner: string): Promise<Answer> {
 }
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: LatestApiDeps): Promise<void> {
-  try {
-    const session = await bearerSession(req, deps.keys);
-    const owner = session?.organization ?? null;
-    if (session === null || owner === null) {
-      sendJson(req, res, 401, { error: 'unauthorized' });
-      return;
-    }
-    sendJson(req, res, 200, { servers: await cached(deps, owner) });
-  } catch (err) {
-    apiFailure(req, res, err, 'usage-api');
-  }
+  const { owner } = await callerOf(req, deps.keys);
+  sendJson(req, res, 200, { servers: await cached(deps, owner) });
 }
 
 export function handleLatestApiRequest(req: IncomingMessage, res: ServerResponse, deps: LatestApiDeps): boolean {

@@ -122,7 +122,7 @@ function PageBody(): ReactNode {
   );
 }
 
-export function AddAccount(): ReactNode {
+function AddAccount(): ReactNode {
   return <RoundButton label="Add an account" icon="plus" onPress={() => { go({ kind: 'org-model-add' }); }} />;
 }
 

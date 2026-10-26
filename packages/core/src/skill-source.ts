@@ -15,7 +15,7 @@ export interface SkillSource {
   folder: string;
 }
 
-export interface SkillFile {
+interface SkillFile {
   path: string;
   size: number;
   sha256: string;

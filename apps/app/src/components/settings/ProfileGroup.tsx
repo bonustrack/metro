@@ -17,7 +17,7 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 
 const PAUSE_NOTE = 'Tools keep working.';
 
-export interface Pausing {
+interface Pausing {
   shown: boolean;
   paused: boolean;
   busy: boolean;

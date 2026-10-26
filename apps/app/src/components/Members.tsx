@@ -28,7 +28,7 @@ const ROLE_WORD: Record<Role, string> = { admin: 'Admin', member: 'Member' };
 
 const organizationKey = (): string[] => orgKey('organization');
 
-export function useOrganizationQuery(): UseQueryResult<Organization> {
+function useOrganizationQuery(): UseQueryResult<Organization> {
   return useQuery({ queryKey: organizationKey(), queryFn: () => fetchOrganization(), staleTime: 30_000 });
 }
 

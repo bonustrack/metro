@@ -114,12 +114,8 @@ export class Call {
     else if (raw.kind === 'leave' && fromCaller) this.hangUp('the caller hung up');
   }
 
-  hangUp(reason: string): void {
-    this.end(reason);
-  }
-
   leave(reason: string): Promise<void> {
-    this.end(reason);
+    this.hangUp(reason);
     return this.left;
   }
 
@@ -149,7 +145,7 @@ export class Call {
     return this.deps.train('callSignal', { line: this.start.line, signal });
   }
 
-  private end(reason: string): void {
+  hangUp(reason: string): void {
     if (this.over) return;
     this.over = true;
     if (this.timer !== null) clearTimeout(this.timer);

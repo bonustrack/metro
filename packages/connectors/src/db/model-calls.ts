@@ -2,7 +2,7 @@ import { and, eq, notInArray, sql } from 'drizzle-orm';
 import type { Database } from './database.js';
 import { agents, modelCalls, modelWindows } from './schema.js';
 
-export type ModelCallRow = typeof modelCalls.$inferSelect;
+type ModelCallRow = typeof modelCalls.$inferSelect;
 
 export type NewModelCall = Omit<ModelCallRow, 'agentName'>;
 
@@ -10,7 +10,7 @@ export type ModelWindowRow = typeof modelWindows.$inferSelect;
 
 export type ModelWindow = Pick<ModelWindowRow, 'label' | 'used' | 'resetAt' | 'detail'>;
 
-export const MODEL_CALL_NAME_MAX = 256;
+const MODEL_CALL_NAME_MAX = 256;
 
 const nameOf = (row: NewModelCall) =>
   sql<string | null>`(select left(coalesce(${agents.name}, ${agents.host}), ${MODEL_CALL_NAME_MAX}) from ${agents} where ${agents.id} = ${row.agent} and ${agents.owner} = ${row.owner})`;

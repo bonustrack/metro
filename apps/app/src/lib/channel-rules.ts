@@ -2,7 +2,7 @@ import { effectiveAccess, groupAccess, toolOverride, withGroup, withTool, type A
 import { CHOICE_WORD, GROUP_WORD, accessOfChoice, choiceOfAccess, type PermissionChoice, type PermissionValue } from './permission-words.js';
 import { toolLabel } from './tool-labels.js';
 
-export type RowTarget = 'read' | 'write' | 'delete';
+type RowTarget = 'read' | 'write' | 'delete';
 export type RuleTarget = RowTarget | `exceptions/${string}`;
 export type RuleChoice = PermissionChoice | 'same';
 
@@ -18,7 +18,7 @@ const ROW_NOTE: Record<RowTarget, string> = {
 
 const PREVIEW_TOOL: Record<RowTarget, string> = { read: 'read', write: 'send', delete: 'delete' };
 
-export interface RuleRow {
+interface RuleRow {
   target: RowTarget;
   label: string;
   note: string;
@@ -105,7 +105,7 @@ export function withChoice(policy: ToolPolicy, tools: GroupedTool[], target: Rul
   return deleteTools(policy, tools).reduce((next, tool) => withTool(next, tool.name, access), policy);
 }
 
-export interface AskWhere {
+interface AskWhere {
   chat: boolean;
   approvers: number;
 }

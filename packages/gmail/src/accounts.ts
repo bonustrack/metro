@@ -1,3 +1,4 @@
+import { errMsg } from '@metro-labs/core/log';
 import { makeAccountStore, resolveAccountId, type Die } from '@metro-labs/core/stations/account-store';
 import { threadOfLine } from '@metro-labs/core/stations/mail';
 import { TokenKeeper, type FetchLike } from '@metro-labs/core/stations/oauth';
@@ -43,7 +44,7 @@ export const { loadAccounts } = makeAccountStore<AccountConfig>({
 });
 
 const signedOut = (err: unknown): never => {
-  throw new TrainError('gmail_signed_out', err instanceof Error ? err.message : String(err), { retryable: false });
+  throw new TrainError('gmail_signed_out', errMsg(err), { retryable: false });
 };
 
 export class Account {
@@ -63,10 +64,9 @@ export class Account {
     const client = { clientId: cfg.clientId ?? '', clientSecret: cfg.clientSecret ?? '' };
     this.keeper = new TokenKeeper(this.state, async (refreshToken) => {
       checkManagedBinding(cfg);
-      const tokens = await (cfg.managed === true
+      return (cfg.managed === true
         ? renewManaged(refreshToken, this.state.refreshGrant ?? '', cfg.managedHost ?? '', this.fetchImpl)
         : refreshTokens(client, refreshToken, this.fetchImpl, Date.now(), cfg.sendEnabled)).catch(signedOut);
-      return tokens;
     }, () => {
       this.save();
     });

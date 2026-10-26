@@ -18,7 +18,7 @@ const HAIKU_LONG_PROMPT = 100_000;
 const HAIKU_LONG_FACTOR = 5;
 const ROUTEWAY_TTL_MS = 60 * 60_000;
 
-export const CLAUDE_PRICES: Record<string, Price> = {
+const CLAUDE_PRICES: Record<string, Price> = {
   'claude-fable-5-1': { input: 10, output: 50, read: 0.25 },
   'claude-mythos-5-1': { input: 10, output: 50, read: 0.25 },
   'claude-fable-5': { input: 10, output: 50, read: 1 },

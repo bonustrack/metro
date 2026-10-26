@@ -22,10 +22,6 @@ interface GlanceRow {
   href: string;
 }
 
-function GlanceItem({ title, glance, href }: GlanceRow): ReactNode {
-  return <Item title={title} subtitle={glance?.subtitle} value={glance?.value ?? undefined} valueTone={glance?.tone} href={href} />;
-}
-
 const PENDING: Glance = { subtitle: '…', value: null };
 
 function GlanceFact({ title, glance = PENDING, href, last = false }: GlanceRow & { last?: boolean }): ReactNode {
@@ -71,7 +67,7 @@ export function AtAGlance({ project, serverId, groups, name, rail = false }: AtA
   if (!rail)
     return (
       <Group label={name === undefined ? 'About this agent' : `About ${name}`}>
-        {rows.map((row) => <GlanceItem key={row.title} {...row} />)}
+        {rows.map(({ title, glance, href }) => <Item key={title} title={title} subtitle={glance?.subtitle} value={glance?.value ?? undefined} valueTone={glance?.tone} href={href} />)}
       </Group>
     );
   return (

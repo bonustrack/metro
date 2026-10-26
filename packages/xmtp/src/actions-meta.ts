@@ -1,4 +1,5 @@
-import { accountForCall, convOf, lineOf, parseLine } from './accounts.js';
+import { accountForCall, lineOf, openConv, parseLine } from './accounts.js';
+import { isRecord } from '@metro-labs/core/is-record';
 import { respond } from '@metro-labs/core/stations/station-runtime';
 import { ethIdentifiers, warmGroupName } from './conv-helpers.js';
 import { mergeAppData, normalizeAssigned, readAppDataObject, type GroupLike } from './labels.js';
@@ -50,7 +51,7 @@ async function applyMergedAppData(
   group: GroupLike & { updateAppData: (s: string) => Promise<void> },
   appData: Record<string, unknown> | undefined,
 ): Promise<Record<string, unknown>> {
-  if (appData && typeof appData === 'object' && !Array.isArray(appData)) {
+  if (isRecord(appData)) {
     const res = mergeAppData(group.appData, appData);
     await group.updateAppData(res.blob);
     return res.merged;
@@ -68,9 +69,7 @@ async function applyChannelMeta(
   verb: string,
 ): Promise<Record<string, unknown>> {
   const { line, name, description, appData } = args;
-  const { acct, conv } = await convOf(line);
-  if (!conv)
-    throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const { acct, conv } = await openConv(line);
   const group = conv as unknown as GroupLike;
   if (typeof group.updateAppData !== 'function') {
     throw new TrainError(

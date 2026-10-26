@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { approvalId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { McpDecision } from '@metro-labs/http/mcp-server-protocol';
@@ -20,7 +20,7 @@ export interface DeliveredApproval extends ApprovalRow {
   keyLabel: string | null;
 }
 
-export interface ApprovalAgent {
+interface ApprovalAgent {
   agent: string;
   owner: string;
 }
@@ -33,7 +33,7 @@ export interface ApprovalRequest {
   token?: string;
 }
 
-export type Redeemed = 'used' | 'denied' | 'invalid';
+type Redeemed = 'used' | 'denied' | 'invalid';
 
 export interface ApprovalStore {
   request: (identity: ApprovalAgent, request: ApprovalRequest, now: number) => Promise<string>;
@@ -62,15 +62,11 @@ async function pendingId(db: Database, identity: ApprovalAgent, request: Approva
   return rows[0]?.id ?? null;
 }
 
-async function insertRow(db: Database, row: typeof mcpApprovals.$inferInsert, request: ApprovalRequest): Promise<string | undefined> {
-  const caller = request.token === undefined ? { origin: 'box', token: null } : { origin: 'key', token: request.token };
-  return (await db.insert(mcpApprovals).values({ ...row, ...caller }).onConflictDoNothing().returning({ id: mcpApprovals.id }))[0]?.id;
-}
-
 async function insertPending(db: Database, identity: ApprovalAgent, request: ApprovalRequest, now: number): Promise<string> {
+  const caller = request.token === undefined ? { origin: 'box', token: null } : { origin: 'key', token: request.token };
   for (let attempt = 0; attempt < ID_TRIES; attempt += 1) {
-    const row = { id: approvalId(), owner: identity.owner, agent: identity.agent, connector: request.connector, tool: request.tool, argsDigest: request.digest, preview: request.preview, state: 'pending', requestedAt: now, answeredAt: null, deliveredAt: null };
-    const inserted = await insertRow(db, row, request);
+    const row = { id: approvalId(), owner: identity.owner, agent: identity.agent, connector: request.connector, tool: request.tool, argsDigest: request.digest, preview: request.preview, state: 'pending', requestedAt: now, answeredAt: null, deliveredAt: null, ...caller };
+    const inserted = (await db.insert(mcpApprovals).values(row).onConflictDoNothing().returning({ id: mcpApprovals.id }))[0]?.id;
     if (inserted !== undefined) return inserted;
     const held = await pendingId(db, identity, request);
     if (held !== null) return held;
@@ -98,16 +94,12 @@ async function redeem(db: Database, identity: ApprovalAgent, id: string, call: A
   return denied.length > 0 ? 'denied' : 'invalid';
 }
 
-async function markDelivered(db: Database, identity: ApprovalAgent, due: SQL | undefined, now: number): Promise<DeliveredApproval[]> {
-  const rows = await db.update(mcpApprovals).set({ deliveredAt: now }).where(due).returning();
-  const labels = await agentTokenLabels(db, identity, rows.flatMap((row) => (row.token === null ? [] : [row.token])));
-  return rows.map((row) => ({ ...row, keyLabel: row.token === null ? null : (labels.get(row.token) ?? null) }));
-}
-
 async function deliver(db: Database, identity: ApprovalAgent, now: number): Promise<DeliveredApproval[]> {
   await expire(db, identity, now);
   const due = and(mine(identity), eq(mcpApprovals.state, 'pending'), or(isNull(mcpApprovals.deliveredAt), lt(mcpApprovals.deliveredAt, now - REDELIVER_MS)));
-  return (await markDelivered(db, identity, due, now)).sort((a, b) => a.requestedAt - b.requestedAt);
+  const rows = await db.update(mcpApprovals).set({ deliveredAt: now }).where(due).returning();
+  const labels = await agentTokenLabels(db, identity, rows.flatMap((row) => (row.token === null ? [] : [row.token])));
+  return rows.map((row) => ({ ...row, keyLabel: row.token === null ? null : (labels.get(row.token) ?? null) })).sort((a, b) => a.requestedAt - b.requestedAt);
 }
 
 async function pending(db: Database, identity: ApprovalAgent, now: number): Promise<ApprovalRow[]> {

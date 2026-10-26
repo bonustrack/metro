@@ -3,7 +3,6 @@ import { parseId } from '@metro-labs/core/ids';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession } from '@metro-labs/http/workos-token';
 import { beginCodexLogin, finishCodexLogin } from './codex-login.js';
 import { beginDevice, pollDevice } from './codex-device.js';
 import type { Caller, ModelsDeps } from './deps.js';
@@ -11,6 +10,7 @@ import { listConnectionModels } from './lists.js';
 import { createModel, deleteModel, deleteRoute, listModels, patchModel, putRoute } from './manage.js';
 import { beginOpenRouter, openRouterCallback } from './openrouter-login.js';
 import { modelUsage, modelWindows } from './usage.js';
+import { callerOf } from '../server-route.js';
 
 const PREFIX = '/api/models';
 const BODY_MAX = 64 * 1024;
@@ -75,13 +75,6 @@ function targetOf(path: string): Target | 'unknown' | null {
   return named === undefined ? byId(rest) : { kind: named, id: '' };
 }
 
-async function callerOf(req: IncomingMessage, deps: ModelsDeps): Promise<Caller> {
-  const session = await bearerSession(req, deps.keys);
-  const owner = session?.organization ?? null;
-  if (session === null || owner === null) throw new ApiError('unauthorized', 401);
-  return { session, owner };
-}
-
 interface Context {
   deps: ModelsDeps;
   caller: Caller;
@@ -108,7 +101,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
 };
 
 async function answer(req: IncomingMessage, deps: ModelsDeps, target: Target): Promise<unknown> {
-  const caller = await callerOf(req, deps);
+  const caller = await callerOf(req, deps.keys);
   const method = req.method ?? 'GET';
   const route = `${method} ${target.kind}`;
   if (!MEMBER_READS.has(route) && caller.session.role !== 'admin') throw new ApiError('managing models needs the admin role in your organization', 403);

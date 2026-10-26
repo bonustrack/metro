@@ -1,10 +1,9 @@
 import { createHash } from 'node:crypto';
-import { compareVersions, PACKAGE_NAME } from './version.js';
+import { compareVersions, PACKAGE_NAME, REGISTRY } from './version.js';
 
 export const RELEASE_DIR = '/usr/local/lib/metro/release';
 export const PUBLISHER = 'https://github.com/bonustrack/metro/.github/workflows/publish-cli.yml@refs/heads/main';
 export const ISSUER = 'https://token.actions.githubusercontent.com';
-const REGISTRY = 'https://registry.npmjs.org';
 const PROVENANCE = 'https://slsa.dev/provenance/v1';
 const IN_TOTO = 'application/vnd.in-toto+json';
 const VERSION_RE = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z]{1,20}(?:\.[0-9A-Za-z]{1,20}){0,4})?$/;
@@ -53,7 +52,7 @@ function statementOf(bundle: Record<string, unknown>): Record<string, unknown> {
   return statement;
 }
 
-export function provenanceNames(statement: Record<string, unknown>, version: string, sha512: string): boolean {
+function provenanceNames(statement: Record<string, unknown>, version: string, sha512: string): boolean {
   const subjects = Array.isArray(statement.subject) ? (statement.subject as unknown[]) : [];
   return (
     statement.predicateType === PROVENANCE &&

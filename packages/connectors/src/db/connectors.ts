@@ -20,7 +20,7 @@ export interface ConnectorEdit {
   change: ConnectorChange;
 }
 
-export interface AssignInput {
+interface AssignInput {
   owner: string;
   connector: string;
   agent: string;

@@ -3,7 +3,6 @@ import { storedServerId } from './auth/daemon.js';
 import { RESERVED_SEGMENTS } from './auth/org-segment.js';
 import { noteRoutedOrganization, organizationSegment, splitOrganization } from './auth/org-route.js';
 import { agentSegment } from './auth/agent-route.js';
-import { location } from './platform.js';
 
 const HOST = '[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]{1,5})?';
 const ID = '[A-Za-z0-9_-]{11}';
@@ -310,4 +309,3 @@ export function routeHash(selection: Selection): string {
   return `${prefix}${agentSegment(selection.project)}${suffix(selection)}`;
 }
 
-export const currentSelection = (): Selection => routeSelection(location().hash());

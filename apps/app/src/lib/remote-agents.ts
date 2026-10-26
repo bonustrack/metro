@@ -36,7 +36,7 @@ export const useAgentKeysQuery = (agent: string): UseQueryResult<AgentKey[]> =>
 
 export const refreshAgentKeys = (client: QueryClient, agent: string): Promise<void> => client.invalidateQueries({ queryKey: keysKey(agent) });
 
-export const assignedTo = (connectors: OrgConnector[] | undefined, agent: string): OrgConnector[] | undefined =>
+const assignedTo = (connectors: OrgConnector[] | undefined, agent: string): OrgConnector[] | undefined =>
   connectors?.filter((connector) => connector.agents.some((one) => one.id === agent));
 
 export function useConnectorCounts(agents: string[]): (number | null)[] {

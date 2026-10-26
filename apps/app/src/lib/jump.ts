@@ -1,6 +1,6 @@
-export type JumpGroup = 'agents' | 'pages' | 'actions';
+type JumpGroup = 'agents' | 'pages' | 'actions';
 
-export const JUMP_GROUPS: readonly JumpGroup[] = ['agents', 'pages', 'actions'];
+const JUMP_GROUPS: readonly JumpGroup[] = ['agents', 'pages', 'actions'];
 
 export const JUMP_GROUP_LABEL: Record<JumpGroup, string> = { agents: 'Agents', pages: 'Pages', actions: 'Actions' };
 
@@ -55,14 +55,14 @@ function byRank<T>(a: Scored<T>, b: Scored<T>): number {
   return b.score - a.score || a.entry.crumbs.length - b.entry.crumbs.length || a.at - b.at;
 }
 
-export function rankJump<T>(entries: JumpEntry<T>[], query: string, limits: Record<JumpGroup, number> = LIMITS): JumpEntry<T>[] {
+export function rankJump<T>(entries: JumpEntry<T>[], query: string): JumpEntry<T>[] {
   const tokens = tokensOf(query);
   const scored = entries.flatMap((entry, at): Scored<T>[] => {
     if (tokens.length === 0) return entry.idle === true ? [{ entry, score: 0, at }] : [];
     const score = jumpScore(entry, tokens);
     return score === null ? [] : [{ entry, score, at }];
   });
-  return JUMP_GROUPS.flatMap((group) => scored.filter((s) => s.entry.group === group).sort(byRank).slice(0, limits[group]).map((s) => s.entry));
+  return JUMP_GROUPS.flatMap((group) => scored.filter((s) => s.entry.group === group).sort(byRank).slice(0, LIMITS[group]).map((s) => s.entry));
 }
 
 export function groupJump<T>(ranked: JumpEntry<T>[]): { group: JumpGroup; entries: JumpEntry<T>[] }[] {

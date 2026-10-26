@@ -1,6 +1,6 @@
 import { TrainError } from '@metro-labs/core/train-error';
 import type { GroupResult } from '@metro-labs/core/stations/types';
-import { accountForCall, convOf, lineOf } from './accounts.js';
+import { accountForCall, lineOf, openConv } from './accounts.js';
 import {
   applyMemberOp,
   createGroupWithMembers,
@@ -38,8 +38,7 @@ async function memberOp(
   const { addrs, inboxes } = splitMembers(args);
   if (!addrs.length && !inboxes.length)
     throw new TrainError('INVALID_ARGS', `${verb} requires members`);
-  const { conv } = await convOf(line);
-  if (!conv) throw new TrainError('NOT_FOUND', `conversation not found for ${line}`);
+  const { conv } = await openConv(line);
   await applyMemberOp(conv, addrs, inboxes, mode);
   return {
     capability: { supported: true },

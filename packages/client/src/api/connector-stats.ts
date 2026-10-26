@@ -16,7 +16,7 @@ export const DEFAULT_STATS_RANGE: StatsRange = '7d';
 
 export const OTHER_CONNECTORS = '~other';
 
-export interface CallCount {
+interface CallCount {
   total: number;
   failed: number;
 }
@@ -58,10 +58,10 @@ export interface StatsQuery {
   connector?: string | null;
 }
 
-const unexpected = (): Error => new Error('Metro returned an unexpected response.');
-const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
-const ms = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null);
-const isRange = (value: unknown): value is StatsRange => STATS_RANGES.some((range) => range.value === value);
+export const unexpected = (): Error => new Error('Metro returned an unexpected response.');
+export const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
+export const ms = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null);
+export const isRange = (value: unknown): value is StatsRange => STATS_RANGES.some((range) => range.value === value);
 
 const callCount = (value: unknown): CallCount => (isRecord(value) ? { total: count(value.total), failed: count(value.failed) } : { total: 0, failed: 0 });
 
@@ -90,7 +90,7 @@ function totalsOf(value: unknown): StatsTotals {
   };
 }
 
-const kept = <T>(rows: unknown, read: (value: unknown) => T | null): T[] => (Array.isArray(rows) ? rows.map(read).filter((row): row is T => row !== null) : []);
+export const kept = <T>(rows: unknown, read: (value: unknown) => T | null): T[] => (Array.isArray(rows) ? rows.map(read).filter((row): row is T => row !== null) : []);
 
 export function toConnectorStats(value: unknown): ConnectorStats {
   if (!isRecord(value) || !isRange(value.range) || !Array.isArray(value.buckets)) throw unexpected();

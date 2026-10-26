@@ -1,3 +1,5 @@
+import { errMsg } from '@metro-labs/core/log';
+import { str } from '@metro-labs/core/stations/mail';
 import { postForm, SignInError, tokensOf, type FetchLike, type OAuthBody, type Tokens } from '@metro-labs/core/stations/oauth';
 import { apiBase, authorizeBase, redirectUri, scopesFor, tokenUrl } from './config.js';
 
@@ -15,11 +17,9 @@ export interface GmailClient {
 
 const CLIENT_ID_RE = /^[\w.-]+\.apps\.googleusercontent\.com$/;
 
-const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
-
 export function clientOf(rawId: unknown, rawSecret: unknown): GmailClient {
-  const clientId = text(rawId);
-  const clientSecret = text(rawSecret);
+  const clientId = str(rawId);
+  const clientSecret = str(rawSecret);
   if (!CLIENT_ID_RE.test(clientId))
     throw new SignInError('Paste the client ID of your Google OAuth client. It ends with .apps.googleusercontent.com.');
   if (clientSecret === '' || /\s/.test(clientSecret)) throw new SignInError('Paste the client secret of your Google OAuth client.');
@@ -27,13 +27,13 @@ export function clientOf(rawId: unknown, rawSecret: unknown): GmailClient {
 }
 
 export function failureOf(body: OAuthBody): string {
-  const error = text(body.error);
+  const error = str(body.error);
   if (error === 'access_denied') return 'The sign-in was declined, so nothing was connected.';
   if (error === 'invalid_client' || error === 'unauthorized_client')
     return 'Google does not accept this client ID and secret. Check both on the Clients page of your Google Cloud project.';
   if (error === 'redirect_uri_mismatch') return `Your Google OAuth client must list ${redirectUri()} as an authorized redirect URI.`;
   if (error === 'admin_policy_enforced') return 'Your Google Workspace administrator blocks this app. Trust it in the Admin console under API controls, then start again.';
-  const detail = text(body.error_description);
+  const detail = str(body.error_description);
   return detail === '' ? `Google refused the sign-in (${error === '' ? 'no reason given' : error}).` : `Google refused the sign-in: ${detail}`;
 }
 
@@ -101,14 +101,14 @@ export async function verifyMailbox(accessToken: string, fetchImpl: FetchLike, w
       headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
     });
   } catch (err) {
-    throw new SignInError(`Metro could not reach Gmail: ${err instanceof Error ? err.message : String(err)}`);
+    throw new SignInError(`Metro could not reach Gmail: ${errMsg(err)}`);
   }
   if (!res.ok) {
     const hint = res.status === 403 ? ' Check that the Gmail API is enabled in your Google Cloud project.' : '';
     throw new SignInError(`Gmail refused the new sign-in (${await googleMessage(res)}), so nothing was connected.${hint}`);
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  const email = text(body.emailAddress).toLowerCase();
+  const email = str(body.emailAddress).toLowerCase();
   if (email === '') throw new SignInError('Gmail did not say which mailbox this is, so nothing was connected.');
   if (wanted !== null && wanted !== email) throw new SignInError(wrongMailbox(email, wanted));
   return email;

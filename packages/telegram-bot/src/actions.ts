@@ -6,18 +6,11 @@ import {
   inaccessibleMemberList,
   type TgChatMember,
 } from './members.js';
-import { makeStation, respond, type CallMsg, type StationHandler } from '@metro-labs/core/stations/station-runtime';
+import { makeStation, respond, type StationHandler } from '@metro-labs/core/stations/station-runtime';
 import { mediaKindOf } from './attachments.js';
-import {
-  emitOutbound,
-  finishSend,
-  MEDIA_METHOD_FIELD,
-  sendMedia,
-} from './media-actions.js';
+import { emitOutbound, MEDIA_METHOD_FIELD, sendMedia } from './media-actions.js';
 import { readProfile, setProfile } from './profile.js';
 import { listChannels } from './channels.js';
-
-export type { CallMsg };
 
 const meCache = new Map<string, { id: number; username: string | null }>();
 async function getMe(
@@ -69,7 +62,6 @@ interface SendArgs {
     name?: string;
   }[];
 }
-
 
 type WireAttachment = NonNullable<SendArgs['attachments']>[number];
 
@@ -139,7 +131,8 @@ async function send(id: string, args: Record<string, unknown>): Promise<void> {
   if (topicId !== undefined) body.message_thread_id = topicId;
   if (replyTo) body.reply_parameters = { message_id: Number(replyTo) };
   const sent = await tg<{ message_id: number }>(accountId, 'sendMessage', body);
-  finishSend(id, accountId, line, String(sent.message_id), text, replyTo);
+  emitOutbound(accountId, line, String(sent.message_id), text, replyTo);
+  respond(id, { result: { messageId: String(sent.message_id), account: accountId } });
 }
 
 async function react(id: string, args: Record<string, unknown>): Promise<void> {
@@ -212,19 +205,12 @@ async function listMembers(
     respond(id, { result: inaccessibleMemberList(errMsg(e)) });
     return;
   }
-  let total: number | null = null;
-  try {
-    total = await tg<number>(accountId, 'getChatMemberCount', {
-      chat_id: chatId,
-    });
-  } catch {
-    total = null;
-  }
+  const total = await tg<number>(accountId, 'getChatMemberCount', { chat_id: chatId }).catch(() => null);
   respond(id, { result: adminMemberList(admins, total) });
 }
 
 const HANDLERS: Record<string, StationHandler> = {
-  accounts: (id) => listAccounts(id),
+  accounts: listAccounts,
   send,
   react,
   typing,

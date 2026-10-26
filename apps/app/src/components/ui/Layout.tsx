@@ -32,24 +32,20 @@ export function Wide({ gap, children }: WidthProps): ReactNode {
   );
 }
 
-export function WithRail({ rail, gap, children }: WidthProps & { rail?: ReactNode }): ReactNode {
+export function WithRail({ rail, children }: { rail?: ReactNode; children: ReactNode }): ReactNode {
   const narrow = useIsNarrow();
   if (rail === undefined || rail === null)
-    return (
-      <Col gap={gap} minWidth={0}>
-        {children}
-      </Col>
-    );
+    return <Col minWidth={0}>{children}</Col>;
   if (narrow)
     return (
       <Col gap={STACK_GAP}>
-        <Col gap={gap}>{children}</Col>
+        <Col>{children}</Col>
         {rail}
       </Col>
     );
   return (
     <Row align="start" gap={RAIL_GAP} width="100%" maxWidth={WIDE_WIDTH}>
-      <Col flex={1} minWidth={0} gap={gap}>
+      <Col flex={1} minWidth={0}>
         {children}
       </Col>
       <Col width={FACTS_WIDTH}>{rail}</Col>

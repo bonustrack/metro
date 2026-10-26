@@ -22,7 +22,7 @@ type Args = Record<string, unknown>;
 
 const sentIds = new Set<string>();
 
-export function noteSent(messageId: string): void {
+function noteSent(messageId: string): void {
   sentIds.add(messageId);
   while (sentIds.size > SENT_MAX) {
     const oldest = sentIds.values().next();
@@ -85,7 +85,12 @@ function textOf(a: SendArgs, files: OutgoingFile[]): string {
   return text;
 }
 
-async function sendFiles(acct: Account, target: Target, files: OutgoingFile[], caption: string | null): Promise<{ ids: string[]; labels: string[] }> {
+interface Sent {
+  ids: string[];
+  labels: string[];
+}
+
+async function sendFiles(acct: Account, target: Target, files: OutgoingFile[], caption: string | null): Promise<Sent> {
   const ids: string[] = [];
   const labels: string[] = [];
   for (const [i, file] of files.entries()) {
@@ -111,11 +116,6 @@ function bodyOf(text: string, replyTo: string | undefined): string {
   if (Buffer.byteLength(body, 'utf8') > MAX_TEXT_BYTES)
     throw new TrainError('threema_message_too_long', `Threema carries at most ${MAX_TEXT_BYTES} bytes of text per message; split it up`, { retryable: false });
   return body;
-}
-
-interface Sent {
-  ids: string[];
-  labels: string[];
 }
 
 const resultOf = (acct: Account, sent: Sent): Record<string, unknown> => ({

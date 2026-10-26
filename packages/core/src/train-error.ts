@@ -1,3 +1,5 @@
+import { isRecord } from './is-record.js';
+
 export interface TrainErrorInfo {
   code: string;
   message: string;
@@ -41,10 +43,8 @@ export function serializeTrainError(err: unknown): {
   return { error: err instanceof Error ? err.message : String(err) };
 }
 
-export function coerceErrorInfo(v: unknown): TrainErrorInfo | undefined {
-  if (!v || typeof v !== 'object') return undefined;
-  const o = v as Record<string, unknown>;
-  if (typeof o.code !== 'string' || typeof o.message !== 'string')
+export function coerceErrorInfo(o: unknown): TrainErrorInfo | undefined {
+  if (!isRecord(o) || typeof o.code !== 'string' || typeof o.message !== 'string')
     return undefined;
   const info: TrainErrorInfo = { code: o.code, message: o.message };
   if (typeof o.retryable === 'boolean') info.retryable = o.retryable;

@@ -11,9 +11,8 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import {
-  TrainError, serializeTrainError, parseTrainLine,
-} from '@metro-labs/core/trains/protocol';
+import { parseTrainLine } from '@metro-labs/core/trains/protocol';
+import { TrainError, serializeTrainError } from '@metro-labs/core/train-error';
 
 describe('shape: single source', () => {
   test('TrainError.toErrorInfo carries code/message/retryable/retryAfterMs', () => {

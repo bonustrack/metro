@@ -1,4 +1,5 @@
 import type { TelegramClient } from '@mtcute/bun';
+import { errMsg } from '@metro-labs/core/log';
 import {
   assertImage,
   fieldsOf,
@@ -54,7 +55,7 @@ function sendersOf(client: UserClient): ProfileCache<SenderProfile> {
         ...(nonEmpty(full.bio) === undefined ? {} : { about: nonEmpty(full.bio) }),
       };
     },
-    { onError: (user, err) => process.stderr.write(`telegram[${client.account.id}] could not read the profile of ${user}: ${err instanceof Error ? err.message : String(err)}\n`) },
+    { onError: (user, err) => process.stderr.write(`telegram[${client.account.id}] could not read the profile of ${user}: ${errMsg(err)}\n`) },
   );
   senders.set(client.account.id, made);
   return made;
@@ -63,7 +64,7 @@ function sendersOf(client: UserClient): ProfileCache<SenderProfile> {
 export function makeReadProfile(clientFor: (accountId: string) => UserClient): StationHandler {
   return async (id, args) => {
     const accountId = accountFor({ account: str(args.account) });
-    const user = str(args.user) ?? '';
+    const user = str(args.user);
     if (!/^\d+$/.test(user)) throw new TrainError('telegram_user_required', 'profile needs the numeric Telegram id of the person', { retryable: false });
     respond(id, { result: (await sendersOf(clientFor(accountId)).get(user)) ?? { id: user } });
   };

@@ -24,11 +24,6 @@ const unchanged = (): ConnectorEdit => ({ change: {} });
 
 type OAuthSecret = Extract<ConnectorSecret, { kind: 'oauth' }>;
 
-function failedRefresh(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret, err: unknown): ConnectorEdit {
-  if (!(err instanceof OAuthInvalidGrant)) return unchanged();
-  return disconnected(deps, row, secret);
-}
-
 function disconnected(deps: RefreshDeps, row: ConnectorRow, secret: OAuthSecret): ConnectorEdit {
   const detail = detailOf(row.detail);
   delete detail.signedInAt;
@@ -67,8 +62,9 @@ async function refreshedEdit(deps: RefreshDeps, row: ConnectorRow, secret: OAuth
     const next = { ...refreshed, resource, refreshToken: refreshed.refreshToken ?? refreshToken };
     return { change: { secret: sealConnectorSecret(deps.key, row, { ...secret, tokens: next }) } };
   } catch (err) {
-    if (!(err instanceof OAuthInvalidGrant)) failed.set(row.id, credentialRevision(deps.key, row));
-    return failedRefresh(deps, row, secret, err);
+    if (err instanceof OAuthInvalidGrant) return disconnected(deps, row, secret);
+    failed.set(row.id, credentialRevision(deps.key, row));
+    return unchanged();
   }
 }
 
@@ -77,7 +73,10 @@ function bounded(deps: RefreshDeps): RefreshDeps {
   return { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
 }
 
-async function refreshOne(deps: RefreshDeps, identity: DeliveryIdentity, connectorId: string, forced: RefreshRequest | undefined, failed: Map<string, string>): Promise<void> {
+export async function refreshConnector(given: RefreshDeps, identity: DeliveryIdentity, connectorId: string, request?: RefreshRequest): Promise<Map<string, string>> {
+  const deps = bounded(given);
+  const forced = request?.connectorId === connectorId ? request : undefined;
+  const failed = new Map<string, string>();
   await refreshImported(deps, async (edit) => {
     await deps.store.refresh(identity, connectorId, new Date(deps.now()).toISOString(), async (current) => {
       const { valid, blocked } = deliveryPolicy(current);
@@ -86,10 +85,5 @@ async function refreshOne(deps: RefreshDeps, identity: DeliveryIdentity, connect
     });
   }, forced?.revision);
   await deps.store.refresh(identity, connectorId, new Date(deps.now()).toISOString(), (current) => refreshLocked(deps, current, forced, failed));
-}
-
-export async function refreshConnector(deps: RefreshDeps, identity: DeliveryIdentity, connectorId: string, forced?: RefreshRequest): Promise<Map<string, string>> {
-  const failed = new Map<string, string>();
-  await refreshOne(bounded(deps), identity, connectorId, forced?.connectorId === connectorId ? forced : undefined, failed);
   return failed;
 }

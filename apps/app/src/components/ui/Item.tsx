@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
   chevron: { marginLeft: -6 },
 });
 
-export interface ItemProps {
+interface ItemProps {
   title: string;
   subtitle?: ReactNode;
   subtitleTone?: Tone;

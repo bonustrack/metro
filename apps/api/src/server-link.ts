@@ -15,7 +15,7 @@ import { handleServerRoute } from './server-route.js';
 const PATH_RE = /^\/api\/servers\/([^/]+)\/link\/?$/;
 const OFF = 'This Metro deployment has no AWS account, so it cannot link a server to one.';
 
-export interface LinkAws {
+interface LinkAws {
   describe: (credentials: AwsCredentials, region: string, instanceId: string) => Promise<InstanceFacts[]>;
   tag: (credentials: AwsCredentials, region: string, instanceId: string, node: string, agentId: string) => Promise<void>;
 }

@@ -11,7 +11,7 @@ import { exchangeGmailCode, gmailAuthorizeUrl, gmailProfile, refreshGmailTokens,
 
 export type GmailSession = Session & { organization: string };
 
-export interface GmailState {
+interface GmailState {
   organization: string;
   userId: string;
   sessionId: string;
@@ -23,7 +23,7 @@ export interface GmailState {
   sendEnabled: boolean;
 }
 
-export interface GmailBrokerDeps {
+interface GmailBrokerDeps {
   config: () => GmailConfig | null;
   states: TicketStore<GmailState>;
   fetch: FetchLike;

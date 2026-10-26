@@ -11,7 +11,7 @@ export class RunEventsUnavailableError extends Error {
   constructor() { super('Update Metro to see recent Run events.'); }
 }
 
-export interface RunEventsOptions {
+interface RunEventsOptions {
   cursor?: string;
   limit?: number;
   version?: string | null;

@@ -2,7 +2,7 @@ import { and, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import type { Database } from './database.js';
 import { connectors, mcpCalls } from './schema.js';
 
-export const CALL_OUTCOMES = {
+const CALL_OUTCOMES = {
   failed: ['vendor_error', 'unavailable', 'invalid', 'signin', 'not_found'],
   blocked: ['blocked', 'denied'],
   waiting: ['needs_approval'],
@@ -18,7 +18,7 @@ export interface StatsScope {
   connector?: string;
 }
 
-export interface SlotCount {
+interface SlotCount {
   slot: number;
   group: string;
   total: number;

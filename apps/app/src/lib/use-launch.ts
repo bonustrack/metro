@@ -7,10 +7,10 @@ const POLL_MS = 20_000;
 const CONSOLE_POLL_MS = 30_000;
 const BOOT_WINDOW_MS = 30 * 60_000;
 
-export function stillBooting(server: Server, now = Date.now()): boolean {
+export function stillBooting(server: Server): boolean {
   if (server.instanceId === null || server.launchedAt === null) return false;
   const at = Date.parse(server.launchedAt);
-  return Number.isFinite(at) && now - at < BOOT_WINDOW_MS;
+  return Number.isFinite(at) && Date.now() - at < BOOT_WINDOW_MS;
 }
 
 export function useBootingState(server: Server, enabled: boolean): string | null {

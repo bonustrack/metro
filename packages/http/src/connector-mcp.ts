@@ -10,7 +10,7 @@ export interface OAuthTokens {
   expiresAt?: number;
 }
 
-export interface OAuthAuth extends OAuthTokens {
+interface OAuthAuth extends OAuthTokens {
   kind: 'oauth';
   issuer: string;
   tokenEndpoint: string;
@@ -30,10 +30,6 @@ export interface VerifiedServer {
   server: string;
 }
 
-export interface VerifiedRecord extends VerifiedServer {
-  at: string;
-}
-
 const PROBE_TIMEOUT_MS = 10_000;
 
 export const INITIALIZE = {
@@ -49,10 +45,19 @@ export function authHeaders(auth: ConnectorAuth): Record<string, string> {
   return {};
 }
 
-export function payloadOf(text: string, contentType: string): string {
+function payloadOf(text: string, contentType: string): string {
   if (!contentType.includes('text/event-stream')) return text;
   for (const line of text.replace(/\r\n/g, '\n').split('\n')) if (line.startsWith('data:')) return line.slice(5).trim();
   return '';
+}
+
+export function resultOf(text: string, contentType: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(payloadOf(text, contentType));
+    return isRecord(parsed) && isRecord(parsed.result) ? parsed.result : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function mcpPost(
@@ -77,13 +82,7 @@ export async function mcpPost(
 }
 
 function serverNameOf(url: URL, text: string, contentType: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(payloadOf(text, contentType));
-  } catch {
-    throw refused(`${url.hostname} answered, but it does not speak MCP.`);
-  }
-  const result = isRecord(parsed) && isRecord(parsed.result) ? parsed.result : null;
+  const result = resultOf(text, contentType);
   if (result === null || typeof result.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
   const info = isRecord(result.serverInfo) ? result.serverInfo : {};
   const title = typeof info.title === 'string' ? info.title : '';

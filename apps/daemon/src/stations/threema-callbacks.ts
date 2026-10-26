@@ -1,4 +1,5 @@
 import { readJson } from '@metro-labs/core/secure-fs';
+import { isRecord } from '@metro-labs/core/is-record';
 import { accountFilePath } from './materialize.js';
 
 export interface ThreemaCallback {
@@ -11,11 +12,10 @@ const str = (v: unknown): string | undefined =>
   typeof v === 'string' && v !== '' ? v : undefined;
 
 function toCallback(row: unknown): ThreemaCallback | null {
-  if (typeof row !== 'object' || row === null) return null;
-  const rec = row as Record<string, unknown>;
-  const id = str(rec.id);
-  const callbackId = str(rec.callbackId);
-  const callbackToken = str(rec.callbackToken);
+  if (!isRecord(row)) return null;
+  const id = str(row.id);
+  const callbackId = str(row.callbackId);
+  const callbackToken = str(row.callbackToken);
   if (id === undefined || callbackId === undefined || callbackToken === undefined) return null;
   return { id, callbackId, callbackToken };
 }

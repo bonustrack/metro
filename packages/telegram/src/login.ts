@@ -1,4 +1,5 @@
 import { TelegramClient } from '@mtcute/bun';
+import { isRecord } from '@metro-labs/core/is-record';
 
 export class TelegramLoginError extends Error {}
 
@@ -19,9 +20,7 @@ const PHONE_RE = /^[0-9]{6,15}$/;
 const API_HASH_RE = /^[a-f0-9]{32}$/i;
 
 export function rpcErrorText(err: unknown): string {
-  if (typeof err !== 'object' || err === null) return '';
-  const text = (err as { text?: unknown }).text;
-  return typeof text === 'string' ? text : '';
+  return isRecord(err) && typeof err.text === 'string' ? err.text : '';
 }
 
 export function needsPassword(err: unknown): boolean {
@@ -75,9 +74,7 @@ interface SentCodeLike {
 }
 
 const isSentCode = (v: unknown): v is SentCodeLike =>
-  typeof v === 'object' &&
-  v !== null &&
-  typeof (v as { phoneCodeHash?: unknown }).phoneCodeHash === 'string';
+  isRecord(v) && typeof v.phoneCodeHash === 'string';
 
 interface UserLike {
   id: number;

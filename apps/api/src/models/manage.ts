@@ -1,19 +1,16 @@
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
-import { ApiError } from '@metro-labs/http/api-error';
 import type { ModelChange, ModelConnectionRow, ModelEdit } from '@metro-labs/connectors/db/models';
 import { MODEL_ID_MAX, type ModelRoute } from '@metro-labs/connectors/model-route';
 import { isModelProvider, KEY_PROVIDERS, modelDetailOf, modelDetailText, sealModelSecret, type ModelDetail, type ModelProvider, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import { isoNow, modelKey, MODELS_MAX, userActor, type Caller, type ModelsDeps } from './deps.js';
-import { apiKeyOf, claudeTokenOf, creator, effortInput, flagOf, helpersInput, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
+import { apiKeyOf, bad, claudeTokenOf, creator, effortInput, flagOf, helpersInput, LABEL_MAX, labelFor, newModelRow, regionOf, routeInput, textField } from './input.js';
 import { checkClaudeToken } from './provider-lists.js';
 import { checkRoutewayKey } from './routeway.js';
 import { connectionView, type ConnectionView, type ModelsView } from './view.js';
 
 const PATCH_FIELDS = ['label', 'model', 'region', 'zdr', 'apiKey', 'claudeToken'];
-
-const bad = (message: string): ApiError => new ApiError(message, 400);
 
 export async function listModels(deps: ModelsDeps, owner: string): Promise<ModelsView> {
   const { connections, routes } = await deps.store.list(owner);

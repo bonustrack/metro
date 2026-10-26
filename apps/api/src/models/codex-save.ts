@@ -9,7 +9,7 @@ import { connectionView, type ConnectionView } from './view.js';
 
 export const OTHER_ACCOUNT = 'this is another ChatGPT account than the one this connection signed in with; add a new connection for it';
 
-export const noSuchCodex = (): ApiError => new ApiError('no such Codex connection', 404);
+const noSuchCodex = (): ApiError => new ApiError('no such Codex connection', 404);
 
 export async function codexRow(deps: ModelsDeps, owner: string, id: string): Promise<ModelConnectionRow> {
   const row = await deps.store.find(owner, id);

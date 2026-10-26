@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 export const PACKAGE_NAME = '@stage-labs/metro';
 
-const REGISTRY = 'https://registry.npmjs.org';
+export const REGISTRY = 'https://registry.npmjs.org';
 const TIMEOUT_MS = 15_000;
 
 interface Parsed {

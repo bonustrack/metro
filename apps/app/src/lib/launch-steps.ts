@@ -1,10 +1,10 @@
-export type PlainState = 'done' | 'active' | 'pending' | 'failed';
+type PlainState = 'done' | 'active' | 'pending' | 'failed';
 
 export const mayAddAgent = (role: string | null | undefined): boolean => role === 'admin';
 
 export const ADD_AGENT_ADMIN = 'Only an admin of the organization can add an agent.';
 
-export interface BootStepView {
+interface BootStepView {
   key: string;
   state: PlainState;
 }
@@ -34,7 +34,7 @@ const SETUP: { key: string; setup: string[] }[] = [
 
 const GONE = new Set(['terminated', 'shutting-down', 'stopped', 'stopping']);
 
-export const TYPICAL_SECONDS = 5 * 60;
+const TYPICAL_SECONDS = 5 * 60;
 
 function labels(key: string, name: string, place: string | null): [string, string] {
   const where = place === null ? '' : ` in ${place}`;
@@ -127,7 +127,7 @@ export function cityOf(regionName: string): string {
 
 const sentence = (text: string): string => (/[.!?]$/.test(text) ? text : `${text}.`);
 
-export interface LaunchFailure {
+interface LaunchFailure {
   text: string;
   elsewhere: boolean;
 }
