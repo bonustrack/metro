@@ -31,7 +31,10 @@ export interface Connection {
   claudeToken: string;
   account: Account;
   signedOut: boolean;
+  auth?: AuthKind | null;
 }
+
+export type AuthKind = 'key' | 'subscription' | 'codex';
 
 export interface Fallback {
   connection: string;
@@ -77,27 +80,35 @@ export function primaryRoute(setup: ModelSetup): Route | null {
   return null;
 }
 
-const CHECKS: Record<Provider, [(r: Route) => boolean, string][]> = {
-  anthropic: [[(r) => r.connection.apiKey === '' && r.connection.claudeToken === '', "Anthropic has no API key or Claude subscription: add one on the organization's Gateway page."]],
+type Check = [(r: Route) => boolean, string, 'credential' | 'setup'];
+
+const CHECKS: Record<Provider, Check[]> = {
+  anthropic: [[(r) => r.connection.apiKey === '' && r.connection.claudeToken === '', "Anthropic has no API key or Claude subscription: add one on the organization's Gateway page.", 'credential']],
   bedrock: [
-    [(r) => r.connection.apiKey === '', "Bedrock has no API key: add it on the organization's Gateway page."],
-    [(r) => r.connection.region === '', "Bedrock needs a region: add it on the organization's Gateway page."],
+    [(r) => r.connection.apiKey === '', "Bedrock has no API key: add it on the organization's Gateway page.", 'credential'],
+    [(r) => r.connection.region === '', "Bedrock needs a region: add it on the organization's Gateway page.", 'setup'],
   ],
   openrouter: [
-    [(r) => r.connection.apiKey === '', "OpenRouter has no API key: add it on the organization's Gateway page."],
-    [(r) => r.model === '', "OpenRouter needs a model id: choose one on the organization's Gateway page."],
+    [(r) => r.connection.apiKey === '', "OpenRouter has no API key: add it on the organization's Gateway page.", 'credential'],
+    [(r) => r.model === '', "OpenRouter needs a model id: choose one on the organization's Gateway page.", 'setup'],
   ],
   codex: [
-    [(r) => r.connection.codex === null, CODEX_SIGN_IN],
-    [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Gateway page."],
+    [(r) => r.connection.codex === null, CODEX_SIGN_IN, 'credential'],
+    [(r) => r.model === '', "Codex needs a model id: choose one on the organization's Gateway page.", 'setup'],
   ],
   routeway: [
-    [(r) => r.connection.apiKey === '', "Routeway has no API key: add it on the organization's Gateway page."],
-    [(r) => r.model === '', "Routeway needs a model id: choose one on the organization's Gateway page."],
+    [(r) => r.connection.apiKey === '', "Routeway has no API key: add it on the organization's Gateway page.", 'credential'],
+    [(r) => r.model === '', "Routeway needs a model id: choose one on the organization's Gateway page.", 'setup'],
   ],
 };
 
 export const notReady = (route: Route): string | null => CHECKS[route.connection.provider].find(([missing]) => missing(route))?.[1] ?? null;
+
+export function setupNotReady(route: Route): string | null {
+  const checks = CHECKS[route.connection.provider];
+  if (route.connection.signedOut) return checks.find(([, , kind]) => kind === 'credential')?.[1] ?? null;
+  return checks.find(([missing, , kind]) => kind === 'setup' && missing(route))?.[1] ?? null;
+}
 
 export const isSmallModel = (requested: string): boolean => SMALL_RE.test(requested);
 

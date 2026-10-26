@@ -11,11 +11,12 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeJson } from '@metro-labs/core/secure-fs';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { agentsDir, listAgentFiles } from '../agents/files.js';
-import { notReady, primaryRoute, type ModelSetup } from '@metro-labs/inference/model-config';
+import { primaryRoute, type ModelSetup } from '@metro-labs/inference/model-config';
 import { effectiveSetup } from '../gateway/effective.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
+import { routeReadiness } from '../gateway/box-gateway.js';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
@@ -133,7 +134,7 @@ const NO_MODEL = "the organization routes this agent to no model yet: choose one
 function credentialReady(deps: SessionDeps): string | null {
   try {
     const primary = primaryRoute((deps.model ?? (() => effectiveSetup()))());
-    return primary === null ? NO_MODEL : notReady(primary);
+    return primary === null ? NO_MODEL : routeReadiness(primary);
   } catch (err) {
     return `the model setup is not readable (${errMsg(err)})`;
   }

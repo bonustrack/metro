@@ -4,7 +4,8 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, cors, sendJson } from '@metro-labs/http/api-http';
 import { effectiveSetup } from './effective.js';
 import { chainStatus } from '@metro-labs/inference/fallback';
-import { helperSetup, notReady, primaryRoute, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
+import { helperSetup, primaryRoute, type Connection, type ModelSetup } from '@metro-labs/inference/model-config';
+import { routeReadiness } from './box-gateway.js';
 import { orgModels, type SyncStatus } from './org-models.js';
 import { lastServed } from '@metro-labs/inference/served';
 import { refreshUsage, type UsageDeps } from '@metro-labs/inference/usage-refresh';
@@ -29,8 +30,8 @@ function publicConnection(c: Connection): Record<string, unknown> {
     provider: c.provider,
     label: c.label,
     model: c.model,
-    hasKey: c.apiKey !== '',
-    subscription: c.claudeToken !== '',
+    hasKey: c.apiKey !== '' || c.auth === 'key',
+    subscription: c.claudeToken !== '' || c.auth === 'subscription',
     region: c.region,
     zdr: c.zdr,
     signedOut: c.signedOut,
@@ -52,7 +53,7 @@ function helpersBody(setup: ModelSetup): Record<string, unknown> | null {
 export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
   const setup = setupOf(deps);
   const primary = primaryRoute(setup);
-  const reason = primary === null ? NO_MODEL : notReady(primary);
+  const reason = primary === null ? NO_MODEL : routeReadiness(primary);
   return {
     source: setup.source,
     sync: (deps.syncStatus ?? (() => orgModels()?.syncStatus() ?? NO_SYNC))(),

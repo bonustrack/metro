@@ -1,6 +1,6 @@
 import { readEffort, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
-import { emptySetup, isProvider, type ModelSetup, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
+import { emptySetup, isProvider, type AuthKind, type ModelSetup, type Account, type Chain, type CodexAccess, type Connection, type Fallback, type Provider, type RouteSource } from './model-config.js';
 
 export interface DeliveredRoute {
   primary: Fallback | null;
@@ -69,6 +69,10 @@ function credentialOf(provider: Provider, raw: unknown): Credential {
   return { apiKey: text(raw.apiKey), claudeToken: provider === 'anthropic' ? text(raw.claudeToken) : '', codex: null };
 }
 
+const AUTH_KINDS: readonly AuthKind[] = ['key', 'subscription', 'codex'];
+
+const authOf = (raw: unknown): AuthKind | null => AUTH_KINDS.find((kind) => kind === raw) ?? null;
+
 export function deliveredConnection(raw: unknown): Connection | null {
   if (!isRecord(raw) || !isProvider(raw.provider)) return null;
   const id = text(raw.id);
@@ -86,7 +90,8 @@ export function deliveredConnection(raw: unknown): Connection | null {
     codex,
     claudeToken,
     account: accountOf(raw.account),
-    signedOut: codex === null && apiKey === '' && claudeToken === '',
+    signedOut: typeof raw.signedOut === 'boolean' ? raw.signedOut : codex === null && apiKey === '' && claudeToken === '',
+    auth: authOf(raw.auth),
   };
 }
 

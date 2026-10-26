@@ -71,6 +71,8 @@ describe('the setup the organization delivered', () => {
     expect(subscribed).toMatchObject({ id: 'conn0000001', provider: 'anthropic', apiKey: '', claudeToken: CLAUDE_TOKEN, signedOut: false });
     expect(deliveredConnection({ id: 'conn0000002', provider: 'anthropic', credential: null })).toMatchObject({ claudeToken: '', signedOut: true });
     expect(deliveredConnection({ id: 'conn0000003', provider: 'openrouter', credential: { claudeToken: CLAUDE_TOKEN } })).toMatchObject({ apiKey: '', claudeToken: '', signedOut: true });
+    expect(deliveredConnection({ id: 'conn0000004', provider: 'anthropic', auth: 'subscription', signedOut: false, credential: null })).toMatchObject({ claudeToken: '', auth: 'subscription', signedOut: false });
+    expect(deliveredConnection({ id: 'conn0000005', provider: 'routeway', auth: 'other', signedOut: true })).toMatchObject({ auth: null, signedOut: true });
     const setup = effective({ route: { primary: { connection: 'conn0000001', model: 'claude-opus-5' }, fallbacks: [] }, source: 'agent', connections: subscribed === null ? [] : [subscribed] });
     expect(primaryRoute(setup)?.connection.claudeToken).toBe(CLAUDE_TOKEN);
     expect(runnerModel(setup)).toBe('claude-opus-5');

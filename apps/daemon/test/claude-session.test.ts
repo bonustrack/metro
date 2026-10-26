@@ -20,6 +20,7 @@ let calls = '';
 let running = '';
 let priorConfigDir: string | undefined;
 let priorClaudeDir: string | undefined;
+let priorGateway: string | undefined;
 
 function fakeTmux(): void {
   writeFileSync(
@@ -61,6 +62,10 @@ function activity(pid: number): void {
   writeFileSync(join(dir, 'home', '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, procStart, updatedAt: Date.now(), phase: 'working' }));
 }
 
+const routeLocally = (): void => {
+  process.env.METRO_GATEWAY_URL = '';
+};
+
 const recorded = (): string[] => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : []);
 
 beforeEach(() => {
@@ -73,6 +78,8 @@ beforeEach(() => {
   mkdirSync(join(dir, 'config'));
   priorConfigDir = process.env.CLAUDE_CONFIG_DIR;
   priorClaudeDir = process.env.METRO_CLAUDE_DIR;
+  priorGateway = process.env.METRO_GATEWAY_URL;
+  delete process.env.METRO_GATEWAY_URL;
   process.env.CLAUDE_CONFIG_DIR = join(dir, 'config');
   process.env.METRO_CLAUDE_DIR = join(dir, 'config');
   fakeTmux();
@@ -84,6 +91,8 @@ afterEach(() => {
   else process.env.CLAUDE_CONFIG_DIR = priorConfigDir;
   if (priorClaudeDir === undefined) delete process.env.METRO_CLAUDE_DIR;
   else process.env.METRO_CLAUDE_DIR = priorClaudeDir;
+  if (priorGateway === undefined) delete process.env.METRO_GATEWAY_URL;
+  else process.env.METRO_GATEWAY_URL = priorGateway;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -95,7 +104,8 @@ describe('what stands in the way of a session', () => {
     expect(sessionBlocked(deps())).toBeNull();
   });
 
-  test('an Anthropic route needs an API key or a Claude subscription, never a login of the box', () => {
+  test('routing locally, an Anthropic route needs an API key or a Claude subscription, never a login of the box', () => {
+    routeLocally();
     agent();
     const keyed = setupOf('anthropic', [makeConnection('anthropic', { apiKey: 'sk-ant-test' })]);
     expect(sessionBlocked(deps({ model: () => keyed }))).toBeNull();
@@ -113,11 +123,24 @@ describe('what stands in the way of a session', () => {
     expect(recorded().find((c) => c.startsWith('new-session'))).toEndWith(' agent');
   });
 
-  test('a delivered route to a ready provider counts, and one that is not ready names what is missing', () => {
+  test('routing locally, a delivered route to a ready provider counts, and one that is not ready names what is missing', () => {
+    routeLocally();
     agent();
     expect(sessionBlocked(deps({ model: () => READY }))).toBeNull();
     const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
     expect(sessionBlocked(deps({ model: () => keyless }))).toContain('OpenRouter has no API key');
+  });
+
+  test('relaying to gateway.metro.box, the box needs no credential: only a model id, a region, and an account that is not signed out', () => {
+    agent();
+    const keyless = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude' })]);
+    expect(sessionBlocked(deps({ model: () => keyless }))).toBeNull();
+    expect(sessionBlocked(deps({ model: () => setupOf('anthropic', [makeConnection('anthropic')]) }))).toBeNull();
+    const signedOut = setupOf('openrouter', [makeConnection('openrouter', { model: 'anthropic/claude', signedOut: true })]);
+    expect(sessionBlocked(deps({ model: () => signedOut }))).toContain('OpenRouter has no API key');
+    const noModel = setupOf('openrouter', [makeConnection('openrouter')]);
+    expect(sessionBlocked(deps({ model: () => noModel }))).toContain('OpenRouter needs a model id');
+    expect(sessionBlocked(deps({ model: () => setupOf('bedrock', [makeConnection('bedrock', { region: '' })]) }))).toContain('Bedrock needs a region');
   });
 });
 

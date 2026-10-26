@@ -26,7 +26,7 @@ interface Delivered {
   route: ModelRoute | null;
   source: string | null;
   chatgptHostId: string;
-  connections: { id: string; revision: number; credential: Record<string, unknown> | null; account: Record<string, unknown> }[];
+  connections: { id: string; revision: number; credential: Record<string, unknown> | null; account: Record<string, unknown>; auth?: string | null; signedOut?: boolean }[];
 }
 
 const call = (path: string, body?: unknown, agent = ours, headers: Record<string, string> = {}): Promise<Response> => {
@@ -114,13 +114,14 @@ describe('the delivered setup', () => {
     const answer = await delivered();
     expect(answer.route).toEqual({ primary: { connection: 'conn0000010', model: 'claude-opus-5-5' }, fallbacks: [] });
     expect(answer.connections).toEqual([expect.objectContaining({ id: 'conn0000010', provider: 'anthropic', revision: 1, credential: { claudeToken: token } }) as unknown as Delivered['connections'][number]]);
+    expect(answer.connections[0]).toMatchObject({ auth: 'subscription', signedOut: false });
   });
 
   test('a signed-out connection carries no credential and no refresh token ever leaves', async () => {
     await seed('conn0000003', 'codex', codex(now + 3_600_000), { detail: modelDetailText({ method: 'chatgpt', email: 'a@example.com', signedOut: true }) });
     await route(null, { primary: { connection: 'conn0000003', model: 'gpt-5.2' }, fallbacks: [] });
     const answer = await delivered();
-    expect(answer.connections[0]).toMatchObject({ credential: null, account: { email: 'a@example.com', plan: null, method: 'chatgpt' } });
+    expect(answer.connections[0]).toMatchObject({ credential: null, signedOut: true, account: { email: 'a@example.com', plan: null, method: 'chatgpt' } });
     expect(JSON.stringify(answer)).not.toContain('REFRESH_OLD');
   });
 
