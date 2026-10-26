@@ -35,7 +35,7 @@ export const noteUsage = (key: Key, usage: Reported): void => {
   stamps.set(key, new Map(usage.windows.map((w) => [w.label, Date.parse(usage.at)])));
 };
 
-function mergeUsage(key: Key, usage: Reported): void {
+export function mergeUsage(key: Key, usage: Reported): void {
   const seen = latest.get(key);
   const marks = stamps.get(key);
   if (seen === undefined || marks === undefined) {
@@ -158,7 +158,7 @@ export class UsageScanner {
   }
 }
 
-const clamp = (value: number): number => Math.min(1, Math.max(0, value));
+export const clamp = (value: number): number => Math.min(1, Math.max(0, value));
 
 function fraction(raw: string | null): number | null {
   if (raw === null) return null;
@@ -168,7 +168,7 @@ function fraction(raw: string | null): number | null {
 
 const MS_THRESHOLD = 1e12;
 
-function whenFrom(raw: string | null, now: Date, relative = false): string | null {
+export function whenFrom(raw: string | null, now: Date, relative = false): string | null {
   if (raw === null || raw.trim() === '') return null;
   const numeric = Number(raw);
   if (Number.isFinite(numeric)) {
@@ -247,7 +247,7 @@ function codexWindow(headers: Headers, kind: 'primary' | 'secondary', now: Date)
   return { label: windowLabel(Number.isFinite(minutes) ? minutes : null), used, resetAt, detail: null };
 }
 
-function creditsLeft(hasCredits: boolean, raw: string | null): UsageWindow | null {
+export function creditsLeft(hasCredits: boolean, raw: string | null): UsageWindow | null {
   if (!hasCredits) return null;
   const balance = Number(raw ?? 'none');
   if (!Number.isFinite(balance)) return null;

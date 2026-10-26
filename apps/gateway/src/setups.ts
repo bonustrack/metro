@@ -16,6 +16,7 @@ export interface SetupDeps {
   key: Buffer;
   fetch: FetchLike;
   now: () => number;
+  loaded?: (owner: string, connections: Connection[]) => void;
 }
 
 interface Held {
@@ -50,7 +51,9 @@ export class Setups {
 
   private async load(caller: Caller): Promise<ModelSetup> {
     const models = await agentModelsOf(this.refreshDeps(), await agentModelSetup(this.deps.db(), caller), caller.owner);
-    return setupOf(deliveredOf({ ...models }));
+    const setup = setupOf(deliveredOf({ ...models }));
+    this.deps.loaded?.(caller.owner, setup.connections);
+    return setup;
   }
 
   async refresh(caller: Caller, conn: Connection): Promise<Connection | null> {
