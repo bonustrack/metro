@@ -5,13 +5,14 @@ import { leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
 import { routeText, type ModelRoute } from '@metro-labs/connectors/model-route';
 import { modelDetailText, sealModelSecret, type ModelSecret } from '@metro-labs/connectors/model-secret';
 import type { ModelConnectionRow } from '@metro-labs/connectors/db/models';
+import { refreshModelConnection } from '@metro-labs/connectors/model-refresh';
 import { agents, modelConnections, modelRoutes } from '../src/db/schema.ts';
+import { modelKey, refreshDeps } from '../src/models/deps.ts';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { agentCall, enrolled, idToken, json, provider, startApi, type Api, type Provider, type SignedAgent } from './org-models-fixture.ts';
 
 const MODELS = '/api/agents/models';
-const REFRESH = '/api/agents/models/refresh';
 const IMPORT = '/api/agents/models/import';
 const TOKEN = 'POST https://auth.openai.com/api/accounts/oauth/token';
 const CODE_TOKEN = 'POST https://auth.openai.com/oauth/token';
@@ -53,6 +54,11 @@ async function seed(id: string, provider: string, secret: ModelSecret | null, pa
 async function route(agent: string | null, value: ModelRoute, owner = TEST_OWNER): Promise<void> {
   await held.db.insert(modelRoutes).values({ id: `route${String(Math.random()).slice(2, 8)}`, owner, agent, route: routeText(value), updatedBy: 'user:test', updatedAt: new Date(now).toISOString() });
 }
+
+const force = (id: string, revision: number): Promise<ModelConnectionRow> => {
+  now += 1;
+  return refreshModelConnection(refreshDeps(api.models, modelKey(api.models)), TEST_OWNER, id, revision);
+};
 
 const codex = (expiresAt: number): ModelSecret => ({ kind: 'codex', method: 'chatgpt', accessToken: 'ACCESS_OLD', refreshToken: 'REFRESH_OLD', expiresAt, clientId: 'oaiapp_client', subject: 'user-sub' });
 
@@ -173,55 +179,45 @@ describe('Codex refresh', () => {
 
   test('two forced refreshes of one revision make one call; a stale revision only reads', async () => {
     await seed('conn0000005', 'codex', codex(now + 3_600_000));
-    await route(null, { primary: { connection: 'conn0000005', model: 'gpt-5.2' }, fallbacks: [] });
     const gate = Promise.withResolvers<void>();
     vendor.replies.set(TOKEN, async () => {
       await gate.promise;
       return answered('ACCESS_FORCED');
     });
-    const both = Promise.all([call(REFRESH, { connection: 'conn0000005', revision: 1 }), call(REFRESH, { connection: 'conn0000005', revision: 1 })]);
+    const both = Promise.all([force('conn0000005', 1), force('conn0000005', 1)]);
     await Bun.sleep(100);
     gate.resolve();
-    const answers = (await Promise.all((await both).map((res) => res.json()))) as Delivered['connections'];
-    expect(answers.map((a) => a.revision)).toEqual([2, 2]);
-    expect(answers.map((a) => a.credential)).toEqual([null, null]);
+    expect((await both).map((row) => row.revision)).toEqual([2, 2]);
     expect(vendor.sent).toHaveLength(1);
-    const stale = (await (await call(REFRESH, { connection: 'conn0000005', revision: 1 })).json()) as Delivered['connections'][number];
-    expect(stale.revision).toBe(2);
+    expect((await force('conn0000005', 1)).revision).toBe(2);
     expect(vendor.sent).toHaveLength(1);
   });
 
   test('a forced refresh within a minute of the last token answers the current one, and a later one renews again', async () => {
     await seed('conn0000008', 'codex', codex(now + 3_600_000));
-    await route(null, { primary: { connection: 'conn0000008', model: 'gpt-5.2' }, fallbacks: [] });
     vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
-    const ask = async (revision: number): Promise<Delivered['connections'][number]> => (await (await call(REFRESH, { connection: 'conn0000008', revision })).json()) as Delivered['connections'][number];
-    expect((await ask(1)).revision).toBe(2);
-    for (let i = 0; i < 3; i += 1) expect(await ask(2)).toMatchObject({ revision: 2, credential: null });
+    expect((await force('conn0000008', 1)).revision).toBe(2);
+    for (let i = 0; i < 3; i += 1) expect((await force('conn0000008', 2)).revision).toBe(2);
     expect(vendor.sent).toHaveLength(1);
     now += 61_000;
-    expect((await ask(2)).revision).toBe(3);
+    expect((await force('conn0000008', 2)).revision).toBe(3);
     expect(vendor.sent).toHaveLength(2);
   });
 
   test('a connection signed in less than a minute ago is not renewed by a forced refresh', async () => {
     await seed('conn0000009', 'codex', codex(now + 3_600_000), { detail: modelDetailText({ method: 'chatgpt', signedInAt: new Date(now).toISOString() }) });
-    await route(null, { primary: { connection: 'conn0000009', model: 'gpt-5.2' }, fallbacks: [] });
     vendor.replies.set(TOKEN, () => answered('ACCESS_FORCED'));
-    expect(await (await call(REFRESH, { connection: 'conn0000009', revision: 1 })).json()).toMatchObject({ revision: 1, credential: null });
+    expect((await force('conn0000009', 1)).revision).toBe(1);
     expect(vendor.sent).toHaveLength(0);
   });
 
-  test('an invalid grant signs the connection out; a connection the route does not name is 404', async () => {
+  test('an invalid grant signs the connection out with a new revision', async () => {
     await seed('conn0000006', 'codex', { kind: 'codex', method: 'code', accessToken: 'ACCESS_OLD', refreshToken: 'REFRESH_OLD', expiresAt: now + 3_600_000, accountId: 'acct-1' });
-    await seed('conn0000007', 'openrouter', { kind: 'key', apiKey: 'sk-or' });
-    await route(null, { primary: { connection: 'conn0000006', model: 'gpt-5.2' }, fallbacks: [] });
     vendor.replies.set(CODE_TOKEN, () => json({ error: { code: 'refresh_token_expired', message: 'expired' } }, 401));
-    const res = await call(REFRESH, { connection: 'conn0000006', revision: 1 });
-    expect(await res.json()).toMatchObject({ revision: 2, credential: null });
+    const row = await force('conn0000006', 1);
+    expect(row.revision).toBe(2);
+    expect(row.detail).toContain('signedOut');
     expect(JSON.parse(vendor.sent[0]?.body ?? '{}')).toEqual({ client_id: 'app_EMoamEEZ73f0CkXaXp7hrann', grant_type: 'refresh_token', refresh_token: 'REFRESH_OLD' });
-    expect((await call(REFRESH, { connection: 'conn0000007', revision: 1 })).status).toBe(404);
-    expect((await call(REFRESH, { connection: 'conn0000006' })).status).toBe(400);
   });
 });
 

@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { setupOf as effective } from '@metro-labs/inference/delivered';
-import { modelViewText } from '../src/gateway/effective.ts';
 import { notReady, primaryRoute, resolveRoute, routeLabel, runnerModel, type ModelSetup } from '@metro-labs/inference/model-config';
 import { deliveredConnection } from '@metro-labs/inference/delivered';
 import { codexAccess, conn, connectionId, makeConnection, setupOf, use } from './model-fixture.ts';
@@ -82,16 +81,5 @@ describe('the setup the organization delivered', () => {
     expect(effective(null)).toEqual({ primary: null, fallbacks: [], connections: [], source: null });
     expect(effective({ route: null, source: null, connections: [] })).toMatchObject({ primary: null, connections: [] });
     expect(resolveRoute('claude-sonnet-5', effective(null))).toBeNull();
-  });
-
-  test('the agent view names the primary connection and the route model, and never a credential', () => {
-    const keyed = configured();
-    keyed.primary = { connection: connectionId('openrouter'), model: 'x/y' };
-    expect(JSON.parse(modelViewText(keyed) ?? '')).toEqual({ version: 2, route: connectionId('openrouter'), connections: [{ id: connectionId('openrouter'), provider: 'openrouter', model: 'x/y' }] });
-    expect(modelViewText(keyed)).not.toContain('or-key');
-    const subscribed = setupOf('anthropic', [makeConnection('anthropic', { claudeToken: CLAUDE_TOKEN })]);
-    subscribed.primary = { connection: connectionId('anthropic'), model: 'claude-opus-5' };
-    expect(modelViewText(subscribed)).not.toContain(CLAUDE_TOKEN);
-    expect(modelViewText({ ...keyed, primary: null })).toBeNull();
   });
 });

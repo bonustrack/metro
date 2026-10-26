@@ -1,11 +1,9 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import type { AgentKey } from '../connectors/agent-key.js';
 import { agentCall, MetroApiRefusal, type MetroApi } from '../connectors/metro-api.js';
-import { deliveredOf, refreshedConnection, type Delivered } from '@metro-labs/inference/delivered';
-import type { Connection } from '@metro-labs/inference/model-config';
+import { deliveredOf, type Delivered } from '@metro-labs/inference/delivered';
 
 const MODELS_PATH = '/api/agents/models';
-const REFRESH_PATH = '/api/agents/models/refresh';
 const SYNC_MS = 60_000;
 const PAGE_SYNC_MS = 5_000;
 const AGENT_KEY_MISSING = 'agent_key_missing';
@@ -32,7 +30,6 @@ export class OrgModels {
   private timer: ReturnType<typeof setInterval> | null = null;
   private trailing: ReturnType<typeof setTimeout> | null = null;
   private pageAt = Number.NEGATIVE_INFINITY;
-  private readonly refreshing = new Map<string, Promise<Connection | null>>();
   private readonly listeners = new Set<() => void>();
 
   constructor(private readonly deps: OrgModelsDeps) {}
@@ -87,19 +84,6 @@ export class OrgModels {
     if (this.trailing !== null) clearTimeout(this.trailing);
     this.timer = null;
     this.trailing = null;
-  }
-
-  refresh(conn: Connection): Promise<Connection | null> {
-    const newer = this.kept?.connections.find((c) => c.id === conn.id && c.revision > conn.revision);
-    if (newer !== undefined) return Promise.resolve(newer);
-    const slot = `${conn.id}\n${String(conn.revision)}`;
-    const found = this.refreshing.get(slot);
-    if (found !== undefined) return found;
-    const run = this.askRefresh(conn).finally(() => {
-      this.refreshing.delete(slot);
-    });
-    this.refreshing.set(slot, run);
-    return run;
   }
 
   private later(wait: number): ReturnType<typeof setTimeout> {
@@ -164,22 +148,6 @@ export class OrgModels {
       this.keep(delivered);
     } catch (err) {
       this.failed(errMsg(err), identityRefused(err));
-    }
-  }
-
-  private async askRefresh(conn: Connection): Promise<Connection | null> {
-    const key = this.enrolledKey();
-    if (key === null) return null;
-    try {
-      const fresh = refreshedConnection(await agentCall(this.deps.api, key, REFRESH_PATH, { connection: conn.id, revision: conn.revision }));
-      if (fresh?.id !== conn.id) throw new Error('api.metro.box answered the refresh with another connection');
-      const kept = this.kept;
-      if (kept !== null) this.keep({ ...kept, connections: kept.connections.map((c) => (c.id === fresh.id ? fresh : c)) });
-      log.info({ connection: conn.id, revision: fresh.revision }, 'org-models: api.metro.box renewed the sign-in of a connection');
-      return fresh;
-    } catch (err) {
-      log.warn({ connection: conn.id, err: errMsg(err) }, 'org-models: api.metro.box could not renew the sign-in of a connection');
-      return null;
     }
   }
 }

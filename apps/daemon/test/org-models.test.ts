@@ -92,25 +92,6 @@ describe('the delivered model setup', () => {
     await models.sync();
     expect(primaryRoute(setupOf(models.current()))).toBeNull();
   });
-
-  test('a renewed Codex sign-in is asked once with the revision used, and replaces the held connection', async () => {
-    const codex = (token: string, revision: number): Record<string, unknown> =>
-      deliveredRow('cx000000001', 'codex', { revision, model: 'gpt-5.4', credential: { accessToken: token, expiresAt: 1, method: 'chatgpt', accountId: null } });
-    api.delivery = delivery({ connection: 'cx000000001', model: 'gpt-5.4' }, [codex('at-old', 3)]);
-    api.answer = (path) => (path === '/api/agents/models/refresh' ? { status: 200, body: codex('at-new', 4) } : null);
-    const models = orgModelsFor(api, key);
-    await models.sync();
-    const held = models.current()?.connections[0];
-    if (held === undefined) throw new Error('nothing delivered');
-    const [one, two] = await Promise.all([models.refresh(held), models.refresh(held)]);
-    expect(one?.codex?.accessToken).toBe('at-new');
-    expect(two?.revision).toBe(4);
-    expect(api.asked.filter((a) => a.path === '/api/agents/models/refresh').map((a) => a.body)).toEqual([{ connection: 'cx000000001', revision: 3 }]);
-    expect(models.current()?.connections[0]?.codex?.accessToken).toBe('at-new');
-    expect((await models.refresh(held))?.revision).toBe(4);
-    api.answer = () => ({ status: 404, body: { error: 'not in the route' } });
-    expect(await models.refresh({ ...held, id: 'cx000000002' })).toBeNull();
-  });
 });
 
 describe('the live switch', () => {

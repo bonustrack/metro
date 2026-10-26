@@ -109,6 +109,22 @@ describe('the box relays its model requests to gateway.metro.box', () => {
     expect(reregistered).toBe(1);
   });
 
+  test('with no gateway set, every model request is a 503 that says so, and nothing goes up', async () => {
+    const off: RelayDeps = { url: null, identify: () => true, token: () => TOKEN, reregister: () => undefined };
+    const server = createServer((req, res) => {
+      if (!handleGatewayRelay(req, res, off)) res.writeHead(404).end();
+    });
+    const base = await listen(server);
+    try {
+      const res = await fetch(`${base}/gateway/v1/messages`, { method: 'POST', headers: { 'x-metro-key': AGENT_KEY }, body: '{}' });
+      expect(res.status).toBe(503);
+      expect(await res.text()).toContain('no model gateway');
+      expect(seen).toEqual([]);
+    } finally {
+      server.close();
+    }
+  });
+
   test('a gateway that cannot be reached is a 502 Claude Code retries, and HEAD hello stays local', async () => {
     const down: RelayDeps = { url: 'http://127.0.0.1:1', identify: () => true, token: () => TOKEN, reregister: () => undefined };
     const server = createServer((req, res) => {
@@ -125,7 +141,7 @@ describe('the box relays its model requests to gateway.metro.box', () => {
 });
 
 describe('METRO_GATEWAY_URL', () => {
-  test('defaults to gateway.metro.box, empty keeps the box routing itself, and a plain http address elsewhere is ignored', () => {
+  test('defaults to gateway.metro.box, empty means no gateway, and a plain http address elsewhere is ignored', () => {
     expect(gatewayUrl({})).toBe('https://gateway.metro.box');
     expect(gatewayUrl({ METRO_GATEWAY_URL: '' })).toBeNull();
     expect(gatewayUrl({ METRO_GATEWAY_URL: 'http://127.0.0.1:8440/' })).toBe('http://127.0.0.1:8440');

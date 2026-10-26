@@ -203,6 +203,8 @@ without credentials. Gone from the box: every provider path (`forward`, `bedrock
 `tool-search`, `cache-ttl`, `usage`, `usage-refresh`, `served`, `failures`, and the box's
 `GET /api/model` usage, chain and last served (the page reads them from api.metro.box).
 The router's tests, still in `apps/daemon/test` after 1a, move to `packages/inference/test`.
+Done in beta.324 (2026-10-26): the box keeps only the relay and the route delivery; `usage-refresh`
+is deleted, and with an empty `METRO_GATEWAY_URL` the box answers 503 instead of routing.
 
 ## Phases
 
@@ -240,7 +242,8 @@ older than phase 3 until none is left. That is the only overlap; no box ever has
    Check on one box with `sdk-runner-check` and `sdk-runner-model`, then publish.
 4. **Clean up**, in two steps (2026-10-26): first a release (beta.323) where a relaying box judges readiness without credentials and the delivery carries each connection's `auth` and `signedOut`, since a beta.322 box refuses to start its session without credentials; then, once every box runs it (step 2, #394), the delivery
    (`POST /api/agents/models`) stops sending credentials, `/api/agents/models/refresh` and
-   the page's reading of the box's usage go, and the CLAUDE.md sections on the gateway and
+   the page's reading of the box's usage go (the page merges `GET /api/models/windows` since #396; the box's
+   router, usage probes, `usage` and `lastServed` and the refresh route went in beta.324), and the CLAUDE.md sections on the gateway and
    organization models are rewritten around gateway.metro.box.
 5. **Later, if needed**: an OpenAI-compatible `/v1/chat/completions` (for tools that only
    speak OpenAI), per-key budgets and rate limits, a second region.
