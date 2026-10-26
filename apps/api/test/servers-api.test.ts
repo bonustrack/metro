@@ -141,10 +141,8 @@ describe('the server list on metro.box', () => {
     expect((await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote' })).status).toBe(400);
     const made = (await (await call('POST', '/api/servers', TEST_OWNER, { kind: 'remote', name: 'Laptop' })).json()) as ServerEntry;
     expect(made).toMatchObject({ kind: 'remote', host: null, name: 'Laptop' });
-    const list = (await (await call('GET', '/api/servers?kinds=all', TEST_OWNER)).json()) as { servers: ServerEntry[] };
+    const list = (await (await call('GET', '/api/servers', TEST_OWNER)).json()) as { servers: ServerEntry[] };
     expect(list.servers.map((s) => [s.kind, s.host, s.name])).toEqual([['remote', null, 'Laptop']]);
-    const plain = (await (await call('GET', '/api/servers', TEST_OWNER)).json()) as { servers: ServerEntry[] };
-    expect(plain.servers).toEqual(list.servers);
     expect((await call('DELETE', `/api/servers/${made.id}`, TEST_OWNER)).status).toBe(200);
   });
 

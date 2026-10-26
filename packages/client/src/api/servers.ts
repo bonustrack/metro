@@ -74,7 +74,7 @@ export const serverLabel = (server: Server): string => server.name ?? server.hos
 export const agentSeed = (server: Server): string => server.host ?? server.id;
 
 export async function fetchServers(): Promise<Server[]> {
-  const body = await call({ method: 'GET', base: listUrl(), path: '?kinds=all' });
+  const body = await call({ method: 'GET', base: listUrl() });
   if (!isRecord(body) || !Array.isArray(body.servers)) throw unexpected();
   const servers = body.servers.map(toServer);
   rememberAgents(servers);
