@@ -1,14 +1,13 @@
 import { type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Text } from '@stage-labs/kit/react-native/text';
+import { Row } from '@stage-labs/kit/react-native/box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { Group } from '../ui/Group.js';
 import { RouteLink } from '../RouteLink.js';
 import { ActivityRow } from '../activity/ActivityRow.js';
 import { CallSparkline } from '../activity/CallSparkline.js';
-import { SectionLink } from './SectionParts.js';
+import { Figure, SectionLink } from './SectionParts.js';
 import { useFreshIds, useLatestActivity } from '../../lib/activity-feed.js';
 import { callsWords, countWords, failedAlarm, percentWords, rangeWords } from '../../lib/call-stats.js';
 import { useConnectorStats } from '../../lib/call-stats-query.js';
@@ -20,19 +19,6 @@ const LABEL = 'Connector activity';
 const styles = StyleSheet.create({
   week: { flexDirection: 'row', alignItems: 'center', gap: 24, paddingVertical: 14, borderBottomWidth: 1 },
 });
-
-function Figure({ label, value, danger = false }: { label: string; value: string; danger?: boolean }): ReactNode {
-  return (
-    <Col gap={2}>
-      <Text size="xs" role="secondary" numberOfLines={1}>
-        {label}
-      </Text>
-      <Text size="lg" weight="semibold" role={danger ? 'danger' : 'default'} numberOfLines={1}>
-        {value}
-      </Text>
-    </Col>
-  );
-}
 
 function Week({ agent, href }: { agent: string; href: string }): ReactNode {
   const palette = useKitPalette();
