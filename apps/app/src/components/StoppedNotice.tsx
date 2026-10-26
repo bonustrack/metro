@@ -38,7 +38,7 @@ export function StoppedNotice({ onStarted }: { onStarted: () => void }): ReactNo
   return (
     <StateBlock icon="pause" title={`${name} is stopped`} text="Metro is stopped on its server. It can start again from here."
       action={{ label: `Start ${name}`, primary: true, busy, onPress: start }}>
-      {error === null ? null : <Text size="xs" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="xs" color="danger">{error}</Text>}
     </StateBlock>
   );
 }

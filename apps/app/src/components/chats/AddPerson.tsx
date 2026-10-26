@@ -1,8 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { fetchRecentSenders, lookupSender, type RecentSender } from '@metro-labs/client/api/attach';
 import { FormField } from '../FormField.js';
 import { Modal } from '../Modal.js';
@@ -26,7 +26,6 @@ interface LookupProps extends Where {
 }
 
 function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const [looking, setLooking] = useState(false);
   const text = LOOKUP[station];
@@ -53,24 +52,23 @@ function Lookup({ agentId, station, accountId, busy, onFound, onError }: LookupP
       });
   };
   return (
-    <Col gap={8}>
-      <Text size="xs" role="secondary">
+    <Column gap={8}>
+      <Text size="xs" color="secondary">
         {text.hint}
       </Text>
       <Row gap={8} align="center" wrap>
-        <FormField label="Find someone" name="sender-lookup" value={draft} placeholder={text.placeholder} disabled={busy || looking} dark={dark} inputProps={NO_INPUT} onChangeText={setDraft} onSubmit={run} style={GROW} />
-        <Button size="md" color="secondary" dark={dark} disabled={busy || looking || draft.trim() === ''} label={looking ? 'Looking…' : 'Look up'} onPress={run} />
+        <FormField label="Find someone" name="sender-lookup" value={draft} placeholder={text.placeholder} disabled={busy || looking} inputProps={NO_INPUT} onChangeText={setDraft} onSubmit={run} style={GROW} />
+        <Button size="md" color="secondary" disabled={busy || looking || draft.trim() === ''} label={looking ? 'Looking…' : 'Look up'} onPress={run} />
       </Row>
-    </Col>
+    </Column>
   );
 }
 
 function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: boolean; onAdd: (id: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   if (senders.length === 0) return null;
   return (
-    <Col gap={8}>
-      <Text size="xs" role="secondary">
+    <Column gap={8}>
+      <Text size="xs" color="secondary">
         Wrote recently
       </Text>
       <Row gap={8} wrap>
@@ -79,7 +77,6 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
             key={sender.id}
             size="md"
             color="secondary"
-            dark={dark}
             disabled={busy}
             label={`+ ${sender.name === '' ? sender.id : sender.name}`}
             onPress={() => {
@@ -88,7 +85,7 @@ function Suggestions({ senders, busy, onAdd }: { senders: RecentSender[]; busy: 
           />
         ))}
       </Row>
-    </Col>
+    </Column>
   );
 }
 
@@ -102,7 +99,6 @@ interface AddPersonProps extends Where {
 }
 
 export function AddPerson({ agentId, station, accountId, entries, busy, error, onAdd, onError, onClose }: AddPersonProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const [seen, setSeen] = useState<RecentSender[]>([]);
   useEffect(() => {
@@ -115,26 +111,26 @@ export function AddPerson({ agentId, station, accountId, entries, busy, error, o
   };
   return (
     <Modal title="Add a person" open onClose={onClose}>
-      <Col gap={20}>
-        <Col gap={8}>
+      <Column gap={20}>
+        <Column gap={8}>
           <Row gap={8} align="center" wrap>
-            <FormField label="Their id" name="sender" value={draft} placeholder={PLACEHOLDER[station] ?? 'Sender id'} disabled={busy} dark={dark} inputProps={NO_INPUT} onChangeText={setDraft} onSubmit={submit} style={GROW} />
-            <Button size="md" color="primary" dark={dark} disabled={busy || draft.trim() === ''} loading={busy} label="Add" onPress={submit} />
+            <FormField label="Their id" name="sender" value={draft} placeholder={PLACEHOLDER[station] ?? 'Sender id'} disabled={busy} inputProps={NO_INPUT} onChangeText={setDraft} onSubmit={submit} style={GROW} />
+            <Button size="md" color="primary" disabled={busy || draft.trim() === ''} loading={busy} label="Add" onPress={submit} />
           </Row>
           {WHERE_TO_FIND[station] === undefined ? null : (
-            <Text size="xs" role="secondary">
+            <Text size="xs" color="secondary">
               {WHERE_TO_FIND[station]}
             </Text>
           )}
-        </Col>
+        </Column>
         <Suggestions senders={suggestionsOf(seen, entries)} busy={busy} onAdd={onAdd} />
         <Lookup agentId={agentId} station={station} accountId={accountId} busy={busy} onFound={onAdd} onError={onError} />
         {error === null ? null : (
-          <Text size="xs" role="danger">
+          <Text size="xs" color="danger">
             {error}
           </Text>
         )}
-      </Col>
+      </Column>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { flattenAccounts, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { Icon } from '../Icon.js';
 import { Group, Groups } from '../ui/Group.js';
@@ -22,8 +22,7 @@ const PLUS = ICON_SIZE.sm;
 
 function AddChat({ onPress }: { onPress: () => void }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
-  return <Button size="sm" color="secondary" dark={dark} label="Add a chat" icon={<Icon name="plus" size={PLUS} color={palette.link} />} onPress={onPress} />;
+  return <Button size="sm" color="secondary" label="Add a chat" icon={<Icon name="plus" size={PLUS} color={palette.link} />} onPress={onPress} />;
 }
 
 interface ChannelsProps {

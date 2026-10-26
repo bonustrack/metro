@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { connectorHost, connectorLabel } from '@metro-labs/client/api/connectors';
 import type { OrgConnector, OrgConnectors as OrgList } from '@metro-labs/client/api/org-connectors';
@@ -41,14 +41,14 @@ function ConnectorRow({ connector, peers, pane, selected }: { connector: OrgConn
 function List({ list, pane, selected }: { list: OrgList; pane: boolean; selected: string | null }): ReactNode {
   if (list.connectors.length === 0)
     return pane ? (
-      <Col padding={{ x: 12, top: 12 }}>
-        <Text size="xs" role="secondary">No connector yet.</Text>
-      </Col>
+      <Column padding={{ x: 12, top: 12 }}>
+        <Text size="xs" color="secondary">No connector yet.</Text>
+      </Column>
     ) : (
       <NoConnectors admin={list.admin} />
     );
   const rows = list.connectors.map((c) => <ConnectorRow key={c.id} connector={c} peers={list.connectors} pane={pane} selected={c.id === selected} />);
-  return pane ? <Col>{rows}</Col> : <Rows>{rows}</Rows>;
+  return pane ? <Column>{rows}</Column> : <Rows>{rows}</Rows>;
 }
 
 const addConnector = (): void => { go({ kind: 'org-connector-new' }); };
@@ -65,20 +65,20 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
   const { data, error, refetch } = useOrgConnectorsQuery();
   if (error !== null)
     return (
-      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+      <Column padding={pane ? { x: 12, top: 12 } : undefined}>
         <ErrorState title="Could not load the connectors" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
-      </Col>
+      </Column>
     );
   if (data === undefined) return <RowsSkeleton rows={3} pane={pane} trailing={false} />;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <List list={data} pane={pane} selected={selected} />
       {data.admin ? null : (
-        <Col padding={pane ? { x: 12 } : undefined}>
-          <Text size="xs" role="secondary">{MEMBER_NOTE}</Text>
-        </Col>
+        <Column padding={pane ? { x: 12 } : undefined}>
+          <Text size="xs" color="secondary">{MEMBER_NOTE}</Text>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }
 

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView } from 'react-native';
-import { Scroll } from '@stage-labs/kit/react-native/scroll';
+import { List } from '@stage-labs/kit/react-native/list';
 import { notePageOffset, setPageScroller } from '../lib/page-scroll.js';
 
 const styles = StyleSheet.create({ fill: { flex: 1 }, content: { flexGrow: 1 } });
@@ -22,8 +22,8 @@ export function PageScroll({ children }: { children: ReactNode }): ReactNode {
     };
   }, []);
   return (
-    <Scroll ref={ref} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onScroll={noteScroll} scrollEventThrottle={SCROLL_EVENTS_MS}>
+    <List ref={ref} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" onScroll={noteScroll} scrollEventThrottle={SCROLL_EVENTS_MS}>
       {children}
-    </Scroll>
+    </List>
   );
 }

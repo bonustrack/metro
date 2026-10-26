@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pressable } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { replaceOrgConnectorKey, signInOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { FormField } from '../FormField.js';
@@ -18,7 +18,6 @@ import { queryError } from '../../lib/queries.js';
 import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
 
 export function SignInModal({ connector, onClose }: { connector: OrgConnector; onClose: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [advanced, setAdvanced] = useState(false);
   const [resource, setResource] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,25 +34,24 @@ export function SignInModal({ connector, onClose }: { connector: OrgConnector; o
   };
   return (
     <Modal title={`Sign in to ${connector.name}`} open onClose={onClose}>
-      <Col gap={16}>
-        <Text size="md" role="secondary">{`A new tab opens at ${connector.name}. Sign in with the account every agent should use. This page updates when you come back.`}</Text>
+      <Column gap={16}>
+        <Text size="md" color="secondary">{`A new tab opens at ${connector.name}. Sign in with the account every agent should use. This page updates when you come back.`}</Text>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: advanced }} onPress={() => { setAdvanced(!advanced); }}>
-          <Text size="md" role="link">{advanced ? 'Hide advanced' : 'Advanced'}</Text>
+          <Text size="md" color="link">{advanced ? 'Hide advanced' : 'Advanced'}</Text>
         </Pressable>
         {advanced ? <PublicOAuthResource value={resource} disabled={busy} onChange={setResource} /> : null}
         {link === null ? null : <TextLink url={link}>Open the sign-in</TextLink>}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" color="danger">{error}</Text>}
         <Row justify="end" gap={12}>
-          <Button color="secondary" dark={dark} label="Cancel" disabled={busy} onPress={onClose} />
-          <Button size="lg" color="primary" dark={dark} label="Sign in" loading={busy} disabled={busy} onPress={start} />
+          <Button color="secondary" label="Cancel" disabled={busy} onPress={onClose} />
+          <Button size="lg" color="primary" label="Sign in" loading={busy} disabled={busy} onPress={start} />
         </Row>
-      </Col>
+      </Column>
     </Modal>
   );
 }
 
 export function KeyModal({ connector, onClose }: { connector: OrgConnector; onClose: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [header, setHeader] = useState(connector.header ?? '');
   const [value, setValue] = useState('');
@@ -71,16 +69,16 @@ export function KeyModal({ connector, onClose }: { connector: OrgConnector; onCl
   };
   return (
     <Modal title="Replace the key" open onClose={onClose}>
-      <Col gap={12}>
-        <Text size="md" role="secondary">Metro checks the new key with the server before it keeps it.</Text>
-        <FormField label="Header (optional)" name="org-connector-header" value={header} placeholder="Authorization" dark={dark} disabled={busy} onChangeText={setHeader} />
-        <FormField label="Key" name="org-connector-value" value={value} placeholder="Bearer sk-…" inputType="password" dark={dark} disabled={busy} onChangeText={setValue} onSubmit={save} />
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      <Column gap={12}>
+        <Text size="md" color="secondary">Metro checks the new key with the server before it keeps it.</Text>
+        <FormField label="Header (optional)" name="org-connector-header" value={header} placeholder="Authorization" disabled={busy} onChangeText={setHeader} />
+        <FormField label="Key" name="org-connector-value" value={value} placeholder="Bearer sk-…" variant="obscured" disabled={busy} onChangeText={setValue} onSubmit={save} />
+        {error === null ? null : <Text size="md" color="danger">{error}</Text>}
         <Row justify="end" gap={12}>
-          <Button color="secondary" dark={dark} label="Cancel" disabled={busy} onPress={onClose} />
-          <Button size="lg" color="primary" dark={dark} label="Save" loading={busy} disabled={busy || value.trim() === ''} onPress={save} />
+          <Button color="secondary" label="Cancel" disabled={busy} onPress={onClose} />
+          <Button size="lg" color="primary" label="Save" loading={busy} disabled={busy || value.trim() === ''} onPress={save} />
         </Row>
-      </Col>
+      </Column>
     </Modal>
   );
 }

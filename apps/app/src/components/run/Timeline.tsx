@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { useWindowDimensions } from 'react-native';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Badge } from '@stage-labs/kit/react-native/badge';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { RunActivity } from './Activity.js';
 import { RunFiltersBar } from './FilterBar.js';
@@ -41,14 +42,14 @@ export function RunTimeline({ data, entries, notice, onSelect }: Props): ReactNo
   const technical = useTechnicalDetails();
   const [charts, setCharts] = useState(false);
   return (
-    <Col gap={16}>
-      <Row justify="between" align="center" wrap gap={8}>
+    <Column gap={16}>
+      <Row justify="spaceBetween" align="center" wrap gap={8}>
         <Row align="center" gap={8}>
-          <Text size="xs" role="secondary">What happened</Text>
+          <Text size="xs" color="secondary">What happened</Text>
           <Badge label={String(data.filtered.length)} />
         </Row>
         <Row align="center" gap={12}>
-          <Text size="xs" role="secondary">{technical ? 'Newest first · UTC' : 'Newest first'}</Text>
+          <Text size="xs" color="secondary">{technical ? 'Newest first · UTC' : 'Newest first'}</Text>
           <Text size="xs" onPress={() => { setCharts(!charts); }} accessibilityRole="button" accessibilityState={{ expanded: charts }}>{charts ? 'Hide charts' : 'Charts'}</Text>
         </Row>
       </Row>
@@ -56,7 +57,7 @@ export function RunTimeline({ data, entries, notice, onSelect }: Props): ReactNo
       <RunFiltersBar entries={entries} filters={data.filters} onChange={data.change} more={data.more} onMore={data.toggleMore} minute={data.bucket?.start ?? null} onReset={data.reset} narrow={narrow} />
       {charts && <RunTrends entries={data.rows} selected={data.bucket} onSelect={data.selectBucket} />}
       <RunActivity entries={data.filtered} onSelect={onSelect} limit={data.limit} onMore={data.loadMore} onReset={data.reset} />
-      <Text size="xs" role="secondary">{technical ? 'Partial history: the last 500 Metro events, 40 SDK events and recent failures.' : 'Only recent activity is kept.'}</Text>
-    </Col>
+      <Text size="xs" color="secondary">{technical ? 'Partial history: the last 500 Metro events, 40 SDK events and recent failures.' : 'Only recent activity is kept.'}</Text>
+    </Column>
   );
 }

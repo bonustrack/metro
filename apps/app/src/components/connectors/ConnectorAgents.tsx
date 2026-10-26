@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { assignOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { Modal } from '../Modal.js';
@@ -53,10 +52,10 @@ function AddModal({ connector, others, onClose }: { connector: OrgConnector; oth
   const assign = useAssign(onClose);
   return (
     <Modal title="Add an agent" open onClose={onClose}>
-      <Col gap={16}>
-        <Text size="md" role="secondary">{`The agent gets ${connector.name} with the rules of the organization.`}</Text>
+      <Column gap={16}>
+        <Text size="md" color="secondary">{`The agent gets ${connector.name} with the rules of the organization.`}</Text>
         {others.length === 0 ? (
-          <Text size="md" role="secondary">Every agent has it already.</Text>
+          <Text size="md" color="secondary">Every agent has it already.</Text>
         ) : (
           <Rows>
             {others.map((row) => (
@@ -65,8 +64,8 @@ function AddModal({ connector, others, onClose }: { connector: OrgConnector; oth
             ))}
           </Rows>
         )}
-        {assign.error === null ? null : <Text size="md" role="danger">{assign.error}</Text>}
-      </Col>
+        {assign.error === null ? null : <Text size="md" color="danger">{assign.error}</Text>}
+      </Column>
     </Modal>
   );
 }
@@ -95,14 +94,13 @@ function HeldRows({ connector, held, tools }: { connector: OrgConnector; held: A
 }
 
 function OtherRows({ connector, others, admin }: { connector: OrgConnector; others: AgentRow[]; admin: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const assign = useAssign();
   if (others.length === 0) return null;
   return (
     <Group label={`Without ${connector.name}`} error={assign.error} wide>
       {others.map((row) => (
         <Item key={row.server.id} title={row.name} subtitle={row.line.text} subtitleTone={row.line.tone} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
-          trailing={admin ? <Button color="secondary" dark={dark} label="Add" loading={assign.busy === row.server.id} disabled={assign.busy !== null} onPress={() => { assign.add(connector, row.server); }} /> : undefined} />
+          trailing={admin ? <Button color="secondary" label="Add" loading={assign.busy === row.server.id} disabled={assign.busy !== null} onPress={() => { assign.add(connector, row.server); }} /> : undefined} />
       ))}
     </Group>
   );

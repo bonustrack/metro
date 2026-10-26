@@ -19,7 +19,7 @@ function NowItem({ row, now, href }: { row: NowRow; now: number; href?: string }
       subtitleTone={row.dot === 'danger' ? 'danger' : 'secondary'}
       leading={<StatusDot tone={row.dot} />}
       href={href}
-      trailing={since === null ? undefined : <Text size="xs" role="secondary">{since}</Text>}
+      trailing={since === null ? undefined : <Text size="xs" color="secondary">{since}</Text>}
       chevron={href !== undefined}
     />
   );

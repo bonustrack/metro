@@ -69,7 +69,7 @@ function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, o
   return (
     <Group
       label={heading}
-      action={chat ? <Text size="xs" role="secondary">Can approve</Text> : undefined}
+      action={chat ? <Text size="xs" color="secondary">Can approve</Text> : undefined}
       note={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
       error={error}
     >

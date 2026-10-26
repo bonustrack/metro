@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { checkAccountIdentity, shareActiveAccount, type AccountIdentity } from '@metro-labs/client/auth/account';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { stateOf } from '@metro-labs/client/api/attach-session';
@@ -15,17 +14,16 @@ import { logError } from '../lib/log.js';
 const ON_THE_WEB = 'This sign-in works only in a browser for now. Connect this channel on metro.box.';
 
 function OnTheWeb({ provider, onUseCode, busy }: { provider: string; onUseCode: (() => void) | null; busy: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Col gap={10}>
-      <Text size="md" role="secondary">
+    <Column gap={10}>
+      <Text size="md" color="secondary">
         {ON_THE_WEB}
       </Text>
       <TextLink url={`https://metro.box/${location().hash()}`}>{`Sign in with ${provider} on metro.box`}</TextLink>
       {onUseCode === null ? null : (
-        <Button size="md" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
+        <Button size="md" color="secondary" onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
       )}
-    </Col>
+    </Column>
   );
 }
 
@@ -42,7 +40,6 @@ interface BrowserSignInProps {
 
 export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
   const { agentId, base, identity, attachId, authorizeUrl, provider, busy, onUseCode } = props;
-  const dark = useKitScheme() === 'dark';
   const [opened, setOpened] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,20 +65,20 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
   };
   if (Platform.OS !== 'web') return <OnTheWeb provider={provider} onUseCode={onUseCode} busy={busy} />;
   return (
-    <Col gap={10}>
-      <Button color="primary" dark={dark} onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
+    <Column gap={10}>
+      <Button color="primary" onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
       {blocked ? (
         <TextLink size="md" url={authorizeUrl}>Open the {provider} sign-in page</TextLink>
       ) : null}
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
       {opened ? (
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           Waiting for you to sign in.
         </Text>
       ) : null}
       {onUseCode === null ? null : (
-        <Button size="md" color="secondary" dark={dark} onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
+        <Button size="md" color="secondary" onPress={onUseCode} disabled={busy} loading={busy} label="Use a code instead" />
       )}
-    </Col>
+    </Column>
   );
 }

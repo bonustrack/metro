@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Switch } from '@stage-labs/kit/react-native/switch';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { useQueryClient } from '@tanstack/react-query';
 import { findAccount, stationFields, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { detachAccount, stationLabel } from '@metro-labs/client/api/attach';
@@ -62,7 +61,6 @@ function ChannelMenu({ project, agentId, found, onPairAgain }: Pick<ChannelProps
 }
 
 function Receive({ agentId, found }: { agentId: string; found: FlatAccount }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const receive = useReceive(agentId);
   const { station, row } = found;
   const id = row.id;
@@ -72,7 +70,7 @@ function Receive({ agentId, found }: { agentId: string; found: FlatAccount }): R
       <Item
         title="Receive messages"
         subtitle={RECEIVE_NOTE}
-        trailing={<Switch checked={receive.receiving(station, id, row.enabled)} disabled={receive.busy(station, id)} dark={dark} name="Receive messages" onChange={(next) => { receive.toggle(station, id, next); }} />}
+        trailing={<CheckBox displayStyle="switch" value={receive.receiving(station, id, row.enabled)} disabled={receive.busy(station, id)} name="Receive messages" onChange={(next) => { receive.toggle(station, id, next); }} />}
       />
     </Group>
   );

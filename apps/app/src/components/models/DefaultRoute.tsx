@@ -36,7 +36,7 @@ function useScope(list: OrgModels): RouteScope {
   return {
     route: list.default,
     connections: list.connections,
-    empty: <Text size="md" role="secondary">Add an account first.</Text>,
+    empty: <Text size="md" color="secondary">Add an account first.</Text>,
     save: async (route: ModelRoute) => {
       await setModelRoute(null, route);
       await afterModelChange(client);

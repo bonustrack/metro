@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { holdLine } from '@metro-labs/client/api/model';
@@ -58,34 +59,34 @@ function Status({ item }: { item: ModelOrderItem }): ReactNode {
   const hold = item.row?.hold ?? null;
   const problem = trouble(item);
   return (
-    <Text size="xs" role={item.connection === undefined ? 'danger' : 'secondary'} numberOfLines={2}>
+    <Text size="xs" color={item.connection === undefined ? 'danger' : 'secondary'} numberOfLines={2}>
       {accountLine(item)}
-      {problem === null ? null : <Text size="xs" role="danger">{` · ${problem}`}</Text>}
-      {item.row?.active === true ? <Text size="xs" role="success">{' · In use'}</Text> : null}
-      {hold === null ? null : <Text size="xs" role="danger">{` · Skipped: ${holdLine(hold)}`}</Text>}
+      {problem === null ? null : <Text size="xs" color="danger">{` · ${problem}`}</Text>}
+      {item.row?.active === true ? <Text size="xs" color="success">{' · In use'}</Text> : null}
+      {hold === null ? null : <Text size="xs" color="danger">{` · Skipped: ${holdLine(hold)}`}</Text>}
     </Text>
   );
 }
 
 function Lines({ item, name, usage, technical, narrow }: { item: ModelOrderItem; name: string; usage: Usage; technical: boolean; narrow: boolean }): ReactNode {
   return (
-    <Col flex={1} minWidth={0} gap={2}>
+    <Column weight={1} minWidth={0} gap={2}>
       <Text size="md" numberOfLines={1}>
         {name}
       </Text>
       <Status item={item} />
       {usage.text === null ? null : (
-        <Text size="xs" role="secondary" numberOfLines={2}>
+        <Text size="xs" color="secondary" numberOfLines={2}>
           {usage.text}
         </Text>
       )}
       {narrow && usage.bar !== null ? <UsageBar used={usage.bar.used} blocked={usage.bar.blocked} /> : null}
       {technical && item.connection !== undefined ? (
-        <Text size="xs" role="secondary" numberOfLines={1}>
+        <Text size="xs" color="secondary" numberOfLines={1}>
           {`${item.connection.id} · ${item.model === '' ? 'default model' : item.model}`}
         </Text>
       ) : null}
-    </Col>
+    </Column>
   );
 }
 
@@ -139,8 +140,8 @@ export function AddRow({ label, disabled, onPress }: { label: string; disabled: 
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={frame}>
       <Icon name="plus" size={ICON_SIZE.md} color={disabled ? palette.sub : palette.link} />
-      <Row flex={1}>
-        <Text size="md" role={disabled ? 'secondary' : 'default'}>
+      <Row weight={1}>
+        <Text size="md" color={disabled ? 'secondary' : undefined}>
           {label}
         </Text>
       </Row>

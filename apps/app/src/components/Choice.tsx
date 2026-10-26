@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 
@@ -36,7 +36,7 @@ export function Choice<T extends string>({ label, value, options, disabled = fal
               if (!selected) onChange(option.value);
             }}
           >
-            <Text size="md" role={selected ? 'link' : 'secondary'} numberOfLines={1}>
+            <Text size="md" color={selected ? 'link' : 'secondary'} numberOfLines={1}>
               {option.label}
             </Text>
           </Pressable>

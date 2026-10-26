@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
 import { Modal, ModalText } from './Modal.js';
@@ -34,11 +35,11 @@ function TypeWord({ word }: { word: string }): ReactNode {
   };
   return (
     <Row align="center" gap={6} wrap>
-      <Text size="xs" role="secondary">Type</Text>
-      <Text size="xs" weight="semibold" style={MONO} selectable>
+      <Text size="xs" color="secondary">Type</Text>
+      <Text size="xs" fontWeight="semibold" style={MONO} selectable>
         {word}
       </Text>
-      <Text size="xs" role="secondary">to confirm</Text>
+      <Text size="xs" color="secondary">to confirm</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={copied ? `Copied ${word}` : `Copy ${word}`} hitSlop={8} onPress={copy}>
         <Icon name={copied ? 'check' : 'copy'} size={ICON_SIZE.sm} color={palette.sub} />
       </Pressable>
@@ -48,7 +49,6 @@ function TypeWord({ word }: { word: string }): ReactNode {
 
 export function ConfirmModal(props: ConfirmModalProps): ReactNode {
   const { open, title, lines, confirmWord, confirmLabel, busy } = props;
-  const dark = useKitScheme() === 'dark';
   const [typed, setTyped] = useState('');
   const matches = confirmMatches(typed, confirmWord) && props.blocked !== true;
   const close = (): void => {
@@ -61,17 +61,17 @@ export function ConfirmModal(props: ConfirmModalProps): ReactNode {
   };
   return (
     <Modal title={title} open={open} onClose={close}>
-      <Col gap={20}>
+      <Column gap={20}>
         {lines.map((line) => (
           <ModalText key={line}>{line}</ModalText>
         ))}
         {props.children}
-        <Col gap={8}>
+        <Column gap={8}>
           <TypeWord word={confirmWord} />
-          <FormField label={confirmPrompt(confirmWord)} labelHidden name="confirm-word" value={typed} placeholder={confirmWord} disabled={busy} dark={dark} onChangeText={setTyped} onSubmit={confirm} style={GROW} inputProps={{ autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' }} />
-        </Col>
+          <FormField label={confirmPrompt(confirmWord)} labelHidden name="confirm-word" value={typed} placeholder={confirmWord} disabled={busy} onChangeText={setTyped} onSubmit={confirm} style={GROW} inputProps={{ autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' }} />
+        </Column>
         <Actions error={props.error} cancel={{ onPress: close, disabled: busy }} main={{ label: confirmLabel, danger: true, busy, disabled: !matches, onPress: confirm }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }

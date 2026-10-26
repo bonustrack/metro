@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Title } from '@stage-labs/kit/react-native/title';
@@ -65,18 +66,16 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
 }
 
 function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const onButton = useKitPalette().link;
   const [failed, setFailed] = useState<string | null>(null);
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       {PROVIDERS.map((provider) => (
         <Button
           key={provider}
           size="lg"
           color="secondary"
           variant="outline"
-          dark={dark}
           label={PROVIDER_LABEL[provider]}
           icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
@@ -92,18 +91,18 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
         />
       ))}
       {failed === null ? null : (
-        <Text size="xs" role="danger" style={CENTER_TEXT}>
+        <Text size="xs" color="danger" style={CENTER_TEXT}>
           {failed}
         </Text>
       )}
-    </Col>
+    </Column>
   );
 }
 
 function Footer(): ReactNode {
   return (
     <Row justify="center" gap={16}>
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {COPYRIGHT}
       </Text>
       <LegalLinks newTab />
@@ -128,8 +127,8 @@ function Frame({ title, children }: { title: string; children: ReactNode }): Rea
     <PageScroll>
       <TopLogo />
       <Row justify="center" align="start" padding={{ x: 24, top: WEB ? '15vh' : 64, bottom: 24 }}>
-        <Col gap={32} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
-          <Col gap={14}>
+        <Column gap={32} width="100%" maxWidth={CARD_WIDTH} padding={CARD_PAD}>
+          <Column gap={14}>
             <Row justify="center">
               <Title style={HEADING} accessibilityRole="header">
                 {title}
@@ -138,10 +137,10 @@ function Frame({ title, children }: { title: string; children: ReactNode }): Rea
             <Text size="xl" style={CENTER_TEXT}>
               {ABOUT}
             </Text>
-          </Col>
+          </Column>
           {children}
           <Footer />
-        </Col>
+        </Column>
       </Row>
     </PageScroll>
   );
@@ -152,7 +151,7 @@ function DaemonHint(): ReactNode {
   if (heading === null) return null;
   return (
     <Row justify="center">
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         then on to {daemonHost(heading)}
       </Text>
     </Row>
@@ -164,7 +163,7 @@ function Notes({ failed, invited }: { failed: string | null; invited: boolean })
     <>
       <DaemonHint />
       {failed === null ? null : (
-        <Text size="md" role="danger" style={CENTER_TEXT}>
+        <Text size="md" color="danger" style={CENTER_TEXT}>
           {failed}
         </Text>
       )}
@@ -198,13 +197,13 @@ export function Login(): ReactNode {
   return (
     <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
       <Notes failed={refusalText(outcome.refused)} invited={outcome.invited} />
-      <Col padding={{ top: 8 }} gap={16}>
+      <Column padding={{ top: 8 }} gap={16}>
         <EmailLogin intent={intent} />
-        <Text size="md" role="secondary" style={CENTER_TEXT}>
+        <Text size="md" color="secondary" style={CENTER_TEXT}>
           or
         </Text>
         <ProviderButtons intent={intent} />
-      </Col>
+      </Column>
     </Frame>
   );
 }

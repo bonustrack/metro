@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { IconName } from '../Icon.js';
@@ -37,22 +38,22 @@ export function ListPaneRow({ title, line, lineTone = 'secondary', detail, avata
       <AvatarDot dot={dot} mark={mark} ring={fill}>
         {avatar}
       </AvatarDot>
-      <Col flex={1} minWidth={0}>
-        <Row align="center" justify="between" gap={10}>
+      <Column weight={1} minWidth={0}>
+        <Row align="center" justify="spaceBetween" gap={10}>
           <Text size="md" numberOfLines={1} style={SHRINK}>
             {title}
           </Text>
           {trailing}
         </Row>
-        <Text size="xs" role={lineTone} numberOfLines={1}>
+        <Text size="xs" color={lineTone} numberOfLines={1}>
           {line}
         </Text>
         {detail === undefined || detail === '' ? null : (
-          <Text size="xs" role="secondary" numberOfLines={1}>
+          <Text size="xs" color="secondary" numberOfLines={1}>
             {detail}
           </Text>
         )}
-      </Col>
+      </Column>
     </RouteLink>
   );
 }

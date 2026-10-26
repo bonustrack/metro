@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { routeHash } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
@@ -31,7 +31,7 @@ const PANE_OF: Record<AdminSelection['kind'], PaneId> = {
 function Count({ value }: { value: number | undefined }): ReactNode {
   if (value === undefined) return null;
   return (
-    <Text size="xs" role="secondary">
+    <Text size="xs" color="secondary">
       {String(value)}
     </Text>
   );
@@ -58,12 +58,12 @@ export function AdminPane({ selection }: { selection: AdminSelection }): ReactNo
   const waiting = users?.filter((user) => user.status === 'waitlist').length ?? 0;
   return (
     <ListPane title="Admin">
-      <Col>
+      <Column>
         <PaneRow id="overview" title="Overview" line="Totals and sign-ups" icon="viewGrid" active={active} />
         <PaneRow id="agents" title="Agents" line="Status, model and version" icon="robot" count={agents?.length} active={active} />
         <PaneRow id="users" title="Users" line={waiting === 0 ? 'Everyone who signed in' : `${String(waiting)} waiting for you`} icon="users" count={users?.length} active={active} />
         <PaneRow id="organizations" title="Organizations" line="Agents and members" icon="officeBuilding" count={organizations?.length} active={active} />
-      </Col>
+      </Column>
     </ListPane>
   );
 }

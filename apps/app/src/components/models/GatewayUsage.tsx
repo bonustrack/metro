@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { DEFAULT_STATS_RANGE, STATS_RANGES, type StatsRange } from '@metro-labs/client/api/connector-stats';
@@ -29,13 +29,13 @@ function Chart({ usage }: { usage: ModelUsage }): ReactNode {
   const measure = usageMeasure(usage);
   const series = usageSeries(usage, measure, { slots: SERIES_COLORS, other: palette.sub });
   return (
-    <Col gap={12}>
-      <Text size="xs" role="secondary">
+    <Column gap={12}>
+      <Text size="xs" color="secondary">
         {chartTitle(measure, usage.range)}
       </Text>
       <CallChart series={series} times={usage.buckets.map((bucket) => bucket.at)} bucketMs={usage.bucketMs} range={usage.range} summary={usageSummary(usage)} units={measure === 'spend' ? SPEND_UNITS : CALL_UNITS} />
       <CallLegend series={series} />
-    </Col>
+    </Column>
   );
 }
 
@@ -73,17 +73,17 @@ interface Scope {
 function Body({ usage, scope }: { usage: ModelUsage; scope: Scope }): ReactNode {
   if (usage.totals.calls === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {`No model calls through gateway.metro.box ${rangeWords(usage.range)}.`}
       </Text>
     );
   return (
-    <Col gap={32}>
+    <Column gap={32}>
       <CallTiles tiles={usageTiles(usage.totals, usage.range)} />
       <Chart usage={usage} />
       {scope.connection === null ? <ByAccount usage={usage} /> : null}
       {scope.agent === null ? <ByAgent usage={usage} /> : null}
-    </Col>
+    </Column>
   );
 }
 
@@ -95,7 +95,7 @@ export function GatewayUsage({ agent, connection = null, label = 'Usage' }: { ag
   if (usage === null || (usage === undefined && query.error !== null)) return null;
   const choice = <Choice label="Time range" value={range} options={STATS_RANGES} onChange={setRange} />;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <GroupTitle label={label} action={narrow ? undefined : choice} />
       {narrow ? choice : null}
       {usage === undefined ? (
@@ -105,6 +105,6 @@ export function GatewayUsage({ agent, connection = null, label = 'Usage' }: { ag
           <Body usage={usage} scope={{ agent, connection }} />
         </View>
       )}
-    </Col>
+    </Column>
   );
 }

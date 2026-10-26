@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -18,7 +18,6 @@ const OLD_ACCOUNT = 'This account is too old to hold a name. Attach XMTP again t
 const nameKey = (station: string, accountId: string): string[] => boxKey(['account-name', station, accountId]);
 
 function ClaimName({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,21 +37,21 @@ function ClaimName({ agentId, station, accountId }: { agentId: string; station: 
       });
   };
   return (
-    <Col gap={8} maxWidth={FIELD_WIDTH}>
-      <Text size="md" role="secondary">
+    <Column gap={8} maxWidth={FIELD_WIDTH}>
+      <Text size="md" color="secondary">
         {NO_NAME}
       </Text>
       <Row gap={8} align="center">
-        <FormField label="Stage name" name="stage-name" value={label} placeholder="lisa-mci" dark={dark} onChangeText={setLabel} style={GROW} />
-        <Text size="md" role="secondary">
+        <FormField label="Stage name" name="stage-name" value={label} placeholder="lisa-mci" onChangeText={setLabel} style={GROW} />
+        <Text size="md" color="secondary">
           {SUFFIX}
         </Text>
       </Row>
       <Row>
-        <Button size="lg" dark={dark} label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
+        <Button variant="primary" size="lg" label={busy ? 'Claiming…' : 'Claim'} loading={busy} disabled={busy || label.trim().length < 6} onPress={claim} />
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </Col>
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
+    </Column>
   );
 }
 
@@ -62,7 +61,7 @@ export function StationName({ agentId, station, accountId }: { agentId: string; 
   if (data.name !== null) return <Text size="md">{data.name}</Text>;
   if (!data.canClaim)
     return (
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {OLD_ACCOUNT}
       </Text>
     );

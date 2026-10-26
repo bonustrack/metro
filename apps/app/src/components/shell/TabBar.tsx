@@ -39,7 +39,7 @@ function Tab({ section, active, waiting }: { section: ShellSection; active: bool
         ) : null}
       </View>
       {active ? (
-        <Text size="xs" weight="semibold" numberOfLines={1}>
+        <Text size="xs" fontWeight="semibold" numberOfLines={1}>
           {section.label}
         </Text>
       ) : null}

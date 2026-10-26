@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { fetchAgentPath, joinPath, pathSegments, type AgentPath, type FileEntry } from '@metro-labs/client/api/files';
 import { sizeLabel, whenLabel } from '@metro-labs/client/api/when';
@@ -67,15 +67,15 @@ function FolderList({ project, answer }: { project: string; answer: FolderAnswer
 function FileView({ answer }: { answer: FileAnswer }): ReactNode {
   const facts = `${sizeLabel(answer.bytes)}${answer.modifiedAt === '' ? '' : ` · changed ${whenLabel(answer.modifiedAt)}`}`;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <PageHeader title={pathSegments(answer.path).pop() ?? answer.path} subtitle={facts} />
       {answer.text === null ? (
         <StateBlock icon="documentText" title="Not a text file" text="It cannot be shown here." />
       ) : (
         <LogBlock text={answer.text} maxHeight={null} />
       )}
-      {answer.truncated ? <Text size="xs" role="secondary">Only the first 256 KB are shown.</Text> : null}
-    </Col>
+      {answer.truncated ? <Text size="xs" color="secondary">Only the first 256 KB are shown.</Text> : null}
+    </Column>
   );
 }
 
@@ -83,7 +83,7 @@ function Intro({ path }: { path: string }): ReactNode {
   const name = useAgentName();
   if (path !== '') return null;
   return (
-    <Text size="xs" role="secondary">
+    <Text size="xs" color="secondary">
       {`${name}’s own folder, as ${name} sees it. Metro’s files and the chat keys are not here.`}
     </Text>
   );
@@ -96,10 +96,10 @@ export function Files({ project, path }: FilesProps): ReactNode {
   if (query.data === undefined)
     return query.error === null ? <RowsSkeleton rows={5} trailing={false} /> : <ErrorState title="Could not read that folder" text={queryError(query.error, 'The agent did not answer.')} onRetry={query.refetch} />;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <Intro path={path} />
       <Crumbs crumbs={crumbsOf(project, technical && query.data.root !== '' ? query.data.root : 'Agent folder', path)} />
       {query.data.kind === 'folder' ? <FolderList project={project} answer={query.data} /> : <FileView answer={query.data} />}
-    </Col>
+    </Column>
   );
 }

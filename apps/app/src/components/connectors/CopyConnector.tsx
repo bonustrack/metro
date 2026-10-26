@@ -1,8 +1,7 @@
 import { type ReactNode, useRef, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Select } from '@stage-labs/kit/react-native/select';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { ChoicePicker } from '@stage-labs/kit/react-native/choice-picker';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { OrganizationRow } from '@metro-labs/client/api/auth';
 import { connectorCopyNameError, copyOrgConnector, type CopiedOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -25,13 +24,12 @@ interface CopySuccess {
 }
 
 function Destination({ targets, value, disabled, onChange }: { targets: OrganizationRow[]; value: string; disabled: boolean; onChange: (value: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const options = targets.map((row) => ({ value: row.id, label: copyOrganizationName(row) }));
   return (
-    <Col gap={6}>
+    <Column gap={6}>
       <FieldLabel>Destination organization</FieldLabel>
-      <Select name="Destination organization" options={options} value={value} placeholder="Choose an organization" block dark={dark} disabled={disabled} onChange={onChange} />
-    </Col>
+      <ChoicePicker variant="mutuallyExclusive" options={options} value={value === '' ? [] : [value]} disabled={disabled} accessibility={{ label: 'Destination organization' }} onChange={(picked) => { onChange(picked[0] ?? ''); }} />
+    </Column>
   );
 }
 
@@ -52,13 +50,13 @@ function DestinationState({ organizations, targets, target, busy, onChange }: De
 
 function Success({ success, onClose }: { success: CopySuccess; onClose: () => void }): ReactNode {
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       <ModalText>{`${success.result.connector.name} was copied to ${copyOrganizationName(success.destination)}.`}</ModalText>
-      <Text size="xs" role="secondary">You are still in the source organization; tool rules were kept, but agents, their overrides and activity history were not copied.</Text>
-      {success.result.connector.auth === 'oauth' ? <Text size="xs" role="secondary">Sign in to the copied connector in the destination before using its tools.</Text> : null}
+      <Text size="xs" color="secondary">You are still in the source organization; tool rules were kept, but agents, their overrides and activity history were not copied.</Text>
+      {success.result.connector.auth === 'oauth' ? <Text size="xs" color="secondary">Sign in to the copied connector in the destination before using its tools.</Text> : null}
       <Item title="Open in destination" href={copiedConnectorHash(success.result, success.destination)} />
       <Actions cancel={{ label: 'Done', onPress: onClose }} />
-    </Col>
+    </Column>
   );
 }
 
@@ -71,7 +69,6 @@ function useCopyTarget(targets: OrganizationRow[], loaded: boolean): [Organizati
 }
 
 export function CopyConnectorModal({ connector, onClose }: { connector: OrgConnector; onClose: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const organizations = useOrganizationsQuery();
   const targets = copyTargets(organizations.data ?? [], activeAccount()?.organization ?? null);
   const [target, setOrganization] = useCopyTarget(targets, organizations.data !== undefined);
@@ -96,12 +93,12 @@ export function CopyConnectorModal({ connector, onClose }: { connector: OrgConne
   return (
     <Modal title={success === null ? 'Copy connector' : 'Connector copied'} open onClose={close} dismissable={!busy}>
       {success === null ? (
-        <Col gap={20}>
+        <Column gap={20}>
           <ModalText>{SHARING_NOTE}</ModalText>
           <DestinationState organizations={organizations} targets={targets} target={target} busy={busy} onChange={setOrganization} />
-          <FormField label="Connector name" name="copy-connector-name" value={name} disabled={busy} dark={dark} onChangeText={setName} onSubmit={submit} />
+          <FormField label="Connector name" name="copy-connector-name" value={name} disabled={busy} onChangeText={setName} onSubmit={submit} />
           <Actions error={error ?? nameError} cancel={{ onPress: close, disabled: busy }} main={{ label: 'Copy', busy, disabled: !ready, onPress: submit }} />
-        </Col>
+        </Column>
       ) : <Success success={success} onClose={close} />}
     </Modal>
   );

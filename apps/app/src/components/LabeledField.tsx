@@ -22,7 +22,7 @@ export function LabeledField(props: LabeledFieldProps): ReactNode {
       placeholder={props.placeholder}
       autoFocus={props.autoFocus}
       disabled={props.disabled}
-      inputType={props.inputMode === 'email' ? 'email' : 'number'}
+      {...(props.inputMode === 'email' ? { inputType: 'email' as const } : { variant: 'number' as const })}
       inputProps={{ autoCapitalize: 'none', autoCorrect: false, inputMode: props.inputMode, keyboardType: props.inputMode === 'email' ? 'email-address' : 'number-pad', autoComplete: props.inputMode === 'email' ? 'email' : 'one-time-code' }}
       onChangeText={props.onChangeText}
       onSubmit={props.onSubmit}

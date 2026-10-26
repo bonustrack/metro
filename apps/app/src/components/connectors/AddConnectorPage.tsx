@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { assignOrgConnector, unassignOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { FormField } from '../FormField.js';
@@ -35,7 +34,6 @@ const POLL_MS = 3000;
 const close = (): void => { go({ kind: 'org-connectors' }); };
 
 function AddressStep({ url, setUrl, onNext }: { url: string; setUrl: (url: string) => void; onNext: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [problem, setProblem] = useState<string | null>(null);
   const next = (): void => {
     const found = addressProblem(url);
@@ -45,10 +43,10 @@ function AddressStep({ url, setUrl, onNext }: { url: string; setUrl: (url: strin
   return (
     <>
       <FocusIntro title="Connect an app" text="Paste its connector address. Notion, Granola and n8n show it in their settings." />
-      <Col gap={8}>
-        <FormField label="Address" name="connector-url" value={url} placeholder="https://mcp.example.com/mcp" inputType="url" autoFocus dark={dark} onChangeText={(value) => { setUrl(value); setProblem(null); }} onSubmit={next} />
-        {problem === null ? null : <Text size="xs" role="danger">{problem}</Text>}
-      </Col>
+      <Column gap={8}>
+        <FormField label="Address" name="connector-url" value={url} placeholder="https://mcp.example.com/mcp" inputType="url" autoFocus onChangeText={(value) => { setUrl(value); setProblem(null); }} onSubmit={next} />
+        {problem === null ? null : <Text size="xs" color="danger">{problem}</Text>}
+      </Column>
       <Actions cancel={{ onPress: close }} main={{ label: 'Continue', disabled: url.trim() === '', onPress: next }} />
     </>
   );
@@ -73,23 +71,22 @@ function SignInState({ added, connector }: { added: Added; connector: OrgConnect
   if (!added.signingIn) return null;
   const done = connector?.signIn === 'connected';
   return (
-    <Col gap={6}>
-      <Text size="md" role={done ? 'success' : 'secondary'}>{done ? `Signed in to ${added.name}.` : 'Finish the sign-in in the new tab. This page notices when it is done.'}</Text>
+    <Column gap={6}>
+      <Text size="md" color={done ? 'success' : 'secondary'}>{done ? `Signed in to ${added.name}.` : 'Finish the sign-in in the new tab. This page notices when it is done.'}</Text>
       {added.link === null || done ? null : <TextLink url={added.link}>Open the sign-in</TextLink>}
-    </Col>
+    </Column>
   );
 }
 
 function AgentRows({ connector, servers }: { connector: OrgConnector | undefined; servers: Server[] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const toggle = useToggle(connector?.id ?? '');
   const held = new Set(connector?.agents.map((agent) => agent.id) ?? []);
-  if (servers.length === 0) return <Text size="md" role="secondary">No agent yet. You can add it to agents later.</Text>;
+  if (servers.length === 0) return <Text size="md" color="secondary">No agent yet. You can add it to agents later.</Text>;
   return (
     <Group label="Agents" error={toggle.error}>
       {[...servers].sort((a, b) => serverLabel(a).localeCompare(serverLabel(b))).map((server) => (
         <Item key={server.id} title={serverLabel(server)} leading={<AgentFace server={server} dot={null} />} chevron={false}
-          trailing={<Switch checked={held.has(server.id)} dark={dark} disabled={connector === undefined || toggle.busy !== null} name={serverLabel(server)} onChange={(on) => { toggle.toggle(server, on); }} />} />
+          trailing={<CheckBox displayStyle="switch" value={held.has(server.id)} disabled={connector === undefined || toggle.busy !== null} name={serverLabel(server)} onChange={(on) => { toggle.toggle(server, on); }} />} />
       ))}
     </Group>
   );

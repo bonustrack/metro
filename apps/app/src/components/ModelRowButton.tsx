@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { PickRow } from '@metro-labs/client/api/providers';
@@ -23,14 +23,14 @@ export function RowButton({ row, onPick }: { row: PickRow; onPick: (row: PickRow
   const lit = row.current || hovered ? { backgroundColor: palette.inputBg } : null;
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ selected: row.current }} {...hover} style={[PICK_ROW, lit]} onPress={() => { onPick(row); }}>
-      <Col gap={2} flex={1} minWidth={0}>
-        <Text size="md" weight="semibold" role="link" numberOfLines={1}>
+      <Column gap={2} weight={1} minWidth={0}>
+        <Text size="md" fontWeight="semibold" color="link" numberOfLines={1}>
           {niceName(row)}
         </Text>
-        <Text size="md" role="secondary" numberOfLines={1}>
+        <Text size="md" color="secondary" numberOfLines={1}>
           {rowDetail(row)}
         </Text>
-      </Col>
+      </Column>
       {row.current ? <Icon name="check" size={18} color={palette.link} /> : null}
     </Pressable>
   );

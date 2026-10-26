@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
-import { Input } from '@stage-labs/kit/react-native/input';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { TextField } from '@stage-labs/kit/react-native/text-field';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Dropdown } from '../Dropdown.js';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
@@ -37,9 +38,9 @@ export function Table({ children }: { children: ReactNode }): ReactNode {
 
 export function Cell({ flex, children }: { flex: number; children: ReactNode }): ReactNode {
   return (
-    <Col flex={flex} minWidth={0}>
+    <Column weight={flex} minWidth={0}>
       {children}
-    </Col>
+    </Column>
   );
 }
 
@@ -55,14 +56,14 @@ export function HeadCell<K extends string>({ label, column, sort, flex, onSort }
   const palette = useKitPalette();
   const active = sort.key === column;
   return (
-    <Col flex={flex} minWidth={0}>
+    <Column weight={flex} minWidth={0}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Sort by ${label}`} onPress={() => { onSort(column); }} style={styles.head}>
-        <Text size="xs" role={active ? 'default' : 'secondary'} weight={active ? 'semibold' : 'normal'} numberOfLines={1} style={SHRINK}>
+        <Text size="xs" color={active ? undefined : 'secondary'} fontWeight={active ? 'semibold' : 'normal'} numberOfLines={1} style={SHRINK}>
           {label}
         </Text>
         {active ? <Icon name={sort.dir === 'asc' ? 'arrowUp' : 'arrowDown'} size={ICON_SIZE.sm} color={palette.link} /> : null}
       </Pressable>
-    </Col>
+    </Column>
   );
 }
 
@@ -101,20 +102,20 @@ export function TableRow({ href, label, menu, children }: TableRowProps): ReactN
 
 export function TwoLines({ top, bottom, topTone }: { top: ReactNode; bottom?: string | null; topTone?: 'danger' | 'secondary' }): ReactNode {
   return (
-    <Col gap={2} minWidth={0}>
+    <Column gap={2} minWidth={0}>
       {typeof top === 'string' ? (
-        <Text size="xs" role={topTone} numberOfLines={1} style={SHRINK}>
+        <Text size="xs" color={topTone} numberOfLines={1} style={SHRINK}>
           {top}
         </Text>
       ) : (
         top
       )}
       {bottom === undefined || bottom === null ? null : (
-        <Text size="2xs" role="secondary" numberOfLines={1}>
+        <Text size="2xs" color="secondary" numberOfLines={1}>
           {bottom}
         </Text>
       )}
-    </Col>
+    </Column>
   );
 }
 
@@ -126,7 +127,7 @@ export function ThinBar({ used }: { used: number }): ReactNode {
       <Row width={BAR_WIDTH} height={BAR_HEIGHT} radius={BAR_HEIGHT / 2} background={palette.border} style={styles.clip}>
         <View style={fill} />
       </Row>
-      <Text size="2xs" role="secondary">
+      <Text size="2xs" color="secondary">
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>
@@ -134,11 +135,10 @@ export function ThinBar({ used }: { used: number }): ReactNode {
 }
 
 export function SearchBox({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Box style={styles.search}>
-      <Input dark={dark} value={value} placeholder={placeholder} onChangeText={onChange} inputProps={{ accessibilityLabel: placeholder, autoCapitalize: 'none', autoCorrect: false }} />
-    </Box>
+    <Column style={styles.search}>
+      <TextField value={value} placeholder={placeholder} onChangeText={onChange} inputProps={{ accessibilityLabel: placeholder, autoCapitalize: 'none', autoCorrect: false }} />
+    </Column>
   );
 }
 
@@ -177,10 +177,10 @@ export function Controls({ children }: { children: ReactNode }): ReactNode {
 
 export function NoMatch({ text }: { text: string }): ReactNode {
   return (
-    <Col padding={{ x: ROW_PAD, y: 20 }}>
-      <Text size="xs" role="secondary">
+    <Column padding={{ x: ROW_PAD, y: 20 }}>
+      <Text size="xs" color="secondary">
         {text}
       </Text>
-    </Col>
+    </Column>
   );
 }

@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { stationFields, type AccountRow } from '@metro-labs/client/api/accounts';
 import { CALLBACK_NOTE } from '../AttachedAccount.js';
 import { StationName } from '../StationName.js';
@@ -17,7 +18,6 @@ const ENDPOINT_NOTE = 'Anyone with this URL can post to the agent. Paste it only
 const MASK = '•'.repeat(12);
 
 function CopyItem({ title, note, value }: { title: string; note: string; value: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [copied, setCopied] = useState(false);
   const [shown, setShown] = useState(false);
   const copy = (): void => {
@@ -32,8 +32,8 @@ function CopyItem({ title, note, value }: { title: string; note: string; value: 
       detail={shown ? value : MASK}
       trailing={
         <Row gap={8} align="center">
-          <Button size="sm" color="secondary" dark={dark} label={shown ? 'Hide' : 'Show'} onPress={() => { setShown(!shown); }} />
-          <Button size="sm" color="secondary" dark={dark} label={copied ? 'Copied' : 'Copy'} onPress={copy} />
+          <Button size="sm" color="secondary" label={shown ? 'Hide' : 'Show'} onPress={() => { setShown(!shown); }} />
+          <Button size="sm" color="secondary" label={copied ? 'Copied' : 'Copy'} onPress={copy} />
         </Row>
       }
     />
@@ -43,10 +43,10 @@ function CopyItem({ title, note, value }: { title: string; note: string; value: 
 function NameItem({ agentId, station, accountId }: { agentId: string; station: string; accountId: string }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={8} padding={{ y: 14 }} border={{ bottom: side(palette.border) }}>
+    <Column gap={8} padding={{ y: 14 }} border={{ bottom: side(palette.border) }}>
       <Text size="md">Stage name</Text>
       <StationName agentId={agentId} station={station} accountId={accountId} />
-    </Col>
+    </Column>
   );
 }
 

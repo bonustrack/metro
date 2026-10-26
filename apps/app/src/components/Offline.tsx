@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { boxesOf, serverLabel, type BoxServer } from '@metro-labs/client/api/servers';
@@ -31,7 +32,7 @@ interface Check {
 function Checks({ checks }: { checks: Check[] }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={4} margin={{ top: 4 }}>
+    <Column gap={4} margin={{ top: 4 }}>
       {checks.map((check) => (
         <Row key={check.label} gap={8} align="center">
           <Icon name={check.ok ? 'check' : 'ban'} size={CHECK} color={check.ok ? palette.success : palette.danger} />
@@ -40,7 +41,7 @@ function Checks({ checks }: { checks: Check[] }): ReactNode {
           </Text>
         </Row>
       ))}
-    </Col>
+    </Column>
   );
 }
 
@@ -62,12 +63,12 @@ function GettingReady({ server, state }: { server: BoxServer; state: string }): 
 
 function ServerSections({ server }: { server: BoxServer }): ReactNode {
   return (
-    <Col gap={24}>
+    <Column gap={24}>
       <ServerResources serverId={server.id} />
       <ServerSizeSection serverId={server.id} launchedOnly />
       <ServerStorageSection serverId={server.id} launchedOnly />
       <DeleteServerSection server={server} />
-    </Col>
+    </Column>
   );
 }
 
@@ -76,13 +77,13 @@ function OfflineState({ server, name, onRetry }: { server: BoxServer | undefined
   const checks = useChecks(server);
   const host = currentServer()?.host;
   return (
-    <Col gap={40}>
+    <Column gap={40}>
       <StateBlock icon="server" danger title={`${name} is offline`} text={technical && host !== undefined ? `Metro does not answer at ${host}.` : 'Metro does not answer.'}
         action={{ label: 'Try again', primary: true, onPress: onRetry }}>
         <Checks checks={checks} />
       </StateBlock>
       {server === undefined ? null : <ServerSections server={server} />}
-    </Col>
+    </Column>
   );
 }
 

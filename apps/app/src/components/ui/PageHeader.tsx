@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from '../Icon.js';
@@ -28,7 +29,7 @@ const TABS_TOP = 24;
 
 function CrumbLabel({ item, last }: { item: Crumb; last: boolean }): ReactNode {
   const text = (
-    <Text size="xs" role={last ? 'default' : 'secondary'} numberOfLines={1} style={SHRINK}>
+    <Text size="xs" color={last ? undefined : 'secondary'} numberOfLines={1} style={SHRINK}>
       {item.label}
     </Text>
   );
@@ -67,9 +68,9 @@ export function PageCrumbs({ items }: { items: Crumb[] }): ReactNode {
   const narrow = useIsNarrow();
   if (!narrow)
     return (
-      <Col margin={{ top: -PAGE_TOP }}>
+      <Column margin={{ top: -PAGE_TOP }}>
         <Crumbs items={items} />
-      </Col>
+      </Column>
     );
   const back = [...items].reverse().find((item) => item.href !== undefined);
   return back === undefined ? null : <Crumbs items={[back]} />;
@@ -79,7 +80,7 @@ function Subtitle({ subtitle }: { subtitle: ReactNode }): ReactNode {
   if (subtitle === undefined || subtitle === null) return null;
   if (typeof subtitle !== 'string') return subtitle;
   return (
-    <Text size="xs" role="secondary" numberOfLines={2}>
+    <Text size="xs" color="secondary" numberOfLines={2}>
       {subtitle}
     </Text>
   );
@@ -87,17 +88,17 @@ function Subtitle({ subtitle }: { subtitle: ReactNode }): ReactNode {
 
 export function PageHeader({ title, subtitle, crumbs, leading, action, tabs }: PageHeaderProps): ReactNode {
   return (
-    <Col>
+    <Column>
       {crumbs === undefined || crumbs.length === 0 ? null : <PageCrumbs items={crumbs} />}
-      <Row align="center" justify="between" gap={16} minHeight={TITLE_HEIGHT}>
-        <Row align="center" gap={16} flex={1} minWidth={0}>
+      <Row align="center" justify="spaceBetween" gap={16} minHeight={TITLE_HEIGHT}>
+        <Row align="center" gap={16} weight={1} minWidth={0}>
           {leading}
-          <Col gap={2} flex={1} minWidth={0}>
-            <Text accessibilityRole="header" size="2xl" weight="semibold" numberOfLines={2}>
+          <Column gap={2} weight={1} minWidth={0}>
+            <Text accessibilityRole="header" size="2xl" fontWeight="semibold" numberOfLines={2}>
               {title}
             </Text>
             <Subtitle subtitle={subtitle} />
-          </Col>
+          </Column>
         </Row>
         {action === undefined || action === null ? null : (
           <Row align="center" gap={12}>
@@ -105,7 +106,7 @@ export function PageHeader({ title, subtitle, crumbs, leading, action, tabs }: P
           </Row>
         )}
       </Row>
-      {tabs === undefined || tabs === null ? null : <Col margin={{ top: TABS_TOP }}>{tabs}</Col>}
-    </Col>
+      {tabs === undefined || tabs === null ? null : <Column margin={{ top: TABS_TOP }}>{tabs}</Column>}
+    </Column>
   );
 }

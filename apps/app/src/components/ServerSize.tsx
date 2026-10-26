@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Spinner } from './Spinner.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -92,13 +92,11 @@ function JobRow({ job }: { job: ResizeJob }): ReactNode {
 }
 
 function StartRow({ view, resize }: { view: Resizable; resize: Resize }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Control title="Start" note={STOPPED_NOTE} error={resize.error}>
       <Button
         size="md"
         color="primary"
-        dark={dark}
         label={resize.busy ? 'Starting…' : 'Start'}
         disabled={resize.busy}
         onPress={() => {

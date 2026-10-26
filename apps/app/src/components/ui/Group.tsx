@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { READABLE_WIDTH } from './sizes.js';
 import { useIsNarrow } from '../../lib/media.js';
@@ -20,7 +21,7 @@ export function Rows({ children }: { children: ReactNode }): ReactNode {
 }
 
 export function Groups({ children }: { children: ReactNode }): ReactNode {
-  return <Col gap={useIsNarrow() ? GAP_NARROW : GAP_WIDE}>{children}</Col>;
+  return <Column gap={useIsNarrow() ? GAP_NARROW : GAP_WIDE}>{children}</Column>;
 }
 
 interface GroupProps {
@@ -35,19 +36,19 @@ interface GroupProps {
 function Line({ text, role }: { text: string | null | undefined; role: 'secondary' | 'danger' }): ReactNode {
   if (text === undefined || text === null) return null;
   return (
-    <Col margin={{ top: 6 }}>
-      <Text size="xs" role={role}>
+    <Column margin={{ top: 6 }}>
+      <Text size="xs" color={role}>
         {text}
       </Text>
-    </Col>
+    </Column>
   );
 }
 
 export function GroupTitle({ label, action }: { label?: string | undefined; action?: ReactNode }): ReactNode {
   if (label === undefined && action === undefined) return null;
   return (
-    <Row align="center" justify="between" gap={12} minHeight={32}>
-      <Text size="xs" role="secondary" numberOfLines={1}>
+    <Row align="center" justify="spaceBetween" gap={12} minHeight={32}>
+      <Text size="xs" color="secondary" numberOfLines={1}>
         {label ?? ''}
       </Text>
       {action}
@@ -57,11 +58,11 @@ export function GroupTitle({ label, action }: { label?: string | undefined; acti
 
 export function Group({ label, note, action, error, wide = false, children }: GroupProps): ReactNode {
   return (
-    <Col width="100%" maxWidth={wide ? undefined : READABLE_WIDTH}>
+    <Column width="100%" maxWidth={wide ? undefined : READABLE_WIDTH}>
       <GroupTitle label={label} action={action} />
       <Rows>{children}</Rows>
       <Line text={note} role="secondary" />
       <Line text={error} role="danger" />
-    </Col>
+    </Column>
   );
 }

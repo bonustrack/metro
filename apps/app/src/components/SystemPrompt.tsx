@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -15,7 +15,6 @@ const NOTE = 'Who your agent is and how it behaves. To save, let work finish and
 
 export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
   const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState(setup.systemPrompt);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +35,11 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
       });
   };
   return (
-    <Col gap={10}>
-      <Text size="xs" role="secondary">{NOTE}</Text>
+    <Column gap={10}>
+      <Text size="xs" color="secondary">{NOTE}</Text>
       <FormField label="System prompt"
         name="system-prompt"
         value={draft}
-        dark={dark}
         disabled={busy}
         placeholder="You are Lisa, the ops agent for Acme. Answer in French. Keep replies short."
         onChangeText={setDraft}
@@ -49,20 +47,19 @@ export function SystemPromptEditor({ setup }: { setup: Setup }): ReactNode {
         inputProps={NO_ASSIST}
       />
       <Row gap={10} align="center" wrap>
-        <Button size="lg" color="primary" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={save} />
+        <Button size="lg" color="primary" label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !changed} onPress={save} />
         {changed && !busy ? (
           <Button
             size="md"
             color="secondary"
-            dark={dark}
             label="Revert"
             onPress={() => {
               setDraft(setup.systemPrompt);
             }}
           />
         ) : null}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" color="danger">{error}</Text>}
       </Row>
-    </Col>
+    </Column>
   );
 }

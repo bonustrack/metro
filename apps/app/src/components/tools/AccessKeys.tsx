@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { claudeCommand, createAgentKey, GATEWAY_URL, gatewaySnippet, KEY_SCOPES, MCP_URL, revokeAgentKey, setAgentKeyScopes, type AgentKey, type KeyScope, type NewAgentKey } from '@metro-labs/client/api/agent-keys';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -37,17 +37,16 @@ const SCOPE_WORDS: Record<KeyScope, { title: string; note: string }> = {
 const scopesLine = (scopes: KeyScope[]): string => scopes.map((scope) => SCOPE_WORDS[scope].title).join(' · ');
 
 function ScopePicker({ value, onChange, disabled }: { value: KeyScope[]; onChange: (next: KeyScope[]) => void; disabled: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const flip = (scope: KeyScope): void => {
     onChange(KEY_SCOPES.filter((one) => (one === scope ? !value.includes(one) : value.includes(one))));
   };
   return (
-    <Col>
+    <Column>
       {KEY_SCOPES.map((scope) => (
         <Item key={scope} title={SCOPE_WORDS[scope].title} subtitle={SCOPE_WORDS[scope].note} chevron={false}
-          trailing={<Switch name={SCOPE_WORDS[scope].title} checked={value.includes(scope)} dark={dark} disabled={disabled} onChange={() => { flip(scope); }} />} />
+          trailing={<CheckBox displayStyle="switch" name={SCOPE_WORDS[scope].title} value={value.includes(scope)} disabled={disabled} onChange={() => { flip(scope); }} />} />
       ))}
-    </Col>
+    </Column>
   );
 }
 
@@ -106,17 +105,16 @@ function ChangeScopes({ agent, item, open, onClose }: { agent: string; item: Age
   };
   return (
     <Modal title={`What ${item.label} can use`} open={open} onClose={close}>
-      <Col gap={20}>
+      <Column gap={20}>
         <ModalText>The change applies to the next request made with this key.</ModalText>
         <ScopePicker value={scopes} onChange={setScopes} disabled={busy} />
         <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: 'Save', busy, disabled: scopes.length === 0, onPress: submit }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }
 
 function CreateKey({ agent, open, onClose, onCreated }: { agent: string; open: boolean; onClose: () => void; onCreated: (made: NewAgentKey) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [label, setLabel] = useState('Claude Code');
   const [scopes, setScopes] = useState<KeyScope[]>(['connectors']);
@@ -142,12 +140,12 @@ function CreateKey({ agent, open, onClose, onCreated }: { agent: string; open: b
   };
   return (
     <Modal title="Create an access key" open={open} onClose={close}>
-      <Col gap={20}>
+      <Column gap={20}>
         <ModalText>Name it after where you use it, like your laptop or a tool.</ModalText>
-        <FormField label="Name" name="key-label" value={label} placeholder="Claude Code" disabled={busy} dark={dark} onChangeText={setLabel} onSubmit={submit} style={GROW} />
+        <FormField label="Name" name="key-label" value={label} placeholder="Claude Code" disabled={busy} onChangeText={setLabel} onSubmit={submit} style={GROW} />
         <ScopePicker value={scopes} onChange={setScopes} disabled={busy} />
         <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: 'Create key', busy, disabled: !ready, onPress: submit }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }
@@ -156,23 +154,23 @@ function ShownKey({ made, onClose }: { made: NewAgentKey | null; onClose: () => 
   if (made === null) return null;
   return (
     <Modal title={`${made.key.label} key`} open onClose={onClose}>
-      <Col gap={20}>
+      <Column gap={20}>
         <ModalText>Copy it now. Metro shows it only once.</ModalText>
         <CopyBlock label="Key" value={made.secret} />
         {made.key.scopes.includes('connectors') ? (
           <>
             <CopyBlock label="Add its connectors to Claude Code" value={claudeCommand(made.secret)} />
-            <Text size="xs" role="secondary">{`Any MCP client: URL ${MCP_URL}, header Authorization: Bearer <key>`}</Text>
+            <Text size="xs" color="secondary">{`Any MCP client: URL ${MCP_URL}, header Authorization: Bearer <key>`}</Text>
           </>
         ) : null}
         {made.key.scopes.includes('gateway') ? (
           <>
             <CopyBlock label="Use its models from your code" value={gatewaySnippet(made.secret)} />
-            <Text size="xs" role="secondary">{'Model "metro" uses the agent\'s main models, "metro-workers" its worker models.'}</Text>
+            <Text size="xs" color="secondary">{'Model "metro" uses the agent\'s main models, "metro-workers" its worker models.'}</Text>
           </>
         ) : null}
         <Actions main={{ label: 'Done', onPress: onClose }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }
@@ -194,16 +192,16 @@ function HowTo(): ReactNode {
   return (
     <>
       <Group label="Connectors" note="For a key with Connectors. Send the key as a bearer token. Every call shows in Activity.">
-        <Col gap={16} padding={{ y: 14 }}>
+        <Column gap={16} padding={{ y: 14 }}>
           <CopyBlock label="MCP server" value={MCP_URL} />
           <CopyBlock label="Header" value="Authorization: Bearer <key>" />
-        </Col>
+        </Column>
       </Group>
       <Group label="Gateway" note={'For a key with Gateway. It speaks the Anthropic Messages API: any Anthropic SDK works with this base URL. Model "metro" or "metro-workers".'}>
-        <Col gap={16} padding={{ y: 14 }}>
+        <Column gap={16} padding={{ y: 14 }}>
           <CopyBlock label="Base URL" value={GATEWAY_URL} />
           <CopyBlock label="Header" value="x-api-key: <key>" />
-        </Col>
+        </Column>
       </Group>
     </>
   );

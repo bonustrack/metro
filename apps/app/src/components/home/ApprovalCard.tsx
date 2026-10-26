@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { flattenAccounts, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { approvalCard, lineTarget, type ApprovalCard as Card } from '@metro-labs/client/api/approval-card';
 import { decideApproval, type Approval, type Decision } from '@metro-labs/client/api/approvals';
@@ -68,20 +69,20 @@ function useOthers(approval: Approval, context: ApprovalContext): string | null 
 function Fields({ card }: { card: Card }): ReactNode {
   if (card.fields.length === 0) return null;
   return (
-    <Col gap={6} margin={{ top: 20 }}>
+    <Column gap={6} margin={{ top: 20 }}>
       {card.fields.map((field) => (
         <Row key={field.label} gap={12} align="start">
-          <Col width={LABEL_WIDTH}>
-            <Text size="md" role="secondary" numberOfLines={1}>
+          <Column width={LABEL_WIDTH}>
+            <Text size="md" color="secondary" numberOfLines={1}>
               {field.label}
             </Text>
-          </Col>
+          </Column>
           <Text size="md" numberOfLines={2} style={SHRINK}>
             {field.value}
           </Text>
         </Row>
       ))}
-    </Col>
+    </Column>
   );
 }
 
@@ -97,7 +98,7 @@ function Attachment({ card }: { card: Card }): ReactNode {
       </Text>
       {[card.file.size, extra].map((part) =>
         part === null ? null : (
-          <Text key={part} size="xs" role="secondary">
+          <Text key={part} size="xs" color="secondary">
             {part}
           </Text>
         ),
@@ -134,20 +135,19 @@ function useAnswer(decide: Decide): { busy: boolean; error: string | null; answe
 }
 
 function Answers({ decide }: { decide: Decide }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { busy, error, answer } = useAnswer(decide);
   return (
-    <Col gap={10} margin={{ top: 16 }}>
+    <Column gap={10} margin={{ top: 16 }}>
       <Row gap={12}>
-        <Col flex={1}>
-          <Button size="lg" color="secondary" dark={dark} fullWidth disabled={busy} label="Deny" onPress={() => { answer('deny'); }} />
-        </Col>
-        <Col flex={1}>
-          <Button size="lg" color="primary" dark={dark} fullWidth disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
-        </Col>
+        <Column weight={1}>
+          <Button size="lg" color="secondary" fullWidth disabled={busy} label="Deny" onPress={() => { answer('deny'); }} />
+        </Column>
+        <Column weight={1}>
+          <Button size="lg" color="primary" fullWidth disabled={busy} label="Approve" onPress={() => { answer('allow'); }} />
+        </Column>
       </Row>
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-    </Col>
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
+    </Column>
   );
 }
 
@@ -168,40 +168,40 @@ export function ApprovalCardView({ approval, context, decide, where: named, mark
   const others = useOthers(approval, context);
   const note = [ruleLine(card, approval.tool, context.groups, context.tools), others].filter((part) => part !== null).join(' ');
   return (
-    <Col surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
+    <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
       <Row align="start" gap={12}>
         {mark ?? <Mark card={card} />}
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text size="md" weight="semibold" numberOfLines={2}>
+        <Column weight={1} minWidth={0} gap={2}>
+          <Text size="md" fontWeight="semibold" numberOfLines={2}>
             {card.title}
           </Text>
           {where === null ? null : (
-            <Text size="xs" role="secondary" numberOfLines={1}>
+            <Text size="xs" color="secondary" numberOfLines={1}>
               {where}
             </Text>
           )}
-        </Col>
-        <Text size="xs" role="secondary" numberOfLines={1}>
+        </Column>
+        <Text size="xs" color="secondary" numberOfLines={1}>
           {whenLabel(approval.requestedAt)}
         </Text>
       </Row>
       <Fields card={card} />
       {card.body === null ? null : (
-        <Col margin={{ top: 16 }}>
+        <Column margin={{ top: 16 }}>
           <Text size="md" color={palette.text} numberOfLines={3}>
             {card.body}
           </Text>
-        </Col>
+        </Column>
       )}
       <Attachment card={card} />
       {note === '' ? null : (
-        <Col margin={{ top: 20 }}>
-          <Text size="xs" role="secondary">
+        <Column margin={{ top: 20 }}>
+          <Text size="xs" color="secondary">
             {note}
           </Text>
-        </Col>
+        </Column>
       )}
       <Answers decide={decide ?? boxDecide} />
-    </Col>
+    </Column>
   );
 }

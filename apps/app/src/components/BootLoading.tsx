@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { LOGO_ASPECT, MetroLogo } from './MetroLogo.js';
 import { useLoadingVisible } from './Loading.js';
@@ -30,7 +30,7 @@ export function BootLoading(): ReactNode {
   const pulse = { opacity };
   if (!visible) return null;
   return (
-    <Row justify="center" align="center" flex={1} padding={24}>
+    <Row justify="center" align="center" weight={1} padding={24}>
       <Animated.View accessibilityLabel="Loading Metro" style={pulse}>
         <MetroLogo size={LOGO_SIZE} color={palette.link} />
       </Animated.View>

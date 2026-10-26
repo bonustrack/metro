@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Rows } from './Group.js';
 import { AVATAR_SIZE } from './sizes.js';
@@ -36,10 +37,10 @@ function SkeletonRow({ leading, trailing, pane, fill }: Required<Omit<RowsSkelet
   return (
     <Row align="center" gap={pane ? 12 : 14} minHeight={pane ? 62 : 60} padding={pane ? { x: 12, y: 10 } : { y: 14 }} border={pane ? undefined : { bottom: side(palette.border) }}>
       {leading ? <Shape style={pane ? styles.avatar : styles.dot} fill={fill} /> : null}
-      <Col flex={1} minWidth={0} gap={8}>
+      <Column weight={1} minWidth={0} gap={8}>
         <Shape style={styles.title} fill={fill} />
         <Shape style={styles.line} fill={fill} />
-      </Col>
+      </Column>
       {trailing && !pane ? <Shape style={styles.value} fill={fill} /> : null}
     </Row>
   );

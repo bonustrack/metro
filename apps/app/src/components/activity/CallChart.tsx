@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { G, Line, Path, Rect, Svg, Text as SvgText } from 'react-native-svg';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { FONT_SIZE, fontName } from '@stage-labs/kit/tokens';
@@ -138,7 +138,7 @@ function Tip({ series, index, total, title, geometry, units }: { series: StackSe
   const frame = StyleSheet.flatten([styles.tip, { backgroundColor: palette.border }, side]);
   return (
     <View style={frame}>
-      <Text size="2xs" role="secondary" numberOfLines={1}>
+      <Text size="2xs" color="secondary" numberOfLines={1}>
         {title}
       </Text>
       <Text size="xs" numberOfLines={1}>
@@ -150,7 +150,7 @@ function Tip({ series, index, total, title, geometry, units }: { series: StackSe
           <Text size="xs" numberOfLines={1}>
             {row.value}
           </Text>
-          <Text size="xs" role="secondary" numberOfLines={1}>
+          <Text size="xs" color="secondary" numberOfLines={1}>
             {row.label}
           </Text>
         </Row>

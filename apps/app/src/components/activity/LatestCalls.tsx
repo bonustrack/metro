@@ -32,7 +32,7 @@ export function LatestCalls({ filter, servers }: { filter: CallFilter; servers: 
   if (calls.length === 0)
     return (
       <Group label={LABEL} wide>
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {emptyCalls(filter.connector)}
         </Text>
       </Group>

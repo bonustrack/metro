@@ -1,9 +1,10 @@
 import { type ReactNode, useRef, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
-import { Input, SEARCH_INPUT_PROPS } from '@stage-labs/kit/react-native/input';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { SEARCH_INPUT_PROPS, TextField } from '@stage-labs/kit/react-native/text-field';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { ConnectorTool } from '@metro-labs/client/api/connectors';
 import type { ToolGroup, ToolPolicy } from '@metro-labs/client/api/policy';
 import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
@@ -69,8 +70,8 @@ function Chips({ value, counts, onChange }: { value: ToolFilter; counts: Record<
         const frame = StyleSheet.flatten([styles.chip, on ? { backgroundColor: selectedColor(palette) } : null]);
         return (
           <Pressable key={filter} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => { onChange(filter); }} style={frame}>
-            <Text size="md" role={on ? 'default' : 'secondary'}>{FILTER_WORD[filter]}</Text>
-            <Text size="md" role="secondary">{String(counts[filter])}</Text>
+            <Text size="md" color={on ? undefined : 'secondary'}>{FILTER_WORD[filter]}</Text>
+            <Text size="md" color="secondary">{String(counts[filter])}</Text>
           </Pressable>
         );
       })}
@@ -93,18 +94,18 @@ function ToolGroupRows({ group, all, shown, scope, disabled, onGroup, row }: Gro
   const total = all.filter((tool) => tool.group === group).length;
   const note = `${GROUP_NOTE[group]} Setting it sets all ${String(total)} ${total === 1 ? 'tool' : 'tools'}.`;
   return (
-    <Col>
-      <Row align="center" justify="between" gap={16} padding={{ y: 14 }} border={{ bottom: side(palette.border) }}>
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text size="md" weight="semibold">
-            {GROUP_TITLE[group]} <Text size="md" role="secondary">{`(${String(total)})`}</Text>
+    <Column>
+      <Row align="center" justify="spaceBetween" gap={16} padding={{ y: 14 }} border={{ bottom: side(palette.border) }}>
+        <Column weight={1} minWidth={0} gap={2}>
+          <Text size="md" fontWeight="semibold">
+            {GROUP_TITLE[group]} <Text size="md" color="secondary">{`(${String(total)})`}</Text>
           </Text>
-          <Text size="xs" role="secondary">{note}</Text>
-        </Col>
+          <Text size="xs" color="secondary">{note}</Text>
+        </Column>
         <PermissionControl label={`${GROUP_TITLE[group]} tools`} value={groupChoice(scope, all, group)} atLeast={groupFloor(scope, all, group)} disabled={disabled} onChange={(choice) => { onGroup(group, choice); }} />
       </Row>
       {shown.map(row)}
-    </Col>
+    </Column>
   );
 }
 
@@ -115,16 +116,15 @@ function stricterOf(scope: RuleScope, agents: NamedPolicy[] | undefined, tool: E
 }
 
 function Toolbar({ query, setQuery, filter, setFilter, counts }: { query: string; setQuery: (q: string) => void; filter: ToolFilter; setFilter: (f: ToolFilter) => void; counts: Record<ToolFilter, number> }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const narrow = useIsNarrow();
   return (
     <Row gap={narrow ? 12 : 16} align="center" wrap>
-      <Box style={StyleSheet.flatten([styles.search, { backgroundColor: palette.border }])}>
+      <Column style={StyleSheet.flatten([styles.search, { backgroundColor: palette.border }])}>
         <Icon name="search" size={ICON_SIZE.md} color={palette.sub} />
-        <Input dark={dark} value={query} placeholder={`Search ${String(counts.all)} ${counts.all === 1 ? 'tool' : 'tools'}`} onChangeText={setQuery} style={styles.field}
+        <TextField value={query} placeholder={`Search ${String(counts.all)} ${counts.all === 1 ? 'tool' : 'tools'}`} onChangeText={setQuery} style={styles.field}
           inputProps={{ ...SEARCH_INPUT_PROPS, accessibilityLabel: 'Search tools', autoCapitalize: 'none', autoCorrect: false }} />
-      </Box>
+      </Column>
       <Chips value={filter} counts={counts} onChange={setFilter} />
     </Row>
   );
@@ -149,10 +149,10 @@ function Notes({ refreshError, saveError, editable, total, shown, query }: Notes
   const empty = emptyText(total, shown, query);
   return (
     <>
-      {refreshError === null ? null : <Text size="xs" role="secondary">{`${queryError(refreshError, 'Could not refresh the tools.')} This is the last list.`}</Text>}
-      {saveError === null ? null : <Text size="xs" role="danger">{saveError}</Text>}
-      {editable ? null : <Text size="xs" role="secondary">Only an admin of the organization can change these rules.</Text>}
-      {empty === null ? null : <Text size="md" role="secondary">{empty}</Text>}
+      {refreshError === null ? null : <Text size="xs" color="secondary">{`${queryError(refreshError, 'Could not refresh the tools.')} This is the last list.`}</Text>}
+      {saveError === null ? null : <Text size="xs" color="danger">{saveError}</Text>}
+      {editable ? null : <Text size="xs" color="secondary">Only an admin of the organization can change these rules.</Text>}
+      {empty === null ? null : <Text size="md" color="secondary">{empty}</Text>}
     </>
   );
 }
@@ -181,7 +181,7 @@ function Explorer({ scope, editable, save, agents, list, refreshError }: Explore
     <Wide gap={24}>
       <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={filterCounts(all, shownScope)} />
       <Notes refreshError={refreshError} saveError={saving.error} editable={editable} total={all.length} shown={shown.length} query={query} />
-      <Col gap={28}>
+      <Column gap={28}>
         {TOOL_GROUPS.map((group) => {
           const members = shown.filter((tool) => tool.group === group);
           return members.length === 0 ? null : (
@@ -189,7 +189,7 @@ function Explorer({ scope, editable, save, agents, list, refreshError }: Explore
               onGroup={(target, choice) => { saving.apply(withGroupChoice(shownScope, all, target, choice)); }} row={row} />
           );
         })}
-      </Col>
+      </Column>
     </Wide>
   );
 }

@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { agentSeed, renameServer, type Server, serverLabel, setServerSlug } from '@metro-labs/client/api/servers';
 import { SLUG_RE } from '@metro-labs/client/auth/org-segment';
 import { currentServer } from '@metro-labs/client/auth/daemon';
@@ -25,25 +25,24 @@ const NAME_MAX = 40;
 
 function FieldSection({ label, note, children }: { label: string; note: string; children: ReactNode }): ReactNode {
   return (
-    <Col gap={8}>
-      <Text size="xs" role="secondary">
+    <Column gap={8}>
+      <Text size="xs" color="secondary">
         {label}
       </Text>
       {children}
-      <Text size="xs" role="secondary">
+      <Text size="xs" color="secondary">
         {note}
       </Text>
-    </Col>
+    </Column>
   );
 }
 
 function Picture({ server }: { server: Server }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const avatar = useAvatarPicker(server);
   const buttons = (
     <Row align="center" gap={8}>
-      {server.avatar === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
-      <Button size="md" color="secondary" dark={dark} label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
+      {server.avatar === null ? null : <Button size="md" color="secondary" label="Remove" disabled={avatar.busy} onPress={avatar.remove} />}
+      <Button size="md" color="secondary" label={avatar.busy ? 'Saving…' : 'Change'} loading={avatar.busy} disabled={avatar.busy} onPress={avatar.pick} />
     </Row>
   );
   return (

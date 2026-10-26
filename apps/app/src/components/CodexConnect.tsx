@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { FieldLabel } from './FieldLabel.js';
@@ -59,14 +58,13 @@ function useDevicePolling(login: DeviceLogin | null, settle: (error: string | nu
 }
 
 function ChatgptFlow({ color, id, onDone }: { color: Color; id: string; onDone: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { starting, started, link, error, start } = useSignInTab(() => beginOrgCodexLogin(id), (url) => url, START_FAILED);
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       <SignInLink link={link} label={SIGN_IN_LINK}>
-        <Button size="md" color={color} dark={dark} label="Continue with ChatGPT" loading={starting} disabled={starting} onPress={start} />
+        <Button size="md" color={color} label="Continue with ChatGPT" loading={starting} disabled={starting} onPress={start} />
       </SignInLink>
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {LEAVE_NOTE}
       </Text>
       {started === null ? null : (
@@ -79,49 +77,48 @@ function ChatgptFlow({ color, id, onDone }: { color: Color; id: string; onDone: 
           onDone={onDone}
         />
       )}
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
-    </Col>
+      {error !== null ? <Text size="md" color="danger">{error}</Text> : null}
+    </Column>
   );
 }
 
 function CodeFlow({ id, onDone }: { id: string; onDone: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { starting, started: login, link, error, start, settle } = useSignInTab(() => beginOrgCodexDevice(id), (started) => started.verifyUrl, START_FAILED);
   useDevicePolling(login, settle, onDone);
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       <SignInLink link={link} label={SIGN_IN_LINK}>
-        <Button size="md" color="secondary" dark={dark} label="Sign in with a code" loading={starting} disabled={starting || login !== null} onPress={start} />
+        <Button size="md" color="secondary" label="Sign in with a code" loading={starting} disabled={starting || login !== null} onPress={start} />
       </SignInLink>
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {CODE_NOTE}
       </Text>
       {login !== null ? (
-        <Col gap={4}>
+        <Column gap={4}>
           <Text size="md">Enter this code on the ChatGPT page that opened:</Text>
           <Text size="xs">{login.userCode}</Text>
-          <Text size="md" role="secondary">
+          <Text size="md" color="secondary">
             Waiting for ChatGPT to confirm. This page finishes on its own.
           </Text>
-        </Col>
+        </Column>
       ) : null}
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
-    </Col>
+      {error !== null ? <Text size="md" color="danger">{error}</Text> : null}
+    </Column>
   );
 }
 
 function SignInOptions({ color, id, onDone }: { color: Color; id: string; onDone: () => void }): ReactNode {
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       <ChatgptFlow color={color} id={id} onDone={onDone} />
       <CodeFlow id={id} onDone={onDone} />
-    </Col>
+    </Column>
   );
 }
 
 export function CodexConnect({ codex, onDone }: { codex: ConnectionRow | null; onDone: () => void }): ReactNode {
   return (
-    <Col gap={4}>
+    <Column gap={4}>
       <FieldLabel>ChatGPT account</FieldLabel>
       {codex !== null && !codex.signedOut ? (
         <SignedInAs connection={codex} how={codex.method === null ? '' : HOW[codex.method]}>
@@ -129,13 +126,13 @@ export function CodexConnect({ codex, onDone }: { codex: ConnectionRow | null; o
           <SignInOptions color="secondary" id={codex.id} onDone={onDone} />
         </SignedInAs>
       ) : (
-        <Col gap={10}>
-          <Text size="md" role={codex === null ? 'secondary' : 'danger'}>
+        <Column gap={10}>
+          <Text size="md" color={codex === null ? 'secondary' : 'danger'}>
             {codex === null ? PLAN_NOTE : SIGN_IN_AGAIN}
           </Text>
           <SignInOptions color="primary" id={codex?.id ?? ''} onDone={onDone} />
-        </Col>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }

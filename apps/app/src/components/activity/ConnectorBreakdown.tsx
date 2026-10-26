@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { isFilterable, type StatsConnector } from '@metro-labs/client/api/connector-stats';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';

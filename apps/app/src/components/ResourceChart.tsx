@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { G, Line, Path, Svg } from 'react-native-svg';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { nearest, restartLabel, segments, timeLabel, type Point, type ResourceRange, type Restart } from '@metro-labs/client/api/resources';
@@ -81,12 +82,12 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
     onPointerLeave: leave,
   };
   return (
-    <Col gap={6}>
-      <Row justify="between" align="center">
-        <Text size="md" weight="semibold">
+    <Column gap={6}>
+      <Row justify="spaceBetween" align="center">
+        <Text size="md" fontWeight="semibold">
           {title}
         </Text>
-        <Text size="md" role={danger && hover === undefined ? 'danger' : 'secondary'}>
+        <Text size="md" color={danger && hover === undefined ? 'danger' : 'secondary'}>
           {reading}
         </Text>
       </Row>
@@ -123,14 +124,14 @@ export function ResourceChart({ title, points, max, range, from, to, stepMs, res
           )}
         </Svg>
       </View>
-      <Row justify="between">
-        <Text size="md" role="secondary">
+      <Row justify="spaceBetween">
+        <Text size="md" color="secondary">
           {timeLabel(from, range)}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {timeLabel(to, range)}
         </Text>
       </Row>
-    </Col>
+    </Column>
   );
 }

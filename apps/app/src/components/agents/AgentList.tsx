@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { agentSeed, type Server } from '@metro-labs/client/api/servers';
@@ -69,7 +69,7 @@ function AgentRows({ servers, pane, selected }: { servers: Server[]; pane: boole
     if (row !== undefined) go({ kind: 'home', project: row.server.id });
   }, pane, order);
   const views = rows.map((row, at) => <AgentRowView key={row.server.id} row={row} pane={pane} selected={cursor === null ? at === start : at === cursor} />);
-  return pane ? <Col>{views}</Col> : <Rows>{views}</Rows>;
+  return pane ? <Column>{views}</Column> : <Rows>{views}</Rows>;
 }
 
 function Body({ pane, selected }: { pane: boolean; selected: string | null }): ReactNode {
@@ -77,15 +77,15 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
   if (isPending) return <RowsSkeleton rows={4} pane={pane} trailing={false} />;
   if (error !== null)
     return (
-      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+      <Column padding={pane ? { x: 12, top: 12 } : undefined}>
         <ErrorState title="Could not list your agents" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
-      </Col>
+      </Column>
     );
   if (data.length === 0)
     return pane ? (
-      <Col padding={{ x: 12, top: 12 }}>
-        <Text size="xs" role="secondary">No agents yet.</Text>
-      </Col>
+      <Column padding={{ x: 12, top: 12 }}>
+        <Text size="xs" color="secondary">No agents yet.</Text>
+      </Column>
     ) : (
       <NoAgents />
     );

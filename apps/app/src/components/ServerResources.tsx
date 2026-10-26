@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -14,7 +14,7 @@ const WARN = 90;
 
 function Note({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
-    <Text size="xs" role={danger ? 'danger' : 'secondary'}>
+    <Text size="xs" color={danger ? 'danger' : 'secondary'}>
       {text}
     </Text>
   );
@@ -30,7 +30,7 @@ function Charts({ usage, range }: { usage: UsageCharts; range: ResourceRange }):
   );
   const credits = usage.credits.points;
   return (
-    <Col gap={24}>
+    <Column gap={24}>
       <Note text={health.text} danger={health.danger} />
       {chart('CPU', usage.cpu, 100, percentLabel)}
       {credits.length === 0 ? null : chart('CPU credits', usage.credits, Math.max(1, ...credits.map((p) => p.value)), creditsLabel)}
@@ -38,7 +38,7 @@ function Charts({ usage, range }: { usage: UsageCharts; range: ResourceRange }):
       {chart('Disk', usage.disk, 100, percentLabel, nearlyFull(usage.disk))}
       {usage.restarts.length === 0 ? null : <Note text="Dashed lines are restarts: red for the server, grey for Metro. Point at one for the time." />}
       {usage.note === null ? null : <Note text={usage.note} />}
-    </Col>
+    </Column>
   );
 }
 

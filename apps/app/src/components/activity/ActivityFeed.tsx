@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { Server } from '@metro-labs/client/api/servers';
 import { currentOrganization } from '@metro-labs/client/auth/org-route';
 import { Icon } from '../Icon.js';
@@ -30,14 +30,13 @@ const NOTICE = StyleSheet.flatten([styles.notice, STICKY_NOTICE]);
 
 function NewCalls({ count }: { count: number }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   if (count === 0) return null;
   const label = count === 1 ? '1 new call' : `${String(count)} new calls`;
   return (
     <View style={NOTICE}>
       <View style={styles.floating}>
         <View>
-          <Button size="sm" color="primary" dark={dark} label={label} icon={<Icon name="arrowUp" size={ICON_SIZE.sm} color={palette.bg} />} onPress={scrollPageToTop} />
+          <Button size="sm" color="primary" label={label} icon={<Icon name="arrowUp" size={ICON_SIZE.sm} color={palette.bg} />} onPress={scrollPageToTop} />
         </View>
       </View>
     </View>
@@ -45,12 +44,11 @@ function NewCalls({ count }: { count: number }): ReactNode {
 }
 
 function Earlier({ earlier }: { earlier: ActivityFeedView['earlier'] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Col gap={8} align="start" margin={{ top: 16 }}>
-      <Button size="md" color="secondary" dark={dark} label="Show earlier" loading={earlier.busy} disabled={earlier.busy} onPress={earlier.load} />
-      {earlier.error === null ? null : <Text size="xs" role="danger">{earlier.error}</Text>}
-    </Col>
+    <Column gap={8} align="start" margin={{ top: 16 }}>
+      <Button size="md" color="secondary" label="Show earlier" loading={earlier.busy} disabled={earlier.busy} onPress={earlier.load} />
+      {earlier.error === null ? null : <Text size="xs" color="danger">{earlier.error}</Text>}
+    </Column>
   );
 }
 
@@ -61,19 +59,19 @@ function Calls({ feed, servers, fixed, empty }: { feed: ActivityFeedView; server
   const byId = new Map(servers.map((server) => [server.id, server]));
   if (feed.calls.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {empty}
       </Text>
     );
   return (
-    <Col>
+    <Column>
       <Rows>
         {feed.calls.map((call) => (
           <ActivityRow key={call.id} call={call} server={byId.get(call.agent)} now={now} technical={technical} fresh={fresh.has(call.id)} showAgent={!fixed} />
         ))}
       </Rows>
       {feed.complete ? null : <Earlier earlier={feed.earlier} />}
-    </Col>
+    </Column>
   );
 }
 
@@ -82,10 +80,10 @@ function Feed({ filter, servers, fixed }: { filter: CallFilter; servers: Server[
   if (feed.error !== null) return <ErrorState title="Could not read the activity" text={feed.error} onRetry={feed.retry} />;
   if (!feed.loaded) return <RowsSkeleton rows={5} />;
   return (
-    <Col>
+    <Column>
       <NewCalls count={feed.waiting} />
       <Calls feed={feed} servers={servers} fixed={fixed} empty={emptyCalls(filter.connector)} />
-    </Col>
+    </Column>
   );
 }
 

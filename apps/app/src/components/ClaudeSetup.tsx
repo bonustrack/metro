@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Switch } from '@stage-labs/kit/react-native/switch';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { setClaudePermissionMode, setClaudePrivacy, type ClaudeSetup as Setup } from '@metro-labs/client/api/claude-box';
 import { routeHash } from '@metro-labs/client/route';
 import { queryError, refresh, useClaudeSetupQuery } from '../lib/queries.js';
@@ -47,10 +46,9 @@ function missingOf(setup: Setup): string[] {
 }
 
 function Toggle({ title, note, on, flip, onChange }: { title: string; note: string; on: boolean; flip: Flip; onChange: (on: boolean) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Control title={title} note={note} error={flip.error} inline>
-      <Switch name={title} checked={on} disabled={flip.busy} dark={dark} onChange={onChange} />
+      <CheckBox displayStyle="switch" name={title} value={on} disabled={flip.busy} onChange={onChange} />
     </Control>
   );
 }

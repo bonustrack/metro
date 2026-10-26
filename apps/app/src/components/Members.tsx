@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
 import { AgentAvatar } from './AgentAvatar.js';
@@ -91,7 +91,6 @@ export function MembersGroups(): ReactNode {
 }
 
 function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('member');
@@ -115,27 +114,26 @@ function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
   const organization = activeAccount()?.organizationName ?? null;
   return (
     <Modal title="Invite someone" open onClose={onClose}>
-      <Col gap={20}>
+      <Column gap={20}>
         <ModalText>{organization === null ? 'They get an email with a link to join.' : `They get an email with a link to join ${organization}.`}</ModalText>
-        <FormField label="Email address" name="email" value={email} dark={dark} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} onSubmit={send} inputProps={NO_ASSIST} />
-        <Col gap={8}>
+        <FormField label="Email address" name="email" value={email} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} onSubmit={send} inputProps={NO_ASSIST} />
+        <Column gap={8}>
           <Choice<Role> label="Role" value={role} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} onChange={setRole} />
-          <Text size="xs" role="secondary">{ROLES_NOTE}</Text>
-        </Col>
-        {sent === null ? null : <Text size="md" role="success">{`An invitation went to ${sent}.`}</Text>}
+          <Text size="xs" color="secondary">{ROLES_NOTE}</Text>
+        </Column>
+        {sent === null ? null : <Text size="md" color="success">{`An invitation went to ${sent}.`}</Text>}
         <Actions error={error} cancel={{ label: sent === null ? 'Cancel' : 'Done', onPress: onClose, disabled: busy }} main={{ label: busy ? 'Sending…' : 'Send invite', busy, disabled: email.trim() === '', onPress: send }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }
 
 export function InviteButton({ compact = false }: { compact?: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="md" color="secondary" dark={dark} label={compact ? 'Invite' : 'Invite someone'} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
+      <Button size="md" color="secondary" label={compact ? 'Invite' : 'Invite someone'} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
       {open ? <InviteModal onClose={() => { setOpen(false); }} /> : null}
     </>
   );

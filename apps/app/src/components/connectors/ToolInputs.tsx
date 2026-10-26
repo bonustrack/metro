@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { side } from '../ui/edges.js';
@@ -14,11 +15,11 @@ const ABOUT = 4;
 
 function Required({ input }: { input: ToolInput }): ReactNode {
   return input.required ? (
-    <Text size="xs" weight="semibold">
+    <Text size="xs" fontWeight="semibold">
       Required
     </Text>
   ) : (
-    <Text size="xs" role="secondary">
+    <Text size="xs" color="secondary">
       Optional
     </Text>
   );
@@ -28,30 +29,30 @@ function WideRow({ input, header = false }: { input: ToolInput; header?: boolean
   const palette = useKitPalette();
   return (
     <Row align="start" gap={16} padding={{ y: 10 }} border={{ bottom: side(palette.border) }}>
-      <Col flex={NAME} minWidth={0}>
-        <Text size="xs" role={header ? 'secondary' : undefined} style={header ? undefined : MONO}>
+      <Column weight={NAME} minWidth={0}>
+        <Text size="xs" color={header ? 'secondary' : undefined} style={header ? undefined : MONO}>
           {input.name}
         </Text>
-      </Col>
-      <Col flex={TYPE} minWidth={0}>
-        <Text size="xs" role="secondary">
+      </Column>
+      <Column weight={TYPE} minWidth={0}>
+        <Text size="xs" color="secondary">
           {input.type}
         </Text>
-      </Col>
-      <Col flex={NEEDED} minWidth={0}>
+      </Column>
+      <Column weight={NEEDED} minWidth={0}>
         {header ? (
-          <Text size="xs" role="secondary">
+          <Text size="xs" color="secondary">
             Required
           </Text>
         ) : (
           <Required input={input} />
         )}
-      </Col>
-      <Col flex={ABOUT} minWidth={0}>
-        <Text size="xs" role={header ? 'secondary' : undefined}>
+      </Column>
+      <Column weight={ABOUT} minWidth={0}>
+        <Text size="xs" color={header ? 'secondary' : undefined}>
           {input.description}
         </Text>
-      </Col>
+      </Column>
     </Row>
   );
 }
@@ -59,18 +60,18 @@ function WideRow({ input, header = false }: { input: ToolInput; header?: boolean
 function NarrowRow({ input }: { input: ToolInput }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={4} padding={{ y: 10 }} border={{ bottom: side(palette.border) }}>
+    <Column gap={4} padding={{ y: 10 }} border={{ bottom: side(palette.border) }}>
       <Text size="sm" style={MONO}>
         {input.name}
       </Text>
       <Row gap={8} align="center">
-        <Text size="xs" role="secondary">
+        <Text size="xs" color="secondary">
           {input.type}
         </Text>
         <Required input={input} />
       </Row>
       {input.description === '' ? null : <Text size="xs">{input.description}</Text>}
-    </Col>
+    </Column>
   );
 }
 
@@ -81,20 +82,20 @@ export function ToolInputs({ schema }: { schema: Record<string, unknown> | null 
   if (schema === null) return null;
   const inputs = toolInputs(schema);
   return (
-    <Col gap={8}>
-      <Text size="xs" role="secondary">
+    <Column gap={8}>
+      <Text size="xs" color="secondary">
         Inputs
       </Text>
       {inputs.length === 0 ? (
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           It takes no inputs.
         </Text>
       ) : (
-        <Col>
+        <Column>
           {narrow ? null : <WideRow input={HEADER} header />}
           {inputs.map((input) => (narrow ? <NarrowRow key={input.name} input={input} /> : <WideRow key={input.name} input={input} />))}
-        </Col>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }

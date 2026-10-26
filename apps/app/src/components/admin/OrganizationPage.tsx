@@ -1,7 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
@@ -63,13 +62,12 @@ function PeopleGroup({ row }: { row: AdminOrganization }): ReactNode {
 
 function OrganizationBody({ row, agents }: { row: AdminOrganization; agents: AdminAgent[] }): ReactNode {
   const now = useNow(60_000);
-  const dark = useKitScheme() === 'dark';
   const technical = useTechnicalDetails();
   const created = row.createdAt === null ? '' : ` · created ${agoWords(row.createdAt, now).toLowerCase()}`;
   return (
     <Groups>
       <PageHeader title={row.name} subtitle={`${addressOf(row)}${created}`} crumbs={detailCrumbs(ORGANIZATIONS_CRUMB, row.name)} leading={<OrganizationMark name={row.name} avatar={row.avatar} size={AVATAR_SIZE.header} />}
-        action={row.member ? <Button color="secondary" dark={dark} label={`Switch to ${row.name}`} onPress={() => { goHash(homeOf(row)); }} /> : undefined} />
+        action={row.member ? <Button color="secondary" label={`Switch to ${row.name}`} onPress={() => { goHash(homeOf(row)); }} /> : undefined} />
       <Group label="Overview" note={technical ? `Organization id ${row.id}` : undefined}>
         <Item title="Agents" value={row.online === null ? agentsWords(row) : `${agentsWords(row)}, ${String(row.online)} online`} />
         <Item title="You" value={roleWord(row)} />
@@ -90,7 +88,7 @@ export function OrganizationPage({ id }: { id: string }): ReactNode {
     <Groups>
       <PageHeader title="Organization" crumbs={detailCrumbs(ORGANIZATIONS_CRUMB, 'Organization')} />
       {error !== null ? <ErrorState title="Could not read this organization" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /> : null}
-      {error === null && rows === undefined ? <Col><RowsSkeleton rows={3} /></Col> : null}
+      {error === null && rows === undefined ? <Column><RowsSkeleton rows={3} /></Column> : null}
       {rows === undefined ? null : <StateBlock icon="officeBuilding" title="No organization with this id" text="It may have been deleted, or the link is wrong." />}
     </Groups>
   );

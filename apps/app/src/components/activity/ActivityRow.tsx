@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
@@ -49,7 +50,7 @@ function Outcome({ outcome }: { outcome: string }): ReactNode {
   return (
     <Row align="center" gap={6}>
       {dot === null ? null : <View style={dot} />}
-      <Text size="xs" role={words.dot === 'danger' ? 'danger' : 'default'} numberOfLines={1}>
+      <Text size="xs" color={words.dot === 'danger' ? 'danger' : undefined} numberOfLines={1}>
         {words.word}
       </Text>
     </Row>
@@ -60,7 +61,7 @@ const connectorOf = (call: ActivityCall): string => call.connectorName ?? (call.
 
 function RawName({ call }: { call: ActivityCall }): ReactNode {
   return (
-    <Text size="xs" role="secondary" numberOfLines={1} style={MONO}>
+    <Text size="xs" color="secondary" numberOfLines={1} style={MONO}>
       {call.connectorKey === '' ? call.tool : `${call.connectorKey}.${call.tool}`}
     </Text>
   );
@@ -69,15 +70,15 @@ function RawName({ call }: { call: ActivityCall }): ReactNode {
 function What({ call, technical }: { call: ActivityCall; technical: boolean }): ReactNode {
   const connector = connectorOf(call);
   return (
-    <Col gap={2} minWidth={0}>
+    <Column gap={2} minWidth={0}>
       <Row align="center" gap={6} minWidth={0}>
         <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.sm} />
-        <Text size="xs" role="secondary" numberOfLines={1} style={SHRINK}>
+        <Text size="xs" color="secondary" numberOfLines={1} style={SHRINK}>
           {`${connector} · ${toolLabel(call.tool)}`}
         </Text>
       </Row>
       {technical ? <RawName call={call} /> : null}
-    </Col>
+    </Column>
   );
 }
 
@@ -85,12 +86,12 @@ function AgentLines({ call, server, name, technical }: { call: ActivityCall; ser
   return (
     <>
       <AgentAvatar seed={server?.host ?? call.agent} src={server?.avatar ?? null} size={AVATAR_SIZE.list} />
-      <Col flex={1} minWidth={0} gap={2}>
+      <Column weight={1} minWidth={0} gap={2}>
         <Text size="md" numberOfLines={1}>
           {name}
         </Text>
         <What call={call} technical={technical} />
-      </Col>
+      </Column>
     </>
   );
 }
@@ -100,12 +101,12 @@ function ConnectorLines({ call, technical }: { call: ActivityCall; technical: bo
   return (
     <>
       <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.lg} />
-      <Col flex={1} minWidth={0} gap={2}>
+      <Column weight={1} minWidth={0} gap={2}>
         <Text size="md" numberOfLines={1}>
           {`${connector} · ${toolLabel(call.tool)}`}
         </Text>
         {technical ? <RawName call={call} /> : null}
-      </Col>
+      </Column>
     </>
   );
 }
@@ -122,7 +123,7 @@ export function ActivityRow({ call, server, now, technical, fresh, showAgent = t
       {showAgent ? <AgentLines call={call} server={server} name={name} technical={technical} /> : <ConnectorLines call={call} technical={technical} />}
       <View style={styles.end}>
         <Outcome outcome={call.outcome} />
-        <Text size="xs" role="secondary" numberOfLines={1}>
+        <Text size="xs" color="secondary" numberOfLines={1}>
           {`${durationWords(call.ms)} · ${when}`}
         </Text>
       </View>

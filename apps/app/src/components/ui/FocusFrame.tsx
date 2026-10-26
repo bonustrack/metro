@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Pressable } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,7 +39,7 @@ function StepMark({ n, state }: { n: number; state: MarkState }): ReactNode {
   if (state === 'done') return <Icon name="check" size={ICON_SIZE.md} color={palette.text} />;
   return (
     <Row width={MARK} height={MARK} radius={MARK / 2} align="center" justify="center" border={state === 'current' ? allSides(palette.link, 2) : undefined}>
-      <Text size="xs" weight="semibold" color={state === 'current' ? palette.link : palette.sub}>
+      <Text size="xs" fontWeight="semibold" color={state === 'current' ? palette.link : palette.sub}>
         {String(n)}
       </Text>
     </Row>
@@ -47,7 +48,7 @@ function StepMark({ n, state }: { n: number; state: MarkState }): ReactNode {
 
 function StepLine({ steps, at }: { steps: readonly FocusStep[]; at: number }): ReactNode {
   return (
-    <Text size="xs" role="secondary">
+    <Text size="xs" color="secondary">
       {`Step ${String(at + 1)} of ${String(steps.length)} · ${steps[at]?.label ?? ''}`}
     </Text>
   );
@@ -65,7 +66,7 @@ function Stepper({ steps, step, onStep }: { steps: readonly FocusStep[]; step: s
         const body = (
           <Row align="center" gap={10}>
             <StepMark n={i + 1} state={state} />
-            <Text size="md" role={state === 'current' ? 'default' : 'secondary'} color={state === 'current' ? palette.link : undefined}>
+            <Text size="md" color={state === 'current' ? undefined : 'secondary'}>
               {s.label}
             </Text>
           </Row>
@@ -92,9 +93,9 @@ export function FocusFrame({ title, onClose, steps, step, onStep, children }: Fo
   const insets = useSafeAreaInsets();
   useDocumentTitle(title);
   const top = (
-    <Row align="center" gap={12} flex={1} minWidth={0}>
+    <Row align="center" gap={12} weight={1} minWidth={0}>
       <RoundButton label="Close" icon="close" onPress={onClose} />
-      <Text size="md" weight="semibold" numberOfLines={1}>
+      <Text size="md" fontWeight="semibold" numberOfLines={1}>
         {title}
       </Text>
     </Row>
@@ -102,38 +103,38 @@ export function FocusFrame({ title, onClose, steps, step, onStep, children }: Fo
   const stepper = steps === undefined || steps.length < 2 ? null : <Stepper steps={steps} step={step} onStep={onStep} />;
   return (
     <PageScroll>
-      <Col padding={{ x: narrow ? 20 : 24, top: insets.top + 16, bottom: 64 }} gap={narrow ? 20 : 0}>
+      <Column padding={{ x: narrow ? 20 : 24, top: insets.top + 16, bottom: 64 }} gap={narrow ? 20 : 0}>
         {narrow ? (
-          <Col gap={16}>
+          <Column gap={16}>
             {top}
             {stepper}
-          </Col>
+          </Column>
         ) : (
-          <Row align="center" justify="between" gap={16}>
+          <Row align="center" justify="spaceBetween" gap={16}>
             {top}
             {stepper}
-            <Row flex={1} minHeight={ROUND_BUTTON_SIZE} />
+            <Row weight={1} minHeight={ROUND_BUTTON_SIZE} />
           </Row>
         )}
-        <Col width="100%" maxWidth={BODY_WIDTH} padding={{ top: narrow ? 12 : 96 }} gap={32} style={CENTERED}>
+        <Column width="100%" maxWidth={BODY_WIDTH} padding={{ top: narrow ? 12 : 96 }} gap={32} style={CENTERED}>
           {children}
-        </Col>
-      </Col>
+        </Column>
+      </Column>
     </PageScroll>
   );
 }
 
 export function FocusIntro({ title, text }: { title: string; text?: string }): ReactNode {
   return (
-    <Col gap={8}>
-      <Text accessibilityRole="header" size="2xl" weight="semibold">
+    <Column gap={8}>
+      <Text accessibilityRole="header" size="2xl" fontWeight="semibold">
         {title}
       </Text>
       {text === undefined ? null : (
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {text}
         </Text>
       )}
-    </Col>
+    </Column>
   );
 }

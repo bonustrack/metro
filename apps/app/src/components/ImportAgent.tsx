@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Switch } from '@stage-labs/kit/react-native/switch';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { countOf, openMetroFile, parseMetroFile, SECTION_LABELS, sectionsIn, type Payload, type Section } from '@metro-labs/client/export/pack';
 import { applyPayload, type Applied, type Mode } from '@metro-labs/client/export/transfer';
@@ -41,22 +40,21 @@ interface OptionsProps {
 }
 
 function Options({ payload, picked, mode, busy, onToggle, onMode }: OptionsProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const from = payload.agent.name === '' ? 'an agent' : payload.agent.name;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <Group label={`From ${from}`}>
         {sectionsIn(payload).map((section) => (
-          <Item key={section} title={SECTION_LABELS[section]} value={String(countOf(payload, section))} trailing={<Switch name={`Import ${SECTION_LABELS[section]}`} checked={picked.has(section)} dark={dark} disabled={busy} onChange={() => { onToggle(section); }} />} />
+          <Item key={section} title={SECTION_LABELS[section]} value={String(countOf(payload, section))} trailing={<CheckBox displayStyle="switch" name={`Import ${SECTION_LABELS[section]}`} value={picked.has(section)} disabled={busy} onChange={() => { onToggle(section); }} />} />
         ))}
       </Group>
-      <Col gap={8}>
+      <Column gap={8}>
         <Choice<Mode> label="How to import" value={mode} disabled={busy} options={[{ value: 'append', label: 'Append' }, { value: 'overwrite', label: 'Overwrite' }]} onChange={onMode} />
-        <Text size="xs" role={mode === 'overwrite' ? 'danger' : 'secondary'}>
+        <Text size="xs" color={mode === 'overwrite' ? 'danger' : 'secondary'}>
           {mode === 'overwrite' ? OVERWRITE : APPEND}
         </Text>
-      </Col>
-    </Col>
+      </Column>
+    </Column>
   );
 }
 
@@ -164,25 +162,23 @@ function useImport(agent: Portable): ImportState {
 }
 
 function Unlock({ busy, onOpen, onReset }: { busy: boolean; onOpen: (passphrase: string) => void; onReset: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [passphrase, setPassphrase] = useState('');
   const open = (): void => {
     if (passphrase !== '') onOpen(passphrase);
   };
   return (
-    <Col gap={16}>
-      <FormField label="Passphrase" name="import-passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} onSubmit={open} inputProps={SECRET} />
+    <Column gap={16}>
+      <FormField label="Passphrase" name="import-passphrase" variant="obscured" value={passphrase} placeholder="Passphrase of this file" disabled={busy} onChangeText={setPassphrase} onSubmit={open} inputProps={SECRET} />
       <Actions cancel={{ label: 'Choose another file', onPress: onReset, disabled: busy }} main={{ label: busy ? 'Opening…' : 'Open', busy, disabled: passphrase === '', onPress: open }} />
-    </Col>
+    </Column>
   );
 }
 
 function Chooser({ busy, onPick, onError }: { busy: boolean; onPick: (text: string | null) => void; onError: (err: unknown) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Col align="start">
-      <Button size="md" color="secondary" dark={dark} disabled={busy} label={busy ? 'Opening…' : 'Choose a .metro file'} onPress={() => { pickText('.metro,application/octet-stream').then(onPick, onError); }} />
-    </Col>
+    <Column align="start">
+      <Button size="md" color="secondary" disabled={busy} label={busy ? 'Opening…' : 'Choose a .metro file'} onPress={() => { pickText('.metro,application/octet-stream').then(onPick, onError); }} />
+    </Column>
   );
 }
 
@@ -208,8 +204,8 @@ export function ImportSection({ agent }: { agent: Portable }): ReactNode {
         {null}
       </Group>
       <Steps state={state} />
-      {state.done === null ? null : <Text size="md" role="success">{`Imported ${landed(state.done)}.`}</Text>}
-      {state.error === null ? null : <Text size="xs" role="danger">{state.error}</Text>}
+      {state.done === null ? null : <Text size="md" color="success">{`Imported ${landed(state.done)}.`}</Text>}
+      {state.error === null ? null : <Text size="xs" color="danger">{state.error}</Text>}
       {state.done === null ? null : <Actions cancel={{ label: 'Import another file', onPress: state.reset }} />}
     </Readable>
   );

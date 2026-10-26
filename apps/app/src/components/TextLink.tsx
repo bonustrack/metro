@@ -20,7 +20,7 @@ export function TextLink({ children, size = 'md', to, url, onPress }: TextLinkPr
   if (to !== undefined)
     return (
       <Link href={pathOfHash(to)} push>
-        <Text size={size} role="link" style={UNDERLINE}>
+        <Text size={size} color="link" style={UNDERLINE}>
           {children}
         </Text>
       </Link>
@@ -28,7 +28,7 @@ export function TextLink({ children, size = 'md', to, url, onPress }: TextLinkPr
   return (
     <Text
       size={size}
-      role="link"
+      color="link"
       style={UNDERLINE}
       accessibilityRole="link"
       onPress={() => {

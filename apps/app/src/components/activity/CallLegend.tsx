@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { ConnectorStats } from '@metro-labs/client/api/connector-stats';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
@@ -24,7 +25,7 @@ export function CallLegend({ series }: { series: StackSeries[] }): ReactNode {
         <Row key={one.key} gap={6} align="center">
           <Swatch color={one.color} />
           {one.url === null ? null : <ConnectorFavicon name={one.label} url={one.url} size={ICON_SIZE.sm} />}
-          <Text size="xs" role="secondary" numberOfLines={1}>
+          <Text size="xs" color="secondary" numberOfLines={1}>
             {one.label}
           </Text>
         </Row>
@@ -37,9 +38,9 @@ export function CallTable({ stats }: { stats: ConnectorStats }): ReactNode {
   const [open, setOpen] = useState(false);
   const rows = stats.buckets.filter((bucket) => bucket.total > 0).reverse();
   return (
-    <Col gap={8} align="start">
+    <Column gap={8} align="start">
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setOpen((shown) => !shown); }}>
-        <Text size="xs" role="secondary">
+        <Text size="xs" color="secondary">
           {open ? 'Hide the table' : 'Show as a table'}
         </Text>
       </Pressable>
@@ -50,6 +51,6 @@ export function CallTable({ stats }: { stats: ConnectorStats }): ReactNode {
             </Text>
           ))
         : null}
-    </Col>
+    </Column>
   );
 }

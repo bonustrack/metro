@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -79,19 +79,19 @@ function RailAccount({ onLock }: { onLock: () => void }): ReactNode {
 export function Rail({ section, admin = false, onLock }: { section: ShellSectionId | null; admin?: boolean; onLock: () => void }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col width={RAIL_WIDTH} align="center" gap={6} padding={{ y: 20 }} border={{ right: side(palette.border) }} style={STICKY}>
-      <Col margin={{ bottom: 18 }}>
+    <Column width={RAIL_WIDTH} align="center" gap={6} padding={{ y: 20 }} border={{ right: side(palette.border) }} style={STICKY}>
+      <Column margin={{ bottom: 18 }}>
         <RailOrgSwitch />
-      </Col>
+      </Column>
       {SHELL_SECTIONS.map((s) => (
         <RailLink key={s.id} to={routeHash(s.target)} label={s.label} icon={SECTION_ICONS[s.id]} active={s.id === section} />
       ))}
-      <Col flex={1} />
+      <Column weight={1} />
       <RailAdmin active={admin} />
       <RailJump />
-      <Col margin={{ top: 10 }}>
+      <Column margin={{ top: 10 }}>
         <RailAccount onLock={onLock} />
-      </Col>
-    </Col>
+      </Column>
+    </Column>
   );
 }

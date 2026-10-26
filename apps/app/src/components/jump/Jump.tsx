@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, type NativeSyntheticEvent, type TextInputKeyPressEventData } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Dialog } from '@stage-labs/kit/react-native/dialog';
-import { Input, SEARCH_INPUT_PROPS } from '@stage-labs/kit/react-native/input';
-import { MODAL } from '@stage-labs/kit/react-native/modal';
+import { Platform, StyleSheet, type NativeSyntheticEvent, type TextInputKeyPressEventData } from 'react-native';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { SEARCH_INPUT_PROPS, TextField } from '@stage-labs/kit/react-native/text-field';
+import { List } from '@stage-labs/kit/react-native/list';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { restartDaemon } from '@metro-labs/client/api/control';
 import { updateAgentIn } from '@metro-labs/client/api/update';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -13,6 +13,7 @@ import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import type { Selection } from '@metro-labs/client/selection';
 import { Icon } from '../Icon.js';
+import { Modal } from '../Modal.js';
 import { JumpList, Kbd } from './JumpList.js';
 import { useJumpEntries, type JumpAction, type JumpItem } from './jump-entries.js';
 import { isJumpKey, moveCursor, rankJump } from '../../lib/jump.js';
@@ -24,12 +25,12 @@ import { go } from '../../lib/nav.js';
 import { GROW } from '../../lib/style.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 
-const PALETTE_WIDTH = 640;
-const PALETTE_HEIGHT = '80%';
-const SHEET_HEIGHT = '92%';
-const RESULTS_PAD = { x: 8, top: 8, bottom: 8 };
+const RESULTS_MAX = 420;
 
-const styles = StyleSheet.create({ field: { flexGrow: 1, minWidth: 0, borderWidth: 0, backgroundColor: 'transparent' } });
+const styles = StyleSheet.create({
+  field: { flexGrow: 1, minWidth: 0, borderWidth: 0, backgroundColor: 'transparent' },
+  results: { maxHeight: RESULTS_MAX },
+});
 
 async function runAction(action: JumpAction): Promise<Selection | null> {
   if (action.kind === 'go') return action.target;
@@ -91,7 +92,6 @@ interface FieldProps {
 
 function SearchField({ query, sheet, onQuery, onMove, onEnter }: FieldProps): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const onKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>): void => {
     const key = event.nativeEvent.key;
     if (key === 'ArrowDown' || key === 'ArrowUp') {
@@ -100,16 +100,11 @@ function SearchField({ query, sheet, onQuery, onMove, onEnter }: FieldProps): Re
     } else if (key === 'Escape') closeJump();
   };
   return (
-    <Row align="center" gap={12} padding={sheet ? { x: 16, y: 6 } : { x: 20, y: 12 }} radius={sheet ? 12 : 0} background={sheet ? palette.bg : undefined}
-      border={sheet ? undefined : { bottom: { width: 1, color: palette.border } }} margin={sheet ? { x: 12, bottom: 8 } : undefined}>
+    <Row align="center" gap={12} padding={{ x: 16, y: 6 }} radius={12} background={palette.bg} margin={{ bottom: 8 }}>
       <Icon name="search" size={ICON_SIZE.md} color={palette.text} />
-      <Input name="jump" value={query} placeholder="Jump to an agent, a page or an action" autoFocus dark={dark} size="lg" onChangeText={onQuery} onSubmit={onEnter} style={styles.field}
+      <TextField name="jump" value={query} placeholder="Jump to an agent, a page or an action" autoFocus size="lg" onChangeText={onQuery} onSubmit={onEnter} style={styles.field}
         inputProps={{ ...SEARCH_INPUT_PROPS, onKeyPress, autoCapitalize: 'none', autoCorrect: false, returnKeyType: 'go' }} />
-      {sheet ? (
-        <Pressable accessibilityRole="button" onPress={closeJump}>
-          <Text size="md" role="secondary">Cancel</Text>
-        </Pressable>
-      ) : <Kbd label="esc" />}
+      {sheet ? null : <Kbd label="esc" />}
     </Row>
   );
 }
@@ -118,16 +113,15 @@ function Hints(): ReactNode {
   const palette = useKitPalette();
   return (
     <Row align="center" gap={18} padding={{ x: 20, y: 12 }} border={{ top: { width: 1, color: palette.border } }}>
-      <Row align="center" gap={6}><Kbd label="↑" /><Kbd label="↓" /><Text size="xs" role="secondary">Move</Text></Row>
-      <Row align="center" gap={6}><Kbd label="↵" /><Text size="xs" role="secondary">Open</Text></Row>
-      <Col style={GROW} />
-      <Row align="center" gap={6}><Kbd label="J" /><Kbd label="K" /><Text size="xs" role="secondary">in lists</Text></Row>
+      <Row align="center" gap={6}><Kbd label="↑" /><Kbd label="↓" /><Text size="xs" color="secondary">Move</Text></Row>
+      <Row align="center" gap={6}><Kbd label="↵" /><Text size="xs" color="secondary">Open</Text></Row>
+      <Column style={GROW} />
+      <Row align="center" gap={6}><Kbd label="J" /><Kbd label="K" /><Text size="xs" color="secondary">in lists</Text></Row>
     </Row>
   );
 }
 
 function JumpPanel(): ReactNode {
-  const palette = useKitPalette();
   const sheet = useIsNarrow();
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -138,19 +132,14 @@ function JumpPanel(): ReactNode {
     setQuery(next);
     setCursor(0);
   };
-  const header = (
-    <Col>
-      <SearchField query={query} sheet={sheet} onQuery={change} onMove={(by) => { setCursor((at) => moveCursor(at, by, items.length)); }} onEnter={() => { pick(items[cursor]); }} />
-      {error === null ? null : <Col padding={{ x: 20, top: 8 }}><Text size="md" role="danger">{error}</Text></Col>}
-    </Col>
-  );
   return (
-    <Dialog open onClose={closeJump} side={sheet ? 'bottom' : 'center'} header={header} footer={sheet ? undefined : <Hints />} animationType="none" gestureRoot
-      backdropColor={MODAL.backdrop} panelBackground={palette.inputBg} panelBorderColor={palette.border} panelBorderSides={sheet ? 'top' : 'all'} panelRadius={sheet ? 20 : 16}
-      panelWidth="100%" panelMaxWidth={sheet ? undefined : PALETTE_WIDTH} panelMaxHeight={sheet ? SHEET_HEIGHT : PALETTE_HEIGHT} panelPadding={sheet ? { top: 10 } : undefined}
-      handle={sheet} handleColor={palette.border} safeAreaBottom={sheet} scroll keyboardPersistTaps scrollPadding={RESULTS_PAD}>
-      <JumpList items={items} cursor={cursor} running={running} hints={!sheet} onCursor={setCursor} onPick={pick} />
-    </Dialog>
+    <Modal open onClose={closeJump} side={sheet ? 'bottom' : 'center'} title="Jump to" footer={sheet ? undefined : <Hints />}>
+      <SearchField query={query} sheet={sheet} onQuery={change} onMove={(by) => { setCursor((at) => moveCursor(at, by, items.length)); }} onEnter={() => { pick(items[cursor]); }} />
+      {error === null ? null : <Column padding={{ bottom: 8 }}><Text size="md" color="danger">{error}</Text></Column>}
+      <List style={styles.results} keyboardShouldPersistTaps="handled">
+        <JumpList items={items} cursor={cursor} running={running} hints={!sheet} onCursor={setCursor} onPick={pick} />
+      </List>
+    </Modal>
   );
 }
 

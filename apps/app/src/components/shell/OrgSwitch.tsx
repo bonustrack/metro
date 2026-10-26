@@ -38,7 +38,7 @@ export function TitleOrgSwitch(): ReactNode {
     <>
       <Dropdown items={menu.items} label="Switch organization" align="start" style={styles.title}>
         <OrgMark name={menu.name} src={menu.avatar} size={TITLE_MARK} />
-        <Text size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+        <Text size="md" fontWeight="semibold" numberOfLines={1} style={SHRINK}>
           {menu.name}
         </Text>
         <Icon name="chevronDown" size={CHEVRON} color={palette.sub} />

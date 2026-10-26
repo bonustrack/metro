@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { assignOrgConnector, setOrgConnectorAgentPolicy, unassignOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import type { ToolPolicy } from '@metro-labs/client/api/policy';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
@@ -48,11 +47,10 @@ function useReset(connector: OrgConnector, agentId: string): Reset {
 }
 
 export function ResetRules({ connector, agentId }: { connector: OrgConnector; agentId: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const narrow = useIsNarrow();
   const reset = useReset(connector, agentId);
   if (!reset.shown || narrow) return null;
-  return <Button color="secondary" dark={dark} label="Reset to the organization" loading={reset.busy} disabled={reset.busy || reset.empty} onPress={reset.reset} />;
+  return <Button color="secondary" label="Reset to the organization" loading={reset.busy} disabled={reset.busy || reset.empty} onPress={reset.reset} />;
 }
 
 function ResetRow({ connector, agentId, name }: { connector: OrgConnector; agentId: string; name: string }): ReactNode {

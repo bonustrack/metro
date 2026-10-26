@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -39,7 +39,6 @@ function parseError(text: string): string | null {
 }
 
 function FilePicker({ files, chosen, onPick }: { files: ClaudeSettingsFile[]; chosen: string; onPick: (id: string) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   if (files.length < 2) return null;
   return (
     <Row gap={8} wrap>
@@ -47,7 +46,6 @@ function FilePicker({ files, chosen, onPick }: { files: ClaudeSettingsFile[]; ch
         <Button
           key={file.id}
           size="md"
-          dark={dark}
           color={file.id === chosen ? 'primary' : 'secondary'}
           label={file.scope === 'user' ? 'This machine' : `${file.label.split('/').pop() ?? file.label}${file.scope === 'local' ? ' (local)' : ''}`}
           onPress={() => {
@@ -62,17 +60,17 @@ function FilePicker({ files, chosen, onPick }: { files: ClaudeSettingsFile[]; ch
 function FileNote({ file }: { file: ClaudeSettingsFile }): ReactNode {
   const technical = useTechnicalDetails();
   return (
-    <Col gap={2}>
+    <Column gap={2}>
       <FieldLabel>{scopeLabel(file)}</FieldLabel>
       {technical ? (
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {file.path}
         </Text>
       ) : null}
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {file.modifiedAt === null ? 'No file yet. Saving writes one.' : `Last changed ${whenLabel(file.modifiedAt)}.`}
       </Text>
-    </Col>
+    </Column>
   );
 }
 
@@ -95,19 +93,18 @@ interface ActionsProps {
 }
 
 function Actions({ busy, ready, changed, note, error, onSave, onFormat, onRevert }: ActionsProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row gap={12} align="center" wrap>
-      <Button size="lg" dark={dark} label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready || !changed} onPress={onSave} />
-      <Button size="md" color="secondary" dark={dark} label="Format" disabled={busy || !ready} onPress={onFormat} />
-      <Button size="md" color="secondary" dark={dark} label="Revert" disabled={busy || !changed} onPress={onRevert} />
+      <Button variant="primary" size="lg" label={busy ? 'Saving…' : 'Save'} loading={busy} disabled={busy || !ready || !changed} onPress={onSave} />
+      <Button size="md" color="secondary" label="Format" disabled={busy || !ready} onPress={onFormat} />
+      <Button size="md" color="secondary" label="Revert" disabled={busy || !changed} onPress={onRevert} />
       {note === null ? null : (
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {note}
         </Text>
       )}
       {error === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="md" color="danger">
           {error}
         </Text>
       )}
@@ -116,7 +113,6 @@ function Actions({ busy, ready, changed, note, error, onSave, onFormat, onRevert
 }
 
 function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -141,18 +137,17 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
       });
   };
   return (
-    <Col gap={12}>
+    <Column gap={12}>
       <FormField label="Settings JSON"
         name="claude-settings"
         value={shown}
-        dark={dark}
         disabled={busy || !file.editable}
         onChangeText={onEdit}
         style={[GROW, EDITOR]}
         inputProps={{ multiline: true, autoCapitalize: 'none', autoCorrect: false, spellCheck: false }}
       />
       {broken === null ? null : (
-        <Text size="md" role="danger">
+        <Text size="md" color="danger">
           {broken}
         </Text>
       )}
@@ -171,7 +166,7 @@ function Editor({ file, draft, onEdit, onSaved }: EditorProps): ReactNode {
           setNote(null);
         }}
       />
-    </Col>
+    </Column>
   );
 }
 
@@ -192,7 +187,7 @@ function FileEditor({ files }: { files: ClaudeSettingsFile[] }): ReactNode {
       />
       <FileNote file={file} />
       {file.editable ? null : (
-        <Text size="xs" role="secondary">
+        <Text size="xs" color="secondary">
           This file is too large to edit here.
         </Text>
       )}

@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Dot, type DotColor } from './Marks.js';
@@ -20,17 +21,17 @@ export interface Stat {
 function StatBlock({ stat, first, pad }: { stat: Stat; first: boolean; pad: number }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={4} padding={{ left: first ? 0 : pad, right: pad }} border={first ? undefined : { left: side(palette.border) }}>
-      <Text size="2xl" weight="semibold">
+    <Column gap={4} padding={{ left: first ? 0 : pad, right: pad }} border={first ? undefined : { left: side(palette.border) }}>
+      <Text size="2xl" fontWeight="semibold">
         {stat.value === null ? '…' : String(stat.value)}
       </Text>
       <Row align="center" gap={8}>
         {stat.dot === undefined ? null : <Dot color={stat.dot} />}
-        <Text size="xs" role="secondary" numberOfLines={2} style={SHRINK}>
+        <Text size="xs" color="secondary" numberOfLines={2} style={SHRINK}>
           {stat.label}
         </Text>
       </Row>
-    </Col>
+    </Column>
   );
 }
 
@@ -49,19 +50,19 @@ export function Stats({ stats }: { stats: Stat[] }): ReactNode {
       </Row>
     );
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       {chunks(stats, PHONE_PER_ROW).map((line) => (
         <Row key={line.map((stat) => stat.label).join()} align="start">
           {line.map((stat, at) => (
-            <Col key={stat.label} flex={1} minWidth={0}>
+            <Column key={stat.label} weight={1} minWidth={0}>
               <StatBlock stat={stat} first={at === 0} pad={PHONE_PAD} />
-            </Col>
+            </Column>
           ))}
           {Array.from({ length: PHONE_PER_ROW - line.length }, (_, at) => (
-            <Col key={`gap-${String(at)}`} flex={1} />
+            <Column key={`gap-${String(at)}`} weight={1} />
           ))}
         </Row>
       ))}
-    </Col>
+    </Column>
   );
 }

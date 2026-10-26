@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { ModelSettings, ProviderInfo } from '@metro-labs/client/api/model';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { modelOrder } from '@metro-labs/client/api/model-order';
@@ -45,7 +44,7 @@ function useEditing(org: OrgModels, agent: string): Editing {
   const scope: RouteScope = {
     route: org.agents[agent] ?? org.default,
     connections: org.connections,
-    empty: <Text size="md" role="secondary">{NO_CONNECTION}</Text>,
+    empty: <Text size="md" color="secondary">{NO_CONNECTION}</Text>,
     save: async (route: ModelRoute) => {
       await setModelRoute(agent, route);
       await afterModelChange(client);
@@ -99,12 +98,11 @@ function ReadOnlyModels({ settings, org, orgError, name }: { settings: ModelSett
 }
 
 function LinkRow({ words }: { words: LinkWords }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const retry = useRetryLink();
   if (words.error === null) return <NoteRow text={words.line} danger={words.danger} />;
   return (
     <Control title="This agent could not link to the organization" note={words.error} noteTone="danger">
-      <Button size="sm" color="secondary" dark={dark} label="Try again" onPress={retry} />
+      <Button size="sm" color="secondary" label="Try again" onPress={retry} />
     </Control>
   );
 }

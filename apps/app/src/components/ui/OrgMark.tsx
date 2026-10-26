@@ -1,9 +1,9 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { AvatarView } from '@stage-labs/kit/react-native/avatar-view';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text, type TextSizeToken } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { AvatarImage } from './AvatarImage.js';
 import { AVATAR_SIZE } from './sizes.js';
 
 const ROUNDING = 0.28;
@@ -22,7 +22,7 @@ export function OrgPicture({ src, size }: { src: string; size: number }): ReactN
   const frame = StyleSheet.flatten([styles.clip, { width: size, height: size, borderRadius: markRadius(size) }]);
   return (
     <View style={frame}>
-      <AvatarView src={src} size={size} square alt="" />
+      <AvatarImage src={src} size={size} square />
     </View>
   );
 }
@@ -32,7 +32,7 @@ export function OrgMark({ name, src, size }: { name: string; src: string | null 
   if (typeof src === 'string') return <OrgPicture src={src} size={size} />;
   return (
     <Row width={size} height={size} radius={markRadius(size)} background={palette.link} align="center" justify="center">
-      <Text size={letterSize(size)} weight="semibold" color={palette.bg}>
+      <Text size={letterSize(size)} fontWeight="semibold" color={palette.bg}>
         {name.slice(0, 1).toUpperCase()}
       </Text>
     </Row>

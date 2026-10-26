@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { AgentSummary } from '@metro-labs/client/api/client';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
@@ -41,10 +42,10 @@ function FeedNotice({ unsupported, pending, error, updatedAt, catchingUp }: {
 }): ReactNode {
   const technical = useTechnicalDetails();
   const checked = technical ? stamp(updatedAt) : entryTime(updatedAt, false);
-  if (unsupported) return <Text size="xs" role="secondary">Update Metro to {RUN_EVENTS_SINCE} or later to see messages here.</Text>;
-  if (error !== null) return <Text size="xs" role="danger">Messages are not updating. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last updated ${checked}.` : ''}</Text>;
-  if (pending) return <Text size="xs" role="secondary">Loading…</Text>;
-  return <Text size="xs" role="secondary">{catchingUp ? 'Catching up…' : technical ? `Metro feed checked ${checked}. Polled every 5 seconds.` : `Updated ${checked}.`}</Text>;
+  if (unsupported) return <Text size="xs" color="secondary">Update Metro to {RUN_EVENTS_SINCE} or later to see messages here.</Text>;
+  if (error !== null) return <Text size="xs" color="danger">Messages are not updating. {queryError(error, 'Could not read recent events.')}{updatedAt > 0 && !runAccessDenied(error) ? ` Last updated ${checked}.` : ''}</Text>;
+  if (pending) return <Text size="xs" color="secondary">Loading…</Text>;
+  return <Text size="xs" color="secondary">{catchingUp ? 'Catching up…' : technical ? `Metro feed checked ${checked}. Polled every 5 seconds.` : `Updated ${checked}.`}</Text>;
 }
 
 function combinedEntries(feed: RetainedRunFeed | undefined, status: ClaudeSessionStatus | undefined, agent: AgentSummary | undefined, now: number, disconnected: boolean): RunEntry[] {
@@ -86,8 +87,8 @@ function useRunSources(agent: AgentSummary | undefined, agentError: Error | null
 type RunSources = ReturnType<typeof useRunSources>;
 
 function AgentNotice({ error, pending }: { error: Error | null; pending: boolean }): ReactNode {
-  if (error !== null) return <Text size="xs" role="danger">{queryError(error, 'Could not read this agent.')} Messages show once the agent loads.</Text>;
-  return <Text size="xs" role="secondary">{pending ? 'Loading…' : 'Waiting for the agent.'}</Text>;
+  if (error !== null) return <Text size="xs" color="danger">{queryError(error, 'Could not read this agent.')} Messages show once the agent loads.</Text>;
+  return <Text size="xs" color="secondary">{pending ? 'Loading…' : 'Waiting for the agent.'}</Text>;
 }
 
 interface AgentState {
@@ -99,22 +100,22 @@ interface AgentState {
 function RunFacts({ agent, data, agentError, agentPending }: AgentState & { data: RunSources }): ReactNode {
   const technical = useTechnicalDetails();
   if (!technical && agent !== undefined) return null;
-  return <Col gap={10}>
-    {technical && <Text size="xs" role="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>}
+  return <Column gap={10}>
+    {technical && <Text size="xs" color="secondary">{agent?.name ?? 'Agent'} · Selected model: {selectedModel(data.settings)} · {snapshotLabel(data.status)} · {data.state}</Text>}
     {agent === undefined && <AgentNotice error={agentError} pending={agentPending} />}
-  </Col>;
+  </Column>;
 }
 
 function DetailRail({ project, view, children }: { project: string; view: RunView | undefined; children: ReactNode }): ReactNode {
   const shown = view ?? 'session';
   return (
-    <Col gap={16}>
-      <Row align="center" justify="between" gap={12} minHeight={40}>
-        <Text size="md" weight="semibold">{DETAIL_TITLE[shown]}</Text>
+    <Column gap={16}>
+      <Row align="center" justify="spaceBetween" gap={12} minHeight={40}>
+        <Text size="md" fontWeight="semibold">{DETAIL_TITLE[shown]}</Text>
         {shown === 'session' ? null : <RoundButton label="Close details" icon="close" ghost onPress={() => { go({ kind: 'run', project }); }} />}
       </Row>
       {children}
-    </Col>
+    </Column>
   );
 }
 
@@ -157,10 +158,10 @@ function RunBody({ project, view, id, data, now, initialWorker, onActivity, ...a
         <Wide gap={40}>{main}</Wide>
       ) : (
         <Row align="start" gap={RAIL_GAP} width="100%" maxWidth={WIDE_WIDTH} testID="run-page">
-          <Col flex={1} minWidth={0} gap={40}>{main}</Col>
-          <Col width={FACTS_WIDTH} style={STICKY}>
+          <Column weight={1} minWidth={0} gap={40}>{main}</Column>
+          <Column width={FACTS_WIDTH} style={STICKY}>
             <DetailRail project={project} view={view}>{detail}</DetailRail>
-          </Col>
+          </Column>
         </Row>
       )}
     </AgentDeepPage>

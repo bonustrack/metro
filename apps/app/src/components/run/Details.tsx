@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import type { ModelSettings } from '@metro-labs/client/api/model';
 import type { RunView } from '@metro-labs/client/selection';
@@ -30,15 +29,14 @@ interface RunDetailProps {
 }
 
 function HelperDetail({ id, status, now, disconnected, onActivity }: Pick<RunDetailProps, 'id' | 'status' | 'now' | 'disconnected' | 'onActivity'>): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const workers = status === undefined ? [] : (sessionView(status, now, disconnected)?.workers ?? []);
   const worker = workers.find((row) => runKey(row.id) === id);
   if (worker === undefined) return <StateBlock icon="users" title="This worker is gone" text="Only the last 30 tasks of this session are kept." />;
   return (
-    <Col gap={16} align="start">
+    <Column gap={16} align="start">
       <Text size="sm" selectable>{worker.details}</Text>
-      <Button dark={dark} color="secondary" label="Show its activity" onPress={() => { onActivity(worker.id); }} />
-    </Col>
+      <Button color="secondary" label="Show its activity" onPress={() => { onActivity(worker.id); }} />
+    </Column>
   );
 }
 

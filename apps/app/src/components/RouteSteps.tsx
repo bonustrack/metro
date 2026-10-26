@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from './Icon.js';
@@ -21,7 +22,7 @@ function Mark({ n, open, done }: { n: number; open: boolean; done: boolean }): R
   const style = { width: MARK, height: MARK, borderRadius: MARK / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: filled ? palette.text : palette.border, backgroundColor: filled ? palette.text : 'transparent' } as const;
   return (
     <View style={style}>
-      {done && !open ? <Icon name="check" size={14} color={palette.bg} /> : <Text size="md" weight="semibold" color={filled ? palette.bg : palette.sub}>{String(n)}</Text>}
+      {done && !open ? <Icon name="check" size={14} color={palette.bg} /> : <Text size="md" fontWeight="semibold" color={filled ? palette.bg : palette.sub}>{String(n)}</Text>}
     </View>
   );
 }
@@ -43,22 +44,22 @@ export function Step({ n, title, value, open, done, last = false, locked = false
   const line = { flex: 1, width: 1, marginTop: 4, backgroundColor: palette.border } as const;
   return (
     <Row gap={12} align="stretch">
-      <Col align="center" width={MARK}>
+      <Column align="center" width={MARK}>
         <Mark n={n} open={open} done={done} />
         {last ? null : <View style={line} />}
-      </Col>
-      <Col flex={1} minWidth={0} gap={12} padding={{ bottom: last ? 4 : 20 }}>
+      </Column>
+      <Column weight={1} minWidth={0} gap={12} padding={{ bottom: last ? 4 : 20 }}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} disabled={open || locked} onPress={onOpen}>
           <Row align="center" gap={8} minHeight={MARK}>
-            <Col flex={1} minWidth={0} gap={2}>
-              <Text size="xs" weight="medium">{title}</Text>
-              {open ? null : <Text size="md" role="secondary" numberOfLines={1}>{value}</Text>}
-            </Col>
-            {open || locked ? null : <Text size="md" role="link">Change</Text>}
+            <Column weight={1} minWidth={0} gap={2}>
+              <Text size="xs" fontWeight="medium">{title}</Text>
+              {open ? null : <Text size="md" color="secondary" numberOfLines={1}>{value}</Text>}
+            </Column>
+            {open || locked ? null : <Text size="md" color="link">Change</Text>}
           </Row>
         </Pressable>
         {open ? children : null}
-      </Col>
+      </Column>
     </Row>
   );
 }
@@ -79,10 +80,10 @@ function ConnectionOption({ conn, on, onPick }: { conn: ConnectionRow; on: boole
       <Row gap={12} align="center">
         <Radio on={on} />
         <ProviderLogo provider={providerInfo(conn.provider)} size={LOGO} />
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text size="xs" weight="medium" numberOfLines={1}>{conn.label}</Text>
-          {note === '' ? null : <Text size="md" role="secondary" numberOfLines={1}>{note}</Text>}
-        </Col>
+        <Column weight={1} minWidth={0} gap={2}>
+          <Text size="xs" fontWeight="medium" numberOfLines={1}>{conn.label}</Text>
+          {note === '' ? null : <Text size="md" color="secondary" numberOfLines={1}>{note}</Text>}
+        </Column>
       </Row>
     </Pressable>
   );
@@ -91,10 +92,10 @@ function ConnectionOption({ conn, on, onPick }: { conn: ConnectionRow; on: boole
 export function ConnectionStep({ connections, draft, empty, onPick }: { connections: ConnectionRow[]; draft: RouteStep; empty: ReactNode; onPick: (id: string) => void }): ReactNode {
   if (connections.length === 0) return empty;
   return (
-    <Col gap={8}>
+    <Column gap={8}>
       {connections.map((c) => (
         <ConnectionOption key={c.id} conn={c} on={c.id === draft.connection} onPick={onPick} />
       ))}
-    </Col>
+    </Column>
   );
 }

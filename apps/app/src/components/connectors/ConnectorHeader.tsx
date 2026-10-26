@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { connectorHost } from '@metro-labs/client/api/connectors';
 import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
@@ -20,6 +21,7 @@ import { go } from '../../lib/nav.js';
 import { useOrgConnectorToolsQuery } from '../../lib/org-connector-queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useNow } from '../../lib/use-now.js';
+import { optionTabs } from '../../lib/option-tabs.js';
 
 export type ConnectorTabId = 'tools' | 'agents' | 'settings';
 
@@ -38,15 +40,14 @@ function Subtitle({ connector }: { connector: OrgConnector }): ReactNode {
   const tone = status.bad ? 'danger' : connector.auth === 'oauth' ? 'success' : 'secondary';
   const rest = [tools === undefined ? null : `${String(tools.length)} ${tools.length === 1 ? 'tool' : 'tools'}`, technical ? connectorHost(connector.url) : null].filter((part) => part !== null);
   return (
-    <Text size="xs" role="secondary" numberOfLines={2}>
-      <Text size="xs" role={tone}>{status.text}</Text>
+    <Text size="xs" color="secondary" numberOfLines={2}>
+      <Text size="xs" color={tone}>{status.text}</Text>
       {rest.map((part) => ` · ${part}`).join('')}
     </Text>
   );
 }
 
 export function RefreshTools({ connector }: { connector: OrgConnector }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const narrow = useIsNarrow();
   const now = useNow(CLOCK_MS);
@@ -56,8 +57,8 @@ export function RefreshTools({ connector }: { connector: OrgConnector }): ReactN
   const read = tools.dataUpdatedAt > 0 ? `Last read ${whenLabel(new Date(tools.dataUpdatedAt).toISOString(), now)}` : null;
   return (
     <>
-      {read === null ? null : <Text size="xs" role="secondary">{read}</Text>}
-      <Button color="secondary" dark={dark} label="Refresh tools" loading={tools.isFetching} disabled={tools.isFetching} iconStart={<Icon name="refresh" size={ICON_SIZE.sm} color={palette.link} />} onPress={refresh} />
+      {read === null ? null : <Text size="xs" color="secondary">{read}</Text>}
+      <Button color="secondary" label="Refresh tools" loading={tools.isFetching} disabled={tools.isFetching} iconStart={<Icon name="refresh" size={ICON_SIZE.sm} color={palette.link} />} onPress={refresh} />
     </>
   );
 }
@@ -65,19 +66,16 @@ export function RefreshTools({ connector }: { connector: OrgConnector }): ReactN
 function ConnectorTabs({ connector, tab }: { connector: OrgConnector; tab: ConnectorTabId }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col border={{ bottom: side(palette.border) }}>
+    <Column border={{ bottom: side(palette.border) }}>
       <Row>
         <Tabs
           variant="underline"
-          value={tab}
-          options={TABS}
-          onChange={(value) => {
-            const next = TABS.find((option) => option.value === value)?.value ?? 'tools';
+          {...optionTabs(TABS, tab, (next) => {
             go({ kind: 'org-connector', id: connector.id, ...(next === 'tools' ? {} : { tab: next }) });
-          }}
+          })}
         />
       </Row>
-    </Col>
+    </Column>
   );
 }
 

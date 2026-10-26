@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Badge } from '@stage-labs/kit/react-native/badge';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { UserRow } from '@metro-labs/client/api/admin';
 import { routeHash } from '@metro-labs/client/route';
@@ -41,9 +42,9 @@ function UserIdentity({ user }: { user: UserRow }): ReactNode {
   return (
     <Row align="center" gap={12} minWidth={0}>
       <UserMark name={name} picture={user.picture} />
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         <TwoLines top={<Row align="center" gap={8} minWidth={0}><Text size="md" numberOfLines={1} style={SHRINK}>{name}</Text><OperatorBadge user={user} /></Row>} bottom={user.name === null ? null : user.email} />
-      </Col>
+      </Column>
     </Row>
   );
 }
@@ -107,11 +108,11 @@ function UsersList({ users, now }: { users: UserRow[]; now: number }): ReactNode
   return (
     <>
       <UsersFilters filters={filters} onChange={setFilters} />
-      <Col>
+      <Column>
         {shown.length === 0 ? <NoMatch text="Nobody matches these filters." /> : null}
         {narrow ? <UserCards users={shown} now={now} /> : <UserTable users={shown} sort={sort} onSort={(key) => { setSort(nextSort(sort, key, USER_SORT_START)); }} now={now} actions={actions} />}
-        {actions.error === null || actions.blocking !== null ? null : <Text size="xs" role="danger">{actions.error}</Text>}
-      </Col>
+        {actions.error === null || actions.blocking !== null ? null : <Text size="xs" color="danger">{actions.error}</Text>}
+      </Column>
       <BlockDialog actions={actions} />
     </>
   );
@@ -130,7 +131,7 @@ export function AdminUsers(): ReactNode {
   const counts = userCounts(data ?? [], now);
   const known = data !== undefined;
   return (
-    <Col gap={28}>
+    <Column gap={28}>
       <PageHeader title="Users" subtitle={subtitleOf(data, counts.waiting)} crumbs={listCrumbs(narrow)} />
       <Stats stats={[
         { label: 'Users', value: known ? counts.total : null },
@@ -141,6 +142,6 @@ export function AdminUsers(): ReactNode {
       {error !== null ? <ErrorState title="Could not list the users" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /> : null}
       {error === null && data === undefined ? <RowsSkeleton rows={6} /> : null}
       {data === undefined ? null : <UsersList users={data} now={now} />}
-    </Col>
+    </Column>
   );
 }

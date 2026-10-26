@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -61,12 +60,11 @@ interface SaveFieldProps {
 }
 
 function SaveNote({ saving }: { saving: Saving }): ReactNode {
-  if (saving.error !== null) return <Text size="md" role="danger">{saving.error}</Text>;
-  return saving.saved ? <Text size="md" role="secondary">Saved.</Text> : null;
+  if (saving.error !== null) return <Text size="md" color="danger">{saving.error}</Text>;
+  return saving.saved ? <Text size="md" color="secondary">Saved.</Text> : null;
 }
 
 export function SaveField({ saving, name, label, placeholder, secret = false }: SaveFieldProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <>
       <Row gap={8} align="center" wrap>
@@ -76,13 +74,12 @@ export function SaveField({ saving, name, label, placeholder, secret = false }: 
           name={name}
           value={saving.value}
           placeholder={placeholder}
-          dark={dark}
           disabled={saving.busy}
           onChangeText={saving.setValue}
-          {...(secret ? { inputType: 'password', inputProps: { autoComplete: 'off' } } : {})}
+          {...(secret ? { variant: 'obscured' as const, inputProps: { autoComplete: 'off' as const } } : {})}
         />
         {saving.ready || saving.busy ? (
-          <Button size="lg" color="primary" dark={dark} label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
+          <Button size="lg" color="primary" label={saving.busy ? 'Saving…' : 'Save'} loading={saving.busy} disabled={saving.busy} onPress={saving.save} />
         ) : null}
       </Row>
       <SaveNote saving={saving} />

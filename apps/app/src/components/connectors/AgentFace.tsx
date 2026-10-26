@@ -8,7 +8,7 @@ import { summaryText, type RuleSummary } from '../../lib/connector-summary.js';
 import { CHOICE_WORD, type PermissionChoice } from '../../lib/permission-words.js';
 import type { DotTone, Tone } from '../../lib/tone.js';
 
-const CHOICE_TONE: Record<PermissionChoice, Tone> = { allow: 'success', ask: 'default', block: 'danger' };
+const CHOICE_TONE: Record<PermissionChoice, Tone> = { allow: 'success', ask: 'link', block: 'danger' };
 
 export function AgentFace({ server, dot, size = AVATAR_SIZE.row }: { server: Server; dot: DotTone | null; size?: number }): ReactNode {
   return (
@@ -20,7 +20,7 @@ export function AgentFace({ server, dot, size = AVATAR_SIZE.row }: { server: Ser
 
 export function ChoiceWord({ choice }: { choice: PermissionChoice }): ReactNode {
   return (
-    <Text size="xs" role={CHOICE_TONE[choice]}>
+    <Text size="xs" color={CHOICE_TONE[choice]}>
       {CHOICE_WORD[choice]}
     </Text>
   );

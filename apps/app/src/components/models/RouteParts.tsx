@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { IconCheckmark1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCheckmark1';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { agentSeed, type Server, serverLabel } from '@metro-labs/client/api/servers';

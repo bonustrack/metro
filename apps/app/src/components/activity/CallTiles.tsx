@@ -17,13 +17,13 @@ function Tile({ tile, narrow }: { tile: StatTile; narrow: boolean }): ReactNode 
   const frame = StyleSheet.flatten([styles.tile, narrow ? styles.half : styles.wide, { borderTopColor: palette.border }]);
   return (
     <View style={frame} accessible accessibilityLabel={`${tile.label}: ${tile.value}, ${tile.detail}`}>
-      <Text size="xs" role="secondary" numberOfLines={1}>
+      <Text size="xs" color="secondary" numberOfLines={1}>
         {tile.label}
       </Text>
-      <Text size="2xl" weight="semibold" role={tile.danger ? 'danger' : 'default'} numberOfLines={1}>
+      <Text size="2xl" fontWeight="semibold" color={tile.danger ? 'danger' : undefined} numberOfLines={1}>
         {tile.value}
       </Text>
-      <Text size="xs" role="secondary" numberOfLines={2}>
+      <Text size="xs" color="secondary" numberOfLines={2}>
         {tile.detail}
       </Text>
     </View>

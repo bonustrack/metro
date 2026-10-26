@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { type ToolGroup } from '@metro-labs/client/api/policy';
 import { routeHash } from '@metro-labs/client/route';

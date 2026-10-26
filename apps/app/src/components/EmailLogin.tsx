@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { sendEmailCode, verifyEmailCode, type Intent } from '@metro-labs/client/api/auth';
@@ -17,17 +17,15 @@ interface Step {
 }
 
 function CodeLinks({ busy, onResend, onReset }: { busy: boolean; onResend: () => void; onReset: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row justify="center" gap={16} wrap>
-      <Button size="md" color="secondary" dark={dark} label="Send a new code" disabled={busy} onPress={onResend} />
-      <Button size="md" color="secondary" dark={dark} label="Use another email" disabled={busy} onPress={onReset} />
+      <Button size="md" color="secondary" label="Send a new code" disabled={busy} onPress={onResend} />
+      <Button size="md" color="secondary" label="Use another email" disabled={busy} onPress={onReset} />
     </Row>
   );
 }
 
 export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<Step>({ sentTo: null, busy: false, error: null });
@@ -59,7 +57,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
     });
   };
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       {step.sentTo === null ? (
         <LabeledField label="Email" name="email" value={email} placeholder="e. g. alice@stage.box" inputMode="email" disabled={step.busy} onChangeText={setEmail} onSubmit={send} />
       ) : (
@@ -70,7 +68,7 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
           <LabeledField label="Code" name="code" value={code} placeholder="e. g. 123456" inputMode="numeric" autoFocus disabled={step.busy} onChangeText={setCode} onSubmit={verify} />
         </>
       )}
-      <Button size="lg" color="primary" dark={dark} label={step.sentTo === null ? 'Continue' : 'Log in'} loading={step.busy} disabled={step.busy} style={FULL_WIDTH} onPress={step.sentTo === null ? send : verify} />
+      <Button size="lg" color="primary" label={step.sentTo === null ? 'Continue' : 'Log in'} loading={step.busy} disabled={step.busy} style={FULL_WIDTH} onPress={step.sentTo === null ? send : verify} />
       {step.sentTo === null ? null : (
         <CodeLinks
           busy={step.busy}
@@ -81,10 +79,10 @@ export function EmailLogin({ intent }: { intent: Intent }): ReactNode {
         />
       )}
       {step.error === null ? null : (
-        <Text size="xs" role="danger" style={CENTER_TEXT}>
+        <Text size="xs" color="danger" style={CENTER_TEXT}>
           {step.error}
         </Text>
       )}
-    </Col>
+    </Column>
   );
 }

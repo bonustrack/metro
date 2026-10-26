@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 
 const COVERAGE = [
@@ -12,7 +12,7 @@ const COVERAGE = [
 ] as const;
 
 export function RunCoverage(): ReactNode {
-  return <Col gap={18}>{COVERAGE.map(([title, text]) => <Col key={title} gap={5}>
-    <Text weight="semibold">{title}</Text><Text size="sm" role="secondary">{text}</Text>
-  </Col>)}</Col>;
+  return <Column gap={18}>{COVERAGE.map(([title, text]) => <Column key={title} gap={5}>
+    <Text fontWeight="semibold">{title}</Text><Text size="sm" color="secondary">{text}</Text>
+  </Column>)}</Column>;
 }

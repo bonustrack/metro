@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { RouteLink } from '../RouteLink.js';
@@ -35,13 +35,13 @@ export function StatusDot({ tone }: { tone: NowDot }): ReactNode {
 
 export function Figure({ label, value, danger = false }: { label: string; value: string; danger?: boolean }): ReactNode {
   return (
-    <Col gap={2}>
-      <Text size="xs" role="secondary" numberOfLines={1}>
+    <Column gap={2}>
+      <Text size="xs" color="secondary" numberOfLines={1}>
         {label}
       </Text>
-      <Text size="lg" weight="semibold" role={danger ? 'danger' : 'default'} numberOfLines={1}>
+      <Text size="lg" fontWeight="semibold" color={danger ? 'danger' : undefined} numberOfLines={1}>
         {value}
       </Text>
-    </Col>
+    </Column>
   );
 }

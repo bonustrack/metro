@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { claudeTokenReady } from '@metro-labs/client/api/claude';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
@@ -40,43 +39,42 @@ function useSaveToken(connection: ConnectionRow | null, onDone: () => void): { b
 
 function RevokeNote(): ReactNode {
   return (
-    <Col gap={2}>
-      <Text size="xs" role="secondary">{REVOKE_NOTE}</Text>
+    <Column gap={2}>
+      <Text size="xs" color="secondary">{REVOKE_NOTE}</Text>
       <TextLink size="xs" url={CLAUDE_SETTINGS_URL}>{CLAUDE_SETTINGS_URL}</TextLink>
-    </Col>
+    </Column>
   );
 }
 
 function PasteToken({ connection, onDone }: { connection: ConnectionRow | null; onDone: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [draft, setDraft] = useState('');
   const { busy, error, save } = useSaveToken(connection, onDone);
   const ready = claudeTokenReady(draft);
   return (
-    <Col gap={12}>
+    <Column gap={12}>
       <Text size="md">{HOW}</Text>
-      <FormField label="Claude token" name="claude-token" inputType="password" value={draft} placeholder="sk-ant-oat01-…" dark={dark} onChangeText={setDraft} style={GROW} inputProps={INPUT} />
-      {draft.trim() === '' || ready ? null : <Text size="xs" role="danger">This is not a Claude token. It starts with sk-ant-oat01-.</Text>}
+      <FormField label="Claude token" name="claude-token" variant="obscured" value={draft} placeholder="sk-ant-oat01-…" onChangeText={setDraft} style={GROW} inputProps={INPUT} />
+      {draft.trim() === '' || ready ? null : <Text size="xs" color="danger">This is not a Claude token. It starts with sk-ant-oat01-.</Text>}
       <Actions error={error} main={{ label: busy ? 'Checking…' : 'Save', busy, disabled: !ready, onPress: () => { save(draft.trim()); } }} />
-    </Col>
+    </Column>
   );
 }
 
 export function ClaudeConnect({ connection, onDone, children }: { connection: ConnectionRow | null; onDone: () => void; children?: ReactNode }): ReactNode {
   return (
-    <Col gap={24}>
-      <Col gap={12}>
+    <Column gap={24}>
+      <Column gap={12}>
         <FieldLabel>Claude subscription</FieldLabel>
-        <Text size="md" role="secondary">{connection === null ? PLAN_NOTE : AGAIN_NOTE}</Text>
+        <Text size="md" color="secondary">{connection === null ? PLAN_NOTE : AGAIN_NOTE}</Text>
         <PasteToken connection={connection} onDone={onDone} />
         <RevokeNote />
-      </Col>
+      </Column>
       {children === undefined ? null : (
-        <Col gap={12}>
+        <Column gap={12}>
           <FieldLabel>Or an API key</FieldLabel>
           {children}
-        </Col>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { dollarsWords } from '@metro-labs/client/api/gateway-usage';
 import { Group } from '../ui/Group.js';
 import { RouteLink } from '../RouteLink.js';
@@ -36,7 +36,7 @@ export function GatewayActivity({ agent, href }: { agent: string; href: string }
         <Figure label="Model calls" value={countWords(calls)} />
         <Figure label="Failed" value={percentWords(failed, calls)} danger={failedAlarm(failed, calls)} />
         <Figure label="First token" value={secondsWords(p50FirstTokenMs)} />
-        <Row flex={1} justify="end">
+        <Row weight={1} justify="end">
           <CallSparkline values={values} label={`${chartTitle(measure, RANGE)} ${rangeWords(RANGE)}`} />
         </Row>
       </RouteLink>
