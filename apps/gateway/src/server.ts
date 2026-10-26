@@ -9,6 +9,7 @@ import { connectDb } from './db.js';
 import { RoutewayPrices } from './prices.js';
 import { CallLog } from './recorder.js';
 import { Setups } from './setups.js';
+import { UsageProbes } from './usage-probes.js';
 import { WindowSaver } from './windows.js';
 
 function configOrExit(): GatewayConfig {
@@ -23,11 +24,13 @@ function configOrExit(): GatewayConfig {
 quietProviderText();
 const config = configOrExit();
 const db = connectDb(config.databaseUrl);
+const windows = new WindowSaver(() => db);
+const usageProbes = new UsageProbes(windows);
 const deps: GatewayAppDeps = {
   callerOf: callerLookup(() => db),
-  setups: new Setups({ db: () => db, key: config.key, fetch, now: Date.now }),
+  setups: new Setups({ db: () => db, key: config.key, fetch, now: Date.now, loaded: (owner, connections) => { usageProbes.track(owner, connections); } }),
   calls: new CallLog(() => db),
-  windows: new WindowSaver(() => db),
+  windows,
   routeway: new RoutewayPrices(fetch),
   now: Date.now,
 };
@@ -46,9 +49,11 @@ server.listen(config.port, config.host, () => {
 });
 
 deps.windows.start();
+usageProbes.start();
 deps.routeway.refresh();
 
 const shutdown = (): void => {
+  usageProbes.stop();
   deps.windows.stop();
   deps.calls.drain().then(
     () => process.exit(0),

@@ -19,6 +19,7 @@
     "./frames": "./src/frames.ts",
     "./gateway": "./src/gateway.ts",
     "./model-config": "./src/model-config.ts",
+    "./probes": "./src/probes.ts",
     "./served": "./src/served.ts",
     "./tool-search": "./src/tool-search.ts",
     "./usage": "./src/usage.ts"
