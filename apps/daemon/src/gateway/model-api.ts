@@ -43,7 +43,7 @@ function helpersBody(setup: ModelSetup): Record<string, unknown> | null {
   const helpers = helperSetup(setup);
   if (helpers === null) return null;
   const primary = primaryRoute(helpers);
-  return { route: primary?.connection.id ?? '', model: primary?.model ?? '', fallbacks: helpers.fallbacks, chain: chainStatus(helpers) };
+  return { route: primary?.connection.id ?? '', model: primary?.model ?? '', fallbacks: helpers.fallbacks, chain: chainStatus(helpers, Date.now(), setupNotReady) };
 }
 
 export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
@@ -59,7 +59,7 @@ export function settingsBody(deps: ModelApiDeps): Record<string, unknown> {
     reason,
     connections: setup.connections.map(publicConnection),
     fallbacks: setup.fallbacks,
-    chain: chainStatus(setup),
+    chain: chainStatus(setup, Date.now(), setupNotReady),
     helpers: helpersBody(setup),
     effort: { ...EFFORT_DEFAULTS, ...setup.effort },
   };

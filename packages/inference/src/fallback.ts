@@ -131,20 +131,22 @@ function primaryOf(setup: ModelSetup): Route | null {
   return { connection: primary.connection, model };
 }
 
-function rowOf(route: Route, now: number): Omit<ChainRow, 'active'> {
-  const reason = notReady(route);
+type Readiness = (route: Route) => string | null;
+
+function rowOf(route: Route, now: number, ready: Readiness): Omit<ChainRow, 'active'> {
+  const reason = ready(route);
   const used = windowsFor(route, now).reduce<number | null>((most, w) => Math.max(most ?? 0, w.used ?? 0), null);
   return { connection: route.connection.id, model: route.model, used, hold: reason === null ? holdOf(route, now) : { reason, until: null } };
 }
 
-export function chainStatus(setup: ModelSetup, now = Date.now()): ChainRow[] {
+export function chainStatus(setup: ModelSetup, now = Date.now(), ready: Readiness = notReady): ChainRow[] {
   const primary = primaryOf(setup);
   if (primary === null) return [];
   const listed = setup.fallbacks.flatMap((f) => {
     const conn = connectionOf(setup, f.connection);
     return conn === null ? [] : [{ connection: conn, model: f.model }];
   });
-  const rows = unique([primary, ...listed]).map((route) => rowOf(route, now));
+  const rows = unique([primary, ...listed]).map((route) => rowOf(route, now, ready));
   const active = Math.max(0, rows.findIndex((row) => row.hold === null));
   return rows.map((row, at) => ({ ...row, active: at === active }));
 }

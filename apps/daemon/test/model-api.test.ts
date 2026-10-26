@@ -61,7 +61,7 @@ interface Shown {
   reason: string | null;
   connections: Record<string, unknown>[];
   fallbacks: { connection: string; model: string }[];
-  chain: { connection: string; model: string; active: boolean }[];
+  chain: { connection: string; model: string; active: boolean; hold?: { reason: string } | null }[];
   helpers: { route: string; model: string; fallbacks: unknown[]; chain: { connection: string; model: string; active: boolean }[] } | null;
   effort: { main: string; helpers: string };
 }
@@ -106,6 +106,21 @@ describe('the Gateway page reads what the organization delivered', () => {
     expect(after.helpers?.chain.map((r) => [r.connection, r.model, r.active])).toEqual([['an000000001', 'claude-opus-5-5', true], ['cx000000001', 'gpt-5.4', false]]);
     expect(after.effort).toEqual({ main: 'low', helpers: 'asked' });
     expect(after.route).toBe('or000000001');
+  });
+
+  test('with no credential delivered, the chain holds nothing back: only a signed-out account is skipped', async () => {
+    api.delivery = delivery({ connection: 'cx000000001', model: 'gpt-6.1' }, [
+      deliveredRow('cx000000001', 'codex', { label: 'Codex', auth: 'codex', signedOut: false }),
+      deliveredRow('cx000000002', 'codex', { label: 'Codex 2', auth: 'codex', signedOut: true }),
+      deliveredRow('an000000001', 'anthropic', { label: 'Max plan', auth: 'subscription', signedOut: false }),
+    ], [{ connection: 'cx000000002', model: 'gpt-6.1' }, { connection: 'an000000001', model: 'claude-opus-5' }]);
+    await call('POST', '/api/model/sync');
+    const { chain } = await shown('/api/model/snapshot');
+    expect(chain.map((row) => [row.connection, row.active, row.hold?.reason ?? null])).toEqual([
+      ['cx000000001', true, null],
+      ['cx000000002', false, "Codex is not signed in: sign in again on the organization's Gateway page."],
+      ['an000000001', false, null],
+    ]);
   });
 
   test('the routes of the old Gateway page are gone, and every other method is refused', async () => {
