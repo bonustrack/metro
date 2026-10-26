@@ -22,10 +22,20 @@ export interface AgentConnection {
   zdr: boolean;
   revision: number;
   account: AccountView;
+  auth: CredentialKind | null;
+  signedOut: boolean;
   credential: Credential;
 }
 
+export type CredentialKind = 'key' | 'subscription' | 'codex';
+
 export const accountOf = (detail: ModelDetail): AccountView => ({ email: detail.email ?? null, plan: detail.plan ?? null, method: detail.method ?? null });
+
+function kindOf(secret: ModelSecret | null): CredentialKind | null {
+  if (secret === null) return null;
+  if (secret.kind === 'key') return 'key';
+  return secret.kind === 'claude' ? 'subscription' : 'codex';
+}
 
 function credentialOf(secret: ModelSecret | null): Credential {
   if (secret === null) return null;
@@ -45,6 +55,8 @@ function readable(key: Buffer, row: ModelConnectionRow): ModelSecret | null {
 
 export function agentConnection(key: Buffer, row: ModelConnectionRow): AgentConnection {
   const detail = modelDetailOf(row.detail);
+  const secret = readable(key, row);
+  const signedOut = detail.signedOut === true || secret === null;
   return {
     id: row.id,
     provider: row.provider,
@@ -54,7 +66,9 @@ export function agentConnection(key: Buffer, row: ModelConnectionRow): AgentConn
     zdr: row.zdr,
     revision: row.revision,
     account: accountOf(detail),
-    credential: detail.signedOut === true ? null : credentialOf(readable(key, row)),
+    auth: kindOf(secret),
+    signedOut,
+    credential: signedOut ? null : credentialOf(secret),
   };
 }
 

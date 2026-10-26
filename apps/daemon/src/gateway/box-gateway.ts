@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { handleGatewayRequest, type GatewayDeps } from '@metro-labs/inference/gateway';
+import { notReady, setupNotReady, type Route } from '@metro-labs/inference/model-config';
 import { agentsDir } from '../agents/files.js';
 import { agentIdForKey } from '../agents/keys.js';
 import { reregisterMcpToken } from '../mcp-server/link.js';
@@ -12,6 +13,8 @@ import { gatewayUrl, handleGatewayRelay } from './relay.js';
 type Handler = (req: IncomingMessage, res: ServerResponse) => boolean;
 
 const identify = (key: string): boolean => agentIdForKey(key) !== undefined;
+
+export const routeReadiness = (route: Route): string | null => (gatewayUrl() === null ? notReady(route) : setupNotReady(route));
 
 export const boxGateway = (): GatewayDeps => ({
   setup: () => effectiveSetup(),
