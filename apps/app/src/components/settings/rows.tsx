@@ -2,7 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { IconCheckmark1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconCheckmark1';
 import { IconSquareBehindSquare1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquareBehindSquare1';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Glyph } from '@stage-labs/kit/react-native/glyph';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -53,16 +54,16 @@ export function Fact({ label, value, tone, copy = false, url }: FactProps): Reac
 export function Block({ children, gap = 12 }: { children: ReactNode; gap?: number }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={gap} padding={{ y: 16 }} border={{ bottom: side(palette.border) }}>
+    <Column gap={gap} padding={{ y: 16 }} border={{ bottom: side(palette.border) }}>
       {children}
-    </Col>
+    </Column>
   );
 }
 
 export function NoteRow({ text, danger = false }: { text: string; danger?: boolean }): ReactNode {
   return (
     <Block>
-      <Text size="xs" role={danger ? 'danger' : 'secondary'}>
+      <Text size="xs" color={danger ? 'danger' : 'secondary'}>
         {text}
       </Text>
     </Block>
@@ -83,7 +84,7 @@ function ControlText({ title, text, danger, tone }: { title: string; text: strin
     <>
       <Text size="md">{title}</Text>
       {text === undefined ? null : (
-        <Text size="xs" role={danger ? 'danger' : tone}>
+        <Text size="xs" color={danger ? 'danger' : tone}>
           {text}
         </Text>
       )}
@@ -99,16 +100,16 @@ export function Control({ title, note, noteTone = 'secondary', error = null, inl
   const line = { bottom: side(palette.border) };
   if (narrow)
     return (
-      <Col gap={12} padding={{ y: 14 }} minHeight={60} border={line}>
-        <Col gap={2}>{text}</Col>
+      <Column gap={12} padding={{ y: 14 }} minHeight={60} border={line}>
+        <Column gap={2}>{text}</Column>
         {controls}
-      </Col>
+      </Column>
     );
   return (
     <Row align="center" gap={16} padding={{ y: 14 }} minHeight={60} border={line}>
-      <Col flex={1} minWidth={0} gap={2}>
+      <Column weight={1} minWidth={0} gap={2}>
         {text}
-      </Col>
+      </Column>
       {controls}
     </Row>
   );

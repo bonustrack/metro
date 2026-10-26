@@ -17,7 +17,7 @@ export function AccountLimits({ connection }: { connection: OrgModelConnection }
     <Group label="Limits" note="What the provider reported on its last answers through gateway.metro.box. Above 95% of a limit, the account is skipped until it resets.">
       {windows.map((w) => (
         <Item key={w.label} title={usageLabel(w.label, connection.provider)} subtitle={windowLine({ ...w, used: null }, now) || undefined} chevron={false}
-          value={w.used === null ? undefined : percentOf(w.used)} valueTone={w.used !== null && w.used > USAGE_LIMIT ? 'danger' : 'default'} />
+          value={w.used === null ? undefined : percentOf(w.used)} valueTone={w.used !== null && w.used > USAGE_LIMIT ? 'danger' : 'link'} />
       ))}
     </Group>
   );

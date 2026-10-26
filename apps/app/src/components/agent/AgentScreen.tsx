@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AuthError, StoppedError } from '@metro-labs/client/api/client';
 import { type BoxServer } from '@metro-labs/client/api/servers';
@@ -45,13 +45,13 @@ function AgentDetail({ server, selection, children }: { server: BoxServer; selec
   const project = selectionProject(selection) ?? server.id;
   const top = narrow ? null : { backgroundColor: palette.bg };
   return (
-    <Col gap={24}>
-      <Col style={narrow ? undefined : [STICKY, top]}>
+    <Column gap={24}>
+      <Column style={narrow ? undefined : [STICKY, top]}>
         <AgentHeader server={server} project={project} tabs={<AgentTabs selection={selection} project={project} />} />
-      </Col>
+      </Column>
       <AgentSubPages selection={selection} project={project} />
       <Tabbed.Provider value={isPageRoot(selection)}>{children}</Tabbed.Provider>
-    </Col>
+    </Column>
   );
 }
 

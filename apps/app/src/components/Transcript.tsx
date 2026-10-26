@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -31,7 +32,7 @@ function BlockView({ block }: { block: Block }): ReactNode {
   if (block.kind === 'text') {
     const message = parseChannelMessage(block.text);
     const text = message === null ? block.text : message.text;
-    if (text.trim() === '') return <Text size="md" role="secondary">(no text)</Text>;
+    if (text.trim() === '') return <Text size="md" color="secondary">(no text)</Text>;
     return <MarkdownBlock text={text} />;
   }
   if (block.kind === 'tool_use')
@@ -43,7 +44,7 @@ function BlockView({ block }: { block: Block }): ReactNode {
       <Disclosure summary={block.isError ? 'Result (error)' : 'Result'} body={block.text} danger={block.isError} />
     );
   return (
-    <Text size="md" role="secondary">
+    <Text size="md" color="secondary">
       {block.kind === 'thinking' ? 'thinking…' : '(image)'}
     </Text>
   );
@@ -71,20 +72,20 @@ function Entry({ entry }: { entry: TranscriptEntry }): ReactNode {
   const when = entry.at === null ? '' : ` · ${technical ? new Date(entry.at).toLocaleString() : whenLabel(entry.at)}`;
   return (
     <Row justify={user ? 'start' : 'end'} padding={{ y: 4 }}>
-      <Col gap={4} maxWidth={BUBBLE_WIDTH}>
+      <Column gap={4} maxWidth={BUBBLE_WIDTH}>
         <Row align="center" gap={6}>
           {sender.station === null ? null : <StationIcon station={sender.station} size={SENDER_ICON} />}
-          <Text size="md" role="secondary" numberOfLines={1}>
+          <Text size="md" color="secondary" numberOfLines={1}>
             {sender.label}
             {when}
           </Text>
         </Row>
-        <Col background={user ? palette.inputBg : undefined} border={user ? undefined : allSides(palette.border)} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
+        <Column background={user ? palette.inputBg : undefined} border={user ? undefined : allSides(palette.border)} radius={BLOCK_RADIUS_DEFAULT} padding={{ x: 12, y: 8 }} gap={6}>
           {entry.blocks.map((b, i) => (
             <BlockView key={`${entry.uuid}-${String(i)}`} block={b} />
           ))}
-        </Col>
-      </Col>
+        </Column>
+      </Column>
     </Row>
   );
 }
@@ -95,7 +96,6 @@ interface TranscriptProps {
 }
 
 export function Transcript({ project, id }: TranscriptProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [entries, setEntries] = useState<TranscriptEntry[] | null>(null);
   const [from, setFrom] = useState(0);
   const [total, setTotal] = useState(0);
@@ -167,15 +167,14 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
   if (entries === null)
     return error === null ? <RowsSkeleton rows={4} leading={false} trailing={false} /> : <ErrorState title="Could not read the conversation" text={error} onRetry={() => { setAttempt((n) => n + 1); }} />;
   return (
-    <Col>
-      {error === null ? null : <Text size="xs" role="danger">{error}</Text>}
-      <Col gap={4}>
+    <Column>
+      {error === null ? null : <Text size="xs" color="danger">{error}</Text>}
+      <Column gap={4}>
         {from > 0 ? (
           <Row justify="center" padding={{ bottom: 8 }}>
             <Button
               size="md"
               color="secondary"
-              dark={dark}
               loading={busy}
               label={`Show earlier (${String(from)} more)`}
               onPress={earlier}
@@ -183,16 +182,16 @@ export function Transcript({ project, id }: TranscriptProps): ReactNode {
           </Row>
         ) : null}
         {entries.length === 0 ? (
-          <Text size="md" role="secondary">Nothing in this session yet.</Text>
+          <Text size="md" color="secondary">Nothing in this session yet.</Text>
         ) : (
           entries.map((e) => <Entry key={e.uuid} entry={e} />)
         )}
         <Row justify="center" padding={{ top: 8 }}>
-          <Text size="md" role="secondary">
+          <Text size="md" color="secondary">
             {String(total)} turn{total === 1 ? '' : 's'} · updates every few seconds while the session runs
           </Text>
         </Row>
-      </Col>
-    </Col>
+      </Column>
+    </Column>
   );
 }

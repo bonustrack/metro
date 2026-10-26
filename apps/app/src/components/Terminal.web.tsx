@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import '@xterm/xterm/css/xterm.css';
 import './terminal.css';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Dropdown, type MenuItem } from './Dropdown.js';
@@ -122,22 +122,21 @@ function sessionItems(sessions: string[], current: string | null, pick: (s: stri
   ];
 }
 
-function TerminalNote({ phase, dark, onNew }: { phase: Phase; dark: boolean; onNew: () => void }): ReactNode {
+function TerminalNote({ phase, onNew }: { phase: Phase; onNew: () => void }): ReactNode {
   if (phase.kind === 'open') return null;
   const text = phase.kind === 'closed' ? phase.reason : phase.kind === 'none' ? NONE : 'Connecting…';
   return (
     <div className="terminal-note">
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {text}
       </Text>
-      {phase.kind === 'none' ? <Button size="md" dark={dark} label="New session" onPress={onNew} /> : null}
+      {phase.kind === 'none' ? <Button variant="primary" size="md" label="New session" onPress={onNew} /> : null}
     </div>
   );
 }
 
 export function TerminalPage(): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const box = useRef<HTMLDivElement>(null);
   const keys = useKeyBar();
   const [term, setTerm] = useState<XTerm | null>(null);
@@ -204,7 +203,7 @@ export function TerminalPage(): ReactNode {
       <div ref={box} className="terminal-box" />
       {keys.touch ? <KeyBar term={term} ctrl={keys.ctrl} sticky={keys.sticky} /> : null}
       <div className="terminal-float">
-        {phase.kind === 'closed' ? <Button size="md" color="secondary" dark={dark} label="Reconnect" onPress={reconnect} /> : null}
+        {phase.kind === 'closed' ? <Button size="md" color="secondary" label="Reconnect" onPress={reconnect} /> : null}
         <Dropdown
           label="tmux session"
           button={{ label: session === null ? 'tmux' : `tmux: ${session}`, size: 'sm' }}
@@ -215,7 +214,6 @@ export function TerminalPage(): ReactNode {
       </div>
       <TerminalNote
         phase={phase}
-        dark={dark}
         onNew={() => {
           setNaming(true);
         }}

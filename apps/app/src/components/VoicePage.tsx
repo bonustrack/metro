@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Choice } from './Choice.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
@@ -52,12 +52,12 @@ function useVoice(): { voice: VoiceSettings | undefined; error: Error | null; re
 function FieldBlock({ title, note, href, children }: { title: string; note: string; href: string; children: ReactNode }): ReactNode {
   return (
     <Block>
-      <Col gap={2}>
+      <Column gap={2}>
         <Text size="md">{title}</Text>
-        <Text size="xs" role="secondary">
+        <Text size="xs" color="secondary">
           {note}
         </Text>
-      </Col>
+      </Column>
       <TextLink url={href}>{href.replace(/^https:\/\//, '')}</TextLink>
       {children}
     </Block>

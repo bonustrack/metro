@@ -10,14 +10,14 @@ const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '
 export function LinkedText({ text, links }: { text: string; links: HintLink[] }): ReactNode {
   if (links.length === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {text}
       </Text>
     );
   const pattern = new RegExp(`(${links.map((l) => escape(l.text)).join('|')})`, 'g');
   const parts = text.split(pattern);
   return (
-    <Text size="md" role="secondary">
+    <Text size="md" color="secondary">
       {parts.map((part, index) => {
         const link = links.find((l) => l.text === part);
         if (link === undefined) return part;
@@ -25,7 +25,7 @@ export function LinkedText({ text, links }: { text: string; links: HintLink[] })
           <Text
             key={`${link.href}-${String(index)}`}
             size="md"
-            role="link"
+            color="link"
             style={UNDERLINE}
             accessibilityRole="link"
             onPress={() => {

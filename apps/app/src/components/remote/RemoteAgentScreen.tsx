@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type RemoteServer } from '@metro-labs/client/api/servers';
 import { storeServerId } from '@metro-labs/client/auth/daemon';
@@ -29,10 +29,10 @@ function TabBody({ server, selection }: { server: RemoteServer; selection: Selec
   if (tab === 'activity')
     return (
       <Wide>
-        <Col gap={40}>
+        <Column gap={40}>
           <GatewayUsage agent={server.id} label="Gateway" />
           <ActivityFeed key={server.id} agent={server.id} fixed />
-        </Col>
+        </Column>
       </Wide>
     );
   return <RemoteConnectors agent={server.id} name={name} />;
@@ -48,14 +48,14 @@ export function RemoteAgentScreen({ server, selection }: { server: RemoteServer;
   if (selection.kind === 'agent-profile') return <ProfilePage project={server.id} remote />;
   const top = narrow ? null : { backgroundColor: palette.bg };
   return (
-    <Col gap={24}>
-      <Col style={narrow ? undefined : [STICKY, top]}>
+    <Column gap={24}>
+      <Column style={narrow ? undefined : [STICKY, top]}>
         <RemoteHeader server={server} selection={selection} />
-      </Col>
+      </Column>
       {remoteTabOf(selection) === 'connectors' ? <RemoteApprovals agent={server.id} /> : null}
       <Tabbed.Provider value>
         <TabBody server={server} selection={selection} />
       </Tabbed.Provider>
-    </Col>
+    </Column>
   );
 }

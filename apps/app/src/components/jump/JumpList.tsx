@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -25,7 +26,7 @@ export function Kbd({ label }: { label: string }): ReactNode {
   const palette = useKitPalette();
   return (
     <Row minWidth={26} height={26} padding={{ x: 6 }} radius={6} align="center" justify="center" border={allSides(palette.border)}>
-      <Text size="xs" role="secondary">{label}</Text>
+      <Text size="xs" color="secondary">{label}</Text>
     </Row>
   );
 }
@@ -43,7 +44,7 @@ function Crumbs({ crumbs }: { crumbs: string[] }): ReactNode {
     const last = at === crumbs.length - 1;
     return (
       <Fragment key={`${String(at)}:${crumb}`}>
-        <Text size="md" role={last ? 'default' : 'secondary'} color={last ? palette.link : undefined} numberOfLines={1} style={last ? SHRINK : undefined}>{crumb}</Text>
+        <Text size="md" color={last ? undefined : 'secondary'} numberOfLines={1} style={last ? SHRINK : undefined}>{crumb}</Text>
         {last ? null : <Icon name="chevronRight" size={SEPARATOR} color={palette.sub} />}
       </Fragment>
     );
@@ -65,9 +66,9 @@ function JumpRow({ item, active, busy, hints, onHover, onPick }: RowProps): Reac
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={item.crumbs.join(', ')} accessibilityState={{ selected: active }} onHoverIn={onHover} onPress={onPick} style={frame}>
       <View style={styles.lead}><Lead item={item} /></View>
-      <Row flex={1} minWidth={0} align="center" gap={8}>
+      <Row weight={1} minWidth={0} align="center" gap={8}>
         <Crumbs crumbs={item.crumbs} />
-        {item.payload.sub === null ? null : <Text size="md" role="secondary" numberOfLines={1} style={SHRINK}>{item.payload.sub}</Text>}
+        {item.payload.sub === null ? null : <Text size="md" color="secondary" numberOfLines={1} style={SHRINK}>{item.payload.sub}</Text>}
       </Row>
       {busy ? <Spinner color={palette.link} /> : active && hints ? <Kbd label="↵" /> : null}
     </Pressable>
@@ -86,23 +87,23 @@ interface ListProps {
 export function JumpList({ items, cursor, running, hints, onCursor, onPick }: ListProps): ReactNode {
   if (items.length === 0)
     return (
-      <Col padding={{ x: 14, y: 24 }}>
-        <Text size="md" role="secondary">Nothing matches. Try an agent name or a page.</Text>
-      </Col>
+      <Column padding={{ x: 14, y: 24 }}>
+        <Text size="md" color="secondary">Nothing matches. Try an agent name or a page.</Text>
+      </Column>
     );
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       {groupJump(items).map(({ group, entries }) => (
-        <Col key={group} gap={2}>
-          <Col padding={{ x: 14, bottom: 6 }}>
-            <Text size="xs" role="secondary">{JUMP_GROUP_LABEL[group]}</Text>
-          </Col>
+        <Column key={group} gap={2}>
+          <Column padding={{ x: 14, bottom: 6 }}>
+            <Text size="xs" color="secondary">{JUMP_GROUP_LABEL[group]}</Text>
+          </Column>
           {entries.map((item) => {
             const at = items.indexOf(item);
             return <JumpRow key={item.key} item={item} active={hints && at === cursor} busy={running === item.key} hints={hints} onHover={() => { onCursor(at); }} onPick={() => { onPick(item); }} />;
           })}
-        </Col>
+        </Column>
       ))}
-    </Col>
+    </Column>
   );
 }

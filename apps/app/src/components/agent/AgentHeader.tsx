@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type BoxServer } from '@metro-labs/client/api/servers';
@@ -23,7 +24,7 @@ const SELF = { alignSelf: 'flex-start', maxWidth: '100%' } as const;
 
 function Status({ text, fix }: { text: string; fix: Selection | undefined }): ReactNode {
   const line = (
-    <Text size="xs" role="secondary" numberOfLines={1}>
+    <Text size="xs" color="secondary" numberOfLines={1}>
       {text}
     </Text>
   );
@@ -38,22 +39,22 @@ function Status({ text, fix }: { text: string; fix: Selection | undefined }): Re
 function CompactHeader({ server, avatar, status, tabs }: { server: BoxServer; avatar: ReactNode; status: ReactNode; tabs: ReactNode }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       <Row align="center" gap={12}>
         <RouteLink to={routeHash({ kind: 'servers' })} label="All agents">
           <Icon name="chevronLeft" size={BACK} color={palette.link} />
         </RouteLink>
         {avatar}
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text accessibilityRole="header" size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+        <Column weight={1} minWidth={0} gap={2}>
+          <Text accessibilityRole="header" size="md" fontWeight="semibold" numberOfLines={1} style={SHRINK}>
             {serverLabel(server)}
           </Text>
           {status}
-        </Col>
+        </Column>
         <AgentMenu server={server} />
       </Row>
       {tabs}
-    </Col>
+    </Column>
   );
 }
 

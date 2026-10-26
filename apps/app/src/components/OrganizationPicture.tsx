@@ -1,8 +1,7 @@
 import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { setOrganizationAvatar } from '@metro-labs/client/api/organization';
 import { useImagePicker } from './AvatarPicker.js';
 import { useConfirm } from './DeleteMenu.js';
@@ -20,11 +19,10 @@ function subtitleOf(avatar: string | null, error: string | null): string {
 }
 
 function PictureButtons({ shown, busy, onPick, onRemove }: { shown: boolean; busy: boolean; onPick: () => void; onRemove: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row gap={8} align="center">
-      {shown ? <Button size="sm" color="secondary" dark={dark} label="Remove" disabled={busy} onPress={onRemove} /> : null}
-      <Button size="sm" color="secondary" dark={dark} label={busy ? 'Saving…' : shown ? 'Change' : 'Add'} loading={busy} disabled={busy} onPress={onPick} />
+      {shown ? <Button size="sm" color="secondary" label="Remove" disabled={busy} onPress={onRemove} /> : null}
+      <Button size="sm" color="secondary" label={busy ? 'Saving…' : shown ? 'Change' : 'Add'} loading={busy} disabled={busy} onPress={onPick} />
     </Row>
   );
 }

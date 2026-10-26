@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import type { StatsConnector } from '@metro-labs/client/api/connector-stats';
 import type { Server } from '@metro-labs/client/api/servers';
 import { GroupTitle } from '../ui/Group.js';
@@ -22,17 +22,17 @@ export function ActivityOverview({ agent: initial = null, full }: { agent?: stri
   const agent = shownAgent(picked, known);
   const filter = { agent, connector: connector?.key ?? null };
   return (
-    <Col gap={40} width="100%">
+    <Column gap={40} width="100%">
       <ActivityFilters servers={servers} agent={agent} onAgent={setPicked} connector={connector} onConnector={setConnector} />
       <CallStats agent={agent} picked={connector} onPick={setConnector} />
       {full ? (
-        <Col>
+        <Column>
           <GroupTitle label="All calls" />
           <ActivityFeed agent={filter.agent} connector={filter.connector} />
-        </Col>
+        </Column>
       ) : (
         <LatestCalls filter={filter} servers={servers} />
       )}
-    </Col>
+    </Column>
   );
 }

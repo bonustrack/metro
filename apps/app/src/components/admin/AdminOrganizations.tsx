@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { routeHash } from '@metro-labs/client/route';
 import { namedSegment } from '@metro-labs/client/auth/org-segment';
@@ -48,9 +49,9 @@ function Identity({ row }: { row: AdminOrganization }): ReactNode {
   return (
     <Row align="center" gap={12} minWidth={0}>
       <OrganizationMark name={row.name} avatar={row.avatar} />
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         <TwoLines top={<Text size="md" numberOfLines={1} style={SHRINK}>{row.name}</Text>} bottom={addressOf(row)} />
-      </Col>
+      </Column>
     </Row>
   );
 }
@@ -113,10 +114,10 @@ function OrganizationList({ rows, now }: { rows: AdminOrganization[]; now: numbe
       <Controls>
         <SearchBox value={query} placeholder="Search organizations" onChange={setQuery} />
       </Controls>
-      <Col>
+      <Column>
         {shown.length === 0 ? <NoMatch text="No organization matches this search." /> : null}
         {narrow ? <OrganizationCards rows={shown} /> : <OrganizationTable rows={shown} sort={sort} onSort={(key) => { setSort(nextSort(sort, key, ORGANIZATION_SORT_START)); }} now={now} />}
-      </Col>
+      </Column>
     </>
   );
 }
@@ -140,12 +141,12 @@ export function AdminOrganizations(): ReactNode {
   const counts = organizationCounts(rows ?? []);
   const known = rows !== undefined;
   return (
-    <Col gap={28}>
+    <Column gap={28}>
       <PageHeader title="Organizations" subtitle={known ? `${String(counts.total)} organizations, ${String(counts.agents)} agents.` : 'Every organization on Metro.'} crumbs={listCrumbs(narrow)} />
       <Stats stats={organizationStats(rows)} />
       {error !== null ? <ErrorState title="Could not list the organizations" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /> : null}
       {error === null && rows === undefined ? <RowsSkeleton rows={4} /> : null}
       {rows === undefined ? null : <OrganizationList rows={rows} now={now} />}
-    </Col>
+    </Column>
   );
 }

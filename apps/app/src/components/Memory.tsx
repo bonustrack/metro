@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { FONT_SIZE } from '@stage-labs/kit/tokens';
 import { deleteMemoryFile } from '@metro-labs/client/api/claude';
 import { whenLabel } from '@metro-labs/client/api/when';
@@ -140,9 +140,9 @@ export function Memory({ project, claudeProject, file }: MemoryProps): ReactNode
   }
   if (isNoteFile(file)) return <NoteView project={project} claudeProject={picked} file={file} />;
   return (
-    <Col gap={8}>
+    <Column gap={8}>
       <Crumbs crumbs={memoryCrumbs(project, picked, file ?? '')} />
       <FolderView project={project} claudeProject={picked} path={file ?? ''} />
-    </Col>
+    </Column>
   );
 }

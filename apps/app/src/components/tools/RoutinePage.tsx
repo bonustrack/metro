@@ -1,9 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { fetchScheduleDetail, runSchedule, type JobDetail } from '@metro-labs/client/api/schedules';
 import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
@@ -78,7 +77,7 @@ function Details({ job }: { job: JobDetail }): ReactNode {
 function Block({ label, note, text, empty }: { label: string; note: string | null; text: string; empty: string }): ReactNode {
   return (
     <Group label={label} note={note ?? undefined}>
-      <Col padding={{ y: 12 }}>{text.trim() === '' ? <Text size="xs" role="secondary">{empty}</Text> : <LogBlock text={text} />}</Col>
+      <Column padding={{ y: 12 }}>{text.trim() === '' ? <Text size="xs" color="secondary">{empty}</Text> : <LogBlock text={text} />}</Column>
     </Group>
   );
 }
@@ -97,7 +96,6 @@ function Routine({ job, error }: { job: JobDetail; error: string | null }): Reac
 }
 
 export function RoutinePage({ project, id }: { project: string; id: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const running = useRun(id);
   const detail = useBoxQuery(['schedule', id], () => fetchScheduleDetail(id), { staleTime: 5_000, refetchInterval: 15_000, retry: false });
   const title = detail.data === undefined ? 'Routine' : routineTitle(detail.data.name);
@@ -109,7 +107,7 @@ export function RoutinePage({ project, id }: { project: string; id: string }): R
       trail={[{ label: title }]}
       title={title}
       subtitle={detail.data === undefined ? undefined : scheduleWords(detail.data.schedule)}
-      action={detail.data === undefined ? undefined : <Button size="md" color="secondary" dark={dark} label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
+      action={detail.data === undefined ? undefined : <Button size="md" color="secondary" label="Run now" loading={running.busy} disabled={running.busy} onPress={running.run} />}
     >
       {detail.data === undefined ? (
         detail.error === null ? <RowsSkeleton rows={3} leading={false} /> : <ErrorState title="Could not read that routine" text={queryError(detail.error, 'The agent did not answer.')} onRetry={detail.refetch} />

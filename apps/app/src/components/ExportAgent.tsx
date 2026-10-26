@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { checkPassphrase } from '@metro-labs/client/export/passphrase';
 import { countOf, digest, fileName, packFile, SECTION_LABELS, SECTIONS, type Section } from '@metro-labs/client/export/pack';
 import { currentServer } from '@metro-labs/client/auth/daemon';
@@ -66,7 +65,6 @@ function useExport(agent: Portable, picked: Set<Section>, passphrase: string): {
 }
 
 export function ExportSection({ agent }: { agent: Portable }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [picked, setPicked] = useState<Set<Section>>(new Set(SECTIONS));
   const [passphrase, setPassphrase] = useState('');
   const job = useExport(agent, picked, passphrase);
@@ -80,14 +78,14 @@ export function ExportSection({ agent }: { agent: Portable }): ReactNode {
     <Readable gap={16}>
       <Group label="Export a backup" note={HOW}>
         {SECTIONS.map((section) => (
-          <Item key={section} title={SECTION_LABELS[section]} trailing={<Switch name={`Export ${SECTION_LABELS[section]}`} checked={picked.has(section)} dark={dark} disabled={job.busy} onChange={(on) => { toggle(section, on); }} />} />
+          <Item key={section} title={SECTION_LABELS[section]} trailing={<CheckBox displayStyle="switch" name={`Export ${SECTION_LABELS[section]}`} value={picked.has(section)} disabled={job.busy} onChange={(on) => { toggle(section, on); }} />} />
         ))}
       </Group>
-      <Col gap={8}>
-        <FormField label="Passphrase" name="passphrase" inputType="password" value={passphrase} dark={dark} placeholder="Passphrase for this file" disabled={job.busy} onChangeText={setPassphrase} inputProps={SECRET} />
-        <Text size="xs" role="secondary">{NOTE}</Text>
-      </Col>
-      {job.done === null ? null : <Text size="md" role="success">{`Saved: ${job.done}`}</Text>}
+      <Column gap={8}>
+        <FormField label="Passphrase" name="passphrase" variant="obscured" value={passphrase} placeholder="Passphrase for this file" disabled={job.busy} onChangeText={setPassphrase} inputProps={SECRET} />
+        <Text size="xs" color="secondary">{NOTE}</Text>
+      </Column>
+      {job.done === null ? null : <Text size="md" color="success">{`Saved: ${job.done}`}</Text>}
       <Actions error={job.error} main={{ label: job.busy ? 'Sealing…' : 'Export', busy: job.busy, disabled: picked.size === 0, onPress: job.run }} />
     </Readable>
   );

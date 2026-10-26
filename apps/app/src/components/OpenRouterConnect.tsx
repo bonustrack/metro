@@ -1,9 +1,9 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
 import { beginOrgOpenRouterLogin } from '@metro-labs/client/api/org-models';
 import { afterModelChange, useOrgModelsQuery } from '../lib/model-queries.js';
@@ -28,7 +28,6 @@ function useNewConnection(waiting: boolean, known: Set<string>, onFound: () => v
 }
 
 function LoginFlow({ connection, onDone, onManual }: { connection: ConnectionRow | null; onDone: () => void; onManual: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const { data } = useOrgModelsQuery();
   const [known, setKnown] = useState(new Set<string>());
@@ -50,29 +49,29 @@ function LoginFlow({ connection, onDone, onManual }: { connection: ConnectionRow
   };
   useNewConnection(started !== null && connection === null, known, finish);
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       <SignInLink link={started === null ? null : link} label="Open the OpenRouter sign-in">
-        <Button size="lg" dark={dark} label="Continue with OpenRouter" loading={starting} disabled={starting || started !== null} onPress={start} />
+        <Button variant="primary" size="lg" label="Continue with OpenRouter" loading={starting} disabled={starting || started !== null} onPress={start} />
       </SignInLink>
-      <Text size="md" role="secondary">Authorize Metro in your browser. OpenRouter makes a key for your organization.</Text>
-      {connection === null ? null : <Text size="md" role="secondary">{AGAIN}</Text>}
+      <Text size="md" color="secondary">Authorize Metro in your browser. OpenRouter makes a key for your organization.</Text>
+      {connection === null ? null : <Text size="md" color="secondary">{AGAIN}</Text>}
       {started === null ? null : (
-        <Col gap={8}>
-          <Text size="md" role="secondary">{WAITING}</Text>
+        <Column gap={8}>
+          <Text size="md" color="secondary">{WAITING}</Text>
           <Row gap={8} wrap>
-            <Button size="md" dark={dark} label="I approved it" loading={finishing} disabled={finishing} onPress={finish} />
-            <Button size="md" color="secondary" dark={dark} label="Cancel" disabled={finishing} onPress={() => { settle(null); }} />
+            <Button variant="primary" size="md" label="I approved it" loading={finishing} disabled={finishing} onPress={finish} />
+            <Button size="md" color="secondary" label="Cancel" disabled={finishing} onPress={() => { settle(null); }} />
           </Row>
-        </Col>
+        </Column>
       )}
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
       {starting || started !== null ? null : <TextLink size="md" onPress={onManual}>Use an API key</TextLink>}
-    </Col>
+    </Column>
   );
 }
 
 export function OpenRouterConnect({ connection, onDone, children }: { connection: ConnectionRow | null; onDone: () => void; children: ReactNode }): ReactNode {
   const [manual, setManual] = useState(false);
-  if (manual) return <Col gap={16}>{children}<TextLink size="md" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Col>;
+  if (manual) return <Column gap={16}>{children}<TextLink size="md" onPress={() => { setManual(false); }}>Sign in instead</TextLink></Column>;
   return <LoginFlow connection={connection} onDone={onDone} onManual={() => { setManual(true); }} />;
 }

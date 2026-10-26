@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { loadAccount } from '@metro-labs/client/auth/account';
 import { stationLabel } from '@metro-labs/client/api/attach';
@@ -23,7 +24,7 @@ function Outcome({ outcome }: { outcome: ReturnOutcome }): ReactNode {
   if (outcome.ok) return <Text size="xs">{stationLabel(outcome.station)} is connected. You can close this tab.</Text>;
   return (
     <>
-      <Text size="xs" role="danger">
+      <Text size="xs" color="danger">
         {outcome.message}
       </Text>
       <TextLink to={outcome.backHash ?? '#/'}>Try again</TextLink>
@@ -42,16 +43,16 @@ export function SignInReturn({ ret }: { ret: ReturnedSignIn }): ReactNode {
       });
   }, [ret]);
   return (
-    <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={12} align="center" width="100%" maxWidth={WIDTH}>
+    <Row justify="center" align="center" weight={1} padding={24}>
+      <Column gap={12} align="center" width="100%" maxWidth={WIDTH}>
         {outcome === null ? (
-          <Text size="xs" role="secondary">
+          <Text size="xs" color="secondary">
             Finishing the sign-in…
           </Text>
         ) : (
           <Outcome outcome={outcome} />
         )}
-      </Col>
+      </Column>
     </Row>
   );
 }

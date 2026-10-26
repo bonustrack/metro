@@ -17,10 +17,9 @@ let fields = [], selects = [], items = [], states = [], errors = [], skeletons =
 let copies = [], closed = 0;
 let copy = () => Promise.resolve({ organization: target.id, connector: api.toOrgConnector({ id: 'copied00001', name: 'Copy' }) });
 const wrap = ({ children }) => createElement('div', null, children);
-mock.module('@stage-labs/kit/react-native/box', () => ({ Col: wrap }));
+mock.module('@stage-labs/kit/react-native/column', () => ({ Column: wrap }));
 mock.module('@stage-labs/kit/react-native/text', () => ({ Text: wrap }));
-mock.module('@stage-labs/kit/react-native/theme-context', () => ({ useKitScheme: () => 'dark' }));
-mock.module('@stage-labs/kit/react-native/select', () => ({ Select: (props) => { selects.push(props); return null; } }));
+mock.module('@stage-labs/kit/react-native/choice-picker', () => ({ ChoicePicker: (props) => { selects.push({ ...props, value: props.value[0] ?? '', onChange: (value) => { props.onChange([value]); } }); return null; } }));
 mock.module('@stage-labs/kit/react-native/button', () => ({ Button: () => null }));
 mock.module('@tanstack/react-query', () => ({ useQueryClient: () => ({}) }));
 mock.module('@metro-labs/client/auth/account', () => ({ activeAccount: () => ({ organization: source.id }) }));

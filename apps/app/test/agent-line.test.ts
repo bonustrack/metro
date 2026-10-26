@@ -46,13 +46,13 @@ describe('the one line under an agent in the list', () => {
   });
 
   test('an approval names what waits, and only it is bright', () => {
-    expect(agentLine(facts({ waiting: 1, ask: 'send an email' }))).toEqual({ text: 'Waiting for you: send an email', tone: 'default', dot: 'success', busy: false, needsYou: true });
+    expect(agentLine(facts({ waiting: 1, ask: 'send an email' }))).toEqual({ text: 'Waiting for you: send an email', tone: 'link', dot: 'success', busy: false, needsYou: true });
     expect(agentLine(facts({ waiting: 3 })).text).toBe('Waiting for you: 3 approvals');
   });
 
   test('a stopped session and an unfinished setup need you too', () => {
     expect(agentLine(facts({ session: session({ running: false }) }))).toMatchObject({ text: 'Not running', tone: 'danger', needsYou: true });
-    expect(agentLine(facts({ setup: setup(2, 5) }))).toMatchObject({ text: 'Setting up: 2 of 5', tone: 'default', dot: null, needsYou: true });
+    expect(agentLine(facts({ setup: setup(2, 5) }))).toMatchObject({ text: 'Setting up: 2 of 5', tone: 'link', dot: null, needsYou: true });
     expect(agentLine(facts({ setup: setup(5, 5) })).text).toBe('Online');
   });
 

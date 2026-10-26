@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { canDeleteServer, DeleteServerDialog } from '../DeleteServer.js';
@@ -37,17 +37,16 @@ function useUpdating(): Updating {
 }
 
 function UpdateDialog({ updating, name }: { updating: Updating; name: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { u, open, close } = updating;
   return (
     <Modal title={`Update ${name}`} open={open} onClose={close}>
-      <Col gap={14}>
-        {u.status === null ? null : <Text size="md" role="secondary">{u.status}</Text>}
-        {u.error === null ? null : <Text size="md" role="danger">{u.error}</Text>}
+      <Column gap={14}>
+        {u.status === null ? null : <Text size="md" color="secondary">{u.status}</Text>}
+        {u.error === null ? null : <Text size="md" color="danger">{u.error}</Text>}
         <Row justify="end">
-          <Button color="secondary" dark={dark} label="Close" onPress={close} />
+          <Button color="secondary" label="Close" onPress={close} />
         </Row>
-      </Col>
+      </Column>
     </Modal>
   );
 }

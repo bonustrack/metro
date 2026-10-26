@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { PageTitle } from './PageTitle.js';
@@ -17,9 +17,9 @@ export function ProjectGate({ title, claudeProject, none, children }: ProjectGat
   const picked = claudeProject ?? home.project;
   if (picked !== null) return children(picked);
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <PageTitle>{title}</PageTitle>
-      {home.loading ? <RowsSkeleton rows={4} leading={false} /> : <Text size="md" role="secondary">{none}</Text>}
-    </Col>
+      {home.loading ? <RowsSkeleton rows={4} leading={false} /> : <Text size="md" color="secondary">{none}</Text>}
+    </Column>
   );
 }

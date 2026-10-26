@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { changeSkillSource, type GitHubSkillSource } from '@metro-labs/client/api/skill-source';
 import { routeHash } from '@metro-labs/client/route';
 import { queryError, refreshClaudeSkills, useClaudeSkillsQuery } from '../lib/queries.js';
@@ -25,7 +24,7 @@ const LEAD = 'Sync skills from one private GitHub repository. Only an admin can 
 
 function Hint({ children }: { children: string }): ReactNode {
   return (
-    <Text size="xs" role="secondary">
+    <Text size="xs" color="secondary">
       {children}
     </Text>
   );
@@ -33,17 +32,16 @@ function Hint({ children }: { children: string }): ReactNode {
 
 function TokenHelp({ editing }: { editing: boolean }): ReactNode {
   return (
-    <Col gap={4}>
+    <Column gap={4}>
       {editing ? <Hint>Paste a token to save changes. The stored token is never shown.</Hint> : null}
       <Hint>Use a fine-grained token for this repository, with read-only Contents and an expiry. It stays on the server, away from the agent and exports.</Hint>
       <TextLink size="xs" url="https://github.com/settings/personal-access-tokens/new">Create a fine-grained GitHub token</TextLink>
-    </Col>
+    </Column>
   );
 }
 
 function SourceForm({ project, view }: { project: string; view: GitHubSkillSource }): ReactNode {
   const client = useQueryClient();
-  const dark = useKitScheme() === 'dark';
   const [repository, setRepository] = useState(view.source?.repository ?? '');
   const [ref, setRef] = useState(view.source?.ref ?? 'main');
   const [folder, setFolder] = useState(view.source?.folder ?? 'skills');
@@ -66,20 +64,20 @@ function SourceForm({ project, view }: { project: string; view: GitHubSkillSourc
   });
   return (
     <Readable gap={20}>
-      <FormField label="Repository" name="github-skills-repository" value={repository} onChangeText={setRepository} placeholder="organization/skills" dark={dark} disabled={saving.busy} inputProps={INPUT} />
-      <FormField label="Branch, tag or commit" name="github-skills-ref" value={ref} onChangeText={setRef} dark={dark} disabled={saving.busy} inputProps={INPUT} />
-      <Col gap={6}>
-        <FormField label="Skills folder" name="github-skills-folder" value={folder} onChangeText={setFolder} placeholder="skills" dark={dark} disabled={saving.busy} inputProps={INPUT} />
+      <FormField label="Repository" name="github-skills-repository" value={repository} onChangeText={setRepository} placeholder="organization/skills" disabled={saving.busy} inputProps={INPUT} />
+      <FormField label="Branch, tag or commit" name="github-skills-ref" value={ref} onChangeText={setRef} disabled={saving.busy} inputProps={INPUT} />
+      <Column gap={6}>
+        <FormField label="Skills folder" name="github-skills-folder" value={folder} onChangeText={setFolder} placeholder="skills" disabled={saving.busy} inputProps={INPUT} />
         <Hint>The folder that holds skill-name/SKILL.md, like skills. Empty means the repository root.</Hint>
-      </Col>
-      <Col gap={6}>
-        <FormField label="Read-only token" name="github-skills-token" value={saving.value} onChangeText={saving.setValue} placeholder="github_pat_…" inputType="password" dark={dark} disabled={saving.busy} inputProps={INPUT} onSubmit={saving.save} />
+      </Column>
+      <Column gap={6}>
+        <FormField label="Read-only token" name="github-skills-token" value={saving.value} onChangeText={saving.setValue} placeholder="github_pat_…" variant="obscured" disabled={saving.busy} inputProps={INPUT} onSubmit={saving.save} />
         <TokenHelp editing={view.source !== null} />
-      </Col>
-      <Col gap={4}>
+      </Column>
+      <Column gap={4}>
         <Hint>{TRUST}</Hint>
         <Hint>{FORMAT}</Hint>
-      </Col>
+      </Column>
       <Actions error={saving.error} cancel={{ onPress: back, disabled: saving.busy }} main={{ label: saving.busy ? 'Saving…' : 'Save', busy: saving.busy, disabled: !saving.ready, onPress: saving.save }} />
     </Readable>
   );

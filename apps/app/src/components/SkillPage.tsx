@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { githubSkillUrl } from '@metro-labs/client/api/github-skill';
@@ -30,7 +31,7 @@ const SAVED = 'Saved. The next Claude Code session on this machine reads it.';
 function Managed({ skill }: { skill: ClaudeSkill }): ReactNode {
   const palette = useKitPalette();
   const url = githubSkillUrl(skill);
-  if (skill.managed !== true) return skill.editable ? null : <Text size="xs" role="secondary">This skill is too large to edit here.</Text>;
+  if (skill.managed !== true) return skill.editable ? null : <Text size="xs" color="secondary">This skill is too large to edit here.</Text>;
   return (
     <Rows>
       <Item
@@ -71,8 +72,7 @@ function DeleteSkill({ skill, project, edit }: { skill: ClaudeSkill; project: st
 }
 
 function SaveButton({ edit }: { edit: Editing }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return <Button size="md" color="secondary" dark={dark} label={edit.busy ? 'Saving…' : 'Save'} loading={edit.busy} disabled={edit.busy || !edit.changed} onPress={edit.save} />;
+  return <Button size="md" color="secondary" label={edit.busy ? 'Saving…' : 'Save'} loading={edit.busy} disabled={edit.busy || !edit.changed} onPress={edit.save} />;
 }
 
 function HeaderActions({ skill, project, edit }: { skill: ClaudeSkill; project: string; edit: Editing }): ReactNode {
@@ -143,22 +143,20 @@ function useSkillEditor(skill: (ClaudeSkill & { text: string }) | undefined): Ed
 }
 
 function SkillBody({ skill, edit }: { skill: ClaudeSkill; edit: Editing }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       <Managed skill={skill} />
       <Group wide note={edit.note ?? undefined} error={edit.failure}>
         <FormField label="Skill contents"
           name="skill"
           value={edit.shown}
-          dark={dark}
           disabled={edit.busy || !skill.editable}
           onChangeText={edit.setDraft}
           style={[GROW, EDITOR]}
           inputProps={NO_ASSIST}
         />
       </Group>
-    </Col>
+    </Column>
   );
 }
 

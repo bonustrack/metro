@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { addOrgConnector, orgConnectorCallbackUrl, type NewOrgConnector } from '@metro-labs/client/api/org-connectors';
 import { FormField } from '../FormField.js';
 import { Icon } from '../Icon.js';
@@ -52,35 +53,34 @@ function Radio({ on }: { on: boolean }): ReactNode {
 }
 
 function Advanced({ mode, fields, set, busy }: { mode: Mode; fields: Fields; set: (key: keyof Fields) => (value: string) => void; busy: boolean }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const [open, setOpen] = useState(false);
   return (
-    <Col gap={12}>
+    <Column gap={12}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setOpen(!open); }}>
-        <Row align="center" justify="between" gap={12} padding={{ y: 8 }}>
-          <Col gap={2}>
+        <Row align="center" justify="spaceBetween" gap={12} padding={{ y: 8 }}>
+          <Column gap={2}>
             <Text size="md">Advanced</Text>
-            <Text size="xs" role="secondary">{mode === 'key' ? 'Name and the header for the key' : 'Name and the app for the sign-in'}</Text>
-          </Col>
+            <Text size="xs" color="secondary">{mode === 'key' ? 'Name and the header for the key' : 'Name and the app for the sign-in'}</Text>
+          </Column>
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={ICON_SIZE.md} color={palette.sub} />
         </Row>
       </Pressable>
       {open ? (
-        <Col gap={10}>
-          <FormField label="Name" name="connector-name" value={fields.name} placeholder="Notion" dark={dark} disabled={busy} onChangeText={set('name')} />
-          {mode === 'key' ? <FormField label="Header" name="connector-header" value={fields.header} placeholder="Authorization" dark={dark} disabled={busy} onChangeText={set('header')} /> : null}
+        <Column gap={10}>
+          <FormField label="Name" name="connector-name" value={fields.name} placeholder="Notion" disabled={busy} onChangeText={set('name')} />
+          {mode === 'key' ? <FormField label="Header" name="connector-header" value={fields.header} placeholder="Authorization" disabled={busy} onChangeText={set('header')} /> : null}
           {mode === 'oauth' ? (
             <>
-              <Text size="xs" role="secondary">{`For servers like Microsoft 365 only: register an app with the address ${orgConnectorCallbackUrl()} and paste its client id.`}</Text>
-              <FormField label="Client ID (optional)" name="connector-client-id" value={fields.clientId} placeholder="00000000-0000-0000-0000-000000000000" dark={dark} disabled={busy} onChangeText={set('clientId')} />
-              <FormField label="Client secret (optional)" name="connector-client-secret" value={fields.clientSecret} placeholder="" inputType="password" dark={dark} disabled={busy} onChangeText={set('clientSecret')} />
+              <Text size="xs" color="secondary">{`For servers like Microsoft 365 only: register an app with the address ${orgConnectorCallbackUrl()} and paste its client id.`}</Text>
+              <FormField label="Client ID (optional)" name="connector-client-id" value={fields.clientId} placeholder="00000000-0000-0000-0000-000000000000" disabled={busy} onChangeText={set('clientId')} />
+              <FormField label="Client secret (optional)" name="connector-client-secret" value={fields.clientSecret} placeholder="" variant="obscured" disabled={busy} onChangeText={set('clientSecret')} />
               <PublicOAuthResource value={fields.resource} disabled={busy} onChange={set('resource')} />
             </>
           ) : null}
-        </Col>
+        </Column>
       ) : null}
-    </Col>
+    </Column>
   );
 }
 
@@ -123,7 +123,6 @@ function useAdd(url: string, onAdded: (added: Added) => void): { busy: boolean; 
 }
 
 export function SignInStep({ url, onBack, onAdded, onCancel }: { url: string; onBack: () => void; onAdded: (added: Added) => void; onCancel: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const app = nameFromAddress(url) || 'the service';
   const [mode, setMode] = useState<Mode>('oauth');
   const [fields, setFields] = useState<Fields>({ name: nameFromAddress(url), header: 'Authorization', key: '', clientId: '', clientSecret: '', resource: '' });
@@ -141,7 +140,7 @@ export function SignInStep({ url, onBack, onAdded, onCancel }: { url: string; on
         <Item title={`Sign in with ${app}`} subtitle="Recommended. One account for the whole organization." leading={<Radio on={mode === 'oauth'} />} chevron={false} onPress={() => { setMode('oauth'); }} />
         <Item title="Use a key" subtitle={`Paste an API key or a token from ${app}.`} leading={<Radio on={mode === 'key'} />} chevron={false} onPress={() => { setMode('key'); }} />
       </Group>
-      {mode === 'key' ? <FormField label="Key" name="connector-key" value={fields.key} placeholder="Bearer sk-…" inputType="password" dark={dark} disabled={adding.busy} onChangeText={set('key')} onSubmit={submit} /> : null}
+      {mode === 'key' ? <FormField label="Key" name="connector-key" value={fields.key} placeholder="Bearer sk-…" variant="obscured" disabled={adding.busy} onChangeText={set('key')} onSubmit={submit} /> : null}
       <Advanced mode={mode} fields={fields} set={set} busy={adding.busy} />
       <Actions note="Next, you choose which agents get it." error={adding.error} cancel={{ onPress: onCancel, disabled: adding.busy }}
         main={{ label: mode === 'oauth' ? `Sign in with ${app}` : `Add ${app}`, busy: adding.busy, disabled: !ready, onPress: submit }} />

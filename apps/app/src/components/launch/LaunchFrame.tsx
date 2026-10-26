@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from '../Icon.js';
@@ -48,8 +49,8 @@ export function TechnicalLog({ lines, startOpen = false }: { lines: string[]; st
     copyText(lines.join('\n')).then(setCopied).catch(() => undefined);
   };
   return (
-    <Col gap={12}>
-      <Row align="center" justify="between" gap={12} padding={{ bottom: open ? 12 : 0 }} border={open ? { bottom: { width: 1, color: palette.border } } : undefined}>
+    <Column gap={12}>
+      <Row align="center" justify="spaceBetween" gap={12} padding={{ bottom: open ? 12 : 0 }} border={open ? { bottom: { width: 1, color: palette.border } } : undefined}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setOpen(!open); }}>
           <Row align="center" gap={8}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={18} color={palette.text} />
@@ -60,12 +61,12 @@ export function TechnicalLog({ lines, startOpen = false }: { lines: string[]; st
           <Pressable accessibilityRole="button" accessibilityLabel="Copy the technical log" onPress={copy}>
             <Row align="center" gap={6}>
               <Icon name="copy" size={18} color={palette.sub} />
-              <Text size="xs" role="secondary">{copied ? 'Copied' : 'Copy'}</Text>
+              <Text size="xs" color="secondary">{copied ? 'Copied' : 'Copy'}</Text>
             </Row>
           </Pressable>
         ) : null}
       </Row>
       {open ? <LogBlock lines={lines.length === 0 ? ['Nothing written yet.'] : lines.slice(-60)} maxHeight={420} muted /> : null}
-    </Col>
+    </Column>
   );
 }

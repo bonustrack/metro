@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
@@ -21,7 +21,6 @@ interface PasteAddressProps {
 }
 
 export function PasteAddress({ hint, name, placeholder, finish, ready, onDone }: PasteAddressProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { busy, error, run } = useModelAction(onDone);
   const [pasted, setPasted] = useState('');
   const submit = (text: string): void => {
@@ -32,15 +31,14 @@ export function PasteAddress({ hint, name, placeholder, finish, ready, onDone }:
     if (!busy && ready?.(text) === true) submit(text);
   };
   return (
-    <Col gap={6} maxWidth={FIELD_WIDTH}>
-      <Text size="md" role="secondary">
+    <Column gap={6} maxWidth={FIELD_WIDTH}>
+      <Text size="md" color="secondary">
         {hint}
       </Text>
-      <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} dark={dark} onChangeText={change} style={GROW} />
+      <FormField label="Sign-in address" name={name} value={pasted} placeholder={placeholder} onChangeText={change} style={GROW} />
       <Row gap={8}>
-        <Button
+        <Button variant="primary"
           size="lg"
-          dark={dark}
           label={busy ? 'Finishing…' : 'Finish sign-in'}
           loading={busy}
           disabled={busy || pasted.trim() === ''}
@@ -49,21 +47,21 @@ export function PasteAddress({ hint, name, placeholder, finish, ready, onDone }:
           }}
         />
       </Row>
-      {error !== null ? <Text size="md" role="danger">{error}</Text> : null}
-    </Col>
+      {error !== null ? <Text size="md" color="danger">{error}</Text> : null}
+    </Column>
   );
 }
 
 export function SignedInAs({ connection, how = '', children }: { connection: ConnectionRow; how?: string; children: ReactNode }): ReactNode {
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       <Text size="md">
         Signed in{how === '' ? '' : ` ${how}`}
         {connection.account === null ? '' : ` as ${connection.account}`}
         {connection.plan === null ? '' : ` (${connection.plan})`}
       </Text>
       {children}
-    </Col>
+    </Column>
   );
 }
 

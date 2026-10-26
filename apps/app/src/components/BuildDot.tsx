@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Box, Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { type BuildInfo } from '@metro-labs/client/build';
@@ -32,16 +32,16 @@ function Card({ build }: { build: BuildInfo }): ReactNode {
         if (href !== null) openExternal(href);
       }}
     >
-      <Col gap={2} padding={{ x: 10, y: 7 }} radius={8} surface="raised" border={allSides(palette.border)}>
-        <Text size="md" weight="medium">
+      <Column gap={2} padding={{ x: 10, y: 7 }} radius={8} surface="raised" border={allSides(palette.border)}>
+        <Text size="md" fontWeight="medium">
           {head}
         </Text>
         {build.time === '' ? null : (
-          <Text size="md" role="secondary">
+          <Text size="md" color="secondary">
             {build.time}
           </Text>
         )}
-      </Col>
+      </Column>
     </Pressable>
   );
 }
@@ -63,7 +63,7 @@ export function BuildDot({ bottom = 0 }: { bottom?: number }): ReactNode {
           setOpen((v) => !v);
         }}
       >
-        <Box width={DOT} height={DOT} radius={DOT} background={build.fresh ? fresh : palette.sub} />
+        <Column width={DOT} height={DOT} radius={DOT} background={build.fresh ? fresh : palette.sub} />
       </Pressable>
     </View>
   );

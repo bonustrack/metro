@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Badge } from '@stage-labs/kit/react-native/badge';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
@@ -76,9 +77,9 @@ function MainNotes(input: NotesInput): ReactNode {
   const notes = notesOf(input, technical);
   return (
     <>
-      {notes.map((note) => (note === null ? null : <Text key={note} size="xs" role="secondary">{note}</Text>))}
+      {notes.map((note) => (note === null ? null : <Text key={note} size="xs" color="secondary">{note}</Text>))}
       {view?.failures.map((failure) => (
-        <Text key={failure.text} size="xs" role={failure.danger ? 'danger' : 'secondary'}>
+        <Text key={failure.text} size="xs" color={failure.danger ? 'danger' : 'secondary'}>
           {failure.text}
         </Text>
       ))}
@@ -102,12 +103,12 @@ function MainThread({ status, disconnected, view, state, observed, onSession }: 
     </Row>
   );
   return (
-    <Col gap={10}>
+    <Column gap={10}>
       <Group wide label={sectionTitle(state)} action={action}>
         <Item title={view === null ? unavailableNote(status, disconnected) : technical ? view.main : mainWord(activity)} subtitle={technical ? view?.tools : undefined} leading={<StatusDot tone={mainDot(activity, state)} />} />
       </Group>
       <MainNotes activity={activity} view={view} state={state} observed={observed} disconnected={disconnected} />
-    </Col>
+    </Column>
   );
 }
 
@@ -153,7 +154,7 @@ function CurrentWorkers({ workers, observed, onHelper }: Pick<Props, 'onHelper'>
   const { matching, shown } = workerSelection(workers, filter, expanded);
   if (workers.length === 0 && filter === 'all') return null;
   return (
-    <Col gap={10} testID="current-workers">
+    <Column gap={10} testID="current-workers">
       <Group wide label={observed ? 'Workers' : 'Last reported workers'} action={<WorkerControls filter={filter} expanded={expanded} count={matching.length}
         onFilter={(value) => { setFilter(value); setExpanded(true); }} onExpand={() => { setExpanded(!expanded); }} />}>
         {shown.map((row) => (
@@ -161,10 +162,10 @@ function CurrentWorkers({ workers, observed, onHelper }: Pick<Props, 'onHelper'>
             leading={<StateMark row={row} />} onPress={() => { onHelper(row.id); }} label={`Details for worker ${row.id}`} />
         ))}
       </Group>
-      <Text size="xs" role="secondary" accessibilityLiveRegion="polite">
+      <Text size="xs" color="secondary" accessibilityLiveRegion="polite">
         {matching.length === 0 ? 'No workers with this status.' : `Showing ${String(shown.length)} of ${String(matching.length)}, finished ones included.`}
       </Text>
-    </Col>
+    </Column>
   );
 }
 
@@ -173,9 +174,9 @@ export function RunCurrent({ status, now, disconnected, onSession, onHelper }: P
   const view = status === undefined ? null : sessionView(status, now, disconnected);
   const observed = state === 'Fresh' || state === 'Stale' || state === 'Disconnected';
   return (
-    <Col gap={40} testID="current-status">
+    <Column gap={40} testID="current-status">
       <MainThread status={status} disconnected={disconnected} view={view} state={state} observed={observed} onSession={onSession} />
       <CurrentWorkers workers={view?.workers ?? []} observed={observed} onHelper={onHelper} />
-    </Col>
+    </Column>
   );
 }

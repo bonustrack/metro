@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { Rect, Svg } from 'react-native-svg';
@@ -36,21 +37,21 @@ export function SignupChart({ users, now }: { users: UserRow[]; now: number }): 
   const from = new Date(dayStart(now) - (DAYS - 1) * DAY_MS).toLocaleDateString();
   const to = new Date(now).toLocaleDateString();
   return (
-    <Col gap={8} padding={{ top: 8 }}>
+    <Column gap={8} padding={{ top: 8 }}>
       <Svg width="100%" height={HEIGHT} viewBox={`0 0 100 ${String(HEIGHT)}`} preserveAspectRatio="none" accessibilityLabel={`${String(total)} sign-ups in the last ${String(DAYS)} days`}>
         {counts.map((count, i) => {
           const h = count === 0 ? 1 : Math.max(2, (count / peak) * (HEIGHT - 4));
           return <Rect key={String(i)} x={i * slot + GAP / 2} y={HEIGHT - h} width={slot - GAP} height={h} fill={count === 0 ? palette.border : palette.link} />;
         })}
       </Svg>
-      <Row justify="between">
-        <Text size="2xs" role="secondary">
+      <Row justify="spaceBetween">
+        <Text size="2xs" color="secondary">
           {from}
         </Text>
-        <Text size="2xs" role="secondary">
+        <Text size="2xs" color="secondary">
           {to}
         </Text>
       </Row>
-    </Col>
+    </Column>
   );
 }

@@ -1,6 +1,5 @@
 import { type ReactNode } from 'react';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Item } from '../ui/Item.js';
 import { updateOffered, useMetroUpdate, versionFacts, type MetroUpdate } from '../MetroVersion.js';
 import { shortVersion } from '../../lib/settings-values.js';
@@ -17,14 +16,12 @@ function noteOf(u: MetroUpdate, facts: Facts, offered: boolean): { text: string;
 }
 
 function UpdateButton({ u }: { u: MetroUpdate }): ReactNode {
-  const dark = useKitScheme() === 'dark';
-  return <Button size="sm" color="secondary" dark={dark} label={u.busy ? 'Updating…' : 'Update'} loading={u.busy} disabled={u.busy} onPress={u.update} />;
+  return <Button size="sm" color="secondary" label={u.busy ? 'Updating…' : 'Update'} loading={u.busy} disabled={u.busy} onPress={u.update} />;
 }
 
 function CheckButton({ u }: { u: MetroUpdate }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const busy = u.busy || u.release.isFetching || u.mode.isFetching || u.check.isFetching;
-  return <Button size="sm" color="secondary" dark={dark} label="Check for updates" disabled={busy} onPress={u.refresh} />;
+  return <Button size="sm" color="secondary" label="Check for updates" disabled={busy} onPress={u.refresh} />;
 }
 
 export function VersionRow(): ReactNode {

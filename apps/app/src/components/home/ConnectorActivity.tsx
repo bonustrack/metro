@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { Group } from '../ui/Group.js';
@@ -31,7 +31,7 @@ function Week({ agent, href }: { agent: string; href: string }): ReactNode {
     <RouteLink to={href} label={`${callsWords(total)} ${rangeWords('7d')}, ${failedShare} failed. Open the connector calls of this agent.`} style={frame}>
       <Figure label="Calls, 7 days" value={countWords(total)} />
       <Figure label="Failed" value={failedShare} danger={failedAlarm(failed, total)} />
-      <Row flex={1} justify="end">
+      <Row weight={1} justify="end">
         <CallSparkline values={stats.buckets.map((bucket) => bucket.total)} label={`Calls per 6 hours ${rangeWords('7d')}`} />
       </Row>
     </RouteLink>

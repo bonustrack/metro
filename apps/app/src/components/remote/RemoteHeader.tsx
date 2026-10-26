@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { ScrollView } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -25,6 +26,7 @@ import { go } from '../../lib/nav.js';
 import { refreshServers } from '../../lib/queries.js';
 import { REMOTE_TABS, remoteTabOf } from '../../lib/remote-tabs.js';
 import { SHRINK } from '../../lib/style.js';
+import { optionTabs } from '../../lib/option-tabs.js';
 
 function RemoteMenu({ server }: { server: RemoteServer }): ReactNode {
   const client = useQueryClient();
@@ -53,41 +55,39 @@ function RemoteMenu({ server }: { server: RemoteServer }): ReactNode {
 function RemoteTabs({ selection, project }: { selection: Selection; project: string }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col border={{ bottom: side(palette.border) }}>
+    <Column border={{ bottom: side(palette.border) }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel="Agent pages">
         <Tabs
           variant="underline"
-          value={remoteTabOf(selection)}
-          options={REMOTE_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
-          onChange={(id) => {
+          {...optionTabs(REMOTE_TABS.map((tab) => ({ value: tab.id, label: tab.label })), remoteTabOf(selection), (id) => {
             const tab = REMOTE_TABS.find((t) => t.id === id);
             if (tab !== undefined) go(tab.target(project));
-          }}
+          })}
         />
       </ScrollView>
-    </Col>
+    </Column>
   );
 }
 
 function Compact({ server, avatar, line, tabs }: { server: RemoteServer; avatar: ReactNode; line: string; tabs: ReactNode }): ReactNode {
   const palette = useKitPalette();
   return (
-    <Col gap={20}>
+    <Column gap={20}>
       <Row align="center" gap={12}>
         <RouteLink to={routeHash({ kind: 'servers' })} label="All agents">
           <Icon name="chevronLeft" size={ICON_SIZE.lg} color={palette.link} />
         </RouteLink>
         {avatar}
-        <Col flex={1} minWidth={0} gap={2}>
-          <Text accessibilityRole="header" size="md" weight="semibold" numberOfLines={1} style={SHRINK}>
+        <Column weight={1} minWidth={0} gap={2}>
+          <Text accessibilityRole="header" size="md" fontWeight="semibold" numberOfLines={1} style={SHRINK}>
             {serverLabel(server)}
           </Text>
-          <Text size="xs" role="secondary" numberOfLines={1}>{line}</Text>
-        </Col>
+          <Text size="xs" color="secondary" numberOfLines={1}>{line}</Text>
+        </Column>
         <RemoteMenu server={server} />
       </Row>
       {tabs}
-    </Col>
+    </Column>
   );
 }
 

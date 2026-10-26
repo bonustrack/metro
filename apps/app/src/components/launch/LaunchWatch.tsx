@@ -1,9 +1,10 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { BootView, Launched } from '@metro-labs/client/api/launch';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { canDeleteServer, DeleteServerDialog } from '../DeleteServer.js';
@@ -51,10 +52,10 @@ function StepLine({ step, at }: { step: PlainStep; at: string | null }): ReactNo
   return (
     <View style={frame}>
       <View style={styles.lead}><Lead step={step} /></View>
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         <Text size="md" color={step.state === 'failed' ? palette.danger : color}>{step.label}</Text>
-      </Col>
-      {at === null ? null : <Text size="xs" role="secondary">{at}</Text>}
+      </Column>
+      {at === null ? null : <Text size="xs" color="secondary">{at}</Text>}
     </View>
   );
 }
@@ -81,10 +82,9 @@ function useSeen(steps: PlainStep[], boot: BootView | null): Record<string, numb
 }
 
 function Ready({ subject }: { subject: LaunchSubject }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row>
-      <Button size="lg" color="primary" dark={dark} label={`Open ${subject.name}`} onPress={() => { go({ kind: 'home', project: subject.launched.server.id }); }} />
+      <Button size="lg" color="primary" label={`Open ${subject.name}`} onPress={() => { go({ kind: 'home', project: subject.launched.server.id }); }} />
     </Row>
   );
 }
@@ -120,10 +120,10 @@ function Headline({ subject, ready }: { subject: LaunchSubject; ready: boolean }
   return (
     <Row align="center" gap={20}>
       <AgentAvatar seed={subject.launched.host} src={subject.avatar} size={AVATAR} />
-      <Col flex={1} minWidth={0} gap={4}>
-        <Text accessibilityRole="header" size="2xl" weight="semibold">{ready ? `${subject.name} is ready` : `${subject.name} is getting ready`}</Text>
-        <Text size="md" role="secondary">{ready ? 'Open it to connect a chat and finish the setup.' : timeLeftLine((now - subject.startedAt) / 1000)}</Text>
-      </Col>
+      <Column weight={1} minWidth={0} gap={4}>
+        <Text accessibilityRole="header" size="2xl" fontWeight="semibold">{ready ? `${subject.name} is ready` : `${subject.name} is getting ready`}</Text>
+        <Text size="md" color="secondary">{ready ? 'Open it to connect a chat and finish the setup.' : timeLeftLine((now - subject.startedAt) / 1000)}</Text>
+      </Column>
     </Row>
   );
 }
@@ -137,8 +137,8 @@ export function LaunchWatch({ subject }: { subject: LaunchSubject }): ReactNode 
   return (
     <>
       <Headline subject={subject} ready={outcome === 'ready'} />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
-      {subject.pictureError === null ? null : <Text size="md" role="danger">{`${subject.pictureError} Add it later in ${subject.name}’s Settings, Profile.`}</Text>}
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
+      {subject.pictureError === null ? null : <Text size="md" color="danger">{`${subject.pictureError} Add it later in ${subject.name}’s Settings, Profile.`}</Text>}
       <Rows>{steps.map((step, i) => <StepLine key={step.key} step={step} at={times[i] ?? null} />)}</Rows>
       {outcome === 'ready' ? <Ready subject={subject} /> : null}
       <TechnicalLog lines={lines} />

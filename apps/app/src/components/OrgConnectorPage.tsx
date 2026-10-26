@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { completeOrgConnectorSignIn, setOrgConnectorPolicy, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import type { ToolPolicy } from '@metro-labs/client/api/policy';
@@ -60,9 +60,9 @@ function useSignInReturn(onDone: () => void): Outcome {
 function Notes({ outcome }: { outcome: Outcome }): ReactNode {
   return (
     <>
-      {outcome.busy ? <Text size="md" role="secondary">Finishing the sign-in…</Text> : null}
-      {outcome.note === null ? null : <Text size="md" role="secondary">{outcome.note}</Text>}
-      {outcome.error === null ? null : <Text size="md" role="danger">{outcome.error}</Text>}
+      {outcome.busy ? <Text size="md" color="secondary">Finishing the sign-in…</Text> : null}
+      {outcome.note === null ? null : <Text size="md" color="secondary">{outcome.note}</Text>}
+      {outcome.error === null ? null : <Text size="md" color="danger">{outcome.error}</Text>}
     </>
   );
 }
@@ -111,11 +111,11 @@ function AgentPage({ connector, agentId, admin }: { connector: OrgConnector; age
   ];
   return (
     <Groups>
-      <Col>
+      <Column>
         <PageHeader crumbs={crumbs} title={name} subtitle={agentSubtitle(connector, name)} leading={server === undefined ? undefined : <AgentFace server={server} dot={row?.line.dot ?? null} size={AVATAR_SIZE.header} />}
           action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined} />
         <ConnectorSummary connector={connector} agentId={agentId} name={name} remote={server !== undefined && isRemote(server)} />
-      </Col>
+      </Column>
       <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} onRemoved={() => { go({ kind: 'org-connector', id: connector.id, tab: 'agents' }); }} />
     </Groups>
   );

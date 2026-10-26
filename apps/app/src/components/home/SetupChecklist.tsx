@@ -1,10 +1,11 @@
 import { type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { AvatarStack } from '@stage-labs/kit/react-native/avatar-stack';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { StyleSheet, Text as RNText, View } from 'react-native';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { fontName } from '@stage-labs/kit/tokens';
 import { findAccount, type AccountGroup } from '@metro-labs/client/api/accounts';
 import { fetchRecentSenders } from '@metro-labs/client/api/attach';
 import { Icon } from '../Icon.js';
@@ -19,6 +20,9 @@ const MARK = 28;
 const CHECK = ICON_SIZE.md;
 const FACE = AVATAR_SIZE.row;
 const FACES_MAX = 3;
+const FACE_OVERLAP = 10;
+const FACE_RING = 2;
+const FACE_LETTER = 0.4;
 
 const ACTION: Record<StepId, string> = {
   model: 'Choose a model',
@@ -45,7 +49,7 @@ function StepMark({ step, index, open }: { step: SetupStep; index: number; open:
   const frame = StyleSheet.flatten([styles.mark, open ? { backgroundColor: palette.link } : { borderWidth: 1.5, borderColor: palette.border }]);
   return (
     <View style={frame}>
-      <Text size="xs" weight="semibold" color={open ? palette.bg : palette.sub}>
+      <Text size="xs" fontWeight="semibold" color={open ? palette.bg : palette.sub}>
         {String(index + 1)}
       </Text>
     </View>
@@ -63,14 +67,37 @@ function useWrote(step: SetupStep, agentId: string, groups: AccountGroup[]): str
   return (recent.data ?? []).map((sender) => (sender.name === '' ? sender.id : sender.name));
 }
 
-function Wrote({ names }: { names: string[] }): ReactNode {
+const faceStyles = StyleSheet.create({
+  stack: { flexDirection: 'row', alignItems: 'center' },
+  ring: { borderRadius: FACE, borderWidth: FACE_RING },
+  face: { width: FACE, height: FACE, borderRadius: FACE / 2, alignItems: 'center', justifyContent: 'center' },
+  letter: { fontSize: FACE * FACE_LETTER, fontFamily: fontName.head },
+});
+
+function Faces({ letters }: { letters: string[] }): ReactNode {
   const palette = useKitPalette();
+  const face = StyleSheet.flatten([faceStyles.face, { backgroundColor: palette.border }]);
+  const letter = StyleSheet.flatten([faceStyles.letter, { color: palette.link }]);
+  return (
+    <View style={faceStyles.stack}>
+      {letters.map((value, index) => (
+        <View key={`${String(index)}:${value}`} style={StyleSheet.flatten([faceStyles.ring, { marginLeft: index === 0 ? 0 : -FACE_OVERLAP, borderColor: palette.bg }])}>
+          <View style={face}>
+            <RNText style={letter}>{value}</RNText>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Wrote({ names }: { names: string[] }): ReactNode {
   if (names.length === 0) return null;
-  const faces = names.slice(0, FACES_MAX).map((name) => ({ fallback: (name.trim()[0] ?? '?').toUpperCase() }));
+  const letters = names.slice(0, FACES_MAX).map((name) => (name.trim()[0] ?? '?').toUpperCase());
   return (
     <Row gap={10} align="center" margin={{ top: 4 }}>
-      <AvatarStack items={faces} size={FACE} ring={palette.bg} fallbackBackground={palette.border} dark />
-      <Text size="xs" role="secondary" numberOfLines={1}>
+      <Faces letters={letters} />
+      <Text size="xs" color="secondary" numberOfLines={1}>
         {`${joinNames(names.slice(0, FACES_MAX))} wrote already`}
       </Text>
     </Row>
@@ -79,22 +106,21 @@ function Wrote({ names }: { names: string[] }): ReactNode {
 
 function OpenStep({ step, index, agentId, groups }: { step: SetupStep; index: number; agentId: string; groups: AccountGroup[] }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const wrote = useWrote(step, agentId, groups);
   const frame = StyleSheet.flatten([styles.row, styles.open, { borderBottomColor: palette.border }]);
   return (
     <View style={frame}>
       <StepMark step={step} index={index} open />
-      <Col flex={1} minWidth={0} gap={8}>
+      <Column weight={1} minWidth={0} gap={8}>
         <Text size="md">{step.title}</Text>
         <Text size="md" color={palette.text}>
           {step.hint}
         </Text>
         <Wrote names={wrote} />
         <Row margin={{ top: 8 }}>
-          <Button size="md" color="primary" dark={dark} label={ACTION[step.id]} onPress={() => { go(step.target); }} />
+          <Button size="md" color="primary" label={ACTION[step.id]} onPress={() => { go(step.target); }} />
         </Row>
-      </Col>
+      </Column>
     </View>
   );
 }
@@ -105,14 +131,14 @@ function StepRow({ step, index }: { step: SetupStep; index: number }): ReactNode
   return (
     <View style={frame} accessibilityLabel={`${step.title}${step.done ? ', done' : ''}`}>
       <StepMark step={step} index={index} open={false} />
-      <Col flex={1} minWidth={0} gap={2}>
+      <Column weight={1} minWidth={0} gap={2}>
         <Text size="md" color={palette.text}>
           {step.title}
         </Text>
-        <Text size="xs" role="secondary" numberOfLines={2}>
+        <Text size="xs" color="secondary" numberOfLines={2}>
           {step.hint}
         </Text>
-      </Col>
+      </Column>
     </View>
   );
 }

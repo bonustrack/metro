@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from '../Icon.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { PageHeader } from '../ui/PageHeader.js';
@@ -58,9 +58,8 @@ function organizationOptions(rows: AdminAgent[]): FilterOption<string | null>[] 
 
 function UpdateAll({ rows, latest, onPress }: { rows: AdminAgent[]; latest: string | null; onPress: () => void }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   if (rows.length === 0 || latest === null) return null;
-  return <Button color="secondary" dark={dark} icon={<Icon name="update" size={ICON_SIZE.md} color={palette.link} />} label={`Update ${String(rows.length)} ${rows.length === 1 ? 'agent' : 'agents'}`} onPress={onPress} />;
+  return <Button color="secondary" icon={<Icon name="update" size={ICON_SIZE.md} color={palette.link} />} label={`Update ${String(rows.length)} ${rows.length === 1 ? 'agent' : 'agents'}`} onPress={onPress} />;
 }
 
 function AgentFiltersBar({ rows, filters, onChange }: { rows: AdminAgent[]; filters: AgentFilters; onChange: (filters: AgentFilters) => void }): ReactNode {
@@ -97,7 +96,7 @@ export function AdminAgents(): ReactNode {
   const shown = sortRows(filterAgents(rows, filters), sort, agentSortValue, agentTie);
   const updatable = rows.filter((row) => canUpdate(row) && actions.notes[row.key] === undefined);
   return (
-    <Col gap={28}>
+    <Column gap={28}>
       <PageHeader title="Agents" subtitle={rows.length === 0 ? 'Every agent on Metro, in every organization.' : subtitleOf(rows)} crumbs={listCrumbs(narrow)}
         action={<UpdateAll rows={updatable} latest={latest} onPress={() => { actions.ask({ kind: 'update-all', rows: updatable }); }} />} />
       <Stats stats={[
@@ -114,6 +113,6 @@ export function AdminAgents(): ReactNode {
         {shown.some((row) => !row.member) ? <NoMatch text={UNCHECKED_NOTE} /> : null}
       </AgentsBody>
       <AgentDialogs actions={actions} latest={latest} />
-    </Col>
+    </Column>
   );
 }

@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { connectorHost, connectorLabel } from '@metro-labs/client/api/connectors';
 import { assignOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
@@ -59,12 +59,12 @@ function AddConnector({ agent, name, open, onClose }: PickerProps): ReactNode {
   const fresh = (): void => { onClose(); go({ kind: 'org-connector-new' }); };
   return (
     <Modal title="Add a connector" open={open} onClose={close}>
-      <Col gap={20}>
+      <Column gap={20}>
         <ModalText>{free.length === 0 ? `${name} has every connector of the organization. Add a new one on the Connectors page.` : `Pick a connector of the organization for ${name}.`}</ModalText>
         {free.length === 0 ? null : <Choices free={free} all={all} busy={busy} onPick={pick} />}
-        {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+        {error === null ? null : <Text size="md" color="danger">{error}</Text>}
         <Actions cancel={{ onPress: close, disabled: busy !== null }} main={free.length === 0 ? { label: 'New connector', onPress: fresh } : undefined} />
-      </Col>
+      </Column>
     </Modal>
   );
 }

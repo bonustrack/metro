@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Badge } from '@stage-labs/kit/react-native/badge';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -70,7 +71,7 @@ function Names({ tool, narrow }: { tool: ExplorerTool; narrow: boolean }): React
       {titled ? <Text size="md" style={SHRINK}>{tool.title}</Text> : null}
       {titled && narrow ? null : (
         <Row align="center" gap={6}>
-          <Text size={titled ? 'xs' : 'md'} role={titled ? 'secondary' : undefined} style={MONO}>
+          <Text size={titled ? 'xs' : 'md'} color={titled ? 'secondary' : undefined} style={MONO}>
             {tool.name}
           </Text>
           <CopyName name={tool.name} />
@@ -83,37 +84,37 @@ function Names({ tool, narrow }: { tool: ExplorerTool; narrow: boolean }): React
 function Summary({ tool, floor, choice, narrow }: { tool: ExplorerTool; floor: PermissionChoice | null; choice: PermissionChoice; narrow: boolean }): ReactNode {
   const description = tool.listed ? tool.description : UNLISTED;
   return (
-    <Col flex={1} minWidth={0} gap={4}>
+    <Column weight={1} minWidth={0} gap={4}>
       <Names tool={tool} narrow={narrow} />
       {narrow && tool.title !== tool.name ? (
         <Row align="center" gap={6}>
-          <Text size="xs" role="secondary" style={MONO}>{tool.name}</Text>
+          <Text size="xs" color="secondary" style={MONO}>{tool.name}</Text>
           <CopyName name={tool.name} />
         </Row>
       ) : null}
-      {description === '' ? null : <Text size="xs" role="secondary" numberOfLines={narrow ? 2 : 1}>{description}</Text>}
-      {floor !== null && floor !== choice ? <Text size="xs" role="secondary">{`Organization: ${CHOICE_WORD[floor]}`}</Text> : null}
+      {description === '' ? null : <Text size="xs" color="secondary" numberOfLines={narrow ? 2 : 1}>{description}</Text>}
+      {floor !== null && floor !== choice ? <Text size="xs" color="secondary">{`Organization: ${CHOICE_WORD[floor]}`}</Text> : null}
       {narrow ? <Badges tool={tool} /> : null}
-    </Col>
+    </Column>
   );
 }
 
 function Details({ tool, stricter }: { tool: ExplorerTool; stricter: StricterName[] }): ReactNode {
   return (
-    <Col gap={20} padding={{ bottom: 18 }}>
+    <Column gap={20} padding={{ bottom: 18 }}>
       {tool.listed && tool.description !== '' ? (
-        <Col maxWidth={READABLE_WIDTH}>
+        <Column maxWidth={READABLE_WIDTH}>
           <Text size="md">{tool.description}</Text>
-        </Col>
+        </Column>
       ) : null}
       <ToolInputs schema={tool.inputSchema} />
       {stricter.length === 0 ? null : (
-        <Col gap={6}>
-          <Text size="xs" role="secondary">Agents with a stricter rule</Text>
+        <Column gap={6}>
+          <Text size="xs" color="secondary">Agents with a stricter rule</Text>
           <Text size="md">{stricter.map((agent) => `${agent.name}: ${CHOICE_WORD[agent.choice]}`).join(' · ')}</Text>
-        </Col>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }
 
@@ -123,7 +124,7 @@ export function ToolRow({ tool, choice, floor, stricter, disabled, onChange }: T
   const [open, setOpen] = useState(false);
   const toggle = (): void => { setOpen(!open); };
   return (
-    <Col border={{ bottom: side(palette.border) }}>
+    <Column border={{ bottom: side(palette.border) }}>
       <Row align="center" gap={narrow ? 8 : 12} padding={{ y: 14 }}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${open ? 'Hide' : 'Show'} details of ${tool.title}`} accessibilityState={{ expanded: open }} onPress={toggle} style={styles.chevron}>
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={ICON_SIZE.md} color={palette.sub} />
@@ -135,10 +136,10 @@ export function ToolRow({ tool, choice, floor, stricter, disabled, onChange }: T
         <PermissionControl label={tool.title} value={choice} atLeast={floor} disabled={disabled} onChange={onChange} size={narrow ? 'sm' : 'md'} />
       </Row>
       {open ? (
-        <Col padding={{ left: narrow ? 28 : 32 }}>
+        <Column padding={{ left: narrow ? 28 : 32 }}>
           <Details tool={tool} stricter={stricter} />
-        </Col>
+        </Column>
       ) : null}
-    </Col>
+    </Column>
   );
 }

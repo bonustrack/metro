@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View, type DimensionValue } from 'react-native';
-import { Scroll } from '@stage-labs/kit/react-native/scroll';
+import { List } from '@stage-labs/kit/react-native/list';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 
@@ -21,9 +21,9 @@ export function LogBlock({ lines, text, maxHeight = 360, muted = false }: LogBlo
   const frame = [styles.box, { backgroundColor: palette.inputBg }, maxHeight === null ? null : { maxHeight }];
   const body = text ?? (lines ?? []).join('\n');
   const content = (
-    <Text size="md" role={muted ? 'secondary' : 'default'} selectable style={styles.line}>
+    <Text size="md" color={muted ? 'secondary' : undefined} selectable style={styles.line}>
       {body}
     </Text>
   );
-  return <View style={frame}>{maxHeight === null ? content : <Scroll nestedScrollEnabled>{content}</Scroll>}</View>;
+  return <View style={frame}>{maxHeight === null ? content : <List nestedScrollEnabled>{content}</List>}</View>;
 }

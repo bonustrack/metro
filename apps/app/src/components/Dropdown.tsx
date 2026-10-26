@@ -1,7 +1,6 @@
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Dialog } from '@stage-labs/kit/react-native/dialog';
+import { Modal } from '@stage-labs/kit/react-native/modal';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSheet } from '@stage-labs/kit/react-native/menu';
 import { Button, type ButtonProps } from '@stage-labs/kit/react-native/button';
 import { iconOf, type IconName } from './Icon.js';
@@ -98,13 +97,13 @@ function AnchoredPanel({ at, onClose, children }: { at: Placement | null; onClos
   const { maxHeight, minWidth, ...edges } = at ?? { maxHeight: 0 };
   const position: ViewStyle = { position: 'absolute', ...edges, ...(minWidth === undefined ? {} : { minWidth }) };
   return (
-    <Dialog open={at !== null} onClose={onClose} animationType="none" backdropColor="transparent" fullBleedPanel>
+    <Modal open={at !== null} onClose={onClose} animationType="none" backdropColor="transparent" fullBleedPanel>
       <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill}>
         <Pressable accessible={false} onPress={(e) => { e.stopPropagation(); }} style={position}>
           <DropdownMenu maxHeight={maxHeight}>{children}</DropdownMenu>
         </Pressable>
       </Pressable>
-    </Dialog>
+    </Modal>
   );
 }
 
@@ -122,7 +121,6 @@ interface DropdownProps {
 }
 
 export function Dropdown({ items, label, align = 'end', matchWidth = false, button, style, hoverStyle, onHoverIn, onHoverOut, children }: DropdownProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const narrow = useIsNarrow();
   const viewport = useWindowDimensions();
   const trigger = useRef<View>(null);
@@ -152,7 +150,7 @@ export function Dropdown({ items, label, align = 'end', matchWidth = false, butt
             {children}
           </Pressable>
         ) : (
-          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} dark={dark} label={button.label} icon={button.icon} uniform={button.label === undefined} pill={button.label === undefined}
+          <Button color={button.color ?? 'primary'} size={button.size ?? 'md'} label={button.label} icon={button.icon} uniform={button.label === undefined} pill={button.label === undefined}
             accessibilityLabel={label} style={button.style} textStyle={button.textStyle} onPress={open} />
         )}
       </View>

@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { stationFields, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { routeHash } from '@metro-labs/client/route';
@@ -41,7 +42,6 @@ interface ChannelRowProps {
 
 export function ChannelRow({ item, project, receiving, busy, onToggle }: ChannelRowProps): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const id = item.row.id;
   const title = channelTitle(item);
   const href = routeHash(id === null ? { kind: 'chats', project } : { kind: 'station', project, accountId: id });
@@ -50,16 +50,16 @@ export function ChannelRow({ item, project, receiving, busy, onToggle }: Channel
     <Row align="center" gap={14} minHeight={60} border={{ bottom: side(palette.border) }}>
       <RouteLink to={href} label={title} style={styles.link}>
         <StationIcon station={item.station} size={ICON_SIZE.lg} />
-        <Col flex={1} minWidth={0} gap={2}>
+        <Column weight={1} minWidth={0} gap={2}>
           <Text size="md" numberOfLines={1}>
             {title}
           </Text>
-          <Text size="xs" role={stale ? 'danger' : 'secondary'} numberOfLines={1}>
+          <Text size="xs" color={stale ? 'danger' : 'secondary'} numberOfLines={1}>
             {subtitleOf(item)}
           </Text>
-        </Col>
+        </Column>
       </RouteLink>
-      {id === null ? null : <Switch checked={receiving} disabled={busy} dark={dark} name={`Receive messages on ${title}`} onChange={onToggle} />}
+      {id === null ? null : <CheckBox displayStyle="switch" value={receiving} disabled={busy} name={`Receive messages on ${title}`} onChange={onToggle} />}
       <RouteLink to={href} label={`Open ${title}`} style={styles.chevron}>
         <Icon name="chevronRight" size={CHEVRON} color={palette.sub} />
       </RouteLink>

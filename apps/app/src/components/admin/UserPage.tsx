@@ -1,7 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import type { UserRow } from '@metro-labs/client/api/admin';
 import { ErrorState } from '../ui/ErrorState.js';
 import { Group, Groups } from '../ui/Group.js';
@@ -38,9 +37,8 @@ const exactDate = (iso: string | null): string | undefined => {
 };
 
 function Approve({ user, actions }: { user: UserRow; actions: UserActions }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   if (!mayApprove(user)) return null;
-  return <Button color="secondary" dark={dark} label="Approve" loading={actions.busy} disabled={actions.busy} onPress={() => { actions.approve(user); }} />;
+  return <Button color="secondary" label="Approve" loading={actions.busy} disabled={actions.busy} onPress={() => { actions.approve(user); }} />;
 }
 
 function UserGroups({ user, actions, now }: { user: UserRow; actions: UserActions; now: number }): ReactNode {
@@ -88,7 +86,7 @@ export function UserPage({ id }: { id: string }): ReactNode {
     <Groups>
       <PageHeader title="User" crumbs={detailCrumbs(USERS_CRUMB, 'User')} />
       {error !== null ? <ErrorState title="Could not read this person" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /> : null}
-      {error === null && data === undefined ? <Col><RowsSkeleton rows={3} /></Col> : null}
+      {error === null && data === undefined ? <Column><RowsSkeleton rows={3} /></Column> : null}
       {data === undefined ? null : <StateBlock icon="user" title="Nobody with this id" text="This person is not on Metro, or the link is wrong." />}
     </Groups>
   );

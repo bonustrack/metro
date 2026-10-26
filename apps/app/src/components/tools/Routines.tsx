@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Switch } from '@stage-labs/kit/react-native/switch';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { setClaudeMemoryRoutine, type MemoryJob } from '@metro-labs/client/api/claude-box';
 import { type ScheduledJob } from '@metro-labs/client/api/schedules';
 import { whenLabel } from '@metro-labs/client/api/when';
@@ -71,14 +70,13 @@ function useMemorySwitch(): { busy: boolean; error: string | null; flip: (on: bo
 }
 
 function MemoryRow({ on, job, routine, project }: { on: boolean; job: MemoryJob | null; routine: ScheduledJob | undefined; project: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const memory = useMemorySwitch();
   return (
     <Item
       title="Memory routine"
       subtitle={memory.error ?? memoryLine(job, routine?.schedule ?? MEMORY_SCHEDULE)}
       subtitleTone={memory.error === null ? 'secondary' : 'danger'}
-      trailing={<Switch checked={on} dark={dark} disabled={memory.busy} name="Memory routine" onChange={memory.flip} />}
+      trailing={<CheckBox displayStyle="switch" value={on} disabled={memory.busy} name="Memory routine" onChange={memory.flip} />}
       chevron={routine !== undefined}
       onPress={routine === undefined ? undefined : () => { go({ kind: 'scheduled-job', project, id: routine.id }); }}
     />

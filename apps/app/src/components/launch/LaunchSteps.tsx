@@ -1,8 +1,9 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { regionName } from '@metro-labs/client/aws/regions';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { FormField } from '../FormField.js';
@@ -18,19 +19,18 @@ const NO_AUTOFILL = { autoComplete: 'off', autoCorrect: false } as const;
 
 function Heading({ title, text }: { title: string; text: string }): ReactNode {
   return (
-    <Col gap={8}>
-      <Text accessibilityRole="header" size="2xl" weight="semibold">{title}</Text>
-      <Text size="md" role="secondary">{text}</Text>
-    </Col>
+    <Column gap={8}>
+      <Text accessibilityRole="header" size="2xl" fontWeight="semibold">{title}</Text>
+      <Text size="md" color="secondary">{text}</Text>
+    </Column>
   );
 }
 
 function Buttons({ next, ready, busy = false, onNext, onBack }: { next: string; ready: boolean; busy?: boolean; onNext: () => void; onBack?: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row gap={12} align="center">
-      <Button size="lg" color="primary" dark={dark} label={next} loading={busy} disabled={!ready || busy} onPress={onNext} />
-      {onBack === undefined ? null : <Button size="lg" color="secondary" dark={dark} label="Back" disabled={busy} onPress={onBack} />}
+      <Button size="lg" color="primary" label={next} loading={busy} disabled={!ready || busy} onPress={onNext} />
+      {onBack === undefined ? null : <Button size="lg" color="secondary" label="Back" disabled={busy} onPress={onBack} />}
     </Row>
   );
 }
@@ -51,7 +51,6 @@ interface NameProps {
 }
 
 export function NameStep({ name, avatar, picker, onName, onNext, onBack, text = 'People see this name in their chats. You can change it later.', next = 'Continue', busy = false, error = null }: NameProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const ready = name.trim() !== '';
   return (
     <>
@@ -59,13 +58,13 @@ export function NameStep({ name, avatar, picker, onName, onNext, onBack, text = 
       <Row align="center" gap={16} wrap>
         <AgentAvatar seed={seedOf(name)} src={avatar} size={PREVIEW} />
         <Row gap={8}>
-          <Button size="md" color="secondary" dark={dark} label={avatar === null ? 'Choose a picture' : 'Change the picture'} disabled={picker.busy} onPress={picker.pick} />
-          {avatar === null ? null : <Button size="md" color="secondary" dark={dark} label="Remove" onPress={picker.remove} />}
+          <Button size="md" color="secondary" label={avatar === null ? 'Choose a picture' : 'Change the picture'} disabled={picker.busy} onPress={picker.pick} />
+          {avatar === null ? null : <Button size="md" color="secondary" label="Remove" onPress={picker.remove} />}
         </Row>
       </Row>
-      {picker.error === null ? null : <Text size="md" role="danger">{picker.error}</Text>}
-      <FormField label="Name" name="launch-name" value={name} placeholder="Rosa" autoFocus dark={dark} inputProps={NO_AUTOFILL} onChangeText={onName} onSubmit={() => { if (ready && !busy) onNext(); }} />
-      {error === null ? null : <Text size="md" role="danger">{error}</Text>}
+      {picker.error === null ? null : <Text size="md" color="danger">{picker.error}</Text>}
+      <FormField label="Name" name="launch-name" value={name} placeholder="Rosa" autoFocus inputProps={NO_AUTOFILL} onChangeText={onName} onSubmit={() => { if (ready && !busy) onNext(); }} />
+      {error === null ? null : <Text size="md" color="danger">{error}</Text>}
       <Buttons next={next} ready={ready} busy={busy} onNext={onNext} onBack={onBack} />
     </>
   );

@@ -1,8 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Switch } from '@stage-labs/kit/react-native/switch';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { controlClaudeSession, type ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { sessionNote } from '@metro-labs/client/api/runner';
 import { routeHash } from '@metro-labs/client/route';
@@ -48,20 +47,19 @@ function useClock(on: boolean): number {
 }
 
 function Rows({ status, project }: { status: ClaudeSessionStatus; project: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const { send, busy, error } = useSend();
   const now = useClock(status.activity !== null);
   return (
     <>
       <Control title="Status" note={sessionNote(status, now)} error={error}>
         {status.running ? (
-          <Button size="sm" color="secondary" dark={dark} label="Stop" disabled={busy} onPress={() => { send({ action: 'stop' }); }} />
+          <Button size="sm" color="secondary" label="Stop" disabled={busy} onPress={() => { send({ action: 'stop' }); }} />
         ) : (
-          <Button size="sm" color="secondary" dark={dark} label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
+          <Button size="sm" color="secondary" label="Start" disabled={busy || status.blocked !== null} onPress={() => { send({ action: 'start' }); }} />
         )}
       </Control>
       <Control title="Start by itself" note={AUTOSTART} inline>
-        <Switch name="Start by itself" checked={status.autostart} disabled={busy} dark={dark} onChange={(on) => { send({ autostart: on }); }} />
+        <CheckBox displayStyle="switch" name="Start by itself" value={status.autostart} disabled={busy} onChange={(on) => { send({ autostart: on }); }} />
       </Control>
       <Item title="Right now" subtitle="What the agent and its workers are doing" href={routeHash({ kind: 'run', project })} />
       <Item title="Conversations" subtitle="Saved turns and tool results" href={routeHash({ kind: 'sessions', project, claudeProject: null, id: null })} />

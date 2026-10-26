@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { FormField } from './FormField.js';
 import { Modal } from './Modal.js';
 import { Actions } from './ui/Actions.js';
@@ -20,7 +19,6 @@ interface NameModalProps {
 }
 
 export function NameModal({ title, action, placeholder, field = 'Name', initial = '', failure, open, onClose, onSubmit }: NameModalProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [name, setName] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +48,10 @@ export function NameModal({ title, action, placeholder, field = 'Name', initial 
 
   return (
     <Modal title={title} open={open} onClose={close}>
-      <Col gap={20}>
-        <FormField label={field} name="name" value={name} placeholder={placeholder} disabled={busy} dark={dark} onChangeText={setName} onSubmit={submit} style={GROW} />
+      <Column gap={20}>
+        <FormField label={field} name="name" value={name} placeholder={placeholder} disabled={busy} onChangeText={setName} onSubmit={submit} style={GROW} />
         <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: action, busy, disabled: name.trim() === '', onPress: submit }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }

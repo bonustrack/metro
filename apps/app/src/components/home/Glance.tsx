@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { AccountGroup } from '@metro-labs/client/api/accounts';
 import { routeHash } from '@metro-labs/client/route';
@@ -71,9 +71,9 @@ export function AtAGlance({ project, serverId, groups, name, rail = false }: AtA
       </Group>
     );
   return (
-    <Col>
-      <Text size="xs" role="secondary">{name === undefined ? 'About this agent' : `About ${name}`}</Text>
+    <Column>
+      <Text size="xs" color="secondary">{name === undefined ? 'About this agent' : `About ${name}`}</Text>
       {rows.map((row, index) => <GlanceFact key={row.title} {...row} last={index === rows.length - 1} />)}
-    </Col>
+    </Column>
   );
 }

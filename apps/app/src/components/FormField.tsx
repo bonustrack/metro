@@ -1,6 +1,6 @@
 import { type ReactNode, useRef } from 'react';
 import { Pressable, StyleSheet, type TextInput } from 'react-native';
-import { Input, type InputProps } from '@stage-labs/kit/react-native/input';
+import { TextField, type TextFieldProps } from '@stage-labs/kit/react-native/text-field';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { FONT_SIZE, fontName } from '@stage-labs/kit/tokens';
@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
   hidden: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
 });
 
-interface FormFieldProps extends InputProps {
+interface FormFieldProps extends TextFieldProps {
   label: string;
   labelHidden?: boolean;
 }
@@ -38,10 +38,10 @@ export function FormField({ label, labelHidden = false, style, ...props }: FormF
         input.current?.focus();
       }}
     >
-      <Text nativeID={props.name === undefined ? undefined : `label-${props.name}`} size="xs" role="secondary" style={labelHidden ? styles.hidden : undefined}>
+      <Text nativeID={props.name === undefined ? undefined : `label-${props.name}`} size="xs" color="secondary" style={labelHidden ? styles.hidden : undefined}>
         {label}
       </Text>
-      <Input ref={input} {...props} style={[styles.input, style]} />
+      <TextField ref={input} {...props} style={[styles.input, style]} />
     </Pressable>
   );
 }

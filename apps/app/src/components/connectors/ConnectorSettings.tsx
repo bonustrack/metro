@@ -2,7 +2,6 @@ import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { deleteOrgConnector, renameOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
@@ -45,9 +44,8 @@ function CopyAddress({ url }: { url: string }): ReactNode {
 }
 
 function SignInGroup({ connector, admin, onOpen }: { connector: OrgConnector; admin: boolean; onOpen: (open: Open) => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const state = signInOf(connector);
-  const action = admin && state.action !== null ? <Button color="secondary" dark={dark} label={state.action} onPress={() => { onOpen(state.open); }} /> : undefined;
+  const action = admin && state.action !== null ? <Button color="secondary" label={state.action} onPress={() => { onOpen(state.open); }} /> : undefined;
   return (
     <Group label="Sign-in">
       <Item title={state.title} subtitle={state.subtitle} subtitleTone={state.bad ? 'danger' : 'secondary'} trailing={action} chevron={false} />
@@ -90,7 +88,7 @@ export function ConnectorSettings({ connector, admin }: { connector: OrgConnecto
           <Item title={`Remove ${connector.name}`} subtitle={`Every agent loses its ${connector.name} tools at once. You can add it again later.`} danger chevron={false} onPress={removing.show} />
         </Group>
       ) : (
-        <Text size="xs" role="secondary">Only an admin of the organization can change this connector.</Text>
+        <Text size="xs" color="secondary">Only an admin of the organization can change this connector.</Text>
       )}
       {technical ? <ConnectorFacts connector={connector} /> : null}
       <Modals connector={connector} open={open} onClose={() => { setOpen(null); }} />

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { OrgModelConnection, OrgModels } from '@metro-labs/client/api/org-models';
@@ -69,9 +69,9 @@ function AccountRow({ connection, pane, selected }: { connection: OrgModelConnec
 
 function PaneLabel({ text }: { text: string }): ReactNode {
   return (
-    <Col padding={{ x: 12, top: 28, bottom: 8 }}>
-      <Text size="xs" role="secondary">{text}</Text>
-    </Col>
+    <Column padding={{ x: 12, top: 28, bottom: 8 }}>
+      <Text size="xs" color="secondary">{text}</Text>
+    </Column>
   );
 }
 
@@ -82,21 +82,21 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
   const usage = routeHash({ kind: 'org-usage' });
   if (pane)
     return (
-      <Col>
+      <Column>
         <ListPaneRow title="Default route" line={routeSummary(list.default)} avatar={<RouteMark />} selected={pick?.kind === 'route'} href={href} />
         <ListPaneRow title="Usage" line={USAGE_LINE} avatar={<RouteMark icon="chart" />} selected={pick?.kind === 'usage'} href={usage} />
         <PaneLabel text="Accounts" />
-        {accounts.length === 0 ? <Col padding={{ x: 12 }}><Text size="xs" role="secondary">No account yet.</Text></Col> : accounts}
-      </Col>
+        {accounts.length === 0 ? <Column padding={{ x: 12 }}><Text size="xs" color="secondary">No account yet.</Text></Column> : accounts}
+      </Column>
     );
   return (
-    <Col gap={40}>
+    <Column gap={40}>
       <Group>
         <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={agentsWord(count)} href={href} />
         <Item title="Usage" subtitle={USAGE_LINE} leading={<RouteMark icon="chart" />} href={usage} />
       </Group>
       <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>
-    </Col>
+    </Column>
   );
 }
 
@@ -104,9 +104,9 @@ function Body({ pane, pick }: { pane: boolean; pick: ModelPick }): ReactNode {
   const { data, error, refetch } = useOrgModelsQuery();
   if (error !== null)
     return (
-      <Col padding={pane ? { x: 12, top: 12 } : undefined}>
+      <Column padding={pane ? { x: 12, top: 12 } : undefined}>
         <ErrorState title="Could not load the models" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />
-      </Col>
+      </Column>
     );
   if (data === undefined) return <RowsSkeleton rows={3} pane={pane} trailing={false} />;
   return <Lists list={data} pane={pane} pick={pick} />;
@@ -115,10 +115,10 @@ function Body({ pane, pick }: { pane: boolean; pick: ModelPick }): ReactNode {
 function PageBody(): ReactNode {
   const back = useOpenRouterReturn();
   return (
-    <Col gap={24}>
+    <Column gap={24}>
       <OpenRouterNote back={back} />
       <Body pane={false} pick={null} />
-    </Col>
+    </Column>
   );
 }
 

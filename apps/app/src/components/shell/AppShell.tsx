@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { routeHash } from '@metro-labs/client/route';
@@ -35,20 +36,20 @@ interface AppShellProps {
 function DesktopShell({ selection, onLock, list, fluid = false, children }: AppShellProps): ReactNode {
   const palette = useKitPalette();
   return (
-    <Row flex={1} align="start">
+    <Row weight={1} align="start">
       <Rail section={shellSectionOf(selection)} admin={isAdminSelection(selection)} onLock={onLock} />
       {list === undefined || list === null ? null : (
-        <Col width={LIST_WIDTH} border={{ right: side(palette.border) }} style={STICKY_LIST}>
+        <Column width={LIST_WIDTH} border={{ right: side(palette.border) }} style={STICKY_LIST}>
           {list}
-        </Col>
+        </Column>
       )}
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         <PageScroll>
-          <Col width="100%" maxWidth={fluid ? undefined : DETAIL_MAX} gap={24} padding={{ x: PAGE_PAD, top: PAGE_TOP, bottom: DETAIL_BOTTOM }}>
+          <Column width="100%" maxWidth={fluid ? undefined : DETAIL_MAX} gap={24} padding={{ x: PAGE_PAD, top: PAGE_TOP, bottom: DETAIL_BOTTOM }}>
             {children}
-          </Col>
+          </Column>
         </PageScroll>
-      </Col>
+      </Column>
       <RailTipLayer />
     </Row>
   );
@@ -64,15 +65,15 @@ function PhoneBack({ selection }: { selection: Selection }): ReactNode {
 function PhoneShell({ selection, children }: AppShellProps): ReactNode {
   const insets = useSafeAreaInsets();
   return (
-    <Col flex={1}>
+    <Column weight={1}>
       <PageScroll>
-        <Col gap={24} padding={{ x: PHONE_PAD, top: insets.top + 6, bottom: TAB_BAR_ROOM + insets.bottom }}>
+        <Column gap={24} padding={{ x: PHONE_PAD, top: insets.top + 6, bottom: TAB_BAR_ROOM + insets.bottom }}>
           <PhoneBack selection={selection} />
           {children}
-        </Col>
+        </Column>
       </PageScroll>
       <TabBar active={phoneTabOf(selection)} bottom={insets.bottom + TAB_BAR_GAP} />
-    </Col>
+    </Column>
   );
 }
 

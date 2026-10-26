@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
@@ -49,11 +49,11 @@ export function AgentDeepPage({ project, tab, trail, title, subtitle, lead, lead
         {title === undefined ? (
           <PageCrumbs items={items} />
         ) : (
-          <Col gap={6}>
+          <Column gap={6}>
             <PageHeader crumbs={items} title={title} subtitle={subtitle} leading={leading} action={action} />
             <Lead text={lead} />
             {summary}
-          </Col>
+          </Column>
         )}
         {children}
       </Groups>

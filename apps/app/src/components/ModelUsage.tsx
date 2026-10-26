@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { View, type ViewStyle } from 'react-native';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -22,7 +22,7 @@ export function UsageBar({ used, blocked = false }: { used: number | null; block
   return (
     <Row gap={10} align="center">
       <Meter used={used} warn={warn} />
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {`${String(Math.round(used * 100))}%`}
       </Text>
     </Row>

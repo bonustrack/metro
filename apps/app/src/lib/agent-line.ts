@@ -48,11 +48,11 @@ function waitingText(waiting: number, ask: string | null): string {
 
 function liveLine(facts: LineFacts): AgentLine {
   const { session, setup } = facts;
-  if (facts.waiting > 0) return { text: waitingText(facts.waiting, facts.ask), tone: 'default', dot: 'success', busy: false, needsYou: true };
+  if (facts.waiting > 0) return { text: waitingText(facts.waiting, facts.ask), tone: 'link', dot: 'success', busy: false, needsYou: true };
   if (session !== undefined && !session.running) return { text: 'Not running', tone: 'danger', dot: 'danger', busy: false, needsYou: true };
   if (facts.trouble !== null) return { text: troubleLine(facts.trouble), tone: 'danger', dot: 'danger', busy: false, needsYou: true };
   if (setup !== null && setup.open !== null)
-    return { text: `Setting up: ${String(setup.done)} of ${String(setup.steps.length)}`, tone: 'default', dot: null, busy: false, needsYou: true };
+    return { text: `Setting up: ${String(setup.done)} of ${String(setup.steps.length)}`, tone: 'link', dot: null, busy: false, needsYou: true };
   const working = session === undefined ? null : workingLine(rightNow(session, facts.now));
   return online(working ?? 'Online');
 }
@@ -63,7 +63,7 @@ export function connectorsWords(count: number | null): string {
 }
 
 export function remoteLine(waiting: number, ask: string | null, connectors: number | null): AgentLine {
-  if (waiting > 0) return { text: waitingText(waiting, ask), tone: 'default', dot: null, busy: false, needsYou: true };
+  if (waiting > 0) return { text: waitingText(waiting, ask), tone: 'link', dot: null, busy: false, needsYou: true };
   return quiet(connectorsWords(connectors));
 }
 

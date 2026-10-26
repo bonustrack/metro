@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { fetchBootView, type BootView } from '@metro-labs/client/api/launch';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { type Server } from '@metro-labs/client/api/servers';
@@ -66,13 +65,12 @@ function Body({ server, log }: { server: Server | undefined; log: ReturnType<typ
 }
 
 export function LaunchLogPage({ project }: { project: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const servers = useServersQuery();
   const here = currentServer();
   const server = servers.data?.find((s) => s.id === here?.id);
   const log = useBootLog(server);
   useDocumentTitle('Launch log');
-  const refresh = server?.instanceId === null || server === undefined ? undefined : <Button size="md" color="secondary" dark={dark} label="Refresh" loading={log.busy} disabled={log.busy} onPress={log.refresh} />;
+  const refresh = server?.instanceId === null || server === undefined ? undefined : <Button size="md" color="secondary" label="Refresh" loading={log.busy} disabled={log.busy} onPress={log.refresh} />;
   const subtitle = server?.instanceId === null ? undefined : summary(log.view);
   return (
     <AgentDeepPage project={project} tab="settings" trail={[{ label: 'Launch log' }]} title="Launch log" subtitle={subtitle} action={refresh}>

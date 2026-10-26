@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { FormField } from './FormField.js';
 import { ClaudeConnect } from './ClaudeConnect.js';
 import { CodexConnect } from './CodexConnect.js';
@@ -69,14 +68,13 @@ interface FieldsProps {
 }
 
 function KeyFields({ provider, stored, withKey, draft, setDraft }: FieldsProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <>
-      <FormField label="Name" name="label" value={draft.label} placeholder={providerLabel(provider)} dark={dark} onChangeText={(label) => { setDraft((d) => ({ ...d, label })); }} style={GROW} />
+      <FormField label="Name" name="label" value={draft.label} placeholder={providerLabel(provider)} onChangeText={(label) => { setDraft((d) => ({ ...d, label })); }} style={GROW} />
       {withKey ? (
-        <FormField label="API key" name="api-key" inputType="password" value={draft.key} placeholder={stored ? 'Stored for the organization. Paste a new key to replace it.' : 'Paste the key'} dark={dark} onChangeText={(key) => { setDraft((d) => ({ ...d, key })); }} style={GROW} inputProps={{ autoComplete: 'off' }} />
+        <FormField label="API key" name="api-key" variant="obscured" value={draft.key} placeholder={stored ? 'Stored for the organization. Paste a new key to replace it.' : 'Paste the key'} onChangeText={(key) => { setDraft((d) => ({ ...d, key })); }} style={GROW} inputProps={{ autoComplete: 'off' }} />
       ) : null}
-      {provider === 'bedrock' ? <FormField label="Region" name="region" value={draft.region} placeholder="eu-central-1" dark={dark} onChangeText={(region) => { setDraft((d) => ({ ...d, region })); }} style={GROW} /> : null}
+      {provider === 'bedrock' ? <FormField label="Region" name="region" value={draft.region} placeholder="eu-central-1" onChangeText={(region) => { setDraft((d) => ({ ...d, region })); }} style={GROW} /> : null}
       {withKey ? <KeyHelp provider={provider} /> : null}
     </>
   );
@@ -90,15 +88,14 @@ function ConnectionForm({ provider, row, withKey, onDone }: { provider: Provider
   const { busy, error, save } = useSaveDraft(provider, row, onDone);
   const missingKey = row === null && withKey && draft.key.trim() === '';
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <KeyFields provider={provider} stored={keyStored(row)} withKey={withKey} draft={draft} setDraft={setDraft} />
       <Actions error={error} main={{ label: busy ? 'Saving…' : 'Save', busy, disabled: missingKey, onPress: () => { save(draft); } }} />
-    </Col>
+    </Column>
   );
 }
 
 function ZdrSwitch({ row }: { row: ConnectionRow }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [on, setOn] = useState(row.zdr);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +111,7 @@ function ZdrSwitch({ row }: { row: ConnectionRow }): ReactNode {
   };
   return (
     <Rows>
-      <Item title="Zero data retention" subtitle={error ?? ZDR_NOTE} subtitleTone={error === null ? 'secondary' : 'danger'} trailing={<Switch name="Zero data retention" checked={on} dark={dark} onChange={change} />} />
+      <Item title="Zero data retention" subtitle={error ?? ZDR_NOTE} subtitleTone={error === null ? 'secondary' : 'danger'} trailing={<CheckBox displayStyle="switch" name="Zero data retention" value={on} onChange={change} />} />
     </Rows>
   );
 }
@@ -122,26 +119,26 @@ function ZdrSwitch({ row }: { row: ConnectionRow }): ReactNode {
 function Body({ provider, row, onDone }: { provider: Provider; row: ConnectionRow | null; onDone: () => void }): ReactNode {
   if (provider === 'codex')
     return (
-      <Col gap={32}>
+      <Column gap={32}>
         {row === null ? null : <ConnectionForm provider={provider} row={row} withKey={false} onDone={onDone} />}
         <CodexConnect codex={row} onDone={onDone} />
-      </Col>
+      </Column>
     );
   if (provider === 'anthropic' && row?.subscription === true)
     return (
-      <Col gap={32}>
+      <Column gap={32}>
         <ConnectionForm provider={provider} row={row} withKey={false} onDone={onDone} />
         <ClaudeConnect connection={row} onDone={onDone} />
-      </Col>
+      </Column>
     );
   const form = <ConnectionForm provider={provider} row={row} withKey={usesKey(provider)} onDone={onDone} />;
   if (provider === 'anthropic' && row === null) return <ClaudeConnect connection={null} onDone={onDone}>{form}</ClaudeConnect>;
   if (provider !== 'openrouter') return form;
   return (
-    <Col gap={32}>
+    <Column gap={32}>
       {row === null ? null : <ZdrSwitch row={row} />}
       <OpenRouterConnect connection={row} onDone={onDone}>{form}</OpenRouterConnect>
-    </Col>
+    </Column>
   );
 }
 

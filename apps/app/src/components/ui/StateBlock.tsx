@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon, type IconName } from '../Icon.js';
 import { Spinner } from '../Spinner.js';
 import { ICON_SIZE } from './sizes.js';
@@ -20,10 +20,9 @@ interface StateAction {
 
 function ActionButton({ action }: { action: StateAction }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const primary = action.primary === true;
   const icon = action.icon === undefined ? undefined : <Icon name={action.icon} size={ICON_SIZE.md} color={primary ? palette.bg : palette.link} />;
-  return <Button size="md" color={primary ? 'primary' : 'secondary'} dark={dark} label={action.label} icon={icon} loading={action.busy} disabled={action.busy} onPress={action.onPress} />;
+  return <Button size="md" color={primary ? 'primary' : 'secondary'} label={action.label} icon={icon} loading={action.busy} disabled={action.busy} onPress={action.onPress} />;
 }
 
 interface StateBlockProps {
@@ -45,26 +44,26 @@ function Mark({ icon, spinner, danger }: Pick<StateBlockProps, 'icon' | 'spinner
 
 export function StateBlock({ icon, spinner, danger, title, text, action, children }: StateBlockProps): ReactNode {
   return (
-    <Col gap={8} align="start">
-      <Col margin={{ bottom: 6 }}>
+    <Column gap={8} align="start">
+      <Column margin={{ bottom: 6 }}>
         <Mark icon={icon} spinner={spinner} danger={danger} />
-      </Col>
-      <Text size="md" weight="semibold">
+      </Column>
+      <Text size="md" fontWeight="semibold">
         {title}
       </Text>
       {text === undefined ? null : (
-        <Col maxWidth={TEXT_WIDTH}>
-          <Text size="xs" role="secondary">
+        <Column maxWidth={TEXT_WIDTH}>
+          <Text size="xs" color="secondary">
             {text}
           </Text>
-        </Col>
+        </Column>
       )}
       {children}
       {action === undefined ? null : (
-        <Col margin={{ top: 8 }}>
+        <Column margin={{ top: 8 }}>
           <ActionButton action={action} />
-        </Col>
+        </Column>
       )}
-    </Col>
+    </Column>
   );
 }

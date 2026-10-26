@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { BLOCK_RADIUS_DEFAULT } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { FormField } from './FormField.js';
@@ -17,7 +18,6 @@ const NAME_MAX = 64;
 const WHAT = 'Your agents belong to an organization. Name it now and invite people later.';
 
 export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLock: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const palette = useKitPalette();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,28 +40,28 @@ export function OrganizationSetup({ onDone, onLock }: { onDone: () => void; onLo
   };
   return (
     <PageScroll>
-    <Row justify="center" align="center" flex={1} padding={24}>
-      <Col gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24} radius={BLOCK_RADIUS_DEFAULT} border={allSides(palette.border)}>
+    <Row justify="center" align="center" weight={1} padding={24}>
+      <Column gap={20} width="100%" maxWidth={CARD_WIDTH} padding={24} radius={BLOCK_RADIUS_DEFAULT} border={allSides(palette.border)}>
         <Row justify="center">
           <MetroLogo size={48} color={palette.link} />
         </Row>
         <Row justify="center">
           <PageTitle>Name your organization</PageTitle>
         </Row>
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {WHAT}
         </Text>
-        <FormField label="Organization name" name="organization" value={name} dark={dark} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
+        <FormField label="Organization name" name="organization" value={name} placeholder="Stage Labs" disabled={busy} onChangeText={setName} />
         <Row gap={10} align="center" wrap>
-          <Button size="lg" color="primary" dark={dark} label={busy ? 'Creating…' : 'Create'} loading={busy} disabled={busy || !valid} onPress={create} />
-          <Button color="secondary" dark={dark} label="Sign out" disabled={busy} onPress={onLock} />
+          <Button size="lg" color="primary" label={busy ? 'Creating…' : 'Create'} loading={busy} disabled={busy || !valid} onPress={create} />
+          <Button color="secondary" label="Sign out" disabled={busy} onPress={onLock} />
         </Row>
         {error === null ? null : (
-          <Text size="md" role="danger">
+          <Text size="md" color="danger">
             {error}
           </Text>
         )}
-      </Col>
+      </Column>
     </Row>
     </PageScroll>
   );

@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { SaveField, useSave } from './SaveField.js';
@@ -16,11 +15,10 @@ import { activeAccount, type Account } from '@metro-labs/client/auth/account';
 const NAME_MAX = 80;
 
 function PictureButtons({ busy, shown, onPick, onRemove }: { busy: boolean; shown: boolean; onPick: () => void; onRemove: () => void }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   return (
     <Row gap={8} align="center">
-      {shown ? <Button size="sm" color="secondary" dark={dark} label="Remove" disabled={busy} onPress={onRemove} /> : null}
-      <Button size="sm" color="secondary" dark={dark} label={busy ? 'Saving…' : 'Change'} loading={busy} disabled={busy} onPress={onPick} />
+      {shown ? <Button size="sm" color="secondary" label="Remove" disabled={busy} onPress={onRemove} /> : null}
+      <Button size="sm" color="secondary" label={busy ? 'Saving…' : 'Change'} loading={busy} disabled={busy} onPress={onPick} />
     </Row>
   );
 }

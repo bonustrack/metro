@@ -19,5 +19,5 @@ export function useOpenRouterReturn(): OpenRouterReturn | null {
 export function OpenRouterNote({ back }: { back: OpenRouterReturn | null }): ReactNode {
   if (back === null) return null;
   if (back.kind === 'error') return <StateBlock icon="exclamationCircle" danger title="OpenRouter did not connect" text={back.error} />;
-  return <Text size="xs" role="secondary">OpenRouter is connected. Pick one of its models for the default route.</Text>;
+  return <Text size="xs" color="secondary">OpenRouter is connected. Pick one of its models for the default route.</Text>;
 }

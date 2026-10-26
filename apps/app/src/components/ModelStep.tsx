@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { Scroll } from '@stage-labs/kit/react-native/scroll';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { List } from '@stage-labs/kit/react-native/list';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { FormField } from './FormField.js';
 import { RowButton } from './ModelRowButton.js';
 import type { ConnectionRow } from '@metro-labs/client/api/model';
@@ -20,13 +19,12 @@ interface ModelStepProps {
 }
 
 function ListStatus({ loading, empty, error }: { loading: boolean; empty: boolean; error: string | null }): ReactNode {
-  if (error !== null) return <Text size="md" role="danger">{error}</Text>;
+  if (error !== null) return <Text size="md" color="danger">{error}</Text>;
   if (!empty) return null;
-  return <Text size="md" role="secondary">{loading ? 'Loading models…' : 'No model matches your search.'}</Text>;
+  return <Text size="md" color="secondary">{loading ? 'Loading models…' : 'No model matches your search.'}</Text>;
 }
 
 export function ModelStep({ conn, model, onPick }: ModelStepProps): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [query, setQuery] = useState('');
   const models = useConnectionModelsQuery(conn);
   const input: PickInput = { models: models.data ?? [], connection: conn, query, current: model };
@@ -34,17 +32,17 @@ export function ModelStep({ conn, model, onPick }: ModelStepProps): ReactNode {
   const typed = typedRow(input);
   const pick = (row: PickRow): void => { onPick(row.id); };
   return (
-    <Col gap={10}>
-      <FormField label="Search models" name="route-model-search" value={query} placeholder="Name or id" dark={dark} onChangeText={setQuery} style={GROW} inputProps={{ autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
+    <Column gap={10}>
+      <FormField label="Search models" name="route-model-search" value={query} placeholder="Name or id" onChangeText={setQuery} style={GROW} inputProps={{ autoCapitalize: 'none', autoComplete: 'off', autoCorrect: false, spellCheck: false }} />
       <ListStatus loading={models.isFetching} empty={rows.length === 0 && typed === null} error={models.error === null ? null : queryError(models.error, `Could not list the models of ${conn.label}.`)} />
-      <Scroll style={LIST} nestedScrollEnabled>
-        <Col>
+      <List style={LIST} nestedScrollEnabled>
+        <Column>
           {typed === null ? null : <RowButton row={{ ...typed, name: `Use “${typed.id}”` }} onPick={pick} />}
           {rows.map((row) => (
             <RowButton key={row.id === '' ? 'default' : row.id} row={row} onPick={pick} />
           ))}
-        </Col>
-      </Scroll>
-    </Col>
+        </Column>
+      </List>
+    </Column>
   );
 }

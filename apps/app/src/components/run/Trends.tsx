@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Box, Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { eventBuckets, type EventBucket } from './filters.js';
 import { clock, sameTimeRange, stamp, type RunEntry } from './model.js';
+import { optionTabs } from '../../lib/option-tabs.js';
 
 const styles = StyleSheet.create({ target: { flex: 1, minWidth: 0, height: 76, justifyContent: 'flex-end', alignItems: 'center' }, plot: { flex: 1, minWidth: 0 }, marker: { borderTopLeftRadius: 4, borderTopRightRadius: 4 } });
 const bucketLabel = (row: EventBucket): string => `${stamp(row.start)} to ${clock(row.end)} UTC: ${String(row.count)} retained events`;
@@ -24,44 +26,43 @@ function EventPlot({ buckets, selected, onSelect }: PlotProps): ReactNode {
   const max = Math.max(1, ...buckets.map((row) => row.count));
   const first = buckets[0];
   const last = buckets[buckets.length - 1];
-  if (first === undefined || last === undefined) return <Text size="sm" role="secondary">No events match these filters.</Text>;
-  return <Col gap={6}>
+  if (first === undefined || last === undefined) return <Text size="sm" color="secondary">No events match these filters.</Text>;
+  return <Column gap={6}>
     <Row gap={10} align="end">
-      <Col height={76} justify="between"><Text size="md">{max}</Text><Text size="md">0</Text></Col>
+      <Column height={76} justify="spaceBetween"><Text size="md">{max}</Text><Text size="md">0</Text></Column>
       <Row gap={3} style={styles.plot} border={{ bottom: { width: 1, color: palette.border } }}>
         {buckets.map((bucket) => <Pressable key={bucket.start} style={styles.target} accessibilityRole="button"
           accessibilityLabel={bucketAction(bucket, selected)} accessibilityState={{ selected: sameTimeRange(selected, bucket) }}
           onHoverIn={() => { setHovered(bucket); }} onHoverOut={() => { setHovered(null); }} onFocus={() => { setHovered(bucket); }} onBlur={() => { setHovered(null); }}
           onPress={() => { onSelect(sameTimeRange(selected, bucket) ? null : bucket); }} testID={`chart-bucket-${String(bucket.start)}`}>
-          <Box width="100%" height={76} background={sameTimeRange(selected, bucket) ? palette.inputBg : 'transparent'} align="center" justify="end">
-            <Box width={8} height={bucket.count / max * 68} background={palette.link} style={styles.marker} />
-          </Box>
+          <Column width="100%" height={76} background={sameTimeRange(selected, bucket) ? palette.inputBg : 'transparent'} align="center" justify="end">
+            <Column width={8} height={bucket.count / max * 68} background={palette.link} style={styles.marker} />
+          </Column>
         </Pressable>)}
       </Row>
     </Row>
-    <Row justify="between"><Text size="md">{clock(first.start)}</Text><Text size="md">{clock(last.end)} UTC</Text></Row>
+    <Row justify="spaceBetween"><Text size="md">{clock(first.start)}</Text><Text size="md">{clock(last.end)} UTC</Text></Row>
     <Text size="md" accessibilityLiveRegion="polite">{hovered === null ? `Events per ${String((first.end - first.start) / 60_000)} minutes. Select a bar to filter.` : bucketLabel(hovered)}</Text>
-  </Col>;
+  </Column>;
 }
 
 export function RunTrends({ entries, selected, onSelect }: { entries: RunEntry[]; selected: EventBucket | null; onSelect: PlotProps['onSelect'] }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [mode, setMode] = useState('events');
   const [table, setTable] = useState(false);
   const buckets = eventBuckets(entries);
-  return <Col gap={12} testID="run-charts">
-    <Row gap={8} align="center" justify="between" wrap>
-      <Tabs variant="underline" value={mode} options={[{ value: 'events', label: 'Events' }, { value: 'workers', label: 'Workers' }, { value: 'cost', label: 'Cost' }]} onChange={setMode} />
-      {mode === 'events' && <Button dark={dark} color="secondary" label={table ? 'Hide table' : 'Show table'} onPress={() => { setTable(!table); }} />}
+  return <Column gap={12} testID="run-charts">
+    <Row gap={8} align="center" justify="spaceBetween" wrap>
+      <Tabs variant="underline" {...optionTabs([{ value: 'events', label: 'Events' }, { value: 'workers', label: 'Workers' }, { value: 'cost', label: 'Cost' }], mode, setMode)} />
+      {mode === 'events' && <Button color="secondary" label={table ? 'Hide table' : 'Show table'} onPress={() => { setTable(!table); }} />}
     </Row>
     {mode === 'events' ? <>
       <EventPlot buckets={buckets} selected={selected} onSelect={onSelect} />
-      {table && <Col gap={6} testID="chart-table">{buckets.map((bucket) => <Button key={bucket.start} dark={dark} color="secondary"
+      {table && <Column gap={6} testID="chart-table">{buckets.map((bucket) => <Button key={bucket.start} color="secondary"
         label={`${clock(bucket.start)} · ${String(bucket.count)} events`} accessibilityLabel={bucketLabel(bucket)}
-        onPress={() => { onSelect(sameTimeRange(selected, bucket) ? null : bucket); }} />)}</Col>}
-      <Text size="md" role="secondary">Partial history: only events still kept are counted, so zero does not mean idle.</Text>
-    </> : <Text size="sm" role="secondary">{mode === 'workers'
+        onPress={() => { onSelect(sameTimeRange(selected, bucket) ? null : bucket); }} />)}</Column>}
+      <Text size="md" color="secondary">Partial history: only events still kept are counted, so zero does not mean idle.</Text>
+    </> : <Text size="sm" color="secondary">{mode === 'workers'
       ? 'The runner keeps no worker history. The latest count is above.'
       : 'Session cost is not reported. Usage on the Gateway page covers more than this session.'}</Text>}
-  </Col>;
+  </Column>;
 }

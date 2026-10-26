@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { fetchClaudeProjects } from '@metro-labs/client/api/claude';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import type { StationsView } from '@metro-labs/client/api/client';
@@ -47,12 +47,12 @@ function Approvals({ context }: { context: ApprovalContext }): ReactNode {
   const approvals = data ?? [];
   if (approvals.length === 0 && error === null) return null;
   return (
-    <Col gap={CARD_GAP}>
+    <Column gap={CARD_GAP}>
       {error === null ? null : <ErrorState title="Could not check for new approvals" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
       {approvals.map((approval) => (
         <ApprovalCardView key={approval.id} approval={approval} context={context} />
       ))}
-    </Col>
+    </Column>
   );
 }
 

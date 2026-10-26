@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
 import { CopyBlock } from './CopyBlock.js';
@@ -16,12 +17,12 @@ function activationNote(result: AttachResult): string {
 
 function Secret({ label, value, note, danger = false }: { label: string; value: string; note: string; danger?: boolean }): ReactNode {
   return (
-    <Col gap={8}>
+    <Column gap={8}>
       <CopyBlock label={label} value={value} secret />
-      <Text size="xs" role={danger ? 'danger' : 'secondary'}>
+      <Text size="xs" color={danger ? 'danger' : 'secondary'}>
         {note}
       </Text>
-    </Col>
+    </Column>
   );
 }
 
@@ -31,15 +32,15 @@ export function AttachedAccount({ result, onDismiss }: { result: AttachResult; o
   const callback = result.identity.callback;
   const fields = Object.entries(result.identity).filter(([k]) => k !== 'endpoint' && k !== 'callback');
   return (
-    <Col gap={24}>
-      <Col gap={8}>
-        <Text accessibilityRole="header" size="2xl" weight="semibold">
+    <Column gap={24}>
+      <Column gap={8}>
+        <Text accessibilityRole="header" size="2xl" fontWeight="semibold">
           {`${stationLabel(result.station)} attached`}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {activationNote(result)}
         </Text>
-      </Col>
+      </Column>
       <Row gap={20} wrap>
         <Field label="id" value={result.accountId} />
         {fields.map(([label, value]) => (
@@ -50,6 +51,6 @@ export function AttachedAccount({ result, onDismiss }: { result: AttachResult; o
       {callback === undefined ? null : <Secret label="threema delivers here" value={callback} note={CALLBACK_NOTE} />}
       {secret === null ? null : <Secret label={secret.label} value={secret.value} note={`${secret.note} Copy it somewhere safe before you close this.`} danger />}
       <Actions main={{ label: 'Done', onPress: onDismiss }} />
-    </Col>
+    </Column>
   );
 }

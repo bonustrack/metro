@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { FormField } from './FormField.js';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { GROW } from '../lib/style.js';
@@ -15,8 +14,11 @@ import { Choice } from './Choice.js';
 import { LinkedText } from './LinkedText.js';
 import { Actions } from './ui/Actions.js';
 
-const inputType = (field: AttachField): 'password' | 'number' | 'tel' | 'text' =>
-  field.secret ? 'password' : field.kind;
+function kindOf(field: AttachField): { variant?: 'obscured' | 'number'; inputType?: 'tel' } {
+  if (field.secret) return { variant: 'obscured' };
+  if (field.kind === 'number') return { variant: 'number' };
+  return field.kind === 'tel' ? { inputType: 'tel' } : {};
+}
 
 function ready(form: Form, values: Record<string, string>): boolean {
   return form.fields.every(
@@ -49,7 +51,6 @@ interface StationFormProps {
 
 export function StationForm(props: StationFormProps): ReactNode {
   const { station, gmailManaged, busy, error, onBack, onStart } = props;
-  const dark = useKitScheme() === 'dark';
   const [values, setValues] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<GmailMode>('managed');
   const form = station === 'gmail' ? gmailForm(gmailManaged, mode) : STATION_FORMS[station];
@@ -63,11 +64,11 @@ export function StationForm(props: StationFormProps): ReactNode {
   };
 
   return (
-    <Col gap={24}>
-      <Col gap={8}>
-        <Text accessibilityRole="header" size="2xl" weight="semibold">{stationLabel(station)}</Text>
+    <Column gap={24}>
+      <Column gap={8}>
+        <Text accessibilityRole="header" size="2xl" fontWeight="semibold">{stationLabel(station)}</Text>
         <LinkedText text={form.hint} links={form.links ?? []} />
-      </Col>
+      </Column>
       {station !== 'gmail' || !gmailManaged ? null : (
         <Choice<GmailMode>
           label="Gmail connection"
@@ -77,28 +78,27 @@ export function StationForm(props: StationFormProps): ReactNode {
           onChange={setMode}
         />
       )}
-      <Col gap={10}>
+      <Column gap={10}>
         {form.fields.map((field) => (
-          <Col key={field.key} gap={4}>
+          <Column key={field.key} gap={4}>
             <FormField
               label={field.label}
               name={`attach-${field.key}`}
               value={values[field.key] ?? ''}
               placeholder={field.placeholder}
-              inputType={inputType(field)}
+              {...kindOf(field)}
               disabled={busy}
-              dark={dark}
               onChangeText={(value) => {
                 setValues((prev) => ({ ...prev, [field.key]: value }));
               }}
               onSubmit={submit}
               style={GROW}
             />
-            {field.hint === undefined ? null : <Text size="xs" role="secondary">{field.hint}</Text>}
-          </Col>
+            {field.hint === undefined ? null : <Text size="xs" color="secondary">{field.hint}</Text>}
+          </Column>
         ))}
-      </Col>
+      </Column>
       <Actions error={error} cancel={{ label: 'Back', onPress: onBack, disabled: busy }} main={{ label: submitLabel(form), busy, disabled: !complete, onPress: submit }} />
-    </Col>
+    </Column>
   );
 }

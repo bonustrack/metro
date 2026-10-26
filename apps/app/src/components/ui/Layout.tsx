@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { FACTS_WIDTH, READABLE_WIDTH, WIDE_WIDTH } from './sizes.js';
@@ -18,37 +19,37 @@ interface WidthProps {
 
 export function Readable({ gap, children }: WidthProps): ReactNode {
   return (
-    <Col width="100%" maxWidth={READABLE_WIDTH} gap={gap}>
+    <Column width="100%" maxWidth={READABLE_WIDTH} gap={gap}>
       {children}
-    </Col>
+    </Column>
   );
 }
 
 export function Wide({ gap, children }: WidthProps): ReactNode {
   return (
-    <Col width="100%" maxWidth={WIDE_WIDTH} gap={gap}>
+    <Column width="100%" maxWidth={WIDE_WIDTH} gap={gap}>
       {children}
-    </Col>
+    </Column>
   );
 }
 
 export function WithRail({ rail, children }: { rail?: ReactNode; children: ReactNode }): ReactNode {
   const narrow = useIsNarrow();
   if (rail === undefined || rail === null)
-    return <Col minWidth={0}>{children}</Col>;
+    return <Column minWidth={0}>{children}</Column>;
   if (narrow)
     return (
-      <Col gap={STACK_GAP}>
-        <Col>{children}</Col>
+      <Column gap={STACK_GAP}>
+        <Column>{children}</Column>
         {rail}
-      </Col>
+      </Column>
     );
   return (
     <Row align="start" gap={RAIL_GAP} width="100%" maxWidth={WIDE_WIDTH}>
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         {children}
-      </Col>
-      <Col width={FACTS_WIDTH}>{rail}</Col>
+      </Column>
+      <Column width={FACTS_WIDTH}>{rail}</Column>
     </Row>
   );
 }
@@ -69,14 +70,14 @@ export function Fact({ label, value, valueTone, detail, href, last = false }: Fa
   const frame = StyleSheet.flatten([factStyles.fact, last ? null : { borderBottomWidth: 1, borderBottomColor: palette.border }]);
   const body = (
     <>
-      <Text size="xs" role="secondary" numberOfLines={1}>
+      <Text size="xs" color="secondary" numberOfLines={1}>
         {label}
       </Text>
-      <Text size="md" role={valueTone} numberOfLines={2}>
+      <Text size="md" color={valueTone} numberOfLines={2}>
         {value}
       </Text>
       {detail === undefined ? null : (
-        <Text size="xs" role="secondary" numberOfLines={2}>
+        <Text size="xs" color="secondary" numberOfLines={2}>
           {detail}
         </Text>
       )}

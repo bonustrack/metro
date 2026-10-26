@@ -1,7 +1,7 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import { Icon, type IconName } from './Icon.js';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { useIsTouch } from '../lib/media.js';
 import { keySequence, stickyCtrl, type BarKey, type StickyCtrl } from './terminal-keys.js';
@@ -77,7 +77,6 @@ const keepFocus = (event: { preventDefault: () => void }): void => {
 
 export function KeyBar({ term, ctrl, sticky }: { term: XTerm | null; ctrl: boolean; sticky: StickyCtrl }): ReactNode {
   const palette = useKitPalette();
-  const dark = useKitScheme() === 'dark';
   const off = term === null;
   const press = (key: BarKey): void => {
     if (term !== null) term.input(keySequence(key, sticky.take(), term.modes.applicationCursorKeysMode));
@@ -89,7 +88,6 @@ export function KeyBar({ term, ctrl, sticky }: { term: XTerm | null; ctrl: boole
           key={key}
           size="xs"
           color="secondary"
-          dark={dark}
           disabled={off}
           label={label}
           onPress={() => {
@@ -97,13 +95,12 @@ export function KeyBar({ term, ctrl, sticky }: { term: XTerm | null; ctrl: boole
           }}
         />
       ))}
-      <Button size="xs" color={ctrl ? 'primary' : 'secondary'} dark={dark} disabled={off} label="Ctrl" aria-pressed={ctrl} onPress={sticky.toggle} />
+      <Button size="xs" color={ctrl ? 'primary' : 'secondary'} disabled={off} label="Ctrl" aria-pressed={ctrl} onPress={sticky.toggle} />
       {ARROWS.map(({ key, label, icon }) => (
         <Button
           key={key}
           size="xs"
           color="secondary"
-          dark={dark}
           disabled={off}
           uniform
           aria-label={label}

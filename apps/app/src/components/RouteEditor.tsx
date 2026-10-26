@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { ModelStep } from './ModelStep.js';
 import { nameIn } from './AgentModel.js';
@@ -37,17 +37,17 @@ interface FooterProps {
 function Footer({ changes, problem, error, busy, onSave, onCancel }: FooterProps): ReactNode {
   const ready = changes.length > 0 && problem === null;
   return (
-    <Col gap={12}>
-      {changes.length === 0 ? <Text size="xs" role="secondary">{NO_CHANGE}</Text> : (
-        <Col gap={4}>
+    <Column gap={12}>
+      {changes.length === 0 ? <Text size="xs" color="secondary">{NO_CHANGE}</Text> : (
+        <Column gap={4}>
           {changes.map((c) => (
             <Text key={c.label} size="xs" numberOfLines={2}>{c.from === '' ? `${c.label}: ${c.to}` : `${c.label}: ${c.from} → ${c.to}`}</Text>
           ))}
-        </Col>
+        </Column>
       )}
-      {problem === null ? null : <Text size="xs" role="danger">{problem}</Text>}
+      {problem === null ? null : <Text size="xs" color="danger">{problem}</Text>}
       <Actions error={error} cancel={{ onPress: onCancel, disabled: busy }} main={{ label: busy ? 'Saving…' : 'Save', busy, disabled: !ready, onPress: onSave }} />
-    </Col>
+    </Column>
   );
 }
 
@@ -101,15 +101,15 @@ export function RouteEditor({ scope, slot, onClose }: { scope: RouteScope; slot:
   };
   return (
     <Readable gap={16}>
-      <Text accessibilityRole="header" size="xs" role="secondary">{(scope.title ?? slotTitle)(slot)}</Text>
-      <Col>
+      <Text accessibilityRole="header" size="xs" color="secondary">{(scope.title ?? slotTitle)(slot)}</Text>
+      <Column>
         <Step n={1} title="Connection" value={connectionValue(conn)} open={open === 'connection'} done={conn !== undefined} onOpen={() => { setOpen('connection'); }}>
           <ConnectionStep connections={scope.connections} draft={draft} empty={scope.empty} onPick={pickConnection} />
         </Step>
         <Step n={2} title="Model" value={modelValue(draft, slot, name)} open={open === 'model' && conn !== undefined} done={conn !== undefined && problem === null} last locked={conn === undefined} onOpen={() => { setOpen('model'); }}>
           {conn === undefined ? null : <ModelStep conn={conn} model={draft.model} onPick={(model) => { setDraft((d) => ({ ...d, model })); }} />}
         </Step>
-      </Col>
+      </Column>
       <Footer changes={changesOf(scope.route, scope.connections, slot, draft, name)} problem={conn === undefined ? null : problem} error={error} busy={busy} onSave={save} onCancel={onClose} />
     </Readable>
   );

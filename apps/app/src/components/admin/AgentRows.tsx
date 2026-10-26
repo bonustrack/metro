@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -45,9 +46,9 @@ function Identity({ row }: { row: AdminAgent }): ReactNode {
       <AvatarDot dot={AVATAR_DOT[row.state] ?? null}>
         <AgentAvatar seed={row.host ?? row.id} src={row.avatar} size={AVATAR_SIZE.row} />
       </AvatarDot>
-      <Col flex={1} minWidth={0}>
+      <Column weight={1} minWidth={0}>
         <TwoLines top={<Text size="md" numberOfLines={1} style={SHRINK}>{row.name}</Text>} bottom={row.host ?? 'No server'} />
-      </Col>
+      </Column>
     </Row>
   );
 }
@@ -59,20 +60,20 @@ function ModelCell({ row }: { row: AdminAgent }): ReactNode {
 
 function ModelWithBar({ row }: { row: AdminAgent }): ReactNode {
   return (
-    <Col gap={6} minWidth={0}>
+    <Column gap={6} minWidth={0}>
       <ModelCell row={row} />
       {row.modelUsed === null ? null : <Tip label={row.modelUsage ?? 'Usage'}><ThinBar used={row.modelUsed} /></Tip>}
-    </Col>
+    </Column>
   );
 }
 
 function Resources({ row }: { row: AdminAgent }): ReactNode {
   if (row.cpu === null && row.memory === null) return <TwoLines top="No reading" topTone="secondary" />;
   return (
-    <Col gap={6}>
+    <Column gap={6}>
       {row.cpu === null ? null : <ThinBar used={row.cpu / 100} />}
       {row.memory === null ? null : <ThinBar used={row.memory / 100} />}
-    </Col>
+    </Column>
   );
 }
 
@@ -84,7 +85,7 @@ function UpdateMark(): ReactNode {
 function Version({ row, note }: { row: AdminAgent; note: string | undefined }): ReactNode {
   const top =
     row.version === null ? (
-      <Text size="xs" role="secondary">Unknown</Text>
+      <Text size="xs" color="secondary">Unknown</Text>
     ) : (
       <Row align="center" gap={6}>
         <Text size="xs" numberOfLines={1}>{shortVersion(row.version)}</Text>
@@ -149,15 +150,15 @@ function phoneDetail(row: AdminAgent): string | undefined {
 function PhoneTrailing({ row, now, note }: { row: AdminAgent; now: number; note: string | undefined }): ReactNode {
   if (!row.member) return null;
   return (
-    <Col align="end" gap={4}>
+    <Column align="end" gap={4}>
       <Row align="center" gap={6}>
         <Text size="xs">{row.version === null ? '' : shortVersion(row.version)}</Text>
         {row.needsUpdate ? <UpdateMark /> : null}
       </Row>
-      <Text size="2xs" role={row.state === 'offline' ? 'danger' : 'secondary'} numberOfLines={1}>
+      <Text size="2xs" color={row.state === 'offline' ? 'danger' : 'secondary'} numberOfLines={1}>
         {note ?? seenWords(row, now)}
       </Text>
-    </Col>
+    </Column>
   );
 }
 

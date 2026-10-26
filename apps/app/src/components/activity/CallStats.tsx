@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { DEFAULT_STATS_RANGE, STATS_RANGES, type ConnectorStats, type StatsConnector, type StatsRange } from '@metro-labs/client/api/connector-stats';
@@ -39,9 +40,9 @@ function Chart({ stats, mode, onMode }: { stats: ConnectorStats; mode: ChartMode
   const series = useSeries(stats, mode);
   const summary = `${callsWords(stats.totals.total)} ${rangeWords(stats.range)}, ${percentWords(stats.totals.failed, stats.totals.total)} failed`;
   return (
-    <Col gap={12}>
-      <Row justify="between" align="center" gap={12} wrap>
-        <Text size="xs" role="secondary">
+    <Column gap={12}>
+      <Row justify="spaceBetween" align="center" gap={12} wrap>
+        <Text size="xs" color="secondary">
           {perWords(stats.range)}
         </Text>
         <Choice label="Chart" value={mode} options={MODES} onChange={onMode} />
@@ -49,7 +50,7 @@ function Chart({ stats, mode, onMode }: { stats: ConnectorStats; mode: ChartMode
       <CallChart series={series} times={stats.buckets.map((bucket) => bucket.at)} bucketMs={stats.bucketMs} range={stats.range} summary={summary} />
       <CallLegend series={series} />
       <CallTable stats={stats} />
-    </Col>
+    </Column>
   );
 }
 
@@ -58,17 +59,17 @@ function Body({ stats, picked, onPick }: { stats: ConnectorStats; picked: StatsC
   const series = useSeries(stats, 'connector');
   if (stats.totals.total === 0)
     return (
-      <Text size="md" role="secondary">
+      <Text size="md" color="secondary">
         {`No ${picked === null ? 'connector calls' : 'calls to this connector'} ${rangeWords(stats.range)}.`}
       </Text>
     );
   const colors = mode === 'connector' ? new Map(series.map((one) => [one.key, one.color])) : null;
   return (
-    <Col gap={32}>
+    <Column gap={32}>
       <CallTiles tiles={statTiles(stats.totals, stats.range)} />
       <Chart stats={stats} mode={mode} onMode={setMode} />
       <ConnectorBreakdown connectors={stats.connectors} colors={colors} picked={picked} onPick={onPick} />
-    </Col>
+    </Column>
   );
 }
 
@@ -80,7 +81,7 @@ export function CallStats({ agent, picked, onPick }: CallStatsProps): ReactNode 
   if (stats === null || (stats === undefined && query.error !== null)) return null;
   const choice = <Choice label="Time range" value={range} options={STATS_RANGES} onChange={setRange} />;
   return (
-    <Col gap={16}>
+    <Column gap={16}>
       <GroupTitle label="Connector calls" action={narrow ? undefined : choice} />
       {narrow ? choice : null}
       {stats === undefined ? (
@@ -90,6 +91,6 @@ export function CallStats({ agent, picked, onPick }: CallStatsProps): ReactNode 
           <Body stats={stats} picked={picked} onPick={onPick} />
         </View>
       )}
-    </Col>
+    </Column>
   );
 }

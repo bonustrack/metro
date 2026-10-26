@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { decideRemoteApproval, type RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import type { Decision } from '@metro-labs/client/api/approvals';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
@@ -29,11 +29,11 @@ export function RemoteApprovals({ agent }: { agent: string }): ReactNode {
   const approvals = data ?? [];
   if (approvals.length === 0 && error === null) return null;
   return (
-    <Col gap={CARD_GAP}>
+    <Column gap={CARD_GAP}>
       {error === null ? null : <ErrorState title="Could not check for new approvals" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
       {approvals.map((found) => (
         <Card key={found.approval.id} agent={agent} found={found} />
       ))}
-    </Col>
+    </Column>
   );
 }

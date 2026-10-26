@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Modal, ModalText } from '../Modal.js';
 import { Actions } from '../ui/Actions.js';
 
@@ -17,12 +17,12 @@ interface AskDialogProps {
 export function AskDialog({ open, title, lines, action, busy = false, error = null, onClose, onConfirm }: AskDialogProps): ReactNode {
   return (
     <Modal title={title} open={open} onClose={onClose}>
-      <Col gap={20}>
+      <Column gap={20}>
         {lines.map((line) => (
           <ModalText key={line}>{line}</ModalText>
         ))}
         <Actions error={error} cancel={{ onPress: onClose, disabled: busy }} main={{ label: action, busy, onPress: onConfirm }} />
-      </Col>
+      </Column>
     </Modal>
   );
 }

@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { ROUTEWAY_USAGE_URL } from '@metro-labs/client/api/model';
 import { deleteOrgModel, updateOrgModel, type OrgModelConnection, type OrgModels } from '@metro-labs/client/api/org-models';
 import { providerInfo } from '@metro-labs/client/api/providers';
@@ -41,14 +41,13 @@ function headerLine(connection: OrgModelConnection): string {
 }
 
 function ZeroRetention({ connection }: { connection: OrgModelConnection }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const change = (zdr: boolean): void => {
     setError(null);
     updateOrgModel(connection.id, { zdr }).then(() => afterModelChange(client)).catch((err: unknown) => { setError(queryError(err, 'Could not change zero data retention.')); });
   };
-  return <Item title="Zero data retention" subtitle={error ?? ZDR_NOTE} subtitleTone={error === null ? 'secondary' : 'danger'} trailing={<Switch name="Zero data retention" checked={connection.zdr} dark={dark} onChange={change} />} />;
+  return <Item title="Zero data retention" subtitle={error ?? ZDR_NOTE} subtitleTone={error === null ? 'secondary' : 'danger'} trailing={<CheckBox displayStyle="switch" name="Zero data retention" value={connection.zdr} onChange={change} />} />;
 }
 
 function UsedIn({ list, connection }: { list: OrgModels; connection: OrgModelConnection }): ReactNode {
@@ -106,7 +105,7 @@ function Body({ id }: { id: string }): ReactNode {
       <PageHeader title={connection.label} subtitle={headerLine(connection)} leading={<ProviderLogo provider={providerInfo(connection.provider)} size={AVATAR_SIZE.header} />} />
       <AccountLimits connection={connection} />
       <GatewayUsage agent={null} connection={connection.id} />
-      {data.admin ? <Manage connection={connection} /> : <Text size="md" role="secondary">Only an admin of the organization can change the accounts.</Text>}
+      {data.admin ? <Manage connection={connection} /> : <Text size="md" color="secondary">Only an admin of the organization can change the accounts.</Text>}
       <UsedIn list={data} connection={connection} />
       {technical ? <Facts connection={connection} /> : null}
     </Groups>

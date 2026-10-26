@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { connectAws, disconnectAws, startAwsLink, type AwsConnection, type AwsOverview } from '@metro-labs/client/api/aws';
 import { activeAccount } from '@metro-labs/client/auth/account';
 import { routeHash } from '@metro-labs/client/route';
@@ -46,7 +47,6 @@ function ConnectionRow({ connection, admin }: { connection: AwsConnection; admin
 }
 
 function ConnectSteps({ view }: { view: AwsOverview }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const client = useQueryClient();
   const tab = useSignInTab(startAwsLink, (begun) => begun.url, 'Could not make the AWS link.');
   const [role, setRole] = useState('');
@@ -67,21 +67,21 @@ function ConnectSteps({ view }: { view: AwsOverview }): ReactNode {
   const second = tab.started !== null || view.externalId !== null;
   return (
     <FocusFrame title="Connect an AWS account" onClose={close} steps={STEPS} step={second ? 'paste' : 'create'}>
-      <Col gap={16}>
+      <Column gap={16}>
         <FocusIntro title="Create the role in AWS" text={STEP_ONE} />
         <Row>
           <SignInLink link={tab.link} label="Open AWS">
-            <Button size="md" color={second ? 'secondary' : 'primary'} dark={dark} label="Open AWS" loading={tab.starting} disabled={tab.starting} onPress={tab.start} />
+            <Button size="md" color={second ? 'secondary' : 'primary'} label="Open AWS" loading={tab.starting} disabled={tab.starting} onPress={tab.start} />
           </SignInLink>
         </Row>
-        {tab.error === null ? null : <Text size="xs" role="danger">{tab.error}</Text>}
-      </Col>
+        {tab.error === null ? null : <Text size="xs" color="danger">{tab.error}</Text>}
+      </Column>
       {second ? (
-        <Col gap={16}>
+        <Column gap={16}>
           <FocusIntro title="Paste the role" text={STEP_TWO} />
-          <FormField label="Role ARN" name="aws-role" value={role} placeholder="arn:aws:iam::123456789012:role/metro-access" dark={dark} disabled={busy} onChangeText={setRole} />
+          <FormField label="Role ARN" name="aws-role" value={role} placeholder="arn:aws:iam::123456789012:role/metro-access" disabled={busy} onChangeText={setRole} />
           <Actions error={error} cancel={{ onPress: close, disabled: busy }} main={{ label: busy ? 'Checking…' : 'Connect', busy, disabled: !ROLE_RE.test(role.trim()), onPress: save }} />
-        </Col>
+        </Column>
       ) : null}
     </FocusFrame>
   );

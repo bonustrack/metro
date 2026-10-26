@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette, type KitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from '../AgentAvatar.js';
@@ -36,7 +36,7 @@ export function DotWord({ color, word, danger = false }: { color: DotColor; word
   return (
     <Row align="center" gap={8} minWidth={0}>
       <Dot color={color} />
-      <Text size="xs" role={danger ? 'danger' : 'default'} numberOfLines={1} style={SHRINK}>
+      <Text size="xs" color={danger ? 'danger' : undefined} numberOfLines={1} style={SHRINK}>
         {word}
       </Text>
     </Row>
@@ -47,7 +47,7 @@ function LetterMark({ name, size = AVATAR_SIZE.row, round = false }: { name: str
   const palette = useKitPalette();
   return (
     <Row width={size} height={size} radius={round ? size / 2 : markRadius(size)} background={palette.border} align="center" justify="center">
-      <Text size={size >= AVATAR_SIZE.list ? 'md' : '2xs'} weight="semibold">
+      <Text size={size >= AVATAR_SIZE.list ? 'md' : '2xs'} fontWeight="semibold">
         {name.slice(0, 1).toUpperCase()}
       </Text>
     </Row>

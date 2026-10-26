@@ -1,3 +1,3 @@
-export type Tone = 'default' | 'secondary' | 'danger' | 'success';
+export type Tone = 'link' | 'secondary' | 'danger' | 'success';
 
 export type DotTone = 'success' | 'danger';

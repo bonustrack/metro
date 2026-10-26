@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { ErrorState } from './ui/ErrorState.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
@@ -51,7 +50,6 @@ function candidates(found: FoundInstance[], server: BoxServer): FoundInstance[] 
 }
 
 function Picker({ server }: { server: BoxServer }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [open, setOpen] = useState(false);
   const found = useInstancesQuery(open);
   const action = useBusy();
@@ -61,7 +59,6 @@ function Picker({ server }: { server: BoxServer }): ReactNode {
         <Button
           size="md"
           color="secondary"
-          dark={dark}
           label="Find servers"
           onPress={() => {
             setOpen(true);
@@ -98,7 +95,6 @@ function Picker({ server }: { server: BoxServer }): ReactNode {
 }
 
 function Linked({ server, accountId, region, instanceId }: { server: BoxServer; accountId: string | null; region: string; instanceId: string }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const action = useBusy();
   return (
     <Group label={TITLE}>
@@ -109,7 +105,6 @@ function Linked({ server, accountId, region, instanceId }: { server: BoxServer; 
           <Button
             size="md"
             color="secondary"
-            dark={dark}
             label="Unlink"
             loading={action.busy}
             disabled={action.busy}

@@ -1,10 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { routeHash } from '@metro-labs/client/route';
 import { useQueryClient } from '@tanstack/react-query';
-import { Row } from '@stage-labs/kit/react-native/box';
-import { Switch } from '@stage-labs/kit/react-native/switch';
+import { Row } from '@stage-labs/kit/react-native/row';
+import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { setClaudeLiveEvents } from '@metro-labs/client/api/claude-box';
 import { agentSeed, type Server, serverLabel } from '@metro-labs/client/api/servers';
 import { activeAccount } from '@metro-labs/client/auth/account';
@@ -47,7 +46,6 @@ export function usePausing(): Pausing {
 }
 
 function PauseRow(): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const pausing = usePausing();
   if (!pausing.shown) return null;
   const admin = activeAccount()?.role === 'admin';
@@ -56,7 +54,7 @@ function PauseRow(): ReactNode {
       title="Pause messages"
       subtitle={pausing.error ?? PAUSE_NOTE}
       subtitleTone={pausing.error === null ? 'secondary' : 'danger'}
-      trailing={<Switch name="Pause messages" checked={pausing.paused} disabled={pausing.busy || !admin} dark={dark} onChange={pausing.toggle} />}
+      trailing={<CheckBox displayStyle="switch" name="Pause messages" value={pausing.paused} disabled={pausing.busy || !admin} onChange={pausing.toggle} />}
       chevron={false}
     />
   );

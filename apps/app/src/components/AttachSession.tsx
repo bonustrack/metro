@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type AccountIdentity } from '@metro-labs/client/auth/account';
-import { Col, Row } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { QrCode } from '@stage-labs/kit/react-native/qr-code';
 import { colors } from '@stage-labs/kit/tokens';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -11,7 +12,6 @@ const CODE_INPUT = { flexGrow: 1, minWidth: 200 } as const;
 
 const QR_INK = colors['link-light'];
 const QR_PAPER = colors['bg-light'];
-import { useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import {
   pollAttachSession,
   submitAttachStep,
@@ -39,7 +39,7 @@ interface AttachSessionProps {
 
 function Waiting({ label }: { label: string }): ReactNode {
   return (
-    <Text size="md" role="secondary">
+    <Text size="md" color="secondary">
       {label}
     </Text>
   );
@@ -47,7 +47,7 @@ function Waiting({ label }: { label: string }): ReactNode {
 
 function PairingCode({ code }: { code: string }): ReactNode {
   return (
-    <Text size="lg" weight="semibold" selectable>
+    <Text size="lg" fontWeight="semibold" selectable>
       {code}
     </Text>
   );
@@ -62,7 +62,6 @@ function CodeEntry({
   busy: boolean;
   onSubmit: (value: string) => void;
 }): ReactNode {
-  const dark = useKitScheme() === 'dark';
   const [value, setValue] = useState('');
   const send = (): void => {
     if (value.trim() !== '' && !busy) onSubmit(value.trim());
@@ -73,16 +72,14 @@ function CodeEntry({
         name={`attach-${step}`}
         value={value}
         placeholder={step === 'code' ? '12345' : 'your 2FA password'}
-        inputType={step === 'code' ? 'number' : 'password'}
+        variant={step === 'code' ? 'number' : 'obscured'}
         disabled={busy}
-        dark={dark}
         onChangeText={setValue}
         onSubmit={send}
         style={CODE_INPUT}
       />
       <Button size="lg"
         color="primary"
-        dark={dark}
         onPress={send}
         loading={busy}
         disabled={busy || value.trim() === ''}
@@ -237,17 +234,17 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
 
   const failed = session.status === 'failed' ? (session.error ?? 'That sign-in failed.') : null;
   return (
-    <Col gap={24}>
-      <Col gap={8}>
-        <Text accessibilityRole="header" size="xl" weight="semibold">
+    <Column gap={24}>
+      <Column gap={8}>
+        <Text accessibilityRole="header" size="xl" fontWeight="semibold">
           {`Connecting ${stationLabel(session.station)}`}
         </Text>
-        <Text size="md" role="secondary">
+        <Text size="md" color="secondary">
           {session.prompt}
         </Text>
-      </Col>
+      </Column>
       <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
       <Actions error={failed ?? error} note={UNSAVED} cancel={{ label: session.status === 'pending' ? 'Cancel' : 'Close', onPress: onClose }} />
-    </Col>
+    </Column>
   );
 }

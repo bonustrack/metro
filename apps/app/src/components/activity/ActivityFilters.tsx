@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Row } from '@stage-labs/kit/react-native/box';
+import { Row } from '@stage-labs/kit/react-native/row';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { serverLabel, type Server } from '@metro-labs/client/api/servers';
@@ -29,7 +29,7 @@ function Chip({ on, label, onPress, leading, trailing, role = 'tab' }: { on: boo
   return (
     <Pressable accessibilityRole={role} accessibilityLabel={role === 'button' ? `${label}: show every connector` : label} accessibilityState={role === 'tab' ? { selected: on } : undefined} onPress={onPress} style={frame}>
       {leading}
-      <Text size="md" role={on ? 'default' : 'secondary'} numberOfLines={1}>
+      <Text size="md" color={on ? undefined : 'secondary'} numberOfLines={1}>
         {label}
       </Text>
       {trailing}

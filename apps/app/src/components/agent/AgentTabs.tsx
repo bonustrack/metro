@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, Platform, ScrollView } from 'react-native';
-import { Col } from '@stage-labs/kit/react-native/box';
+import { Column } from '@stage-labs/kit/react-native/column';
 import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
@@ -9,6 +9,7 @@ import { AGENT_TABS, agentPageOf, agentTabOf, shallowPages, type AgentPage } fro
 import { go } from '../../lib/nav.js';
 import { openExternal } from '../../lib/open.js';
 import { side } from '../ui/edges.js';
+import { optionTabs } from '../../lib/option-tabs.js';
 
 const PAGE_MIN = 96;
 const CHAR = 8.5;
@@ -55,19 +56,17 @@ export function AgentTabs({ selection, project }: { selection: Selection; projec
   const current = agentTabOf(selection.kind);
   const kept = useKeptInView(TAB_LABELS, AGENT_TABS.indexOf(current));
   return (
-    <Col border={{ bottom: side(palette.border) }}>
+    <Column border={{ bottom: side(palette.border) }}>
       <ScrollView ref={kept.ref} horizontal showsHorizontalScrollIndicator={false} accessibilityLabel="Agent pages" onLayout={kept.onLayout} onContentSizeChange={kept.onContentSizeChange}>
         <Tabs
           variant="underline"
-          value={current.id}
-          options={AGENT_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
-          onChange={(id) => {
+          {...optionTabs(AGENT_TABS.map((tab) => ({ value: tab.id, label: tab.label })), current.id, (id) => {
             const tab = AGENT_TABS.find((t) => t.id === id);
             if (tab !== undefined) go(tab.target(project));
-          }}
+          })}
         />
       </ScrollView>
-    </Col>
+    </Column>
   );
 }
 
@@ -78,16 +77,14 @@ export function AgentSubPages({ selection, project }: { selection: Selection; pr
   const track = { width: pages.length * pageWidth(pages) };
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel={agentTabOf(selection.kind).label}>
-      <Col style={track}>
+      <Column style={track}>
         <Tabs
-          value={current?.label ?? ''}
-          options={pages.map((page) => ({ value: page.label, label: page.label }))}
-          onChange={(label) => {
+          {...optionTabs(pages.map((page) => ({ value: page.label, label: page.label })), current?.label ?? '', (label) => {
             const page = pages.find((p) => p.label === label);
             if (page !== undefined) open(page, project);
-          }}
+          })}
         />
-      </Col>
+      </Column>
     </ScrollView>
   );
 }
