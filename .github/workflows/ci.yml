@@ -44,3 +44,20 @@ jobs:
         run: bun run test
         env:
           TEST_DATABASE_URL: postgresql://metro_test:metro_test@127.0.0.1:5432/metro_test
+
+  sudo-rules:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: The box sudo rules pass visudo
+        run: command -v visudo && sudo --version | head -1 && bun test test/metro-user.test.ts
+        working-directory: apps/daemon
