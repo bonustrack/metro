@@ -16,7 +16,6 @@ export const sudoersText = (agent: string): string =>
   [
     `${METRO_USER} ALL=(${agent}) NOPASSWD: ALL`,
     `${METRO_USER} ALL=(root) NOPASSWD: ${HELPER_PATH} *`,
-    `Defaults:${METRO_USER} !requiretty`,
     '',
   ].join('\n');
 

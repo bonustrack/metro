@@ -16,6 +16,7 @@ describe('Metro as its own user', () => {
     expect(rules).toContain('metro ALL=(agent) NOPASSWD: ALL');
     expect(rules).toContain('metro ALL=(root) NOPASSWD: /usr/local/lib/metro/root-helper *');
     expect(rules.split('\n').filter((l) => l.includes('(root)'))).toHaveLength(1);
+    expect(rules).not.toContain('Defaults');
   });
 
   test('the helper only knows its own actions and adds nothing to a unit but the vault environment file', () => {
