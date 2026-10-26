@@ -1,4 +1,5 @@
 import { filled, isRecord } from '../read.js';
+import type { Usage, UsageWindow } from './usage.js';
 import { builtInDaemon } from '../auth/daemon.js';
 import { NotFoundError } from './client.js';
 import { STATS_RANGES, type StatsRange } from './connector-stats.js';
@@ -147,4 +148,45 @@ export function dollarsWords(micros: number): string {
   if (micros === 0) return '$0';
   if (dollars < 0.01) return '< $0.01';
   return `$${dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export interface GatewayWindow extends UsageWindow {
+  connection: string;
+  at: number;
+}
+
+const isoOf = (at: unknown): string | null => (typeof at === 'number' && Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : null);
+
+function gatewayWindowOf(value: unknown): GatewayWindow | null {
+  if (!isRecord(value) || typeof value.connection !== 'string' || typeof value.label !== 'string' || typeof value.at !== 'number') return null;
+  const used = typeof value.used === 'number' && Number.isFinite(value.used) ? Math.min(1, Math.max(0, value.used)) : null;
+  return { connection: value.connection, label: value.label, used, resetAt: isoOf(value.resetAt), detail: filled(value.detail), at: value.at };
+}
+
+export const toGatewayWindows = (value: unknown): GatewayWindow[] => kept(record(value).windows, gatewayWindowOf);
+
+export async function fetchGatewayWindows(signal?: AbortSignal): Promise<GatewayWindow[]> {
+  try {
+    return toGatewayWindows(await orgCall({ method: 'GET', base: `${builtInDaemon()}/api/models`, path: '/windows', signal }));
+  } catch (err) {
+    if (err instanceof NotFoundError) return [];
+    throw err;
+  }
+}
+
+function mergedUsage(held: Usage[string] | undefined, windows: GatewayWindow[]): Usage[string] {
+  const newest = Math.max(...windows.map((w) => w.at));
+  const theirs = new Set(windows.map((w) => w.label));
+  const own = (held?.windows ?? []).filter((w) => !theirs.has(w.label));
+  const shown = windows.map(({ label, used, resetAt, detail }): UsageWindow => ({ label, used, resetAt, detail }));
+  const at = held !== undefined && Date.parse(held.at) > newest ? held.at : new Date(newest).toISOString();
+  return { windows: [...shown, ...own], note: held?.note ?? null, at, tally: held?.tally ?? null };
+}
+
+export function withGatewayWindows(usage: Usage, windows: GatewayWindow[]): Usage {
+  if (windows.length === 0) return usage;
+  const byConnection = new Map<string, GatewayWindow[]>();
+  for (const w of windows) byConnection.set(w.connection, [...(byConnection.get(w.connection) ?? []), w]);
+  const merged = [...byConnection].map(([connection, rows]): [string, Usage[string]] => [connection, mergedUsage(usage[connection], rows)]);
+  return { ...usage, ...Object.fromEntries(merged) };
 }

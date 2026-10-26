@@ -4,6 +4,7 @@ import { fetchClaudeProjects } from '@metro-labs/client/api/claude';
 import { serverLabel } from '@metro-labs/client/api/servers';
 import type { StationsView } from '@metro-labs/client/api/client';
 import { currentServer } from '@metro-labs/client/auth/daemon';
+import { routeHash } from '@metro-labs/client/route';
 import { Groups } from './ui/Group.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { WithRail } from './ui/Layout.js';
@@ -15,6 +16,7 @@ import { RightNow } from './home/RightNow.js';
 import { SetupChecklist } from './home/SetupChecklist.js';
 import { ChannelAlerts } from './home/ChannelAlerts.js';
 import { ConnectorActivity } from './home/ConnectorActivity.js';
+import { GatewayActivity } from './home/GatewayActivity.js';
 import { rightNow } from '../lib/right-now.js';
 import { setupOf } from '../lib/setup-steps.js';
 import { useBoxApprovals } from '../lib/agent-status.js';
@@ -73,6 +75,7 @@ function HomeBody({ project, name, serverId, agentId, view }: { project: string;
       <ChannelAlerts project={project} groups={view.groups} />
       <NowSection project={project} setupOpen={setup.open !== null} />
       <SetupChecklist setup={setup} agentId={agentId} groups={view.groups} />
+      {serverId === null ? null : <GatewayActivity agent={serverId} href={routeHash({ kind: 'model', project })} />}
       {serverId === null ? null : <ConnectorActivity agent={serverId} />}
       {narrow ? <AtAGlance project={project} serverId={serverId} groups={view.groups} name={name} /> : null}
     </>

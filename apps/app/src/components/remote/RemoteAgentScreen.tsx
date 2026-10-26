@@ -6,6 +6,7 @@ import { storeServerId } from '@metro-labs/client/auth/daemon';
 import type { Selection } from '@metro-labs/client/selection';
 import { ActivityFeed } from '../activity/ActivityFeed.js';
 import { AgentConnectorPage } from '../connectors/AgentConnectorPage.js';
+import { GatewayUsage } from '../models/GatewayUsage.js';
 import { ProfilePage } from '../settings/ProfilePage.js';
 import { Tabbed } from '../tabbed.js';
 import { Wide } from '../ui/Layout.js';
@@ -28,7 +29,10 @@ function TabBody({ server, selection }: { server: RemoteServer; selection: Selec
   if (tab === 'activity')
     return (
       <Wide>
-        <ActivityFeed key={server.id} agent={server.id} fixed />
+        <Col gap={40}>
+          <GatewayUsage agent={server.id} label="Gateway" />
+          <ActivityFeed key={server.id} agent={server.id} fixed />
+        </Col>
       </Wide>
     );
   return <RemoteConnectors agent={server.id} name={name} />;

@@ -78,7 +78,7 @@ function Body({ usage, agent }: { usage: ModelUsage; agent: string | null }): Re
   );
 }
 
-export function GatewayUsage({ agent }: { agent: string | null }): ReactNode {
+export function GatewayUsage({ agent, label = 'Usage' }: { agent: string | null; label?: string }): ReactNode {
   const narrow = useIsNarrow();
   const [range, setRange] = useState<StatsRange>(DEFAULT_STATS_RANGE);
   const query = useGatewayUsage({ range, agent });
@@ -87,7 +87,7 @@ export function GatewayUsage({ agent }: { agent: string | null }): ReactNode {
   const choice = <Choice label="Time range" value={range} options={STATS_RANGES} onChange={setRange} />;
   return (
     <Col gap={16}>
-      <GroupTitle label="Usage" action={narrow ? undefined : choice} />
+      <GroupTitle label={label} action={narrow ? undefined : choice} />
       {narrow ? choice : null}
       {usage === undefined ? (
         <RowsSkeleton rows={3} leading={false} />
