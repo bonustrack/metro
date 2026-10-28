@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { brandLogo, brandSrc } from '../src/api/brands.js';
+import { brandLogo, brandSrc } from '../src/brands.ts';
 
 const pub = join(import.meta.dir, '..', '..', '..', 'apps', 'app', 'public');
 

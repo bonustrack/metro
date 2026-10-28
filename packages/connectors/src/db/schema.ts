@@ -39,6 +39,15 @@ export const connectors = pgTable(
   (t) => [index('connectors_owner_idx').on(t.owner)],
 );
 
+export const connectorTools = pgTable('connector_tools', {
+  connector: text('connector').primaryKey().references(() => connectors.id, { onDelete: 'cascade' }),
+  tools: text('tools'),
+  listedAt: bigint('listed_at', { mode: 'number' }),
+  failureCode: text('failure_code'),
+  failure: text('failure'),
+  failedAt: bigint('failed_at', { mode: 'number' }),
+});
+
 export const connectorAgents = pgTable(
   'connector_agents',
   {

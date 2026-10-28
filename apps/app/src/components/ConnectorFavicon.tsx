@@ -3,8 +3,8 @@ import { Image, Platform, View } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { faviconUrl } from '@metro-labs/client/api/favicon';
-import { brandSrc } from '@metro-labs/client/api/brands';
+import { faviconUrl } from '@metro-labs/core/favicon';
+import { brandSrc } from '@metro-labs/core/brands';
 import { location } from '@metro-labs/client/platform';
 
 const REQUEST_SIZE = 32;

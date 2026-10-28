@@ -76,7 +76,7 @@ describe('MCP over HTTP', () => {
     expect(await res.text()).toBe('');
   });
 
-  test('tools/list has exactly tool_search and tool_call, and tool_search names the agent\'s connectors', async () => {
+  test('tools/list has tool_search, tool_call and list_connectors, and tool_search names the agent\'s connectors', async () => {
     await addConnector(held.db, 'conn0000001', 'Notion', headerSecret());
     await addConnector(held.db, 'conn0000002', 'n8n Anderra', headerSecret());
     await addConnector(held.db, 'conn0000003', 'Hidden', headerSecret(), { policy: '{"read":"deny","write":"deny"}' });
@@ -84,7 +84,7 @@ describe('MCP over HTTP', () => {
     for (const id of ['conn0000001', 'conn0000002', 'conn0000003']) await assign(held.db, id, agent.row.agent);
     const body = await (await rpc(app, agent.token, { jsonrpc: '2.0', id: 3, method: 'tools/list' })).json() as { result: { tools: { name: string; description: string; inputSchema: { required: string[] }; annotations: Record<string, unknown> }[] } };
     const [find, call] = body.result.tools;
-    expect(body.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call']);
+    expect(body.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call', 'list_connectors']);
     expect(find?.description).toContain("This agent's connectors: n8n-anderra (n8n Anderra), notion.");
     expect(find?.description).not.toContain('hidden');
     expect(find?.inputSchema.required).toEqual(['query']);

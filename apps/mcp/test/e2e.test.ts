@@ -81,7 +81,7 @@ describe('tool_search against a real connector', () => {
     await assign(held.db, 'conn0000009', agent.row.agent);
     const result = await find('select:notion.search');
     expect(result.structuredContent).toEqual({
-      connectors: [{ key: 'notion', name: 'Notion' }, { key: 'x50-rosa-bonustrack-co', name: 'X50 rosa@bonustrack.co' }],
+      connectors: [{ key: 'notion', name: 'Notion', status: 'ok' }, { key: 'x50-rosa-bonustrack-co', name: 'X50 rosa@bonustrack.co' }],
       tools: [{ name: 'notion.search', title: 'Search pages', connector: 'notion' }],
     });
     const miss = await find('spreadsheet');

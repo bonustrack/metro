@@ -74,7 +74,7 @@ describe('an agent without a server, signed in with an access key', () => {
     expect(body.result.instructions).toBe(REMOTE_INSTRUCTIONS);
     expect(body.result.instructions).not.toContain('from a worker');
     const list = (await (await rpc(app, key, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json()) as { result: { tools: { name: string; description: string }[] } };
-    expect(list.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call']);
+    expect(list.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call', 'list_connectors']);
     expect(list.result.tools[0]?.description).toContain('This agent\'s connectors: notion.');
     expect(list.result.tools[1]?.description).toContain('approve it on this agent\'s page on metro.box');
   });

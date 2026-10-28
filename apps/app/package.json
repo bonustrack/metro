@@ -16,6 +16,7 @@
   "dependencies": {
     "@central-icons-react-native/round-outlined-radius-1-stroke-2": "1.2.1",
     "@metro-labs/client": "workspace:*",
+    "@metro-labs/core": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@stage-labs/kit": "0.1.0-beta.15",
     "@tanstack/react-query": "^5.101.4",

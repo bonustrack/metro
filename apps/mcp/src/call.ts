@@ -1,6 +1,7 @@
-import { errMsg, log } from '@metro-labs/core/log';
+import { log } from '@metro-labs/core/log';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
+import type { RemoteTool } from '@metro-labs/http/connector-tools';
 import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, visibleConnectors, type AgentConnector } from './catalog.js';
@@ -8,7 +9,7 @@ import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
 import { argsDigest, previewOf } from './digest.js';
 import { CallError } from './errors.js';
-import { connectorTools, failureOf, groupsOf } from './listing.js';
+import { connectorListing, failureOf, groupsOf } from './listing.js';
 import { closestNames } from './search.js';
 import type { ToolGroup } from './policy.js';
 import { textBlock, type ToolResult } from './tool-result.js';
@@ -50,7 +51,7 @@ async function usableNames(ctx: CallContext, within: AgentConnector | undefined)
   const pool = within === undefined ? visibleConnectors(ctx.connectors) : [within];
   const lists = await Promise.all(
     pool.map(async (connector) => {
-      const tools = await connectorTools(ctx.deps, ctx.identity, connector).catch(() => []);
+      const { tools } = await connectorListing(ctx.deps, ctx.identity, connector, { waitMs: 0 });
       const groups = groupsOf(tools);
       return tools.filter((tool) => connector.access.decide(tool.name, groups) !== 'deny').map((tool) => `${connector.key}.${tool.name}`);
     }),
@@ -72,16 +73,16 @@ async function targetOf(ctx: CallContext, call: McpCall): Promise<Target> {
   return { connector, tool: split.tool, name: call.tool };
 }
 
+async function toolsFor(ctx: CallContext, target: Target): Promise<RemoteTool[] | null> {
+  const { connector, tool } = target;
+  let listing = await connectorListing(ctx.deps, ctx.identity, connector, connector.access.needsGroup(tool) ? { fresh: true } : { waitMs: 0 });
+  if (listing.status === 'ok' && !listing.tools.some((known) => known.name === tool)) listing = await connectorListing(ctx.deps, ctx.identity, connector, { fresh: true });
+  return listing.status === 'ok' ? listing.tools : null;
+}
+
 async function groupsFor(ctx: CallContext, target: Target): Promise<Record<string, ToolGroup>> {
-  const { deps, identity } = ctx;
-  let tools = deps.tools.get(target.connector.id);
-  if (tools === undefined && target.connector.access.needsGroup(target.tool)) {
-    tools = await connectorTools(deps, identity, target.connector).catch((err: unknown) => {
-      log.debug({ connector: target.connector.id, err: errMsg(err) }, 'mcp: no tool list, so the tool counts as write');
-      return undefined;
-    });
-  }
-  if (tools === undefined) return {};
+  const tools = await toolsFor(ctx, target);
+  if (tools === null) return {};
   if (!tools.some((tool) => tool.name === target.tool)) throw await notFound(ctx, target.name, `${target.connector.key} has no tool named ${target.tool}.`, target.connector);
   return groupsOf(tools);
 }

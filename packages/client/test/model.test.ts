@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { baseDomain, faviconUrl } from '../src/api/favicon.js';
+import { baseDomain, faviconUrl } from '@metro-labs/core/favicon';
 import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';

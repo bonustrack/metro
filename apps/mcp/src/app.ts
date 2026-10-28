@@ -11,10 +11,11 @@ import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { callRecorder } from './call-log.js';
 import { handleDaemonRequest } from './daemon-api.js';
 import type { McpDeps } from './deps.js';
-import { Flights, ToolCache } from './flights.js';
-import { TOOL_LIST_TTL_MS } from './listing.js';
+import { Flights } from './flights.js';
 import { handleMcpRequest, sendBody } from './mcp-http.js';
+import { FIRST_LIST_WAIT_MS } from './listing.js';
 import { tokenStore } from './token.js';
+import { ToolLists } from './tool-lists.js';
 import { Waiters } from './waiters.js';
 
 const APPROVAL_POLL_MS = 1000;
@@ -40,12 +41,12 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     approvals: approvalStore(setup.db),
     calls: callRecorder(setup.db),
     waiters: new Waiters(),
-    tools: new ToolCache(TOOL_LIST_TTL_MS, now),
-    listings: new Flights(),
+    toolLists: new ToolLists(setup.db, now),
     refreshes: new Flights(),
     fetch: setup.fetch,
     callFetch: setup.callFetch,
     now,
+    listWaitMs: FIRST_LIST_WAIT_MS,
     approvalHoldMs: MCP_APPROVAL_WAIT_MS,
     approvalPollMs: APPROVAL_POLL_MS,
   };

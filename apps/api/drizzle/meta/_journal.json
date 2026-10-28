@@ -162,6 +162,13 @@
       "when": 1792886400000,
       "tag": "0022_drop_agents_owner_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792972800000,
+      "tag": "0023_connector_tools",
+      "breakpoints": true
     }
   ]
 }

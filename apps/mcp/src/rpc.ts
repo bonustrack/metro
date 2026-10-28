@@ -7,6 +7,7 @@ import { callTools } from './call.js';
 import { agentConnectors, labelsOf } from './catalog.js';
 import type { McpDeps } from './deps.js';
 import { findTools } from './find.js';
+import { LIST_CONNECTORS, listConnectors, listConnectorsTool, listRequestOf } from './list.js';
 import { errorResult, type ToolResult } from './tool-result.js';
 import { mcpServerTools, type ApprovalPlace } from '@metro-labs/http/mcp-server-tools';
 import { approvalPlace, INSTRUCTIONS, TOOL_CALL, TOOL_SEARCH } from './tools.js';
@@ -48,6 +49,11 @@ async function runTool(ctx: RpcContext, name: string, args: unknown): Promise<To
     try { request = mcpFindRequestOf(args); } catch (err) { return errorResult(errMsg(err)); }
     return findTools(ctx.deps, ctx.identity, request);
   }
+  if (name === LIST_CONNECTORS) {
+    let request;
+    try { request = listRequestOf(args); } catch (err) { return errorResult(errMsg(err)); }
+    return listConnectors(ctx.deps, ctx.identity, request);
+  }
   let calls;
   try { calls = mcpCallsOf(args); } catch (err) { return errorResult(errMsg(err)); }
   return callTools(ctx.deps, ctx.identity, calls);
@@ -55,7 +61,7 @@ async function runTool(ctx: RpcContext, name: string, args: unknown): Promise<To
 
 async function toolCall(ctx: RpcContext, params: Record<string, unknown>): Promise<ToolResult> {
   const name = typeof params.name === 'string' ? params.name : '';
-  if (name !== TOOL_SEARCH && name !== TOOL_CALL) throw new RpcError(-32602, `Unknown tool: ${name.slice(0, 64)}. This server has tool_search and tool_call.`);
+  if (name !== TOOL_SEARCH && name !== TOOL_CALL && name !== LIST_CONNECTORS) throw new RpcError(-32602, `Unknown tool: ${name.slice(0, 64)}. This server has tool_search, tool_call and list_connectors.`);
   try {
     return await runTool(ctx, name, params.arguments ?? {});
   } catch (err) {
@@ -68,7 +74,7 @@ async function result(ctx: RpcContext, method: string, params: Record<string, un
   const place = approvalPlace(ctx.identity);
   if (method === 'initialize') return initialize(params, place);
   if (method === 'ping') return {};
-  if (method === 'tools/list') return { tools: mcpServerTools(labelsOf(await agentConnectors(ctx.deps, ctx.identity)), place) };
+  if (method === 'tools/list') return { tools: [...mcpServerTools(labelsOf(await agentConnectors(ctx.deps, ctx.identity)), place), listConnectorsTool] };
   if (method === 'tools/call') return toolCall(ctx, params);
   throw new RpcError(-32601, `Method not found: ${method.slice(0, 64)}`);
 }
