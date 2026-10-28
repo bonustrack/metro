@@ -1,3 +1,4 @@
+import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -82,6 +83,13 @@ export function publicTools(tools: RemoteTool[], secret: ConnectorSecret): Remot
     const hints = { ...(tool.destructive === true ? { destructive: true } : {}), ...(tool.openWorld === true ? { openWorld: true } : {}) };
     return { name: tool.name, title: redact(tool.title).slice(0, 256), description: redact(tool.description).slice(0, 4096), readOnly: tool.readOnly, ...hints, ...schema };
   });
+}
+
+const SECRET_MIN = 8;
+
+export function publicIcons(icons: ConnectorIcon[], secret: ConnectorSecret): ConnectorIcon[] {
+  const hidden = redactionKeys([...credentials(secret), ...pathCredentials(new URL(secret.targetUrl).pathname).names]).filter((key) => key.length >= SECRET_MIN);
+  return icons.filter((icon) => !hidden.some((key) => icon.src.includes(key)));
 }
 
 export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {

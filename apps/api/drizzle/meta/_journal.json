@@ -169,6 +169,13 @@
       "when": 1792972800000,
       "tag": "0023_connector_tools",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793059200000,
+      "tag": "0024_connector_icons",
+      "breakpoints": true
     }
   ]
 }

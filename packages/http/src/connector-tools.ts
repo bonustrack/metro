@@ -1,3 +1,4 @@
+import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
@@ -14,7 +15,16 @@ export interface RemoteTool {
   inputSchema?: Record<string, unknown>;
 }
 
+export interface RemoteServer {
+  tools: RemoteTool[];
+  icons: ConnectorIcon[];
+}
+
 const TIMEOUT_MS = 15_000;
+const ICONS_MAX = 4;
+const ICON_URL_MAX = 2048;
+const MIME_RE = /^image\/[a-z0-9.+-]{1,64}$/i;
+const SIZE_RE = /^(any|\d{1,4}x\d{1,4})$/;
 const MAX_PAGES = 100;
 const MAX_TOOLS = 2000;
 
@@ -86,14 +96,44 @@ async function walkTools(url: URL, auth: ConnectorAuth, session: Map<string, str
   throw refused('The provider did not return a complete tool list.');
 }
 
-export async function listRemoteTools(url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteTool[]> {
+function iconSrc(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length > ICON_URL_MAX) return null;
+  try {
+    const src = new URL(raw);
+    return src.protocol === 'https:' && src.username === '' && src.password === '' ? src.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function iconOf(raw: unknown): ConnectorIcon | null {
+  const src = isRecord(raw) ? iconSrc(raw.src) : null;
+  if (!isRecord(raw) || src === null) return null;
+  const sizes = Array.isArray(raw.sizes) ? raw.sizes.filter((size): size is string => typeof size === 'string' && SIZE_RE.test(size)).slice(0, ICONS_MAX) : [];
+  return {
+    src,
+    ...(typeof raw.mimeType === 'string' && MIME_RE.test(raw.mimeType) ? { mimeType: raw.mimeType } : {}),
+    ...(sizes.length > 0 ? { sizes } : {}),
+    ...(raw.theme === 'light' || raw.theme === 'dark' ? { theme: raw.theme } : {}),
+  };
+}
+
+function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
+  const info = isRecord(init.serverInfo) ? init.serverInfo : {};
+  if (!Array.isArray(info.icons)) return [];
+  return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
+}
+
+export const listRemoteTools = async (url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteTool[]> => (await listRemoteServer(url, auth, fetchImpl)).tools;
+
+export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteServer> {
   const session = new Map<string, string>();
   try {
     const init = await rpc(url, auth, session, INITIALIZE, fetchImpl);
     if (init === null || typeof init.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
     session.set('mcp-protocol-version', init.protocolVersion);
     await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, fetchImpl);
-    return await walkTools(url, auth, session, fetchImpl);
+    return { tools: await walkTools(url, auth, session, fetchImpl), icons: serverIconsOf(init) };
   } finally {
     await endSession(url, auth, session, fetchImpl);
   }

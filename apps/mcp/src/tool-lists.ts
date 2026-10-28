@@ -1,5 +1,5 @@
 import { errMsg, log } from '@metro-labs/core/log';
-import type { RemoteTool } from '@metro-labs/http/connector-tools';
+import type { RemoteServer } from '@metro-labs/http/connector-tools';
 import { readToolListings, saveToolListing, type ToolFailure, type ToolListing } from '@metro-labs/connectors/db/connector-tools';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { isUndefinedTable } from '@metro-labs/connectors/db/errors';
@@ -9,7 +9,7 @@ export const TOOL_LIST_TTL_MS = 5 * 60_000;
 export const FAILURE_PAUSE_MS = 60_000;
 const HELD_MAX = 500;
 
-const EMPTY: ToolListing = { tools: null, listedAt: 0, failure: null, failedAt: 0 };
+const EMPTY: ToolListing = { tools: null, icons: [], listedAt: 0, failure: null, failedAt: 0 };
 
 const newer = (a: ToolListing, b: ToolListing | undefined): ToolListing => (b !== undefined && Math.max(b.listedAt, b.failedAt) > Math.max(a.listedAt, a.failedAt) ? b : a);
 
@@ -43,13 +43,13 @@ export class ToolLists {
     return this.keep(connector, this.held.get(connector) ?? EMPTY);
   }
 
-  refresh(connector: string, list: () => Promise<RemoteTool[]>, failureOf: (err: unknown) => ToolFailure): Promise<ToolListing> {
+  refresh(connector: string, list: () => Promise<RemoteServer>, failureOf: (err: unknown) => ToolFailure): Promise<ToolListing> {
     return this.flights.run(connector, async () => {
       const known = newer((await this.load([connector])).get(connector) ?? EMPTY, this.held.get(connector));
       if (this.fresh(known) || this.paused(known)) return this.keep(connector, known);
       let next: ToolListing;
       try {
-        next = { tools: await list(), listedAt: this.now(), failure: null, failedAt: 0 };
+        next = { ...(await list()), listedAt: this.now(), failure: null, failedAt: 0 };
       } catch (err) {
         next = { ...known, failure: failureOf(err), failedAt: this.now() };
       }

@@ -15,6 +15,7 @@ export interface FakeVendor {
   state: {
     accepted: string;
     tools: Record<string, unknown>[];
+    icons?: unknown;
     sse: boolean;
     refreshTo: string | null;
     answerOrder: string[];
@@ -86,7 +87,7 @@ export async function startVendor(): Promise<FakeVendor> {
       return;
     }
     const message = JSON.parse(text) as { id?: number; method: string; params?: { name?: string; arguments?: unknown } };
-    if (message.method === 'initialize') reply(res, false, { jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'vendor' } } });
+    if (message.method === 'initialize') reply(res, false, { jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'vendor', ...(vendor.state.icons === undefined ? {} : { icons: vendor.state.icons }) } } });
     else if (message.method === 'notifications/initialized') res.writeHead(202).end();
     else if (message.method === 'tools/list') reply(res, false, { jsonrpc: '2.0', id: message.id, result: { tools: vendor.state.tools } });
     else if (message.method === 'tools/call') {

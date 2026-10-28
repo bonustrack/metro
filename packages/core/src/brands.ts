@@ -84,7 +84,7 @@ export function brandSrc(url: string, dark: boolean): string | null {
 
 export interface ConnectorIcon {
   src: string;
-  mimeType: string;
+  mimeType?: string;
   sizes?: string[];
   theme?: 'light' | 'dark';
 }

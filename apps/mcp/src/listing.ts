@@ -1,8 +1,9 @@
+import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
-import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
-import { publicTools } from '@metro-labs/connectors/catalogue';
+import { listRemoteServer, type RemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
+import { publicIcons, publicTools } from '@metro-labs/connectors/catalogue';
 import type { ToolListing } from '@metro-labs/connectors/db/connector-tools';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { AgentConnector } from './catalog.js';
@@ -17,6 +18,7 @@ const LIST_DEADLINE_MS = 30_000;
 export interface ConnectorListing {
   status: 'ok' | 'listing' | 'signin' | 'unavailable';
   tools: RemoteTool[];
+  icons: ConnectorIcon[];
   listedAt?: number;
   error?: string;
 }
@@ -36,10 +38,11 @@ const bounded = (fetch: FetchLike): FetchLike => {
 };
 
 function refresh(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConnector): Promise<ToolListing> {
-  const list = (): Promise<RemoteTool[]> => {
-    const fetch = bounded(deps.fetch);
-    return withCredential(deps, identity, connector.id, async (target) => publicTools(await listRemoteTools(target.url, target.auth, fetch), target.secret));
-  };
+  const list = (): Promise<RemoteServer> =>
+    withCredential(deps, identity, connector.id, async (target) => {
+      const server = await listRemoteServer(target.url, target.auth, bounded(deps.fetch));
+      return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret) };
+    });
   return deps.toolLists.refresh(connector.id, list, (err) => {
     const failure = failureOf(err, connector.name);
     return failure.code === 'not_found' ? { code: 'unavailable', message: `Metro could not use ${connector.name} right now. Try again in a few minutes.` } : { code: failure.code, message: failure.message };
@@ -48,9 +51,9 @@ function refresh(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConn
 
 function viewOf(listing: ToolListing): ConnectorListing {
   const failure = listing.failure !== null && listing.failedAt >= listing.listedAt ? listing.failure : null;
-  if (listing.tools !== null) return { status: 'ok', tools: listing.tools, listedAt: listing.listedAt, ...(failure === null ? {} : { error: failure.message }) };
-  if (failure === null) return { status: 'listing', tools: [] };
-  return { status: failure.code === 'signin' ? 'signin' : 'unavailable', tools: [], error: failure.message };
+  if (listing.tools !== null) return { status: 'ok', tools: listing.tools, icons: listing.icons, listedAt: listing.listedAt, ...(failure === null ? {} : { error: failure.message }) };
+  if (failure === null) return { status: 'listing', tools: [], icons: [] };
+  return { status: failure.code === 'signin' ? 'signin' : 'unavailable', tools: [], icons: [], error: failure.message };
 }
 
 async function within(work: Promise<ToolListing>, ms: number): Promise<ToolListing | null> {
@@ -82,5 +85,5 @@ export async function connectorListing(deps: McpDeps, identity: DeliveryIdentity
   if (known.tools !== null && wait.fresh !== true) return viewOf(known);
   const done = await within(running, wait.waitMs ?? deps.listWaitMs);
   if (done !== null) return viewOf(done);
-  return known.tools !== null ? viewOf(known) : { status: 'listing', tools: [], error: `Metro is still reading the tools of ${connector.name}. Try again in a moment.` };
+  return known.tools !== null ? viewOf(known) : { status: 'listing', tools: [], icons: [], error: `Metro is still reading the tools of ${connector.name}. Try again in a moment.` };
 }

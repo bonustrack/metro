@@ -69,6 +69,7 @@ beforeEach(async () => {
   vendor.methods.length = 0;
   vendor.state.accepted = 'Bearer VENDOR_KEY';
   vendor.state.tools = vendorTools;
+  delete vendor.state.icons;
   clock = 1_800_000_000_000;
   faviconChecks = [];
   agent = await enrollAgent(held.db, 'agent000001');
@@ -167,6 +168,18 @@ describe('list_connectors answers every connector from the cache in one call, li
     expect(texts(result)[0]).toContain('slash (Slash): listing, 0 tools.');
     await listOf(on);
     expect(faviconChecks).toHaveLength(2);
+  });
+
+  test('the icons a server declares win over the fallbacks, keeping only safe https addresses', async () => {
+    await held.client.exec(`UPDATE connectors SET url = 'https://mcp.notion.com' WHERE id = 'conn0000001'`);
+    const own = { src: 'https://cdn.vendor.example.com/icon.png', mimeType: 'image/png', sizes: ['64x64', 'big'], theme: 'dark', extra: 'dropped' };
+    vendor.state.icons = [own, { src: 'http://cdn.vendor.example.com/icon.png' }, { src: 'data:image/png;base64,AAAA' }, { src: 'https://cdn.vendor.example.com/i.png?k=VENDOR_KEY' }, { src: 'https://user:pass@cdn.vendor.example.com/i.png' }, 'icon.png'];
+    const on = await app();
+    await find(on, 'notion');
+    const icons = ((await listOf(on)).structuredContent?.connectors as { icons: unknown }[])[0]?.icons;
+    expect(icons).toEqual([{ src: 'https://cdn.vendor.example.com/icon.png', mimeType: 'image/png', sizes: ['64x64'], theme: 'dark' }]);
+    expect(faviconChecks).toEqual([]);
+    expect((await stored())?.icons).toEqual(icons);
   });
 
   test('one connector, or every connector with tools: names, titles, descriptions, no schemas, blocked tools left out', async () => {

@@ -42,6 +42,7 @@ export const connectors = pgTable(
 export const connectorTools = pgTable('connector_tools', {
   connector: text('connector').primaryKey().references(() => connectors.id, { onDelete: 'cascade' }),
   tools: text('tools'),
+  icons: text('icons'),
   listedAt: bigint('listed_at', { mode: 'number' }),
   failureCode: text('failure_code'),
   failure: text('failure'),

@@ -73,7 +73,8 @@ export async function listConnectors(deps: McpDeps, identity: DeliveryIdentity, 
   await deps.toolLists.preload(connectors.map((connector) => connector.id));
   const answers = await Promise.all(
     connectors.map(async (connector) => {
-      const [listing, icons] = await Promise.all([connectorListing(deps, identity, connector, { waitMs: 0 }), deps.favicons.iconsOf(connector.assigned.connector.url)]);
+      const listing = await connectorListing(deps, identity, connector, { waitMs: 0 });
+      const icons = listing.icons.length > 0 ? listing.icons : await deps.favicons.iconsOf(connector.assigned.connector.url);
       return entryOf(connector, listing, icons, request.tools);
     }),
   );
