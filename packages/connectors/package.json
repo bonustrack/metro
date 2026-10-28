@@ -15,6 +15,7 @@
     "./imported-refresh": "./src/imported-refresh.ts",
     "./catalogue": "./src/catalogue.ts",
     "./catalogue-auth": "./src/catalogue-auth.ts",
+    "./favicons": "./src/favicons.ts",
     "./egress": "./src/egress.ts",
     "./agent-auth": "./src/agent-auth.ts",
     "./db/schema": "./src/db/schema.ts",

@@ -3,11 +3,9 @@ import { Image, Platform, View } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useKitPalette, useKitScheme } from '@stage-labs/kit/react-native/theme-context';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { faviconUrl } from '@metro-labs/core/favicon';
 import { brandSrc } from '@metro-labs/core/brands';
+import { siteIconUrl } from '@metro-labs/client/api/icons';
 import { location } from '@metro-labs/client/platform';
-
-const REQUEST_SIZE = 32;
 
 interface ConnectorFaviconProps {
   name: string;
@@ -29,7 +27,7 @@ export function ConnectorFavicon({ name, url, size, radius = Math.round(size / 4
   const dark = useKitScheme() === 'dark';
   const [failed, setFailed] = useState(false);
   const brand = brandSrc(url, dark);
-  const src = brand ?? faviconUrl(url, REQUEST_SIZE);
+  const src = brand ?? siteIconUrl(url);
   const blank = failed || src === '';
   const tile = {
     width: size,

@@ -60,6 +60,8 @@ import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connec
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
 import { copyOrganizations } from './connectors/copy.js';
 import { egressFetch } from '@metro-labs/connectors/egress';
+import { Favicons } from '@metro-labs/connectors/favicons';
+import { handleIconRequest } from './icons.js';
 import type { Handoff, SignInState } from './connectors/sign-in.js';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { mcpCallStore } from '@metro-labs/connectors/db/mcp-calls';
@@ -221,8 +223,11 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
+const favicons = new Favicons(egressFetch(), () => Date.now());
+
 const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   handleHealth,
+  (req, res) => handleIconRequest(req, res, favicons),
   (req, res) => handleModeRequest(req, res, mode),
   (req, res) => handleAuthApiRequest(req, res, authApi),
   (req, res) => handleMembersApiRequest(req, res, authApi),

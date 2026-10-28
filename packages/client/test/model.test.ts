@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { baseDomain, faviconUrl } from '@metro-labs/core/favicon';
+import { baseDomain, siteDomain } from '@metro-labs/core/favicon';
 import { clearAccount } from '../src/auth/account.js';
 import { setCurrentServer } from '../src/auth/daemon.js';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
@@ -210,6 +210,6 @@ describe('model lists', () => {
 describe('the provider logo', () => {
   test('comes from the registrable domain of the provider host', () => {
     expect(baseDomain('openrouter.ai')).toBe('openrouter.ai');
-    expect(faviconUrl('https://aws.amazon.com', 32)).toContain('amazon.com');
+    expect(siteDomain('https://aws.amazon.com')).toBe('amazon.com');
   });
 });

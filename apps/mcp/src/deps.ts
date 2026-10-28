@@ -6,7 +6,7 @@ import type { ConnectorDeliveryStore } from '@metro-labs/connectors/db/connector
 import type { ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import type { CallRecorder } from './call-log.js';
 import type { Flights } from './flights.js';
-import type { Favicons } from './icons.js';
+import type { Favicons } from '@metro-labs/connectors/favicons';
 import type { TokenStore } from './token.js';
 import type { ToolLists } from './tool-lists.js';
 import type { Waiters } from './waiters.js';

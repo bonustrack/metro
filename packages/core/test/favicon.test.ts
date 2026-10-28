@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { baseDomain, faviconUrl } from '../src/favicon.ts';
+import { baseDomain, checkedFaviconUrl, siteDomain } from '../src/favicon.ts';
 
 describe('the registrable domain, not the host the MCP happens to live on', () => {
   test('an mcp subdomain resolves to the site people would recognise', () => {
@@ -31,29 +31,20 @@ describe('the registrable domain, not the host the MCP happens to live on', () =
   });
 });
 
-describe('the favicon url handed to the browser', () => {
-  test('it asks google for the registrable domain at the size we render', () => {
-    expect(faviconUrl('https://mcp.snapshot.box/mcp')).toBe(
-      'https://www.google.com/s2/favicons?domain=snapshot.box&sz=32',
-    );
+describe('the site whose favicon is checked', () => {
+  test('it is the registrable domain, without port, path or query', () => {
+    expect(siteDomain('https://mcp.snapshot.box/mcp')).toBe('snapshot.box');
+    expect(siteDomain('https://mcp.example.com:8443/a/b?c=d')).toBe('example.com');
   });
 
-  test('the size is a parameter, so a heading can ask for more', () => {
-    expect(faviconUrl('https://mcp.sentry.dev/mcp', 128)).toContain('sz=128');
+  test('anything unparseable, or a host with no dot, has no site, so no icon is asked for', () => {
+    expect(siteDomain('')).toBe('');
+    expect(siteDomain('not a url')).toBe('');
+    expect(siteDomain('http://localhost:8420/mcp')).toBe('');
   });
 
-  test('a port and a path never reach the query', () => {
-    expect(faviconUrl('https://mcp.example.com:8443/a/b?c=d')).toBe(
-      'https://www.google.com/s2/favicons?domain=example.com&sz=32',
-    );
-  });
-
-  test('anything unparseable yields no url rather than a broken image', () => {
-    expect(faviconUrl('')).toBe('');
-    expect(faviconUrl('not a url')).toBe('');
-  });
-
-  test('a host with no dot yields nothing, so localhost shows no icon', () => {
-    expect(faviconUrl('http://localhost:8420/mcp')).toBe('');
+  test('Google is asked for that site at the size we render, in the form that answers 404 when it has none', () => {
+    expect(checkedFaviconUrl('https://mcp.sentry.dev/mcp', 64)).toBe('https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https%3A%2F%2Fsentry.dev&size=64');
+    expect(checkedFaviconUrl('not a url', 64)).toBe('');
   });
 });

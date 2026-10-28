@@ -1,4 +1,3 @@
-const FAVICON_BASE = 'https://www.google.com/s2/favicons';
 const CHECKED_BASE = 'https://t1.gstatic.com/faviconV2';
 
 const MULTI_LABEL_SUFFIXES = new Set([
@@ -24,18 +23,13 @@ export function baseDomain(host: string): string {
   return lastTwo;
 }
 
-function siteDomain(url: string): string {
+export function siteDomain(url: string): string {
   try {
     const domain = baseDomain(new URL(url).hostname);
     return domain.includes('.') ? domain : '';
   } catch {
     return '';
   }
-}
-
-export function faviconUrl(url: string, size = 32): string {
-  const domain = siteDomain(url);
-  return domain === '' ? '' : `${FAVICON_BASE}?domain=${encodeURIComponent(domain)}&sz=${String(size)}`;
 }
 
 export function checkedFaviconUrl(url: string, size: number): string {
