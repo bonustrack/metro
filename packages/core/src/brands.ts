@@ -1,4 +1,4 @@
-import { baseDomain, faviconUrl } from './favicon.js';
+import { baseDomain } from './favicon.js';
 
 interface BrandLogo {
   light: string;
@@ -90,13 +90,11 @@ export interface ConnectorIcon {
 }
 
 const BRAND_ORIGIN = 'https://metro.box';
-const ICON_SIZE = 64;
 
 const brandIcon = (path: string, theme?: 'light' | 'dark'): ConnectorIcon => ({ src: `${BRAND_ORIGIN}${path}`, mimeType: path.endsWith('.png') ? 'image/png' : 'image/svg+xml', ...(theme === undefined ? {} : { theme }) });
 
-export function connectorIcons(url: string): ConnectorIcon[] {
+export function brandIcons(url: string): ConnectorIcon[] {
   const logo = brandLogo(url);
-  if (logo !== null) return logo.dark === undefined ? [brandIcon(logo.light)] : [brandIcon(logo.light, 'light'), brandIcon(logo.dark, 'dark')];
-  const favicon = faviconUrl(url, ICON_SIZE);
-  return favicon === '' ? [] : [{ src: favicon, mimeType: 'image/png', sizes: [`${String(ICON_SIZE)}x${String(ICON_SIZE)}`] }];
+  if (logo === null) return [];
+  return logo.dark === undefined ? [brandIcon(logo.light)] : [brandIcon(logo.light, 'light'), brandIcon(logo.dark, 'dark')];
 }

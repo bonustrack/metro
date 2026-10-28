@@ -1,4 +1,4 @@
-import { connectorIcons } from '@metro-labs/core/brands';
+import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { McpServerTool } from '@metro-labs/http/mcp-server-tools';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
@@ -49,7 +49,7 @@ function toolsOf(connector: AgentConnector, listing: ConnectorListing): Record<s
   });
 }
 
-function entryOf(connector: AgentConnector, listing: ConnectorListing, withTools: boolean): Record<string, unknown> {
+function entryOf(connector: AgentConnector, listing: ConnectorListing, icons: ConnectorIcon[], withTools: boolean): Record<string, unknown> {
   const tools = toolsOf(connector, listing);
   const line = `${connector.key} (${connector.name}): ${listing.status}, ${String(tools.length)} tools${listing.error === undefined ? '' : `. ${listing.error}`}`;
   return {
@@ -61,7 +61,7 @@ function entryOf(connector: AgentConnector, listing: ConnectorListing, withTools
       ...(listing.error === undefined ? {} : { error: listing.error }),
       ...(listing.listedAt === undefined ? {} : { listedAt: listing.listedAt }),
       toolCount: tools.length,
-      icons: connectorIcons(connector.assigned.connector.url),
+      icons,
       ...(withTools ? { tools } : {}),
     },
   };
@@ -71,7 +71,12 @@ export async function listConnectors(deps: McpDeps, identity: DeliveryIdentity, 
   const connectors = visibleConnectors(await agentConnectors(deps, identity)).filter((connector) => request.connector === undefined || connector.key === request.connector);
   if (request.connector !== undefined && connectors.length === 0) return { content: [textBlock(`No connector "${request.connector}" is assigned to this agent.`)], isError: true };
   await deps.toolLists.preload(connectors.map((connector) => connector.id));
-  const answers = await Promise.all(connectors.map(async (connector) => entryOf(connector, await connectorListing(deps, identity, connector, { waitMs: 0 }), request.tools)));
+  const answers = await Promise.all(
+    connectors.map(async (connector) => {
+      const [listing, icons] = await Promise.all([connectorListing(deps, identity, connector, { waitMs: 0 }), deps.favicons.iconsOf(connector.assigned.connector.url)]);
+      return entryOf(connector, listing, icons, request.tools);
+    }),
+  );
   const text = answers.length === 0 ? 'This agent has no connectors it may use.' : answers.map((answer) => answer.line).join('\n');
   return { content: [textBlock(text)], structuredContent: { connectors: answers.map((answer) => answer.entry) } };
 }

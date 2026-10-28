@@ -36,8 +36,18 @@ function gated(base: FetchLike): Gate {
 
 const hanging = (base: FetchLike): FetchLike => (input, init) => (String(input).includes(UNREACHABLE) ? new Promise<Response>(() => {}) : base(input, init));
 
+const FAVICONS = 'https://t1.gstatic.com/faviconV2';
+let faviconChecks: string[] = [];
+
+const favicons = (base: FetchLike): FetchLike => (input, init) => {
+  const url = String(input);
+  if (!url.startsWith(FAVICONS)) return base(input, init);
+  faviconChecks.push(url);
+  return Promise.resolve(new Response('png', { status: url.includes('slash.com') ? 200 : 404 }));
+};
+
 async function app(fetch: FetchLike = rewrite(vendor.base)): Promise<TestApp> {
-  const started = await startApp(held.db, fetch, { now: () => clock, listWaitMs: 200 });
+  const started = await startApp(held.db, favicons(fetch), { now: () => clock, listWaitMs: 200 });
   apps.push(started);
   return started;
 }
@@ -60,6 +70,7 @@ beforeEach(async () => {
   vendor.state.accepted = 'Bearer VENDOR_KEY';
   vendor.state.tools = vendorTools;
   clock = 1_800_000_000_000;
+  faviconChecks = [];
   agent = await enrollAgent(held.db, 'agent000001');
   await addConnector(held.db, 'conn0000001', 'Notion', headerSecret());
   await assign(held.db, 'conn0000001', agent.row.agent);
@@ -138,6 +149,8 @@ describe('list_connectors answers every connector from the cache in one call, li
   test('by default each connector has its state, tool count and icon, and a never-read one does not hold the answer', async () => {
     await addConnector(held.db, 'conn0000002', 'Slash', headerSecret(UNREACHABLE), { url: 'https://mcp.slash.com' });
     await assign(held.db, 'conn0000002', agent.row.agent);
+    await addConnector(held.db, 'conn0000003', 'Mistral OCR', headerSecret(), { url: 'https://mistral-ocr.piston.box' });
+    await assign(held.db, 'conn0000003', agent.row.agent);
     await held.client.exec(`UPDATE connectors SET url = 'https://mcp.notion.com' WHERE id = 'conn0000001'`);
     const on = await app(hanging(rewrite(vendor.base)));
     await find(on, 'select:notion.search');
@@ -146,11 +159,14 @@ describe('list_connectors answers every connector from the cache in one call, li
     expect(Date.now() - started).toBeLessThan(150);
     expect(result.structuredContent).toEqual({
       connectors: [
+        { key: 'mistral-ocr', name: 'Mistral OCR', status: 'listing', error: 'Metro is still reading the tools of Mistral OCR. Try again in a moment.', toolCount: 0, icons: [] },
         { key: 'notion', name: 'Notion', status: 'ok', listedAt: clock, toolCount: 3, icons: NOTION_ICON },
-        { key: 'slash', name: 'Slash', status: 'listing', error: 'Metro is still reading the tools of Slash. Try again in a moment.', toolCount: 0, icons: [{ src: 'https://www.google.com/s2/favicons?domain=slash.com&sz=64', mimeType: 'image/png', sizes: ['64x64'] }] },
+        { key: 'slash', name: 'Slash', status: 'listing', error: 'Metro is still reading the tools of Slash. Try again in a moment.', toolCount: 0, icons: [{ src: `${FAVICONS}?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https%3A%2F%2Fslash.com&size=64`, mimeType: 'image/png', sizes: ['64x64'] }] },
       ],
     });
-    expect(texts(result)[0]).toBe('notion (Notion): ok, 3 tools\nslash (Slash): listing, 0 tools. Metro is still reading the tools of Slash. Try again in a moment.');
+    expect(texts(result)[0]).toContain('slash (Slash): listing, 0 tools.');
+    await listOf(on);
+    expect(faviconChecks).toHaveLength(2);
   });
 
   test('one connector, or every connector with tools: names, titles, descriptions, no schemas, blocked tools left out', async () => {

@@ -12,6 +12,7 @@ import { callRecorder } from './call-log.js';
 import { handleDaemonRequest } from './daemon-api.js';
 import type { McpDeps } from './deps.js';
 import { Flights } from './flights.js';
+import { Favicons } from './icons.js';
 import { handleMcpRequest, sendBody } from './mcp-http.js';
 import { FIRST_LIST_WAIT_MS } from './listing.js';
 import { tokenStore } from './token.js';
@@ -42,6 +43,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     calls: callRecorder(setup.db),
     waiters: new Waiters(),
     toolLists: new ToolLists(setup.db, now),
+    favicons: new Favicons(setup.fetch, now),
     refreshes: new Flights(),
     fetch: setup.fetch,
     callFetch: setup.callFetch,

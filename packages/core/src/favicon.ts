@@ -1,4 +1,5 @@
 const FAVICON_BASE = 'https://www.google.com/s2/favicons';
+const CHECKED_BASE = 'https://t1.gstatic.com/faviconV2';
 
 const MULTI_LABEL_SUFFIXES = new Set([
   'ac.uk', 'co.uk', 'gov.uk', 'me.uk', 'net.uk', 'org.uk',
@@ -23,14 +24,21 @@ export function baseDomain(host: string): string {
   return lastTwo;
 }
 
-export function faviconUrl(url: string, size = 32): string {
-  let host: string;
+function siteDomain(url: string): string {
   try {
-    host = new URL(url).hostname;
+    const domain = baseDomain(new URL(url).hostname);
+    return domain.includes('.') ? domain : '';
   } catch {
     return '';
   }
-  const domain = baseDomain(host);
-  if (domain === '' || !domain.includes('.')) return '';
-  return `${FAVICON_BASE}?domain=${encodeURIComponent(domain)}&sz=${String(size)}`;
+}
+
+export function faviconUrl(url: string, size = 32): string {
+  const domain = siteDomain(url);
+  return domain === '' ? '' : `${FAVICON_BASE}?domain=${encodeURIComponent(domain)}&sz=${String(size)}`;
+}
+
+export function checkedFaviconUrl(url: string, size: number): string {
+  const domain = siteDomain(url);
+  return domain === '' ? '' : `${CHECKED_BASE}?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(`https://${domain}`)}&size=${String(size)}`;
 }
