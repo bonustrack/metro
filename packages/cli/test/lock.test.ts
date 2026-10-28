@@ -34,6 +34,15 @@ test('one holder at a time, and a lock left by a dead process or older than its 
   expect(takeLock(lock, 2 * HOUR)).toBe(false);
 });
 
+test('an empty lock, left when the pid could not be written (a full disk), is taken over after a few seconds, not after its limit', () => {
+  writeFileSync(lock, '');
+  expect(takeLock(lock, 20 * 60_000)).toBe(false);
+  const old = new Date(Date.now() - 10_000);
+  utimesSync(lock, old, old);
+  expect(takeLock(lock, 20 * 60_000)).toBe(true);
+  expect(readFileSync(lock, 'utf8')).toBe(String(process.pid));
+});
+
 test('withLock takes a stale lock over at once and releases it after the work, even when the work throws', () => {
   const wait = { staleMs: HOUR, waitMs: 5_000, pollMs: 10 };
   writeFileSync(lock, String(DEAD));

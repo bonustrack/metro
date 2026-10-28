@@ -10,6 +10,7 @@ interface LockWait {
 }
 
 const pause = new Int32Array(new SharedArrayBuffer(4));
+const EMPTY_GRACE_MS = 5_000;
 
 export function processAlive(pid: number): boolean {
   try {
@@ -22,8 +23,11 @@ export function processAlive(pid: number): boolean {
 
 function lockHeld(path: string, now: number, staleMs: number): boolean {
   try {
-    if (now - statSync(path).mtimeMs >= staleMs) return false;
-    const pid = Number(readFileSync(path, 'utf8').trim());
+    const age = now - statSync(path).mtimeMs;
+    if (age >= staleMs) return false;
+    const text = readFileSync(path, 'utf8').trim();
+    if (text === '') return age < EMPTY_GRACE_MS;
+    const pid = Number(text);
     return !Number.isInteger(pid) || pid <= 0 || processAlive(pid);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -35,7 +39,13 @@ export function takeLock(path: string, staleMs: number, now = Date.now(), retry 
   try {
     mkdirSync(dirname(path), { recursive: true });
     const fd = openSync(path, 'wx');
-    writeSync(fd, String(process.pid));
+    try {
+      writeSync(fd, String(process.pid));
+    } catch (err) {
+      closeSync(fd);
+      rmSync(path, { force: true });
+      throw err;
+    }
     closeSync(fd);
     return true;
   } catch (err) {
