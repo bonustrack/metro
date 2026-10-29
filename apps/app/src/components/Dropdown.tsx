@@ -1,7 +1,9 @@
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { Modal } from '@stage-labs/kit/react-native/modal';
-import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSheet } from '@stage-labs/kit/react-native/menu';
+import { DROPDOWN_MENU, DropdownMenu, DropdownMenuItem, DropdownMenuSheet } from '@stage-labs/kit/react-native/menu';
+import { withAlpha } from '@stage-labs/kit/badge';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Button, type ButtonProps } from '@stage-labs/kit/react-native/button';
 import { iconOf, type IconName } from './Icon.js';
 import { useIsNarrow } from '../lib/media.js';
@@ -74,10 +76,16 @@ export function measure(view: View | null): Promise<Anchor | null> {
   });
 }
 
+function MenuSeparator(): ReactNode {
+  const palette = useKitPalette();
+  const line = { height: DROPDOWN_MENU.separator, backgroundColor: withAlpha(palette.text, DROPDOWN_MENU.separatorAlpha) };
+  return <View style={line} />;
+}
+
 function MenuItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }): ReactNode {
   return items.map((item, index) => (
     <Fragment key={item.label}>
-      {(item.danger === true || item.separated === true) && index > 0 ? <DropdownMenuSeparator /> : null}
+      {(item.danger === true || item.separated === true) && index > 0 ? <MenuSeparator /> : null}
       <DropdownMenuItem
         label={item.label}
         icon={item.leading}
