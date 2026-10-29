@@ -10,6 +10,7 @@ import type { ConnectorTab } from '@metro-labs/client/selection';
 import { AgentFace } from './connectors/AgentFace.js';
 import { AgentRules, ResetRules, agentSubtitle } from './connectors/AgentRules.js';
 import { useAddAgent, ConnectorAgents } from './connectors/ConnectorAgents.js';
+import { ConnectButton } from './connectors/ConnectButton.js';
 import { ConnectorHeader, RefreshTools, type ConnectorTabId } from './connectors/ConnectorHeader.js';
 import { ConnectorSummary } from './connectors/ConnectorSummary.js';
 import { ConnectorSettings } from './connectors/ConnectorSettings.js';
@@ -90,7 +91,7 @@ function TabbedPage({ connector, admin, tab, outcome }: { connector: OrgConnecto
   const add = admin ? <RoundButton label="Add an agent" icon="plus" onPress={adding.open} /> : undefined;
   return (
     <Groups>
-      <ConnectorHeader connector={connector} tab={tab} action={tab === 'tools' ? <RefreshTools connector={connector} /> : tab === 'agents' ? add : undefined} />
+      <ConnectorHeader connector={connector} tab={tab} admin={admin} action={<>{tab === 'tools' ? <RefreshTools connector={connector} /> : tab === 'agents' ? add : null}<ConnectButton connector={connector} admin={admin} /></>} />
       <Notes outcome={outcome} />
       {tab === 'tools' ? <OrganizationTools connector={connector} admin={admin} /> : null}
       {tab === 'agents' ? <ConnectorAgents connector={connector} admin={admin} /> : null}

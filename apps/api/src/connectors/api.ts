@@ -8,7 +8,7 @@ import { completeSignIn, createConnector, startSignIn, viewOf, type Caller } fro
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { connectorActivity } from './activity.js';
 import { connectorActivityStats } from './activity-stats.js';
-import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
+import { assignConnector, deleteConnector, listConnectors, signOutConnector, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
 import { callbackLocation } from './sign-in.js';
@@ -43,7 +43,7 @@ const METHODS: Record<Target['kind'], string[]> = {
   callback: ['GET'],
   complete: ['POST'],
   connector: ['GET', 'PUT', 'DELETE'],
-  'sign-in': ['POST'],
+  'sign-in': ['POST', 'DELETE'],
   copy: ['POST'],
   agent: ['PUT', 'DELETE'],
   'agent-policy': ['PUT'],
@@ -107,6 +107,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'PUT connector': (c) => updateConnector(c.deps, c.caller, c.id, c.body),
   'DELETE connector': (c) => deleteConnector(c.deps, c.caller, c.id),
   'POST sign-in': (c) => startSignIn(c.deps, c.caller, c.id, c.body),
+  'DELETE sign-in': (c) => signOutConnector(c.deps, c.caller, c.id),
   'POST copy': (c) => copyConnector(c.deps, c.caller, c.id, c.body),
   'PUT agent': (c) => assignConnector(c.deps, c.caller, c.id, c.agent, c.body),
   'PUT agent-policy': (c) => updateConnectorAgentPolicy(c.deps, c.caller, c.id, c.agent, c.body),

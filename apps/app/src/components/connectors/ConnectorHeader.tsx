@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Column } from '@stage-labs/kit/react-native/column';
 import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
@@ -6,11 +7,12 @@ import { Tabs } from '@stage-labs/kit/react-native/tabs';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { connectorHost } from '@metro-labs/client/api/connectors';
-import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
+import { renameOrgConnector, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { Icon } from '../Icon.js';
 import { orgConnectorStatus } from '../org-connector-status.js';
+import { EditableTitle } from '../ui/EditableTitle.js';
 import { PageHeader } from '../ui/PageHeader.js';
 import { RoundButton } from '../ui/RoundButton.js';
 import { side } from '../ui/edges.js';
@@ -18,7 +20,7 @@ import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import { logError } from '../../lib/log.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { go } from '../../lib/nav.js';
-import { useOrgConnectorToolsQuery } from '../../lib/org-connector-queries.js';
+import { refreshOrgConnectors, useOrgConnectorToolsQuery } from '../../lib/org-connector-queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useNow } from '../../lib/use-now.js';
 import { optionTabs } from '../../lib/option-tabs.js';
@@ -79,10 +81,15 @@ function ConnectorTabs({ connector, tab }: { connector: OrgConnector; tab: Conne
   );
 }
 
-export function ConnectorHeader({ connector, tab, action }: { connector: OrgConnector; tab: ConnectorTabId; action?: ReactNode }): ReactNode {
+export function ConnectorHeader({ connector, tab, action, admin }: { connector: OrgConnector; tab: ConnectorTabId; action?: ReactNode; admin: boolean }): ReactNode {
+  const client = useQueryClient();
+  const rename = async (name: string): Promise<void> => {
+    await renameOrgConnector(connector.id, name);
+    await refreshOrgConnectors(client);
+  };
   return (
     <PageHeader
-      title={connector.name}
+      title={<EditableTitle value={connector.name} label={`Rename ${connector.name}`} {...(admin ? { onRename: rename } : {})} />}
       subtitle={<Subtitle connector={connector} />}
       leading={<ConnectorFavicon name={connector.name} url={connector.url} size={AVATAR_SIZE.header} />}
       action={action}

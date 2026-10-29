@@ -179,6 +179,9 @@ export async function copyOrgConnector(id: string, input: CopyOrgConnectorInput)
 export const signInOrgConnector = async (id: string, checkAccount?: () => void, signal?: AbortSignal, oauthResource?: string): Promise<string> =>
   authorizeOf(recordOf(await orgCall({ method: 'POST', base: base(), path: `/${id}/sign-in`, headers: JSON_HEADERS, body: JSON.stringify({ returnTo: signInReturnUrl(), ...(oauthResource?.trim() ? { oauthResource: oauthResource.trim() } : {}) }), checkAccount, signal })));
 
+export const signOutOrgConnector = async (id: string): Promise<OrgConnector> =>
+  toOrgConnector(await orgCall({ method: 'DELETE', base: base(), path: `/${id}/sign-in` }));
+
 export const completeOrgConnectorSignIn = async (handoff: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'POST', base: base(), path: '/complete', headers: JSON_HEADERS, body: JSON.stringify({ handoff }) }));
 

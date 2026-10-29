@@ -1,3 +1,4 @@
+import { newId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -70,6 +71,19 @@ export async function updateConnector(deps: ActionDeps, caller: Caller, id: stri
   const edit = change.kind === 'key' ? await keyEdit(deps, caller, id, change) : simpleEdit(change);
   const saved = await deps.store.edit(caller.owner, id, at(deps), edit);
   log.info({ owner: caller.owner, id: saved.id, change: change.kind }, 'org-connectors: connector changed');
+  return viewOf(deps, caller.owner, id);
+}
+
+export async function signOutConnector(deps: ActionDeps, caller: Caller, id: string): Promise<ConnectorView> {
+  const key = sealingKey(deps);
+  await deps.store.edit(caller.owner, id, at(deps), (current) => {
+    const secret = openConnectorSecret(key, current);
+    if (current.auth !== 'oauth' || secret?.kind !== 'oauth') throw new ApiError('Only a connector that signs in with OAuth can be disconnected.', 400);
+    const signedOut = { kind: 'oauth' as const, targetUrl: secret.targetUrl, client: secret.client, server: secret.server, ...(secret.oauthResource === undefined ? {} : { oauthResource: secret.oauthResource }) };
+    const detail = Object.fromEntries(Object.entries(detailOf(current.detail)).filter(([field]) => field !== 'signedInAt' && field !== 'verifiedAt'));
+    return { change: { authGeneration: newId(), secret: sealConnectorSecret(key, current, signedOut), detail: detailText(detail) } };
+  });
+  log.info({ owner: caller.owner, id }, 'org-connectors: connector disconnected');
   return viewOf(deps, caller.owner, id);
 }
 

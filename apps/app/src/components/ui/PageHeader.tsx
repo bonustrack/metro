@@ -15,7 +15,7 @@ export interface Crumb {
 }
 
 interface PageHeaderProps {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   crumbs?: Crumb[];
   leading?: ReactNode;
@@ -94,9 +94,13 @@ export function PageHeader({ title, subtitle, crumbs, leading, action, tabs }: P
         <Row align="center" gap={16} weight={1} minWidth={0}>
           {leading}
           <Column gap={2} weight={1} minWidth={0}>
-            <Text accessibilityRole="header" size="2xl" fontWeight="semibold" numberOfLines={2}>
-              {title}
-            </Text>
+            {typeof title === 'string' ? (
+              <Text accessibilityRole="header" size="2xl" fontWeight="semibold" numberOfLines={2}>
+                {title}
+              </Text>
+            ) : (
+              title
+            )}
             <Subtitle subtitle={subtitle} />
           </Column>
         </Row>

@@ -139,6 +139,24 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(JSON.parse(after?.detail ?? '{}')).not.toHaveProperty('clientId');
   });
 
+  test('disconnecting forgets the sign-in and keeps the rest, for an admin only', async () => {
+    const started = await startOAuth();
+    await post('/api/connectors/complete', { handoff: await handoffFor(started) });
+    const remove = async (authorization?: string): Promise<Response> => fetch(`${api.base}/api/connectors/${started.id}/sign-in`, { method: 'DELETE', headers: { authorization: authorization ?? (await auth(TEST_OWNER)) } });
+    expect((await remove(await auth(TEST_OWNER, 'member'))).status).toBe(403);
+    const res = await remove();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: started.id, signIn: 'disconnected', verifiedAt: null });
+    const key = api.deps.key();
+    const row = (await held.db.select().from(connectors).where(eq(connectors.id, started.id)))[0];
+    const kept = key === null || row === undefined ? null : openConnectorSecret(key, row);
+    expect(kept).toMatchObject({ kind: 'oauth', client: { clientId: challengeOf(started.authorizeUrl).clientId } });
+    expect(kept?.kind === 'oauth' ? kept.tokens : 'not oauth').toBeUndefined();
+    const keyed = await post('/api/connectors', { name: 'Keyed', url: `${vendor.base}/keyed`, value: GOOD_KEY });
+    const keyedId = ((await keyed.json()) as { connector?: { id: string } }).connector?.id ?? 'missing';
+    expect((await fetch(`${api.base}/api/connectors/${keyedId}/sign-in`, { method: 'DELETE', headers: { authorization: await auth(TEST_OWNER) } })).status).toBe(400);
+  });
+
   test('a client id the admin typed in is kept at sign-in again', async () => {
     const res = await post('/api/connectors', { name: 'Own app', url: `${vendor.base}/oauth`, clientId: 'admin-app', returnTo: RETURN_TO });
     expect(res.status).toBe(201);

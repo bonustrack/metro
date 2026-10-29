@@ -14,8 +14,6 @@ interface ConnectorFaviconProps {
   radius?: number;
 }
 
-const INSET = 0.7;
-
 const absolute = (src: string): string => (src.startsWith('/') ? `${location().origin()}${src}` : src);
 
 function Picture({ src, size, onError }: { src: string; size: number; onError: () => void }): ReactNode {
@@ -38,7 +36,7 @@ export function ConnectorFavicon({ name, url, size, radius = Math.round(size / 4
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: palette.inputBg,
+    backgroundColor: blank ? palette.inputBg : 'transparent',
   } as const;
   return (
     <View style={tile}>
@@ -49,7 +47,7 @@ export function ConnectorFavicon({ name, url, size, radius = Math.round(size / 4
       ) : (
         <Picture
           src={src}
-          size={Math.round(size * INSET)}
+          size={size}
           onError={() => {
             setFailed(true);
           }}
