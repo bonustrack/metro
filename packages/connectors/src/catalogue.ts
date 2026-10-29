@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
-import { listRemoteTools, type RemoteTool } from '@metro-labs/http/connector-tools';
+import { listRemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
@@ -101,11 +101,15 @@ export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {
 async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<RemoteTool[]> {
   const key = sealingKey(deps);
   const secret = catalogueSecret(key, row, deps.now());
-  const tools = await listRemoteTools(parsePublicConnectorUrl(secret.targetUrl), connectorAuthOf(secret), deps.fetch);
+  const server = await listRemoteServer(parsePublicConnectorUrl(secret.targetUrl), connectorAuthOf(secret), deps.fetch);
   const current = await deps.store.find(owner, row.id);
   if (current === null) throw new ApiError('no such connector', 404);
   if (credentialRevision(key, current) !== credentialRevision(key, row)) throw new ApiError('This connector changed. Refresh its tool list.', 409);
-  return publicTools(tools, secret);
+  const tools = publicTools(server.tools, secret);
+  await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret) }).catch((err: unknown) => {
+    log.warn({ connector: row.id, err: errMsg(err) }, 'connectors: the tool list could not be kept for mcp.metro.box');
+  });
+  return tools;
 }
 
 export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {

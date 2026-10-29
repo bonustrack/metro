@@ -10,6 +10,7 @@ import { connectorActivity } from './activity.js';
 import { connectorActivityStats } from './activity-stats.js';
 import { assignConnector, deleteConnector, listConnectors, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
+import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
 import { callbackLocation } from './sign-in.js';
 import { copyConnector, type CopyDeps } from './copy.js';
 import { callerOf } from '../server-route.js';
@@ -20,6 +21,7 @@ const BODY_MAX = 1024 * 1024;
 export interface ConnectorsApiDeps extends CopyDeps {
   keys: SigningKeys;
   calls: McpCallStore;
+  saveListing?: CatalogueDeps['saveListing'];
 }
 
 type Target =

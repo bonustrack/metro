@@ -62,6 +62,7 @@ import { copyOrganizations } from './connectors/copy.js';
 import { egressFetch } from '@metro-labs/connectors/egress';
 import { Favicons } from '@metro-labs/connectors/favicons';
 import { handleIconRequest } from './icons.js';
+import { declaredIcons, saveToolListing } from '@metro-labs/connectors/db/connector-tools';
 import type { Handoff, SignInState } from './connectors/sign-in.js';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { mcpCallStore } from '@metro-labs/connectors/db/mcp-calls';
@@ -171,6 +172,7 @@ const connectorsApi: ConnectorsApiDeps = {
   fetch: egressFetch(),
   httpsOnly: true,
   callbackUrl: 'https://api.metro.box/api/connectors/callback',
+  saveListing: (connector, server) => saveToolListing(getDb(), connector, { ...server, listedAt: Date.now(), failure: null, failedAt: 0 }),
   states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'connector sign-ins' }),
   handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'connector sign-ins', ttlMs: 5 * 60_000 }),
   now: () => Date.now(),
@@ -223,11 +225,11 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
-const favicons = new Favicons(egressFetch(), () => Date.now());
+const icons = { favicons: new Favicons(egressFetch(), () => Date.now()), declared: (origin: string) => declaredIcons(getDb(), origin), now: () => Date.now() };
 
 const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   handleHealth,
-  (req, res) => handleIconRequest(req, res, favicons),
+  (req, res) => handleIconRequest(req, res, icons),
   (req, res) => handleModeRequest(req, res, mode),
   (req, res) => handleAuthApiRequest(req, res, authApi),
   (req, res) => handleMembersApiRequest(req, res, authApi),

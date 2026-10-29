@@ -6,6 +6,7 @@ import { OwnerTickets } from '../src/agents/tickets.ts';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from '../src/connectors/api.ts';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.ts';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { saveToolListing } from '@metro-labs/connectors/db/connector-tools';
 import { mcpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { users } from '../src/db/schema.ts';
 import { testKeys } from './identity-helper.ts';
@@ -163,6 +164,7 @@ export async function startApi(db: () => TestDb['db'], now: () => number, send: 
     fetch: send,
     httpsOnly: true,
     callbackUrl: CALLBACK,
+    saveListing: (connector, server) => saveToolListing(db(), connector, { ...server, listedAt: now(), failure: null, failedAt: 0 }),
     states: new OwnerTickets<SignInState>((state) => state.connector, { what: 'connector sign-ins' }),
     handoffs: new OwnerTickets<Handoff>((handoff) => handoff.connector, { what: 'connector sign-ins', ttlMs: 5 * 60_000 }),
     now,

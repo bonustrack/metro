@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { connectors, connectorAgents } from '../src/db/schema.ts';
 import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
+import { declaredIcons, readToolListings } from '@metro-labs/connectors/db/connector-tools';
 import { sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { type ConnectorView } from '../src/connectors/model.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
@@ -29,7 +30,7 @@ const send: FetchLike = async (url, init) => {
   seen.push({ url, method: init?.method ?? '', rpc: body.method ?? '', authorization: headers.get('authorization') ?? '', session: headers.get('mcp-session-id') });
   if (init?.method === 'DELETE') return new Response(null, { status: 204 });
   if (denied > 0) { denied -= 1; return new Response('secret refused', { status: 401 }); }
-  if (body.method === 'initialize') return result(body.id, { protocolVersion: '2025-11-25', capabilities: {} });
+  if (body.method === 'initialize') return result(body.id, { protocolVersion: '2025-11-25', capabilities: {}, serverInfo: { name: 'vendor', icons: [{ src: 'https://cdn.vendor.example/icon.png', mimeType: 'image/png' }, { src: `https://cdn.vendor.example/i.png?k=${GOOD_KEY}` }] } });
   if (body.method === 'notifications/initialized') return new Response(null, { status: 202 });
   if (body.method !== 'tools/list') throw new Error('Actual tool execution must never be relayed centrally');
   if (escaped) throw new Error(`${url} ${GOOD_KEY} ${REFRESH}`);
@@ -79,6 +80,10 @@ describe('safe organization tool discovery', () => {
     expect(seen[2]?.session).toBe('catalogue-session');
     expect((await orgConnectorStore(() => held.db).find(TEST_OWNER, row.id))?.policy).toBe('{"read":"deny","write":"deny"}');
     expect(await held.db.select().from(connectorAgents)).toEqual([]);
+    const kept = (await readToolListings(held.db, [row.id])).get(row.id);
+    expect(kept?.tools?.map((tool) => tool.name)).toEqual(['find', 'destroy', 'unknown']);
+    expect(kept?.icons).toEqual([{ src: 'https://cdn.vendor.example/icon.png', mimeType: 'image/png' }]);
+    expect(await declaredIcons(held.db, new URL(vendor.base).origin)).toEqual(kept?.icons ?? []);
   });
 
   test('withholds individual endpoint segments and their encoded and decoded forms', async () => {

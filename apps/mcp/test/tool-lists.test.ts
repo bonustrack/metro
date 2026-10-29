@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
-import { readToolListings } from '@metro-labs/connectors/db/connector-tools';
+import { declaredIcons, readToolListings } from '@metro-labs/connectors/db/connector-tools';
 import { FAILURE_PAUSE_MS, TOOL_LIST_TTL_MS } from '../src/tool-lists.ts';
 import { addConnector, assign, callTool, enrollAgent, headerSecret, PGLITE_START_MS, rewrite, startApp, testDb, texts, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
@@ -180,6 +180,8 @@ describe('list_connectors answers every connector from the cache in one call, li
     expect(icons).toEqual([{ src: 'https://cdn.vendor.example.com/icon.png', mimeType: 'image/png', sizes: ['64x64'], theme: 'dark' }]);
     expect(faviconChecks).toEqual([]);
     expect((await stored())?.icons).toEqual(icons);
+    expect(await declaredIcons(held.db, 'https://mcp.notion.com')).toEqual(icons);
+    expect(await declaredIcons(held.db, 'https://mcp.other.com')).toEqual([]);
   });
 
   test('one connector, or every connector with tools: names, titles, descriptions, no schemas, blocked tools left out', async () => {

@@ -2,6 +2,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { OAuthInvalidGrant, refreshTokens } from '@metro-labs/http/connector-oauth';
+import type { RemoteServer } from '@metro-labs/http/connector-tools';
 import type { ConnectorChange, ConnectorRow, OrgConnectorStore } from './db/connectors.js';
 import { credentialRevision } from './revision.js';
 import { refreshImported } from './imported-refresh.js';
@@ -15,6 +16,7 @@ export interface CatalogueDeps {
   store: Pick<OrgConnectorStore, 'find' | 'edit'>;
   fetch: FetchLike;
   now: () => number;
+  saveListing?: (connector: string, server: RemoteServer) => Promise<void>;
 }
 
 export const catalogueSignin = (): ApiError => new ApiError('Sign in to this connector again to load its tools.', 424);

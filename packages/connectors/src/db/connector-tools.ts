@@ -1,9 +1,9 @@
-import { inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
 import type { RemoteTool } from '@metro-labs/http/connector-tools';
 import type { Database } from './database.js';
-import { connectorTools } from './schema.js';
+import { connectors, connectorTools } from './schema.js';
 
 const FAILURE_MAX = 1000;
 const CODE_MAX = 32;
@@ -52,4 +52,17 @@ export async function saveToolListing(db: Database, connector: string, listing: 
   const failure = listing.failure === null ? { failureCode: null, failure: null, failedAt: null } : { failureCode: listing.failure.code.slice(0, CODE_MAX), failure: listing.failure.message.slice(0, FAILURE_MAX), failedAt: listing.failedAt };
   const tools = listing.tools === null ? { tools: null, icons: null, listedAt: null } : { tools: JSON.stringify(listing.tools), icons: JSON.stringify(listing.icons), listedAt: listing.listedAt };
   await db.insert(connectorTools).values({ connector, ...tools, ...failure }).onConflictDoUpdate({ target: connectorTools.connector, set: { ...tools, ...failure } });
+}
+
+export async function declaredIcons(db: Database, origin: string): Promise<ConnectorIcon[]> {
+  const row = (
+    await db
+      .select({ icons: connectorTools.icons })
+      .from(connectorTools)
+      .innerJoin(connectors, eq(connectors.id, connectorTools.connector))
+      .where(and(eq(connectors.url, origin), isNotNull(connectorTools.icons)))
+      .orderBy(desc(connectorTools.listedAt))
+      .limit(1)
+  )[0];
+  return listOf(row?.icons ?? null, isIcon) ?? [];
 }
