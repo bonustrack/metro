@@ -115,7 +115,7 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(vendor.registrations).toBe(registered);
   });
 
-  test('a client registered for another return address is replaced at sign-in again, and kept only once the sign-in completes', async () => {
+  test('a client registered for another return address, like a box\'s carried-over sign-in, is replaced at sign-in again and kept only once the sign-in completes', async () => {
     const started = await startOAuth();
     await post('/api/connectors/complete', { handoff: await handoffFor(started) });
     const key = api.deps.key();
@@ -124,7 +124,7 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     const secret = openConnectorSecret(key, row);
     if (secret?.kind !== 'oauth') throw new Error('not an OAuth connector');
     const old = { clientId: 'client-old' };
-    await held.db.update(connectors).set({ secret: sealConnectorSecret(key, row, { ...secret, client: old }) }).where(eq(connectors.id, started.id));
+    await held.db.update(connectors).set({ secret: sealConnectorSecret(key, row, { ...secret, client: old, imported: { state: 'owned', tokenEndpointAuthMethod: 'none' } }), detail: JSON.stringify({ issuer: vendor.base, clientId: old.clientId }) }).where(eq(connectors.id, started.id));
     const registered = vendor.registrations;
     const again = (await (await post(`/api/connectors/${started.id}/sign-in`, { returnTo: RETURN_TO })).json()) as { authorizeUrl: string };
     expect(vendor.registrations).toBe(registered + 1);
@@ -133,7 +133,20 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(openSecret(key, TEST_OWNER, started.id, before?.secret ?? '')).toMatchObject({ client: old });
     expect((await post('/api/connectors/complete', { handoff: await handoffFor({ id: started.id, authorizeUrl: again.authorizeUrl }, 'code-2') })).status).toBe(200);
     const after = (await held.db.select().from(connectors).where(eq(connectors.id, started.id)))[0];
-    expect(openSecret(key, TEST_OWNER, started.id, after?.secret ?? '')).toMatchObject({ client: { clientId: challengeOf(again.authorizeUrl).clientId, redirectUri: CALLBACK } });
+    const kept = openConnectorSecret(key, after ?? row);
+    expect(kept).toMatchObject({ client: { clientId: challengeOf(again.authorizeUrl).clientId, redirectUri: CALLBACK } });
+    expect(kept?.kind === 'oauth' ? kept.imported : 'not oauth').toBeUndefined();
+    expect(JSON.parse(after?.detail ?? '{}')).not.toHaveProperty('clientId');
+  });
+
+  test('a client id the admin typed in is kept at sign-in again', async () => {
+    const res = await post('/api/connectors', { name: 'Own app', url: `${vendor.base}/oauth`, clientId: 'admin-app', returnTo: RETURN_TO });
+    expect(res.status).toBe(201);
+    const { connector } = (await res.json()) as { connector: { id: string } };
+    const registered = vendor.registrations;
+    const again = (await (await post(`/api/connectors/${connector.id}/sign-in`, { returnTo: RETURN_TO })).json()) as { authorizeUrl: string };
+    expect(challengeOf(again.authorizeUrl).clientId).toBe('admin-app');
+    expect(vendor.registrations).toBe(registered);
   });
 
   test('a stale state, a foreign return address or a key connector is refused', async () => {

@@ -111,7 +111,7 @@ export async function startSignIn(deps: ActionDeps, caller: Caller, id: string, 
     if (current.secret !== before.secret || current.authGeneration !== before.authGeneration) throw new ApiError('The connector changed. Start sign-in again.', 409);
     return { change: { authGeneration: generation, ...(signing.imported === undefined ? {} : { secret: sealConnectorSecret(key, current, signing) }) } };
   });
-  const client = await currentClient(deps, secret.server, secret.client, secret.imported !== undefined || detailOf(before.detail).clientId !== undefined);
+  const client = await currentClient(deps, secret.server, secret.client);
   const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: row.id, generation, userId: caller.session.userId, returnTo, targetUrl: secret.targetUrl, resource, configuredResource: secret.oauthResource, server: secret.server, client, ...(client === secret.client ? {} : { storedClient: secret.client }) });
   log.info({ owner: caller.owner, id: row.id }, 'org-connectors: sending the admin to sign in again');
   return { authorizeUrl };
@@ -140,10 +140,13 @@ export async function completeSignIn(deps: ActionDeps, caller: Caller, body: unk
   const now = at(deps);
   await deps.store.edit(caller.owner, entry.connector, now, (row) => {
     checkGeneration(row, entry.generation);
-    const secret = checkSignInTarget(key, row, entry);
-    const detail: ConnectorDetail = { ...detailOf(row.detail), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
+    const { imported, ...secret } = checkSignInTarget(key, row, entry);
+    const replaced = entry.storedClient !== undefined;
+    const { clientId, ...kept } = detailOf(row.detail);
+    const detail: ConnectorDetail = { ...kept, ...(clientId === undefined || replaced ? {} : { clientId }), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
+    const owned = imported === undefined || replaced ? {} : { imported: { state: 'owned' as const, tokenEndpointAuthMethod: imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } };
     return {
-      change: { secret: sealConnectorSecret(key, row, { ...secret, client: entry.client, ...(secret.imported === undefined ? {} : { imported: { state: 'owned', tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } }), tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
+      change: { secret: sealConnectorSecret(key, row, { ...secret, client: entry.client, ...owned, tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
     };
   });
   log.info({ owner: caller.owner, id: entry.connector }, 'org-connectors: sign-in completed');

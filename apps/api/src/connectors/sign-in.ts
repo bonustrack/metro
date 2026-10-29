@@ -55,8 +55,8 @@ export async function registeredClient(deps: SignInDeps, server: OAuthServer): P
   return { ...(await registerClient(server, deps.callbackUrl, deps.fetch)), redirectUri: deps.callbackUrl };
 }
 
-export async function currentClient(deps: SignInDeps, server: OAuthServer, client: OAuthClient, ownClient: boolean): Promise<OAuthClient> {
-  if (ownClient || client.redirectUri === deps.callbackUrl || server.registrationEndpoint === null) return client;
+export async function currentClient(deps: SignInDeps, server: OAuthServer, client: OAuthClient): Promise<OAuthClient> {
+  if (client.redirectUri === deps.callbackUrl || client.clientSecret !== undefined || server.registrationEndpoint === null) return client;
   try {
     return await registeredClient(deps, server);
   } catch {
@@ -67,7 +67,7 @@ export async function currentClient(deps: SignInDeps, server: OAuthServer, clien
 export async function prepareSignIn(deps: SignInDeps, url: URL, client: OAuthClient | null, offeredResource?: unknown): Promise<Prepared> {
   const { server, resource } = await discoverPublicOAuth(url.toString(), offeredResource, deps.fetch);
   try {
-    return { server, resource, client: client ?? (await registeredClient(deps, server)) };
+    return { server, resource, client: client === null ? await registeredClient(deps, server) : { ...client, redirectUri: deps.callbackUrl } };
   } catch {
     throw new ApiError('The provider could not register an OAuth client. Check its client registration and the central callback URL.', 400);
   }
