@@ -30,11 +30,11 @@ afterAll(() => {
 const icon = (site: string, method = 'GET') => fetch(`${base}/api/icons?site=${encodeURIComponent(site)}`, { method, redirect: 'manual' });
 
 describe('GET /api/icons sends a site\'s real favicon, or nothing the page would draw as a globe', () => {
-  test('a site with a favicon redirects to it, cached a day', async () => {
+  test('a site with a favicon redirects to it, asked again at every page load', async () => {
     const res = await icon('notion.so');
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https%3A%2F%2Fnotion.so&size=64');
-    expect(res.headers.get('cache-control')).toBe('public, max-age=86400');
+    expect(res.headers.get('cache-control')).toBe('no-cache');
   });
 
   test('a site without one is a 404 with no image, and Google is asked once per site', async () => {

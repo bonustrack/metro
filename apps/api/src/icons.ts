@@ -4,8 +4,7 @@ import type { Favicons } from '@metro-labs/connectors/favicons';
 
 const PATH = '/api/icons';
 const SITE_RE = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/;
-const FOUND = 'public, max-age=86400';
-const MISSING = 'public, max-age=3600';
+const REVALIDATE = 'no-cache';
 
 function siteOf(url: string): string | null {
   const site = (new URLSearchParams(url.split('?')[1] ?? '').get('site') ?? '').toLowerCase();
@@ -21,13 +20,13 @@ export function handleIconRequest(req: IncomingMessage, res: ServerResponse, fav
   }
   const site = siteOf(url);
   if (site === null) {
-    res.writeHead(400, { 'cache-control': MISSING }).end();
+    res.writeHead(400).end();
     return true;
   }
   favicons
     .faviconOf(`https://${site}`)
     .then((src) => {
-      res.writeHead(src === null ? 404 : 302, { 'cache-control': src === null ? MISSING : FOUND, ...(src === null ? {} : { location: src }) }).end();
+      res.writeHead(src === null ? 404 : 302, { 'cache-control': REVALIDATE, ...(src === null ? {} : { location: src }) }).end();
     })
     .catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'api: a site icon failed');
