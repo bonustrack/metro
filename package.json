@@ -30,7 +30,7 @@
     "secret-boundary-check": "bash scripts/secret-boundary-check.sh"
   },
   "devDependencies": {
-    "@stage-labs/config": "0.1.0-beta.3",
+    "@stage-labs/config": "0.1.0-beta.5",
     "@types/bun": "^1.2.0",
     "@types/node": "^22.10.0",
     "eslint": "^10.3.0",
