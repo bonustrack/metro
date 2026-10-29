@@ -61,14 +61,14 @@ describe('every tool_call call is recorded', () => {
 
   test('a blocked tool, a call waiting for approval and an unknown connector are recorded with their outcome', async () => {
     await held.db.update(connectors).set({ policy: JSON.stringify({ tools: { delete_page: 'deny', update_page: 'ask' } }) }).where(eq(connectors.id, 'conn0000001'));
-    await run([{ tool: 'notion.delete_page', arguments: {} }, { tool: 'notion.update_page', arguments: { page_id: 'p1' } }, { tool: 'jira.search', arguments: {} }]);
+    await run([{ tool: 'notion.delete_page', arguments: {} }, { tool: 'notion.update_page', arguments: { page_id: 'ARGUMENT_MARKER_P1' } }, { tool: 'jira.search', arguments: {} }]);
     const written = await settled(3);
     expect(written.map((row) => [row.connector, row.connectorKey, row.connectorName, row.tool, row.outcome])).toEqual([
       ['conn0000001', 'notion', 'Notion', 'delete_page', 'blocked'],
       [null, 'jira', null, 'search', 'not_found'],
       ['conn0000001', 'notion', 'Notion', 'update_page', 'needs_approval'],
     ]);
-    expect(JSON.stringify(written)).not.toContain('p1');
+    expect(JSON.stringify(written)).not.toContain('ARGUMENT_MARKER_P1');
   });
 
   test('a vendor error is recorded as one', async () => {
