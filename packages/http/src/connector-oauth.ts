@@ -16,6 +16,7 @@ const SIGN_IN_AGAIN = new Set(['invalid_grant', 'invalid_client', 'unauthorized_
 export interface OAuthClient {
   clientId: string;
   clientSecret?: string;
+  redirectUri?: string;
 }
 
 export function newVerifier(): string {

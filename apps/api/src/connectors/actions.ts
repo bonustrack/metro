@@ -12,7 +12,7 @@ import type { ConnectorRow, OrgConnectorStore } from '@metro-labs/connectors/db/
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
 import { connectorView, type ConnectorView } from './model.js';
-import { beginSignIn, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
+import { beginSignIn, currentClient, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
 
 export const CONNECTORS_MAX = 100;
 const URL_MAX = 2048;
@@ -111,7 +111,8 @@ export async function startSignIn(deps: ActionDeps, caller: Caller, id: string, 
     if (current.secret !== before.secret || current.authGeneration !== before.authGeneration) throw new ApiError('The connector changed. Start sign-in again.', 409);
     return { change: { authGeneration: generation, ...(signing.imported === undefined ? {} : { secret: sealConnectorSecret(key, current, signing) }) } };
   });
-  const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: row.id, generation, userId: caller.session.userId, returnTo, targetUrl: secret.targetUrl, resource, configuredResource: secret.oauthResource, server: secret.server, client: secret.client });
+  const client = await currentClient(deps, secret.server, secret.client, secret.imported !== undefined || detailOf(before.detail).clientId !== undefined);
+  const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: row.id, generation, userId: caller.session.userId, returnTo, targetUrl: secret.targetUrl, resource, configuredResource: secret.oauthResource, server: secret.server, client, ...(client === secret.client ? {} : { storedClient: secret.client }) });
   log.info({ owner: caller.owner, id: row.id }, 'org-connectors: sending the admin to sign in again');
   return { authorizeUrl };
 }
@@ -142,7 +143,7 @@ export async function completeSignIn(deps: ActionDeps, caller: Caller, body: unk
     const secret = checkSignInTarget(key, row, entry);
     const detail: ConnectorDetail = { ...detailOf(row.detail), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
     return {
-      change: { secret: sealConnectorSecret(key, row, { ...secret, ...(secret.imported === undefined ? {} : { imported: { state: 'owned', tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } }), tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
+      change: { secret: sealConnectorSecret(key, row, { ...secret, client: entry.client, ...(secret.imported === undefined ? {} : { imported: { state: 'owned', tokenEndpointAuthMethod: secret.imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } }), tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
     };
   });
   log.info({ owner: caller.owner, id: entry.connector }, 'org-connectors: sign-in completed');
@@ -156,7 +157,7 @@ function checkGeneration(row: ConnectorRow | null, generation: string): void {
 
 function checkSignInTarget(key: Buffer, row: ConnectorRow | null, entry: SignInState): Extract<NonNullable<ReturnType<typeof openConnectorSecret>>, { kind: 'oauth' }> {
   const secret = row === null ? null : openConnectorSecret(key, row);
-  if (secret?.kind !== 'oauth' || secret.targetUrl !== entry.targetUrl || JSON.stringify(secret.client) !== JSON.stringify(entry.client) || JSON.stringify(secret.server) !== JSON.stringify(entry.server) || secret.oauthResource !== entry.configuredResource) throw new ApiError('The connector changed. Start sign-in again.', 409);
+  if (secret?.kind !== 'oauth' || secret.targetUrl !== entry.targetUrl || JSON.stringify(secret.client) !== JSON.stringify(entry.storedClient ?? entry.client) || JSON.stringify(secret.server) !== JSON.stringify(entry.server) || secret.oauthResource !== entry.configuredResource) throw new ApiError('The connector changed. Start sign-in again.', 409);
   return secret;
 }
 

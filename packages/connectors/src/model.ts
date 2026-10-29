@@ -59,7 +59,7 @@ export const sealConnectorSecret = (key: Buffer, row: Pick<ConnectorRow, 'owner'
 
 function clientOf(raw: unknown): OAuthClient | null {
   if (!isRecord(raw) || typeof raw.clientId !== 'string' || raw.clientId === '') return null;
-  return { clientId: raw.clientId, ...(typeof raw.clientSecret === 'string' ? { clientSecret: raw.clientSecret } : {}) };
+  return { clientId: raw.clientId, ...(typeof raw.clientSecret === 'string' ? { clientSecret: raw.clientSecret } : {}), ...(typeof raw.redirectUri === 'string' ? { redirectUri: raw.redirectUri } : {}) };
 }
 
 function serverOf(raw: unknown, imported = false): OAuthServer | null {
