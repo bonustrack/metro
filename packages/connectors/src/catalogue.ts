@@ -44,13 +44,14 @@ function pathCredentials(pathname: string): { metadata: string[]; names: string[
   return { metadata, names };
 }
 
-function credentials(secret: ConnectorSecret): string[] {
-  const url = new URL(secret.targetUrl);
-  const hidden = [secret.targetUrl, url.toString(), ...url.searchParams.values()];
+function secretValues(secret: ConnectorSecret): string[] {
+  const hidden = [...new URL(secret.targetUrl).searchParams.values()];
   if (secret.kind === 'header') hidden.push(secret.value, secret.value.replace(/^Bearer\s+/i, ''));
   if (secret.kind === 'oauth') hidden.push(secret.client.clientSecret ?? '', secret.tokens?.accessToken ?? '', secret.tokens?.refreshToken ?? '');
   return hidden;
 }
+
+const credentials = (secret: ConnectorSecret): string[] => [secret.targetUrl, new URL(secret.targetUrl).toString(), ...secretValues(secret)];
 
 const redactionKeys = (values: string[]): string[] => [...new Set(values.filter((value) => value !== '').flatMap(credentialForms))].sort((a, b) => b.length - a.length);
 
@@ -88,7 +89,7 @@ export function publicTools(tools: RemoteTool[], secret: ConnectorSecret): Remot
 const SECRET_MIN = 8;
 
 export function publicIcons(icons: ConnectorIcon[], secret: ConnectorSecret): ConnectorIcon[] {
-  const hidden = redactionKeys([...credentials(secret), ...pathCredentials(new URL(secret.targetUrl).pathname).names]).filter((key) => key.length >= SECRET_MIN);
+  const hidden = redactionKeys([...secretValues(secret), ...pathCredentials(new URL(secret.targetUrl).pathname).names]).filter((key) => key.length >= SECRET_MIN);
   return icons.filter((icon) => !hidden.some((key) => icon.src.includes(key)));
 }
 
