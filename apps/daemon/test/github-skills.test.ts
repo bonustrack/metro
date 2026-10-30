@@ -197,8 +197,9 @@ describe('bounded private GitHub skills source', () => {
     const first = manifest(source.root).id;
     github.files = new Map(Array.from({ length: 64 }, (_, index) => {
       const name = `skill-${index}`;
-      return [`${name}/SKILL.md`, Buffer.from(`---\nname: ${name}\ndescription: ${'界'.repeat(1024)}\n---\nInstructions`)];
-    }));
+      const resources = Array.from({ length: 5 }, (_, file): [string, Buffer] => [`${name}/${'a'.repeat(120)}/${'b'.repeat(100)}-${file}`, Buffer.from('x')]);
+      return [[`${name}/SKILL.md`, Buffer.from(`---\nname: ${name}\ndescription: ${'界'.repeat(1024)}\n---\nInstructions`)] as [string, Buffer], ...resources];
+    }).flat());
     await source.sync(true);
     expect(manifest(source.root).id).toBe(first);
     expect(JSON.stringify(source.view())).toContain('failed skill validation');

@@ -7,7 +7,7 @@ export const SKILL_COMMIT = /^[a-f0-9]{40}$/;
 export const SKILL_FILE_MAX = 512 * 1024;
 export const SKILL_TOTAL_MAX = 32 * 1024 * 1024;
 export const SKILL_FILES_MAX = 512;
-export const SKILL_MANIFEST_MAX = 128 * 1024;
+export const SKILL_MANIFEST_MAX = 256 * 1024;
 
 export interface SkillSource {
   repository: string;
