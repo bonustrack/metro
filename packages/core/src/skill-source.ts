@@ -4,10 +4,10 @@ import { isRecord } from './is-record.js';
 export const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const SKILL_HASH = /^[a-f0-9]{64}$/;
 export const SKILL_COMMIT = /^[a-f0-9]{40}$/;
-export const SKILL_FILE_MAX = 256 * 1024;
-export const SKILL_TOTAL_MAX = 8 * 1024 * 1024;
-export const SKILL_FILES_MAX = 256;
-export const SKILL_MANIFEST_MAX = 128 * 1024;
+export const SKILL_FILE_MAX = 512 * 1024;
+export const SKILL_TOTAL_MAX = 32 * 1024 * 1024;
+export const SKILL_FILES_MAX = 512;
+export const SKILL_MANIFEST_MAX = 256 * 1024;
 
 export interface SkillSource {
   repository: string;
@@ -48,7 +48,7 @@ export const skillRelease = (root: string, id: string): string => {
 export function skillPath(path: string): boolean {
   const parts = path.split('/');
   return path.length <= 240 && parts.length >= 2 && parts.length <= 8 && SKILL_NAME.test(parts[0] ?? '') &&
-    parts.every((part) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(part)) &&
+    parts.every((part) => /^[A-Za-z0-9_](?:[A-Za-z0-9 ._()-]{0,126}[A-Za-z0-9_.()-])?$/.test(part)) &&
     !parts.slice(1, -1).includes('SKILL.md') && !(parts.length > 2 && parts.at(-1) === 'SKILL.md');
 }
 

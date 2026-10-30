@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { writeSecure } from '@metro-labs/core/secure-fs';
-import { SKILL_HASH, SKILL_MANIFEST_MAX, skillGeneration, skillRelease, skillSourceRoot, type SkillGeneration } from '@metro-labs/core/skill-source';
+import { SKILL_FILE_MAX, SKILL_HASH, SKILL_MANIFEST_MAX, skillGeneration, skillRelease, skillSourceRoot, type SkillGeneration } from '@metro-labs/core/skill-source';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readFileSync, statSync } from '../agent-user/agent-fs.js';
 import { receiveHomeFile, writeHomeText } from '../agent-user/home-fs.js';
@@ -135,7 +135,7 @@ export class GitHubSkills {
   read(id: string): ClaudeSkill & { text: string } {
     const row = this.rows().find((skill) => skill.id === id);
     if (row === undefined) throw new ApiError('no such skill', 404);
-    if (statSync(row.path).size > 256 * 1024) throw new ApiError('The managed skill changed on disk. Sync it again.', 409);
+    if (statSync(row.path).size > SKILL_FILE_MAX) throw new ApiError('The managed skill changed on disk. Sync it again.', 409);
     return { ...row, text: readFileSync(row.path, 'utf8') };
   }
 

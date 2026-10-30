@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { skillRelease } from '@metro-labs/core/skill-source';
+import { SKILL_FILE_MAX, SKILL_FILES_MAX, skillRelease } from '@metro-labs/core/skill-source';
 import { GitHubSkills } from '../src/claude/github-skills.js';
 import { GitHubReader } from '../src/claude/github-fetch.js';
 import { githubSource } from '../src/claude/github-validate.js';
@@ -100,10 +100,18 @@ describe('bounded private GitHub skills source', () => {
     expect(github.calls.some(({ url }) => url.includes('/blobs/'))).toBe(false);
   });
 
-  test.each(['../escape/SKILL.md', '/etc/SKILL.md', 'team-example/../../escape', 'team-example/.claude/settings.json', 'team-example/nested/SKILL.md', 'team-example/a\\b'])('rejects unsafe repository path %s', async (path) => {
+  test.each(['../escape/SKILL.md', '/etc/SKILL.md', 'team-example/../../escape', 'team-example/.claude/settings.json', 'team-example/nested/SKILL.md', 'team-example/a\\b', 'team-example/ lead', 'team-example/trail '])('rejects unsafe repository path %s', async (path) => {
     const github = new FakeGitHub();
     github.changeRows = (rows) => rows.map((row) => ({ ...row, path }));
     await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow('path or file size');
+  });
+
+  test('accepts office package names with spaces, parentheses and underscores', async () => {
+    const github = new FakeGitHub();
+    for (const path of ['team-example/assets/Due Diligence Request (fillable).pdf', 'team-example/skeleton/word/_rels/document.xml.rels']) github.files.set(path, Buffer.from('x'));
+    const snapshot = await new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null);
+    expect([...snapshot!.files.keys()]).toContain('team-example/assets/Due Diligence Request (fillable).pdf');
+    expect([...snapshot!.files.keys()]).toContain('team-example/skeleton/word/_rels/document.xml.rels');
   });
 
   test.each(['hooks: {}', 'allowed-tools: Bash', 'model: another-model', 'context: fork', 'agent: worker'])('rejects active skill metadata %s', async (field) => {
@@ -119,10 +127,10 @@ describe('bounded private GitHub skills source', () => {
     github.truncated = true;
     await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow('incomplete');
     github.truncated = false;
-    github.changeRows = (rows) => rows.map((row) => ({ ...row, size: 256 * 1024 + 1 }));
+    github.changeRows = (rows) => rows.map((row) => ({ ...row, size: SKILL_FILE_MAX + 1 }));
     await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow('file size');
-    github.changeRows = (rows) => Array.from({ length: 257 }, (_, index) => ({ ...rows[0]!, path: `team-example/file-${index}` }));
-    await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow('256 files');
+    github.changeRows = (rows) => Array.from({ length: SKILL_FILES_MAX + 1 }, (_, index) => ({ ...rows[0]!, path: `team-example/file-${index}` }));
+    await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow(`${SKILL_FILES_MAX} files`);
     github.changeRows = (rows) => [...rows, { ...rows[0]!, path: 'team-example/skill.md' }];
     await expect(new GitHubReader(SOURCE, SOURCE.token, github.fetch).snapshot(null, null, null)).rejects.toThrow('duplicate');
   });
@@ -189,8 +197,9 @@ describe('bounded private GitHub skills source', () => {
     const first = manifest(source.root).id;
     github.files = new Map(Array.from({ length: 64 }, (_, index) => {
       const name = `skill-${index}`;
-      return [`${name}/SKILL.md`, Buffer.from(`---\nname: ${name}\ndescription: ${'界'.repeat(1024)}\n---\nInstructions`)];
-    }));
+      const resources = Array.from({ length: 5 }, (_, file): [string, Buffer] => [`${name}/${'a'.repeat(120)}/${'b'.repeat(100)}-${file}`, Buffer.from('x')]);
+      return [[`${name}/SKILL.md`, Buffer.from(`---\nname: ${name}\ndescription: ${'界'.repeat(1024)}\n---\nInstructions`)] as [string, Buffer], ...resources];
+    }).flat());
     await source.sync(true);
     expect(manifest(source.root).id).toBe(first);
     expect(JSON.stringify(source.view())).toContain('failed skill validation');

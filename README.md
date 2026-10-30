@@ -201,9 +201,10 @@ at GitHub.
 
 Each skill has `skill-name/SKILL.md`, with YAML `name` matching the folder and a
 `description`. Optional metadata is limited to `argument-hint`, `disable-model-invocation`
-and `user-invocable`. Supporting files are allowed. Symlinks, submodules, hidden files,
+and `user-invocable`. Supporting files are allowed, with spaces, parentheses or a leading
+underscore in their names (`_rels`). Symlinks, submodules, hidden files,
 active metadata such as hooks or tool grants, and shell substitutions are refused.
-Limits are 64 skills, 256 files, 256 KiB per file, 8 MiB total and 128 KiB of manifest
+Limits are 64 skills, 512 files, 512 KiB per file, 32 MiB total and 256 KiB of manifest
 metadata. Git executable files keep owner execute permission; sync never runs them.
 
 Metro reads GitHub's tree and blob APIs at an immutable commit. It does not clone,

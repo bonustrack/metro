@@ -142,7 +142,7 @@ function immutableCommit(data: unknown): { sha: string; tree: string } {
 
 function regularFile(entry: Entry): void {
   if (entry.type !== 'blob' || !['100644', '100755'].includes(entry.mode)) throw new GitHubFailure('Symlinks, submodules and special files are not supported in skills.');
-  if (!skillPath(entry.path) || entry.size < 0 || entry.size > SKILL_FILE_MAX || !Number.isInteger(entry.size)) throw new GitHubFailure('A skills path or file size is not supported. Use skill-name/SKILL.md and regular resources, up to 256 KiB each.');
+  if (!skillPath(entry.path) || entry.size < 0 || entry.size > SKILL_FILE_MAX || !Number.isInteger(entry.size)) throw new GitHubFailure(`A skills path or file size is not supported. Use skill-name/SKILL.md and regular resources, up to ${SKILL_FILE_MAX / 1024} KiB each.`);
 }
 
 function checkedEntries(entries: Entry[]): Entry[] {
@@ -154,7 +154,7 @@ function checkedEntries(entries: Entry[]): Entry[] {
     total += entry.size;
     files.push(entry);
   }
-  if (files.length > SKILL_FILES_MAX || total > SKILL_TOTAL_MAX) throw new GitHubFailure('Skills exceed 256 files or 8 MiB.');
+  if (files.length > SKILL_FILES_MAX || total > SKILL_TOTAL_MAX) throw new GitHubFailure(`Skills exceed ${SKILL_FILES_MAX} files or ${SKILL_TOTAL_MAX / 1024 / 1024} MiB.`);
   if (new Set(files.map((entry) => entry.path.toLowerCase())).size !== files.length) throw new GitHubFailure('Skills contain duplicate file paths.');
   return files;
 }
