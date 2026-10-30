@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { skillRelease } from '@metro-labs/core/skill-source';
+import { SKILL_FILE_MAX, skillRelease } from '@metro-labs/core/skill-source';
 import { SkillWork } from '../src/skill-work.js';
 import { SkillsRefresh } from '../src/skills.js';
 import { currentSkills, localSkillNames, projectSkills, pruneSkills, type LocalAliases } from '../src/skills-files.js';
@@ -153,7 +153,7 @@ test.each(['invalid', 'large', 'symlink'])('unreadable local metadata hides remo
   mkdirSync(folder, { recursive: true });
   const path = join(folder, 'SKILL.md');
   if (kind === 'invalid') writeFileSync(path, '---\nname: [\n---\n');
-  else if (kind === 'large') writeFileSync(path, Buffer.alloc(256 * 1024 + 1));
+  else if (kind === 'large') writeFileSync(path, Buffer.alloc(SKILL_FILE_MAX + 1));
   else {
     const target = join(f.dir, 'huge-local');
     writeFileSync(target, Buffer.alloc(1024 * 1024));
