@@ -143,17 +143,7 @@ export const STATION_FORMS: Record<string, StationForm> = {
     interactive: true,
     provider: 'Microsoft',
     codeFallback: true,
-    fields: [
-      {
-        key: 'mailbox',
-        label: 'Mailbox (optional)',
-        placeholder: 'andy@company.com',
-        secret: false,
-        kind: 'text',
-        optional: true,
-        hint: 'If set, Metro refuses any other account.',
-      },
-    ],
+    fields: [],
   },
   gmail: {
     label: 'Gmail',
@@ -164,15 +154,6 @@ export const STATION_FORMS: Record<string, StationForm> = {
     fields: [
       { key: 'clientId', label: 'Client ID', placeholder: '1234-abcd.apps.googleusercontent.com', secret: false, kind: 'text' },
       { key: 'clientSecret', label: 'Client secret', placeholder: 'GOCSPX-...', secret: true, kind: 'text' },
-      {
-        key: 'mailbox',
-        label: 'Mailbox (optional)',
-        placeholder: 'admin@company.com',
-        secret: false,
-        kind: 'text',
-        optional: true,
-        hint: 'If set, Metro refuses any other account.',
-      },
     ],
   },
   webhook: {

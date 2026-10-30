@@ -36,8 +36,7 @@ function trimmed(form: Form, values: Record<string, string>): Record<string, str
 }
 
 function submitLabel(form: Form): string {
-  if (form.interactive) return 'Start sign-in';
-  return form.fields.length === 0 ? 'Generate and connect' : 'Connect';
+  return !form.interactive && form.fields.length === 0 ? 'Generate and connect' : 'Connect';
 }
 
 interface StationFormProps {

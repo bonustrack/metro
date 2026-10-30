@@ -17,7 +17,7 @@ export function gmailForm(managed: boolean, mode: GmailMode): StationForm {
       ? `Sign in with Google, no client ID or secret needed. ${GMAIL_READ_ONLY}`
       : `Connect through your own Google OAuth client. ${GMAIL_READ_ONLY}`,
     links: mode === 'managed' ? [] : form.links,
-    fields: mode === 'managed' ? form.fields.filter((field) => field.key === 'mailbox') : form.fields,
+    fields: mode === 'managed' ? [] : form.fields,
   };
 }
 

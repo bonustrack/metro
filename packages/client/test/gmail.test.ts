@@ -8,15 +8,15 @@ const requiredFields = (managed: boolean, mode: 'managed' | 'byo'): string[] =>
   gmailForm(managed, mode).fields.filter((field) => field.optional !== true).map((field) => field.key);
 
 describe('Gmail connection capability', () => {
-  test('managed Gmail needs no key and only offers an optional mailbox', () => {
+  test('managed Gmail asks for nothing', () => {
     const form = gmailForm(true, 'managed');
-    expect(form.fields.map((field) => [field.key, field.optional])).toEqual([['mailbox', true]]);
+    expect(form.fields).toEqual([]);
     expect(requiredFields(true, 'managed')).toEqual([]);
     expect(form.hint).toContain('read-only');
     expect(form.hint).toContain('cannot send');
     expect(form.hint).toContain('starts blocked');
     expect(form.links).toEqual([]);
-    expect(gmailConnectFields(true, 'managed', credentials)).toEqual({ mode: 'managed', sendEnabled: 'false', mailbox: 'person@example.com' });
+    expect(gmailConnectFields(true, 'managed', credentials)).toEqual({ mode: 'managed', sendEnabled: 'false' });
     expect(gmailConnectFields(true, 'managed', {})).toEqual({ mode: 'managed', sendEnabled: 'false' });
   });
 
@@ -24,7 +24,7 @@ describe('Gmail connection capability', () => {
     expect(requiredFields(true, 'byo')).toEqual(['clientId', 'clientSecret']);
     expect(gmailForm(true, 'byo').fields.find((field) => field.key === 'clientSecret')?.secret).toBe(true);
     expect(gmailForm(true, 'byo').hint).toContain('read-only');
-    expect(gmailConnectFields(true, 'byo', credentials)).toEqual({ mode: 'byo', sendEnabled: 'false', clientId: 'synthetic-client', clientSecret: 'synthetic-secret', mailbox: 'person@example.com' });
+    expect(gmailConnectFields(true, 'byo', credentials)).toEqual({ mode: 'byo', sendEnabled: 'false', clientId: 'synthetic-client', clientSecret: 'synthetic-secret' });
   });
 
   test('an older daemon keeps BYO and warns that sending scope may be requested', () => {
@@ -32,7 +32,7 @@ describe('Gmail connection capability', () => {
     expect(gmailForm(false, 'managed').hint).toContain('Update Metro');
     expect(gmailForm(false, 'managed').hint).toContain('may also request permission to send');
     expect(gmailForm(false, 'managed').hint).not.toContain('Google grants read-only');
-    expect(gmailConnectFields(false, 'managed', credentials)).toEqual({ mode: 'byo', sendEnabled: 'false', clientId: 'synthetic-client', clientSecret: 'synthetic-secret', mailbox: 'person@example.com' });
+    expect(gmailConnectFields(false, 'managed', credentials)).toEqual({ mode: 'byo', sendEnabled: 'false', clientId: 'synthetic-client', clientSecret: 'synthetic-secret' });
   });
 
   test('sending upgrade identifies only the stored account and never changes Metro policy', () => {

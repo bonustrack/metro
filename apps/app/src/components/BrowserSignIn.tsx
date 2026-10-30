@@ -66,7 +66,7 @@ export function BrowserSignIn(props: BrowserSignInProps): ReactNode {
   if (Platform.OS !== 'web') return <OnTheWeb provider={provider} onUseCode={onUseCode} busy={busy} />;
   return (
     <Column gap={10}>
-      <Button color="primary" onPress={open} disabled={busy} label={`Sign in with ${provider}`} />
+      <Button color="primary" onPress={open} disabled={busy} label="Connect" />
       {blocked ? (
         <TextLink size="md" url={authorizeUrl}>Open the {provider} sign-in page</TextLink>
       ) : null}

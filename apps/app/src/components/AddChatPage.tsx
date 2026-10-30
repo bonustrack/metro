@@ -42,10 +42,10 @@ interface FlowProps {
 function Picker({ project, known }: { project: string; known: string[] }): ReactNode {
   const name = useAgentName();
   if (known.length === 0)
-    return <StateBlock icon="chat" title="No chat app to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />;
+    return <StateBlock icon="chat" title="No channel to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />;
   return (
     <>
-      <FocusIntro title={`Where should ${name} be reachable?`} text="Pick a chat app. Next, you sign in or paste its details." />
+      <FocusIntro title={`Where should ${name} be reachable?`} text="Pick a channel. Next, you sign in or paste its details." />
       <StationPicker stations={known} hrefOf={(station) => routeHash({ kind: 'add-chat', project, station })} />
     </>
   );
@@ -81,7 +81,7 @@ function AddChatFlow({ project, agentId, attachable, features, station }: FlowPr
     return <StationForm key={picked} station={picked} gmailManaged={features.includes(GMAIL_MANAGED)} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { attach.start(picked, fields); }} />;
   };
   return (
-    <FocusFrame title="Add a chat" onClose={close} steps={STEPS} step={step} onStep={step === 'connect' && pending === null ? back : undefined}>
+    <FocusFrame title="Add channel" onClose={close} steps={STEPS} step={step} onStep={step === 'connect' && pending === null ? back : undefined}>
       {body()}
     </FocusFrame>
   );
@@ -95,9 +95,9 @@ export function AddChatPage({ project, station }: { project: string; station?: s
   const agent = data?.agent;
   if (data === undefined || agent === undefined || error !== null)
     return (
-      <FocusFrame title="Add a chat" onClose={close} steps={STEPS} step="pick">
+      <FocusFrame title="Add channel" onClose={close} steps={STEPS} step="pick">
         {error !== null ? (
-          <ErrorState title="Could not load the chats" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />
+          <ErrorState title="Could not load the channels" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />
         ) : data === undefined ? (
           <RowsSkeleton rows={5} />
         ) : (

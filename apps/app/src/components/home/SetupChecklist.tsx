@@ -26,7 +26,7 @@ const FACE_LETTER = 0.4;
 
 const ACTION: Record<StepId, string> = {
   model: 'Choose a model',
-  chat: 'Connect a chat',
+  chat: 'Connect a channel',
   write: 'Choose people',
   approve: 'Choose who approves',
   hello: 'Open the chats',

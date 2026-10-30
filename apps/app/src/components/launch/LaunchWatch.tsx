@@ -122,7 +122,7 @@ function Headline({ subject, ready }: { subject: LaunchSubject; ready: boolean }
       <AgentAvatar seed={subject.launched.host} src={subject.avatar} size={AVATAR} />
       <Column weight={1} minWidth={0} gap={4}>
         <Text accessibilityRole="header" size="2xl" fontWeight="semibold">{ready ? `${subject.name} is ready` : `${subject.name} is getting ready`}</Text>
-        <Text size="md" color="secondary">{ready ? 'Open it to connect a chat and finish the setup.' : timeLeftLine((now - subject.startedAt) / 1000)}</Text>
+        <Text size="md" color="secondary">{ready ? 'Open it to connect a channel and finish the setup.' : timeLeftLine((now - subject.startedAt) / 1000)}</Text>
       </Column>
     </Row>
   );

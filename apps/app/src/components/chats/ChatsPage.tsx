@@ -22,7 +22,7 @@ const PLUS = ICON_SIZE.sm;
 
 function AddChat({ onPress }: { onPress: () => void }): ReactNode {
   const palette = useKitPalette();
-  return <Button size="sm" color="secondary" label="Add a chat" icon={<Icon name="plus" size={PLUS} color={palette.link} />} onPress={onPress} />;
+  return <Button size="sm" color="secondary" label="Add channel" icon={<Icon name="plus" size={PLUS} color={palette.link} />} onPress={onPress} />;
 }
 
 interface ChannelsProps {

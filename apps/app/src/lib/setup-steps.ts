@@ -55,7 +55,7 @@ export function accountName(account: FlatAccount): string {
 function chatStep(input: SetupInput, accounts: FlatAccount[]): SetupStep {
   const first = accounts[0];
   const hint = first === undefined ? `Where your team writes to ${input.name}: WhatsApp, Outlook, Telegram…` : accountName(first);
-  return { id: 'chat', title: 'Connect a chat', hint, done: first !== undefined, target: { kind: 'chats', project: input.project } };
+  return { id: 'chat', title: 'Connect a channel', hint, done: first !== undefined, target: { kind: 'chats', project: input.project } };
 }
 
 const pageOf = (input: SetupInput, account: FlatAccount | undefined): Selection =>
