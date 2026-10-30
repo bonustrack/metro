@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { offeredStations, type AttachResult } from '@metro-labs/client/api/attach';
+import { offeredStations, STATION_FORMS, type AttachResult } from '@metro-labs/client/api/attach';
 import { agentsUrl } from '@metro-labs/client/api/client';
 import { GMAIL_MANAGED } from '@metro-labs/client/api/gmail';
 import { routeHash } from '@metro-labs/client/route';
@@ -20,12 +21,14 @@ import { useAttach } from '../lib/use-attach.js';
 const TAIL = ['xmtp', 'webhook'];
 
 const STEPS: FocusStep[] = [
-  { id: 'pick', label: 'Chat app' },
+  { id: 'pick', label: 'Channel' },
   { id: 'connect', label: 'Connect' },
   { id: 'done', label: 'Done' },
 ];
 
 const rank = (station: string): number => TAIL.indexOf(station);
+
+const inOneStep = (station: string): boolean => Platform.OS === 'web' && STATION_FORMS[station]?.provider !== undefined;
 
 function orderStations(attachable: string[]): string[] {
   return offeredStations(attachable).sort((a, b) => rank(a) - rank(b));
@@ -76,9 +79,9 @@ function AddChatFlow({ project, agentId, attachable, features, station }: FlowPr
   const step = result !== null ? 'done' : pending !== null || picked !== null ? 'connect' : 'pick';
   const body = (): ReactNode => {
     if (result !== null) return <AttachedAccount result={result} onDismiss={close} />;
-    if (pending !== null) return <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} onUpdate={attach.update} onDone={done} onClose={close} />;
+    if (pending !== null) return <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} opened={attach.opened} onUpdate={attach.update} onDone={done} onClose={close} />;
     if (picked === null) return <Picker project={project} known={known} />;
-    return <StationForm key={picked} station={picked} gmailManaged={features.includes(GMAIL_MANAGED)} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { attach.start(picked, fields); }} />;
+    return <StationForm key={picked} station={picked} gmailManaged={features.includes(GMAIL_MANAGED)} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { if (inOneStep(picked)) attach.startInTab(picked, fields); else attach.start(picked, fields); }} />;
   };
   return (
     <FocusFrame title="Add channel" onClose={close} steps={STEPS} step={step} onStep={step === 'connect' && pending === null ? back : undefined}>

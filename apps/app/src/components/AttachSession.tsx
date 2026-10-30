@@ -23,6 +23,7 @@ import { DeviceSignIn } from './DeviceSignIn.js';
 import { BrowserSignIn } from './BrowserSignIn.js';
 import { Actions } from './ui/Actions.js';
 import { logError } from '../lib/log.js';
+import type { SignInOpened } from '../lib/use-attach.js';
 
 const POLL_MS = 2_000;
 const UNSAVED = 'Nothing is saved until you finish signing in. An unfinished sign-in expires after a few minutes.';
@@ -35,6 +36,7 @@ interface AttachSessionProps {
   onUpdate: (session: Session) => void;
   onDone: (result: AttachResult) => void;
   onClose: () => void;
+  opened?: SignInOpened | null;
 }
 
 function Waiting({ label }: { label: string }): ReactNode {
@@ -96,6 +98,7 @@ interface StepProps {
   session: Session;
   busy: boolean;
   onSubmit: (input: StepInput) => void;
+  opened: SignInOpened | null;
 }
 
 function BrowserStep({
@@ -105,6 +108,7 @@ function BrowserStep({
   session,
   busy,
   onSubmit,
+  opened,
 }: StepProps): ReactNode {
   if (session.step === 'device')
     return session.userCode === null ? (
@@ -125,6 +129,7 @@ function BrowserStep({
       authorizeUrl={session.authorizeUrl}
       provider={provider}
       busy={busy}
+      openedBefore={opened}
       onUseCode={
         form?.codeFallback === true
           ? () => {
@@ -143,10 +148,11 @@ function StepBody({
   session,
   busy,
   onSubmit,
+  opened,
 }: StepProps): ReactNode {
   const { step, qr, pairingCode } = session;
   if (step === 'browser' || step === 'device')
-    return <BrowserStep agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={onSubmit} />;
+    return <BrowserStep agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={onSubmit} opened={opened} />;
   if (step === 'scan')
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
@@ -178,7 +184,7 @@ function StepBody({
 }
 
 export function AttachSession(props: AttachSessionProps): ReactNode {
-  const { agentId, base, identity, session, onUpdate, onDone, onClose } = props;
+  const { agentId, base, identity, session, onUpdate, onDone, onClose, opened = null } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(true);
@@ -243,7 +249,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
           {session.prompt}
         </Text>
       </Column>
-      <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} />
+      <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} opened={opened} />
       <Actions error={failed ?? error} note={UNSAVED} cancel={{ label: session.status === 'pending' ? 'Cancel' : 'Close', onPress: onClose }} />
     </Column>
   );
