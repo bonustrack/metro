@@ -13,11 +13,11 @@ describe('the Claude session gets its own memory limit', () => {
     expect(sessionMemoryLimit(64 * GIB) / GIB).toBeCloseTo(51.2, 1);
   });
 
-  test("the agent's tmux starts in a scope of its own, through the root helper", () => {
+  test("the agent's tmux starts in a scope of its own, through the root helper, with no soft limit below the hard one", () => {
     const limit = sessionMemoryLimit(8 * GIB);
     expect(inSessionScope(AS_AGENT, box())).toEqual([
       'sudo',
-      ['-n', '/usr/local/lib/metro/root-helper', 'as-agent-scope', String(limit), String(Math.floor(limit * 0.9)), 'env', '-i', 'HOME=/home/agent', 'tmux', 'new-session'],
+      ['-n', '/usr/local/lib/metro/root-helper', 'as-agent-scope', String(limit), String(limit), 'env', '-i', 'HOME=/home/agent', 'tmux', 'new-session'],
     ]);
   });
 

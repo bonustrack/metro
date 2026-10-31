@@ -28,5 +28,5 @@ export function inSessionScope(command: [string, string[]], host: ScopeHost = re
   const asAgent = file === 'sudo' && args[0] === '-n' && args[1] === '-u' && args[3] === '--';
   if (!host.metro || !host.systemd || !asAgent) return command;
   const limit = sessionMemoryLimit(host.total);
-  return helperArgv(['as-agent-scope', String(limit), String(Math.floor(limit * 0.9)), ...args.slice(4)]);
+  return helperArgv(['as-agent-scope', String(limit), String(limit), ...args.slice(4)]);
 }
