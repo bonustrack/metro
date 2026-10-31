@@ -7,7 +7,6 @@ import { isRecord } from '@metro-labs/core/is-record';
 import type { AutomationStore } from '@metro-labs/core/automation-store';
 import type { Activity } from './activity.js';
 import { Automation } from './automation.js';
-import { ActivityTasks } from './activity-tasks.js';
 import { RunnerCalls } from './calls.js';
 import { channelText, type ChannelEvent } from './channel-text.js';
 import type { RunnerConfig } from './config.js';
@@ -21,7 +20,8 @@ import { METRO_SERVER, type MetroTools } from './tool-proxy.js';
 import { debugFailure, failureSummary, SessionError, StartupDiagnostics } from './errors.js';
 
 const STARTUP_WAIT = 'CLAUDE_CODE_MCP_STARTUP_WAIT_MS';
-export const COMPACT_AT = 120_000;
+export const COMPACT_AT = 80_000;
+const URGENT_FACTOR = 1.5;
 export const COMPACT_IDLE_MS = 60_000;
 
 const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL']);
@@ -97,7 +97,6 @@ export class Runner {
   private readonly recovery: TaskRecovery;
   private readonly watch: SessionWatch;
   private readonly diagnostics = new StartupDiagnostics();
-  private readonly tasks = new ActivityTasks(() => undefined);
   private readonly skillWork = new SkillWork();
   private compactTimer: ReturnType<typeof setTimeout> | null = null;
   private session: Query | null = null;
@@ -178,7 +177,6 @@ export class Runner {
       for await (const message of this.session) {
         if (this.ended) break;
         this.cancelCompact();
-        if (message.type === 'system') this.tasks.observe(message);
         const m: Record<string, unknown> = { ...message };
         this.recovery.observe(m);
         this.automation?.observe(m);
@@ -186,8 +184,8 @@ export class Runner {
         this.observeWork(m);
         this.note(m);
         this.parts.activity?.observe(message);
-        this.inbox.notify();
         this.maybeCompact();
+        this.inbox.notify();
         observe?.(message);
       }
     } catch (err) {
@@ -318,14 +316,19 @@ export class Runner {
     return this.ended || this.parts.skills?.busy === true || this.compactAsked !== null || !this.watch.safe || !this.watch.admitting;
   }
 
+  private get compactUrgent(): boolean {
+    return this.watch.context >= (this.parts.compactAt ?? COMPACT_AT) * URGENT_FACTOR;
+  }
+
   private compactReady(resuming = false): boolean {
-    const busy = this.maintenanceBusy || (!resuming && (this.calls.live || this.inbox.pending > 0 || this.tasks.running > 0));
+    const waiting = this.inbox.pending > 0 && !this.compactUrgent;
+    const busy = this.maintenanceBusy || (!resuming && (this.calls.live || waiting));
     return compactDue({ context: this.watch.context, floor: this.compactFloor, limit: this.parts.compactAt ?? COMPACT_AT, busy });
   }
 
   private maybeCompact(resuming = false): void {
     if (!this.compactReady(resuming)) return;
-    if (resuming) { this.askCompact(true); return; }
+    if (resuming || this.compactUrgent) { this.askCompact(resuming); return; }
     this.compactTimer = setTimeout(() => {
       this.compactTimer = null;
       if (this.compactReady()) this.askCompact(false);
@@ -335,7 +338,7 @@ export class Runner {
 
   private askCompact(resuming: boolean): void {
     this.compactAsked = this.inbox.compact();
-    log.info({ context: this.watch.context, resuming }, 'sdk-runner: compacting at a safe idle boundary');
+    log.info({ context: this.watch.context, resuming, urgent: this.compactUrgent, waiting: this.inbox.pending }, 'sdk-runner: compacting at a safe boundary');
   }
 
   private cancelCompact(): void {

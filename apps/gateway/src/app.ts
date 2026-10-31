@@ -94,6 +94,13 @@ function noRouteRow(caller: Caller, at: number): NewModelCall {
   };
 }
 
+const MACHINE = process.env.FLY_MACHINE_ID ?? '';
+
+function noteCall(caller: Caller, call: AttemptCall): void {
+  const { connection, lane, kind, attempt, status, ms, firstTokenMs, tokens } = call;
+  log.info({ agent: caller.agent, machine: MACHINE, connection, lane, kind, attempt, status, ms, firstTokenMs, input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite5m + tokens.cacheWrite1h }, 'gateway: call');
+}
+
 async function serve(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayAppDeps): Promise<void> {
   const token = keyOf(req);
   const caller = token === null ? null : await deps.callerOf(token);
@@ -107,6 +114,7 @@ async function serve(req: IncomingMessage, res: ServerResponse, path: string, de
   let attempts = 0;
   const onCall = (call: AttemptCall): void => {
     attempts += 1;
+    noteCall(caller, call);
     deps.windows.seen(caller.owner, call.connection);
     deps.calls.add(rowOf(caller, call, setup, deps));
   };

@@ -44,7 +44,7 @@ function fixture(events: () => AsyncGenerator<SDKMessage>, context = 0): { runne
 describe('idle compaction headroom', () => {
   test('the first high context sample waits for a quiet minute before compacting', async () => {
     const { runner, reads, store } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
       expect(runner.inbox.pending).toBe(0);
@@ -53,12 +53,12 @@ describe('idle compaction headroom', () => {
     runner.start({});
     await runner.run();
     expect((await reads().next()).value?.message.content).toBe('/compact');
-    expect(store.recover().context).toBe(150_000);
+    expect(store.recover().context).toBe(100_000);
     runner.close();
   });
 
   test('a saved high-context resume compacts before pending chat without changing its uuid or consumed state', async () => {
-    const { runner, reads, store } = fixture(async function* () { yield result(compact?.uuid === undefined ? [] : [compact.uuid]); }, 150_000);
+    const { runner, reads, store } = fixture(async function* () { yield result(compact?.uuid === undefined ? [] : [compact.uuid]); }, 100_000);
     const id = runner.chat({ content: 'queued', meta: {} });
     runner.start({ resume: randomUUID() });
     const read = reads();
@@ -74,7 +74,7 @@ describe('idle compaction headroom', () => {
   test('a correlated compact completion permits another compact after measured context growth', async () => {
     let read: AsyncIterator<SDKUserMessage>;
     const { runner, reads } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
       const compact = (await read.next()).value;
@@ -87,7 +87,7 @@ describe('idle compaction headroom', () => {
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
       expect(runner.inbox.pending).toBe(0);
-      yield usage(160_000);
+      yield usage(110_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
     });
@@ -99,7 +99,7 @@ describe('idle compaction headroom', () => {
   });
 
   test('new conversations do not compact because an old transcript checkpoint was high', async () => {
-    const { runner, reads } = fixture(async function* () { yield result(); }, 150_000);
+    const { runner, reads } = fixture(async function* () { yield result(); }, 100_000);
     const id = runner.chat({ content: 'new chat', meta: {} });
     runner.start({});
     expect((await reads().next()).value?.uuid).toBe(id);
@@ -108,14 +108,14 @@ describe('idle compaction headroom', () => {
   });
 
   test('queued chat or an active call defers preventive compaction', async () => {
-    const first = fixture(async function* () { yield usage(150_000); yield result(); });
+    const first = fixture(async function* () { yield usage(100_000); yield result(); });
     first.runner.start({});
     const id = first.runner.chat({ content: 'answer first', meta: {} });
     await first.runner.run();
     expect((await first.reads().next()).value?.uuid).toBe(id);
     expect(first.runner.inbox.pending).toBe(0);
     first.runner.close();
-    const second = fixture(async function* () { yield usage(150_000); yield result(); });
+    const second = fixture(async function* () { yield usage(100_000); yield result(); });
     second.runner.start({});
     second.runner.calls.notice({ type: 'started', route, sourceId: 'greet' });
     await second.runner.run();
@@ -126,7 +126,7 @@ describe('idle compaction headroom', () => {
 
   test('chat arriving after the high-context turn cancels maintenance and keeps its exact ledger', async () => {
     const { runner, reads, store } = fixture(async function* () {
-      yield usage(120_261);
+      yield usage(100_261);
       yield result();
       jest.advanceTimersByTime(16_000);
       const id = runner.chat({ content: 'attachment arrived', meta: {} });
@@ -151,44 +151,12 @@ describe('idle compaction headroom', () => {
     runner.close();
   });
 
-  test('running workers defer maintenance and completion leaves a full quiet handoff', async () => {
-    const { runner, reads } = fixture(async function* () {
-      yield msg({ type: 'system', subtype: 'task_started', task_id: 'worker', is_backgrounded: true });
-      yield usage(150_000);
-      yield result();
-      jest.advanceTimersByTime(COMPACT_IDLE_MS * 2);
-      expect(runner.inbox.pending).toBe(0);
-      yield msg({ type: 'system', subtype: 'task_progress', task_id: 'worker', usage: { tool_uses: 1, duration_ms: 120_000 } });
-      yield msg({ type: 'system', subtype: 'task_notification', task_id: 'worker', status: 'completed' });
-      jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
-      expect(runner.inbox.pending).toBe(0);
-      yield usage(151_000);
-      jest.advanceTimersByTime(COMPACT_IDLE_MS);
-      expect(runner.inbox.pending).toBe(0);
-      yield result();
-      jest.advanceTimersByTime(COMPACT_IDLE_MS);
-    });
-    runner.start({});
-    await runner.run();
-    expect((await reads().next()).value?.message.content).toBe('/compact');
-    runner.close();
-  });
-
-  test('a worker appearing during the quiet window cancels it until the worker ends', async () => {
+  test('running workers do not defer maintenance, since compaction is a turn of the main thread only', async () => {
     const { runner } = fixture(async function* () {
-      yield usage(150_000);
+      yield msg({ type: 'system', subtype: 'task_started', task_id: 'worker', is_backgrounded: true });
+      yield usage(100_000);
       yield result();
-      jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
-      yield msg({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'worker', task_type: 'local_agent' }] });
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
-      expect(runner.inbox.pending).toBe(0);
-      yield msg({ type: 'system', subtype: 'task_updated', task_id: 'worker', patch: { status: 'paused' } });
-      jest.advanceTimersByTime(COMPACT_IDLE_MS);
-      expect(runner.inbox.pending).toBe(0);
-      yield msg({ type: 'system', subtype: 'task_updated', task_id: 'worker', patch: { status: 'killed' } });
-      jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
-      expect(runner.inbox.pending).toBe(0);
-      jest.advanceTimersByTime(1);
       expect(runner.inbox.pending).toBe(1);
     });
     runner.start({});
@@ -196,9 +164,34 @@ describe('idle compaction headroom', () => {
     runner.close();
   });
 
+  test('above the urgent mark the next safe boundary compacts at once, before queued chat and with workers running', async () => {
+    const { runner, reads, store } = fixture(async function* () {
+      yield msg({ type: 'system', subtype: 'task_started', task_id: 'worker', is_backgrounded: true });
+      yield usage(130_000);
+      runner.chat({ content: 'waiting', meta: {} });
+      yield result();
+    });
+    runner.start({});
+    await runner.run();
+    expect((await reads().next()).value?.message.content).toBe('/compact');
+    expect(runner.inbox.pending).toBe(1);
+    expect(store.unanswered()).toEqual([expect.objectContaining({ state: 'queued' })]);
+    runner.close();
+  });
+
+  test('between the compaction mark and the urgent mark, queued chat still goes first', async () => {
+    const { runner, reads } = fixture(async function* () { yield usage(100_000); yield result(); });
+    runner.start({});
+    const id = runner.chat({ content: 'answer first', meta: {} });
+    await runner.run();
+    expect((await reads().next()).value?.uuid).toBe(id);
+    expect(runner.inbox.pending).toBe(0);
+    runner.close();
+  });
+
   test.each(['running', 'requires_action'])('main state %s cancels a scheduled compact', async (state) => {
     const { runner } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
       yield msg({ type: 'system', subtype: 'session_state_changed', state });
@@ -215,7 +208,7 @@ describe('idle compaction headroom', () => {
 
   test('SDK compaction cancels scheduled maintenance and resets its context checkpoint', async () => {
     const { runner } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS - 1);
       yield msg({ type: 'system', subtype: 'status', status: 'compacting' });
@@ -234,7 +227,7 @@ describe('idle compaction headroom', () => {
   test('ambient background tasks do not keep an otherwise idle session from compacting', async () => {
     const { runner } = fixture(async function* () {
       yield msg({ type: 'system', subtype: 'task_started', task_id: 'ambient', ambient: true });
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
       expect(runner.inbox.pending).toBe(1);
@@ -246,7 +239,7 @@ describe('idle compaction headroom', () => {
 
   test('a live call discovered without an input is rechecked when the timer fires', async () => {
     const { runner } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       runner.calls.reconcile(route);
       jest.advanceTimersByTime(COMPACT_IDLE_MS);
@@ -259,7 +252,7 @@ describe('idle compaction headroom', () => {
 
   test.each([false, true])('closing or ending a session cancels maintenance (close=%s)', async (close) => {
     const { runner } = fixture(async function* () {
-      yield usage(150_000);
+      yield usage(100_000);
       yield result();
       expect(jest.getTimerCount()).toBe(1);
       if (close) runner.close();

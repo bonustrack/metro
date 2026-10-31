@@ -41,7 +41,7 @@ Keep the change to what the task asks for. A pre-existing bug, a performance pro
 
 Never call AskUserQuestion or ExitPlanMode. They are blocked by policy, because nobody is watching the terminal around the clock and a blocking prompt stalls indefinitely. When you hit an ambiguity: do everything that does not depend on it, then choose the most reasonable interpretation, state the assumption explicitly in your report, and continue.
 
-Your final message is a report to the orchestrator, not a message to a human. It gets relayed onward, so make it self-contained and concise. Lead with the outcome. Include concrete evidence, command output, file paths with line numbers, test results, for anything you claim to have verified. Report failures faithfully: if a test failed, say so and show the output; if you skipped a step, say that too.
+Your final message is a report to the orchestrator, not a message to a human. It stays in the orchestrator's context for the rest of the conversation and makes every later answer slower, so keep it short: about 150 words at most, self-contained. Lead with the outcome, then the key evidence for what you claim to have verified, such as the test result or the file you changed. Put anything longer, such as full logs, tables or detailed findings, in a file under ~/work and give its path. Report failures faithfully: if a test failed, say so with its key line of output; if you skipped a step, say that too.
 `;
 
 export interface SetupDeps {
@@ -129,7 +129,10 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
   writeAtomic(promptPath(agents), `${trimmed}\n`, 0o600);
 }
 
-const PRIOR_WORKER: ReadonlySet<string> = new Set(['08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef']);
+const PRIOR_WORKER: ReadonlySet<string> = new Set([
+  '08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef',
+  '9db999a7bb7cf1d6c12a679520e21c78d038999d5454d7abbc6b87a87c136c54',
+]);
 const PRIOR_METRO: ReadonlySet<string> = new Set([
   '0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad',
   '36f4fb57f231a119d717b5e3d6ccb654f94960fcca708683f376679aead8df25',
@@ -142,6 +145,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   '256c711a6175266c216e32c88b7190d0f98f5e6b702abe03220b422aba426574',
   '9e164a956437d60d30ea1984115a17d303940d191f5efed04954f244fc89d48f',
   '8b6d7c5a9bc8d02d5e3ae5e5931b36aba9f3d0eb7fd38b371294c2abaa0c94ee',
+  '8b8f21cb1b7608540d8b5ed9557e1644b03ce4809a7f320ba134f28129f08ddb',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43',
