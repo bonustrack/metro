@@ -15,6 +15,7 @@ import {
 } from './helper-script.js';
 import { AGENT_NAME } from '../agent-user/user.js';
 import { hardenTailscale } from './tailscale-guard.js';
+import { liftSessionSoftLimits } from './session-scopes.js';
 
 interface InstallPaths {
   helper: string;
@@ -73,7 +74,7 @@ if (import.meta.main) {
   installRootHelper();
   installImdsGuard();
   installUpgradeUnit(node);
-  for (const note of hardenTailscale()) process.stderr.write(`metro: ${note}\n`);
+  for (const note of [...hardenTailscale(), ...liftSessionSoftLimits()]) process.stderr.write(`metro: ${note}\n`);
   process.stdout.write(
     `metro: wrote ${HELPER_PATH}, ${SUDOERS_PATH}, ${IMDS_UNIT_PATH} and ${UPGRADE_UNIT_PATH}; only root and metro reach the instance metadata service, and the root side follows every update\n`,
   );
