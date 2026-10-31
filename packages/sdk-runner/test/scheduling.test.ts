@@ -57,6 +57,17 @@ describe('bounded SDK input admission', () => {
     expect(watch.safe).toBe(false);
   });
 
+  test('an approval a worker waits on never stops chat intake; only the main thread\'s own does', () => {
+    let mainAsking = false;
+    const watch = new SessionWatch(() => false, () => mainAsking);
+    watch.observe(state('requires_action'));
+    expect(watch.admitting).toBe(true);
+    mainAsking = true;
+    expect(watch.admitting).toBe(false);
+    watch.observe(state('idle'));
+    expect(watch.admitting).toBe(true);
+  });
+
   test('writes retain maintenance safety while approvals and compaction gate staging', () => {
     const watch = new SessionWatch(() => false);
     watch.observe(state('running'));

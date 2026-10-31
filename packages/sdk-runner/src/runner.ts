@@ -107,11 +107,12 @@ export class Runner {
   private model: string | null = null;
   private switching: Promise<void> = Promise.resolve();
   private ended = false;
+  private readonly mainAsks = new Set<string>();
   private readonly interrupted: number;
   private interruptionReported = false;
 
   constructor(private readonly parts: RunnerParts) {
-    this.watch = new SessionWatch(parts.readOnly);
+    this.watch = new SessionWatch(parts.readOnly, () => this.mainAsks.size > 0);
     this.inbox = new Inbox((unanswered) => { this.keep(unanswered); }, {
       ready: () => { parts.skills?.check(); return this.watch.admitting && parts.skills?.busy !== true; },
       dispatch: (message) => { this.automation?.dispatched(message.uuid); this.watch.dispatched(message.uuid); },
@@ -164,6 +165,12 @@ export class Runner {
     this.recovery.start();
     this.automation?.start();
     return this.session;
+  }
+
+  approval(id: string, ask: { worker: string | null } | null): void {
+    if (ask === null) this.mainAsks.delete(id);
+    else if (ask.worker === null) this.mainAsks.add(id);
+    this.inbox.notify();
   }
 
   switchModel(model: string | null): Promise<void> {

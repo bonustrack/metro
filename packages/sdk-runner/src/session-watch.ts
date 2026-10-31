@@ -35,7 +35,7 @@ export class SessionWatch {
   private lastContext = 0;
   private streamUsage: Record<string, unknown> = {};
 
-  constructor(private readonly readOnly: (tool: string) => boolean) {}
+  constructor(private readonly readOnly: (tool: string) => boolean, private readonly mainAsking: () => boolean = () => true) {}
 
   get compacting(): boolean {
     return this.compactingNow;
@@ -52,7 +52,7 @@ export class SessionWatch {
   get safe(): boolean { return !this.busy && !this.writing && !this.compacting; }
 
   get admitting(): boolean {
-    return this.awaitingInput === null && !this.requiresAction && !this.compacting;
+    return this.awaitingInput === null && !(this.requiresAction && this.mainAsking()) && !this.compacting;
   }
 
   dispatched(uuid?: string): void {

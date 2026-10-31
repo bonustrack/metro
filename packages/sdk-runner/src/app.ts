@@ -63,7 +63,7 @@ async function connected(cfg: RunnerConfig, hooks: AppHooks, release: () => Prom
     tools = metroTools(link);
     const resume = store.resumable();
     log.info({ resume, model: cfg.model, mode: cfg.permissionMode }, 'sdk-runner: starting the Agent SDK session');
-    const approvals = approvalsThrough(link, (id, ask) => { hooks.activity?.approval(id, ask); }, (tool, input) => runner.calls.approval(tool, input));
+    const approvals = approvalsThrough(link, (id, ask) => { hooks.activity?.approval(id, ask); runner.approval(id, ask); }, (tool, input) => runner.calls.approval(tool, input));
     runner.start(runnerOptions(cfg, tools, approvals, resume, hooks.env));
     return { runner, link, done: runner.run(hooks.observe), stop };
   } catch (err) {
