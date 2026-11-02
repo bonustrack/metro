@@ -46,6 +46,9 @@ function answer(req: IncomingMessage, res: ServerResponse): void {
         'event: message_delta',
         'data: {"type":"message_delta","usage":{"output_tokens":42}}',
         '',
+        'event: message_stop',
+        'data: {"type":"message_stop"}',
+        '',
         '',
       ].join('\n'),
     );
