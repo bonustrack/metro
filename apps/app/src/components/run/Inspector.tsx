@@ -11,6 +11,9 @@ import { clock, relatedEntries, stamp, type RunEntry } from './model.js';
 import { entryText, entryTime, statusWord } from './words.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { optionTabs } from '../../lib/option-tabs.js';
+import { ToolCallDetails } from './ToolCall.js';
+
+const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
 
 interface Props {
   entry: RunEntry;
@@ -50,6 +53,12 @@ function EntryTrace({ entry, entries, onSelect }: Omit<Props, 'visible'>): React
   </Column>;
 }
 
+function SessionNote({ entry }: { entry: RunEntry }): ReactNode {
+  if (entry.session === null) return <Text size="md" color="secondary">A Metro event. It does not show which turn or worker got it.</Text>;
+  if (entry.toolUseId !== undefined && SESSION_ID_RE.test(entry.session)) return <ToolCallDetails session={entry.session} toolUse={entry.toolUseId} />;
+  return <Text size="sm" color="secondary">Prompts and reasoning are not shown here. See Conversations for the transcript.</Text>;
+}
+
 export function RunInspector({ entry, entries, onSelect, visible }: Props): ReactNode {
   const technical = useTechnicalDetails();
   const [tab, setTab] = useState('details');
@@ -63,8 +72,7 @@ export function RunInspector({ entry, entries, onSelect, visible }: Props): Reac
     {tab === 'trace' ? <EntryTrace entry={entry} entries={entries} onSelect={onSelect} /> : <Column gap={16}>
       <Text size="sm" selectable>{entryText(entry, technical)}</Text>
       {entry.truncated && <Text size="md" color="secondary">This message is cut short. Open its conversation to read it all.</Text>}
-      {entry.session !== null && <Text size="sm" color="secondary">Tool input and output, prompts and reasoning are not shown here. See Conversations for the transcript.</Text>}
-      {entry.session === null && <Text size="md" color="secondary">A Metro event. It does not show which turn or worker got it.</Text>}
+      <SessionNote entry={entry} />
       <Button color="secondary" label={metadata ? 'Hide metadata' : 'Show metadata'} onPress={() => { setMetadata(!metadata); }} accessibilityState={{ expanded: metadata }} />
       {metadata && <EntryMetadata entry={entry} />}
     </Column>}

@@ -1,7 +1,7 @@
 import { isClaudeToken } from '@metro-labs/core/claude-token';
 import { filled, isRecord, str } from '../read.js';
 import { daemonBase } from '../auth/daemon.js';
-import { call, callRaw } from './client.js';
+import { call, callRaw, HttpError } from './client.js';
 import { githubSkillSource, type GitHubSkillSource } from './skill-source.js';
 import { githubSkillOrigin, type GitHubSkillOrigin } from './github-skill.js';
 
@@ -125,6 +125,37 @@ export async function fetchTranscript(
     total: num(body.total),
     next: typeof body.next === 'number' ? body.next : null,
   };
+}
+
+export interface ToolCall {
+  name: string;
+  input: string;
+  result: string | null;
+  isError: boolean;
+  calledAt: string | null;
+  answeredAt: string | null;
+}
+
+function toToolCall(v: unknown): ToolCall | null {
+  if (!isRecord(v) || typeof v.name !== 'string') return null;
+  return {
+    name: v.name,
+    input: str(v.input),
+    result: typeof v.result === 'string' ? v.result : null,
+    isError: v.isError === true,
+    calledAt: filled(v.calledAt),
+    answeredAt: filled(v.answeredAt),
+  };
+}
+
+const UPDATE_FOR_CALLS = 'Update Metro on this box to see tool calls here.';
+
+export async function fetchToolCall(session: string, toolUse: string): Promise<ToolCall | null> {
+  const body = await call({ base: base(), path: `/sessions/${encodeURIComponent(session)}?tool=${encodeURIComponent(toolUse)}`, method: 'GET' }).catch((err: unknown) => {
+    throw err instanceof HttpError && err.status === 400 && err.message.includes('project is required') ? new Error(UPDATE_FOR_CALLS) : err;
+  });
+  if (!isRecord(body) || !('call' in body)) throw new Error(UPDATE_FOR_CALLS);
+  return toToolCall(body.call);
 }
 
 export async function fetchSessionFile(project: string, id: string): Promise<string> {
