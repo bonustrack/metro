@@ -27,6 +27,21 @@ function challengeOf(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
+const REASON_MAX = 600;
+
+function oneLine(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const printable = Array.from(value, (char) => (char < ' ' || char === '\u007f' ? ' ' : char)).join('');
+  const text = printable.replace(/\s+/g, ' ').trim();
+  return text.length > REASON_MAX ? `${text.slice(0, REASON_MAX - 1)}…` : text;
+}
+
+function registrationReason(body: unknown): string {
+  if (!isRecord(body)) return '.';
+  const reason = oneLine(body.error_description) || oneLine(body.error);
+  return reason === '' ? '.' : `: ${reason}`;
+}
+
 export async function registerClient(
   server: OAuthServer,
   redirectUri: string,
@@ -58,7 +73,7 @@ export async function registerClient(
   }
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok || !isRecord(body) || typeof body.client_id !== 'string')
-    throw refused('That server refused to register Metro as a client.');
+    throw refused(`That server refused to register Metro as a client${registrationReason(body)}`);
   const secret = body.client_secret;
   return {
     clientId: body.client_id,
