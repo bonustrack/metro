@@ -1,6 +1,7 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { OAuthServer } from '@metro-labs/http/connector-discovery';
+import { ConnectorVerifyError } from '@metro-labs/http/connector-url';
 import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
 import { boundOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { verifyRemoteMcp, type OAuthTokens, type VerifiedServer } from '@metro-labs/http/connector-mcp';
@@ -45,6 +46,11 @@ interface Prepared {
 
 const expired = (): ApiError => new ApiError('This sign-in has expired. Start it again from the Connectors page.', 400);
 
+function registrationFailure(err: unknown): ApiError {
+  if (err instanceof ConnectorVerifyError) return err;
+  return new ApiError('The provider could not register an OAuth client. Check its client registration and the central callback URL.', 400);
+}
+
 export function returnToOf(raw: unknown): string {
   const returnTo = typeof raw === 'string' ? raw.trim() : '';
   if (isAppReturn(returnTo) || !validateReturnTo(returnTo)) throw new ApiError('that return address is not one Metro will send you back to', 400);
@@ -59,8 +65,8 @@ export async function currentClient(deps: SignInDeps, server: OAuthServer, clien
   if (client.redirectUri === deps.callbackUrl || client.clientSecret !== undefined || server.registrationEndpoint === null) return client;
   try {
     return await registeredClient(deps, server);
-  } catch {
-    throw new ApiError('The provider could not register an OAuth client. Check its client registration and the central callback URL.', 400);
+  } catch (err) {
+    throw registrationFailure(err);
   }
 }
 
@@ -68,8 +74,8 @@ export async function prepareSignIn(deps: SignInDeps, url: URL, client: OAuthCli
   const { server, resource } = await discoverPublicOAuth(url.toString(), offeredResource, deps.fetch);
   try {
     return { server, resource, client: client === null ? await registeredClient(deps, server) : { ...client, redirectUri: deps.callbackUrl } };
-  } catch {
-    throw new ApiError('The provider could not register an OAuth client. Check its client registration and the central callback URL.', 400);
+  } catch (err) {
+    throw registrationFailure(err);
   }
 }
 
