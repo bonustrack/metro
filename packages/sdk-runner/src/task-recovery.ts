@@ -4,9 +4,9 @@ import type { Inbox, Unanswered, Uuid } from './inbox.js';
 import type { SessionStore } from './session-store.js';
 import { completedCommand, startedCommand, uuidsOf } from './session-watch.js';
 import { TaskLedger } from './task-ledger.js';
-import { TASK_LIMIT, type SavedTask } from './task-state.js';
+import { NOTICE_DELIVERIES, TASK_LIMIT, type SavedTask } from './task-state.js';
 
-const DELAYS = [30_000, 120_000, 300_000];
+const DELAYS = [30_000, 120_000, 300_000] as const;
 const marker = (token: string): string => `[metro-task-handled:${token}]`;
 interface Delivery { uuid: Uuid; tokens: string[]; consumed: boolean; completed?: boolean }
 
@@ -159,7 +159,7 @@ export class TaskRecovery {
 
   private eligible(task: SavedTask): boolean {
     const notice = task.notice;
-    if (notice === null || notice.deliveries >= DELAYS.length) return false;
+    if (notice === null || notice.deliveries >= NOTICE_DELIVERIES) return false;
     return ![...this.deliveries.values()].some((delivery) => delivery.completed !== true && delivery.tokens.includes(notice.token));
   }
 
