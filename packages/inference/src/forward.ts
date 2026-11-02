@@ -171,16 +171,30 @@ function openResponse(upstream: Response, res: ServerResponse, opts: PipeOptions
 
 type Tap = (chunk: Uint8Array) => void;
 
-function tapOf(opts: PipeOptions, streaming: boolean): Tap | null {
+interface Tapped {
+  tap: Tap | null;
+  errors: StreamErrors | null;
+}
+
+function tapOf(opts: PipeOptions, streaming: boolean): Tapped {
   const scanner = opts.scanner;
   const errors = streaming && opts.site !== undefined ? new StreamErrors(opts.site) : null;
-  if (scanner === undefined && errors === null) return null;
+  if (scanner === undefined && errors === null) return { tap: null, errors };
   const decoder = new TextDecoder();
-  return (chunk) => {
+  const tap: Tap = (chunk) => {
     const text = decoder.decode(chunk, { stream: true });
     scanner?.feed(text);
     errors?.feed(text);
   };
+  return { tap, errors };
+}
+
+const CUT_MESSAGE = 'metro gateway: the provider ended its stream before the answer was complete; try again';
+
+function closeCut(res: ServerResponse, errors: StreamErrors | null): void {
+  if (errors === null || errors.settled || res.writableEnded) return;
+  errors.cut();
+  res.write(errorFrame('api_error', CUT_MESSAGE));
 }
 
 async function pump(body: ReadableStream<Uint8Array>, res: ServerResponse, watch: Watch, tap: Tap | null): Promise<void> {
@@ -202,10 +216,15 @@ export async function pipeResponse(upstream: Response, res: ServerResponse, watc
     return;
   }
   const ping = opts.keepalive === true && streaming ? setInterval(() => res.write(PING_FRAME), PING_MS) : null;
+  const { tap, errors } = tapOf(opts, streaming);
   try {
-    await pump(body, res, watch, tapOf(opts, streaming));
+    await pump(body, res, watch, tap);
+    closeCut(res, errors);
   } catch (err) {
-    if (!watch.idle()) throw err;
+    if (!watch.idle()) {
+      closeCut(res, errors);
+      throw err;
+    }
     if (streaming) res.write(errorFrame('api_error', idleMessage(watch.ms)));
   } finally {
     if (ping !== null) clearInterval(ping);

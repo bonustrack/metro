@@ -87,8 +87,10 @@ async function relay(req: IncomingMessage, res: ServerResponse, path: string, de
     sendError(res, 503, 'api_error', NOT_ACCEPTED);
     return;
   }
-  await pipeResponse(upstream, res, watch);
+  await pipeResponse(upstream, res, watch, { site: RELAY_SITE });
 }
+
+const RELAY_SITE = { connection: 'gateway.metro.box', model: 'relayed' };
 
 function refusal(req: IncomingMessage, path: string, deps: RelayDeps): [number, string, string] | null {
   if (cameThroughProxy(req)) return [401, 'authentication_error', 'metro gateway: the agent key works only on this machine, not through its public address'];
