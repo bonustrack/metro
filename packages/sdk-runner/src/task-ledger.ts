@@ -1,8 +1,9 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { log } from '@metro-labs/core/log';
 import { runnerTaskDescription } from '@metro-labs/core/runner-activity';
 import { activityName } from './activity-tasks.js';
 import type { Unanswered } from './inbox.js';
-import { pendingNotice, TASK_LIMIT, type SavedTask, type TaskReason } from './task-state.js';
+import { exhausted, pendingNotice, TASK_LIMIT, type SavedTask, type TaskReason } from './task-state.js';
 
 interface Tool { name: string; parent: string | null }
 const failed = (text: unknown): TaskReason => typeof text === 'string' && /\b429\b|rate.?limit/i.test(text.slice(0, 4_096)) ? 'rate_limit' : 'task_error';
@@ -11,6 +12,7 @@ export class TaskLedger {
   private readonly rows = new Map<string, SavedTask>();
   private readonly tools = new Map<string, Tool>();
   private readonly errors = new Map<string, TaskReason>();
+  private warned = false;
 
   constructor(tasks: SavedTask[], private readonly save: (tasks: SavedTask[], handled?: ReadonlySet<string>) => void) {
     for (const task of tasks) this.rows.set(task.id, task);
@@ -102,7 +104,8 @@ export class TaskLedger {
 
   private room(): boolean {
     if (this.rows.size < TASK_LIMIT) return true;
-    const old = this.snapshot().find((task) => task.notice === null && task.state !== 'running');
+    const rows = this.snapshot();
+    const old = rows.find((task) => task.notice === null && task.state !== 'running') ?? rows.find(exhausted);
     if (old === undefined) return false;
     this.rows.delete(old.id);
     return true;
@@ -111,10 +114,16 @@ export class TaskLedger {
   private get(id: string, now: number): SavedTask {
     const known = this.rows.get(id);
     if (known !== undefined) return known;
-    if (!this.room()) throw new Error('The saved Agent SDK task ledger is full. Handle pending recovery notices before starting more work.');
     const task: SavedTask = { id, toolUseId: null, owner: null, attempt: 0, state: 'interrupted', events: [], updatedAt: now, notice: null };
-    this.rows.set(id, task);
+    if (this.room()) this.rows.set(id, task);
+    else this.untracked();
     return task;
+  }
+
+  private untracked(): void {
+    if (this.warned) return;
+    this.warned = true;
+    log.warn({ limit: TASK_LIMIT }, 'sdk-runner: the task ledger is full of running work and pending recovery notices, so new work runs without recovery tracking');
   }
 
   private start(id: string, rawTool: unknown, event: string | null, now: number, description?: unknown): void {

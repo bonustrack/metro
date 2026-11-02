@@ -5,6 +5,7 @@ import { activityName } from './activity-tasks.js';
 import type { Uuid } from './inbox.js';
 
 export const TASK_LIMIT = 200;
+export const NOTICE_DELIVERIES = 3;
 const STATES = ['running', 'completed', 'failed', 'stopped', 'interrupted'] as const;
 const REASONS = ['task_error', 'rate_limit', 'worker_restart', 'interrupted', 'provider_error'] as const;
 export type TaskReason = (typeof REASONS)[number];
@@ -56,6 +57,9 @@ function task(raw: unknown): raw is SavedTask {
   if (!events(raw.events) || !optionalFields(raw)) return false;
   return integer(raw.attempt) && integer(raw.updatedAt) && STATES.some((state) => state === raw.state) && notice(raw.notice);
 }
+
+export const exhausted = (task: SavedTask): boolean =>
+  task.state !== 'running' && task.notice !== null && task.notice.deliveries >= NOTICE_DELIVERIES && task.notice.offered === undefined;
 
 export const sdkTask = (task: SavedTask): boolean => !/^(?:input|turn):/.test(task.id);
 

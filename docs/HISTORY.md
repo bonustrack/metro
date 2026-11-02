@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-11-02: A full task ledger no longer ends the session
+
+Emma's workers kept stopping without a result: her SDK runner ended its session two seconds after every new worker started (13:05, 13:06, 13:35, 13:47, 13:55, 14:58 UTC), each time killing every running worker, and the watcher started it again. Her task ledger in `agent-session.json` held 200 rows, every one with a recovery notice already delivered three times and consumed, none acknowledged: a notice is cleared only when the main thread echoes its exact marker, and GPT 6.1 through Codex never did. `room()` could evict only a finished row with no notice, so `get()` threw "The saved Agent SDK task ledger is full", and since `recovery.observe` runs inside the runner's message loop, the throw ended the session instead of refusing one worker. Chen (GLM through Routeway) had 11 such exhausted notices of 200 rows, the same slow leak.
+
+- **When the ledger is full, an exhausted notice can go** (Less's call): `room()` drops the oldest finished row with no notice first, as before, then the oldest finished row whose notice was delivered three times (`NOTICE_DELIVERIES`) and is not waiting on a delivery (`exhausted` in `task-state.ts`). This replaces the earlier rule that an exhausted notice stays pending; it was never going to be delivered again.
+- **A full ledger never throws**: when nothing can go (running work and notices still being delivered), the new worker runs without recovery tracking and the runner logs it once.
+- Emma's box was unblocked by hand the same day: her 200 exhausted notices were marked handled in `agent-session.json` (backup `agent-session.json.bak-20261102-ledger`) while the runner was stopped.
+
 ## 2026-10-23: Channel descriptions use the standard XMTP field
 
 Less: "Ideally it should use XMTP standard for group description if it exists", then "Yes, fix that". Stage already shows that field. Metro's `set_channel_metadata` now accepts a top-level `description` string and forwards it to the existing `group.updateDescription` writer; `group_info.description` reads the native SDK field after sync. A description-only call does not write appData, and an empty string clears the native description. `metadata.description` is refused with a pointer to the native argument: earlier calls wrote a custom appData key, and a metadata notice or a readback of that key never proved that Stage's visible description changed. Existing custom appData keys are preserved, not migrated or used as a readback fallback. No Stage renderer or group-creation change.
