@@ -23,6 +23,9 @@ const usageStream = (res: ServerResponse): void => {
       'event: message_delta',
       'data: {"type":"message_delta","usage":{"output_tokens":42}}',
       '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
       '',
     ].join('\n'),
   );
@@ -40,7 +43,7 @@ const limited = (res: ServerResponse): void => {
 
 const costed = (res: ServerResponse): void => {
   res.writeHead(200, { 'content-type': 'text/event-stream' });
-  res.end('event: message_delta\ndata: {"type":"message_delta","usage":{"input_tokens":7,"output_tokens":3,"cost":0.00123}}\n\n');
+  res.end('event: message_delta\ndata: {"type":"message_delta","usage":{"input_tokens":7,"output_tokens":3,"cost":0.00123}}\n\nevent: message_stop\ndata: {"type":"message_stop"}\n\n');
 };
 
 interface Upstream {

@@ -34,14 +34,27 @@ export function noteFailure(site: FailureSite, failure: Failure, what: string): 
   log.warn({ connection: site.connection, model: site.model, ...failure, message: providerText(failure.message) }, what);
 }
 
+const STOP_DATA = /^\{\s*"type"\s*:\s*"message_stop"/;
+
 export class StreamErrors {
   private readonly parser = new SseParser();
+  private ended = false;
 
   constructor(private readonly site: FailureSite) {}
 
+  get settled(): boolean {
+    return this.ended;
+  }
+
+  cut(): void {
+    noteFailure(this.site, { code: 'stream_cut', message: '' }, 'gateway: the provider ended its stream before the answer was complete');
+  }
+
   feed(text: string): void {
     for (const raw of this.parser.push(text)) {
+      if (raw.event === 'message_stop' || STOP_DATA.test(raw.data)) this.ended = true;
       if (raw.event !== 'error' && !ERROR_DATA.test(raw.data)) continue;
+      this.ended = true;
       const data = parseEvent(raw)?.data ?? {};
       const error = isRecord(data.error) ? data.error : {};
       noteFailure(this.site, { code: stringOf(error.type) || stringOf(error.code), message: stringOf(error.message) }, 'gateway: the provider sent an error in the middle of its stream');

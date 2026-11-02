@@ -59,7 +59,7 @@ beforeEach(() => {
   reregistered = 0;
   answer = (res) => {
     res.writeHead(200, { 'content-type': 'text/event-stream' });
-    res.end('event: message_start\ndata: {"type":"message_start"}\n\n');
+    res.end('event: message_start\ndata: {"type":"message_start"}\n\nevent: message_stop\ndata: {"type":"message_stop"}\n\n');
   };
 });
 
@@ -83,6 +83,16 @@ describe('the box relays its model requests to gateway.metro.box', () => {
     expect(up?.headers['x-metro-key']).toBeUndefined();
     expect(up?.headers['x-claude-code-agent-id']).toBe('worker-1');
     expect(up?.headers['anthropic-beta']).toBe('oauth-2025-04-20');
+  });
+
+  test('a stream cut before its end reaches Claude Code with an error, a complete one as it came', async () => {
+    expect(await (await ask('/v1/messages')).text()).not.toContain('api_error');
+    answer = (res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end('event: message_start\ndata: {"type":"message_start"}\n\nevent: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t","name":"mcp__metro__react","input":{}}}\n\n');
+    };
+    const text = await (await ask('/v1/messages')).text();
+    expect(text.slice(text.lastIndexOf('event: '))).toContain('ended its stream before the answer was complete');
   });
 
   test('without the agent key, or through the public address, nothing goes up', async () => {

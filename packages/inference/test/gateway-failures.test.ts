@@ -40,6 +40,7 @@ const connections = [
   makeConnection('anthropic', { apiKey: 'sk-ant-key', label: 'Anthropic team' }),
   makeConnection('bedrock', { apiKey: 'aws-key', region: 'eu-central-1', label: 'Bedrock EU' }),
   makeConnection('codex', { codex: codexAccess(), label: 'Codex (ChatGPT) 3' }),
+  makeConnection('routeway', { apiKey: 'rw-key', label: 'Routeway' }),
 ];
 
 const route = (provider: Provider, model: string): ModelSetup => ({ primary: { connection: connectionId(provider), model }, fallbacks: [], connections, source: 'organization' });
@@ -67,6 +68,7 @@ beforeAll(async () => {
     identify: (key) => key === 'mk_ok',
     anthropicBase: at,
     bedrockBase: at,
+    routewayBase: at,
     codex: { base: at, refresh: () => Promise.resolve(null) },
   };
   base = await listen(
@@ -140,5 +142,40 @@ describe('an error in the middle of an Anthropic-shaped stream is logged', () =>
     expect(warned('gateway: the provider sent an error in the middle of its stream')).toEqual([
       { connection: 'Bedrock EU', model: 'us.anthropic.claude-opus-5-5', code: 'ThrottlingException', message: 'Too many tokens, please wait before trying again.' },
     ]);
+  });
+});
+
+describe('a provider stream that ends before the answer is complete', () => {
+  const toolStart = [
+    { type: 'message_start', message: { id: 'm', usage: { input_tokens: 9, output_tokens: 0 } } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'chatcmpl-tool-1', name: 'mcp__metro__react', input: {} } },
+  ];
+  const CUT = 'gateway: the provider ended its stream before the answer was complete';
+
+  test('a Routeway stream cut after a tool call starts ends with an error, so Claude Code never runs the call without its arguments', async () => {
+    cfg = route('routeway', 'glm-5.3-flash-uncensored');
+    answer = (res) => sse(res, toolStart);
+    const text = await ask();
+    expect(text).toContain('chatcmpl-tool-1');
+    expect(text.trimEnd().endsWith('}')).toBe(true);
+    expect(text.slice(text.lastIndexOf('event: '))).toContain('"type":"api_error"');
+    expect(text).toContain('ended its stream before the answer was complete');
+    expect(warned(CUT)).toEqual([{ connection: 'Routeway', model: 'glm-5.3-flash-uncensored', code: 'stream_cut', message: '' }]);
+  });
+
+  test('an Anthropic stream cut the same way is closed with the same error', async () => {
+    cfg = route('anthropic', 'claude-opus-5-5');
+    answer = (res) => sse(res, toolStart);
+    expect(await ask()).toContain('ended its stream before the answer was complete');
+    expect(warned(CUT)).toHaveLength(1);
+  });
+
+  test('a complete stream, or one the provider already ended with an error, gets nothing added', async () => {
+    cfg = route('routeway', 'glm-5.3-flash-uncensored');
+    answer = (res) => sse(res, [...toolStart, { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{}' } }, { type: 'message_stop' }]);
+    expect(await ask()).not.toContain('api_error');
+    answer = (res) => sse(res, [...toolStart, { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }]);
+    expect(await ask()).not.toContain('api_error');
+    expect(warned(CUT)).toEqual([]);
   });
 });
