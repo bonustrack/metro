@@ -15,8 +15,8 @@ const MEMORY_DEPTH = 6;
 const MEMORY_FILES_MAX = 5000;
 const EDGE_BYTES = 64 * 1024;
 const TEXT_CAP = 20_000;
-const RESULT_CAP = 8_000;
-const INPUT_CAP = 4_000;
+export const RESULT_CAP = 8_000;
+export const INPUT_CAP = 4_000;
 const FILE_CAP = 1_000_000;
 const MEMORY_MAX = 256 * 1024;
 const MEMORY_MODE = 0o644;
@@ -31,7 +31,7 @@ export function claudeDir(): string {
   return join(user === null ? homedir() : user.home, '.claude');
 }
 
-const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+export const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
 export function safeName(value: string, re: RegExp, what: string): string {
   if (!re.test(value) || value === '.' || value === '..')
@@ -39,13 +39,13 @@ export function safeName(value: string, re: RegExp, what: string): string {
   return value;
 }
 
-function projectDir(project: string, dir: string): string {
+export function projectDir(project: string, dir: string): string {
   const path = join(dir, 'projects', safeName(project, PROJECT_RE, 'Claude project id'));
   if (!existsSync(path)) throw new ApiError('no such Claude project', 404);
   return path;
 }
 
-function parseLines(text: string): Record<string, unknown>[] {
+export function parseLines(text: string): Record<string, unknown>[] {
   const out: Record<string, unknown>[] = [];
   for (const line of text.split('\n')) {
     if (line.trim() === '') continue;
@@ -187,10 +187,10 @@ export interface TranscriptPage {
   next: number | null;
 }
 
-const cap = (text: string, max: number): string =>
+export const cap = (text: string, max: number): string =>
   text.length > max ? `${text.slice(0, max)}\n… (${String(text.length - max)} more characters)` : text;
 
-function resultText(content: unknown): string {
+export function resultText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   return content

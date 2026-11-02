@@ -25,6 +25,7 @@ import {
   type SessionDeps,
 } from './session.js';
 import { receiveSessionFile, sessionFilePath } from './session-files.js';
+import { readToolCall } from './tool-call.js';
 import { createReadStream } from '../agent-user/agent-fs.js';
 import { pipeline } from 'node:stream/promises';
 import {
@@ -50,6 +51,11 @@ export interface ClaudeApiDeps extends SetupApiDeps {
   skillSource?: GitHubSkills;
 }
 
+function optionalProject(query: URLSearchParams): string | null {
+  const project = query.get('project');
+  return project === null || project === '' ? null : project;
+}
+
 function projectOf(query: URLSearchParams): string {
   const project = query.get('project');
   if (project === null || project === '') throw new ApiError('project is required', 400);
@@ -73,7 +79,9 @@ const COLLECTIONS: Record<string, Handler> = {
 };
 
 const ITEMS: Record<string, Handler> = {
-  sessions: (query, dir, id) => {
+  sessions: async (query, dir, id) => {
+    const tool = query.get('tool');
+    if (tool !== null) return { call: await readToolCall(optionalProject(query), id, tool, dir) };
     const { offset, limit } = pageOf(query);
     return readTranscript(projectOf(query), id, offset, limit, dir);
   },

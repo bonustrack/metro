@@ -66,6 +66,7 @@ type BoxName =
   | 'claude-settings'
   | 'claude-skills'
   | 'claude-skill'
+  | 'tool-call'
   | 'memory'
   | 'model'
   | 'mode'
