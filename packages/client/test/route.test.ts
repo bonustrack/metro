@@ -276,6 +276,15 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(routeSelection('#/stage-labs/organization/models/add')).toEqual({ kind: 'org-model-add' });
     routeSelection('#/settings');
   });
+
+  test('an app sign-in opens with or without an organization in the address', () => {
+    expect(routeSelection('#/connect/grant000001')).toEqual({ kind: 'app-connect', grant: 'grant000001' });
+    expect(routeSelection('#/stage-labs/connect/grant000001')).toEqual({ kind: 'app-connect', grant: 'grant000001' });
+    expect(routeSelection('#/connect/short')).toEqual({ kind: 'none' });
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    expect(routeHash({ kind: 'app-connect', grant: 'grant000001' })).toBe('#/stage-labs/connect/grant000001');
+    routeSelection('#/settings');
+  });
 });
 
 describe('box page addresses', () => {

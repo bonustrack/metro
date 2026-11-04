@@ -22,11 +22,12 @@ export const PGLITE_START_MS = 60_000;
 export const OWNER = 'org_01TESTOWNER000000';
 export const STRANGER = 'org_01TESTSTRANGER00';
 export const HOST = 'mcp.metro.box';
+export const APP_URL = 'https://metro.box';
 export const MASTER = randomBytes(32);
 export const VENDOR_ORIGIN = 'https://vendor.example.com';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'api', 'drizzle');
-const TABLES = ['model_calls', 'model_windows', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
+const TABLES = ['oauth_grants', 'model_calls', 'model_windows', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
 
 export interface TestDb {
   db: Database;
@@ -110,7 +111,7 @@ export interface TestApp {
 }
 
 export async function startApp(db: Database, fetchImpl: FetchLike, overrides: Partial<McpDeps> = {}): Promise<TestApp> {
-  const deps = { ...mcpDeps({ key: MASTER, db: () => db, publicHost: HOST, fetch: fetchImpl, callFetch: fetchImpl, ...(overrides.now === undefined ? {} : { now: overrides.now }) }), ...overrides };
+  const deps = { ...mcpDeps({ key: MASTER, db: () => db, publicHost: HOST, appUrl: APP_URL, fetch: fetchImpl, callFetch: fetchImpl, ...(overrides.now === undefined ? {} : { now: overrides.now }) }), ...overrides };
   const started = await listen((req, res) => {
     handleRequest(req, res, deps);
   });

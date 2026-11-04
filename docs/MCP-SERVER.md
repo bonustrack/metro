@@ -169,6 +169,54 @@ with a server or not, can have access keys.
   agent to, with `approval: "<id>"`. These routes refuse an agent with a server (409), whose
   approvals its daemon keeps.
 
+## Sign in with Metro (OAuth)
+
+Since 2026-11-04 an MCP client can add `https://mcp.metro.box` (or `/mcp`) with no key at all
+(Less: "the biggest gap", after comparing Picnic and Composio, whose endpoints claude.ai and
+ChatGPT can add as custom connectors). mcp.metro.box is its own OAuth authorization server,
+per the MCP authorization spec, and the token it issues is an ordinary access key.
+
+- **Discovery**: a 401 from `/` or `/mcp` carries `WWW-Authenticate: Bearer
+  resource_metadata="https://mcp.metro.box/.well-known/oauth-protected-resource[/mcp]",
+  scope="connectors"`. The protected resource metadata names mcp.metro.box as the
+  authorization server, and `/.well-known/oauth-authorization-server` lists
+  `/oauth/authorize`, `/oauth/token` and `/oauth/register`, public clients only (`none`),
+  PKCE `S256` only, `authorization_code` only. These answer CORS to any origin.
+- **Registration stores nothing** (`apps/mcp/src/oauth/clients.ts`): the client id is
+  `mc1.<base64url JSON {name, redirect uris, issued at}>.<HMAC>`, signed with a key derived
+  from `METRO_CONNECTORS_KEY` (HKDF, `metro-mcp-oauth-client/v1`), so anyone may register as
+  often as they like and no table fills up. 1 to 5 return addresses: https, http on a
+  loopback host (any port at sign-in, RFC 8252), or an app scheme like `cursor://`; never
+  `javascript:`, `data:`, `file:`, a fragment or a user name. The name is cut to 64
+  characters and defaults to "An MCP client".
+- **Authorize** checks the signed client and the return address first and answers a plain
+  400 page when either is wrong (no redirect to an address it cannot trust); any other
+  error (no PKCE S256, a `resource` that is not mcp.metro.box) goes back to the app as
+  `error=…`. A good request opens an `oauth_grants` row (15 minutes; at most 5,000 wait at
+  once, then authorize answers 503, since anyone may open one) and sends the browser
+  to `https://metro.box/#/connect/<grant id>` (`METRO_APP_URL` overrides the origin).
+- **Consent is on metro.box** (`AppConnectPage.tsx`, route `{kind: 'app-connect', grant}`):
+  a person not signed in goes through the login and comes back to it. The page shows the
+  app's name and where it returns, and an **organization admin** picks one agent of the
+  tab's organization (access keys are admin-only, so this is too). Connect calls
+  `POST https://api.metro.box/api/oauth/grants/<id> {decision: 'allow', agent}`, which checks
+  the agent is in the organization and has fewer than 20 live keys, stores the SHA-256 of a
+  new single-use code (`mcc_…`, 5 minutes) with the owner, agent and admin, and answers the
+  return address with `code` and `state`; the page goes there. Decline (any member) answers
+  `error=access_denied` and deletes the grant. `GET …/grants/<id>` answers only the app's
+  name, the return host and the expiry, never the code or the state.
+- **Token** (`/oauth/token`, form or JSON): the code is deleted as it is read (single use),
+  and must be unexpired, issued to the same client, with the same return address when one
+  is sent, and match the PKCE verifier. Then the access key is made with
+  `createAgentToken` (label: the app's name, `created_by`: the admin, scope `connectors`;
+  an agent deleted or moved since gets no key) and answered as `{access_token, token_type:
+  'Bearer', scope: 'connectors'}`. No `expires_in` and no refresh token: an access key does
+  not expire, and revoking it on the agent's page is how access ends, like any other key.
+- **Nothing else changes**: the key is an access key, so assignments, policies, approvals
+  (with the key's label, the app's name), `mcp_calls` and Revoke work as for a key pasted by
+  hand. Not done yet: client ID metadata documents (CIMD), and choosing another organization
+  on the consent page (switch organization first).
+
 ## The daemon's view
 
 Requests are signed with the agent's enrollment key (`MetroAgent` scheme,

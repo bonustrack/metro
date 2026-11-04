@@ -7,6 +7,7 @@ import { readBodyBytes } from '@metro-labs/http/api-http';
 import { tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { McpDeps } from './deps.js';
+import { resourceMetadataUrl } from './oauth/routes.js';
 import { answerMessage } from './rpc.js';
 import { bearerToken } from './token.js';
 
@@ -22,8 +23,9 @@ export function sendBody(res: ServerResponse, status: number, body: unknown, hea
   res.end(JSON.stringify(body));
 }
 
-function unauthorized(res: ServerResponse): void {
-  sendBody(res, 401, { error: 'An access key from the agent\'s page on metro.box, or the MCP token of its Metro, is required (Authorization: Bearer mcp_...). A revoked key no longer works.' }, { 'www-authenticate': 'Bearer' });
+function unauthorized(req: IncomingMessage, res: ServerResponse, deps: McpDeps): void {
+  const metadata = resourceMetadataUrl(deps.oauth.issuer, (req.url ?? '').split('?')[0] ?? '');
+  sendBody(res, 401, { error: 'Sign in with Metro, or send an access key from the agent\'s page on metro.box or the MCP token of its Metro (Authorization: Bearer mcp_...). A revoked key no longer works.' }, { 'www-authenticate': `Bearer resource_metadata="${metadata}", scope="connectors"` });
 }
 
 async function identityOf(req: IncomingMessage, deps: McpDeps): Promise<DeliveryIdentity | null> {
@@ -67,7 +69,7 @@ async function answer(req: IncomingMessage, res: ServerResponse, deps: McpDeps, 
 
 async function serve(req: IncomingMessage, res: ServerResponse, deps: McpDeps): Promise<void> {
   const identity = await identityOf(req, deps);
-  if (identity === null) unauthorized(res);
+  if (identity === null) unauthorized(req, res, deps);
   else await answer(req, res, deps, identity);
 }
 

@@ -234,3 +234,22 @@ export const modelWindows = pgTable(
   },
   (t) => [primaryKey({ name: 'model_windows_pk', columns: [t.connection, t.label] }), index('model_windows_owner_idx').on(t.owner)],
 );
+
+export const oauthGrants = pgTable(
+  'oauth_grants',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    clientName: text('client_name').notNull(),
+    redirectUri: text('redirect_uri').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    state: text('state'),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+    owner: text('owner'),
+    agent: text('agent').references(() => agents.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by'),
+    codeHash: text('code_hash'),
+  },
+  (t) => [uniqueIndex('oauth_grants_code_hash_idx').on(t.codeHash), index('oauth_grants_expires_idx').on(t.expiresAt)],
+);

@@ -55,6 +55,7 @@ import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
 import { handleRemoteAgentsRequest, type RemoteAgentsApiDeps } from './agents/remote-api.js';
+import { handleOauthGrantsRequest } from './agents/oauth-grants-api.js';
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connectors/setup';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
@@ -245,6 +246,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
   (req, res) => handleAgentModelsRequest(req, res, agentModelsApi),
   (req, res) => handleRemoteAgentsRequest(req, res, remoteAgentsApi),
+  (req, res) => handleOauthGrantsRequest(req, res, remoteAgentsApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleModelsApiRequest(req, res, modelsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),

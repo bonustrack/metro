@@ -23,6 +23,7 @@ const deps = mcpDeps({
   key: config.key,
   db: () => db,
   publicHost: config.publicHost,
+  appUrl: config.appUrl,
   fetch: egressFetch(),
   callFetch: egressFetch(undefined, { bodyMax: 64 * 1024 * 1024, idleMs: VENDOR_CALL_MS }),
 });

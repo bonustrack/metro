@@ -26,6 +26,7 @@ export type Selection =
   | { kind: 'org-model-add'; provider?: string }
   | { kind: 'org-model-sign-in'; id: string }
   | { kind: 'org-aws' }
+  | { kind: 'app-connect'; grant: string }
   | { kind: 'home'; project: string }
   | { kind: 'run'; project: string; view?: RunView; id?: string }
   | { kind: 'agent-settings'; project: string }

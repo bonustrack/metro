@@ -61,6 +61,7 @@ const AGENT_ACTIVITY_PATH = new RegExp(`^#?/(${HOST})/activity$`);
 const ORG_MODEL_ADD_PATH = /^#?\/organization\/models\/add(?:\/([a-z]{1,32}))?$/;
 const ORG_MODEL_SIGN_IN_PATH = new RegExp(`^#?/organization/models/(${ID})/sign-in$`);
 const ORG_AWS_PATH = /^#?\/organization\/aws$/;
+const APP_CONNECT_PATH = new RegExp(`^#?/connect/(${ID})$`);
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
@@ -91,7 +92,12 @@ function exactSelection(hash: string): Selection | null {
   const exact = EXACT.find(([re]) => re.test(hash))?.[1];
   if (exact !== undefined) return { ...exact };
   const path = hash.split('?')[0] ?? '';
-  return adminSelection(path) ?? activitySelection(path) ?? organizationSelection(path);
+  return adminSelection(path) ?? activitySelection(path) ?? appConnectSelection(path) ?? organizationSelection(path);
+}
+
+function appConnectSelection(path: string): Selection | null {
+  const grant = APP_CONNECT_PATH.exec(path)?.[1];
+  return grant === undefined ? null : { kind: 'app-connect', grant };
 }
 
 function activitySelection(path: string): Selection | null {
@@ -290,6 +296,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
 
 function orgItemPath(selection: Selection): string | null {
   if (selection.kind === 'activity') return selection.agent === undefined ? 'activity' : `activity/${selection.agent}`;
+  if (selection.kind === 'app-connect') return `connect/${selection.grant}`;
   if (selection.kind === 'org-connector') return orgConnectorHash(selection);
   if (selection.kind === 'org-model') return `organization/models/${selection.id}`;
   if (selection.kind === 'org-model-add') return `organization/models/add${selection.provider === undefined ? '' : `/${selection.provider}`}`;

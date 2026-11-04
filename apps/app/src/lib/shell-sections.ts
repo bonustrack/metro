@@ -32,6 +32,7 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   'org-model-add': 'models',
   'org-model-sign-in': 'models',
   'org-aws': 'organization',
+  'app-connect': 'agents',
   organization: 'organization',
   members: 'organization',
 };

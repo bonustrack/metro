@@ -7,6 +7,7 @@ import type { ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import type { CallRecorder } from './call-log.js';
 import type { Flights } from './flights.js';
 import type { Favicons } from '@metro-labs/connectors/favicons';
+import type { OauthDeps } from './oauth/flow.js';
 import type { TokenStore } from './token.js';
 import type { ToolLists } from './tool-lists.js';
 import type { Waiters } from './waiters.js';
@@ -14,6 +15,7 @@ import type { Waiters } from './waiters.js';
 export interface McpDeps {
   key: Buffer;
   tokens: TokenStore;
+  oauth: OauthDeps;
   keys: Pick<AgentKeyStore, 'find'>;
   nonces: AgentNonceStore;
   auth: AgentAuth;

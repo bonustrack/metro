@@ -23,11 +23,11 @@ afterAll(async () => { await held.close(); });
 const initialize = (version = '2025-06-18') => ({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: version, capabilities: {}, clientInfo: { name: 'claude-code', version: '2' } } });
 
 describe('the MCP token', () => {
-  test('a missing, malformed or unknown token is 401 with WWW-Authenticate: Bearer', async () => {
+  test('a missing, malformed or unknown token is 401 pointing at the sign-in metadata', async () => {
     for (const token of [null, 'not-a-token', newToken()]) {
       const res = await rpc(app, token, initialize());
       expect(res.status).toBe(401);
-      expect(res.headers.get('www-authenticate')).toBe('Bearer');
+      expect(res.headers.get('www-authenticate')).toBe('Bearer resource_metadata="https://mcp.metro.box/.well-known/oauth-protected-resource/mcp", scope="connectors"');
     }
     const basic = await rpc(app, null, initialize(), { authorization: `Basic ${agent.token}` });
     expect(basic.status).toBe(401);

@@ -18,6 +18,7 @@ import { ModelAccount } from './models/ModelAccount.js';
 import { ModelList, type ModelPick } from './models/ModelList.js';
 import { AddModelAccountPage, ModelSignInPage } from './ModelAccountSetup.js';
 import { ConnectAwsPage } from './OrganizationAws.js';
+import { AppConnectPage } from './AppConnectPage.js';
 import { YourAccount } from './shell/YourAccount.js';
 import { Groups } from './ui/Group.js';
 import { AppShell } from './shell/AppShell.js';
@@ -91,6 +92,7 @@ function FocusPage({ selection, onLock }: { selection: Selection; onLock: () => 
   if (selection.kind === 'org-model-sign-in') return <ModelSignInPage id={selection.id} />;
   if (selection.kind === 'org-aws') return <ConnectAwsPage />;
   if (selection.kind === 'org-connector-new') return <AddConnectorPage />;
+  if (selection.kind === 'app-connect') return <AppConnectPage grant={selection.grant} />;
   return <ServerGate selection={selection} onLock={onLock} />;
 }
 
