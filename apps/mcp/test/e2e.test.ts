@@ -82,11 +82,34 @@ describe('tool_search against a real connector', () => {
     const result = await find('select:notion.search');
     expect(result.structuredContent).toEqual({
       connectors: [{ key: 'notion', name: 'Notion', status: 'ok' }, { key: 'x50-rosa-bonustrack-co', name: 'X50 rosa@bonustrack.co' }],
-      tools: [{ name: 'notion.search', title: 'Search pages', connector: 'notion' }],
+      tools: [{
+        name: 'notion.search',
+        title: 'Search pages',
+        connector: 'notion',
+        description: 'Search pages and databases in the workspace.',
+        inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Words to look for' } }, required: ['query'] },
+      }],
+      note: 'Call these with tool_call: {"calls":[{"tool":"notion.search","arguments":{…}}]}',
     });
     const miss = await find('spreadsheet');
     expect(texts(miss)[0]).toContain("This agent's connectors: notion, x50-rosa-bonustrack-co (X50 rosa@bonustrack.co).");
     expect(miss.structuredContent?.tools).toEqual([]);
+    expect(miss.structuredContent?.note).toBe(texts(miss)[0]);
+  });
+
+  test('the structured answer alone holds every definition the text gives, since Claude Code shows the model only that', async () => {
+    const result = await find('select:notion.search,notion.update_page');
+    const text = texts(result)[0] ?? '';
+    const shown = JSON.stringify(result.structuredContent);
+    for (const line of text.split('\n').filter((entry) => entry.startsWith('<function>'))) {
+      const fn = JSON.parse(line.slice('<function>'.length, -'</function>'.length)) as { name: string; description: string; parameters: unknown };
+      const tool = (result.structuredContent?.tools as { name: string; description: string; inputSchema: unknown }[]).find((entry) => entry.name === fn.name);
+      expect(tool?.description).toBe(fn.description);
+      expect(tool?.inputSchema).toEqual(fn.parameters);
+    }
+    expect(text.split('\n').at(-1)).toBe(result.structuredContent?.note);
+    expect(shown).not.toContain('URL_SECRET');
+    expect(shown).not.toContain('VENDOR_KEY');
   });
 
   test('blocked tools are never returned', async () => {

@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-11-06: tool_search gives the schemas in its structured answer too
+
+Lisa's agent would not call Vault's `create_file` (https://mcp-vault.piston.box): its `tool_search` showed only the name, the title and the connector, never the arguments or the description, so it could not know the call or that the tool never overwrites. Vault sent the full definition. mcp.metro.box put it only in the text block (the `<functions>` lines), and its `structuredContent` held `{name, title, connector}` per tool. The Claude Code bundled with Agent SDK 0.3.287 (2.1.287) turns an MCP result into the model's input from `structuredContent` alone when there is one: the text blocks are dropped and only images or documents are kept beside the JSON (read in the binary). So every agent on Claude Code, on a box or with an access key, searched tools without ever seeing a schema, and missed the no-match hint too.
+
+- `tool_search`'s `structuredContent` now carries each tool's `description` and `inputSchema` and a `note` (the call hint, or the no-match sentence), the same as the text. The old fields stay, so a dashboard that reads them is unchanged.
+- `tool_call` sends no `structuredContent` of its own, and `list_connectors`' structured answer already held more than its text, so neither changed.
+- A test parses each `<function>` line of the text and checks the structured copy holds the same description and schema (`apps/mcp/test/e2e.test.ts`).
+
 ## 2026-11-02: A full task ledger no longer ends the session
 
 Emma's workers kept stopping without a result: her SDK runner ended its session two seconds after every new worker started (13:05, 13:06, 13:35, 13:47, 13:55, 14:58 UTC), each time killing every running worker, and the watcher started it again. Her task ledger in `agent-session.json` held 200 rows, every one with a recovery notice already delivered three times and consumed, none acknowledged: a notice is cleared only when the main thread echoes its exact marker, and GPT 6.1 through Codex never did. `room()` could evict only a finished row with no notice, so `get()` threw "The saved Agent SDK task ledger is full", and since `recovery.observe` runs inside the runner's message loop, the throw ended the session instead of refusing one worker. Chen (GLM through Routeway) had 11 such exhausted notices of 200 rows, the same slow leak.
