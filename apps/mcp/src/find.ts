@@ -45,10 +45,11 @@ function statusOf(listings: Listing[], key: string): Record<string, unknown> {
   return { status: listing.status, ...(listing.error === undefined ? {} : { error: listing.error }) };
 }
 
-function structured(connectors: AgentConnector[], listings: Listing[], found: SearchTool[]): Record<string, unknown> {
+function structured(connectors: AgentConnector[], listings: Listing[], found: SearchTool[], note: string): Record<string, unknown> {
   return {
     connectors: labelsOf(connectors).map((label) => ({ ...label, ...statusOf(listings, label.key) })),
-    tools: found.map((tool) => ({ name: tool.name, title: tool.title, connector: splitMcpTool(tool.name)?.connector ?? '' })),
+    tools: found.map((tool) => ({ name: tool.name, title: tool.title, connector: splitMcpTool(tool.name)?.connector ?? '', description: tool.description, inputSchema: tool.parameters })),
+    note,
   };
 }
 
@@ -57,6 +58,7 @@ export async function findTools(deps: McpDeps, identity: DeliveryIdentity, reque
   await deps.toolLists.preload(connectors.map((connector) => connector.id));
   const listings = await Promise.all(wanted(connectors, request.query).map((connector) => listingOf(deps, identity, connector)));
   const found = searchTools(listings.flatMap(searchable), request.query, request.max_results);
-  const text = found.length === 0 ? noMatch(request.query, connectors, listings) : `${functionsText(found)}\n${callFooter(found)}`;
-  return { content: [textBlock(text)], structuredContent: structured(connectors, listings, found) };
+  const note = found.length === 0 ? noMatch(request.query, connectors, listings) : callFooter(found);
+  const text = found.length === 0 ? note : `${functionsText(found)}\n${note}`;
+  return { content: [textBlock(text)], structuredContent: structured(connectors, listings, found, note) };
 }

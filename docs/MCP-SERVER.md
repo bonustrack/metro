@@ -54,11 +54,16 @@ the same two tools with the same schemas, descriptions and annotations (one sour
 
   No match answers `No tool matched "<query>".`, names the agent's connectors and suggests a
   broader query or `select:` with an exact name.
-- Every answer also carries `structuredContent`, for clients that build their own interface:
-  `{connectors: [{key, name}], tools: [{name, title, connector}]}`. `connectors` is every
-  connector the agent may use (not only those the query touched), with the name the owner gave
-  it on metro.box; `tools` is what this search found, `connector` being its key. No
-  `outputSchema` is declared.
+- Every answer also carries `structuredContent`:
+  `{connectors: [{key, name}], tools: [{name, title, connector, description, inputSchema}], note}`.
+  `connectors` is every connector the agent may use (not only those the query touched), with
+  the name the owner gave it on metro.box; `tools` is what this search found, `connector` being
+  its key, with the same description and schema as the text; `note` is the call hint, or the
+  no-match sentence. No `outputSchema` is declared.
+- **The structured copy must hold everything the text holds.** Claude Code (2.1.287, the one
+  the Agent SDK bundles) gives the model only the JSON of `structuredContent` when a result has
+  one, and drops the text blocks. Until 2026-11-06 the tools there had only name, title and
+  connector, so an agent never saw a schema.
 - A tool's `title` is the vendor's `title`, else its `annotations.title`, else its id in words
   (`attach_receipt` reads `Attach receipt`, `toolTitleOf` in `@metro-labs/http/connector-tools`).
   The page's connector explorer shows the same title.
