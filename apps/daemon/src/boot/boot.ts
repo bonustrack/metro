@@ -43,7 +43,7 @@ import type { SessionApis } from '../routes/session-apis.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { startPromptExpiry } from '../approvals/pending.js';
 import { setOwnerLineFile } from '../approvals/owner-line.js';
-import { watchPolicySnapshot } from '../mcp/policy-snapshot.js';
+import { removePolicySnapshot } from '../policy/leftovers.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { stationToolGroups } from '../mcp/tool-catalog.js';
 import {
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
   removeModelLeftovers();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
-  watchPolicySnapshot();
+  removePolicySnapshot();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   ensureStationDeps();
@@ -154,7 +154,7 @@ installBearerSessions(agentsDir(), localOwner);
   supervisor.start();
   sweepLeftoverCalls();
   const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });
-  const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
+  const metroMcp = await createMetroMcp({ liveEvents: liveEvents(), publish: emit });
   watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(
     emit,

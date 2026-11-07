@@ -1,5 +1,14 @@
 # Metro history
 
+## 2026-11-07: Channel approvals are held by the daemon, like connector approvals
+
+Less wants channels to become connectors (`docs/CHANNELS-AS-CONNECTORS.md`) and picked "one rules engine" as the first step. Until now an Ask on a channel tool went through the guard hook: the daemon wrote its rules to `<agents dir>/policy.json`, the hook (`hooks/policy.mjs`) mirrored the daemon's decision, answered `ask` in a worker so Claude Code raised its own prompt, refused the call on the main thread ("run this exact call from a background worker"), and the daemon let the call through only by consuming the grant that prompt's answer recorded. Connectors already used another contract since 2026-10-14: mcp.metro.box answers `needs_approval` with an id and the agent repeats the call with `approval`.
+
+- The daemon now does what mcp.metro.box does: an Ask answers at once with an approval id, the question goes to the owner's chat (or the page), and the agent repeats the same call with `approval: "<id>"` once the metro notice says it was approved. The main thread never waits and never has to hand an Ask to a worker.
+- One decision function for both (`decideTool` in `@metro-labs/http/connector-policy`) and one argument digest (`@metro-labs/http/args-digest`, moved from `apps/mcp`).
+- Removed: the snapshot, the hook's copy of the rules, the grants. A leftover `policy.json` is deleted at boot and from the agent view.
+- This reverses the 2026-09-24 choice of Claude Code's native prompt for metro tools. That choice was made when Claude Code itself was the runner; the Agent SDK runner and the connectors' contract made the native path the odd one out. Claude Code's own prompts (any other tool) are still relayed as before.
+
 ## 2026-11-06: tool_search gives the schemas in its structured answer too
 
 Lisa's agent would not call Vault's `create_file` (https://mcp-vault.piston.box): its `tool_search` showed only the name, the title and the connector, never the arguments or the description, so it could not know the call or that the tool never overwrites. Vault sent the full definition. mcp.metro.box put it only in the text block (the `<functions>` lines), and its `structuredContent` held `{name, title, connector}` per tool. The Claude Code bundled with Agent SDK 0.3.287 (2.1.287) turns an MCP result into the model's input from `structuredContent` alone when there is one: the text blocks are dropped and only images or documents are kept beside the JSON (read in the binary). So every agent on Claude Code, on a box or with an access key, searched tools without ever seeing a schema, and missed the no-match hint too.

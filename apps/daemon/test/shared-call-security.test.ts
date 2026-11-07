@@ -9,7 +9,8 @@ import { sharedCalls, type SharedSpeechAction } from '../src/voice/shared.ts';
 import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
-import { answerPrompt, cancelPrompt, forgetAllPrompts, holdPrompt, pendingPrompts, revokeCallPrompts, takeGrant } from '../src/approvals/pending.ts';
+import { answerPrompt, cancelPrompt, forgetAllPrompts, holdPrompt, pendingPrompts, revokeCallPrompts } from '../src/approvals/pending.ts';
+import { approvalIdOf } from './approval-id.ts';
 import { permissionCall } from '../src/mcp/call-permission.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -168,22 +169,23 @@ describe('shared call speech capability', () => {
     expect(valid?.()).toBe(false);
   });
 
-  test('send remains write policy gated and consumes only the exact approved speech arguments', async () => {
+  test('send remains write policy gated and runs only with the approval of the exact speech arguments', async () => {
     open();
     setPolicies('channel', [[TARGET, { write: 'deny' }]]);
     expect((await send({ speech: SPEECH })).content[0]?.text).toContain('Blocked by');
     setPolicies('channel', [[TARGET, { write: 'ask' }]]);
-    expect((await send({ speech: SPEECH })).content[0]?.text).toContain('Needs the owner');
-    const args = { line: LINE, text: 'Once upon a time.', speech: SPEECH };
-    holdPrompt({ requestId: 'abcde', tool: 'mcp__metro__send', description: '', preview: JSON.stringify(args), line: LINE, at: Date.now(), call: { route: ROUTE, sourceId: SPEECH.sourceId } }, {}, () => Promise.resolve());
-    await answerPrompt('abcde', 'allow', 'chat');
-    expect((await send({ speech: SPEECH, text: 'Changed.' })).isError).toBe(true);
-    expect((await send({ speech: SPEECH })).isError).not.toBe(true);
+    const asked = await send({ speech: SPEECH });
+    expect(asked.content[0]?.text).toContain('Needs the owner');
+    const id = approvalIdOf(asked);
+    expect(pendingPrompts()[0]).toMatchObject({ requestId: id, tool: 'mcp__metro__send' });
+    await answerPrompt(id, 'allow', 'chat');
+    expect((await send({ speech: SPEECH, text: 'Changed.', approval: id })).isError).toBe(true);
+    expect((await send({ speech: SPEECH, approval: id })).isError).not.toBe(true);
     expect(actions).toHaveLength(1);
     expect(posts).toHaveLength(0);
   });
 
-  test('hangup revokes only call prompts and grants, including a later approval attempt', async () => {
+  test('hangup revokes only call prompts', async () => {
     open();
     const owner = {};
     const answers: string[] = [];
@@ -197,24 +199,32 @@ describe('shared call speech capability', () => {
     expect(answers).toEqual(['deny']);
     expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual(['bcdef']);
     expect(await answerPrompt('abcde', 'allow', 'page')).toBeUndefined();
-    expect(takeGrant(() => true, args)).toBe(false);
     cancelPrompt('bcdef', {});
     expect(pendingPrompts()).toHaveLength(1);
     cancelPrompt('bcdef', owner);
     expect(pendingPrompts()).toHaveLength(0);
   });
 
-  test('partial approval previews cannot authorize unbound or replacement speech', async () => {
+  test('an approved speech cannot run after hangup, nor pay for replacement speech', async () => {
     open();
-    const args = { line: LINE, text: 'Once upon a time.', speech: SPEECH };
-    const base = { tool: 'mcp__metro__send', description: '', preview: `{"line":"${LINE}",\n⋯ 2 fields elided ⋯`, line: LINE, at: Date.now() };
-    holdPrompt({ ...base, requestId: 'abcde' }, {}, () => Promise.resolve());
-    await answerPrompt('abcde', 'allow', 'chat');
-    expect(takeGrant(() => true, args)).toBe(false);
-    holdPrompt({ ...base, requestId: 'bcdef', call: { route: ROUTE, sourceId: SPEECH.sourceId } }, {}, () => Promise.resolve());
-    await answerPrompt('bcdef', 'allow', 'chat');
-    expect(takeGrant(() => true, { ...args, speech: { ...SPEECH, generation: 'replacement' } })).toBe(false);
-    expect(takeGrant(() => true, args)).toBe(true);
+    setPolicies('channel', [[TARGET, { write: 'ask' }]]);
+    const id = approvalIdOf(await send({ speech: SPEECH }));
+    await answerPrompt(id, 'allow', 'page');
+    expect((await send({ speech: { ...SPEECH, generation: 'replacement' }, approval: id })).isError).toBe(true);
+    sharedCalls.end(ROUTE);
+    expect((await send({ speech: SPEECH, approval: id })).content[0]?.text).toContain('has ended or changed');
+    expect(actions).toHaveLength(0);
+  });
+
+  test('hangup denies a call-bound approval still waiting', async () => {
+    open();
+    setPolicies('channel', [[TARGET, { write: 'ask' }]]);
+    const id = approvalIdOf(await send({ speech: SPEECH }));
+    sharedCalls.end(ROUTE);
+    expect(pendingPrompts()).toHaveLength(0);
+    open();
+    expect((await send({ speech: SPEECH, approval: id })).content[0]?.text).toContain('Denied by the owner');
+    expect(actions).toHaveLength(0);
   });
 
   test('call approvals stay page-only while live messages are off and remain bound for revocation', async () => {
@@ -248,17 +258,17 @@ describe('shared call speech capability', () => {
     }
   });
 
-  test('a call-bound elided grant cannot pay for a normal chat post', async () => {
+  test('an approved speech cannot pay for a normal chat post', async () => {
     open();
     setPolicies('channel', [[TARGET, { write: 'ask' }]]);
-    holdPrompt({ requestId: 'abcde', tool: 'mcp__metro__send', description: '', preview: `{"line":"${LINE}",\n⋯ 2 fields elided ⋯`, line: LINE, at: Date.now(), call: { route: ROUTE, sourceId: SPEECH.sourceId } }, {}, () => Promise.resolve());
-    await answerPrompt('abcde', 'allow', 'page');
-    expect((await send({})).isError).toBe(true);
+    const id = approvalIdOf(await send({ speech: SPEECH }));
+    await answerPrompt(id, 'allow', 'page');
+    expect((await send({ approval: id })).isError).toBe(true);
     expect(posts).toHaveLength(0);
-    expect((await send({ speech: SPEECH })).isError).not.toBe(true);
+    expect((await send({ speech: SPEECH, approval: id })).isError).not.toBe(true);
     expect(actions).toHaveLength(1);
     expect(posts).toHaveLength(0);
-    expect((await send({ speech: SPEECH })).isError).toBe(true);
+    expect((await send({ speech: SPEECH, approval: id })).isError).toBe(true);
   });
 
   test('the bounded source limit explicitly ends the physical call and revokes speech', () => {

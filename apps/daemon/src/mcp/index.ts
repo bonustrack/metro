@@ -20,6 +20,9 @@ import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
 import { connectCallBridge } from './call-bridge.js';
 import { connectServerApprovals } from './server-approvals.js';
+import { connectChannelAsks } from './channel-asks.js';
+import { relayLine } from './permission-relay.js';
+import type { MetroEvent } from '@metro-labs/core/events';
 import { handleIncomingDiagnostic } from './diagnostics.js';
 import { onConnectorToolsChanged } from '../mcp-server/connector-tools.js';
 
@@ -107,7 +110,12 @@ function noticeModel(session: McpSession | undefined, model: string | null): boo
   return true;
 }
 
-export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Promise<{
+function promptLineIn(session: McpSession | undefined, requestId: string, callLine?: string): string | undefined {
+  if (session === undefined) return undefined;
+  return relayLine({ relay: session.relay, inScope: (line) => session.inScope(line), live: session.live, log: channelLog }, requestId, callLine);
+}
+
+export async function createMetroMcp(options: { liveEvents?: boolean; publish?: (event: MetroEvent) => void } = {}): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
   setLiveEvents: (on: boolean) => void;
@@ -122,6 +130,13 @@ export async function createMetroMcp(options: { liveEvents?: boolean } = {}): Pr
   });
   connectCallBridge(() => slot.current);
   connectServerApprovals(() => slot.current);
+  connectChannelAsks({
+    promptLine: (requestId, callLine) => promptLineIn(slot.current, requestId, callLine),
+    knownLine: () => slot.current?.relay.knownLine,
+    publish: options.publish ?? ((): void => {
+      channelLog('approvals: no bus to tell the agent the answer');
+    }),
+  });
 
   const httpHandler = async (
     req: IncomingMessage,
