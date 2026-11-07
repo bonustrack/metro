@@ -13,6 +13,7 @@ import {
 import type { Station, StationTool, ToolResult } from '@metro-labs/core/stations/types';
 import { listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
 import { policyGate, withEffectivePolicy } from './policy-gate.js';
+import { withoutApproval } from './channel-asks.js';
 import { settlePromptsFor } from '../approvals/pending.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
 import { dispatchMessageTool, type ToolHooks } from './call-tools.js';
@@ -159,11 +160,12 @@ async function runTool(
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
-  settlePromptsFor(name, a);
+  const args = withoutApproval(a);
+  settlePromptsFor(name, args);
   const blocked = policyGate(name, a);
   if (blocked) return blocked;
 
-  return dispatchTool(name, a, identity, hooks);
+  return dispatchTool(name, args, identity, hooks);
 }
 
 async function dispatchTool(

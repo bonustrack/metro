@@ -12,6 +12,7 @@ import { channelToolsOf } from '../src/mcp/tool-catalog.ts';
 import { setPolicies, type ToolPolicy } from '../src/policy/policy.ts';
 import { stationByName } from '../src/stations/registry.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
+import { approvalIdOf } from './approval-id.ts';
 
 const AGENT = 'agentA00001';
 const OTHER = 'agentB00001';
@@ -64,6 +65,8 @@ const call = (args: Record<string, unknown>): Promise<CallToolResult> =>
     client.request({ method: 'tools/call', params: { name: 'list_channels', arguments: args } }, CallToolResultSchema));
 
 const text = (result: CallToolResult): string => result.content.flatMap((c) => c.type === 'text' ? [c.text] : []).join('\n');
+
+const idOf = (result: CallToolResult): string => approvalIdOf({ content: [{ type: 'text', text: text(result) }] });
 
 async function approve(id: string, args: Record<string, unknown>, tool = 'list_channels', decision: 'allow' | 'deny' = 'allow'): Promise<void> {
   holdPrompt({ requestId: id, tool: `mcp__metro__${tool}`, description: '', preview: JSON.stringify(args), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
@@ -172,17 +175,18 @@ describe('account-only discovery scope', () => {
     expect(calls).toEqual([]);
   });
 
-  test('scope denial does not settle prompts or consume a grant', async () => {
+  test('scope denial does not settle prompts or ask the owner', async () => {
     const args = { account: FOREIGN };
     setPolicies('channel', [[{ ...TARGET, account: FOREIGN }, { read: 'ask' }]]);
-    await approve('aaaaa', args);
     holdPrompt({ requestId: 'bbbbb', tool: 'mcp__metro__list_channels', description: '', preview: JSON.stringify(args), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
     expect(text(await call(args))).toContain('outside your authorized scope');
-    expect(pendingPrompts()).toHaveLength(1);
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['bbbbb']);
     expect(calls).toEqual([]);
     setAgentMap({ [`telegram/${FOREIGN}`]: AGENT }, { [AGENT]: 'Ada' });
-    expect((await call(args)).isError).not.toBe(true);
-    expect(pendingPrompts()).toHaveLength(0);
+    const id = idOf(await call(args));
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual([id]);
+    await answerPrompt(id, 'allow', 'page');
+    expect((await call({ ...args, approval: id })).isError).not.toBe(true);
     expect(calls).toHaveLength(1);
   });
 });
@@ -217,21 +221,24 @@ describe('discovery read policies and grants', () => {
     expect(calls).toHaveLength(1);
   });
 
-  test('only the exact raw arguments and tool consume one grant; a denied prompt grants nothing', async () => {
+  test('an approval runs only the exact raw arguments and tool, once; a Claude Code approval or a denial runs nothing', async () => {
     const args = { account: ACCOUNT, query: 'ReSeArCh ', limit: 2 };
     setPolicies('channel', [[TARGET, { read: 'ask' }]]);
+    const id = idOf(await call(args));
+    await approve('aaaaa', args);
     expect((await call(args)).isError).toBe(true);
-    await approve('aaaaa', { ...args, query: 'research' });
-    await approve('bbbbb', args, 'read');
-    await approve('ccccc', { ...args, account: XMTP });
-    expect((await call(args)).isError).toBe(true);
+    const near = idOf(await call({ ...args, query: 'research' }));
+    await answerPrompt(near, 'allow', 'page');
+    expect((await call({ ...args, approval: near })).isError).toBe(true);
     expect(calls).toEqual([]);
-    await approve('ddddd', args);
-    expect((await call(args)).isError).not.toBe(true);
+    await answerPrompt(id, 'allow', 'page');
+    expect((await call({ ...args, approval: id })).isError).not.toBe(true);
     expect(calls).toEqual([{ train: 'telegram', action: 'listChannels', args }]);
-    expect((await call(args)).isError).toBe(true);
-    await approve('eeeee', args, 'list_channels', 'deny');
-    expect((await call(args)).isError).toBe(true);
+    const again = await call({ ...args, approval: id });
+    expect(again.isError).toBe(true);
+    const denied = idOf(again);
+    await answerPrompt(denied, 'deny', 'page');
+    expect(text(await call({ ...args, approval: denied }))).toStartWith('Denied by the owner');
     expect(calls).toHaveLength(1);
   });
 

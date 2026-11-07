@@ -11,7 +11,6 @@ import { setKeyMap } from '../../apps/daemon/src/agents/keys.js';
 import { setAgentMap, setAllowlistMap, setApproversMap } from '../../apps/daemon/src/agents/map.js';
 import { pendingPrompts } from '../../apps/daemon/src/approvals/pending.js';
 import { createMetroMcp } from '../../apps/daemon/src/mcp/index.js';
-import { watchPolicySnapshot } from '../../apps/daemon/src/mcp/policy-snapshot.js';
 import { setPolicies, type Access } from '../../apps/daemon/src/policy/policy.js';
 import { setTrainCallBackend } from '../../apps/daemon/src/stations/train-call.js';
 import { endSharedCall, openSharedCall, sharedCalls } from '../../apps/daemon/src/voice/shared.js';
@@ -57,7 +56,6 @@ export const policy = (send: Access): void => {
   setPolicies('channel', [[{ kind: 'channel', station: 'telegram-bot', account: ACCOUNT }, { tools: { send } }]]);
 };
 policy('allow');
-watchPolicySnapshot();
 export const delays = { write: 0, speech: 0 };
 export const train: { action: string; args: Record<string, unknown>; at: number; completedAt: number | null }[] = [];
 setTrainCallBackend(async (_name, action, args) => {

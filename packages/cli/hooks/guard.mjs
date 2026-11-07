@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { policyVerdict } from './policy.mjs';
 
 if (process.env.METRO_SESSION === 'memory') process.exit(0);
 
@@ -36,18 +35,6 @@ function answer(decision, reason) {
   );
 }
 
-function ownerPolicy(tool, input, subagent) {
-  const verdict = policyVerdict(tool, input);
-  if (verdict === null) return null;
-  const { where } = verdict;
-  if (verdict.access === 'deny') return { decision: 'deny', reason: `Blocked by the owner's policy for ${verdict.owner} (${verdict.tool}).` };
-  if (subagent) return { decision: 'ask', reason: `The owner asked to approve ${where}.` };
-  return {
-    decision: 'deny',
-    reason: `${where} needs the owner's approval, and waiting for it here would stop the whole session. Run this exact call from a background worker (Agent, run_in_background: true): the worker waits for the owner's answer while you keep answering.`,
-  };
-}
-
 function verdict(payload, input) {
   const tool = typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (BLOCKING.has(tool))
@@ -72,6 +59,4 @@ try {
 const shaped = payload !== null && typeof payload === 'object' ? payload : {};
 const input = shaped.tool_input !== null && typeof shaped.tool_input === 'object' ? shaped.tool_input : {};
 const reason = verdict(shaped, input);
-const policy = reason === null && typeof shaped.tool_name === 'string' ? ownerPolicy(shaped.tool_name, input, typeof shaped.agent_id === 'string' && shaped.agent_id !== '') : null;
 if (reason !== null) answer('deny', reason);
-else if (policy !== null) answer(policy.decision, policy.reason);
