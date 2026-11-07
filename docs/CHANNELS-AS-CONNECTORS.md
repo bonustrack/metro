@@ -39,6 +39,9 @@ special: its secret and its session live where it runs, and it belongs to one ag
   server hides those replies, approvals for that channel are answered on metro.box only.
 - **One agent per channel.** Its events go there and only that agent uses its tools.
 - **First step: one rules engine** (see Step 1).
+- **Channel activity shows calls and received messages** (2026-11-08): every channel tool call
+  is a row, typing included, and every received message is a row with its outcome. No row
+  holds a message's text or who sent it.
 
 ## The standard
 
@@ -178,8 +181,14 @@ deny). The code that decides it exists three times.
 ### Activity and page
 
 - The daemon reports each channel tool call (tool, outcome, time; never the arguments) with a
-  signed call. Rows go to `mcp_calls` with the channel's connector id, so Live activity and
-  the stats show them. Inbound messages are never logged.
+  signed call, typing and reactions included. Rows go to `mcp_calls` with the channel's
+  connector id, so Live activity and the stats show them like any connector call.
+- **Each received message is a row too**: the channel, the outcome and the time, never the
+  text and never the sender. The outcome is Delivered, or Dropped with its reason (not on the
+  list, not verified, receiving off, messages paused). These rows are counted apart from
+  calls (their own direction or outcome class), so Calls and the Failed share stay about tool
+  calls. Metro's own notices are not rows. A busy group can write thousands of messages a
+  day, so watch the table's growth (about 33 MB per 100,000 rows today).
 - The organization's Connectors list shows channels and connectors together. A channel's
   page keeps Tools (the rules), Settings and Activity, and adds People (who can write, Can
   approve) and Connection (live state, Pair again). The agent's Channels tab reads the same
@@ -201,7 +210,7 @@ Each step ships alone and keeps older daemons working.
 5. **Per-channel tools for the agent**, the skill and the server instructions updated. The
    generic message tools stay until every box runs this.
 6. **Remote channels** through mcp.metro.box.
-7. **Channel calls in the activity log.**
+7. **Channel calls and received messages in the activity log.**
 8. **Remove the old paths**: the train protocol, the rules and people in `agent.json`, the
    page's reads of channels from the box.
 
