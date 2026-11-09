@@ -2,15 +2,17 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readBodyBytes } from '@metro-labs/http/api-http';
-import { MCP_PATHS, mcpAnswerOf, mcpTokenHashOf, type McpApproval } from '@metro-labs/http/mcp-server-protocol';
+import { isRecord } from '@metro-labs/core/is-record';
+import { MCP_PATHS, mailTakenOf, mcpAnswerOf, mcpTokenHashOf, type McpApproval, type McpMail } from '@metro-labs/http/mcp-server-protocol';
 import { AgentKeyMissing, refuseBrowser } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import type { DeliveredApproval } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentConnectors } from './catalog.js';
 import type { McpDeps } from './deps.js';
+import { takeMail, waitingMail } from './mail.js';
 import { sendBody } from './mcp-http.js';
 
-const BODY_MAX = 4096;
+const BODY_MAX = 8192;
 const ROUTES = new Set<string>(Object.values(MCP_PATHS));
 
 interface Signed {
@@ -61,15 +63,35 @@ async function wireOf(deps: McpDeps, identity: AgentKeyRow, rows: DeliveredAppro
   return rows.map((row) => ({ id: row.id, connector: keys.get(row.connector) ?? row.connector, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt, ...originOf(row) }));
 }
 
-async function pendingFor(deps: McpDeps, identity: AgentKeyRow, signal: AbortSignal): Promise<McpApproval[]> {
+interface Pending {
+  approvals: McpApproval[];
+  mail?: McpMail[];
+}
+
+let mailQuiet = false;
+
+async function mailFor(deps: McpDeps, identity: AgentKeyRow): Promise<McpMail[]> {
+  try {
+    const mail = await waitingMail(deps, identity);
+    mailQuiet = false;
+    return mail;
+  } catch (err) {
+    if (!mailQuiet) log.warn({ err: errMsg(err) }, 'mcp: waiting mail could not be read, so the box gets approvals only until it can');
+    mailQuiet = true;
+    return [];
+  }
+}
+
+async function pendingFor(deps: McpDeps, identity: AgentKeyRow, wantsMail: boolean, signal: AbortSignal): Promise<Pending> {
   const hold = AbortSignal.any([signal, AbortSignal.timeout(deps.approvalHoldMs)]);
   while (!signal.aborted) {
     const rows = await deps.approvals.deliver(identity, deps.now());
-    if (rows.length > 0) return wireOf(deps, identity, rows);
+    const mail = wantsMail ? await mailFor(deps, identity) : [];
+    if (rows.length > 0 || mail.length > 0) return { approvals: await wireOf(deps, identity, rows), ...(wantsMail ? { mail } : {}) };
     if (hold.aborted) break;
     await deps.waiters.wait(identity.agent, deps.approvalPollMs, hold);
   }
-  return [];
+  return { approvals: [], ...(wantsMail ? { mail: [] } : {}) };
 }
 
 async function route(path: string, req: IncomingMessage, deps: McpDeps, signal: AbortSignal): Promise<unknown> {
@@ -79,7 +101,8 @@ async function route(path: string, req: IncomingMessage, deps: McpDeps, signal: 
     log.info({ agent: identity.agent, owner: identity.owner }, 'mcp: an agent set its MCP token');
     return { ok: true };
   }
-  if (path === MCP_PATHS.approvals) return { approvals: await pendingFor(deps, identity, signal) };
+  if (path === MCP_PATHS.approvals) return pendingFor(deps, identity, isRecord(body) && body.mail === true, signal);
+  if (path === MCP_PATHS.mailTaken) return { ok: true, taken: await takeMail(deps, identity, input(() => mailTakenOf(body))) };
   const { id, decision } = input(() => mcpAnswerOf(body));
   if (!(await deps.approvals.answer(identity, id, decision, deps.now()))) throw new ApiError('No pending approval has that id.', 404);
   log.info({ agent: identity.agent, id, decision }, 'mcp: the owner answered an approval');

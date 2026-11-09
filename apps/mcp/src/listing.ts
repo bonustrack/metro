@@ -41,7 +41,7 @@ function refresh(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConn
   const list = (): Promise<RemoteServer> =>
     withCredential(deps, identity, connector.id, async (target) => {
       const server = await listRemoteServer(target.url, target.auth, bounded(deps.fetch));
-      return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret) };
+      return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret), events: server.events };
     });
   return deps.toolLists.refresh(connector.id, list, (err) => {
     const failure = failureOf(err, connector.name);

@@ -9,7 +9,8 @@ const KEY_MAX = 128;
 const OUTCOME_MAX = 32;
 const MS_MAX = 2_147_483_647;
 
-interface CallRecord {
+export interface CallRecord {
+  kind?: 'call' | 'received';
   connector: string | null;
   connectorKey: string;
   connectorName: string | null;
@@ -20,7 +21,7 @@ interface CallRecord {
 }
 
 export interface CallRecorder {
-  record: (identity: DeliveryIdentity, call: CallRecord) => void;
+  record: (identity: Pick<DeliveryIdentity, 'owner' | 'agent'>, call: CallRecord) => void;
 }
 
 const clampMs = (ms: number): number => Math.min(MS_MAX, Math.max(0, Math.round(ms)));
@@ -52,6 +53,7 @@ export function callRecorder(db: () => Database): CallRecorder {
           outcome: call.outcome.slice(0, OUTCOME_MAX),
           ms: clampMs(call.ms),
           at: call.at,
+          kind: call.kind ?? 'call',
         });
         recorded();
       };
