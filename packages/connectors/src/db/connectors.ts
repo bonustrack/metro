@@ -1,6 +1,8 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from './database.js';
+import type { RemoteEvent } from '@metro-labs/http/mcp-events';
+import { readListedEvents } from './connector-tools.js';
 import { isUniqueViolation } from './errors.js';
 import { agents, connectorAgents, connectors } from './schema.js';
 
@@ -39,7 +41,21 @@ export interface OrgConnectorStore {
   remove: (owner: string, id: string) => Promise<ConnectorRow>;
   assign: (input: AssignInput) => Promise<AssignmentRow>;
   unassign: (input: Pick<AssignInput, 'owner' | 'connector' | 'agent'>) => Promise<void>;
+  setMail: (input: MailInput) => Promise<AssignmentRow>;
+  events: (ids: string[]) => Promise<Map<string, RemoteEvent[]>>;
 }
+
+const ANYONE_JSON = '["*"]';
+
+export interface MailInput {
+  owner: string;
+  connector: string;
+  agent: string;
+  senders?: string[];
+  receive?: boolean;
+}
+
+const mailOf = (row: AssignmentRow | undefined): Pick<AssignmentRow, 'senders' | 'receive'> => (row === undefined ? { senders: ANYONE_JSON, receive: true } : { senders: row.senders, receive: row.receive });
 
 const missing = (): ApiError => new ApiError('no such connector', 404);
 const identityConflict = (): ApiError => new ApiError('This connector identity already exists. Nothing was overwritten.', 409);
@@ -68,7 +84,7 @@ async function assignIn(tx: Database, input: AssignInput): Promise<AssignmentRow
   const before = held[0];
   const policy = typeof input.policy === 'function' ? input.policy(before?.policy ?? null) : input.policy;
   if (before !== undefined && before.policy === policy) return before;
-  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, createdBy: input.actor, createdAt: input.at };
+  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, createdBy: input.actor, createdAt: input.at, ...mailOf(before) };
   const saved = await tx.insert(connectorAgents).values(row).onConflictDoUpdate({ target: [connectorAgents.connector, connectorAgents.agent], set: { policy } }).returning();
   return saved[0] ?? row;
 }
@@ -79,10 +95,20 @@ async function unassignIn(tx: Database, input: Pick<AssignInput, 'owner' | 'conn
   if (gone.length === 0) throw new ApiError('that agent does not have this connector', 404);
 }
 
+async function setMailIn(tx: Database, input: MailInput): Promise<AssignmentRow> {
+  const connector = await lockConnector(tx, input.owner, input.connector);
+  const change = { ...(input.senders === undefined ? {} : { senders: JSON.stringify(input.senders) }), ...(input.receive === undefined ? {} : { receive: input.receive }) };
+  const held = and(eq(connectorAgents.connector, connector.id), eq(connectorAgents.agent, input.agent));
+  const saved = Object.keys(change).length === 0 ? await tx.select().from(connectorAgents).where(held) : await tx.update(connectorAgents).set(change).where(held).returning();
+  const row = saved[0];
+  if (row === undefined) throw new ApiError('that agent does not have this connector', 404);
+  return row;
+}
+
 async function listFor(db: Database, owner: string): Promise<{ connectors: ConnectorRow[]; assignments: AssignmentRow[] }> {
   const rows = await db.select().from(connectors).where(eq(connectors.owner, owner)).orderBy(connectors.name);
   const assignments = await db
-    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt })
+    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt, senders: connectorAgents.senders, receive: connectorAgents.receive })
     .from(connectorAgents)
     .innerJoin(connectors, and(eq(connectors.id, connectorAgents.connector), eq(connectors.owner, owner)))
     .innerJoin(agents, and(eq(agents.id, connectorAgents.agent), eq(agents.owner, owner)));
@@ -118,5 +144,7 @@ export function orgConnectorStore(db: () => Database): OrgConnectorStore {
       }),
     assign: (input) => db().transaction((tx) => assignIn(tx, input)),
     unassign: (input) => db().transaction((tx) => unassignIn(tx, input)),
+    setMail: (input) => db().transaction((tx) => setMailIn(tx, input)),
+    events: (ids) => readListedEvents(db(), ids),
   };
 }

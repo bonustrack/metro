@@ -1,6 +1,10 @@
+import { ID_RE } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
+import { emailReceivedOf, type EmailReceived } from './mcp-events.js';
 
-export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer' } as const;
+export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer', mailTaken: '/v1/mail/taken' } as const;
+export const MCP_EVENTS_PATH = '/v1/events/';
+export const MAIL_TAKEN_MAX = 50;
 export const MCP_FIND_DEFAULT = 5;
 export const MCP_FIND_MAX = 20;
 export const MCP_CALLS_MAX = 10;
@@ -96,4 +100,48 @@ export function mcpApprovalsOf(raw: unknown): McpApproval[] {
 export function mcpAnswerOf(raw: unknown): { id: string; decision: McpDecision } {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.id) || (raw.decision !== 'allow' && raw.decision !== 'deny')) throw new Error('An answer needs the approval id and allow or deny.');
   return { id: raw.id, decision: raw.decision };
+}
+
+export type MailOutcome = 'delivered' | 'paused';
+
+export interface McpMail extends EmailReceived {
+  id: string;
+  connector: string;
+  key: string;
+  name: string;
+}
+
+export interface MailTaken {
+  id: string;
+  outcome: MailOutcome;
+}
+
+const KEY_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const CONNECTOR_NAME_MAX = 256;
+
+const idOf = (value: unknown): string | null => (typeof value === 'string' && ID_RE.test(value) ? value : null);
+
+function mailOf(raw: unknown): McpMail | null {
+  if (!isRecord(raw)) return null;
+  const id = idOf(raw.id);
+  const connector = idOf(raw.connector);
+  const key = typeof raw.key === 'string' && KEY_RE.test(raw.key) ? raw.key : null;
+  const mail = emailReceivedOf(raw);
+  if (id === null || connector === null || key === null || mail === null) return null;
+  const name = typeof raw.name === 'string' && raw.name.trim() !== '' ? raw.name.trim().slice(0, CONNECTOR_NAME_MAX) : key;
+  return { ...mail, id, connector, key, name };
+}
+
+export function mcpMailOf(raw: unknown): McpMail[] {
+  if (!isRecord(raw) || !Array.isArray(raw.mail)) return [];
+  return raw.mail.map(mailOf).filter((row): row is McpMail => row !== null);
+}
+
+export function mailTakenOf(raw: unknown): MailTaken[] {
+  const taken = isRecord(raw) ? raw.taken : undefined;
+  if (!Array.isArray(taken) || taken.length === 0 || taken.length > MAIL_TAKEN_MAX) throw new Error(`taken must list 1 to ${String(MAIL_TAKEN_MAX)} mails.`);
+  return taken.map((row) => {
+    if (!isRecord(row) || typeof row.id !== 'string' || !ID_RE.test(row.id) || (row.outcome !== 'delivered' && row.outcome !== 'paused')) throw new Error('Each taken mail needs its id and delivered or paused.');
+    return { id: row.id, outcome: row.outcome };
+  });
 }

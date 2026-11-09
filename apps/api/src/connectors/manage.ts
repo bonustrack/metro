@@ -4,6 +4,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
+import { normalizeMailSenders } from '@metro-labs/http/mail-senders';
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import type { ConnectorEdit, ConnectorRow } from '@metro-labs/connectors/db/connectors';
@@ -18,7 +19,8 @@ const actorOf = (caller: Caller): string => `user:${caller.session.userId}`;
 
 export async function listConnectors(deps: ActionDeps, owner: string): Promise<ConnectorView[]> {
   const { connectors, assignments } = await deps.store.list(owner);
-  return connectors.map((row) => connectorView(row, assignments));
+  const events = await deps.store.events(connectors.map((row) => row.id));
+  return connectors.map((row) => connectorView(row, assignments, events.get(row.id)));
 }
 
 function policyOf(value: unknown): ConnectorPolicy {
@@ -114,6 +116,20 @@ export async function updateConnectorAgentPolicy(deps: ActionDeps, caller: Calle
   if (!isRecord(body) || !Object.hasOwn(body, 'policy') || Object.keys(body).some((key) => key !== 'policy')) throw new ApiError('Send a policy for this agent.', 400);
   await deps.store.assign({ owner: caller.owner, connector: id, agent, policy: JSON.stringify(policyOf(body.policy)), actor: actorOf(caller), at: at(deps) });
   log.info({ owner: caller.owner, id, agent }, 'org-connectors: agent policy changed');
+  return viewOf(deps, caller.owner, id);
+}
+
+function mailChangeOf(body: unknown): { senders?: string[]; receive?: boolean } {
+  if (!isRecord(body) || Object.keys(body).length === 0 || Object.keys(body).some((key) => key !== 'senders' && key !== 'receive'))
+    throw new ApiError('Send senders, receive, or both for this agent.', 400);
+  if (body.receive !== undefined && typeof body.receive !== 'boolean') throw new ApiError('receive must be true or false', 400);
+  return { ...(body.senders === undefined ? {} : { senders: normalizeMailSenders(body.senders) }), ...(typeof body.receive === 'boolean' ? { receive: body.receive } : {}) };
+}
+
+export async function updateConnectorAgentMail(deps: ActionDeps, caller: Caller, id: string, agent: string, body: unknown): Promise<ConnectorView> {
+  const change = mailChangeOf(body);
+  await deps.store.setMail({ owner: caller.owner, connector: id, agent, ...change });
+  log.info({ owner: caller.owner, id, agent, senders: change.senders?.length, receive: change.receive }, 'org-connectors: who can write to the agent changed');
   return viewOf(deps, caller.owner, id);
 }
 

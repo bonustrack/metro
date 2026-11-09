@@ -4,6 +4,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { authHeaders, INITIALIZE, mcpPost, resultOf, type ConnectorAuth } from './connector-mcp.js';
 import { ConnectorUnauthorized, refused } from './connector-url.js';
+import { declaresEvents, EVENTS_LIST, eventsPageOf, type RemoteEvent } from './mcp-events.js';
 
 export interface RemoteTool {
   name: string;
@@ -18,6 +19,7 @@ export interface RemoteTool {
 export interface RemoteServer {
   tools: RemoteTool[];
   icons: ConnectorIcon[];
+  events: RemoteEvent[];
 }
 
 const TIMEOUT_MS = 15_000;
@@ -124,6 +126,26 @@ function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
   return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
 }
 
+const EVENT_PAGES = 10;
+const EVENTS_ID = 1000;
+
+async function walkEvents(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<RemoteEvent[]> {
+  const events: RemoteEvent[] = [];
+  let cursor: string | null = null;
+  try {
+    for (let page = 0; page < EVENT_PAGES; page += 1) {
+      const result = await rpc(url, auth, session, { jsonrpc: '2.0', id: EVENTS_ID + page, method: EVENTS_LIST, params: cursor === null ? {} : { cursor } }, fetchImpl);
+      const read = eventsPageOf(result);
+      events.push(...read.events.filter((event) => !events.some((seen) => seen.name === event.name)));
+      if (read.next === null || read.next === cursor) break;
+      cursor = read.next;
+    }
+  } catch (err) {
+    log.debug(fetchImpl === undefined ? { host: url.hostname, err: errMsg(err) } : {}, 'connector-tools: the remote declared events but did not list them');
+  }
+  return events;
+}
+
 export const listRemoteTools = async (url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteTool[]> => (await listRemoteServer(url, auth, fetchImpl)).tools;
 
 export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteServer> {
@@ -133,7 +155,9 @@ export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?
     if (init === null || typeof init.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
     session.set('mcp-protocol-version', init.protocolVersion);
     await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, fetchImpl);
-    return { tools: await walkTools(url, auth, session, fetchImpl), icons: serverIconsOf(init) };
+    const tools = await walkTools(url, auth, session, fetchImpl);
+    const events = declaresEvents(init) ? await walkEvents(url, auth, session, fetchImpl) : [];
+    return { tools, icons: serverIconsOf(init), events };
   } finally {
     await endSession(url, auth, session, fetchImpl);
   }

@@ -43,6 +43,7 @@ export const connectorTools = pgTable('connector_tools', {
   connector: text('connector').primaryKey().references(() => connectors.id, { onDelete: 'cascade' }),
   tools: text('tools'),
   icons: text('icons'),
+  events: text('events'),
   listedAt: bigint('listed_at', { mode: 'number' }),
   failureCode: text('failure_code'),
   failure: text('failure'),
@@ -57,9 +58,55 @@ export const connectorAgents = pgTable(
     policy: text('policy'),
     createdBy: text('created_by').notNull(),
     createdAt: text('created_at').notNull(),
+    senders: text('senders').notNull().default('["*"]'),
+    receive: boolean('receive').notNull().default(true),
   },
   (t) => [primaryKey({ columns: [t.connector, t.agent] }), index('connector_agents_agent_idx').on(t.agent)],
 );
+
+export const connectorSubscriptions = pgTable(
+  'connector_subscriptions',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    secret: text('secret').notNull(),
+    serverId: text('server_id'),
+    cursor: text('cursor'),
+    refreshBefore: bigint('refresh_before', { mode: 'number' }),
+    subscribedAt: bigint('subscribed_at', { mode: 'number' }),
+    signedIn: text('signed_in'),
+    error: text('error'),
+    errorAt: bigint('error_at', { mode: 'number' }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [uniqueIndex('connector_subscriptions_key_idx').on(t.connector, t.agent, t.event), index('connector_subscriptions_agent_idx').on(t.agent)],
+);
+
+export const connectorInbox = pgTable(
+  'connector_inbox',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    eventId: text('event_id').notNull(),
+    state: text('state').notNull(),
+    mail: text('mail'),
+    receivedAt: bigint('received_at', { mode: 'number' }).notNull(),
+    deliveredAt: bigint('delivered_at', { mode: 'number' }),
+    takenAt: bigint('taken_at', { mode: 'number' }),
+  },
+  (t) => [uniqueIndex('connector_inbox_event_idx').on(t.connector, t.agent, t.eventId), index('connector_inbox_agent_state_idx').on(t.agent, t.state), index('connector_inbox_received_idx').on(t.receivedAt)],
+);
+
+export const mcpLeases = pgTable('mcp_leases', {
+  name: text('name').primaryKey(),
+  holder: text('holder').notNull(),
+  expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+});
 
 export const agentKeys = pgTable(
   'agent_keys',
@@ -142,6 +189,7 @@ export const mcpCalls = pgTable(
     outcome: text('outcome').notNull(),
     ms: integer('ms').notNull(),
     at: bigint('at', { mode: 'number' }).notNull(),
+    kind: text('kind').notNull().default('call'),
   },
   (t) => [index('mcp_calls_owner_at_idx').on(t.owner, t.at.desc(), t.id.desc())],
 );

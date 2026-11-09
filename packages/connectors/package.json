@@ -40,7 +40,9 @@
     "./db/model-delivery": "./src/db/model-delivery.ts",
     "./db/model-calls": "./src/db/model-calls.ts",
     "./db/model-call-stats": "./src/db/model-call-stats.ts",
-    "./db/oauth-grants": "./src/db/oauth-grants.ts"
+    "./db/oauth-grants": "./src/db/oauth-grants.ts",
+    "./db/connector-subscriptions": "./src/db/connector-subscriptions.ts",
+    "./db/connector-inbox": "./src/db/connector-inbox.ts"
   },
   "scripts": {
     "build": "tsc",

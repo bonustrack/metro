@@ -25,7 +25,10 @@
     "./connector-policy": "./src/connector-policy.ts",
     "./connector-grant": "./src/connector-grant.ts",
     "./mcp-server-protocol": "./src/mcp-server-protocol.ts",
-    "./mcp-server-tools": "./src/mcp-server-tools.ts"
+    "./mcp-server-tools": "./src/mcp-server-tools.ts",
+    "./mcp-events": "./src/mcp-events.ts",
+    "./standard-webhooks": "./src/standard-webhooks.ts",
+    "./mail-senders": "./src/mail-senders.ts"
   },
   "scripts": {
     "build": "tsc",

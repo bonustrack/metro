@@ -8,7 +8,7 @@ import { completeSignIn, createConnector, startSignIn, viewOf, type Caller } fro
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 import { connectorActivity } from './activity.js';
 import { connectorActivityStats } from './activity-stats.js';
-import { assignConnector, deleteConnector, listConnectors, signOutConnector, unassignConnector, updateConnector, updateConnectorAgentPolicy } from './manage.js';
+import { assignConnector, deleteConnector, listConnectors, signOutConnector, unassignConnector, updateConnector, updateConnectorAgentMail, updateConnectorAgentPolicy } from './manage.js';
 import { listConnectorTools } from '@metro-labs/connectors/catalogue';
 import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
 import { callbackLocation } from './sign-in.js';
@@ -33,7 +33,7 @@ type Target =
   | { kind: 'connector'; id: string }
   | { kind: 'sign-in' | 'copy'; id: string }
   | { kind: 'tools'; id: string }
-  | { kind: 'agent' | 'agent-policy'; id: string; agent: string };
+  | { kind: 'agent' | 'agent-policy' | 'agent-mail'; id: string; agent: string };
 
 const METHODS: Record<Target['kind'], string[]> = {
   collection: ['GET', 'POST'],
@@ -47,6 +47,7 @@ const METHODS: Record<Target['kind'], string[]> = {
   copy: ['POST'],
   agent: ['PUT', 'DELETE'],
   'agent-policy': ['PUT'],
+  'agent-mail': ['PUT'],
 };
 
 const NAMED: Record<string, Target> = {
@@ -62,7 +63,9 @@ function byAgent(id: string, rest: string[]): Target | 'unknown' {
   const agent = parseId(rest[1] ?? '');
   if (rest[0] !== 'agents' || agent === null) return 'unknown';
   if (rest.length === 2) return { kind: 'agent', id, agent };
-  return rest.length === 3 && rest[2] === 'policy' ? { kind: 'agent-policy', id, agent } : 'unknown';
+  if (rest.length !== 3) return 'unknown';
+  if (rest[2] === 'policy') return { kind: 'agent-policy', id, agent };
+  return rest[2] === 'mail' ? { kind: 'agent-mail', id, agent } : 'unknown';
 }
 
 function byId(id: string, rest: string[]): Target | 'unknown' {
@@ -111,6 +114,7 @@ const ROUTES: Record<string, (c: Context) => Promise<unknown>> = {
   'POST copy': (c) => copyConnector(c.deps, c.caller, c.id, c.body),
   'PUT agent': (c) => assignConnector(c.deps, c.caller, c.id, c.agent, c.body),
   'PUT agent-policy': (c) => updateConnectorAgentPolicy(c.deps, c.caller, c.id, c.agent, c.body),
+  'PUT agent-mail': (c) => updateConnectorAgentMail(c.deps, c.caller, c.id, c.agent, c.body),
   'DELETE agent': (c) => unassignConnector(c.deps, c.caller, c.id, c.agent),
 };
 

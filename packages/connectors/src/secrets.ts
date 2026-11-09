@@ -7,13 +7,14 @@ const KEY_BYTES = 32;
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 const SECRET_MAX = 64 * 1024;
+const MAIL_MAX = 512 * 1024;
 const BLOB_RE = /^[A-Za-z0-9_-]+$/;
 
 class SecretError extends ApiError {}
 
-export type SealPurpose = 'connector' | 'model';
+export type SealPurpose = 'connector' | 'model' | 'webhook' | 'mail';
 
-const PURPOSES: Record<SealPurpose, string> = { connector: 'metro-connector/v1', model: 'metro-model/v1' };
+const PURPOSES: Record<SealPurpose, string> = { connector: 'metro-connector/v1', model: 'metro-model/v1', webhook: 'metro-webhook-secret/v1', mail: 'metro-connector-mail/v1' };
 
 const unreadable = (purpose: SealPurpose): SecretError => new SecretError(`a ${purpose} secret could not be opened with this key`, 500);
 
@@ -26,7 +27,7 @@ export function connectorsKeyOf(text: string): Buffer | null {
 
 export function sealSecret(key: Buffer, owner: string, id: string, value: unknown, purpose: SealPurpose = 'connector'): string {
   const plain = Buffer.from(JSON.stringify(value), 'utf8');
-  if (plain.length > SECRET_MAX) throw new SecretError(`${purpose} settings are too large to keep`, 413);
+  if (plain.length > (purpose === 'mail' ? MAIL_MAX : SECRET_MAX)) throw new SecretError(`${purpose} settings are too large to keep`, 413);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
   cipher.setAAD(aadOf(purpose, owner, id));
