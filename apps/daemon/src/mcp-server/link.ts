@@ -1,9 +1,10 @@
 import { errMsg, log } from '@metro-labs/core/log';
-import { MCP_APPROVAL_WAIT_MS, MCP_PATHS, mcpApprovalsOf, type McpApproval, type McpDecision } from '@metro-labs/http/mcp-server-protocol';
+import { MCP_APPROVAL_WAIT_MS, MCP_PATHS, mcpApprovalsOf, mcpMailOf, type MailTaken, type McpApproval, type McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { agentsDir } from '../agents/files.js';
 import { readAgentKey, type AgentKey } from '../connectors/agent-key.js';
 import { agentCall, MetroApiRefusal, type AgentFetch, type MetroApi } from '../connectors/metro-api.js';
 import { mcpServerUrl } from './config.js';
+import { MailIntake, type TakeMail } from './mail.js';
 import { ensureMcpToken } from './token.js';
 
 export type AnswerOutcome = 'acknowledged' | 'gone' | 'stopped';
@@ -24,13 +25,14 @@ export interface McpLinkDeps {
   key: () => AgentKey | null;
   dir: () => string;
   hold: HoldApproval;
+  mail?: TakeMail;
   registered?: () => void;
   fetch?: AgentFetch;
   timing?: Partial<McpTiming>;
 }
 
 const TIMING: McpTiming = { retryMs: 2_000, retryMaxMs: 60_000, idleMs: 30_000, minPollMs: 1_000, pollTimeoutMs: MCP_APPROVAL_WAIT_MS + 15_000 };
-const APPROVALS_MAX = 256 * 1024;
+const APPROVALS_MAX = 4 * 1024 * 1024;
 
 const refusedWith = (err: unknown, status: number): boolean => err instanceof MetroApiRefusal && err.upstreamStatus === status;
 
@@ -38,6 +40,7 @@ export class McpServerLink {
   private readonly api: MetroApi;
   private readonly timing: McpTiming;
   private readonly abort = new AbortController();
+  private readonly intake: MailIntake | null;
   private registered: string | null = null;
   private failures = 0;
   private running: Promise<void> | null = null;
@@ -45,6 +48,7 @@ export class McpServerLink {
   constructor(private readonly deps: McpLinkDeps) {
     this.api = { base: deps.url, fetch: deps.fetch ?? ((url, init) => fetch(url, init)), now: () => Date.now() };
     this.timing = { ...TIMING, ...deps.timing };
+    this.intake = deps.mail === undefined ? null : new MailIntake(deps.mail);
   }
 
   private get stopped(): boolean {
@@ -134,11 +138,21 @@ export class McpServerLink {
 
   private async poll(key: AgentKey): Promise<void> {
     const started = Date.now();
-    const answer = await agentCall(this.api, key, MCP_PATHS.approvals, {}, { signal: this.abort.signal, timeoutMs: this.timing.pollTimeoutMs, answerMax: APPROVALS_MAX });
+    const answer = await agentCall(this.api, key, MCP_PATHS.approvals, this.intake === null ? {} : { mail: true }, { signal: this.abort.signal, timeoutMs: this.timing.pollTimeoutMs, answerMax: APPROVALS_MAX });
     const approvals = mcpApprovalsOf(answer);
     for (const approval of approvals) this.receive(approval);
+    const taken = this.intake?.receive(mcpMailOf(answer)) ?? [];
+    if (taken.length > 0) await this.confirm(key, taken);
     const rest = this.timing.minPollMs - (Date.now() - started);
-    if (approvals.length === 0 && rest > 0) await this.pause(rest);
+    if (approvals.length === 0 && taken.length === 0 && rest > 0) await this.pause(rest);
+  }
+
+  private async confirm(key: AgentKey, taken: MailTaken[]): Promise<void> {
+    try {
+      await agentCall(this.api, key, MCP_PATHS.mailTaken, { taken }, { signal: this.abort.signal });
+    } catch (err) {
+      if (!this.stopped) log.warn({ mail: taken.length, err: errMsg(err) }, 'mcp-server: the server was not told which mail the box took; it sends it again and is told then');
+    }
   }
 
   private receive(approval: McpApproval): void {
@@ -174,13 +188,14 @@ let active: McpServerLink | null = null;
 export interface McpServerWatch {
   owner: () => string | null;
   hold: HoldApproval;
+  mail?: TakeMail;
   registered?: () => void;
 }
 
 export function watchMcpServer(watch: McpServerWatch, env: NodeJS.ProcessEnv = process.env): boolean {
   const url = mcpServerUrl(env);
   if (url === null || active !== null) return false;
-  active = new McpServerLink({ url, owner: watch.owner, key: () => readAgentKey(), dir: agentsDir, hold: watch.hold, ...(watch.registered === undefined ? {} : { registered: watch.registered }) });
+  active = new McpServerLink({ url, owner: watch.owner, key: () => readAgentKey(), dir: agentsDir, hold: watch.hold, ...(watch.mail === undefined ? {} : { mail: watch.mail }), ...(watch.registered === undefined ? {} : { registered: watch.registered }) });
   active.start();
   log.info({ server: url }, 'mcp-server: connector approvals relay from this server once the agent is enrolled');
   return true;

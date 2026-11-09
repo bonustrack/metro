@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { bufferedSince } from '@metro-labs/core/events';
 import { STATIONS } from '@metro-labs/core/station-names';
 import { accountEnabled, accountFromLine, knownAccounts } from '../agents/map.js';
-import { eventInScope } from '../agents/scope.js';
+import { eventInScope, knownConnectorLines } from '../agents/scope.js';
 import type { GetStreamDiagnostic } from './raw-get-stream.js';
 
 export const MCP_STATUS_PATH = '/mcp/status';
@@ -67,7 +67,7 @@ const eventTag = (messageId: unknown, id: unknown): string | null => {
 
 export function incomingDiagnostic(slot: DiagnosticSlot, scope: Set<string>): IncomingDiagnostic {
   const events = bufferedSince(-1).filter(({ event }) => typeof event.line === 'string' && eventInScope(scope, event.line));
-  const accounts = knownAccounts().filter((account) => scope.has(account.agentId) && STATIONS.some((station) => station === account.station));
+  const accounts = [...knownAccounts().filter((account) => STATIONS.some((station) => station === account.station)), ...knownConnectorLines()].filter((account) => scope.has(account.agentId));
   return {
     version: 1,
     observedAt: new Date().toISOString(),

@@ -26,7 +26,7 @@ import {
 import { dispatchCreateUpload } from './upload-tool.js';
 import { dispatchSetProfile, profileCapabilities } from './profile-tool.js';
 import { dispatchGetProfile, profileScopeLine } from './profile-lookup.js';
-import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
+import { callTargetDenied, isConnectorLine, lineTargetDenied } from '../agents/scope.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
 import { log } from '@metro-labs/core/log';
@@ -144,6 +144,11 @@ function logToolFailure(
   );
 }
 
+const connectorLineRefusal = (line: string): string => {
+  const key = Line.station(line) ?? '';
+  return `metro: ${line} is mail that the ${key} connector delivered, not a channel. Answer it from a worker with tool_call ${key}.reply, or read the thread with ${key}.read (find them with tool_search).`;
+};
+
 async function runTool(
   req: { params: { name: string; arguments?: Record<string, unknown> } },
   hooks: ToolHooks,
@@ -155,6 +160,7 @@ async function runTool(
     if (invalid) return invalid;
   }
 
+  if (typeof a.line === 'string' && isConnectorLine(a.line)) return errResult(connectorLineRefusal(a.line));
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');

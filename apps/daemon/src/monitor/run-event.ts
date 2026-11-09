@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { Line } from '@metro-labs/core/lines';
 import { STATIONS } from '@metro-labs/core/station-names';
 import { accountFromLine, allowlistForLine, lineReceives, senderPermitted } from '../agents/map.js';
-import { eventInScope } from '../agents/scope.js';
+import { eventInScope, isConnectorLine } from '../agents/scope.js';
 
 const TEXT_MAX = 8_000;
 const FIELD_MAX = 512;
@@ -41,6 +41,7 @@ function visible(event: MetroEvent, allowed: Set<string>): boolean {
   if (!validLine(event.line) || !eventInScope(allowed, event.line) || !lineReceives(event.line)) return false;
   const station = Line.station(event.line);
   if (station !== event.station) return false;
+  if (isConnectorLine(event.line)) return true;
   if (!ACCOUNT_STATIONS.has(station)) return station === 'claude' && event.event?.type === 'system' && event.isPrivate !== true;
   return permittedTraffic(event);
 }

@@ -22,6 +22,7 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { connectorMailTaker } from '../mcp-server/mail.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
@@ -171,6 +172,7 @@ installBearerSessions(agentsDir(), localOwner);
     hold: (approval, answer) => {
       holdServerApproval(approval, answer, emit);
     },
+    mail: connectorMailTaker(emit, liveEvents),
     registered: () => {
       refreshConnectorTools().catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'mcp-server: the connector tools could not be read after the token was registered');
