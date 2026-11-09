@@ -63,7 +63,7 @@ describe('the Metro files the agent may read', () => {
     expect(all).not.toContain('SECRET');
     expect(JSON.parse(files.get('agent.json') ?? '')).toEqual({ version: 1, id: 'agent000001', key: 'secret-agent-key-0123456789' });
     expect(JSON.parse(files.get('model.json') ?? '')).toEqual({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', model: 'x/y' }] });
-    expect(files.get('policy.json')).toBe('{"version":1}');
+    expect(files.get('policy.json')).toBeNull();
     expect(files.get('system-prompt.md')).toBeNull();
   });
 });

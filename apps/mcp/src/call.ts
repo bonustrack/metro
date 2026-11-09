@@ -7,7 +7,7 @@ import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-deliv
 import { agentConnectors, connectorsSentence, visibleConnectors, type AgentConnector } from './catalog.js';
 import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
-import { argsDigest, previewOf } from './digest.js';
+import { argsDigest, previewOf } from '@metro-labs/http/args-digest';
 import { CallError } from './errors.js';
 import { connectorListing, failureOf, groupsOf } from './listing.js';
 import { closestNames } from './search.js';

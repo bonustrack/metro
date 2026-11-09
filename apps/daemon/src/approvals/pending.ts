@@ -1,9 +1,6 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { previewMatches } from './preview.js';
-import { sameCall, speechTarget, type CallRoute, type CallSource } from '@metro-labs/core/call';
-
-export const NEEDS_APPROVAL = (where: string, tool: string): string =>
-  `Needs the owner's approval for ${where} (${tool}). Make this exact call from a background worker so Claude Code asks the owner in chat, and wait for the answer. An approval given only in the terminal does not count.`;
+import { sameCall, type CallRoute, type CallSource } from '@metro-labs/core/call';
 
 export type Behavior = 'allow' | 'deny';
 
@@ -17,7 +14,7 @@ export interface PendingPrompt {
   line: string | undefined;
   at: number;
   call?: CallSource;
-  origin?: 'mcp-server';
+  origin?: 'mcp-server' | 'channel';
 }
 
 interface Held extends PendingPrompt {
@@ -26,46 +23,17 @@ interface Held extends PendingPrompt {
   tell: ((text: string) => Promise<void>) | undefined;
 }
 
+const ANSWERED = {
+  claude: 'approvals: a Claude Code permission prompt answered',
+  'mcp-server': 'approvals: an mcp.metro.box approval answered',
+  channel: 'approvals: a channel approval answered',
+} as const;
+
 const PENDING_MAX = 500;
 const SWEEP_MS = 60_000;
 const APPROVAL_TTL_MS = 24 * 3_600_000;
 
 const held = new Map<string, Held>();
-
-interface Grant {
-  tool: string;
-  preview: string;
-  at: number;
-  owner: object;
-  requestId: string;
-  call?: CallSource;
-}
-
-const GRANT_TTL_MS = 10 * 60_000;
-const GRANTS_MAX = 200;
-let grants: Grant[] = [];
-
-function grant(entry: Held, now = Date.now()): void {
-  grants = [...grants.filter((g) => now - g.at < GRANT_TTL_MS), {
-    tool: entry.tool, preview: entry.preview, at: now, owner: entry.owner, requestId: entry.requestId,
-    ...(entry.call === undefined ? {} : { call: entry.call }),
-  }].slice(-GRANTS_MAX);
-}
-
-function speechMatches(grant: Grant, args: Record<string, unknown>): boolean {
-  if (args.speech === undefined) return grant.call === undefined;
-  const target = speechTarget(args.speech);
-  const bound = grant.call;
-  return target !== null && bound !== undefined && bound.route.line === args.line && bound.route.callId === target.callId &&
-    bound.route.generation === target.generation && bound.sourceId === target.sourceId;
-}
-
-export function takeGrant(toolMatches: (tool: string) => boolean, args: Record<string, unknown>, now = Date.now()): boolean {
-  const at = grants.findIndex((g) => now - g.at < GRANT_TTL_MS && toolMatches(g.tool) && speechMatches(g, args) && previewMatches(g.preview, args));
-  if (at < 0) return false;
-  grants = grants.filter((_, i) => i !== at);
-  return true;
-}
 
 const shown = ({ requestId, tool, description, preview, line, at }: Held): PendingPrompt => ({
   requestId,
@@ -119,12 +87,7 @@ export async function answerPrompt(
   const entry = held.get(requestId);
   if (entry === undefined) return undefined;
   held.delete(requestId);
-  const server = entry.origin === 'mcp-server';
-  if (behavior === 'allow' && via !== 'expiry' && !server) grant(entry);
-  log.info(
-    { requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` },
-    server ? 'approvals: an mcp.metro.box approval answered' : 'approvals: a Claude Code permission prompt answered',
-  );
+  log.info({ requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` }, ANSWERED[entry.origin ?? 'claude']);
   await entry.send(behavior);
   await tellChat(entry, via, behavior);
   return shown(entry);
@@ -132,11 +95,9 @@ export async function answerPrompt(
 
 export function forgetPromptsOf(owner: object): void {
   for (const [id, entry] of held) if (entry.owner === owner) held.delete(id);
-  grants = grants.filter((entry) => entry.owner !== owner);
 }
 
 export function cancelPrompt(requestId: string, owner: object): void {
-  grants = grants.filter((entry) => entry.owner !== owner || entry.requestId !== requestId);
   const entry = held.get(requestId);
   if (entry?.owner !== owner) return;
   held.delete(requestId);
@@ -146,14 +107,13 @@ export function cancelPrompt(requestId: string, owner: object): void {
 }
 
 export function revokeCallPrompts(route: CallRoute): void {
-  grants = grants.filter((entry) => entry.call === undefined || !sameCall(entry.call.route, route));
   for (const entry of held.values())
     if (entry.call !== undefined && sameCall(entry.call.route, route)) cancelPrompt(entry.requestId, entry.owner);
 }
 
 function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
   for (const [id, entry] of held)
-    if (entry.origin !== 'mcp-server' && toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
+    if (entry.origin === undefined && toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
       held.delete(id);
       log.info({ requestId: id, tool: entry.tool }, 'approvals: the call reached metro, so Claude Code already closed the prompt');
     }
@@ -186,5 +146,4 @@ export function startPromptExpiry(): () => void {
 
 export function forgetAllPrompts(): void {
   held.clear();
-  grants = [];
 }

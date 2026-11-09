@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { MCP_PATHS, mcpApprovalsOf } from '@metro-labs/http/mcp-server-protocol';
 import { agentKeys, agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
 import { REDELIVER_MS } from '@metro-labs/connectors/db/mcp-approvals';
-import { argsDigest } from '../src/digest.ts';
+import { argsDigest } from '@metro-labs/http/args-digest';
 import { createAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import { addConnector, assign, enrollAgent, headerSecret, newToken, PGLITE_START_MS, rpc, signed, startApp, STRANGER, testDb, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 

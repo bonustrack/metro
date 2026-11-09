@@ -335,7 +335,7 @@ describe('a Claude Code permission prompt relayed by metro', () => {
 describe('the prompt text', () => {
   test('the server instructions fit the 2048 characters Claude Code keeps', () => {
     expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
-    expect(MCP_INSTRUCTIONS).toContain('yes <id>');
+    expect(MCP_INSTRUCTIONS).toContain('`approval: "<id>"`');
   });
 
   test('caps any prompt at 1000 characters', () => {
