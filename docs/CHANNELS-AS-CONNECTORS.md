@@ -1,7 +1,9 @@
 # Channels as connectors (plan, 2026-11-07)
 
-Status: proposal. Step 1 is in progress, nothing else is built. Mail goes first, as separate
-MCP servers on Cloudflare Workers: see `docs/MAIL-MCP.md` (2026-11-09).
+Status: step 1 is built (this PR); **the rest is parked** (Less, 2026-11-09: "We should not
+worry about other channels"). Gmail and Outlook instead become ordinary connectors, MCP servers
+on Cloudflare Workers, and are removed as channels; that plan is `docs/MAIL-MCP.md`, in its own
+pull request.
 
 A channel (WhatsApp, Telegram, Discord, Gmail, and so on) becomes a connector that can also
 receive messages. It is stored, ruled, approved, logged and shown like any connector, and it
