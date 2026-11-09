@@ -179,8 +179,12 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
 };
 
+const MAIL_CONNECTORS = new Set(['gmail', 'outlook']);
+
+export const connectsAsConnector = (station: string): boolean => MAIL_CONNECTORS.has(station);
+
 export function offeredStations(attachable: string[]): string[] {
-  return attachable.filter((s) => STATION_FORMS[s] !== undefined);
+  return attachable.filter((s) => STATION_FORMS[s] !== undefined && !connectsAsConnector(s));
 }
 
 export function stationLabel(station: string): string {

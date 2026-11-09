@@ -5,6 +5,7 @@ import { call, type CallInit } from './client.js';
 import { accountIdentity, accountScopeIdentity, checkAccountIdentity } from '../auth/account.js';
 import { connectorToolsOf, type ConnectorTool } from './connectors.js';
 import { policyOf, type ToolPolicy } from './policy.js';
+import { EVERYONE } from './accounts.js';
 
 type OrgConnectorAuth = 'none' | 'header' | 'oauth';
 
@@ -13,6 +14,8 @@ interface OrgConnectorAgent {
   readOnly: boolean;
   policy: ToolPolicy;
   assignedAt: string;
+  senders: string[];
+  receive: boolean;
 }
 
 export interface OrgConnector {
@@ -29,6 +32,7 @@ export interface OrgConnector {
   policy: ToolPolicy;
   createdAt: string;
   updatedAt: string;
+  events: string[];
   agents: OrgConnectorAgent[];
 }
 
@@ -52,6 +56,13 @@ interface CopyOrgConnectorInput {
   name: string;
   shareCredentials: true;
 }
+
+export interface AgentMailChange {
+  senders?: string[];
+  receive?: boolean;
+}
+
+const MAIL_EVENT = 'email.received';
 
 export interface CopiedOrgConnector {
   organization: string;
@@ -81,6 +92,15 @@ export const orgConnectorCallbackUrl = (): string => `${base()}/callback`;
 const records = (value: unknown): Record<string, unknown>[] => (Array.isArray(value) ? value.filter(isRecord) : []);
 const authOf = (value: unknown): OrgConnectorAuth => (value === 'header' || value === 'oauth' ? value : 'none');
 const signInOf = (value: unknown): OrgConnector['signIn'] => (value === 'connected' || value === 'disconnected' ? value : null);
+const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+
+export function sendersOf(value: unknown): string[] {
+  const listed = strings(value).map((entry) => entry.trim().toLowerCase()).filter((entry) => entry !== '');
+  return listed.length === 0 || listed.includes(EVERYONE) ? [EVERYONE] : [...new Set(listed)];
+}
+
+export const isMailConnector = (connector: Pick<OrgConnector, 'events'>): boolean => connector.events.includes(MAIL_EVENT);
+
 const orgPolicyOf = (value: Record<string, unknown>): ToolPolicy => Object.hasOwn(value, 'policy') ? policyOf(value.policy) : value.readOnly === true ? { write: 'deny' } : {};
 
 export function toOrgConnector(value: unknown): OrgConnector {
@@ -99,7 +119,8 @@ export function toOrgConnector(value: unknown): OrgConnector {
     policy: orgPolicyOf(value),
     createdAt: str(value.createdAt),
     updatedAt: str(value.updatedAt),
-    agents: records(value.agents).map((a) => ({ id: str(a.id), readOnly: a.readOnly === true, policy: orgPolicyOf(a), assignedAt: str(a.assignedAt) })),
+    events: strings(value.events),
+    agents: records(value.agents).map((a) => ({ id: str(a.id), readOnly: a.readOnly === true, policy: orgPolicyOf(a), assignedAt: str(a.assignedAt), senders: sendersOf(a.senders), receive: a.receive !== false })),
   };
 }
 
@@ -190,6 +211,9 @@ export const assignOrgConnector = async (id: string, agent: string): Promise<Org
 
 export const setOrgConnectorAgentPolicy = async (id: string, agent: string, policy: ToolPolicy): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/policy`, headers: JSON_HEADERS, body: JSON.stringify({ policy }) }));
+
+export const setOrgConnectorAgentMail = async (id: string, agent: string, change: AgentMailChange): Promise<OrgConnector> =>
+  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/mail`, headers: JSON_HEADERS, body: JSON.stringify(change) }));
 
 export const unassignOrgConnector = async (id: string, agent: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'DELETE', base: base(), path: `/${id}/agents/${agent}` }));

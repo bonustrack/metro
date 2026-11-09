@@ -21,8 +21,8 @@ const TOOLS: ConnectorTool[] = [
 function notion(organization: ToolPolicy, own: ToolPolicy | null, extra: Partial<OrgConnector> = {}): OrgConnector {
   return {
     id: 'connNotion1', name: 'Notion', url: 'https://mcp.notion.com', auth: 'oauth', header: null, signIn: 'connected', server: null, verifiedAt: null, clientId: null, readOnly: false,
-    policy: organization, createdAt: '', updatedAt: '',
-    agents: own === null ? [] : [{ id: 'agntLisa001', readOnly: false, policy: own, assignedAt: '' }],
+    policy: organization, createdAt: '', updatedAt: '', events: [],
+    agents: own === null ? [] : [{ id: 'agntLisa001', readOnly: false, policy: own, assignedAt: '', senders: ['*'], receive: true }],
     ...extra,
   };
 }
@@ -91,5 +91,18 @@ describe('the connector summary', () => {
     const values = segmentsOf({ write: 'ask' }, { tools: { 'delete-page': 'deny', 'move-pages': 'deny' } }).filter((segment) => segment.value).map((segment) => segment.text);
     expect(values).toEqual(['6 tools', 'Lisa', 'looks things up', 'changes', 'delete', 'Move pages', 'private chat', 'metro.box']);
     expect(segmentsOf({}, {}, {}, { signIn: 'disconnected' }).filter((segment) => segment.value).map((segment) => segment.text).slice(0, 3)).toEqual(['Signed out', 'Lisa', 'Notion']);
+  });
+
+  test('a mail connector says who can write, or that the agent gets no new mail', () => {
+    const mail = (senders: string[], receive = true): Partial<OrgConnector> => ({
+      name: 'Gmail', events: ['email.received'], agents: [{ id: 'agntLisa001', readOnly: false, policy: {}, assignedAt: '', senders, receive }],
+    });
+    expect(summary({}, {}, {}, mail(['*']))).toBe('6 tools. Anyone can write. Lisa looks things up, makes changes and deletes freely.');
+    expect(summary({}, {}, {}, mail(['a@b.com', '@anderra.ch']))).toBe('6 tools. a@b.com and @anderra.ch can write. Lisa looks things up, makes changes and deletes freely.');
+    expect(summary({}, {}, {}, mail(['a@b.com', '@anderra.ch', 'c@d.ch', 'e@f.ch']))).toContain('a@b.com, @anderra.ch and 2 others can write.');
+    expect(summary({}, {}, {}, mail(['a@b.com'], false))).toBe('6 tools. Lisa gets no new mail. Lisa looks things up, makes changes and deletes freely.');
+    expect(summary({}, {}, {}, { events: [], agents: [{ id: 'agntLisa001', readOnly: false, policy: {}, assignedAt: '', senders: ['a@b.com'], receive: false }] })).not.toContain('mail');
+    const values = segmentsOf({}, {}, {}, mail(['a@b.com', '@anderra.ch'])).filter((segment) => segment.value).map((segment) => segment.text);
+    expect(values.slice(0, 4)).toEqual(['6 tools', 'a@b.com', '@anderra.ch', 'Lisa']);
   });
 });

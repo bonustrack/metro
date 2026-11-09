@@ -1,5 +1,7 @@
+import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
 import { whenLabel } from '@metro-labs/client/api/when';
 import type { DotTone } from './tone.js';
+import { toolLabel } from './tool-labels.js';
 
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
@@ -7,6 +9,7 @@ const MINUTE = 60 * SECOND;
 interface OutcomeWords {
   word: string;
   dot: DotTone | null;
+  quiet?: true;
 }
 
 const OUTCOMES: Record<string, OutcomeWords> = {
@@ -19,7 +22,15 @@ const OUTCOMES: Record<string, OutcomeWords> = {
   denied: { word: 'Denied', dot: 'danger' },
   not_found: { word: 'No such tool', dot: 'danger' },
   invalid: { word: 'Not a valid call', dot: 'danger' },
+  delivered: { word: 'Delivered', dot: null },
+  dropped_sender: { word: 'Dropped: not in People', dot: null },
+  dropped_unverified: { word: 'Dropped: sender not verified', dot: null },
+  dropped_off: { word: 'Dropped: Receive messages is off', dot: null },
+  dropped_paused: { word: 'Dropped: messages paused', dot: null },
+  expired: { word: 'Expired', dot: null, quiet: true },
 };
+
+export const callTitle = (call: Pick<ActivityCall, 'kind' | 'tool'>): string => (call.kind === 'received' ? 'Received an email' : toolLabel(call.tool));
 
 export const outcomeWords = (outcome: string): OutcomeWords => OUTCOMES[outcome] ?? { word: 'Ended', dot: null };
 

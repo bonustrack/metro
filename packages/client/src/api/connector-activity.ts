@@ -3,8 +3,11 @@ import { builtInDaemon } from '../auth/daemon.js';
 import { NotFoundError } from './client.js';
 import { orgCall } from './org-connectors.js';
 
+type ActivityKind = 'call' | 'received';
+
 export interface ActivityCall {
   id: string;
+  kind: ActivityKind;
   agent: string;
   agentName: string | null;
   connector: string | null;
@@ -52,6 +55,7 @@ export function toActivityCall(value: unknown): ActivityCall | null {
   if (at === null) return null;
   return {
     id: value.id,
+    kind: value.kind === 'received' ? 'received' : 'call',
     agent: value.agent,
     agentName: filled(value.agentName),
     connector: filled(value.connector),

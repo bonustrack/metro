@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agoWords, durationWords, outcomeWords } from '../src/lib/activity-words.ts';
+import { agoWords, callTitle, durationWords, outcomeWords } from '../src/lib/activity-words.ts';
 
 const NOW = Date.parse('2026-10-22T09:00:00Z');
 
@@ -12,6 +12,18 @@ describe('a connector call in words', () => {
       expect(outcomeWords(failed).word).not.toContain('_');
     }
     expect(outcomeWords('something_new')).toEqual({ word: 'Ended', dot: null });
+  });
+
+  test('a received mail has its own title and words, and a dropped one has no red dot', () => {
+    expect(callTitle({ kind: 'received', tool: 'email.received' })).toBe('Received an email');
+    expect(callTitle({ kind: 'call', tool: 'send' })).toBe('Send messages');
+    expect(outcomeWords('delivered')).toEqual({ word: 'Delivered', dot: null });
+    expect(outcomeWords('dropped_sender').word).toBe('Dropped: not in People');
+    expect(outcomeWords('dropped_unverified').word).toBe('Dropped: sender not verified');
+    expect(outcomeWords('dropped_off').word).toBe('Dropped: Receive messages is off');
+    expect(outcomeWords('dropped_paused').word).toBe('Dropped: messages paused');
+    expect(outcomeWords('expired')).toEqual({ word: 'Expired', dot: null, quiet: true });
+    for (const dropped of ['delivered', 'dropped_sender', 'dropped_unverified', 'dropped_off', 'dropped_paused', 'expired']) expect(outcomeWords(dropped).dot).toBeNull();
   });
 
   test('a duration reads in ms, seconds or minutes', () => {

@@ -9,6 +9,9 @@ import {
   setOrgConnectorPolicy,
   setOrgConnectorAgentPolicy,
   fetchOrgConnectors,
+  isMailConnector,
+  sendersOf,
+  setOrgConnectorAgentMail,
   takeOrgConnectorReturn,
   toOrgConnector,
   unassignOrgConnector,
@@ -80,6 +83,27 @@ describe('the organization connectors client', () => {
     serve(ROW);
     await unassignOrgConnector('aB3-_xYz9Qw', 'zz9-_xYz9Qw');
     expect(calls[0]).toEqual({ url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw`, method: 'DELETE', body: undefined });
+  });
+
+  test('a mail connector reads its events, and each agent who can write and whether it receives, with safe defaults from an older api', async () => {
+    const mail = { ...ROW, events: ['email.received', 7], agents: [{ ...ROW.agents[0], senders: [' Andy@Anderra.ch ', '@mcigroup.ch', 'andy@anderra.ch', ''], receive: false }] };
+    const read = toOrgConnector(mail);
+    expect(read.events).toEqual(['email.received']);
+    expect(isMailConnector(read)).toBe(true);
+    expect(read.agents[0]).toMatchObject({ senders: ['andy@anderra.ch', '@mcigroup.ch'], receive: false });
+    const old = toOrgConnector(ROW);
+    expect(old.events).toEqual([]);
+    expect(isMailConnector(old)).toBe(false);
+    expect(old.agents[0]).toMatchObject({ senders: ['*'], receive: true });
+    expect(sendersOf(['a@b.ch', '*'])).toEqual(['*']);
+    expect(sendersOf('nope')).toEqual(['*']);
+    serve(mail);
+    await setOrgConnectorAgentMail('aB3-_xYz9Qw', 'zz9-_xYz9Qw', { senders: ['@anderra.ch'] });
+    await setOrgConnectorAgentMail('aB3-_xYz9Qw', 'zz9-_xYz9Qw', { receive: true });
+    expect(calls).toEqual([
+      { url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw/mail`, method: 'PUT', body: { senders: ['@anderra.ch'] } },
+      { url: `${BASE}/aB3-_xYz9Qw/agents/zz9-_xYz9Qw/mail`, method: 'PUT', body: { receive: true } },
+    ]);
   });
 
   test('tool discovery is a scoped GET and preserves vendor names, hints and the input schema', async () => {
