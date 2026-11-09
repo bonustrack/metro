@@ -1,6 +1,7 @@
 # Channels as connectors (plan, 2026-11-07)
 
-Status: proposal. Step 1 is in progress, nothing else is built.
+Status: proposal. Step 1 is in progress, nothing else is built. Mail goes first, as separate
+MCP servers on Cloudflare Workers: see `docs/MAIL-MCP.md` (2026-11-09).
 
 A channel (WhatsApp, Telegram, Discord, Gmail, and so on) becomes a connector that can also
 receive messages. It is stored, ruled, approved, logged and shown like any connector, and it
