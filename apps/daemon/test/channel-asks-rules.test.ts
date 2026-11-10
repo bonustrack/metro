@@ -5,7 +5,8 @@ import { forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { PREVIEW_MAX } from '../src/approvals/preview.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { setPolicies } from '../src/policy/policy.ts';
-import { AsksHarness, GM, LINE, MAIL_LINE, MAIL_OWNER, MAIL_TARGET, OWNER, TARGET, TG, idIn } from './channel-asks-harness.ts';
+import { endSharedCall, hearSharedCall, openSharedCall } from '../src/voice/shared.ts';
+import { AGENT, AsksHarness, GM, LINE, MAIL_LINE, MAIL_OWNER, MAIL_TARGET, OWNER, TARGET, TG, idIn } from './channel-asks-harness.ts';
 import { settle, waitFor } from './wait.ts';
 
 const h = new AsksHarness('mk_channel_asks_rules');
@@ -201,6 +202,48 @@ describe('where the question and the answer go', () => {
     expect(h.raw()).not.toContain(`Approved: send on telegram-bot (${id})`);
     expect(idIn(await h.send({ line: LINE, text: 'switched off' }))).toBe(id);
     expect((await h.send({ line: LINE, text: 'switched off', approval: id })).isError).toBe(false);
+  });
+});
+
+describe('a speech send that asks, on a live call wired as the daemon wires it', () => {
+  const ROUTE = { agentId: AGENT, line: LINE, from: OWNER, callId: 'call-1', generation: 'generation-1' };
+  const SPEECH = { callId: ROUTE.callId, generation: ROUTE.generation, sourceId: 'heard-1' };
+  const spoken: string[] = [];
+  const transport = { enqueue: (action: { text: string }): boolean => { spoken.push(action.text); return true; }, terminate: (): void => undefined };
+  const call = (): void => {
+    expect(openSharedCall(ROUTE, 'invite-1', transport)).toBe(true);
+    hearSharedCall(ROUTE, 'Say something', SPEECH.sourceId);
+  };
+
+  test('the question goes to the call chat, the approval speaks once, and hang-up withdraws what waits and what was approved', async () => {
+    await h.initialize('metro-sdk-runner');
+    try {
+      call();
+      const said = { line: LINE, text: 'Spoken once.', speech: SPEECH };
+      const first = idIn(await h.send(said));
+      await waitFor(() => h.questions().length === 1);
+      expect(String(h.questions()[0]?.args.text)).toContain('Delivery: voice call only, no chat post');
+      expect(await h.answerOnPage(first, 'allow')).toBe(200);
+      expect((await h.send({ ...said, approval: first })).isError).toBe(false);
+      expect(spoken).toEqual(['Spoken once.']);
+
+      const waiting = idIn(await h.send({ ...said, text: 'Still waiting.' }));
+      const approved = idIn(await h.send({ ...said, text: 'Approved, not spoken.' }));
+      expect(await h.answerOnPage(approved, 'allow')).toBe(200);
+      endSharedCall(ROUTE);
+      expect(await h.listed()).toEqual([]);
+      expect(await h.answerOnPage(waiting, 'allow')).toBe(404);
+      expect((await h.send({ ...said, text: 'Approved, not spoken.', approval: approved })).text).toContain('has ended or changed');
+
+      call();
+      const again = await h.send({ ...said, text: 'Approved, not spoken.', approval: approved });
+      expect(again.text).toContain(`Approval "${approved}" was withdrawn before it was used.`);
+      expect(spoken).toEqual(['Spoken once.']);
+      expect(h.posted('Spoken once.')).toEqual([]);
+    } finally {
+      endSharedCall(ROUTE);
+      await h.initialize();
+    }
   });
 });
 

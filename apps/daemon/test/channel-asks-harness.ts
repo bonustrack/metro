@@ -14,7 +14,7 @@ import { makeEmit } from '../src/routes/http.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { approvalIdIn } from './approval-id.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
-import { initSession, openGet, type GetStream } from './mcp-probe.ts';
+import { openGet, type GetStream } from './mcp-probe.ts';
 import { waitFor } from './wait.ts';
 
 export const AGENT = 'agent000001';
@@ -91,16 +91,26 @@ export class AsksHarness {
     const port = randomInt(10000, 30000);
     await new Promise<void>((done) => server.listen(port, '127.0.0.1', () => done()));
     this.url = `http://127.0.0.1:${String(port)}/mcp?token=${this.token}`;
-    await this.initialize();
     this.page = await bootDaemon({});
-    this.chat(LINE, OWNER, 'hello agent');
-    await waitFor(() => this.raw().includes('hello agent'));
+    await this.initialize();
   }
 
-  async initialize(): Promise<void> {
+  async initialize(client = 'probe'): Promise<void> {
     await this.stream?.stop();
-    this.sessionId = await initSession(this.url);
+    const res = await fetch(this.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: client, version: '0.0.0' } } }),
+    });
+    const sessionId = res.headers.get('mcp-session-id');
+    await res.body?.cancel();
+    if (!sessionId) throw new Error('no session id from initialize');
+    this.sessionId = sessionId;
+    await this.notify('notifications/initialized', {});
     this.stream = await openGet(this.url, this.sessionId);
+    const hello = `hello agent ${randomUUID()}`;
+    this.chat(LINE, OWNER, hello);
+    await waitFor(() => this.raw().includes(hello));
   }
 
   reset(): void {
