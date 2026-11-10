@@ -7,8 +7,7 @@ import { acquireLock, STATE_DIR, trainsDir } from './paths.js';
 import { installCrashGuard, markDaemonReady } from './crash-guard.js';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { funnelDriver, Tunnel, tunnelWanted } from '../net/tunnel.js';
-import { publicBaseUrl, webhookPort } from '../files/attach-serve.js';
-import { setManagedHost } from '@metro-labs/gmail/managed-binding';
+import { webhookPort } from '../files/attach-serve.js';
 import {
   localConnectHint,
   publicConnectHint,
@@ -27,6 +26,7 @@ import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connec
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeConnectorLeftovers } from '../connectors/leftovers.js';
+import { removeMailLeftovers } from './mail-leftovers.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { prepareAgentRunner, provisionAgentUser } from '../agent-user/provision.js';
 import { blockImds } from '../metro-user/imds.js';
@@ -91,8 +91,7 @@ supervisor.onTrainEvent((env, train) => {
 });
 
 let webhookServer: Server | null = null;
-const syncGmailHost = (): void => { setManagedHost(publicBaseUrl()); };
-const tunnel = tunnelWanted() ? new Tunnel(funnelDriver(webhookPort()), announcePublic, undefined, syncGmailHost) : null;
+const tunnel = tunnelWanted() ? new Tunnel(funnelDriver(webhookPort()), announcePublic) : null;
 
 function announcePublic(url: string): void {
   process.stderr.write(`\n${publicConnectHint(url, localOwner())}`);
@@ -144,6 +143,7 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
 async function main(): Promise<void> {
   removeConnectorLeftovers();
   removeModelLeftovers();
+  removeMailLeftovers({ trains: trainsDir() });
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   watchPolicySnapshot();
@@ -151,7 +151,6 @@ installBearerSessions(agentsDir(), localOwner);
   await materializeFrom(fileSource);
   ensureStationDeps();
   forgetOrphans(knownAccounts());
-  syncGmailHost();
   supervisor.start();
   sweepLeftoverCalls();
   const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });

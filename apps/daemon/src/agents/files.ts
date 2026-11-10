@@ -6,6 +6,7 @@ import type { LoadedAccount, LoadedAgent, StationSource } from '../stations/mate
 import { isRecord } from '@metro-labs/core/is-record';
 import { parsePolicy } from '../policy/policy.js';
 import { isStationName } from './account-attach.js';
+import { isRetiredStation } from '@metro-labs/core/station-names';
 
 const AGENT_FILE = 'agent.json';
 
@@ -106,7 +107,7 @@ export function parseAgentFile(raw: string, path: string): AgentFile {
     id,
     name: label,
     key,
-    stations: stations.map((s, i) => stationOf(s, path, i)),
+    stations: stations.flatMap((s, i) => (isRecord(s) && isRetiredStation(s.station) ? [] : [stationOf(s, path, i)])),
   };
 }
 

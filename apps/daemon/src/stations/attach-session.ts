@@ -35,7 +35,6 @@ export interface AttachOwner {
   organization?: string;
   userId?: string;
   sessionId?: string;
-  authorization?: string;
 }
 
 export interface AttachView {
@@ -46,9 +45,6 @@ export interface AttachView {
   prompt: string;
   qr: string | null;
   pairingCode: string | null;
-  userCode: string | null;
-  verificationUri: string | null;
-  authorizeUrl: string | null;
   accountId: string | null;
   identity: Record<string, string>;
   activated: boolean;
@@ -96,9 +92,6 @@ function blankView(attachId: string, station: string): AttachView {
     prompt: '',
     qr: null,
     pairingCode: null,
-    userCode: null,
-    verificationUri: null,
-    authorizeUrl: null,
     accountId: null,
     identity: {},
     activated: false,
@@ -150,9 +143,6 @@ export class AttachSessions {
     Object.assign(session.view, patch, {
       qr: null,
       pairingCode: null,
-      userCode: null,
-      verificationUri: null,
-      authorizeUrl: null,
       step: null,
       expiresAt: Date.now() + SETTLED_TTL_MS,
     });
@@ -210,9 +200,6 @@ export class AttachSessions {
         session.view.prompt = p.prompt;
         session.view.qr = p.qr ?? null;
         session.view.pairingCode = p.pairingCode ?? null;
-        session.view.userCode = p.userCode ?? null;
-        session.view.verificationUri = p.verificationUri ?? null;
-        session.view.authorizeUrl = p.authorizeUrl ?? null;
       },
       done: (o: AttachOutcome): void => {
         this.finish(attachId, station, o).catch((err: unknown) => {
@@ -261,7 +248,6 @@ export class AttachSessions {
         throw new ApiError('this sign-in expired or stopped; start again', 410);
       }
       session.driver = started.driver;
-      if (started.expiresAt !== undefined) session.view.expiresAt = started.expiresAt;
       this.hooksFor(attachId, station).prompt(started.prompt);
     } catch (err) {
       this.sessions.delete(attachId);
@@ -289,7 +275,7 @@ export class AttachSessions {
       throw new ApiError('this sign-in is already finished', 409);
     await this.deps.authorize(owner);
     this.own(owner, attachId);
-    await driver.submit(input, owner.authorization);
+    await driver.submit(input);
     return { ...session.view };
   }
 

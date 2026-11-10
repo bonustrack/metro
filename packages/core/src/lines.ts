@@ -19,7 +19,6 @@ function parseAccountScoped(
 const isSnowflake = (s: string): boolean => /^\d+$/.test(s);
 const isThreemaResource = (s: string): boolean =>
   /^(?:[A-Z0-9]{8}|\*[A-Z0-9]{7})(?:-[0-9a-f]{16})?$/i.test(s);
-const isMailResource = (s: string): boolean => /^[A-Za-z0-9=_%.@+-]+$/.test(s);
 const isSignedInt = (s: string): boolean => /^-?\d+$/.test(s);
 
 const topicPart = (topicId: string | undefined): { topicId?: number } | null => {
@@ -66,7 +65,4 @@ export const Line = {
 
   parseThreema: (line: Line | string) =>
     parseAccountScoped(line, 'threema', isThreemaResource),
-
-  parseMail: (line: Line | string, station: 'outlook' | 'gmail') =>
-    parseAccountScoped(line, station, isMailResource),
 };

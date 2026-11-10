@@ -157,19 +157,20 @@ describe('an agent bundle on a local daemon', () => {
     expect((await call('POST', '/api/agents/restore', { ...incoming, mode: 'sideways' })).status).toBe(400);
   });
 
-  test('managed Gmail never leaves in a bundle and cannot be restored', async () => {
-    const config = { accountEmail: 'reader@example.test', managed: true, managedOrganization: OWNER, managedHost: 'box.example.test', sendEnabled: false, refreshToken: 'managed-refresh-secret', accessToken: 'managed-access-secret', refreshGrant: 'managed-grant-secret' };
-    const saved = await localAttachAccount(tony.id, 'gmail', config, dir);
-    const res = await call('GET', `/api/agents/${tony.id}/bundle`);
-    const body = await res.text();
-    expect(res.status).toBe(200);
-    expect(body).not.toContain('managed-refresh-secret');
-    expect(body).not.toContain('managed-access-secret');
-    expect(body).not.toContain('managed-grant-secret');
-    expect(body).not.toContain(saved.accountId);
-    const restore = await call('POST', '/api/agents/restore', { version: 1, mode: 'append', agent: { id: tony.id, name: 'Tony', stations: [{ station: 'gmail', id: saved.accountId, config, allowlist: ['*'] }] }, connectors: [] });
-    expect(restore.status).toBe(400);
-    expect(await restore.text()).toContain('cannot be imported');
+  test('an old bundle with Gmail or Outlook channels restores, and those channels are left out and counted', async () => {
+    const before = (JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { stations: unknown[] }).stations.length;
+    const mail = [
+      { station: 'gmail', id: 'gmail000001', config: { refreshToken: 'gmail-refresh-secret' }, allowlist: ['*'] },
+      { station: 'outlook', id: 'outlk000001', config: { refreshToken: 'outlook-refresh-secret' }, allowlist: ['@anderra.ch'] },
+    ];
+    const res = await call('POST', '/api/agents/restore', { version: 1, mode: 'append', agent: { id: tony.id, name: 'Tony', stations: mail }, connectors: [] });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ id: tony.id, skipped: 2 });
+    const text = readFileSync(join(dir, 'agent.json'), 'utf8');
+    expect((JSON.parse(text) as { stations: unknown[] }).stations).toHaveLength(before);
+    expect(text).not.toContain('refresh-secret');
+    const plain = await call('POST', '/api/agents/restore', { version: 1, mode: 'append', agent: { id: tony.id, name: 'Tony', stations: [] }, connectors: [] });
+    expect(await plain.json()).not.toHaveProperty('skipped');
   });
 
   test('an old bundle with connectors still restores, and its connectors are ignored', async () => {

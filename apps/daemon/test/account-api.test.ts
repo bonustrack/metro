@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, afterAll, describe, expect, test } fr
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { outlookStation } from '@metro-labs/outlook';
+import { threemaStation } from '@metro-labs/threema';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import type { AgentApiDeps } from '../src/agents/api.ts';
 import { AttachSessions } from '../src/stations/attach-session.ts';
@@ -607,35 +607,35 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
 });
 
 describe('detaching removes the station files of that account', () => {
-  const stateDir = mkdtempSync(join(tmpdir(), 'metro-outlook-state-'));
-  const statePath = (id: string): string => join(stateDir, `outlook-state-${id}.json`);
-  const realForget = outlookStation.forget;
+  const stateDir = mkdtempSync(join(tmpdir(), 'metro-threema-groups-'));
+  const statePath = (id: string): string => join(stateDir, `threema-groups-${id}.json`);
+  const realForget = threemaStation.forget;
 
   beforeEach(() => {
-    process.env.OUTLOOK_STATE_DIR = stateDir;
+    process.env.THREEMA_GROUPS_DIR = stateDir;
   });
 
   afterEach(() => {
-    outlookStation.forget = realForget;
-    delete process.env.OUTLOOK_STATE_DIR;
+    threemaStation.forget = realForget;
+    delete process.env.THREEMA_GROUPS_DIR;
   });
 
-  test('the Outlook refresh token file goes with the account, and only that one', async () => {
-    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000091', config: {} });
-    writeFileSync(statePath('acct0000091'), '{"refreshToken":"rt"}');
-    writeFileSync(statePath('acct0000092'), '{"refreshToken":"other"}');
-    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000091');
+  test('the Threema group file goes with the account, and only that one', async () => {
+    rows.push({ agentId: AGENT.id, station: 'threema', accountId: 'acct0000091', config: {} });
+    writeFileSync(statePath('acct0000091'), '{"groups":[]}');
+    writeFileSync(statePath('acct0000092'), '{"groups":[]}');
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'threema/acct0000091');
     expect(res.status).toBe(200);
     expect(existsSync(statePath('acct0000091'))).toBe(false);
     expect(existsSync(statePath('acct0000092'))).toBe(true);
   });
 
   test('a forget that throws is logged and the detach still answers 200', async () => {
-    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000093', config: {} });
-    outlookStation.forget = () => {
+    rows.push({ agentId: AGENT.id, station: 'threema', accountId: 'acct0000093', config: {} });
+    threemaStation.forget = () => {
       throw new Error('disk on fire');
     };
-    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000093');
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'threema/acct0000093');
     expect(res.status).toBe(200);
     expect(((await res.json()) as { detached?: boolean }).detached).toBe(true);
     expect(rows).toEqual([]);
@@ -656,8 +656,6 @@ describe('GET /api/agents advertises what can be attached', () => {
       'webhook',
       'telegram',
       'whatsapp',
-      'outlook',
-      'gmail',
     ]);
   });
 });
@@ -1031,11 +1029,13 @@ describe('switching a station account off and on', () => {
   });
 });
 
-describe('POST /api/agents/:id/accounts/start for Outlook', () => {
-  test('the route hands the mailbox typed on the page to the Outlook sign-in', async () => {
+describe('POST /api/agents/:id/accounts/start for a retired mail station', () => {
+  test('Gmail and Outlook are refused before any sign-in starts: they are connectors now', async () => {
     startInputs.length = 0;
-    const res = await start('ada@lovelace.dev', 'agent000001', { station: 'outlook', mailbox: 'andy@anderra.ch' });
-    expect(res.status).toBe(201);
-    expect(startInputs.at(-1)).toMatchObject({ station: 'outlook', input: { mailbox: 'andy@anderra.ch' } });
+    for (const station of ['gmail', 'outlook']) {
+      const res = await start('ada@lovelace.dev', 'agent000001', { station, mailbox: 'andy@anderra.ch' });
+      expect(res.status).toBe(400);
+    }
+    expect(startInputs).toEqual([]);
   });
 });

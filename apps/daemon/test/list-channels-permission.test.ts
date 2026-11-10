@@ -8,7 +8,7 @@ import { setPolicies } from '../src/policy/policy.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 
 const AGENT = 'agent000001';
-const ACCOUNT = 'privateMailbox';
+const ACCOUNT = 'privateThreema';
 const SURPLUS = { line: 'metro://xmtp/publicInbox/public-room', station: 'xmtp' };
 const params = (args: Record<string, unknown>) => ({
   request_id: 'abcde',
@@ -22,8 +22,8 @@ let calls: { train: string; action: string; args: unknown }[];
 beforeEach(() => {
   calls = [];
   forgetAllPrompts();
-  setAgentMap({ [`gmail/${ACCOUNT}`]: AGENT, 'xmtp/publicInbox': AGENT }, { [AGENT]: 'Friendly fixture name' });
-  setPolicies('channel', [[{ kind: 'channel', station: 'gmail', account: ACCOUNT }, { read: 'ask' }]]);
+  setAgentMap({ [`threema/${ACCOUNT}`]: AGENT, 'xmtp/publicInbox': AGENT }, { [AGENT]: 'Friendly fixture name' });
+  setPolicies('channel', [[{ kind: 'channel', station: 'threema', account: ACCOUNT }, { read: 'ask' }]]);
   setTrainCallBackend((train, action, args) => {
     calls.push({ train, action, args });
     return Promise.resolve({ result: { channels: [], capability: { supported: true, complete: true, source: 'remote' } } });
@@ -46,7 +46,7 @@ for (const surplus of [false, true])
     expect(calls).toEqual([]);
     const request = params(args);
     expect(promptBody(request)).toBe(
-      `Approval needed: list_channels\nChannel: gmail · ${ACCOUNT}\nquery: WoRk \n\nReply "yes abcde" or "no abcde"`,
+      `Approval needed: list_channels\nChannel: threema · ${ACCOUNT}\nquery: WoRk \n\nReply "yes abcde" or "no abcde"`,
     );
     expect(request.input_preview).toBe(JSON.stringify(args));
     holdPrompt({ requestId: request.request_id, tool: request.tool_name, description: request.description, preview: request.input_preview, line: undefined, at: Date.now() }, {}, () => Promise.resolve());
@@ -54,7 +54,7 @@ for (const surplus of [false, true])
     expect((await call({ ...args, query: 'work' })).isError).toBe(true);
     expect(calls).toEqual([]);
     expect((await call(args)).isError).not.toBe(true);
-    expect(calls).toEqual([{ train: 'gmail', action: 'listChannels', args: { account: ACCOUNT, query: 'WoRk ', limit: 50 } }]);
+    expect(calls).toEqual([{ train: 'threema', action: 'listChannels', args: { account: ACCOUNT, query: 'WoRk ', limit: 50 } }]);
     expect((await call(args)).isError).toBe(true);
     expect(calls).toHaveLength(1);
   });
@@ -68,7 +68,7 @@ test('a missing discovery account never falls back to surplus line or station', 
 for (const station of ['unknown', 'ambiguous', 'unregistered'])
   test(`an ${station} discovery target keeps its account id without trusting surplus targeting`, () => {
     if (station === 'unknown') setAgentMap({}, {});
-    else if (station === 'ambiguous') setAgentMap({ [`gmail/${ACCOUNT}`]: AGENT, [`xmtp/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Fixture' });
+    else if (station === 'ambiguous') setAgentMap({ [`threema/${ACCOUNT}`]: AGENT, [`xmtp/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Fixture' });
     else setAgentMap({ [`not-a-station/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Fixture' });
     expect(promptBody(params({ account: ACCOUNT, ...SURPLUS }))).toBe(
       `Approval needed: list_channels\nChannel: unknown station · ${ACCOUNT}\n\nReply "yes abcde" or "no abcde"`,
