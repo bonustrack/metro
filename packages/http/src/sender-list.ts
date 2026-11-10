@@ -40,16 +40,18 @@ export function normalizeSenderList(raw: unknown): string[] {
 }
 
 export function senderListOf(text: string | null): string[] {
+  if (text === null) return [ANYONE];
   try {
-    const parsed: unknown = text === null ? null : JSON.parse(text);
-    const list = Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string' && entry !== '') : [];
-    return list.length === 0 || list.includes(ANYONE) ? [ANYONE] : list;
+    const parsed: unknown = JSON.parse(text);
+    if (!Array.isArray(parsed)) return [];
+    if (parsed.length === 0 || parsed.includes(ANYONE)) return [ANYONE];
+    return parsed.filter((entry): entry is string => typeof entry === 'string' && entry !== '');
   } catch {
-    return [ANYONE];
+    return [];
   }
 }
 
-export const anyoneListed = (list: string[]): boolean => list.length === 0 || list.includes(ANYONE);
+export const anyoneListed = (list: string[]): boolean => list.includes(ANYONE);
 
 export function senderListed(list: string[], id: string): boolean {
   if (anyoneListed(list)) return true;
