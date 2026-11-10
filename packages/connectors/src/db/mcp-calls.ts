@@ -5,7 +5,9 @@ import { callStats, connectorGroup, type CallStats, type StatsScope } from './mc
 
 export type McpCallRow = typeof mcpCalls.$inferSelect;
 
-export type NewMcpCall = Omit<McpCallRow, 'agentName'>;
+export type CallKind = 'call' | 'event';
+
+export type NewMcpCall = Omit<McpCallRow, 'agentName' | 'kind'> & { kind?: CallKind };
 
 export const CALLS_PAGE = 50;
 export const CALLS_PAGE_MAX = 200;
@@ -36,6 +38,7 @@ export interface CallView {
   outcome: string;
   ms: number;
   at: number;
+  kind: string;
 }
 
 export interface McpCallStore {
@@ -76,6 +79,7 @@ async function recentCalls(db: Database, owner: string, filter: CallFilter): Pro
       outcome: mcpCalls.outcome,
       ms: mcpCalls.ms,
       at: mcpCalls.at,
+      kind: mcpCalls.kind,
     })
     .from(mcpCalls)
     .leftJoin(agents, and(eq(agents.id, mcpCalls.agent), eq(agents.owner, owner)))

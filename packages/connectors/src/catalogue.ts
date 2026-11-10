@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
-import { listRemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
+import { listRemoteServer, type RemoteEvent, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
@@ -65,12 +65,31 @@ function redactedRecord(value: Record<string, unknown>, redact: (text: string) =
   return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactedValue(item, redact)]));
 }
 
-export function publicTools(tools: RemoteTool[], secret: ConnectorSecret): RemoteTool[] {
+interface Redaction {
+  redact: (value: string) => string;
+  names: string[];
+}
+
+function redactionOf(secret: ConnectorSecret): Redaction {
   const known = credentials(secret);
   const paths = pathCredentials(new URL(secret.targetUrl).pathname);
   const hidden = redactionKeys([...known, ...paths.metadata]);
-  const names = redactionKeys([...known, ...paths.names]);
-  const redact = (value: string): string => hidden.reduce((text, key) => text.replaceAll(key, '[redacted]'), value.replace(/https?:\/\/[^\s<>"']+/gi, '[address withheld]'));
+  return {
+    redact: (value) => hidden.reduce((text, key) => text.replaceAll(key, '[redacted]'), value.replace(/https?:\/\/[^\s<>"']+/gi, '[address withheld]')),
+    names: redactionKeys([...known, ...paths.names]),
+  };
+}
+
+export function publicEvents(events: RemoteEvent[] | null, secret: ConnectorSecret): RemoteEvent[] | null {
+  if (events === null) return null;
+  const { redact, names } = redactionOf(secret);
+  return events
+    .filter((event) => !/https?:\/\//i.test(event.name) && !names.some((key) => event.name.includes(key)))
+    .map((event) => ({ ...event, title: redact(event.title).slice(0, 256), description: redact(event.description).slice(0, 4096) }));
+}
+
+export function publicTools(tools: RemoteTool[], secret: ConnectorSecret): RemoteTool[] {
+  const { redact, names } = redactionOf(secret);
   return tools.map((tool) => {
     if (!validConnectorToolName(tool.name)) {
       log.warn({ name: tool.name.slice(0, 120) }, 'connectors: a tool name has characters metro does not accept, so the tool list was refused');
@@ -107,7 +126,7 @@ async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): 
   if (current === null) throw new ApiError('no such connector', 404);
   if (credentialRevision(key, current) !== credentialRevision(key, row)) throw new ApiError('This connector changed. Refresh its tool list.', 409);
   const tools = publicTools(server.tools, secret);
-  await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret) }).catch((err: unknown) => {
+  await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret), events: publicEvents(server.events, secret) }).catch((err: unknown) => {
     log.warn({ connector: row.id, err: errMsg(err) }, 'connectors: the tool list could not be kept for mcp.metro.box');
   });
   return tools;

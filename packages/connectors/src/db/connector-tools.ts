@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
-import type { RemoteTool } from '@metro-labs/http/connector-tools';
+import { deliversByWebhook, type RemoteEvent, type RemoteTool } from '@metro-labs/http/connector-tools';
+import { EVENT_NAME_RE } from '@metro-labs/http/mcp-events';
 import type { Database } from './database.js';
 import { connectors, connectorTools } from './schema.js';
 
@@ -16,10 +17,17 @@ export interface ToolFailure {
 export interface ToolListing {
   tools: RemoteTool[] | null;
   icons: ConnectorIcon[];
+  events: RemoteEvent[];
   listedAt: number;
   failure: ToolFailure | null;
   failedAt: number;
 }
+
+export type SavedListing = Omit<ToolListing, 'events'> & { events: RemoteEvent[] | null };
+
+const isEvent = (value: unknown): value is RemoteEvent =>
+  isRecord(value) && typeof value.name === 'string' && EVENT_NAME_RE.test(value.name) && typeof value.title === 'string' && typeof value.description === 'string'
+  && Array.isArray(value.delivery) && value.delivery.every((mode) => typeof mode === 'string') && (value.sender === undefined || (isRecord(value.sender) && typeof value.sender.id === 'string'));
 
 const isTool = (value: unknown): value is RemoteTool =>
   isRecord(value) && typeof value.name === 'string' && typeof value.title === 'string' && typeof value.description === 'string' && typeof value.readOnly === 'boolean';
@@ -39,7 +47,7 @@ function listOf<T>(text: string | null, valid: (value: unknown) => value is T): 
 function listingOf(row: typeof connectorTools.$inferSelect): ToolListing {
   const tools = listOf(row.tools, isTool);
   const failure = row.failureCode === null || row.failure === null ? null : { code: row.failureCode, message: row.failure };
-  return { tools, icons: listOf(row.icons, isIcon) ?? [], listedAt: tools === null ? 0 : (row.listedAt ?? 0), failure, failedAt: failure === null ? 0 : (row.failedAt ?? 0) };
+  return { tools, icons: listOf(row.icons, isIcon) ?? [], events: listOf(row.events, isEvent) ?? [], listedAt: tools === null ? 0 : (row.listedAt ?? 0), failure, failedAt: failure === null ? 0 : (row.failedAt ?? 0) };
 }
 
 export async function readToolListings(db: Database, connectors: string[]): Promise<Map<string, ToolListing>> {
@@ -48,10 +56,17 @@ export async function readToolListings(db: Database, connectors: string[]): Prom
   return new Map(rows.map((row) => [row.connector, listingOf(row)]));
 }
 
-export async function saveToolListing(db: Database, connector: string, listing: ToolListing): Promise<void> {
+export async function saveToolListing(db: Database, connector: string, listing: SavedListing): Promise<void> {
   const failure = listing.failure === null ? { failureCode: null, failure: null, failedAt: null } : { failureCode: listing.failure.code.slice(0, CODE_MAX), failure: listing.failure.message.slice(0, FAILURE_MAX), failedAt: listing.failedAt };
   const tools = listing.tools === null ? { tools: null, icons: null, listedAt: null } : { tools: JSON.stringify(listing.tools), icons: JSON.stringify(listing.icons), listedAt: listing.listedAt };
-  await db.insert(connectorTools).values({ connector, ...tools, ...failure }).onConflictDoUpdate({ target: connectorTools.connector, set: { ...tools, ...failure } });
+  const events = listing.tools === null || listing.events === null ? {} : { events: JSON.stringify(listing.events) };
+  await db.insert(connectorTools).values({ connector, ...tools, ...events, ...failure }).onConflictDoUpdate({ target: connectorTools.connector, set: { ...tools, ...events, ...failure } });
+}
+
+export async function readOfferedEvents(db: Database, connectors: string[]): Promise<Map<string, RemoteEvent[]>> {
+  if (connectors.length === 0) return new Map();
+  const rows = await db.select({ connector: connectorTools.connector, events: connectorTools.events }).from(connectorTools).where(inArray(connectorTools.connector, connectors));
+  return new Map(rows.map((row) => [row.connector, (listOf(row.events, isEvent) ?? []).filter(deliversByWebhook)]));
 }
 
 export async function declaredIcons(db: Database, origin: string): Promise<ConnectorIcon[]> {

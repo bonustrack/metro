@@ -4,6 +4,15 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { authHeaders, INITIALIZE, mcpPost, resultOf, type ConnectorAuth } from './connector-mcp.js';
 import { ConnectorUnauthorized, refused } from './connector-url.js';
+import { declaresEvents, EVENT_NAME_RE, EVENTS_LIST, senderPointersOf, WEBHOOK_DELIVERY, type SenderPointers } from './mcp-events.js';
+
+export interface RemoteEvent {
+  name: string;
+  title: string;
+  description: string;
+  delivery: string[];
+  sender?: SenderPointers;
+}
 
 export interface RemoteTool {
   name: string;
@@ -18,6 +27,7 @@ export interface RemoteTool {
 export interface RemoteServer {
   tools: RemoteTool[];
   icons: ConnectorIcon[];
+  events: RemoteEvent[] | null;
 }
 
 const TIMEOUT_MS = 15_000;
@@ -27,9 +37,14 @@ const MIME_RE = /^image\/[a-z0-9.+-]{1,64}$/i;
 const SIZE_RE = /^(any|\d{1,4}x\d{1,4})$/;
 const MAX_PAGES = 100;
 const MAX_TOOLS = 2000;
+const EVENT_PAGES = 10;
+const MAX_EVENTS = 100;
+const EVENTS_ID = 1000;
+const DELIVERY_RE = /^[a-z]{1,16}$/;
+const DELIVERY_MAX = 8;
 
-async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike): Promise<Record<string, unknown> | null> {
-  const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: Object.fromEntries(session), fetch: fetchImpl });
+async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike, headers: Record<string, string> = {}): Promise<Record<string, unknown> | null> {
+  const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: { ...Object.fromEntries(session), ...headers }, fetch: fetchImpl });
   const id = res.headers.get('mcp-session-id');
   if (id !== null && id !== '') session.set('mcp-session-id', id);
   const text = await res.text().catch(() => '');
@@ -124,6 +139,39 @@ function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
   return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
 }
 
+export function remoteEventOf(raw: unknown): RemoteEvent | null {
+  if (!isRecord(raw) || typeof raw.name !== 'string' || !EVENT_NAME_RE.test(raw.name) || !Array.isArray(raw.delivery)) return null;
+  const delivery = raw.delivery.filter((mode): mode is string => typeof mode === 'string' && DELIVERY_RE.test(mode)).slice(0, DELIVERY_MAX);
+  if (delivery.length === 0) return null;
+  const sender = senderPointersOf(raw._meta);
+  return { name: raw.name, title: filled(raw.title) ?? toolTitleOf(raw.name), description: typeof raw.description === 'string' ? raw.description : '', delivery, ...(sender === null ? {} : { sender }) };
+}
+
+export const deliversByWebhook = (event: Pick<RemoteEvent, 'delivery'>): boolean => event.delivery.includes(WEBHOOK_DELIVERY);
+
+function addEvents(result: Record<string, unknown> | null, events: Map<string, RemoteEvent>): string | null {
+  if (result === null || !Array.isArray(result.events)) throw refused('The provider did not return its event list.');
+  for (const event of result.events.map(remoteEventOf)) if (event !== null && !events.has(event.name) && events.size < MAX_EVENTS) events.set(event.name, event);
+  return typeof result.nextCursor === 'string' && result.nextCursor !== '' ? result.nextCursor : null;
+}
+
+async function walkEvents(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<RemoteEvent[] | null> {
+  const events = new Map<string, RemoteEvent>();
+  let cursor: string | null = null;
+  try {
+    for (let page = 0; page < EVENT_PAGES; page += 1) {
+      const result = await rpc(url, auth, session, { jsonrpc: '2.0', id: EVENTS_ID + page, method: EVENTS_LIST, params: cursor === null ? {} : { cursor } }, fetchImpl, { 'mcp-method': EVENTS_LIST });
+      const next = addEvents(result, events);
+      if (next === null || next === cursor) break;
+      cursor = next;
+    }
+    return [...events.values()];
+  } catch (err) {
+    log.debug(fetchImpl === undefined ? { host: url.hostname, err: errMsg(err) } : {}, 'connector-tools: the remote declares events but did not list them');
+    return null;
+  }
+}
+
 export const listRemoteTools = async (url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteTool[]> => (await listRemoteServer(url, auth, fetchImpl)).tools;
 
 export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?: FetchLike): Promise<RemoteServer> {
@@ -133,7 +181,8 @@ export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?
     if (init === null || typeof init.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
     session.set('mcp-protocol-version', init.protocolVersion);
     await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, fetchImpl);
-    return { tools: await walkTools(url, auth, session, fetchImpl), icons: serverIconsOf(init) };
+    const tools = await walkTools(url, auth, session, fetchImpl);
+    return { tools, icons: serverIconsOf(init), events: declaresEvents(init) ? await walkEvents(url, auth, session, fetchImpl) : [] };
   } finally {
     await endSession(url, auth, session, fetchImpl);
   }
