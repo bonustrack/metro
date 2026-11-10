@@ -6,7 +6,7 @@ import { setAllowlist } from '@metro-labs/client/api/attach';
 import { Icon } from '../Icon.js';
 import { Item } from '../ui/Item.js';
 import { AddPerson } from './AddPerson.js';
-import { PersonRow } from './PersonRow.js';
+import { Check, PersonRow } from './PersonRow.js';
 import { SAVE_FAILED } from './people-text.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
@@ -32,11 +32,6 @@ interface ChannelPeopleProps {
   allowlist: string[] | null;
   approvers: string[];
   onSaved: () => Promise<unknown>;
-}
-
-function Check({ on }: { on: boolean }): ReactNode {
-  const palette = useKitPalette();
-  return on ? <Icon name="check" size={MARK} color={palette.link} /> : null;
 }
 
 function anyoneNote(chat: boolean, name: string): string {

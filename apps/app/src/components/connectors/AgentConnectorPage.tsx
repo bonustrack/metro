@@ -15,7 +15,7 @@ import { useAgentName } from '../../lib/agent-hooks.js';
 import type { AgentTabId } from '../../lib/agent-tabs.js';
 import { go } from '../../lib/nav.js';
 import { useConnectorScope, useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
-import { queryError } from '../../lib/queries.js';
+import { queryError, useServerStatuses } from '../../lib/queries.js';
 import { useDocumentTitle } from '../../lib/title.js';
 
 interface PageProps {
@@ -34,14 +34,20 @@ function Waiting({ project, remote, children }: { project: string; remote: boole
   );
 }
 
+function useBoxVersion(remote: boolean): string | null {
+  const host = remote ? null : (currentServer()?.host ?? null);
+  return useServerStatuses(host === null ? [] : [host])[0]?.data?.version ?? null;
+}
+
 function Page({ project, connector, admin, remote }: { project: string; connector: OrgConnector; admin: boolean; remote: boolean }): ReactNode {
   const name = useAgentName();
   const agentId = currentServer()?.id ?? project;
+  const version = useBoxVersion(remote);
   return (
     <AgentDeepPage project={project} tab={tabOf(remote)} trail={[{ label: connector.name }]} title={connector.name} subtitle={agentSubtitle(connector, name)}
       leading={<ConnectorFavicon name={connector.name} url={connector.url} size={AVATAR_SIZE.header} />} action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined}
       summary={<ConnectorSummary connector={connector} agentId={agentId} name={name} remote={remote} />}>
-      <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} onRemoved={() => { go({ kind: 'tools', project }); }} />
+      <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} box={{ remote, version }} onRemoved={() => { go({ kind: 'tools', project }); }} />
       <TextLink to={routeHash({ kind: 'org-connector', id: connector.id })}>{`Open ${connector.name} in Connectors`}</TextLink>
     </AgentDeepPage>
   );

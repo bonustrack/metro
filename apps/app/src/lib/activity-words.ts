@@ -1,12 +1,17 @@
+import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { eventLabel, toolLabel } from './tool-labels.js';
 import type { DotTone } from './tone.js';
 
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
 
+type ActivityKind = ActivityCall['kind'];
+
 interface OutcomeWords {
   word: string;
   dot: DotTone | null;
+  quiet?: true;
 }
 
 const OUTCOMES: Record<string, OutcomeWords> = {
@@ -21,7 +26,26 @@ const OUTCOMES: Record<string, OutcomeWords> = {
   invalid: { word: 'Not a valid call', dot: 'danger' },
 };
 
-export const outcomeWords = (outcome: string): OutcomeWords => OUTCOMES[outcome] ?? { word: 'Ended', dot: null };
+const EVENT_OUTCOMES: Record<string, OutcomeWords> = {
+  delivered: { word: 'Delivered', dot: null },
+  dropped_sender: { word: 'Dropped: not on the list', dot: null },
+  dropped_unverified: { word: 'Dropped: sender not verified', dot: null },
+  dropped_paused: { word: 'Dropped: messages paused', dot: null },
+  dropped_unassigned: { word: 'Dropped: connector removed', dot: null },
+  expired: { word: 'Expired', dot: null, quiet: true },
+  skipped: { word: 'Events skipped', dot: null },
+};
+
+const known = (words: Record<string, OutcomeWords>, outcome: string): OutcomeWords | undefined => (Object.hasOwn(words, outcome) ? words[outcome] : undefined);
+
+export function outcomeWords(outcome: string, kind: ActivityKind = 'call'): OutcomeWords {
+  if (kind === 'event') return known(EVENT_OUTCOMES, outcome) ?? { word: 'Received', dot: null };
+  return known(OUTCOMES, outcome) ?? { word: 'Ended', dot: null };
+}
+
+export const activityLabel = (call: Pick<ActivityCall, 'kind' | 'tool'>): string => (call.kind === 'event' ? eventLabel(call.tool) : toolLabel(call.tool));
+
+export const timingWords = (call: Pick<ActivityCall, 'kind' | 'ms'>, when: string): string => (call.kind === 'event' ? when : `${durationWords(call.ms)} · ${when}`);
 
 export function durationWords(ms: number): string {
   if (ms < SECOND) return `${String(Math.round(ms))} ms`;

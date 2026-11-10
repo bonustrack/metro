@@ -7,6 +7,7 @@ import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { StateBlock } from '../ui/StateBlock.js';
+import { ConnectorEvents, type AgentBox } from './ConnectorEvents.js';
 import { ToolExplorer } from './ToolExplorer.js';
 import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
 import { queryError } from '../../lib/queries.js';
@@ -18,6 +19,7 @@ interface AgentRulesProps {
   agentId: string;
   name: string;
   admin: boolean;
+  box: AgentBox | null;
   onRemoved: () => void;
 }
 
@@ -59,7 +61,7 @@ function ResetRow({ connector, agentId, name }: { connector: OrgConnector; agent
   return <Item title="Reset to the organization" subtitle={`${name} follows only the rules of the organization again.`} chevron={false} onPress={reset.busy ? undefined : reset.reset} />;
 }
 
-function NotAssigned({ connector, agentId, name, admin }: Omit<AgentRulesProps, 'onRemoved'>): ReactNode {
+function NotAssigned({ connector, agentId, name, admin }: Omit<AgentRulesProps, 'onRemoved' | 'box'>): ReactNode {
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,7 @@ function NotAssigned({ connector, agentId, name, admin }: Omit<AgentRulesProps, 
   );
 }
 
-export function AgentRules({ connector, agentId, name, admin, onRemoved }: AgentRulesProps): ReactNode {
+export function AgentRules({ connector, agentId, name, admin, box, onRemoved }: AgentRulesProps): ReactNode {
   const client = useQueryClient();
   const narrow = useIsNarrow();
   const held = connector.agents.find((agent) => agent.id === agentId);
@@ -92,6 +94,7 @@ export function AgentRules({ connector, agentId, name, admin, onRemoved }: Agent
   };
   return (
     <Groups>
+      <ConnectorEvents connector={connector} agentId={agentId} name={name} admin={admin} box={box} />
       <ToolExplorer connector={connector} scope={{ policy: held.policy, organization: connector.policy }} editable={admin} save={save} />
       {admin ? (
         <Group label="Danger">

@@ -7,10 +7,11 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Dropdown, type MenuItem } from '../Dropdown.js';
+import { Icon } from '../Icon.js';
 import { side } from '../ui/edges.js';
 import { type Person } from '../../lib/channel-people.js';
 import { openExternal } from '../../lib/open.js';
-import { AVATAR_SIZE } from '../ui/sizes.js';
+import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 
 
 const styles = StyleSheet.create({
@@ -20,8 +21,13 @@ const styles = StyleSheet.create({
 interface PersonRowProps {
   person: Person;
   busy: boolean;
-  onApprove: (approves: boolean) => void;
+  onApprove?: (approves: boolean) => void;
   onRemove: () => void;
+}
+
+export function Check({ on }: { on: boolean }): ReactNode {
+  const palette = useKitPalette();
+  return on ? <Icon name="check" size={ICON_SIZE.md} color={palette.link} /> : null;
 }
 
 function menuOf(person: Person, busy: boolean, onRemove: () => void): MenuItem[] {

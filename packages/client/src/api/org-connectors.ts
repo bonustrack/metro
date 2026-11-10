@@ -4,11 +4,12 @@ import { location, signInReturnUrl } from '../platform.js';
 import { call, type CallInit } from './client.js';
 import { accountIdentity, accountScopeIdentity, checkAccountIdentity } from '../auth/account.js';
 import { connectorToolsOf, type ConnectorTool } from './connectors.js';
+import { agentEventsOf, offeredEventsOf, type AgentEvents, type AgentEventsChange, type OfferedEvent } from './connector-events.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 
 type OrgConnectorAuth = 'none' | 'header' | 'oauth';
 
-interface OrgConnectorAgent {
+interface OrgConnectorAgent extends AgentEvents {
   id: string;
   readOnly: boolean;
   policy: ToolPolicy;
@@ -29,6 +30,7 @@ export interface OrgConnector {
   policy: ToolPolicy;
   createdAt: string;
   updatedAt: string;
+  events: OfferedEvent[] | null;
   agents: OrgConnectorAgent[];
 }
 
@@ -99,7 +101,8 @@ export function toOrgConnector(value: unknown): OrgConnector {
     policy: orgPolicyOf(value),
     createdAt: str(value.createdAt),
     updatedAt: str(value.updatedAt),
-    agents: records(value.agents).map((a) => ({ id: str(a.id), readOnly: a.readOnly === true, policy: orgPolicyOf(a), assignedAt: str(a.assignedAt) })),
+    events: offeredEventsOf(value.events),
+    agents: records(value.agents).map((a) => ({ id: str(a.id), readOnly: a.readOnly === true, policy: orgPolicyOf(a), assignedAt: str(a.assignedAt), ...agentEventsOf(a) })),
   };
 }
 
@@ -190,6 +193,9 @@ export const assignOrgConnector = async (id: string, agent: string): Promise<Org
 
 export const setOrgConnectorAgentPolicy = async (id: string, agent: string, policy: ToolPolicy): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/policy`, headers: JSON_HEADERS, body: JSON.stringify({ policy }) }));
+
+export const setConnectorAgentEvents = async (id: string, agent: string, change: AgentEventsChange): Promise<OrgConnector> =>
+  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/events`, headers: JSON_HEADERS, body: JSON.stringify({ ...(change.events === undefined ? {} : { events: change.events }), ...(change.senders === undefined ? {} : { senders: change.senders }) }) }));
 
 export const unassignOrgConnector = async (id: string, agent: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'DELETE', base: base(), path: `/${id}/agents/${agent}` }));

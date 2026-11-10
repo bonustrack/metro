@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agoWords, durationWords, outcomeWords } from '../src/lib/activity-words.ts';
+import { activityLabel, agoWords, durationWords, outcomeWords, timingWords } from '../src/lib/activity-words.ts';
 
 const NOW = Date.parse('2026-10-22T09:00:00Z');
 
@@ -12,6 +12,34 @@ describe('a connector call in words', () => {
       expect(outcomeWords(failed).word).not.toContain('_');
     }
     expect(outcomeWords('something_new')).toEqual({ word: 'Ended', dot: null });
+    expect(outcomeWords('constructor')).toEqual({ word: 'Ended', dot: null });
+  });
+
+  test('a received event has its own words, never a dot, and only an expired one is quiet', () => {
+    expect(outcomeWords('delivered', 'event')).toEqual({ word: 'Delivered', dot: null });
+    expect(outcomeWords('dropped_sender', 'event').word).toBe('Dropped: not on the list');
+    expect(outcomeWords('dropped_unverified', 'event').word).toBe('Dropped: sender not verified');
+    expect(outcomeWords('dropped_paused', 'event').word).toBe('Dropped: messages paused');
+    expect(outcomeWords('dropped_unassigned', 'event').word).toBe('Dropped: connector removed');
+    expect(outcomeWords('expired', 'event')).toEqual({ word: 'Expired', dot: null, quiet: true });
+    expect(outcomeWords('skipped', 'event').word).toBe('Events skipped');
+    for (const outcome of ['delivered', 'dropped_sender', 'dropped_unverified', 'dropped_paused', 'dropped_unassigned', 'expired', 'skipped', 'something_new', 'ok', 'blocked']) {
+      expect(outcomeWords(outcome, 'event').dot).toBeNull();
+      expect(outcomeWords(outcome, 'event').word).not.toContain('_');
+    }
+    expect(outcomeWords('something_new', 'event')).toEqual({ word: 'Received', dot: null });
+    expect(outcomeWords('delivered')).toEqual({ word: 'Ended', dot: null });
+    expect(outcomeWords('blocked', 'call').dot).toBe('danger');
+  });
+
+  test('a row names a tool or an event in words, and an event shows no duration', () => {
+    expect(activityLabel({ kind: 'call', tool: 'create_issue' })).toBe('Create issue');
+    expect(activityLabel({ kind: 'call', tool: 'send' })).toBe('Send messages');
+    expect(activityLabel({ kind: 'event', tool: 'item.created' })).toBe('Item created');
+    expect(activityLabel({ kind: 'event', tool: 'team/item:status_changed' })).toBe('Team item status changed');
+    expect(activityLabel({ kind: 'event', tool: 'send' })).toBe('Send');
+    expect(timingWords({ kind: 'call', ms: 1_234 }, '5 min ago')).toBe('1.2 s · 5 min ago');
+    expect(timingWords({ kind: 'event', ms: 0 }, '5 min ago')).toBe('5 min ago');
   });
 
   test('a duration reads in ms, seconds or minutes', () => {

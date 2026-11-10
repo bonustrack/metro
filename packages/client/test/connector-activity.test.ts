@@ -21,7 +21,7 @@ function serve(body: unknown, status = 200): void {
 }
 
 const call = (id: string, at: number, patch: Partial<ActivityCall> = {}): ActivityCall => ({
-  id, agent: 'aB3-_xYz9Qw', agentName: 'Emma', connector: 'cN3-_xYz9Qw', connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 12, at, ...patch,
+  id, agent: 'aB3-_xYz9Qw', agentName: 'Emma', connector: 'cN3-_xYz9Qw', connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 12, at, kind: 'call', ...patch,
 });
 
 const ids = (feed: ActivityFeed): string[] => feed.calls.map((one) => one.id);
@@ -44,9 +44,17 @@ afterAll(() => {
 describe('reading the connector activity', () => {
   test('a row is read with safe defaults, and a row without an id, agent, tool or time is dropped', () => {
     expect(toActivityCall({ id: 'a', agent: 'b', tool: 'search', at: NOW, ms: -4, connector: null, connectorKey: 'jira' })).toEqual({
-      id: 'a', agent: 'b', agentName: null, connector: null, connectorKey: 'jira', connectorName: null, connectorUrl: null, tool: 'search', outcome: '', ms: 0, at: NOW,
+      id: 'a', agent: 'b', agentName: null, connector: null, connectorKey: 'jira', connectorName: null, connectorUrl: null, tool: 'search', outcome: '', ms: 0, at: NOW, kind: 'call',
     });
     for (const bad of [null, { agent: 'b', tool: 't', at: 1 }, { id: 'a', tool: 't', at: 1 }, { id: 'a', agent: 'b', at: 1 }, { id: 'a', agent: 'b', tool: 't', at: 'soon' }]) expect(toActivityCall(bad)).toBeNull();
+  });
+
+  test('a received event keeps its kind, and an api that sends none, or one Metro does not know, means a call', () => {
+    const row = { id: 'a', agent: 'b', tool: 'item.created', outcome: 'delivered', at: NOW, ms: 0 };
+    expect(toActivityCall({ ...row, kind: 'event' })).toMatchObject({ kind: 'event', tool: 'item.created', outcome: 'delivered' });
+    expect(toActivityCall(row)?.kind).toBe('call');
+    expect(toActivityCall({ ...row, kind: 'later' })?.kind).toBe('call');
+    expect(toActivityCall({ ...row, kind: 7 })?.kind).toBe('call');
   });
 
   test('a page keeps the rows it can read, and before carries the time and id of the oldest call', async () => {
