@@ -276,6 +276,13 @@ url (https, or http on this machine only); an empty value turns the client off.
   through api.metro.box's `GET /api/connectors/activity`. About 33 MB per 100,000 calls.
 - Code shared with api.metro.box lives in `packages/connectors`.
 
+## Connector events
+
+A connector whose server offers events (the draft MCP Events Extension, webhooks) can deliver
+them to an agent: mcp.metro.box subscribes for each agent that wants an event, receives the
+signed POSTs at `/v1/events/<subscription row id>`, applies who can write, and hands the event
+to the agent's box through `POST /v1/inbox`. The whole design is in `docs/CONNECTOR-EVENTS.md`.
+
 ## Deploy
 
 - Fly app `metro-mcp`, region `iad`, two machines, `mcp.metro.box`.
