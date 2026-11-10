@@ -87,7 +87,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
       return;
     }
     const line = relayLine(deps, params.request_id, call?.route.line);
-    holdPrompt(
+    const held = holdPrompt(
       {
         requestId: params.request_id,
         tool: params.tool_name,
@@ -101,6 +101,10 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
       answer(params.request_id),
       line === undefined ? undefined : async (text) => metroSend(line, text),
     );
+    if (!held) {
+      await answer(params.request_id)('deny');
+      return;
+    }
     if (line === undefined) return;
     try {
       await metroSend(line, promptBody(params));

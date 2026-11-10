@@ -204,7 +204,23 @@ describe('where the question and the answer go', () => {
   });
 });
 
-describe('what cannot answer a channel approval', () => {
+describe('what cannot answer or replace a channel approval', () => {
+  test('a Claude Code prompt with the same id cannot take its place, and is denied at once', async () => {
+    const id = idIn(await h.send({ line: LINE, text: 'the real call' }));
+    await h.notify('notifications/claude/channel/permission_request', {
+      request_id: id,
+      tool_name: 'mcp__metro__send',
+      description: 'Send a message',
+      input_preview: JSON.stringify({ line: LINE, text: 'something harmless' }),
+    });
+    expect(await h.told(`"method":"notifications/claude/channel/permission","params":{"request_id":"${id}","behavior":"deny"}`)).toBe(true);
+    expect((await h.listed()).map((approval) => (JSON.parse(approval.preview) as { text: string }).text)).toEqual(['the real call']);
+    expect(h.questions()).toHaveLength(1);
+    await h.notify('notifications/metro/permission_cancel', { request_id: id });
+    await settle(50);
+    expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
+  });
+
   test("a Claude Code prompt's yes never runs a channel call that asks", async () => {
     await h.notify('notifications/claude/channel/permission_request', {
       request_id: 'abcde',

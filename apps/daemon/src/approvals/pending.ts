@@ -48,18 +48,29 @@ const shown = ({ requestId, tool, description, preview, line, at }: Held): Pendi
   at,
 });
 
+function makeRoom(): void {
+  while (held.size > PENDING_MAX) {
+    const oldest = [...held.values()].find((entry) => entry.origin === undefined) ?? held.values().next().value;
+    if (oldest === undefined) return;
+    held.delete(oldest.requestId);
+    log.warn({ requestId: oldest.requestId, tool: oldest.tool }, 'approvals: too many prompts are waiting, so the oldest one was dropped');
+  }
+}
+
 export function holdPrompt(
   prompt: PendingPrompt,
   owner: object,
   send: SendAnswer,
   tell?: (text: string) => Promise<void>,
-): void {
-  held.set(prompt.requestId, { ...prompt, owner, send, tell });
-  while (held.size > PENDING_MAX) {
-    const oldest = held.keys().next();
-    if (oldest.done) break;
-    held.delete(oldest.value);
+): boolean {
+  const current = held.get(prompt.requestId);
+  if (current !== undefined && current.owner !== owner) {
+    log.warn({ requestId: prompt.requestId, tool: prompt.tool }, 'approvals: this id already belongs to another prompt, so the new one was refused');
+    return false;
   }
+  held.set(prompt.requestId, { ...prompt, owner, send, tell });
+  makeRoom();
+  return true;
 }
 
 export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(shown).sort((a, b) => b.at - a.at);
