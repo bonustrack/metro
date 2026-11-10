@@ -8,3 +8,13 @@ export class CallError extends Error {
     super(message);
   }
 }
+
+export class VendorRpcError extends CallError {
+  constructor(
+    message: string,
+    readonly rpcCode: number,
+    readonly data: unknown,
+  ) {
+    super('vendor_error', message);
+  }
+}

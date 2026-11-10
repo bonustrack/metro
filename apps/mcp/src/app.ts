@@ -1,12 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { METRO_VERSION } from '@metro-labs/core/version';
-import { MCP_APPROVAL_WAIT_MS } from '@metro-labs/http/mcp-server-protocol';
+import { MCP_APPROVAL_WAIT_MS, MCP_INBOX_WAIT_MS } from '@metro-labs/http/mcp-server-protocol';
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { Favicons } from '@metro-labs/connectors/favicons';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
+import { eventStore } from '@metro-labs/connectors/db/connector-events';
+import { subscriptionStore } from '@metro-labs/connectors/db/connector-subscriptions';
+import { orgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { createAgentToken } from '@metro-labs/connectors/db/agent-tokens';
@@ -21,11 +24,14 @@ import { FIRST_LIST_WAIT_MS } from './listing.js';
 import { clientKeyOf } from './oauth/clients.js';
 import type { OauthDeps } from './oauth/flow.js';
 import { handleOauthRequest } from './oauth/routes.js';
+import { Receivers } from './receivers.js';
 import { tokenStore } from './token.js';
 import { ToolLists } from './tool-lists.js';
 import { Waiters } from './waiters.js';
+import { handleReceiverDocument, handleWebhookRequest } from './webhook.js';
 
 const APPROVAL_POLL_MS = 1000;
+const INBOX_CHECK_MS = 5000;
 
 interface AppSetup {
   key: Buffer;
@@ -56,8 +62,10 @@ function oauthDeps(setup: AppSetup, now: () => number): OauthDeps {
 
 export function mcpDeps(setup: AppSetup): McpDeps {
   const now = setup.now ?? Date.now;
+  const subscriptions = subscriptionStore(setup.db);
   return {
     key: setup.key,
+    publicHost: setup.publicHost,
     tokens: tokenStore(setup.db, now),
     oauth: oauthDeps(setup, now),
     keys: agentKeyStore(setup.db),
@@ -65,6 +73,10 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     auth: new AgentAuth(setup.publicHost, now),
     store: connectorDeliveryStore(setup.db),
     approvals: approvalStore(setup.db),
+    subscriptions,
+    events: eventStore(setup.db),
+    receivers: new Receivers(setup.key, subscriptions, now),
+    catalogue: { key: () => setup.key, store: orgConnectorStore(setup.db), fetch: setup.fetch, now },
     calls: callRecorder(setup.db),
     waiters: new Waiters(),
     toolLists: new ToolLists(setup.db, now),
@@ -76,6 +88,8 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     listWaitMs: FIRST_LIST_WAIT_MS,
     approvalHoldMs: MCP_APPROVAL_WAIT_MS,
     approvalPollMs: APPROVAL_POLL_MS,
+    inboxHoldMs: MCP_INBOX_WAIT_MS,
+    inboxCheckMs: INBOX_CHECK_MS,
   };
 }
 
@@ -87,6 +101,7 @@ function handleHealth(req: IncomingMessage, res: ServerResponse): boolean {
 }
 
 export function handleRequest(req: IncomingMessage, res: ServerResponse, deps: McpDeps): void {
-  if (handleHealth(req, res) || handleOauthRequest(req, res, deps.oauth) || handleDaemonRequest(req, res, deps) || handleMcpRequest(req, res, deps)) return;
+  if (handleHealth(req, res) || handleReceiverDocument(req, res) || handleWebhookRequest(req, res, deps)) return;
+  if (handleOauthRequest(req, res, deps.oauth) || handleDaemonRequest(req, res, deps) || handleMcpRequest(req, res, deps)) return;
   sendBody(res, 404, { error: 'not found' });
 }

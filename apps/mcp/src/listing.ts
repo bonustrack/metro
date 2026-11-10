@@ -3,7 +3,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { listRemoteServer, type RemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
-import { publicIcons, publicTools } from '@metro-labs/connectors/catalogue';
+import { publicEvents, publicIcons, publicTools } from '@metro-labs/connectors/catalogue';
 import type { ToolListing } from '@metro-labs/connectors/db/connector-tools';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { AgentConnector } from './catalog.js';
@@ -41,7 +41,7 @@ function refresh(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConn
   const list = (): Promise<RemoteServer> =>
     withCredential(deps, identity, connector.id, async (target) => {
       const server = await listRemoteServer(target.url, target.auth, bounded(deps.fetch));
-      return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret) };
+      return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret), events: publicEvents(server.events, target.secret) };
     });
   return deps.toolLists.refresh(connector.id, list, (err) => {
     const failure = failureOf(err, connector.name);
