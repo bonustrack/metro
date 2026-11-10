@@ -11,7 +11,7 @@ import {
   accountStationCapabilities,
 } from '../stations/registry.js';
 import type { Station, StationTool, ToolResult } from '@metro-labs/core/stations/types';
-import { listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
+import { declaredGroup, listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
 import { policyGate, withEffectivePolicy } from './policy-gate.js';
 import { settlePromptsFor } from '../approvals/pending.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
@@ -164,6 +164,7 @@ async function runTool(
   hooks: ToolHooks,
 ): Promise<ToolResult> {
   const name = req.params.name;
+  if (declaredGroup(name) === undefined) return errResult(`unknown tool: ${name}`);
   const given = givenCall(req.params.arguments);
   if (given === undefined) return errResult(ACCOUNT_SHAPE);
   const { args: a, approval } = given;

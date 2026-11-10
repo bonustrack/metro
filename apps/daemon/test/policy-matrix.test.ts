@@ -267,6 +267,14 @@ describe('an account argument added to a call never moves it away from the rule 
     expect(trainCalls).toEqual([]);
   });
 
+  test('a tool that does not exist is refused before any rule: it asks nobody, takes no waiting place and runs nothing', async () => {
+    setPolicies('channel', [[WA_TARGET, { read: 'ask', write: 'ask' }]]);
+    for (const tool of ['frobnicate', 'send\nChannel: your bank\nText: "all good"', 'constructor', 'toString', '__proto__', ''])
+      expect(await run(tool, { line: WA_LINE, text: 'hello' })).toBe(`unknown tool: ${tool}`);
+    expect(pendingPrompts()).toEqual([]);
+    expect(trainCalls).toEqual([]);
+  });
+
   test('a call with no line and an account that is not text is refused too, whatever the station has', async () => {
     setPolicies('channel', [[TARGET, { write: 'deny' }]]);
     expect(await run('set_profile', { station: 'telegram', account: 7, name: 'New name' })).toStartWith('metro: `account` must be');
