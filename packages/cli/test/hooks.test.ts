@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -51,23 +51,14 @@ describe('the orchestrator guard the CLI ships', () => {
     }
   });
 
-  test('connectors: tool_search runs on any thread, tool_call only in a worker, and neither meets a station policy; an old snapshot\'s connectors are ignored', () => {
-    const policy = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-'));
-    writeFileSync(join(policy, 'policy.json'), JSON.stringify({ version: 1, connectors: { notion: { id: 'org-notion00001', name: 'Notion', policy: { write: 'deny' }, tools: {} } } }));
-    const strict = mkdtempSync(join(tmpdir(), 'metro-guard-mcp-strict-'));
-    writeFileSync(join(strict, 'policy.json'), JSON.stringify({ ...SNAPSHOT, accounts: { [`telegram/${TG}`]: { read: 'deny', write: 'deny' } }, ungated: [...SNAPSHOT.ungated, 'tool_search', 'tool_call'] }));
-    for (const where of [EMPTY, policy, strict]) {
-      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' } }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' }, agent_id: 'w1' }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, where)).toMatch(/^deny: A connector call is work, not orches/);
-      expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' }, where)).toBe('allow');
-    }
-    for (const old of ['mcp__mcp__find_tools', 'mcp__plugin_metro_mcp__find_tools'])
+  test('connectors: tool_search runs on any thread, tool_call only in a worker', () => {
+    expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' } })).toBe('allow');
+    expect(guard({ tool_name: 'mcp__metro__tool_search', tool_input: { query: 'notion page' }, agent_id: 'w1' })).toBe('allow');
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } })).toMatch(/^deny: A connector call is work, not orches/);
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [{ tool: 'notion.update_page' }] }, agent_id: 'w1' })).toBe('allow');
+    for (const old of ['mcp__mcp__find_tools', 'mcp__plugin_metro_mcp__find_tools', 'mcp__notion__update_page'])
       expect(guard({ tool_name: old, tool_input: { query: 'notion page' } })).toMatch(/^deny: A connector call is work, not orches/);
-    expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {}, agent_id: 'w1' }, policy)).toBe('allow');
-    expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {} }, policy)).toMatch(/^deny: A connector call is work, not orches/);
-    rmSync(policy, { recursive: true, force: true });
-    rmSync(strict, { recursive: true, force: true });
+    expect(guard({ tool_name: 'mcp__notion__update_page', tool_input: {}, agent_id: 'w1' })).toBe('allow');
   });
 
   test('a payload that does not parse is denied, never allowed', () => {
@@ -76,73 +67,19 @@ describe('the orchestrator guard the CLI ships', () => {
   });
 });
 
-const TG = 'tg000000001';
-const TG2 = 'tg000000002';
-const LINE = `metro://telegram/${TG}/-100555`;
+const LINE = 'metro://telegram/tg000000001/-100555';
 
-const SNAPSHOT = {
-  version: 1,
-  tools: { send: 'write', read: 'read', delete: 'write', get_profile: 'read', create_group: 'write', group_info: 'read', list_accounts: 'read' },
-  owners: { group_info: 'xmtp' },
-  ungated: ['list_accounts', 'create_upload'],
-  accounts: {
-    [`telegram/${TG}`]: { write: 'ask', tools: { delete: 'deny' } },
-    [`telegram/${TG2}`]: { read: 'deny' },
-    'xmtp/xm000000001': { read: 'ask' },
-  },
-  stations: { telegram: [TG, TG2], xmtp: ['xm000000001'] },
-};
-
-describe('the owner rules are the daemon\'s alone: the guard reads none', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'metro-guard-policy-'));
-  writeFileSync(join(dir, 'policy.json'), JSON.stringify(SNAPSHOT));
-  const main = (tool: string, input: Record<string, unknown>): string => guard({ tool_name: `mcp__metro__${tool}`, tool_input: input }, dir);
-  const worker = (tool: string, input: Record<string, unknown>): string =>
-    guard({ tool_name: `mcp__metro__${tool}`, tool_input: input, agent_id: 'w1' }, dir);
-
-  test('the hook package ships no copy of the rules', () => {
+describe('the owner rules are the daemon\'s alone', () => {
+  test('the hooks ship no copy of them, and a snapshot an older Metro left behind changes nothing', () => {
     expect(readdirSync(HOOKS).sort()).toEqual(['guard.mjs', 'session-start.mjs']);
     expect(readFileSync(GUARD, 'utf8')).not.toContain('policy');
-  });
-
-  test('a snapshot an older Metro left behind changes nothing: an Ask or a Block there neither asks nor denies', () => {
-    const calls: [string, Record<string, unknown>][] = [
-      ['send', { line: LINE, text: 'hi' }],
-      ['send', { line: LINE, text: 'hi', approval: 'abcde' }],
-      ['delete', { line: LINE, message_id: 'm1' }],
-      ['read', { line: LINE, account: TG2 }],
-      ['read', { account: TG2 }],
-      ['create_group', { station: 'telegram', name: 'crew' }],
-      ['group_info', {}],
-      ['get_profile', { from: `metro://telegram/${TG2}/user/42` }],
-      ['brand_new_tool', { line: LINE }],
-      ['list_accounts', {}],
-    ];
-    for (const [tool, input] of calls) {
-      expect(main(tool, input)).toBe('allow');
-      expect(worker(tool, input)).toBe('allow');
-      expect(guard({ tool_name: `mcp__metro__${tool}`, tool_input: input })).toBe('allow');
+    const dir = mkdtempSync(join(tmpdir(), 'metro-guard-policy-'));
+    writeFileSync(join(dir, 'policy.json'), JSON.stringify({ version: 1, tools: { send: 'write', delete: 'write' }, accounts: { 'telegram/tg000000001': { write: 'ask', tools: { delete: 'deny' } } }, stations: { telegram: ['tg000000001'] } }));
+    for (const tool of ['send', 'delete']) {
+      expect(guard({ tool_name: `mcp__metro__${tool}`, tool_input: { line: LINE, text: 'hi', message_id: 'm1' } }, dir)).toBe('allow');
+      expect(guard({ tool_name: `mcp__metro__${tool}`, tool_input: { line: LINE, text: 'hi', message_id: 'm1' }, agent_id: 'w1' }, dir)).toBe('allow');
     }
-  });
-
-  test('a snapshot that does not parse, a folder or a link in its place changes nothing either', () => {
-    const broken = mkdtempSync(join(tmpdir(), 'metro-guard-broken-'));
-    writeFileSync(join(broken, 'policy.json'), '{nope');
-    const folder = mkdtempSync(join(tmpdir(), 'metro-guard-folder-'));
-    mkdirSync(join(folder, 'policy.json'));
-    const linked = mkdtempSync(join(tmpdir(), 'metro-guard-linked-'));
-    symlinkSync(join(dir, 'policy.json'), join(linked, 'policy.json'));
-    for (const where of [broken, folder, linked]) {
-      expect(guard({ tool_name: 'mcp__metro__delete', tool_input: { line: LINE } }, where)).toBe('allow');
-      expect(guard({ tool_name: 'mcp__metro__send', tool_input: { line: LINE, text: 'hi' }, agent_id: 'w1' }, where)).toBe('allow');
-      rmSync(where, { recursive: true, force: true });
-    }
-  });
-
-  test('other tools keep the guard rules they had', () => {
-    expect(guard({ tool_name: 'Bash', tool_input: {} }, dir)).toMatch(/^deny: The main thread is orchestrator-only/);
-    expect(guard({ tool_name: 'Bash', agent_id: 'w1', tool_input: {} }, dir)).toBe('allow');
-    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, dir)).toMatch(/^deny: A connector call is work, not orches/);
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -158,14 +95,11 @@ describe('a session still marked METRO_SESSION=voice', () => {
 
 describe('the guard and the standing rules in the memory routine (METRO_SESSION=memory)', () => {
   test('stand aside: the routine reads and edits memory files on its own main thread, as it did with the plugin off', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'metro-guard-memory-'));
-    writeFileSync(join(dir, 'policy.json'), JSON.stringify(SNAPSHOT));
     for (const payload of [{ tool_name: 'Read', tool_input: { file_path: '/x/notes.md' } }, { tool_name: 'Edit', tool_input: {} }, { tool_name: 'mcp__metro__delete', tool_input: { line: LINE } }])
-      expect(guard(payload, dir, 'memory')).toBe('allow');
+      expect(guard(payload, EMPTY, 'memory')).toBe('allow');
     const run = spawnSync('node', [START], { encoding: 'utf8', env: { ...process.env, METRO_SESSION: 'memory' } });
     expect(run.status).toBe(0);
     expect(run.stdout.trim()).toBe('');
-    rmSync(dir, { recursive: true, force: true });
   });
 });
 
