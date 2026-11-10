@@ -1,6 +1,6 @@
 import { isRecord } from '@metro-labs/core/is-record';
 
-type ConnectorDecision = 'allow' | 'ask' | 'deny';
+export type ConnectorDecision = 'allow' | 'ask' | 'deny';
 
 type ToolGroup = 'read' | 'write';
 
@@ -45,10 +45,13 @@ function toolPolicyOf(value: unknown): Record<string, ConnectorDecision> {
   return out;
 }
 
-const strictest = (...values: (ConnectorDecision | undefined)[]): ConnectorDecision => values.reduce<ConnectorDecision>((held, next) => next !== undefined && RANK[next] > RANK[held] ? next : held, 'allow');
+export const strictest = (...values: (ConnectorDecision | undefined)[]): ConnectorDecision => values.reduce<ConnectorDecision>((held, next) => next !== undefined && RANK[next] > RANK[held] ? next : held, 'allow');
 const toolRule = (policy: ConnectorPolicy, name: string): ConnectorDecision | undefined => policy.tools !== undefined && Object.hasOwn(policy.tools, name) ? policy.tools[name] : undefined;
 const toolGroup = (groups: Record<string, ToolGroup>, name: string): ToolGroup => Object.hasOwn(groups, name) && groups[name] === 'read' ? 'read' : 'write';
 const access = (policy: ConnectorPolicy, name: string, group: ToolGroup): ConnectorDecision => toolRule(policy, name) ?? policy[group] ?? 'allow';
+
+export const decideTool = (policy: ConnectorPolicy | undefined, name: string, group: ToolGroup): ConnectorDecision =>
+  policy === undefined ? 'allow' : access(policy, name, group);
 
 export function combineConnectorPolicies(global: ConnectorPolicy, assignment: ConnectorPolicy, groups?: Record<string, ToolGroup>): ConnectorPolicy {
   const policies = [connectorPolicyOf(global), connectorPolicyOf(assignment)];

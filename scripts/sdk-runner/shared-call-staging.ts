@@ -37,6 +37,8 @@ h.upstream.script = async (request: ModelRequest): Promise<Block[]> => {
         description: 'Staging approval worker', prompt: 'STAGING_APPROVAL_WORKER Send the exact approved fixture write.', subagent_type: 'general-purpose', run_in_background: true,
       } });
       if (take('STAGING_APPROVAL_CHAT', wrapped)) result.push({ type: 'text', text: 'STAGING_APPROVAL_CHAT_DONE' });
+      const approved = /Approved: send on telegram-bot \(([a-km-z]{5})\)/.exec(wrapped)?.[1];
+      if (approved !== undefined && take(`approved-${approved}`, `approved-${approved}`)) result.push(send({ line: h.LINE, text: 'STAGING_APPROVED_WRITE', approval: approved }));
     }
     if (result.length > 0) blocks = result;
   }
@@ -101,15 +103,15 @@ async function callFirst(): Promise<void> {
 async function approval(): Promise<void> {
   h.policy('ask');
   h.chat('STAGING_APPROVAL_START Start the background approval check.');
-  await h.until('real SDK worker approval pending', () => h.pending().some((row) => row.preview.includes('STAGING_APPROVED_WRITE')) && h.activity.snapshot().approvals > 0, 60_000);
+  await h.until('the daemon holds the worker call for the owner', () => h.pending().some((row) => row.preview.includes('STAGING_APPROVED_WRITE')), 60_000);
   const prompt = h.pending().find((row) => row.preview.includes('STAGING_APPROVED_WRITE'));
   assert.ok(prompt);
+  assert.equal(h.activity.snapshot().approvals, 0);
   const queued = await submit('STAGING_APPROVAL_CHAT', 'chat', () => h.chat('STAGING_APPROVAL_CHAT A valid ordinary input while approval waits.'));
   const answeredChat = (): boolean => h.events.some((row) => row.type === 'assistant' && row.parent_tool_use_id === null && isRecord(row.message) && texts(row.message.content).includes('STAGING_APPROVAL_CHAT_DONE'));
   await h.until('ordinary chat progresses without answering worker approval', answeredChat);
   const held = { ...inputOf(queued.id) };
   assert.ok(h.pending().some((row) => row.requestId === prompt.requestId));
-  assert.ok(h.activity.snapshot().approvals > 0);
   assert.equal(h.sent('STAGING_APPROVED_WRITE'), 0);
   assert.notEqual(held.state, 'cancelled');
   const approvedAt = Date.now();
@@ -125,7 +127,7 @@ async function approval(): Promise<void> {
   const final = inputOf(queued.id);
   assert.ok(final.consumedAt !== null && final.consumedAt >= final.acceptedAt);
   assert.notEqual(final.state, 'cancelled');
-  h.report('pending worker approval survives ordinary input', { pass: true, requestId: prompt.requestId, held, approvedAt, final, write, actualSdkWorkerNotifications: h.events.filter((row) => row.type === 'system' && row.subtype === 'task_notification') });
+  h.report('a channel approval waits without holding input, then runs once', { pass: true, requestId: prompt.requestId, held, approvedAt, final, write, actualSdkWorkerNotifications: h.events.filter((row) => row.type === 'system' && row.subtype === 'task_notification') });
   h.policy('allow');
 }
 

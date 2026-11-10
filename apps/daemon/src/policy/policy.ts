@@ -1,17 +1,14 @@
 import { ApiError } from '@metro-labs/http/api-error';
+import { decideTool, strictest as strictestOf, type ConnectorDecision, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import { isRecord } from '@metro-labs/core/is-record';
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 
-export type Access = 'allow' | 'ask' | 'deny';
+export type Access = ConnectorDecision;
 
 const ACCESS: readonly Access[] = ['allow', 'ask', 'deny'];
 
-export interface ToolPolicy {
-  read?: Access;
-  write?: Access;
-  tools?: Record<string, Access>;
-}
+export type ToolPolicy = ConnectorPolicy;
 
 export interface PolicyTarget {
   kind: 'channel';
@@ -26,20 +23,14 @@ export interface PolicyTool {
 
 const TOOL_NAME_RE = /^[A-Za-z0-9_.-]{1,128}$/;
 const MAX_TOOLS = 500;
-const RANK: Record<Access, number> = { allow: 0, ask: 1, deny: 2 };
 
 const isAccess = (value: unknown): value is Access => typeof value === 'string' && (ACCESS as readonly string[]).includes(value);
 
 export const targetKey = (target: PolicyTarget): string => `channel:${target.station}/${target.account}`;
 
-export function decide(policy: ToolPolicy | undefined, tool: PolicyTool): Access {
-  const byTool = policy?.tools !== undefined && Object.hasOwn(policy.tools, tool.name) ? policy.tools[tool.name] : undefined;
-  return byTool ?? policy?.[tool.group] ?? 'allow';
-}
+export const decide = (policy: ToolPolicy | undefined, tool: PolicyTool): Access => decideTool(policy, tool.name, tool.group);
 
-export function strictest(list: readonly Access[]): Access {
-  return list.reduce<Access>((worst, a) => (RANK[a] > RANK[worst] ? a : worst), 'allow');
-}
+export const strictest = (list: readonly Access[]): Access => strictestOf(...list);
 
 function tolerantTools(raw: unknown, where: string): Record<string, Access> | undefined {
   const kept: Record<string, Access> = {};
@@ -102,18 +93,20 @@ export function normalizePolicy(raw: unknown): ToolPolicy {
 const stored = new Map<string, { target: PolicyTarget; policy: ToolPolicy }>();
 const listeners = new Set<() => void>();
 
-export function onPoliciesChanged(listener: () => void): () => void {
+export function onPoliciesChanged(listener: () => void): void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
 }
 
 export function setPolicies(kind: PolicyTarget['kind'], entries: readonly (readonly [PolicyTarget, ToolPolicy])[]): void {
   for (const key of [...stored.keys()]) if (key.startsWith(`${kind}:`)) stored.delete(key);
   for (const [target, policy] of entries) if (target.kind === kind) stored.set(targetKey(target), { target, policy });
-  for (const listener of listeners) listener();
+  for (const listener of listeners)
+    try {
+      listener();
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'policy: a listener of rule changes failed');
+    }
 }
-
-export const storedPolicies = (): { target: PolicyTarget; policy: ToolPolicy }[] => [...stored.values()];
 
 export const storedPolicy = (target: PolicyTarget): ToolPolicy | undefined => stored.get(targetKey(target))?.policy;
 

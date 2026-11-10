@@ -13,6 +13,7 @@ import type { GroupedTool } from '@metro-labs/client/api/policy';
 import { fetchSenderCards } from '@metro-labs/client/api/senders';
 import { whenLabel } from '@metro-labs/client/api/when';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
+import { Disclosure } from '../ui/Disclosure.js';
 import { Icon } from '../Icon.js';
 import { StationIcon } from '../StationIcon.js';
 import { accountRow, othersLine, ruleLine } from '../../lib/approval-note.js';
@@ -107,6 +108,17 @@ function Attachment({ card }: { card: Card }): ReactNode {
   );
 }
 
+function Everything({ card }: { card: Card }): ReactNode {
+  if (card.everything.length === 0) return null;
+  const names = card.everything.map((row) => row.label).join(', ');
+  const rows = card.everything.map((row) => `${row.label}: ${row.value}`).join('\n');
+  return (
+    <Column margin={{ top: 16 }}>
+      <Disclosure summary={`Everything in this call: ${names}`} body={rows} />
+    </Column>
+  );
+}
+
 export type Decide = (decision: Decision) => Promise<void>;
 
 function useBoxDecide(id: string): Decide {
@@ -194,6 +206,7 @@ export function ApprovalCardView({ approval, context, decide, where: named, mark
         </Column>
       )}
       <Attachment card={card} />
+      <Everything card={card} />
       {note === '' ? null : (
         <Column margin={{ top: 20 }}>
           <Text size="xs" color="secondary">

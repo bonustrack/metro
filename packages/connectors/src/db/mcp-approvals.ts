@@ -1,15 +1,13 @@
 import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { approvalId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
+import { APPROVAL_PENDING_MAX, APPROVAL_TTL_MS, APPROVAL_USE_MS, TOO_MANY_PENDING } from '@metro-labs/http/approval-rules';
 import type { McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { agentTokenLabels } from './agent-tokens.js';
 import type { Database } from './database.js';
 import { mcpApprovals } from './schema.js';
 
-export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
-export const GRANT_WINDOW_MS = 10 * 60_000;
 export const REDELIVER_MS = 60_000;
-export const PENDING_MAX = 50;
 export const APPROVAL_KEEP_MS = 7 * 24 * 60 * 60_000;
 
 const ID_TRIES = 8;
@@ -79,7 +77,7 @@ async function request(db: Database, identity: ApprovalAgent, call: ApprovalRequ
   const held = await pendingId(db, identity, call);
   if (held !== null) return held;
   const waiting = await db.$count(mcpApprovals, and(mine(identity), eq(mcpApprovals.state, 'pending')));
-  if (waiting >= PENDING_MAX) throw new ApiError(`${String(PENDING_MAX)} approval requests are already waiting for the owner. Wait for answers before asking again.`, 429);
+  if (waiting >= APPROVAL_PENDING_MAX) throw new ApiError(TOO_MANY_PENDING, 429);
   return insertPending(db, identity, call, now);
 }
 
@@ -87,7 +85,7 @@ async function redeem(db: Database, identity: ApprovalAgent, id: string, call: A
   const used = await db
     .update(mcpApprovals)
     .set({ state: 'used' })
-    .where(and(eq(mcpApprovals.id, id), sameCall(identity, call), eq(mcpApprovals.state, 'allow'), gte(mcpApprovals.answeredAt, now - GRANT_WINDOW_MS)))
+    .where(and(eq(mcpApprovals.id, id), sameCall(identity, call), eq(mcpApprovals.state, 'allow'), gte(mcpApprovals.answeredAt, now - APPROVAL_USE_MS)))
     .returning({ id: mcpApprovals.id });
   if (used.length > 0) return 'used';
   const denied = await db.select({ id: mcpApprovals.id }).from(mcpApprovals).where(and(eq(mcpApprovals.id, id), sameCall(identity, call), eq(mcpApprovals.state, 'deny'))).limit(1);
@@ -104,7 +102,7 @@ async function deliver(db: Database, identity: ApprovalAgent, now: number): Prom
 
 async function pending(db: Database, identity: ApprovalAgent, now: number): Promise<ApprovalRow[]> {
   const live = and(mine(identity), eq(mcpApprovals.state, 'pending'), gte(mcpApprovals.requestedAt, now - APPROVAL_TTL_MS));
-  return db.select().from(mcpApprovals).where(live).orderBy(mcpApprovals.requestedAt, mcpApprovals.id).limit(PENDING_MAX);
+  return db.select().from(mcpApprovals).where(live).orderBy(mcpApprovals.requestedAt, mcpApprovals.id).limit(APPROVAL_PENDING_MAX);
 }
 
 async function answer(db: Database, identity: ApprovalAgent, id: string, decision: McpDecision, now: number): Promise<boolean> {

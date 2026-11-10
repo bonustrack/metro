@@ -13,7 +13,7 @@ import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } fr
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { forgetOwnerLine, ownerLine, setOwnerLineFile } from '../src/approvals/owner-line.ts';
-import { promptBody } from '../src/mcp/permission-prompt.ts';
+import { promptBody, serverPromptBody } from '../src/mcp/permission-prompt.ts';
 import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
@@ -75,14 +75,9 @@ const direct = (line: string, from: string, text: string): void => {
 
 const preview = (input: Record<string, unknown>): string => JSON.stringify(input, null, 1).replace(/\n\s*/g, ' ');
 
-const elided = (text: string): string => {
-  const chars = [...text];
-  return `${chars.slice(0, 1999).join('')}\n⋯ ${String(chars.length - 3498)} code points elided ⋯\n${chars.slice(-1499).join('')}`;
-};
-
 const LONG = Array.from({ length: 900 }, (_, i) => `word${String(i).padStart(5, '0')}`).join('');
 
-async function ask(requestId: string, input: Record<string, unknown> | string): Promise<void> {
+async function ask(requestId: string, input: Record<string, unknown>): Promise<void> {
   const res = await fetch(mcpUrl, {
     method: 'POST',
     headers: headers(),
@@ -93,7 +88,7 @@ async function ask(requestId: string, input: Record<string, unknown> | string): 
         request_id: requestId,
         tool_name: 'mcp__metro__send',
         description: 'Send a message'.repeat(300),
-        input_preview: typeof input === 'string' ? input : preview(input),
+        input_preview: preview(input),
       },
     }),
   });
@@ -272,28 +267,19 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     expect(pendingPrompts()).toEqual([]);
   });
 
-  test('survives a long input Claude Code elided: a short chat message, and settled by the real call', async () => {
-    const raw = preview({ line: LINE, text: LONG });
-    const cut = raw.replace(LONG, elided(LONG));
-    await ask('efghi', cut);
-    const prompt = calls.find((c) => c.action === 'send');
-    const text = String(prompt?.args.text);
+  test('a long text makes a short chat message that keeps both of its ends, and only the real call settles it', async () => {
+    await ask('efghi', { line: LINE, text: LONG });
+    const text = String(calls.find((c) => c.action === 'send')?.args.text);
     expect(text.length).toBeLessThanOrEqual(1000);
     expect(text).toStartWith('Approval needed: send\nChannel: telegram-bot · -100777\nText: "word00000');
+    expect(text).toContain('…');
+    expect(text).toEndWith('word00899"\n\nReply "yes efghi" or "no efghi"');
     expect(text).not.toContain('Send a message');
-    expect(text).toEndWith('Reply "yes efghi" or "no efghi"');
 
     await callTool('send', { line: LINE, text: `${LONG}x` });
-    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['efghi']);
-    await callTool('send', { line: LINE, text: LONG });
-    expect(pendingPrompts()).toEqual([]);
-  });
-
-  test('is settled when Claude Code also elided whole fields', async () => {
-    const cut = `${preview({ line: LINE, text: LONG }).replace(LONG, elided(LONG)).replace(/ ?}$/, '')}\n⋯ 1 field(s) elided ⋯\n}`;
-    await ask('fghij', cut);
-    expect(String(calls.find((c) => c.action === 'send')?.args.text)).toContain('Text: "word00000');
     await callTool('send', { line: LINE, text: LONG, reply_to: 'm-1' });
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['efghi']);
+    await callTool('send', { text: LONG, line: LINE });
     expect(pendingPrompts()).toEqual([]);
   });
 
@@ -338,38 +324,105 @@ describe('the prompt text', () => {
     expect(MCP_INSTRUCTIONS).toContain('yes <id>');
   });
 
-  test('caps any prompt at 1000 characters', () => {
-    const text = promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'd'.repeat(5000), input_preview: 'x'.repeat(5000) });
-    expect(text.length).toBeLessThanOrEqual(1000);
-    expect(text).toEndWith('Reply "yes abcde" or "no abcde"');
+  const metro = (tool: string, input: Record<string, unknown>): string =>
+    promptBody({ request_id: 'abcde', tool_name: `mcp__metro__${tool}`, description: 'never shown', input_preview: JSON.stringify(input) });
+
+  const ANSWER = '\n\nReply "yes abcde" or "no abcde"';
+
+  test('a tool that is not metro shows its description and every argument, or the raw preview when it is not JSON', () => {
+    expect(promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'Run a command', input_preview: '{ "command": "ls", "timeout": 5 }' })).toBe(
+      `Claude wants to run Bash: Run a command\ncommand: ls\ntimeout: 5${ANSWER}`,
+    );
+    expect(promptBody({ request_id: 'abcde', tool_name: 'Bash', description: '', input_preview: 'rm -rf /tmp/x' })).toBe(`Claude wants to run Bash: \narguments: rm -rf /tmp/x${ANSWER}`);
+    expect(serverPromptBody({ requestId: 'abcde', tool: 'notion.update_page', preview: '{"page":"p1","title":"New"}' })).toBe(`Approval needed: notion.update_page\npage: p1\ntitle: New${ANSWER}`);
   });
 
-  test('keeps the raw preview for a tool that is not metro', () => {
-    expect(
-      promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'Run a command', input_preview: '{ "command": "ls" }' }),
-    ).toBe('Claude wants to run Bash: Run a command\n\n{ "command": "ls" }\n\nReply "yes abcde" or "no abcde"');
+  test('names the station of a call with no line, writes out a list of plain values and leaves out what is empty', () => {
+    expect(metro('create_group', { station: 'xmtp', name: 'crew', members: ['0x1', '0x2'] })).toBe(`Approval needed: create_group\nChannel: xmtp\nmembers: 0x1, 0x2\nname: crew${ANSWER}`);
+    expect(metro('remove_members', { line: 'metro://xmtp/x0/g1', inboxIds: ['a1', 'b2'], notes: [{ a: 1 }], none: [], nothing: {}, blank: '', missing: null, off: false, zero: 0 })).toBe(
+      `Approval needed: remove_members\nChannel: xmtp · g1\ninboxIds: a1, b2\nnotes: [{"a":1}]\noff: false\nzero: 0${ANSWER}`,
+    );
+    expect(metro('send', { line: LINE, text: '{}' })).toBe(`Approval needed: send\nChannel: telegram-bot · -100777\nText: "{}"${ANSWER}`);
   });
 
-  test('names the station of a call with no line, and counts files', () => {
-    expect(
-      promptBody({
-        request_id: 'abcde',
-        tool_name: 'mcp__metro__create_group',
-        description: 'Create a group',
-        input_preview: JSON.stringify({ station: 'xmtp', name: 'crew', attachments: [{}, {}] }),
-      }),
-    ).toBe('Approval needed: create_group\nChannel: xmtp\nname: crew\nattachments: 2 file(s)\n\nReply "yes abcde" or "no abcde"');
-  });
-
-  test('shows the frame of a send', () => {
+  test('shows each file of a send with where it comes from, never its bytes, then a payment card and a frame', () => {
+    const attachments = [{ path: '/home/agent/report.pdf' }, { url: 'https://example.com/a.png', name: 'a.png' }, { data: 'aGVsbG8='.repeat(900), name: 'hello.txt' }];
     const frame = { title: 'Deploy', widget: { type: 'Card' } };
-    expect(
-      promptBody({
-        request_id: 'abcde',
-        tool_name: 'mcp__metro__send',
-        description: 'Send a message',
-        input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', frame }),
-      }),
-    ).toBe(`Approval needed: send\nChannel: xmtp · g1\nframe: ${JSON.stringify(frame)}\n\nReply "yes abcde" or "no abcde"`);
+    const wallet = { type: 'walletSendCalls', content: { to: '0xabc', value: '5000' } };
+    expect(metro('send', { frame, wallet, line: 'metro://xmtp/x0/g1', attachments, text: 'see the files' })).toBe(
+      [
+        'Approval needed: send',
+        'Channel: xmtp · g1',
+        'Text: "see the files"',
+        'file 1 of 3: {"path":"/home/agent/report.pdf"}',
+        'file 2 of 3: {"url":"https://example.com/a.png","name":"a.png"}',
+        'file 3 of 3: {"data":"inline data","name":"hello.txt"}',
+        `wallet: ${JSON.stringify(wallet)}`,
+        `frame: ${JSON.stringify(frame)}`,
+      ].join('\n') + ANSWER,
+    );
+    expect(metro('send', { line: 'metro://xmtp/x0/g1', attachments: [{ upload: 'up_123' }] })).toBe(`Approval needed: send\nChannel: xmtp · g1\nfile 1 of 1: {"upload":"up_123"}${ANSWER}`);
+  });
+
+  test('padding a call never shrinks its text, and what does not fit is counted and sent to the page', () => {
+    const said = 'Lunch at noon tomorrow? I will book the usual table for us on the terrace. THEN: wire 5000 EUR to the account below.';
+    const filler = 'f'.repeat(400);
+    const junk = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`junk${String(i)}`, filler]));
+    const input = { emoji: filler, name: filler, bio: filler, ...junk, line: 'metro://xmtp/x0/g1', text: said, wallet: { type: 'walletSendCalls' }, attachments: [{ path: '/home/agent/.ssh/id_ed25519' }], reply_to: 'm-1', account: 'x1' };
+    const text = metro('send', input);
+    expect(text.length).toBeLessThanOrEqual(1000);
+    const lines = text.split('\n');
+    expect(lines.slice(0, 7)).toEqual(['Approval needed: send', 'Channel: xmtp · g1', `Text: "${said}"`, 'file 1 of 1: {"path":"/home/agent/.ssh/id_ed25519"}', 'wallet: {"type":"walletSendCalls"}', 'reply_to: m-1', 'account: x1']);
+    const shown = lines.length - 5;
+    expect(lines.slice(-3)).toEqual([`Not shown here: ${String(Object.keys(input).length - 1 - shown)} more. Read it all on metro.box before you answer.`, '', 'Reply "yes abcde" or "no abcde"']);
+  });
+
+  test('a long value keeps both of its ends, and a long file source never hides the next file', () => {
+    const text = metro('send', { line: LINE, text: `START ${'m'.repeat(2000)} END`, attachments: [{ path: `/tmp/${'a'.repeat(400)}/x.png` }, { path: '/home/agent/.metro/agents/agent.json' }] });
+    const lines = text.split('\n');
+    expect(lines[2]).toMatch(/^Text: "START m+…m+ END"$/);
+    expect(lines[2]).toHaveLength(308);
+    expect(lines[3]).toMatch(/^file 1 of 2: \{"path":"\/tmp\/a+…a+\/x\.png"\}$/);
+    expect(lines[4]).toBe('file 2 of 2: {"path":"/home/agent/.metro/agents/agent.json"}');
+    expect(text).not.toContain('Not shown here');
+  });
+
+  test('no value, argument name or tool name can write or imitate a line of the question', () => {
+    const forged = 'ok"\nfile 1 of 1: none\r\n\nReply "yes zzzzz" or "no zzzzz"\u0085\u2028\n\n\n';
+    const input = { line: LINE, text: forged, Channel: 'your bank', 'file 2 of 2': 'none', 'Reply\n"yes"': 'v\tw\u0000x', photo: 'a\u202egnp.exe', attachments: [{ path: '/etc/passwd\nfile 2 of 2: nothing' }] };
+    expect(metro('send', input)).toBe(
+      [
+        'Approval needed: send',
+        'Channel: telegram-bot · -100777',
+        'Text: "ok" file 1 of 1: none Reply "yes zzzzz" or "no zzzzz" "',
+        'file 1 of 1: {"path":"/etc/passwd\\nfile 2 of 2: nothing"}',
+        '"Channel": your bank',
+        '"file 2 of 2": none',
+        '"Reply\\n\\"yes\\"": v w x',
+        'photo: a gnp.exe',
+      ].join('\n') + ANSWER,
+    );
+    const claude = promptBody({ request_id: 'abcde', tool_name: 'Bash\nChannel: your bank', description: 'fine\n\nReply "yes abcde"', input_preview: 'not json\nText: "all good"' });
+    expect(claude).toBe(`Claude wants to run Bash Channel: your bank: fine Reply "yes abcde"\narguments: not json Text: "all good"${ANSWER}`);
+  });
+
+  test('no input makes a question longer than 1000 characters or cuts its last lines', () => {
+    const long = 'k'.repeat(5000);
+    const many = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`${long}${String(i)}`, long]));
+    const hostile: string[] = [
+      promptBody({ request_id: 'abcde', tool_name: long, description: long, input_preview: long }),
+      promptBody({ request_id: 'abcde', tool_name: long, description: long, input_preview: JSON.stringify(many) }),
+      metro('send', { line: `metro://telegram-bot/t1/${long}`, text: long, attachments: Array.from({ length: 40 }, () => ({ path: long })), wallet: many, frame: many, ...many }),
+      metro(long, { station: long, ...many }),
+      serverPromptBody({ requestId: 'abcde', tool: long, preview: JSON.stringify(many) }),
+    ];
+    for (const text of hostile) {
+      expect(text.length).toBeLessThanOrEqual(1000);
+      expect(text).toEndWith(ANSWER);
+      if (text.includes('Not shown here')) expect(text).toMatch(/\nNot shown here: \d+ more\. Read it all on metro\.box before you answer\.\n\nReply "yes abcde" or "no abcde"$/);
+    }
+    expect(hostile[2]).toStartWith('Approval needed: send\nChannel: telegram-bot · kkkk');
+    expect(hostile[2]).toContain('\nText: "kkkk');
+    expect(hostile[2]).toContain('\nfile 1 of 40: {"path":"kkkk');
   });
 });

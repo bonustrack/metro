@@ -1,6 +1,8 @@
 import type { GroupOp, Station, StationTool, ToolGroup } from '@metro-labs/core/stations/types';
+import { APPROVAL_PROPERTY } from '@metro-labs/http/approval-rules';
+import { isRecord } from '@metro-labs/core/is-record';
 import { TOOL_CALL, TOOL_SEARCH } from '@metro-labs/http/mcp-server-protocol';
-import { connectorTools } from '../mcp-server/connector-tools.js';
+import { CONNECTOR_TOOLS, connectorTools } from '../mcp-server/connector-tools.js';
 import { STATIONS } from '../stations/registry.js';
 import { COMMON_TOOLS, LIST_ACCOUNTS_TOOL } from './tool-schemas.js';
 import { SET_PROFILE_TOOL } from './profile-tool.js';
@@ -24,6 +26,14 @@ const LOCAL_DEFS: ToolDef[] = [
   SET_PROFILE_TOOL,
   GET_PROFILE_TOOL,
 ];
+
+export const UNGATED: ReadonlySet<string> = new Set<string>(['list_accounts', 'create_upload', ...CONNECTOR_TOOLS]);
+
+function withApproval(def: ToolDef): Record<string, unknown> {
+  if (UNGATED.has(def.name)) return def.inputSchema;
+  const properties = isRecord(def.inputSchema.properties) ? def.inputSchema.properties : {};
+  return { ...def.inputSchema, properties: { ...properties, approval: APPROVAL_PROPERTY } };
+}
 
 const CONNECTOR_GROUPS: Record<string, Pick<ToolDef, 'group' | 'destructive'>> = {
   [TOOL_SEARCH]: { group: 'read' },
@@ -62,7 +72,7 @@ export const listedTools = (): PublishedTool[] => [
   ...LOCAL_DEFS.map((def) => ({
     name: def.name,
     description: def.description,
-    inputSchema: def.inputSchema,
+    inputSchema: withApproval(def),
     annotations: annotationsOf(def),
     ...(ALWAYS_LOADED.has(def.name) ? { _meta: ALWAYS_LOAD } : {}),
   })),
@@ -70,8 +80,6 @@ export const listedTools = (): PublishedTool[] => [
 ];
 
 const STATION_OF_TOOL = new Map(STATIONS.flatMap((s) => s.tools.map((t) => [t.name, s.name] as const)));
-
-export const stationToolOwners = (): Record<string, string> => Object.fromEntries(STATION_OF_TOOL);
 
 export function stationForTool(name: string, args: Record<string, unknown>): string | undefined {
   if (name === 'create_group' || name === 'set_profile')

@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, apiSession, bodyField, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 import { answerPrompt, pendingPrompts, type Behavior, type PendingPrompt } from './pending.js';
 
 const PREFIX = '/api/approvals';
-const ID_RE = /^[a-km-z]{5}$/;
 
 const approvalView = (p: PendingPrompt): Record<string, unknown> => ({
   id: p.requestId,
@@ -27,7 +27,7 @@ async function answer(req: IncomingMessage, id: string | undefined, subject: str
     return { approvals: pendingPrompts().map(approvalView) };
   }
   if (req.method !== 'POST') throw new ApiError('method not allowed', 405);
-  if (!ID_RE.test(id)) throw new ApiError('no such approval', 404);
+  if (!APPROVAL_ID_RE.test(id)) throw new ApiError('no such approval', 404);
   const decision = decisionOf(await readJsonBody(req));
   const answered = await answerPrompt(id, decision, 'page', subject);
   if (answered === undefined) throw new ApiError('no such approval', 404);

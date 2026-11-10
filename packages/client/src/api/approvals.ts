@@ -20,7 +20,6 @@ const METRO_TOOL = /^mcp__metro__(.+)$/;
 const PREVIEW_MAX = 300;
 const CODE_POINTS = /(?:\\n|\n)⋯ (\d+) code points elided ⋯(?:\\n|\n)/g;
 const HIDDEN = /\uE000(\d+)\uE001/g;
-const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[\s\S]*$/;
 
 
 const toolLabel = (tool: string): string => METRO_TOOL.exec(tool)?.[1] ?? tool;
@@ -34,13 +33,7 @@ function record(json: string): Record<string, unknown> | null {
   }
 }
 
-function previewInput(preview: string): Record<string, unknown> | null {
-  const shown = preview.replace(CODE_POINTS, (_marker, count: string) => `\uE000${count}\uE001`);
-  const whole = record(shown);
-  if (whole !== null || !shown.includes('⋯')) return whole;
-  const head = shown.replace(FIELD_BLOCK, '').replace(/[\s,]*$/, '');
-  return record(`${head}}`) ?? record(head);
-}
+const previewInput = (preview: string): Record<string, unknown> | null => record(preview.replace(CODE_POINTS, (_marker, count: string) => `\uE000${count}\uE001`));
 
 function visible(value: unknown): unknown {
   if (typeof value === 'string') return value.replace(HIDDEN, '…');

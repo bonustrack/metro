@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { APPROVAL_ID_RE } from './approval-rules.js';
 
 export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer' } as const;
 export const MCP_FIND_DEFAULT = 5;
@@ -6,7 +7,6 @@ export const MCP_FIND_MAX = 20;
 export const MCP_CALLS_MAX = 10;
 const MCP_QUERY_MAX = 500;
 export const MCP_APPROVAL_WAIT_MS = 25_000;
-export const MCP_APPROVAL_ID_RE = /^[a-km-z]{5}$/;
 export const TOOL_SEARCH = 'tool_search';
 export const TOOL_CALL = 'tool_call';
 export const TOOL_CALL_EXAMPLE = '{"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}';
@@ -61,7 +61,7 @@ function callOf(raw: unknown): McpCall {
   if (!isRecord(raw) || typeof raw.tool !== 'string' || splitMcpTool(raw.tool) === null) throw new Error(`Each call needs a tool named <connector>.<tool>, as tool_search returns it.${EXPECTED}`);
   const args = raw.arguments ?? {};
   if (!isRecord(args)) throw new Error(`The arguments of ${raw.tool} must be an object.${EXPECTED}`);
-  if (raw.approval !== undefined && (typeof raw.approval !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.approval))) throw new Error('approval must be the 5-letter id the approval request gave.');
+  if (raw.approval !== undefined && (typeof raw.approval !== 'string' || !APPROVAL_ID_RE.test(raw.approval))) throw new Error('approval must be the 5-letter id the approval request gave.');
   return { tool: raw.tool, arguments: args, ...(typeof raw.approval === 'string' ? { approval: raw.approval } : {}) };
 }
 
@@ -84,7 +84,7 @@ function originOf(raw: Record<string, unknown>): Pick<McpApproval, 'origin' | 'k
 }
 
 function approvalOf(raw: unknown): McpApproval | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.id) || typeof raw.connector !== 'string' || typeof raw.tool !== 'string' || typeof raw.preview !== 'string' || typeof raw.requestedAt !== 'number') return null;
+  if (!isRecord(raw) || typeof raw.id !== 'string' || !APPROVAL_ID_RE.test(raw.id) || typeof raw.connector !== 'string' || typeof raw.tool !== 'string' || typeof raw.preview !== 'string' || typeof raw.requestedAt !== 'number') return null;
   return { id: raw.id, connector: raw.connector, tool: raw.tool, preview: raw.preview, requestedAt: raw.requestedAt, ...originOf(raw) };
 }
 
@@ -94,6 +94,6 @@ export function mcpApprovalsOf(raw: unknown): McpApproval[] {
 }
 
 export function mcpAnswerOf(raw: unknown): { id: string; decision: McpDecision } {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || !MCP_APPROVAL_ID_RE.test(raw.id) || (raw.decision !== 'allow' && raw.decision !== 'deny')) throw new Error('An answer needs the approval id and allow or deny.');
+  if (!isRecord(raw) || typeof raw.id !== 'string' || !APPROVAL_ID_RE.test(raw.id) || (raw.decision !== 'allow' && raw.decision !== 'deny')) throw new Error('An answer needs the approval id and allow or deny.');
   return { id: raw.id, decision: raw.decision };
 }

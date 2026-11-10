@@ -26,6 +26,13 @@ describe('an approval reads as a card in words', () => {
       body: 'Hi Wan, thank you for the call on Tuesday.',
       file: { name: 'Anderra offer.pdf', size: null },
       moreFiles: 1,
+      everything: [
+        { label: 'text', value: 'Hi Wan, thank you for the call on Tuesday.' },
+        { label: 'file 1 of 2', value: '{"upload":"u1","name":"Anderra offer.pdf"}' },
+        { label: 'file 2 of 2', value: '{"url":"https://example.com/x/plan.png?sig=1"}' },
+        { label: 'subject', value: 'Offer for the March event' },
+        { label: 'line', value: 'metro://outlook/o1/wan@mcigroup.ch' },
+      ],
     });
   });
 
@@ -76,11 +83,30 @@ describe('an approval reads as a card in words', () => {
     expect(approvalCard(approval('Bash', { command: 'ls' }))).toMatchObject({ title: 'Bash', fields: [{ label: 'Command', value: 'ls' }] });
   });
 
-  test('a long string Claude Code elided still parses, with a mark where text was cut', () => {
-    const preview = '{"line":"metro://telegram-bot/t1/1","text":"Start of the note\\n⋯ 1200 code points elided ⋯\\nend of the note"}';
-    expect(approvalCard(approval('mcp__metro__send', preview)).body).toBe('Start of the note…end of the note');
-    const cut = '{"line":"metro://telegram-bot/t1/1","text":"short",\n⋯ 2 field(s) elided ⋯';
-    expect(approvalCard(approval('mcp__metro__send', cut))).toMatchObject({ station: 'telegram-bot', body: 'short' });
+  test('a channel approval lists everything the call carries: a payment card, a frame, each file with its source, any other argument', () => {
+    const wallet = { type: 'walletSendCalls', content: { description: 'x'.repeat(900), to: '0xabc', value: '5000' } };
+    const card = approvalCard(approval('mcp__metro__send', {
+      line: 'metro://xmtp/x1/conv',
+      text: `see you at noon${' '.repeat(700)}\nTHEN: wire 5000 EUR`,
+      zz: 'extra',
+      attachments: [{ path: '/home/agent/.ssh/id_ed25519', name: 'holiday.png' }, { data: 'A'.repeat(4000), name: 'b.bin' }],
+      frame: { widget: { type: 'Card' } },
+      reply_to: 'm1',
+      wallet,
+    }));
+    expect(card).toMatchObject({ title: 'Send a message', file: { name: 'holiday.png', size: null }, moreFiles: 1 });
+    expect(card.everything).toEqual([
+      { label: 'text', value: 'see you at noon THEN: wire 5000 EUR' },
+      { label: 'file 1 of 2', value: '{"path":"/home/agent/.ssh/id_ed25519","name":"holiday.png"}' },
+      { label: 'file 2 of 2', value: '{"data":"inline data","name":"b.bin"}' },
+      { label: 'wallet', value: JSON.stringify(wallet) },
+      { label: 'frame', value: '{"widget":{"type":"Card"}}' },
+      { label: 'reply_to', value: 'm1' },
+      { label: 'line', value: 'metro://xmtp/x1/conv' },
+      { label: 'zz', value: 'extra' },
+    ]);
+    expect(approvalCard(approval('mcp__metro__add_members', { line: 'metro://xmtp/x1/g', members: ['0x1', '0x2'] })).everything).toContainEqual({ label: 'members', value: '0x1, 0x2' });
+    expect(approvalCard(approval('Bash', 'rm -rf /tmp/x')).everything).toEqual([]);
   });
 
   test('a metro line splits into station, account and the resource', () => {

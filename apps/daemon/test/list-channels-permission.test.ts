@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { setAgentMap } from '../src/agents/map.ts';
-import { answerPrompt, forgetAllPrompts, holdPrompt } from '../src/approvals/pending.ts';
+import { answerPrompt, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
+import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { promptBody } from '../src/mcp/permission-prompt.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { setPolicies } from '../src/policy/policy.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
+import { approvalIdOf } from './approval-id.ts';
 
 const AGENT = 'agent000001';
 const ACCOUNT = 'privateMailbox';
@@ -22,6 +24,7 @@ let calls: { train: string; action: string; args: unknown }[];
 beforeEach(() => {
   calls = [];
   forgetAllPrompts();
+  forgetChannelAsks();
   setAgentMap({ [`gmail/${ACCOUNT}`]: AGENT, 'xmtp/publicInbox': AGENT }, { [AGENT]: 'Friendly fixture name' });
   setPolicies('channel', [[{ kind: 'channel', station: 'gmail', account: ACCOUNT }, { read: 'ask' }]]);
   setTrainCallBackend((train, action, args) => {
@@ -38,24 +41,25 @@ afterEach(() => {
 });
 
 for (const surplus of [false, true])
-  test(`discovery approval names the actual account and keeps the exact one-use grant, surplus=${String(surplus)}`, async () => {
+  test(`discovery approval names the actual account and runs the exact call once, surplus=${String(surplus)}`, async () => {
     const args = { account: ACCOUNT, query: 'WoRk ', ...(surplus ? SURPLUS : {}) };
     const call = (input: Record<string, unknown>) => runWithIdentity({ kind: 'agent', agentId: AGENT }, () =>
       callToolHandler({ params: { name: 'list_channels', arguments: input } }));
-    expect((await call(args)).isError).toBe(true);
+    const asked = await call(args);
+    expect(asked.content[0]?.text).toStartWith("Needs the owner's approval for gmail (list_channels).");
+    const id = approvalIdOf(asked);
     expect(calls).toEqual([]);
-    const request = params(args);
-    expect(promptBody(request)).toBe(
-      `Approval needed: list_channels\nChannel: gmail · ${ACCOUNT}\nquery: WoRk \n\nReply "yes abcde" or "no abcde"`,
+    const held = pendingPrompts().find((prompt) => prompt.requestId === id);
+    expect(held).toMatchObject({ tool: 'mcp__metro__list_channels', preview: JSON.stringify(args), line: undefined });
+    expect(promptBody({ request_id: id, tool_name: held?.tool ?? '', description: '', input_preview: held?.preview ?? '' })).toBe(
+      `Approval needed: list_channels\nChannel: gmail · ${ACCOUNT}\nquery: WoRk \n\nReply "yes ${id}" or "no ${id}"`,
     );
-    expect(request.input_preview).toBe(JSON.stringify(args));
-    holdPrompt({ requestId: request.request_id, tool: request.tool_name, description: request.description, preview: request.input_preview, line: undefined, at: Date.now() }, {}, () => Promise.resolve());
-    await answerPrompt(request.request_id, 'allow', 'page');
-    expect((await call({ ...args, query: 'work' })).isError).toBe(true);
+    await answerPrompt(id, 'allow', 'page');
+    expect((await call({ ...args, query: 'work', approval: id })).isError).toBe(true);
     expect(calls).toEqual([]);
-    expect((await call(args)).isError).not.toBe(true);
+    expect((await call({ ...args, approval: id })).isError).not.toBe(true);
     expect(calls).toEqual([{ train: 'gmail', action: 'listChannels', args: { account: ACCOUNT, query: 'WoRk ', limit: 50 } }]);
-    expect((await call(args)).isError).toBe(true);
+    expect((await call({ ...args, approval: id })).isError).toBe(true);
     expect(calls).toHaveLength(1);
   });
 
@@ -75,8 +79,8 @@ for (const station of ['unknown', 'ambiguous', 'unregistered'])
     );
   });
 
-test('other metro tools keep their existing line-based prompt rendering', () => {
+test('other metro tools keep their line-based channel, and show an account the call names', () => {
   expect(promptBody({ ...params({ ...SURPLUS, account: ACCOUNT, text: 'hello' }), tool_name: 'mcp__metro__send' })).toBe(
-    'Approval needed: send\nChannel: xmtp · public-room\nText: "hello"\n\nReply "yes abcde" or "no abcde"',
+    'Approval needed: send\nChannel: xmtp · public-room\nText: "hello"\naccount: privateMailbox\n\nReply "yes abcde" or "no abcde"',
   );
 });

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
+import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 import type { Session } from '@metro-labs/http/workos-token';
 import { connectorKeys } from '@metro-labs/connectors/connector-keys';
 import { createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';
@@ -124,7 +124,7 @@ function decisionOf(body: unknown): 'allow' | 'deny' {
 }
 
 export async function answerAgentApproval(deps: RemoteDeps, session: Session, owner: string, agent: string, id: string, body: unknown): Promise<{ ok: true }> {
-  if (!MCP_APPROVAL_ID_RE.test(id)) throw new ApiError('No pending approval has that id.', 404);
+  if (!APPROVAL_ID_RE.test(id)) throw new ApiError('No pending approval has that id.', 404);
   const decision = decisionOf(body);
   const db = deps.db();
   await remoteAgent(db, owner, agent);
