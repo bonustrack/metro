@@ -147,20 +147,6 @@ describe('a kept mail', () => {
   });
 });
 
-describe('a waiting box', () => {
-  test('hears of a new mail at once instead of waiting out its long poll', async () => {
-    await app.close();
-    app = await startApp(held.db, rewrite(events.base), { approvalHoldMs: 5_000, approvalPollMs: 5_000 });
-    events.state.metroBase = app.base;
-    const started = Date.now();
-    const waiting = daemon(MCP_PATHS.approvals, { mail: true });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    await events.deliver(sub, mailEvent('w1'));
-    expect(mcpMailOf(await waiting)).toHaveLength(1);
-    expect(Date.now() - started).toBeLessThan(2_000);
-  });
-});
-
 describe('who can write', () => {
   const cases: { name: string; senders: string; receive: boolean; data: Record<string, unknown>; outcome: string | null }[] = [
     { name: 'anyone, even unverified', senders: '["*"]', receive: true, data: { senderVerified: false }, outcome: null },

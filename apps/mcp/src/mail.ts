@@ -71,7 +71,7 @@ export async function receiveMail(deps: MailDeps, sub: SubscriptionRow, eventId:
   };
   if (!(await deps.inbox.keep(row))) return 'duplicate';
   if (dropped === null) {
-    deps.waiters.notify(sub.agent);
+    deps.waiters.ring(sub.agent);
     log.info({ agent: sub.agent, connector: sub.connector, inbox: id }, 'mcp: a mail is waiting for the box');
     return 'kept';
   }
@@ -90,6 +90,7 @@ function opened(deps: Pick<McpDeps, 'key'>, owner: string, row: WaitingMail): Em
 }
 
 export async function waitingMail(deps: Pick<McpDeps, 'key' | 'inbox' | 'now'>, identity: InboxAgent): Promise<McpMail[]> {
+  if (!(await deps.inbox.due(identity, deps.now()))) return [];
   const rows = await deps.inbox.deliver(identity, deps.now());
   if (rows.length === 0) return [];
   const names = await namesFor(deps, identity, rows.map((row) => row.connector));

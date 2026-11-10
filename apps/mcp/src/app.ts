@@ -29,6 +29,7 @@ import { Waiters } from './waiters.js';
 import { handleWebhookRequest } from './webhook.js';
 
 const APPROVAL_POLL_MS = 1000;
+export const MAIL_CHECK_MS = 5000;
 
 interface AppSetup {
   key: Buffer;
@@ -82,6 +83,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     listWaitMs: FIRST_LIST_WAIT_MS,
     approvalHoldMs: MCP_APPROVAL_WAIT_MS,
     approvalPollMs: APPROVAL_POLL_MS,
+    mailCheckMs: MAIL_CHECK_MS,
   };
 }
 

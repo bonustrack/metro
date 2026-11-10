@@ -37,4 +37,5 @@ export interface McpDeps {
   listWaitMs: number;
   approvalHoldMs: number;
   approvalPollMs: number;
+  mailCheckMs: number;
 }

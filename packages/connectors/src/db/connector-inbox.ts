@@ -1,4 +1,4 @@
-import { and, asc, eq, exists, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { Database } from './database.js';
 import { agents, connectorAgents, connectorInbox, connectors } from './schema.js';
 
@@ -37,6 +37,7 @@ export interface InboxStore {
   assignment: (owner: string, connector: string, agent: string) => Promise<MailAssignment | null>;
   connectorNames: (owner: string, agent: string) => Promise<{ id: string; name: string }[]>;
   keep: (row: InboxRow) => Promise<boolean>;
+  due: (identity: InboxAgent, now: number) => Promise<boolean>;
   deliver: (identity: InboxAgent, now: number) => Promise<WaitingMail[]>;
   take: (identity: InboxAgent, ids: string[], state: 'delivered' | 'dropped', now: number) => Promise<SettledMail[]>;
 }
@@ -68,10 +69,18 @@ async function keep(db: Database, row: InboxRow): Promise<boolean> {
   return inserted.length > 0;
 }
 
-async function deliver(db: Database, identity: InboxAgent, now: number): Promise<WaitingMail[]> {
+function dueFor(db: Database, identity: InboxAgent, now: number): SQL | undefined {
   const assigned = exists(db.select({ one: sql`1` }).from(connectorAgents).where(and(eq(connectorAgents.connector, connectorInbox.connector), eq(connectorAgents.agent, connectorInbox.agent))));
-  const due = and(mine(identity), eq(connectorInbox.state, 'waiting'), or(isNull(connectorInbox.deliveredAt), lt(connectorInbox.deliveredAt, now - MAIL_REDELIVER_MS)), assigned);
-  const ids = db.select({ id: connectorInbox.id }).from(connectorInbox).where(due).orderBy(asc(connectorInbox.receivedAt), asc(connectorInbox.id)).limit(MAIL_PER_POLL);
+  return and(mine(identity), eq(connectorInbox.state, 'waiting'), or(isNull(connectorInbox.deliveredAt), lt(connectorInbox.deliveredAt, now - MAIL_REDELIVER_MS)), assigned);
+}
+
+async function due(db: Database, identity: InboxAgent, now: number): Promise<boolean> {
+  const rows = await db.select({ id: connectorInbox.id }).from(connectorInbox).where(dueFor(db, identity, now)).limit(1);
+  return rows.length > 0;
+}
+
+async function deliver(db: Database, identity: InboxAgent, now: number): Promise<WaitingMail[]> {
+  const ids = db.select({ id: connectorInbox.id }).from(connectorInbox).where(dueFor(db, identity, now)).orderBy(asc(connectorInbox.receivedAt), asc(connectorInbox.id)).limit(MAIL_PER_POLL);
   const rows = await db.update(connectorInbox).set({ deliveredAt: now }).where(and(inArray(connectorInbox.id, ids), eq(connectorInbox.state, 'waiting'))).returning();
   return rows
     .flatMap((row) => (row.mail === null ? [] : [{ id: row.id, connector: row.connector, mail: row.mail, receivedAt: row.receivedAt }]))
@@ -106,6 +115,7 @@ export function inboxStore(db: () => Database): InboxStore {
     assignment: (owner, connector, agent) => assignment(db(), owner, connector, agent),
     connectorNames: (owner, agent) => connectorNames(db(), owner, agent),
     keep: (row) => keep(db(), row),
+    due: (identity, now) => due(db(), identity, now),
     deliver: (identity, now) => deliver(db(), identity, now),
     take: (identity, ids, state, now) => take(db(), identity, ids, state, now),
   };

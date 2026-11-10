@@ -82,11 +82,23 @@ async function mailFor(deps: McpDeps, identity: AgentKeyRow): Promise<McpMail[]>
   }
 }
 
+function mailCheck(deps: McpDeps, identity: AgentKeyRow, wantsMail: boolean): () => Promise<McpMail[]> {
+  let nextAt = 0;
+  return async () => {
+    if (!wantsMail) return [];
+    const now = deps.now();
+    if (!deps.waiters.heard(identity.agent) && now < nextAt) return [];
+    nextAt = now + deps.mailCheckMs;
+    return mailFor(deps, identity);
+  };
+}
+
 async function pendingFor(deps: McpDeps, identity: AgentKeyRow, wantsMail: boolean, signal: AbortSignal): Promise<Pending> {
   const hold = AbortSignal.any([signal, AbortSignal.timeout(deps.approvalHoldMs)]);
+  const checkMail = mailCheck(deps, identity, wantsMail);
   while (!signal.aborted) {
     const rows = await deps.approvals.deliver(identity, deps.now());
-    const mail = wantsMail ? await mailFor(deps, identity) : [];
+    const mail = await checkMail();
     if (rows.length > 0 || mail.length > 0) return { approvals: await wireOf(deps, identity, rows), ...(wantsMail ? { mail } : {}) };
     if (hold.aborted) break;
     await deps.waiters.wait(identity.agent, deps.approvalPollMs, hold);
