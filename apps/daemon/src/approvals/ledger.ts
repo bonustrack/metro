@@ -72,18 +72,15 @@ export class AskLedger {
     return this.asks.has(id);
   }
 
-  waitsOn(tool: string): boolean {
-    for (const ask of this.asks.values()) if (ask.tool === tool && live(ask)) return true;
-    return false;
+  live(): Ask[] {
+    return [...this.asks.values()].filter(live);
   }
 
-  withdraw(match: (ask: Ask) => boolean, now: number): Ask[] {
-    const gone = [...this.asks.values()].filter((ask) => live(ask) && match(ask));
-    for (const ask of gone) {
-      ask.state = 'withdrawn';
-      ask.answeredAt = now;
-    }
-    return gone;
+  withdraw(ask: Ask, now: number): boolean {
+    if (this.asks.get(ask.id) !== ask || !live(ask)) return false;
+    ask.state = 'withdrawn';
+    ask.answeredAt = now;
+    return true;
   }
 
   judge(id: string, call: AskedCall, now: number): Verdict {

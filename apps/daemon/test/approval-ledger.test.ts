@@ -84,6 +84,25 @@ describe('the approvals the daemon holds for channel calls', () => {
     expect(ledger.judge('cdefg', { ...CALL, digest: 'cdefg' }, T0 + 2).kind).toBe('denied');
   });
 
+  test('a waiting request and an unused approval can be withdrawn, and nothing else can', () => {
+    const ledger = new AskLedger();
+    const waiting = opened(ledger, 'abcde', { ...CALL, digest: 'waiting' });
+    const approved = opened(ledger, 'bcdef', { ...CALL, digest: 'approved' });
+    const denied = opened(ledger, 'cdefg', { ...CALL, digest: 'denied' });
+    const used = opened(ledger, 'defgh', { ...CALL, digest: 'used' });
+    ledger.settle('bcdef', 'allow', T0 + 1);
+    ledger.settle('cdefg', 'deny', T0 + 1);
+    ledger.settle('defgh', 'allow', T0 + 1);
+    ledger.use(used, T0 + 2);
+    expect(ledger.live().map((ask) => ask.id)).toEqual(['abcde', 'bcdef']);
+    expect([waiting, approved, denied, used].map((ask) => ledger.withdraw(ask, T0 + 3))).toEqual([true, true, false, false]);
+    expect(ledger.withdraw(waiting, T0 + 4)).toBe(false);
+    expect(ledger.live()).toEqual([]);
+    expect(ledger.settle('abcde', 'allow', T0 + 5)).toBeUndefined();
+    expect(ledger.judge('bcdef', { ...CALL, digest: 'approved' }, T0 + 5)).toEqual({ kind: 'spent', why: 'withdrawn' });
+    expect(ledger.judge('cdefg', { ...CALL, digest: 'denied' }, T0 + 5).kind).toBe('denied');
+  });
+
   test('at most 50 requests wait at once, and an answer makes room', () => {
     const ledger = new AskLedger();
     for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) opened(ledger, `id${String(i)}`, { ...CALL, digest: `d${String(i)}` });

@@ -8,12 +8,14 @@ import { APPROVAL_ID_RE, TOO_MANY_PENDING } from '@metro-labs/http/approval-rule
 import { AskLedger, type Ask, type AskAnswer, type AskedCall, type Spent } from '../approvals/ledger.js';
 import { cancelPrompt, holdPrompt, isPromptHeld, type Behavior, type SettledVia } from '../approvals/pending.js';
 import { PREVIEW_MAX, previewText } from '../approvals/preview.js';
+import { onPoliciesChanged, policyFor } from '../policy/policy.js';
 import { sharedCalls } from '../voice/shared.js';
 import { errResult } from './ctx.js';
 import { agentHearsNotices, ownerPromptLine, tellAgent } from './owner-route.js';
 import { promptBody } from './permission-prompt.js';
 import { metroSend } from './permission-relay.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
+import { toolGroupOf } from './tool-catalog.js';
 
 export interface AskTarget {
   station: string;
@@ -168,22 +170,39 @@ export function askOwner({ tool, target, args, approval }: AskedOfOwner, now = D
   return undefined;
 }
 
-function withdraw(match: (ask: Ask) => boolean, why: string): void {
-  for (const ask of ledger.withdraw(match, Date.now())) {
-    cancelPrompt(ask.id, owner);
-    log.info({ id: ask.id, tool: ask.tool, station: ask.station, why }, 'approvals: a channel approval was withdrawn');
-  }
+function withdraw(ask: Ask, why: string): void {
+  if (!ledger.withdraw(ask, Date.now())) return;
+  cancelPrompt(ask.id, owner);
+  log.info({ id: ask.id, tool: ask.tool, station: ask.station, why }, 'approvals: a channel approval was withdrawn');
 }
 
 export function withdrawAsksFor(tool: string, args: Record<string, unknown>): void {
-  if (!ledger.waitsOn(tool)) return;
+  const open = ledger.live().filter((ask) => ask.tool === tool);
+  if (open.length === 0) return;
   const digest = argsDigest(args);
-  withdraw((ask) => ask.tool === tool && ask.digest === digest, 'the rule for this call no longer asks');
+  for (const ask of open) if (ask.digest === digest) withdraw(ask, 'this call no longer asks');
 }
 
 export function revokeCallAsks(route: CallRoute): void {
-  withdraw((ask) => ask.call !== undefined && sameCall(ask.call.route, route), 'its voice call ended');
+  for (const ask of ledger.live()) if (ask.call !== undefined && sameCall(ask.call.route, route)) withdraw(ask, 'its voice call ended');
 }
+
+const RULE_NOW: Record<'allow' | 'deny', (ask: Ask) => string> = {
+  allow: (ask) => `No approval needed any more: ${ask.tool} on ${ask.station} (${ask.id}). The owner changed the rule. Call ${ask.tool} again with the same arguments.`,
+  deny: (ask) => `Blocked: ${ask.tool} on ${ask.station} (${ask.id}). The owner changed the rule, so it will not run.`,
+};
+
+function ruleChanged(): void {
+  for (const ask of ledger.live()) {
+    const access = policyFor({ kind: 'channel', station: ask.station, account: ask.account }, { name: ask.tool, group: toolGroupOf(ask.tool) });
+    if (access === 'ask') continue;
+    const waiting = ask.state === 'pending';
+    withdraw(ask, `the rule is now ${access}`);
+    if (waiting) tellAgent(RULE_NOW[access](ask), ask.line);
+  }
+}
+
+onPoliciesChanged(ruleChanged);
 
 export function forgetChannelAsks(): void {
   ledger.clear();

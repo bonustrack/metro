@@ -30,6 +30,26 @@ describe('the owner changes the rule while a call waits or after approving it', 
     expect(h.posted('blocked later')).toHaveLength(0);
   });
 
+  test('approved, blocked and asked again with no call in between: the approval is gone all the same', async () => {
+    const id = idIn(await h.send({ line: LINE, text: 'flip' }));
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
+    setPolicies('channel', [[TARGET, { write: 'deny' }]]);
+    setPolicies('channel', [[TARGET, { write: 'ask' }]]);
+    expect((await h.send({ line: LINE, text: 'flip', approval: id })).text).toContain(`Approval "${id}" was withdrawn before it was used.`);
+    expect(h.posted('flip')).toHaveLength(0);
+  });
+
+  test('a rule that now blocks one tool wins over the approval of that tool, and leaves other approvals alone', async () => {
+    const removal = idIn(await h.tool('delete', { line: LINE, message_id: 'm-9' }));
+    const sending = idIn(await h.send({ line: LINE, text: 'still fine' }));
+    expect(await h.answerOnPage(removal, 'allow')).toBe(200);
+    expect(await h.answerOnPage(sending, 'allow')).toBe(200);
+    setPolicies('channel', [[TARGET, { write: 'ask', tools: { delete: 'deny' } }]]);
+    expect((await h.tool('delete', { line: LINE, message_id: 'm-9', approval: removal })).text).toBe("Blocked by the owner's policy for telegram-bot (delete).");
+    expect(h.calls.filter((call) => call.action === 'delete')).toEqual([]);
+    expect((await h.send({ line: LINE, text: 'still fine', approval: sending })).isError).toBe(false);
+  });
+
   test('approved, then allowed: the call runs once under the new rule, and the unused approval cannot run it a second time', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'allowed after approval' }));
     expect(await h.answerOnPage(id, 'allow')).toBe(200);
@@ -40,24 +60,14 @@ describe('the owner changes the rule while a call waits or after approving it', 
     expect(h.posted('allowed after approval')).toHaveLength(1);
   });
 
-  test('a rule that now blocks one tool wins over the approval of that tool', async () => {
-    const id = idIn(await h.tool('delete', { line: LINE, message_id: 'm-9' }));
-    expect(await h.answerOnPage(id, 'allow')).toBe(200);
-    setPolicies('channel', [[TARGET, { write: 'ask', tools: { delete: 'deny' } }]]);
-    expect((await h.tool('delete', { line: LINE, message_id: 'm-9', approval: id })).text).toBe("Blocked by the owner's policy for telegram-bot (delete).");
-    expect(h.calls.filter((call) => call.action === 'delete')).toEqual([]);
-  });
-
-  test('waiting, then allowed: the call runs with no approval and its question leaves the page', async () => {
+  test('waiting, then allowed: the question leaves the page at once, the agent is told, and the call runs with no approval', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'allowed later' }));
-    idIn(await h.send({ line: LINE, text: 'still asked' }));
-    expect(await h.listed()).toHaveLength(2);
+    expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
     setPolicies('channel', []);
-    expect((await h.send({ line: LINE, text: 'allowed later' })).isError).toBe(false);
-    expect((await h.listed()).map((approval) => JSON.parse(approval.preview) as { text: string }).map((input) => input.text)).toEqual(['still asked']);
+    expect(await h.listed()).toEqual([]);
+    expect(await h.told(`No approval needed any more: send on telegram-bot (${id}). The owner changed the rule. Call send again with the same arguments.`)).toBe(true);
     expect(await h.answerOnPage(id, 'allow')).toBe(404);
-    h.chat(LINE, OWNER, 'a marker after the withdrawn question');
-    expect(await h.told('a marker after the withdrawn question')).toBe(true);
+    expect((await h.send({ line: LINE, text: 'allowed later', approval: id })).isError).toBe(false);
     expect(h.raw()).not.toContain(`Approved: send on telegram-bot (${id})`);
     expect(h.raw()).not.toContain(`Denied: send on telegram-bot (${id})`);
     setPolicies('channel', [[TARGET, { write: 'ask' }]]);
@@ -66,11 +76,22 @@ describe('the owner changes the rule while a call waits or after approving it', 
     expect(h.posted('allowed later')).toHaveLength(1);
   });
 
-  test('waiting, then blocked: the question leaves the page when the call comes back', async () => {
+  test('waiting, then blocked: the question leaves the page at once and the agent is told it will not run', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'blocked while waiting' }));
     setPolicies('channel', [[TARGET, { write: 'deny' }]]);
-    expect((await h.send({ line: LINE, text: 'blocked while waiting', approval: id })).text).toStartWith('Blocked by');
     expect(await h.listed()).toEqual([]);
+    expect(await h.told(`Blocked: send on telegram-bot (${id}). The owner changed the rule, so it will not run.`)).toBe(true);
+    expect((await h.send({ line: LINE, text: 'blocked while waiting', approval: id })).text).toStartWith('Blocked by');
+  });
+
+  test('saving the same rule again, or a rule for another channel, withdraws nothing', async () => {
+    const id = idIn(await h.send({ line: LINE, text: 'unchanged' }));
+    setPolicies('channel', [[TARGET, { write: 'ask' }]]);
+    setPolicies('channel', [[TARGET, { write: 'ask' }], [MAIL_TARGET, { write: 'deny' }]]);
+    expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
+    setPolicies('channel', [[TARGET, { read: 'deny', write: 'ask' }]]);
+    expect((await h.send({ line: LINE, text: 'unchanged', approval: id })).isError).toBe(false);
   });
 });
 
