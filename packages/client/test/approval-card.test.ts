@@ -83,6 +83,24 @@ describe('an approval reads as a card in words', () => {
     expect(approvalCard(approval('mcp__metro__send', cut))).toMatchObject({ station: 'telegram-bot', body: 'short' });
   });
 
+  test('a preview built to make the page crawl is read in a time that grows with its length', () => {
+    const hostile = [`{${' '.repeat(300_000)}x⋯`, `{"a":1${'\\n'.repeat(150_000)}x⋯ 1 field(s) elided ⋯`, `{${',\n'.repeat(150_000)}⋯`];
+    for (const preview of hostile) {
+      const started = Date.now();
+      approvalCard(approval('mcp__metro__send', preview));
+      expect(Date.now() - started).toBeLessThan(1500);
+    }
+    const escaped = '{"line":"metro://telegram-bot/t1/1","text":"short" , \\n ⋯ 2 field(s) elided ⋯\\n}';
+    expect(approvalCard(approval('mcp__metro__send', escaped))).toMatchObject({ station: 'telegram-bot', body: 'short' });
+  });
+
+  test('a preview the daemon wrote for a channel approval reads whole, with a mark where a long text was cut', () => {
+    const text = `${'a'.repeat(1999)}\n⋯ 1502 code points elided ⋯\n${'z'.repeat(1499)}`;
+    const card = approval('mcp__metro__send', JSON.stringify({ line: 'metro://telegram-bot/t1/1', text, attachments: [{ path: '/tmp/a.png' }] }));
+    expect(card.input).toEqual({ line: 'metro://telegram-bot/t1/1', text: `${'a'.repeat(1999)}…${'z'.repeat(1499)}`, attachments: [{ path: '/tmp/a.png' }] });
+    expect(approvalCard(card)).toMatchObject({ station: 'telegram-bot', title: 'Send a message', file: { name: 'a.png', size: null } });
+  });
+
   test('a metro line splits into station, account and the resource', () => {
     expect(lineTarget('metro://outlook/o1/AAQk%2Fconv')).toEqual({ station: 'outlook', account: 'o1', resource: 'AAQk/conv' });
     expect(lineTarget('https://example.com')).toBeNull();

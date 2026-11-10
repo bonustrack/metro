@@ -39,7 +39,7 @@ function elided(value: unknown): unknown {
 export const previewText = (args: Record<string, unknown>): string => JSON.stringify(elided(args));
 
 const CODE_POINTS = /(?:\\n|\n)⋯ \d+ code points elided ⋯(?:\\n|\n)/g;
-const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[^]*$/;
+const MARK = '⋯';
 
 export interface ReadPreview {
   input: Record<string, unknown> | undefined;
@@ -55,12 +55,25 @@ function parsedRecord(text: string): Record<string, unknown> | undefined {
   }
 }
 
+const gap = (char: string | undefined): boolean => char !== undefined && (char === ',' || char.trim() === '');
+
+function gapStart(text: string, end: number): number {
+  let at = end;
+  while (at > 0 && gap(text[at - 1])) at -= 1;
+  return at;
+}
+
+function beforeElision(text: string): string {
+  const end = gapStart(text, text.indexOf(MARK));
+  return text.slice(0, text.endsWith('\\n', end) ? gapStart(text, end - 2) : end);
+}
+
 export function readPreview(preview: string): ReadPreview {
   const text = preview.replace(CODE_POINTS, '\\u0000');
   const whole = parsedRecord(text);
   if (whole !== undefined) return { input: whole, partial: false };
-  if (!text.includes('⋯')) return { input: undefined, partial: false };
-  const head = text.replace(FIELD_BLOCK, '').replace(/[\s,]*$/, '');
+  if (!text.includes(MARK)) return { input: undefined, partial: false };
+  const head = beforeElision(text);
   const input = parsedRecord(`${head}}`) ?? parsedRecord(head);
   return { input, partial: input !== undefined };
 }
