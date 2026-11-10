@@ -1,15 +1,16 @@
 import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { approvalId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
+import { APPROVAL_PENDING_MAX, APPROVAL_TTL_MS, APPROVAL_USE_MS, TOO_MANY_PENDING } from '@metro-labs/http/approval-rules';
 import type { McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { agentTokenLabels } from './agent-tokens.js';
 import type { Database } from './database.js';
 import { mcpApprovals } from './schema.js';
 
-export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
-export const GRANT_WINDOW_MS = 10 * 60_000;
+export { APPROVAL_TTL_MS };
+export const GRANT_WINDOW_MS = APPROVAL_USE_MS;
 export const REDELIVER_MS = 60_000;
-export const PENDING_MAX = 50;
+export const PENDING_MAX = APPROVAL_PENDING_MAX;
 export const APPROVAL_KEEP_MS = 7 * 24 * 60 * 60_000;
 
 const ID_TRIES = 8;
@@ -79,7 +80,7 @@ async function request(db: Database, identity: ApprovalAgent, call: ApprovalRequ
   const held = await pendingId(db, identity, call);
   if (held !== null) return held;
   const waiting = await db.$count(mcpApprovals, and(mine(identity), eq(mcpApprovals.state, 'pending')));
-  if (waiting >= PENDING_MAX) throw new ApiError(`${String(PENDING_MAX)} approval requests are already waiting for the owner. Wait for answers before asking again.`, 429);
+  if (waiting >= PENDING_MAX) throw new ApiError(TOO_MANY_PENDING, 429);
   return insertPending(db, identity, call, now);
 }
 

@@ -1,4 +1,5 @@
 import { isRecord } from '@metro-labs/core/is-record';
+import { APPROVAL_ID_RE } from './approval-rules.js';
 
 export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer' } as const;
 export const MCP_FIND_DEFAULT = 5;
@@ -6,7 +7,7 @@ export const MCP_FIND_MAX = 20;
 export const MCP_CALLS_MAX = 10;
 const MCP_QUERY_MAX = 500;
 export const MCP_APPROVAL_WAIT_MS = 25_000;
-export const MCP_APPROVAL_ID_RE = /^[a-km-z]{5}$/;
+export const MCP_APPROVAL_ID_RE = APPROVAL_ID_RE;
 export const TOOL_SEARCH = 'tool_search';
 export const TOOL_CALL = 'tool_call';
 export const TOOL_CALL_EXAMPLE = '{"calls":[{"tool":"notion.search","arguments":{"query":"roadmap"}}]}';

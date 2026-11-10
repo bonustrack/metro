@@ -3,7 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
 import { agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
 import { APPROVAL_TTL_MS, GRANT_WINDOW_MS, PENDING_MAX, REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
-import { argsDigest, canonicalJson, PREVIEW_MAX, previewOf } from '../src/digest.ts';
+import { argsDigest, canonicalJson } from '@metro-labs/http/args-digest';
+import { PREVIEW_MAX, previewOf } from '../src/preview.ts';
 import { createAgentToken, newAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
 import { enrollAgent, PGLITE_START_MS, testDb, type TestAgent, type TestDb } from './helpers.ts';
 
