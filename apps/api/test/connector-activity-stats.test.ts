@@ -166,6 +166,22 @@ describe('what counts as failed, blocked and waiting', () => {
     expect(answer.buckets.at(-1)).toMatchObject({ total: 13, failed: 5, byConnector: { [NOTION]: { total: 13, failed: 5 } } });
     expect(answer.connectors).toEqual([{ key: NOTION, connector: NOTION, name: 'Notion', url: 'https://mcp.notion.com', total: 13, failed: 5 }]);
   });
+
+  test('a received event is not a call: it counts nowhere, whatever its outcome', async () => {
+    await insert(
+      row({}),
+      row({ outcome: 'vendor_error' }),
+      row({ kind: 'event', tool: 'item.created', outcome: 'delivered', ms: 0 }),
+      row({ kind: 'event', tool: 'item.created', outcome: 'dropped_sender', ms: 0 }),
+      row({ kind: 'event', tool: 'item.created', outcome: 'expired', ms: 0, connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear' }),
+    );
+    const answer = await stats();
+    expect(answer.totals).toEqual({ total: 2, ok: 1, failed: 1, blocked: 0, denied: 0, waiting: 0, p50Ms: 120, p95Ms: 120 });
+    expect(answer.connectors).toEqual([{ key: NOTION, connector: NOTION, name: 'Notion', url: 'https://mcp.notion.com', total: 2, failed: 1 }]);
+    expect(nonEmpty(answer)).toEqual([[27, { total: 2, failed: 1 }]]);
+    expect(answer.buckets.at(-1)?.byConnector).toEqual({ [NOTION]: { total: 2, failed: 1 } });
+    expect((await stats(`?connector=${LINEAR}`)).totals.total).toBe(0);
+  });
 });
 
 describe('agent and connector filters', () => {

@@ -18,6 +18,7 @@ interface ActivityCall {
   outcome: string;
   ms: number;
   at: number;
+  kind: 'call' | 'event';
 }
 
 function whole(query: URLSearchParams, name: string): number | undefined {
@@ -83,6 +84,7 @@ function activityCall(row: CallView): ActivityCall {
     outcome: row.outcome,
     ms: row.ms,
     at: row.at,
+    kind: row.kind === 'event' ? 'event' : 'call',
   };
 }
 

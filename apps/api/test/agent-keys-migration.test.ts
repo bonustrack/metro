@@ -86,9 +86,9 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     await migrate(db, { migrationsFolder: DIR });
     const upgraded = keys.map(({ sealing_key: _sealing, ...row }) => ({ ...row, mcp_token_hash: null }));
     expect(await rows(client, 'agent_keys')).toEqual(upgraded);
-    expect(await rows(client, 'connector_agents')).toEqual(assignments);
+    expect(await rows(client, 'connector_agents')).toEqual(assignments.map((row) => ({ ...row, events: '[]', senders: '["*"]' })));
     expect(events).toHaveLength(1);
-    expect((await client.query("SELECT to_regclass('connector_events') AS t")).rows).toEqual([{ t: null }]);
+    expect(await rows(client, 'connector_events')).toEqual([]);
     expect(await rows(client, 'connectors')).toEqual(connectors.map((row) => ({ ...row, detail: null, auth_generation: null })));
     expect((await rows(client, 'drizzle.__drizzle_migrations')).slice(0, journal.length)).toEqual(journal);
     const relations = await client.query<{ relname: string; relkind: string }>("SELECT relname, relkind FROM pg_class WHERE relname IN ('agent_keys', 'box_keys') ORDER BY relname");

@@ -45,7 +45,7 @@ describe('the organization connector tables', () => {
     for (const row of result.rows) (columns[row.table_name] ??= []).push(row.column_name);
     expect(columns).toEqual({
       agent_keys: ['agent', 'owner', 'key_id', 'signing_key', 'enrolled_by', 'enrolled_at', 'mcp_token_hash'],
-      connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at'],
+      connector_agents: ['connector', 'agent', 'policy', 'created_by', 'created_at', 'events', 'senders'],
       connectors: ['id', 'owner', 'name', 'url', 'auth', 'policy', 'secret', 'created_by', 'created_at', 'updated_at', 'detail', 'auth_generation'],
     });
   });
@@ -66,7 +66,7 @@ describe('the organization connector tables', () => {
     await expect(settled(held.db.insert(connectorAgents).values(assignment('conn0000001', 'agent000001')))).rejects.toThrow();
     await expect(settled(held.db.insert(connectorAgents).values(assignment('missing0001', 'agent000001')))).rejects.toThrow();
     await held.db.delete(connectors).where(eq(connectors.id, 'conn0000001'));
-    expect(await held.db.select().from(connectorAgents)).toEqual([assignment('conn0000002', 'agent000001')]);
+    expect(await held.db.select().from(connectorAgents)).toEqual([{ connector: 'conn0000002', agent: 'agent000001', policy: '{"write":"deny"}', createdBy: 'user_01TEST', createdAt: AT, events: '[]', senders: '["*"]' }]);
     await held.db.delete(agents).where(eq(agents.id, 'agent000001'));
     expect(await held.db.select().from(connectorAgents)).toEqual([]);
   });
