@@ -222,6 +222,60 @@ describe('list_members policies follow the line, not an undeclared account argum
   });
 });
 
+describe('an account argument added to a call never moves it away from the rule of the account that acts', () => {
+  const LINE_CALLS: [string, Record<string, unknown>][] = [
+    ['send', { line: WA_LINE, text: 'hello' }],
+    ['reply', { line: WA_LINE, text: 'hello', message_id: 'm1' }],
+    ['react', { line: WA_LINE, message_id: 'm1', emoji: '👍' }],
+    ['unreact', { line: WA_LINE, message_id: 'm1', emoji: '👍' }],
+    ['edit', { line: WA_LINE, message_id: 'm1', text: 'hello' }],
+    ['delete', { line: WA_LINE, message_id: 'm1' }],
+    ['typing', { line: WA_LINE }],
+    ['read', { line: WA_LINE }],
+    ['add_members', { line: WA_LINE, members: ['491700000000'] }],
+    ['remove_members', { line: WA_LINE, members: ['491700000000'] }],
+    ['export_invite', { line: WA_LINE }],
+  ];
+  const run = async (tool: string, input: Record<string, unknown>): Promise<string> => {
+    const res = await runWithIdentity({ kind: 'agent', agentId: AGENT }, () => callToolHandler({ params: { name: tool, arguments: input } }));
+    return res.content.map((x) => x.text).join('\n');
+  };
+
+  for (const [tool, input] of LINE_CALLS) {
+    test(`${tool}: another account of the agent with no rule does not lift a block on the line's account`, async () => {
+      setPolicies('channel', [[WA_TARGET, { read: 'deny', write: 'deny' }]]);
+      for (const account of [WA_OTHER, '', null])
+        expect(await run(tool, { ...input, account })).toBe(`Blocked by the owner's policy for whatsapp (${tool}).`);
+      expect(trainCalls).toEqual([]);
+    });
+
+    test(`${tool}: an account that is not text is refused before any rule or train`, async () => {
+      setPolicies('channel', [[WA_TARGET, { read: 'deny', write: 'deny' }]]);
+      for (const account of [7, true, { id: WA_OTHER }, [WA_OTHER]])
+        expect(await run(tool, { ...input, account })).toBe('metro: `account` must be the id of one of your accounts, as text; list_accounts names them');
+      expect(trainCalls).toEqual([]);
+    });
+  }
+
+  test('an Ask on the line account still asks, and the rule of the named account applies as well, the stricter winning', async () => {
+    setPolicies('channel', [[WA_TARGET, { write: 'ask' }]]);
+    expect(await run('send', { line: WA_LINE, text: 'hello', account: WA_OTHER })).toStartWith("Needs the owner's approval for whatsapp (send).");
+    setPolicies('channel', [[WA_TARGET, { write: 'ask' }], [{ ...WA_TARGET, account: WA_OTHER }, { write: 'deny' }]]);
+    expect(await run('send', { line: WA_LINE, text: 'hello', account: WA_OTHER })).toBe("Blocked by the owner's policy for whatsapp (send).");
+    setPolicies('channel', [[{ ...WA_TARGET, account: WA_OTHER }, { read: 'deny' }]]);
+    expect(await run('read', { line: WA_LINE, account: WA_OTHER })).toBe("Blocked by the owner's policy for whatsapp (read).");
+    expect(trainCalls).toEqual([]);
+  });
+
+  test('a call with no line and an account that is not text is refused too, whatever the station has', async () => {
+    setPolicies('channel', [[TARGET, { write: 'deny' }]]);
+    expect(await run('set_profile', { station: 'telegram', account: 7, name: 'New name' })).toStartWith('metro: `account` must be');
+    expect(await run('create_group', { station: 'telegram', account: 7, name: 'crew' })).toStartWith('metro: `account` must be');
+    expect(await run('set_profile', { station: 'telegram', name: 'New name' })).toBe("Blocked by the owner's policy for telegram (set_profile).");
+    expect(trainCalls).toEqual([]);
+  });
+});
+
 describe('a call that needs approval runs only once the owner approved that exact call', () => {
   const run = async (args: Record<string, unknown>): Promise<string> => {
     const res = await runWithIdentity({ kind: 'agent', agentId: AGENT }, () => callToolHandler({ params: { name: 'send', arguments: args } }));

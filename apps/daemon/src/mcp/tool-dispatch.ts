@@ -144,12 +144,29 @@ function logToolFailure(
   );
 }
 
+const ACCOUNT_SHAPE = 'metro: `account` must be the id of one of your accounts, as text; list_accounts names them';
+
+interface GivenCall {
+  args: Record<string, unknown>;
+  approval: unknown;
+}
+
+function givenCall(raw: Record<string, unknown> | undefined): GivenCall | undefined {
+  const { approval, ...given } = raw ?? {};
+  const account = given.account;
+  if (account === undefined || (typeof account === 'string' && account !== '')) return { args: given, approval };
+  if (account !== null && account !== '') return undefined;
+  return { args: Object.fromEntries(Object.entries(given).filter(([key]) => key !== 'account')), approval };
+}
+
 async function runTool(
   req: { params: { name: string; arguments?: Record<string, unknown> } },
   hooks: ToolHooks,
 ): Promise<ToolResult> {
   const name = req.params.name;
-  const { approval, ...a } = req.params.arguments ?? {};
+  const given = givenCall(req.params.arguments);
+  if (given === undefined) return errResult(ACCOUNT_SHAPE);
+  const { args: a, approval } = given;
   if (name === 'list_channels') {
     const invalid = channelArgsError(a);
     if (invalid) return invalid;

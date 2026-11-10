@@ -11,9 +11,11 @@ import { stationForTool, toolGroupOf, UNGATED } from './tool-catalog.js';
 
 type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
 
-function fromLine(line: string, override = ''): ChannelTarget[] {
+function fromLine(line: string, named = ''): ChannelTarget[] {
   const acct = accountFromLine(line);
-  return acct === undefined ? [] : [{ kind: 'channel', station: acct.station, account: override || acct.accountId }];
+  if (acct === undefined) return [];
+  const accounts = named === '' || named === acct.accountId ? [acct.accountId] : [acct.accountId, named];
+  return accounts.map((account) => ({ kind: 'channel', station: acct.station, account }));
 }
 
 function channelTargets(name: string, a: Record<string, unknown>): ChannelTarget[] {
