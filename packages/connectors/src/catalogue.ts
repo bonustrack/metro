@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
-import { listRemoteServer, type RemoteEvent, type RemoteTool } from '@metro-labs/http/connector-tools';
+import { listRemoteServer, type RemoteEvent, type RemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
@@ -112,13 +112,27 @@ export function publicIcons(icons: ConnectorIcon[], secret: ConnectorSecret): Co
   return icons.filter((icon) => !hidden.some((key) => icon.src.includes(key)));
 }
 
+export interface ConnectorListing {
+  tools: RemoteTool[];
+  account?: string;
+  instructions?: string;
+}
+
+function publicIdentity(server: RemoteServer, secret: ConnectorSecret): Pick<ConnectorListing, 'account' | 'instructions'> {
+  const { redact } = redactionOf(secret);
+  return {
+    ...(server.account === undefined ? {} : { account: redact(server.account) }),
+    ...(server.instructions === undefined ? {} : { instructions: redact(server.instructions) }),
+  };
+}
+
 export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {
   if (secret.kind === 'header') return { kind: 'header', name: secret.name, value: secret.value };
   if (secret.kind === 'oauth') return { kind: 'header', name: 'Authorization', value: `Bearer ${secret.tokens?.accessToken ?? ''}` };
   return { kind: 'none' };
 }
 
-async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<RemoteTool[]> {
+async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<ConnectorListing> {
   const key = sealingKey(deps);
   const secret = catalogueSecret(key, row, deps.now());
   const server = await listRemoteServer(parsePublicConnectorUrl(secret.targetUrl), connectorAuthOf(secret), deps.fetch);
@@ -129,19 +143,19 @@ async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): 
   await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret), events: publicEvents(server.events, secret) }).catch((err: unknown) => {
     log.warn({ connector: row.id, err: errMsg(err) }, 'connectors: the tool list could not be kept for mcp.metro.box');
   });
-  return tools;
+  return { tools, ...publicIdentity(server, secret) };
 }
 
-export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {
+export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<ConnectorListing> {
   const deadline = AbortSignal.timeout(45_000);
   const bounded: CatalogueDeps = { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
   try {
     let row = await catalogueCredential(bounded, owner, id);
-    try { return { tools: await discover(bounded, owner, row) }; } catch (err) {
+    try { return await discover(bounded, owner, row); } catch (err) {
       if (!(err instanceof ConnectorUnauthorized)) throw err;
       if (row.auth !== 'oauth') throw catalogueSignin();
       row = await catalogueCredential(bounded, owner, id, credentialRevision(sealingKey(deps), row));
-      return { tools: await discover(bounded, owner, row) };
+      return await discover(bounded, owner, row);
     }
   } catch (err) {
     if (err instanceof ApiError && [404, 409, 424].includes(err.status)) throw err;
