@@ -63,7 +63,7 @@ async function assign(connector: string, agent: string, patch: Partial<Assignmen
 
 async function subscribe(connector: string, agent: string, event: string, status: string, error: string | null = null, owner = TEST_OWNER): Promise<void> {
   serial += 1;
-  await held.db.insert(connectorSubscriptions).values({ id: `subs${String(serial).padStart(7, '0')}`, owner, connector, agent, event, secret: 'sealed-fixture', status, error, createdAt: NOW });
+  await held.db.insert(connectorSubscriptions).values({ id: `subs${String(serial).padStart(7, '0')}`, owner, connector, agent, event, secret: 'sealed-fixture', status, error, signedIn: '' });
 }
 
 const stored = async (connector: string, agent: string): Promise<{ events: string; senders: string } | undefined> =>

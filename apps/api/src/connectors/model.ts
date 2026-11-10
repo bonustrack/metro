@@ -2,8 +2,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import type { RemoteEvent } from '@metro-labs/http/connector-tools';
 import { senderListOf } from '@metro-labs/http/sender-list';
-import { eventNamesOf } from '@metro-labs/connectors/db/connector-subscriptions';
-import type { AssignmentRow, ConnectorRow, SubscriptionState } from '@metro-labs/connectors/db/connectors';
+import { eventNamesOf, type AssignmentRow, type ConnectorRow, type SubscriptionState } from '@metro-labs/connectors/db/connectors';
 import { detailOf, parsedJson, type ConnectorDetail } from '@metro-labs/connectors/model';
 
 type SubscriptionStatus = 'pending' | 'active' | 'signed_out' | 'error';
