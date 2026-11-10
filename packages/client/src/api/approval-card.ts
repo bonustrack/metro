@@ -1,3 +1,4 @@
+import { approvalFields } from '@metro-labs/core/approval-fields';
 import type { Approval } from './approvals.js';
 import { isRecord, str } from '../read.js';
 import { sizeLabel } from './when.js';
@@ -12,7 +13,7 @@ interface CardFile {
   size: string | null;
 }
 
-export interface ApprovalCard {
+interface CardSummary {
   station: string | null;
   account: string | null;
   connector: string | null;
@@ -22,6 +23,10 @@ export interface ApprovalCard {
   body: string | null;
   file: CardFile | null;
   moreFiles: number;
+}
+
+export interface ApprovalCard extends CardSummary {
+  everything: CardField[];
 }
 
 interface Target {
@@ -143,7 +148,7 @@ function bodyOf(tool: string, input: Record<string, unknown> | null): string | n
   return flat === '' ? null : shorten(flat, BODY_MAX);
 }
 
-function metroCard(approval: Approval, input: Record<string, unknown> | null): ApprovalCard {
+function metroCard(approval: Approval, input: Record<string, unknown> | null): CardSummary {
   const target = targetOf(input);
   const title = metroTitle(approval.tool, target);
   const email = emailFields(approval.tool, target, input);
@@ -160,7 +165,7 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): A
   };
 }
 
-function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null, bytes: (number | null)[]): ApprovalCard {
+function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null, bytes: (number | null)[]): CardSummary {
   const title = humanize(tool);
   return {
     station: null,
@@ -174,7 +179,7 @@ function connectorCard(connector: string, tool: string, input: Record<string, un
   };
 }
 
-function otherCard(approval: Approval): ApprovalCard {
+function otherCard(approval: Approval): CardSummary {
   const fields = argFields(approval.input);
   return {
     station: null,
@@ -189,9 +194,14 @@ function otherCard(approval: Approval): ApprovalCard {
   };
 }
 
-export function approvalCard(approval: Approval): ApprovalCard {
+function summaryOf(approval: Approval): CardSummary {
   if (approval.tool !== approval.name) return metroCard(approval, approval.input);
   const plugin = PLUGIN_TOOL.exec(approval.name) ?? SERVER_TOOL.exec(approval.name);
   if (plugin?.[1] !== undefined && plugin[2] !== undefined) return connectorCard(plugin[1], plugin[2], approval.input, approval.fileBytes);
   return otherCard(approval);
 }
+
+export const approvalCard = (approval: Approval): ApprovalCard => ({
+  ...summaryOf(approval),
+  everything: approvalFields(approval.input ?? {}).map(({ key, text }) => ({ label: key, value: text })),
+});

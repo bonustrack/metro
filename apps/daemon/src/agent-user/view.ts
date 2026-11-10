@@ -9,8 +9,8 @@ import { removeHome, writeHomeText } from './home-fs.js';
 import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';
 
-const COPIED = ['policy.json', 'claude-setup.json', 'system-prompt.md'] as const;
-const NEVER_COPIED = [MCP_TOKEN_FILE] as const;
+const COPIED = ['claude-setup.json', 'system-prompt.md'] as const;
+const NEVER_COPIED = [MCP_TOKEN_FILE, 'policy.json'] as const;
 const SYNC_MS = 5_000;
 
 const readText = (path: string): string | null => {

@@ -1,0 +1,122 @@
+import { describe, expect, test } from 'bun:test';
+import { APPROVAL_PENDING_MAX, APPROVAL_USE_MS } from '@metro-labs/http/approval-rules';
+import { ASKS_KEPT_MAX, AskLedger, type AskedCall } from '../src/approvals/ledger.ts';
+
+const T0 = Date.parse('2026-11-10T10:00:00.000Z');
+const CALL: AskedCall = { tool: 'send', digest: 'digest-a', station: 'telegram-bot', account: 'tb000000001', agent: 'agent000001' };
+const ROUTE = { line: undefined, call: undefined };
+
+const opened = (ledger: AskLedger, id: string, call: AskedCall = CALL) => {
+  const ask = ledger.ask(id, call, ROUTE);
+  if (ask === undefined) throw new Error(`could not open ${id}`);
+  return ask;
+};
+
+describe('the approvals the daemon holds for channel calls', () => {
+  test('an approved call runs once, and only for exactly that call', () => {
+    const ledger = new AskLedger();
+    opened(ledger, 'abcde');
+    expect(ledger.judge('abcde', CALL, T0).kind).toBe('waiting');
+    expect(ledger.settle('abcde', 'allow', T0 + 1000)?.state).toBe('allow');
+    const others: AskedCall[] = [
+      { ...CALL, tool: 'delete' },
+      { ...CALL, digest: 'digest-b' },
+      { ...CALL, station: 'whatsapp' },
+      { ...CALL, account: 'tb000000002' },
+      { ...CALL, agent: 'agent000002' },
+    ];
+    for (const other of others) expect(ledger.judge('abcde', other, T0 + 2000)).toEqual({ kind: 'spent', why: 'other' });
+    const verdict = ledger.judge('abcde', CALL, T0 + 2000);
+    if (verdict.kind !== 'ready') throw new Error(`expected a usable approval, got ${verdict.kind}`);
+    expect(ledger.use(verdict.ask, T0 + 2000)).toBe(true);
+    expect(ledger.use(verdict.ask, T0 + 2000)).toBe(false);
+    expect(ledger.judge('abcde', CALL, T0 + 3000)).toEqual({ kind: 'spent', why: 'used' });
+    expect(ledger.judge('zzzzz', CALL, T0)).toEqual({ kind: 'spent', why: 'unknown' });
+  });
+
+  test('an approval counts for 10 minutes after the answer, not after the request', () => {
+    const ledger = new AskLedger();
+    opened(ledger, 'abcde');
+    const answeredAt = T0 + 5 * 3_600_000;
+    ledger.settle('abcde', 'allow', answeredAt);
+    expect(ledger.judge('abcde', CALL, answeredAt + APPROVAL_USE_MS).kind).toBe('ready');
+    expect(ledger.judge('abcde', CALL, answeredAt + APPROVAL_USE_MS + 1)).toEqual({ kind: 'spent', why: 'late' });
+    expect(ledger.standing(CALL, answeredAt + APPROVAL_USE_MS + 1)).toBeUndefined();
+  });
+
+  test('an answer is taken once: a second answer changes nothing', () => {
+    const ledger = new AskLedger();
+    opened(ledger, 'abcde');
+    expect(ledger.settle('abcde', 'deny', T0 + 1)?.state).toBe('deny');
+    expect(ledger.settle('abcde', 'allow', T0 + 2)).toBeUndefined();
+    expect(ledger.judge('abcde', CALL, T0 + 3).kind).toBe('denied');
+    expect(ledger.settle('zzzzz', 'allow', T0)).toBeUndefined();
+  });
+
+  test('the same call finds its waiting request, or the approval it has not used yet', () => {
+    const ledger = new AskLedger();
+    const ask = opened(ledger, 'abcde');
+    expect(ledger.standing(CALL, T0)).toBe(ask);
+    expect(ledger.standing({ ...CALL, digest: 'digest-b' }, T0)).toBeUndefined();
+    ledger.settle('abcde', 'allow', T0 + 1);
+    expect(ledger.standing(CALL, T0 + 2)).toBe(ask);
+    ledger.use(ask, T0 + 2);
+    expect(ledger.standing(CALL, T0 + 3)).toBeUndefined();
+    opened(ledger, 'bcdef');
+    ledger.settle('bcdef', 'deny', T0 + 4);
+    expect(ledger.standing(CALL, T0 + 5)).toBeUndefined();
+  });
+
+  test('expired, withdrawn and denied requests never run', () => {
+    const ledger = new AskLedger();
+    for (const [id, answer] of [['abcde', 'expired'], ['cdefg', 'deny']] as const) {
+      opened(ledger, id, { ...CALL, digest: id });
+      ledger.settle(id, answer, T0 + 1);
+    }
+    ledger.withdraw(opened(ledger, 'bcdef', { ...CALL, digest: 'bcdef' }));
+    expect(ledger.judge('abcde', { ...CALL, digest: 'abcde' }, T0 + 2)).toEqual({ kind: 'spent', why: 'expired' });
+    expect(ledger.judge('bcdef', { ...CALL, digest: 'bcdef' }, T0 + 2)).toEqual({ kind: 'spent', why: 'withdrawn' });
+    expect(ledger.judge('cdefg', { ...CALL, digest: 'cdefg' }, T0 + 2).kind).toBe('denied');
+  });
+
+  test('a waiting request and an unused approval can be withdrawn, and nothing else can', () => {
+    const ledger = new AskLedger();
+    const waiting = opened(ledger, 'abcde', { ...CALL, digest: 'waiting' });
+    const approved = opened(ledger, 'bcdef', { ...CALL, digest: 'approved' });
+    const denied = opened(ledger, 'cdefg', { ...CALL, digest: 'denied' });
+    const used = opened(ledger, 'defgh', { ...CALL, digest: 'used' });
+    ledger.settle('bcdef', 'allow', T0 + 1);
+    ledger.settle('cdefg', 'deny', T0 + 1);
+    ledger.settle('defgh', 'allow', T0 + 1);
+    ledger.use(used, T0 + 2);
+    expect(ledger.live().map((ask) => ask.id)).toEqual(['abcde', 'bcdef']);
+    expect([waiting, approved, denied, used].map((ask) => ledger.withdraw(ask))).toEqual([true, true, false, false]);
+    expect(ledger.withdraw(waiting)).toBe(false);
+    expect(ledger.live()).toEqual([]);
+    expect(ledger.settle('abcde', 'allow', T0 + 5)).toBeUndefined();
+    expect(ledger.judge('bcdef', { ...CALL, digest: 'approved' }, T0 + 5)).toEqual({ kind: 'spent', why: 'withdrawn' });
+    expect(ledger.judge('cdefg', { ...CALL, digest: 'denied' }, T0 + 5).kind).toBe('denied');
+  });
+
+  test('at most 50 requests wait at once, and an answer makes room', () => {
+    const ledger = new AskLedger();
+    for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) opened(ledger, `id${String(i)}`, { ...CALL, digest: `d${String(i)}` });
+    expect(ledger.ask('extra', { ...CALL, digest: 'extra' }, ROUTE)).toBeUndefined();
+    ledger.settle('id0', 'deny', T0 + 1);
+    expect(ledger.ask('extra', { ...CALL, digest: 'extra' }, ROUTE)?.id).toBe('extra');
+    expect(ledger.ask('extra', { ...CALL, digest: 'again' }, ROUTE)).toBeUndefined();
+  });
+
+  test('never more than 500 requests are kept: the oldest answered ones go first, a waiting one never', () => {
+    const ledger = new AskLedger();
+    opened(ledger, 'abcde');
+    for (let i = 0; i < ASKS_KEPT_MAX + 20; i += 1) {
+      opened(ledger, `id${String(i)}`, { ...CALL, digest: `d${String(i)}` });
+      ledger.settle(`id${String(i)}`, 'deny', T0 + i);
+    }
+    expect(ledger.has('id0')).toBe(false);
+    expect(ledger.has('id21')).toBe(true);
+    expect(ledger.has(`id${String(ASKS_KEPT_MAX + 19)}`)).toBe(true);
+    expect(ledger.judge('abcde', CALL, T0).kind).toBe('waiting');
+  });
+});

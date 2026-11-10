@@ -28,7 +28,6 @@ const { setKeyMap } = await import('../../apps/daemon/src/agents/keys.ts');
 const { setAgentMap, setAllowlistMap, setApproversMap } = await import('../../apps/daemon/src/agents/map.ts');
 const { setTrainCallBackend } = await import('../../apps/daemon/src/stations/train-call.ts');
 const { setPolicies } = await import('../../apps/daemon/src/policy/policy.ts');
-const { watchPolicySnapshot } = await import('../../apps/daemon/src/mcp/policy-snapshot.ts');
 const { handleGatewayRequest } = await import('../../packages/inference/src/gateway.ts');
 const { setupOf } = await import('../../packages/inference/src/delivered.ts');
 const { deliveredOf } = await import('../../packages/inference/src/delivered.ts');
@@ -59,7 +58,6 @@ setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`telegram-bot/${TG2}`]: AGENT }, {
 setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222', '333'], [`telegram-bot/${TG2}`]: ['111'] });
 setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
 setPolicies('channel', [[{ kind: 'channel', station: 'telegram-bot', account: TG2 }, { tools: { send: 'ask' } }]]);
-watchPolicySnapshot();
 
 export interface Call {
   t: number;

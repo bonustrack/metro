@@ -138,13 +138,16 @@ async function hangupApproval(): Promise<void> {
   const session = h.agent.runner.id;
   h.policy('ask');
   h.chat('FIXTURE_APPROVAL ask for this call speech in a worker.');
-  await h.until('SDK worker approval reaches daemon', () => h.pending().length > 0 && h.activity.snapshot().approvals > 0);
+  await h.until('the daemon holds the worker speech approval', () => h.pending().length > 0);
   const prompt = h.pending()[0];
   assert.ok(prompt);
+  assert.equal(prompt.tool, 'mcp__metro__send');
   assert.match(prompt.preview, /"speech"/);
   assert.equal(prompt.line, h.LINE);
+  assert.equal(h.activity.snapshot().approvals, 0);
+  await h.until('the worker was told at once and finished', () => h.upstream.seen.some((request) => request.worker && request.text.includes(`approval id "${prompt.requestId}"`)));
   fake.end();
-  await h.until('hangup cancels pending approval', () => h.pending().length === 0 && h.activity.snapshot().approvals === 0);
+  await h.until('hangup withdraws the pending approval', () => h.pending().length === 0);
   assert.equal(await answerPrompt(prompt.requestId, 'allow', 'chat'), undefined);
   h.policy('allow');
   h.chat('FIXTURE_CHAT_AFTER_APPROVAL_HANGUP');
@@ -153,7 +156,7 @@ async function hangupApproval(): Promise<void> {
   await h.idle();
   assert.deepEqual(fake.synthesized, []);
   assert.equal(h.agent.runner.id, session);
-  h.report('hangup during worker approval', { realSdkCanUseTool: true, pendingRevoked: true, lateApprovalRejected: true, nextChatAnswered: true, sameSession: true });
+  h.report('hangup during a speech approval', { daemonHeldApproval: true, workerNeverBlocked: true, pendingWithdrawn: true, lateApprovalRejected: true, nextChatAnswered: true, sameSession: true });
 }
 
 await h.authProof();

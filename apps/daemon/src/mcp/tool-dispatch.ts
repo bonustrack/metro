@@ -11,7 +11,7 @@ import {
   accountStationCapabilities,
 } from '../stations/registry.js';
 import type { Station, StationTool, ToolResult } from '@metro-labs/core/stations/types';
-import { listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
+import { declaredGroup, listedTools, stationForTool, type PublishedTool } from './tool-catalog.js';
 import { policyGate, withEffectivePolicy } from './policy-gate.js';
 import { settlePromptsFor } from '../approvals/pending.js';
 import { errResult, makeCtx, okJson, toErr } from './ctx.js';
@@ -145,24 +145,43 @@ function logToolFailure(
   );
 }
 
+const ACCOUNT_SHAPE = 'metro: `account` must be the id of one of your accounts, as text; list_accounts names them';
+
+interface GivenCall {
+  args: Record<string, unknown>;
+  approval: unknown;
+}
+
+function givenCall(raw: Record<string, unknown> | undefined): GivenCall | undefined {
+  const { approval, ...given } = raw ?? {};
+  const account = given.account;
+  if (account === undefined || (typeof account === 'string' && account !== '')) return { args: given, approval };
+  if (account !== null && account !== '') return undefined;
+  return { args: Object.fromEntries(Object.entries(given).filter(([key]) => key !== 'account')), approval };
+}
+
+function argsRefusal(name: string, a: Record<string, unknown>): ToolResult | undefined {
+  if (typeof a.line === 'string' && Line.isConnector(a.line)) return errResult(CONNECTOR_LINE_REFUSAL);
+  return name === 'list_channels' ? channelArgsError(a) : undefined;
+}
+
 async function runTool(
   req: { params: { name: string; arguments?: Record<string, unknown> } },
   hooks: ToolHooks,
 ): Promise<ToolResult> {
   const name = req.params.name;
-  const a = req.params.arguments ?? {};
-  if (name === 'list_channels') {
-    const invalid = channelArgsError(a);
-    if (invalid) return invalid;
-  }
-
-  if (typeof a.line === 'string' && Line.isConnector(a.line)) return errResult(CONNECTOR_LINE_REFUSAL);
+  if (declaredGroup(name) === undefined) return errResult(`unknown tool: ${name}`);
+  const given = givenCall(req.params.arguments);
+  if (given === undefined) return errResult(ACCOUNT_SHAPE);
+  const { args: a, approval } = given;
+  const refused = argsRefusal(name, a);
+  if (refused) return refused;
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');
 
-  settlePromptsFor(name, a);
-  const blocked = policyGate(name, a);
+  settlePromptsFor(name, req.params.arguments ?? {});
+  const blocked = policyGate(name, a, approval);
   if (blocked) return blocked;
 
   return dispatchTool(name, a, identity, hooks);

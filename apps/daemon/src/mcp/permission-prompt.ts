@@ -1,5 +1,6 @@
+import { approvalFields, oneLine, type ApprovalField } from '@metro-labs/core/approval-fields';
 import { str } from '@metro-labs/core/str';
-import { readPreview, shownValue } from '../approvals/preview.js';
+import { previewInput } from '../approvals/preview.js';
 import { stationByName } from '../stations/registry.js';
 import { stationOfAccount } from './read-tool.js';
 
@@ -10,23 +11,26 @@ export interface PermissionParams {
   input_preview: string;
 }
 
-const METRO_TOOL = /^mcp__metro__(.+)$/;
-const FIELD_MAX = 300;
+export interface ServerPrompt {
+  requestId: string;
+  tool: string;
+  preview: string;
+}
+
+const METRO_TOOL = /^mcp__metro__([\w-]+)$/;
 const PROMPT_MAX = 1000;
-const RAW_MAX = 600;
-const LEAD = ['text', 'emoji', 'name', 'bio', 'question', 'message_id', 'query', 'from'];
-const PLACE = new Set(['line', 'account', 'station']);
+const FIELD_MAX = 300;
+const FIELD_MIN = 24;
+const HEAD_MAX = 160;
+const KEY_MAX = 24;
+const TRAILER_ROOM = 80;
+const PLACE = new Set(['line', 'station']);
 
-const shorten = (text: string, max = FIELD_MAX): string => {
-  const shown = shownValue(text);
-  return shown.length > max ? `${shown.slice(0, max)}…` : shown;
-};
-
-function valueText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim() === '' ? undefined : value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.length > 0 ? `${String(value.length)} item(s)` : undefined;
-  return undefined;
+function clip(text: string, max: number): string {
+  const flat = oneLine(text);
+  if (flat.length <= max) return flat;
+  const tail = Math.floor(max / 3);
+  return `${flat.slice(0, max - tail - 1)}…${flat.slice(-tail)}`;
 }
 
 function channelOf(input: Record<string, unknown>): string | undefined {
@@ -44,72 +48,58 @@ function discoveryChannel(input: Record<string, unknown>): string {
   if (!account) return 'unknown account';
   const name = stationOfAccount(account);
   const station = name === undefined ? undefined : stationByName(name);
-  return `${station?.name ?? 'unknown station'} · ${shorten(account)}`;
+  return `${station?.name ?? 'unknown station'} · ${account}`;
 }
 
-function argText(value: unknown): string | undefined {
-  const plain = valueText(value);
-  if (plain !== undefined || value === null || typeof value !== 'object') return plain;
-  return JSON.stringify(value);
-}
+const fieldLine = ({ key, text }: ApprovalField, room: number): string => {
+  const label = key === 'text' ? 'Text' : clip(key, KEY_MAX);
+  const value = clip(text, Math.min(FIELD_MAX, room - label.length - 4));
+  return key === 'text' ? `${label}: "${value}"` : `${label}: ${value}`;
+};
 
-function fieldText(key: string, value: unknown): string | undefined {
-  if (key === 'attachments' && Array.isArray(value)) return `${String(value.length)} file(s)`;
-  return key === 'frame' || key === 'wallet' || key === 'speech' ? argText(value) : valueText(value);
-}
+const sizeOf = (lines: string[]): number => lines.reduce((sum, line) => sum + line.length + 1, 0);
 
-function metroLines(tool: string, input: Record<string, unknown>): string[] {
-  const lines = [`Approval needed: ${tool}`];
-  const channel = tool === 'list_channels' ? discoveryChannel(input) : channelOf(input);
-  if (channel !== undefined) lines.push(`Channel: ${channel}`);
-  if (tool === 'send' && input.speech !== undefined) lines.push('Delivery: voice call only, no chat post');
-  const keys = [...LEAD, ...Object.keys(input).filter((k) => !LEAD.includes(k))];
-  for (const key of keys) {
-    if (PLACE.has(key)) continue;
-    const text = fieldText(key, input[key]);
-    if (text !== undefined) lines.push(`${key === 'text' ? 'Text' : key}: ${key === 'text' ? `"${shorten(text)}"` : shorten(text)}`);
+function fitted(head: string[], fields: ApprovalField[], room: number, reserve = 0): string[] {
+  const lines = [...head];
+  let left = room - sizeOf(head) - reserve;
+  for (const [at, field] of fields.entries()) {
+    const share = at === fields.length - 1 ? left : Math.floor(left / 2);
+    if (share < FIELD_MIN + KEY_MAX) break;
+    lines.push(fieldLine(field, share));
+    left -= (lines.at(-1)?.length ?? 0) + 1;
   }
-  return lines;
+  const hidden = fields.length - (lines.length - head.length);
+  if (hidden === 0) return lines;
+  return reserve === 0 ? fitted(head, fields, room, TRAILER_ROOM) : [...lines, `Not shown here: ${String(hidden)} more. Read it all on metro.box before you answer.`];
 }
 
-const ARGS_MAX = 8;
-
-function argLines(input: Record<string, unknown> | undefined): string[] {
-  const args = Object.entries(input ?? {}).flatMap(([key, value]) => {
-    const text = argText(value);
-    return text === undefined ? [] : [`${key}: ${shorten(text)}`];
-  });
-  return args.length > ARGS_MAX ? [...args.slice(0, ARGS_MAX), `(${String(args.length - ARGS_MAX)} more)`] : args;
+function metroHead(tool: string, input: Record<string, unknown>): string[] {
+  const head = [`Approval needed: ${clip(tool, HEAD_MAX)}`];
+  const channel = tool === 'list_channels' ? discoveryChannel(input) : channelOf(input);
+  if (channel !== undefined) head.push(`Channel: ${clip(channel, HEAD_MAX)}`);
+  if (tool === 'send' && input.speech !== undefined) head.push('Delivery: voice call only, no chat post');
+  return head;
 }
 
-function bodyLines(params: PermissionParams): string[] {
-  const metro = METRO_TOOL.exec(params.tool_name)?.[1];
-  const { input } = readPreview(params.input_preview);
-  const raw = params.input_preview.trim() === '' ? [] : [shorten(params.input_preview, RAW_MAX)];
-  if (metro !== undefined) return input === undefined ? [`Approval needed: ${metro}`, ...raw] : metroLines(metro, input);
-  return [`Claude wants to run ${params.tool_name}: ${shorten(params.description)}`, '', ...raw];
-}
-
-function withAnswer(requestId: string, lines: string[]): string {
+function question(requestId: string, head: string[], fields: ApprovalField[]): string {
   const answer = `Reply "yes ${requestId}" or "no ${requestId}"`;
-  const body = lines.join('\n');
-  const room = PROMPT_MAX - answer.length - 3;
-  return `${body.length > room ? `${body.slice(0, room)}…` : body}\n\n${answer}`;
+  return `${fitted(head, fields, PROMPT_MAX - answer.length - 2).join('\n')}\n\n${answer}`;
+}
+
+const fieldsOf = (preview: string): ApprovalField[] => approvalFields(previewInput(preview) ?? { arguments: preview });
+
+export function channelQuestion(requestId: string, tool: string, args: Record<string, unknown>): string {
+  const hidden = tool === 'list_channels' ? new Set([...PLACE, 'account']) : PLACE;
+  return question(requestId, metroHead(tool, args), approvalFields(args).filter((field) => !hidden.has(field.key)));
 }
 
 export function promptBody(params: PermissionParams): string {
-  return withAnswer(params.request_id, bodyLines(params));
+  const metro = METRO_TOOL.exec(params.tool_name)?.[1];
+  const input = previewInput(params.input_preview);
+  if (metro !== undefined && input !== undefined) return channelQuestion(params.request_id, metro, input);
+  const head = metro === undefined ? `Claude wants to run ${clip(params.tool_name, HEAD_MAX)}: ${clip(params.description, FIELD_MAX)}` : `Approval needed: ${clip(metro, HEAD_MAX)}`;
+  return question(params.request_id, [head], fieldsOf(params.input_preview));
 }
 
-export interface ServerPrompt {
-  requestId: string;
-  tool: string;
-  preview: string;
-}
-
-export function serverPromptBody(prompt: ServerPrompt): string {
-  const { input } = readPreview(prompt.preview);
-  const raw = prompt.preview.trim() === '' ? [] : [shorten(prompt.preview, RAW_MAX)];
-  const args = input === undefined ? raw : argLines(input);
-  return withAnswer(prompt.requestId, [`Approval needed: ${prompt.tool}`, ...args]);
-}
+export const serverPromptBody = (prompt: ServerPrompt): string =>
+  question(prompt.requestId, [`Approval needed: ${clip(prompt.tool, HEAD_MAX)}`], fieldsOf(prompt.preview));

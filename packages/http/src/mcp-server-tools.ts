@@ -1,3 +1,4 @@
+import { APPROVAL_PROPERTY } from './approval-rules.js';
 import { MCP_CALLS_MAX, MCP_FIND_DEFAULT, MCP_FIND_MAX, TOOL_CALL, TOOL_CALL_EXAMPLE, TOOL_SEARCH } from './mcp-server-protocol.js';
 
 export interface McpServerTool {
@@ -34,7 +35,7 @@ const callSchema = {
         properties: {
           tool: { type: 'string', description: 'The tool name exactly as tool_search returned it: <connector>.<tool>.' },
           arguments: { type: 'object', description: 'The tool\'s arguments, matching the parameters tool_search returned.', additionalProperties: true },
-          approval: { type: 'string', pattern: '^[a-km-z]{5}$', description: 'The 5-letter approval id, only when repeating a call the owner approved.' },
+          approval: APPROVAL_PROPERTY,
         },
         required: ['tool'],
         additionalProperties: false,

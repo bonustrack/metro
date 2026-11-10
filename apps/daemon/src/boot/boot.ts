@@ -45,7 +45,6 @@ import type { SessionApis } from '../routes/session-apis.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { startPromptExpiry } from '../approvals/pending.js';
 import { setOwnerLineFile } from '../approvals/owner-line.js';
-import { watchPolicySnapshot } from '../mcp/policy-snapshot.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { stationToolGroups } from '../mcp/tool-catalog.js';
 import {
@@ -147,7 +146,6 @@ async function main(): Promise<void> {
   removeModelLeftovers();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
-  watchPolicySnapshot();
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   ensureStationDeps();
@@ -156,7 +154,7 @@ installBearerSessions(agentsDir(), localOwner);
   supervisor.start();
   sweepLeftoverCalls();
   const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });
-  const metroMcp = await createMetroMcp({ liveEvents: liveEvents() });
+  const metroMcp = await createMetroMcp({ liveEvents: liveEvents(), publish: emit });
   watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(
     emit,
@@ -170,9 +168,7 @@ installBearerSessions(agentsDir(), localOwner);
   startAttachReaper();
   watchMcpServer({
     owner: localOwner,
-    hold: (approval, answer) => {
-      holdServerApproval(approval, answer, emit);
-    },
+    hold: holdServerApproval,
     registered: () => {
       refreshConnectorTools().catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'mcp-server: the connector tools could not be read after the token was registered');

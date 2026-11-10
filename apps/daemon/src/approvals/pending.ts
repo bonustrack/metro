@@ -1,13 +1,13 @@
 import { errMsg, log } from '@metro-labs/core/log';
+import { sameCall, type CallRoute, type CallSource } from '@metro-labs/core/call';
+import { APPROVAL_TTL_MS } from '@metro-labs/http/approval-rules';
 import { previewMatches } from './preview.js';
-import { sameCall, speechTarget, type CallRoute, type CallSource } from '@metro-labs/core/call';
-
-export const NEEDS_APPROVAL = (where: string, tool: string): string =>
-  `Needs the owner's approval for ${where} (${tool}). Make this exact call from a background worker so Claude Code asks the owner in chat, and wait for the answer. An approval given only in the terminal does not count.`;
 
 export type Behavior = 'allow' | 'deny';
 
 export type AnsweredVia = 'chat' | 'page' | 'expiry';
+
+export type SettledVia = AnsweredVia | 'cancel';
 
 export interface PendingPrompt {
   requestId: string;
@@ -17,55 +17,27 @@ export interface PendingPrompt {
   line: string | undefined;
   at: number;
   call?: CallSource;
-  origin?: 'mcp-server';
+  origin?: 'mcp-server' | 'channel';
 }
+
+export type SendAnswer = (behavior: Behavior, via: SettledVia) => Promise<void>;
 
 interface Held extends PendingPrompt {
   owner: object;
-  send: (behavior: Behavior) => Promise<void>;
+  send: SendAnswer;
   tell: ((text: string) => Promise<void>) | undefined;
 }
 
+const ANSWERED = {
+  claude: 'approvals: a Claude Code permission prompt answered',
+  'mcp-server': 'approvals: an mcp.metro.box approval answered',
+  channel: 'approvals: a channel approval answered',
+} as const;
+
 const PENDING_MAX = 500;
 const SWEEP_MS = 60_000;
-const APPROVAL_TTL_MS = 24 * 3_600_000;
 
 const held = new Map<string, Held>();
-
-interface Grant {
-  tool: string;
-  preview: string;
-  at: number;
-  owner: object;
-  requestId: string;
-  call?: CallSource;
-}
-
-const GRANT_TTL_MS = 10 * 60_000;
-const GRANTS_MAX = 200;
-let grants: Grant[] = [];
-
-function grant(entry: Held, now = Date.now()): void {
-  grants = [...grants.filter((g) => now - g.at < GRANT_TTL_MS), {
-    tool: entry.tool, preview: entry.preview, at: now, owner: entry.owner, requestId: entry.requestId,
-    ...(entry.call === undefined ? {} : { call: entry.call }),
-  }].slice(-GRANTS_MAX);
-}
-
-function speechMatches(grant: Grant, args: Record<string, unknown>): boolean {
-  if (args.speech === undefined) return grant.call === undefined;
-  const target = speechTarget(args.speech);
-  const bound = grant.call;
-  return target !== null && bound !== undefined && bound.route.line === args.line && bound.route.callId === target.callId &&
-    bound.route.generation === target.generation && bound.sourceId === target.sourceId;
-}
-
-export function takeGrant(toolMatches: (tool: string) => boolean, args: Record<string, unknown>, now = Date.now()): boolean {
-  const at = grants.findIndex((g) => now - g.at < GRANT_TTL_MS && toolMatches(g.tool) && speechMatches(g, args) && previewMatches(g.preview, args));
-  if (at < 0) return false;
-  grants = grants.filter((_, i) => i !== at);
-  return true;
-}
 
 const shown = ({ requestId, tool, description, preview, line, at }: Held): PendingPrompt => ({
   requestId,
@@ -76,18 +48,29 @@ const shown = ({ requestId, tool, description, preview, line, at }: Held): Pendi
   at,
 });
 
+function makeRoom(): void {
+  while (held.size > PENDING_MAX) {
+    const oldest = [...held.values()].find((entry) => entry.origin === undefined);
+    if (oldest === undefined) return;
+    held.delete(oldest.requestId);
+    log.warn({ requestId: oldest.requestId, tool: oldest.tool }, 'approvals: too many prompts are waiting, so the oldest one was dropped');
+  }
+}
+
 export function holdPrompt(
   prompt: PendingPrompt,
   owner: object,
-  send: (behavior: Behavior) => Promise<void>,
+  send: SendAnswer,
   tell?: (text: string) => Promise<void>,
-): void {
-  held.set(prompt.requestId, { ...prompt, owner, send, tell });
-  while (held.size > PENDING_MAX) {
-    const oldest = held.keys().next();
-    if (oldest.done) break;
-    held.delete(oldest.value);
+): boolean {
+  const current = held.get(prompt.requestId);
+  if (current !== undefined && current.owner !== owner) {
+    log.warn({ requestId: prompt.requestId, tool: prompt.tool }, 'approvals: this id already belongs to another prompt, so the new one was refused');
+    return false;
   }
+  held.set(prompt.requestId, { ...prompt, owner, send, tell });
+  makeRoom();
+  return true;
 }
 
 export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(shown).sort((a, b) => b.at - a.at);
@@ -119,48 +102,36 @@ export async function answerPrompt(
   const entry = held.get(requestId);
   if (entry === undefined) return undefined;
   held.delete(requestId);
-  const server = entry.origin === 'mcp-server';
-  if (behavior === 'allow' && via !== 'expiry' && !server) grant(entry);
-  log.info(
-    { requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` },
-    server ? 'approvals: an mcp.metro.box approval answered' : 'approvals: a Claude Code permission prompt answered',
-  );
-  await entry.send(behavior);
+  log.info({ requestId, tool: entry.tool, behavior, by: who === via ? via : `${via} ${who}` }, ANSWERED[entry.origin ?? 'claude']);
+  await entry.send(behavior, via);
   await tellChat(entry, via, behavior);
   return shown(entry);
 }
 
 export function forgetPromptsOf(owner: object): void {
   for (const [id, entry] of held) if (entry.owner === owner) held.delete(id);
-  grants = grants.filter((entry) => entry.owner !== owner);
 }
 
 export function cancelPrompt(requestId: string, owner: object): void {
-  grants = grants.filter((entry) => entry.owner !== owner || entry.requestId !== requestId);
   const entry = held.get(requestId);
   if (entry?.owner !== owner) return;
   held.delete(requestId);
-  entry.send('deny').catch((err: unknown) => {
+  entry.send('deny', 'cancel').catch((err: unknown) => {
     log.warn({ requestId, err: errMsg(err) }, 'approvals: cancelled prompt could not be answered');
   });
 }
 
 export function revokeCallPrompts(route: CallRoute): void {
-  grants = grants.filter((entry) => entry.call === undefined || !sameCall(entry.call.route, route));
-  for (const entry of held.values())
+  for (const entry of [...held.values()])
     if (entry.call !== undefined && sameCall(entry.call.route, route)) cancelPrompt(entry.requestId, entry.owner);
 }
 
-function settlePrompts(toolMatches: (tool: string) => boolean, args: Record<string, unknown>): void {
+export const settlePromptsFor = (name: string, args: Record<string, unknown>): void => {
   for (const [id, entry] of held)
-    if (entry.origin !== 'mcp-server' && toolMatches(entry.tool) && previewMatches(entry.preview, args)) {
+    if (entry.origin === undefined && entry.tool.endsWith(`__${name}`) && previewMatches(entry.preview, args)) {
       held.delete(id);
       log.info({ requestId: id, tool: entry.tool }, 'approvals: the call reached metro, so Claude Code already closed the prompt');
     }
-}
-
-export const settlePromptsFor = (name: string, args: Record<string, unknown>): void => {
-  settlePrompts((tool) => tool.endsWith(`__${name}`), args);
 };
 
 export async function expirePrompts(now = Date.now(), ttl = APPROVAL_TTL_MS): Promise<number> {
@@ -186,5 +157,4 @@ export function startPromptExpiry(): () => void {
 
 export function forgetAllPrompts(): void {
   held.clear();
-  grants = [];
 }
