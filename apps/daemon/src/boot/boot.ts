@@ -43,6 +43,7 @@ import type { SessionApis } from '../routes/session-apis.js';
 import { createMetroMcp } from '../mcp/index.js';
 import { startPromptExpiry } from '../approvals/pending.js';
 import { setOwnerLineFile } from '../approvals/owner-line.js';
+import { removePolicyLeftovers } from '../policy/leftovers.js';
 import { gatherAccountsForAgents } from '../mcp/accounts.js';
 import { stationToolGroups } from '../mcp/tool-catalog.js';
 import {
@@ -142,6 +143,7 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
 async function main(): Promise<void> {
   removeConnectorLeftovers();
   removeModelLeftovers();
+  removePolicyLeftovers();
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
