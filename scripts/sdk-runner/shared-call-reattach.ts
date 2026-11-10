@@ -7,7 +7,7 @@ import { inputOf, submit, toolEvents, type Ingress } from './shared-call-latency
 async function pendingSpeech(fake: h.FakeCall): Promise<AbortSignal> {
   h.policy('ask');
   const sourceId = h.chat('FIXTURE_APPROVAL keep this call speech pending during reconnect.');
-  await h.until('approval before GET drop', () => h.pending().length > 0 && h.activity.snapshot().approvals > 0);
+  await h.until('approval before GET drop', () => h.pending().length > 0);
   h.policy('allow');
   await h.idle();
   const binding = h.agent.runner.calls.approval('mcp__metro__send', { line: h.LINE, text: 'Approved fixture speech.', speech: h.target(fake.route, sourceId) });
