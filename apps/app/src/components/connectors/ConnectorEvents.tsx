@@ -8,12 +8,18 @@ import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { EventSenders } from './EventSenders.js';
 import { eventRows, eventSubtitle, eventsPollMs, noServerNote, stateWords, updateNote, waitsForUpdate, withEvent, type EventRow } from '../../lib/connector-events.js';
 import { refreshOrgConnectors, useOrgConnectorsPoll } from '../../lib/org-connector-queries.js';
-import { queryError } from '../../lib/queries.js';
+import { queryError, useServerStatuses } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 
 export interface AgentBox {
   remote: boolean;
   version: string | null;
+}
+
+export function useAgentBox(host: string | null | undefined, remote: boolean): AgentBox | null {
+  const status = useServerStatuses(remote || host === undefined || host === null ? [] : [host])[0];
+  if (status === undefined) return host === undefined ? null : { remote, version: null };
+  return status.isPending ? null : { remote, version: status.data?.version ?? null };
 }
 
 interface EventsProps {

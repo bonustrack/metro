@@ -43,3 +43,5 @@ export const LOOKUP: Record<string, LookupText> = {
 };
 
 export const SAVE_FAILED = 'Could not save who may write to this agent.';
+export const NOBODY = 'Nobody added yet, so anyone can still write. Add the first person below.';
+export const DUPLICATE = 'This person is already in the list.';

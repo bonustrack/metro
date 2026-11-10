@@ -1,4 +1,4 @@
-import { allowsEveryone } from '@metro-labs/client/api/accounts';
+import { EVERYONE } from '@metro-labs/client/api/accounts';
 import { CONNECTOR_EVENTS_SINCE, type EventSubscription } from '@metro-labs/client/api/connector-events';
 import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { olderThan } from '@metro-labs/client/api/version';
@@ -73,12 +73,14 @@ export function withEvent(events: readonly string[], name: string, on: boolean):
   return events.includes(name) ? [...events] : [...events, name];
 }
 
-export const sendersShown = (rows: readonly EventRow[], senders: string[]): boolean => rows.some((row) => row.on) && (rows.some((row) => row.sender) || !allowsEveryone(senders));
+const anyone = (senders: string[]): boolean => senders.includes(EVERYONE);
+
+export const sendersShown = (rows: readonly EventRow[], senders: string[]): boolean => rows.some((row) => row.on) && (rows.some((row) => row.sender) || !anyone(senders));
 
 export const senderPeople = (senders: string[]): Person[] =>
   entriesOf(senders).map((id) => ({ id, title: id, subtitle: isDomain(id) ? `Anyone with an address at ${id.slice(1)}` : null, avatar: null, approves: null, link: null }));
 
-const unnamedRows = (rows: readonly EventRow[], senders: string[]): EventRow[] => (allowsEveryone(senders) ? [] : rows.filter((row) => row.on && row.state !== 'gone' && !row.sender));
+const unnamedRows = (rows: readonly EventRow[], senders: string[]): EventRow[] => (anyone(senders) ? [] : rows.filter((row) => row.on && row.state !== 'gone' && !row.sender));
 
 export function unnamedNote(rows: readonly EventRow[], senders: string[]): string | undefined {
   const unnamed = unnamedRows(rows, senders);
@@ -101,8 +103,9 @@ const restWords = (count: number, none: boolean): string => (none ? countWords(c
 const titlesOf = (rows: readonly EventRow[]): Segment[] => joinSegments(cappedList(rows.map((row) => row.title), rows.length, moreWords).map((title) => [val(title)]));
 
 function fromWords(senders: string[]): Segment[] {
-  if (allowsEveryone(senders)) return [val('anyone')];
+  if (anyone(senders)) return [val('anyone')];
   const entries = entriesOf(senders);
+  if (entries.length === 0) return [val('nobody')];
   const domains = entries.filter(isDomain).map((domain) => [txt('anyone at '), val(domain)]);
   const people = entries.filter((entry) => !isDomain(entry));
   return joinSegments([...domains, ...cappedList(people, people.length, restWords).map((name) => [val(name)])]);

@@ -14,20 +14,21 @@ let save = () => Promise.resolve({});
 const wrap = ({ children }) => createElement('div', null, children);
 mock.module('@tanstack/react-query', () => ({ useQueryClient: () => ({}) }));
 mock.module('@stage-labs/kit/react-native/check-box', () => ({ CheckBox: (props) => { switches.push(props); return null; } }));
+mock.module('@stage-labs/kit/react-native/text', () => ({ Text: () => null }));
 mock.module('@stage-labs/kit/react-native/theme-context', () => ({ useKitPalette: () => ({ link: 'white' }) }));
 mock.module('@metro-labs/client/api/org-connectors', () => ({ ...api, setConnectorAgentEvents: (...args) => { saves.push(args); return save(); } }));
 mock.module('./src/components/Icon.js', () => ({ Icon: () => null }));
 mock.module('./src/components/NameModal.js', () => ({ NameModal: () => null }));
-mock.module('./src/components/chats/PersonRow.js', () => ({ Check: () => null, PersonRow: (props) => { people.push(props); return null; } }));
+mock.module('./src/components/chats/PersonRow.js', () => ({ PersonRow: (props) => { people.push(props); return null; } }));
 mock.module('./src/components/ui/Group.js', () => ({ Group: (props) => { groups.push(props); return wrap(props); } }));
 mock.module('./src/components/ui/Item.js', () => ({ Item: (props) => { items.push(props); return createElement('div', null, props.trailing); } }));
 mock.module('./src/components/ui/RowsSkeleton.js', () => ({ RowsSkeleton: (props) => { skeletons.push(props); return null; } }));
 mock.module('./src/lib/org-connector-queries.js', () => ({ refreshOrgConnectors: () => Promise.resolve(), useOrgConnectorsPoll: (every) => { polls.push(every); } }));
-mock.module('./src/lib/queries.js', () => ({ queryError: (err) => err.message }));
+mock.module('./src/lib/queries.js', () => ({ queryError: (err) => err.message, useServerStatuses: () => [] }));
 mock.module('./src/lib/technical.js', () => ({ useTechnicalDetails: () => false }));
 const { ConnectorEvents } = await import('./src/components/connectors/ConnectorEvents.tsx');
 const OFFERED = [{ name: 'item.created', title: 'Item created', description: 'A new item was added.', sender: true }, { name: 'item.updated', title: 'Item updated', description: '', sender: false }];
-const tracker = (agent, more = {}) => api.toOrgConnector({ id: 'connTrack01', name: 'Tracker', url: 'https://tracker.example', auth: 'header', events: OFFERED, agents: [{ id: LISA, ...agent }], ...more });
+const tracker = (agent, more = {}) => api.toOrgConnector({ id: 'connTrack01', name: 'Tracker', url: 'https://tracker.example', auth: 'header', events: OFFERED, agents: [{ id: LISA, senders: ['*'], ...agent }], ...more });
 const BOX = { remote: false, version: null };
 const render = (connector, props = {}) => {
   groups = []; items = []; switches = []; skeletons = []; polls = []; people = [];
@@ -64,8 +65,12 @@ assert.deepEqual(groups.map((group) => group.label), ['Events', 'Who can write']
 
 render(tracker({ events: ['item.created'], senders: ['lisa@example.org', '@example.com'] }));
 assert.deepEqual(groups.map((group) => group.label), ['Events', 'Who can write', 'People']);
-assert.deepEqual(people.map((row) => [row.person.id, row.person.approves, row.onApprove]), [['lisa@example.org', null, undefined], ['@example.com', null, undefined]]);
+assert.deepEqual(people.map((row) => [row.person.id, row.person.approves]), [['lisa@example.org', null], ['@example.com', null]]);
 assert.ok(titles().includes('Add a person'));
+
+render(tracker({ events: ['item.created'], senders: [] }));
+assert.deepEqual(groups.map((group) => [group.label, group.note]), [['Events', 'Lisa is told when one of these happens in Tracker.'], ['Who can write', 'Nobody can write yet. Add a person, or choose Anyone.'], ['People', undefined]]);
+assert.equal(people.length, 0);
 
 render(tracker({}));
 assert.deepEqual(groups.map((group) => group.label), ['Events']);

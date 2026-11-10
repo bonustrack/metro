@@ -4,11 +4,12 @@ import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { completeOrgConnectorSignIn, setOrgConnectorPolicy, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import type { ToolPolicy } from '@metro-labs/client/api/policy';
-import { isRemote, serverLabel, type Server } from '@metro-labs/client/api/servers';
+import { isRemote, serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import type { ConnectorTab } from '@metro-labs/client/selection';
 import { AgentFace } from './connectors/AgentFace.js';
 import { AgentRules, ResetRules, agentSubtitle } from './connectors/AgentRules.js';
+import { useAgentBox } from './connectors/ConnectorEvents.js';
 import { useAddAgent, ConnectorAgents } from './connectors/ConnectorAgents.js';
 import { ConnectButton } from './connectors/ConnectButton.js';
 import { ConnectorHeader, type ConnectorTabId } from './connectors/ConnectorHeader.js';
@@ -23,7 +24,7 @@ import { RoundButton } from './ui/RoundButton.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { AVATAR_SIZE } from './ui/sizes.js';
-import { useAgentRows, type AgentRow } from '../lib/agent-rows.js';
+import { useAgentRows } from '../lib/agent-rows.js';
 import { takeInitialOrgConnectorReturn } from '../lib/location.js';
 import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
@@ -102,13 +103,11 @@ function TabbedPage({ connector, admin, tab, outcome }: { connector: OrgConnecto
   );
 }
 
-function boxOf(server: Server | undefined, row: AgentRow | undefined): { remote: boolean; version: string | null } | null {
-  return server === undefined ? null : { remote: isRemote(server), version: row?.status?.version ?? null };
-}
-
 function AgentPage({ connector, agentId, admin }: { connector: OrgConnector; agentId: string; admin: boolean }): ReactNode {
   const server = useServersQuery().data?.find((row) => row.id === agentId);
   const [row] = useAgentRows(server === undefined ? [] : [server]);
+  const remote = server !== undefined && isRemote(server);
+  const box = useAgentBox(server?.host, remote);
   const name = server === undefined ? 'This agent' : serverLabel(server);
   const crumbs = [
     { label: 'Connectors', href: routeHash({ kind: 'org-connectors' }) },
@@ -120,9 +119,9 @@ function AgentPage({ connector, agentId, admin }: { connector: OrgConnector; age
       <Column>
         <PageHeader crumbs={crumbs} title={name} subtitle={agentSubtitle(connector, name)} leading={server === undefined ? undefined : <AgentFace server={server} dot={row?.line.dot ?? null} size={AVATAR_SIZE.header} />}
           action={admin ? <ResetRules connector={connector} agentId={agentId} /> : undefined} />
-        <ConnectorSummary connector={connector} agentId={agentId} name={name} remote={server !== undefined && isRemote(server)} />
+        <ConnectorSummary connector={connector} agentId={agentId} name={name} remote={remote} />
       </Column>
-      <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} box={boxOf(server, row)} onRemoved={() => { go({ kind: 'org-connector', id: connector.id, tab: 'agents' }); }} />
+      <AgentRules connector={connector} agentId={agentId} name={name} admin={admin} box={box} onRemoved={() => { go({ kind: 'org-connector', id: connector.id, tab: 'agents' }); }} />
     </Groups>
   );
 }

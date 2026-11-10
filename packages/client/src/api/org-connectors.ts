@@ -195,7 +195,7 @@ export const setOrgConnectorAgentPolicy = async (id: string, agent: string, poli
   toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/policy`, headers: JSON_HEADERS, body: JSON.stringify({ policy }) }));
 
 export const setConnectorAgentEvents = async (id: string, agent: string, change: AgentEventsChange): Promise<OrgConnector> =>
-  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/events`, headers: JSON_HEADERS, body: JSON.stringify({ ...(change.events === undefined ? {} : { events: change.events }), ...(change.senders === undefined ? {} : { senders: change.senders }) }) }));
+  toOrgConnector(await orgCall({ method: 'PUT', base: base(), path: `/${id}/agents/${agent}/events`, headers: JSON_HEADERS, body: JSON.stringify(change) }));
 
 export const unassignOrgConnector = async (id: string, agent: string): Promise<OrgConnector> =>
   toOrgConnector(await orgCall({ method: 'DELETE', base: base(), path: `/${id}/agents/${agent}` }));

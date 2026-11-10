@@ -31,6 +31,11 @@ export interface AgentEventsChange {
 
 const strings = (value: unknown): string[] => (Array.isArray(value) ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string' && entry !== ''))] : []);
 
+function sendersOf(value: unknown): string[] {
+  const list = strings(value);
+  return list.includes(EVERYONE) ? [EVERYONE] : list;
+}
+
 const statusOf = (value: unknown): SubscriptionStatus => (value === 'active' || value === 'signed_out' || value === 'error' ? value : 'pending');
 
 function offeredEvent(value: unknown): OfferedEvent[] {
@@ -39,11 +44,6 @@ function offeredEvent(value: unknown): OfferedEvent[] {
 }
 
 export const offeredEventsOf = (value: unknown): OfferedEvent[] | null => (Array.isArray(value) ? value.flatMap(offeredEvent) : null);
-
-function sendersOf(value: unknown): string[] {
-  const list = strings(value);
-  return list.length === 0 || list.includes(EVERYONE) ? [EVERYONE] : list;
-}
 
 function subscription(value: unknown): EventSubscription[] {
   if (!isRecord(value) || typeof value.event !== 'string' || value.event === '') return [];

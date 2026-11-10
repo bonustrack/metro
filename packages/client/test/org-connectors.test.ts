@@ -132,8 +132,8 @@ describe('the organization connectors client', () => {
   test('an api that does not know events reads as no events at all, and never throws', () => {
     const old = toOrgConnector(ROW);
     expect(old.events).toBeNull();
-    expect(old.agents[0]).toMatchObject({ events: [], senders: ['*'], subscriptions: [] });
-    expect(toOrgConnector({ ...ROW, events: 'nope', agents: [{ id: 'zz9-_xYz9Qw', events: 'all', senders: null, subscriptions: {} }] })).toMatchObject({ events: null, agents: [{ events: [], senders: ['*'], subscriptions: [] }] });
+    expect(old.agents[0]).toMatchObject({ events: [], senders: [], subscriptions: [] });
+    expect(toOrgConnector({ ...ROW, events: 'nope', agents: [{ id: 'zz9-_xYz9Qw', events: 'all', senders: null, subscriptions: {} }] })).toMatchObject({ events: null, agents: [{ events: [], senders: [], subscriptions: [] }] });
   });
 
   test('offered events, what an agent receives, from whom and how each subscription stands are read with safe defaults', () => {
@@ -155,7 +155,7 @@ describe('the organization connectors client', () => {
       subscriptions: [{ event: 'item.created', status: 'active', error: null }, { event: 'item.updated', status: 'error', error: 'It refused.' }, { event: 'item.other', status: 'pending', error: null }],
     });
     expect(read.agents[1]).toMatchObject({ events: [], senders: ['*'], subscriptions: [] });
-    expect(read.agents[2]).toMatchObject({ events: [], senders: ['*'], subscriptions: [] });
+    expect(read.agents[2]).toMatchObject({ events: [], senders: [], subscriptions: [] });
     expect(toOrgConnector({ ...ROW, events: [] }).events).toEqual([]);
   });
 
