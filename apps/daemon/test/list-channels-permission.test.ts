@@ -79,8 +79,8 @@ for (const station of ['unknown', 'ambiguous', 'unregistered'])
     );
   });
 
-test('other metro tools keep their existing line-based prompt rendering', () => {
+test('other metro tools keep their line-based channel, and show an account the call names', () => {
   expect(promptBody({ ...params({ ...SURPLUS, account: ACCOUNT, text: 'hello' }), tool_name: 'mcp__metro__send' })).toBe(
-    'Approval needed: send\nChannel: xmtp · public-room\nText: "hello"\n\nReply "yes abcde" or "no abcde"',
+    'Approval needed: send\nChannel: xmtp · public-room\nText: "hello"\naccount: privateMailbox\n\nReply "yes abcde" or "no abcde"',
   );
 });

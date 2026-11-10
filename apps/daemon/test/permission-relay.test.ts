@@ -358,7 +358,7 @@ describe('the prompt text', () => {
         description: 'Create a group',
         input_preview: JSON.stringify({ station: 'xmtp', name: 'crew', attachments: [{}, {}] }),
       }),
-    ).toBe('Approval needed: create_group\nChannel: xmtp\nname: crew\nattachments: 2 file(s)\n\nReply "yes abcde" or "no abcde"');
+    ).toBe('Approval needed: create_group\nChannel: xmtp\nattachments: 2 file(s)\nname: crew\n\nReply "yes abcde" or "no abcde"');
   });
 
   test('writes out a list of plain values, such as the people to remove, and counts a list of anything else', () => {
@@ -367,9 +367,55 @@ describe('the prompt text', () => {
         request_id: 'abcde',
         tool_name: 'mcp__metro__remove_members',
         description: 'Remove members',
-        input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', inboxIds: ['a1', 'b2'], notes: [{}, {}], none: [] }),
+        input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', inboxIds: ['a1', 'b2'], notes: [{}, {}], none: [], nothing: {} }),
       }),
     ).toBe('Approval needed: remove_members\nChannel: xmtp · g1\ninboxIds: a1, b2\nnotes: 2 item(s)\n\nReply "yes abcde" or "no abcde"');
+  });
+
+  test('says where each file of a send comes from', () => {
+    const attachments = [{ path: '/home/agent/report.pdf' }, { url: 'https://example.com/a.png', name: 'a.png' }, { upload: 'up_123' }, { data: 'aGVsbG8=', name: 'hello.txt' }, {}];
+    expect(
+      promptBody({ request_id: 'abcde', tool_name: 'mcp__metro__send', description: '', input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', attachments }) }),
+    ).toBe(
+      'Approval needed: send\nChannel: xmtp · g1\nattachments: 5 file(s): path /home/agent/report.pdf, url https://example.com/a.png, upload up_123, inline data, a file\n\nReply "yes abcde" or "no abcde"',
+    );
+  });
+
+  test('padding a call with long or many arguments never pushes a file, a payment or a name out of the question unseen', () => {
+    const filler = 'f'.repeat(400);
+    const junk = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`junk${String(i)}`, filler]));
+    const input = {
+      emoji: filler,
+      name: filler,
+      bio: filler,
+      ...junk,
+      line: 'metro://xmtp/x0/g1',
+      text: `harmless ${filler}`,
+      wallet: { type: 'walletSendCalls', content: { calls: [{ to: '0xabc', value: '0x1' }] } },
+      attachments: [{ path: '/home/agent/.ssh/id_ed25519' }],
+      reply_to: 'm-1',
+      account: 'x1',
+    };
+    const text = promptBody({ request_id: 'abcde', tool_name: 'mcp__metro__send', description: '', input_preview: JSON.stringify(input) });
+    expect(text.length).toBeLessThanOrEqual(1000);
+    const lines = text.split('\n');
+    expect(lines.slice(0, 3)).toEqual(['Approval needed: send', 'Channel: xmtp · g1', `Text: "harmless ${'f'.repeat(51)}…"`]);
+    expect(lines[3]).toBe('attachments: 1 file(s): path /home/agent/.ssh/id_ed25519');
+    expect(lines[4]).toStartWith('wallet: {"type":"walletSendCalls","content":{"calls":[{"to":"0xabc"');
+    expect(lines.slice(5, 7)).toEqual(['reply_to: m-1', 'account: x1']);
+    expect(text).toContain('\nNot shown here: junk');
+    expect(text).toMatch(/Not shown here: (?:junk\d+, ){4}junk\d+ and \d+ more\. Read it on metro\.box before you answer\.\n\nReply "yes abcde" or "no abcde"$/);
+    const shown = lines.flatMap((line) => /^(\w+): /.exec(line)?.[1] ?? []);
+    const hidden = Number(/and (\d+) more/.exec(text)?.[1]) + 5;
+    expect(shown.filter((key) => key !== 'Approval' && key !== 'Channel' && key !== 'Text' && key !== 'Not').length + 1 + hidden).toBe(Object.keys(input).length - 1);
+  });
+
+  test('shortens every value a little before it leaves anything out', () => {
+    const input = { line: 'metro://xmtp/x0/g1', text: 't'.repeat(300), subject: 's'.repeat(300), name: 'n'.repeat(300), bio: 'b'.repeat(300) };
+    const text = promptBody({ request_id: 'abcde', tool_name: 'mcp__metro__send', description: '', input_preview: JSON.stringify(input) });
+    expect(text.length).toBeLessThanOrEqual(1000);
+    expect(text).not.toContain('Not shown here');
+    expect(text.split('\n').slice(2, 6)).toEqual([`Text: "${'t'.repeat(120)}…"`, `subject: ${'s'.repeat(120)}…`, `name: ${'n'.repeat(120)}…`, `bio: ${'b'.repeat(120)}…`]);
   });
 
   test('shows the frame of a send', () => {
