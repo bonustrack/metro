@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { offeredStations, STATION_FORMS, type AttachResult } from '@metro-labs/client/api/attach';
+import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
+import { connectsAsConnector, offeredStations, STATION_FORMS, type AttachResult } from '@metro-labs/client/api/attach';
 import { agentsUrl } from '@metro-labs/client/api/client';
 import { GMAIL_MANAGED } from '@metro-labs/client/api/gmail';
 import { routeHash } from '@metro-labs/client/route';
@@ -9,6 +10,10 @@ import { AttachedAccount } from './AttachedAccount.js';
 import { AttachSession } from './AttachSession.js';
 import { StationForm } from './StationForm.js';
 import { StationPicker } from './StationPicker.js';
+import { Icon } from './Icon.js';
+import { Rows } from './ui/Group.js';
+import { Item } from './ui/Item.js';
+import { ICON_SIZE } from './ui/sizes.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { FocusFrame, FocusIntro, type FocusStep } from './ui/FocusFrame.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
@@ -42,14 +47,26 @@ interface FlowProps {
   station: string | null;
 }
 
-function Picker({ project, known }: { project: string; known: string[] }): ReactNode {
+const EMAIL_NOTE = 'Gmail and Outlook now connect as connectors. Add them in Connectors.';
+
+function EmailRow(): ReactNode {
+  const palette = useKitPalette();
+  return (
+    <Rows>
+      <Item title="Email" subtitle={EMAIL_NOTE} leading={<Icon name="plug" size={ICON_SIZE.lg} color={palette.text} />} href={routeHash({ kind: 'org-connectors' })} />
+    </Rows>
+  );
+}
+
+function Picker({ project, known, email }: { project: string; known: string[]; email: boolean }): ReactNode {
   const name = useAgentName();
-  if (known.length === 0)
+  if (known.length === 0 && !email)
     return <StateBlock icon="chat" title="No channel to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />;
   return (
     <>
       <FocusIntro title={`Where should ${name} be reachable?`} text="Pick a channel. Next, you sign in or paste its details." />
       <StationPicker stations={known} hrefOf={(station) => routeHash({ kind: 'add-chat', project, station })} />
+      {email ? <EmailRow /> : null}
     </>
   );
 }
@@ -80,7 +97,7 @@ function AddChatFlow({ project, agentId, attachable, features, station }: FlowPr
   const body = (): ReactNode => {
     if (result !== null) return <AttachedAccount result={result} onDismiss={close} />;
     if (pending !== null) return <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} opened={attach.opened} onUpdate={attach.update} onDone={done} onClose={close} />;
-    if (picked === null) return <Picker project={project} known={known} />;
+    if (picked === null) return <Picker project={project} known={known} email={attachable.some(connectsAsConnector)} />;
     return <StationForm key={picked} station={picked} gmailManaged={features.includes(GMAIL_MANAGED)} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { if (inOneStep(picked)) attach.startInTab(picked, fields); else attach.start(picked, fields); }} />;
   };
   return (

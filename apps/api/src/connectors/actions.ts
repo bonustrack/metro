@@ -45,7 +45,7 @@ export async function viewOf(deps: ActionDeps, owner: string, id: string): Promi
   const { connectors, assignments } = await deps.store.list(owner);
   const row = connectors.find((c) => c.id === id);
   if (row === undefined) throw new ApiError('no such connector', 404);
-  return connectorView(row, assignments);
+  return connectorView(row, assignments, (await deps.store.events([row.id])).get(row.id));
 }
 
 function newRow(caller: Caller, name: string, url: URL, now: string): ConnectorRow {

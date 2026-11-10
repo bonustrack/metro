@@ -9,7 +9,7 @@ export const TOOL_LIST_TTL_MS = 5 * 60_000;
 export const FAILURE_PAUSE_MS = 60_000;
 const HELD_MAX = 500;
 
-const EMPTY: ToolListing = { tools: null, icons: [], listedAt: 0, failure: null, failedAt: 0 };
+const EMPTY: ToolListing = { tools: null, icons: [], events: [], listedAt: 0, failure: null, failedAt: 0 };
 
 const newer = (a: ToolListing, b: ToolListing | undefined): ToolListing => (b !== undefined && Math.max(b.listedAt, b.failedAt) > Math.max(a.listedAt, a.failedAt) ? b : a);
 

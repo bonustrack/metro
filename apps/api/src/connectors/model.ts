@@ -1,5 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
+import { sendersOf } from '@metro-labs/http/mail-senders';
+import { webhookEventNames, type RemoteEvent } from '@metro-labs/http/mcp-events';
 import type { AssignmentRow, ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { detailOf, parsedJson, type ConnectorDetail } from '@metro-labs/connectors/model';
 
@@ -17,7 +19,8 @@ export interface ConnectorView {
   policy: ConnectorPolicy;
   createdAt: string;
   updatedAt: string;
-  agents: { id: string; readOnly: boolean; policy: ConnectorPolicy; assignedAt: string }[];
+  events: string[];
+  agents: { id: string; readOnly: boolean; policy: ConnectorPolicy; assignedAt: string; senders: string[]; receive: boolean }[];
 }
 
 const READ_ONLY = '{"write":"deny"}';
@@ -56,7 +59,7 @@ function publicServerName(url: string): string | null {
   try { return new URL(url).hostname; } catch { return null; }
 }
 
-export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): ConnectorView {
+export function connectorView(row: ConnectorRow, assignments: AssignmentRow[], events: RemoteEvent[] = []): ConnectorView {
   const detail = detailOf(row.detail);
   return {
     id: row.id,
@@ -72,8 +75,9 @@ export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): 
     policy: fullPolicy(row.policy),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    events: webhookEventNames(events),
     agents: assignments
       .filter((a) => a.connector === row.id)
-      .map((a) => ({ id: a.agent, readOnly: isReadOnly(a.policy), policy: fullPolicy(a.policy), assignedAt: a.createdAt })),
+      .map((a) => ({ id: a.agent, readOnly: isReadOnly(a.policy), policy: fullPolicy(a.policy), assignedAt: a.createdAt, senders: sendersOf(a.senders), receive: a.receive })),
   };
 }

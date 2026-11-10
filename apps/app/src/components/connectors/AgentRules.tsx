@@ -7,6 +7,7 @@ import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { StateBlock } from '../ui/StateBlock.js';
+import { ConnectorMail } from './ConnectorMail.js';
 import { ToolExplorer } from './ToolExplorer.js';
 import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
 import { queryError } from '../../lib/queries.js';
@@ -92,6 +93,7 @@ export function AgentRules({ connector, agentId, name, admin, onRemoved }: Agent
   };
   return (
     <Groups>
+      <ConnectorMail connector={connector} agentId={agentId} name={name} admin={admin} />
       <ToolExplorer connector={connector} scope={{ policy: held.policy, organization: connector.policy }} editable={admin} save={save} />
       {admin ? (
         <Group label="Danger">

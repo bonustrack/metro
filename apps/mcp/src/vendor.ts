@@ -4,7 +4,7 @@ import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { authHeaders, INITIALIZE, mcpPost } from '@metro-labs/http/connector-mcp';
 import { ConnectorUnauthorized, refused } from '@metro-labs/http/connector-url';
 import type { VendorTarget } from './credential.js';
-import { CallError } from './errors.js';
+import { VendorRpcError } from './errors.js';
 
 const VENDOR_INIT_MS = 15_000;
 export const VENDOR_CALL_MS = 60_000;
@@ -68,7 +68,7 @@ async function rpc(target: VendorTarget, session: Session, body: RpcBody, timeou
   if (!isRecord(reply)) throw refused(`${target.url.hostname} answered, but not with an MCP reply`);
   if (isRecord(reply.error)) {
     const message = typeof reply.error.message === 'string' ? reply.error.message.slice(0, MESSAGE_MAX) : 'no message';
-    throw new CallError('vendor_error', `The connector answered with an error: ${message}`);
+    throw new VendorRpcError(typeof reply.error.code === 'number' ? reply.error.code : null, `The connector answered with an error: ${message}`);
   }
   return isRecord(reply.result) ? reply.result : {};
 }
@@ -87,15 +87,19 @@ function answerOf(result: Record<string, unknown>): VendorAnswer {
   return { content, isError: result.isError === true, ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }) };
 }
 
-export async function callVendorTool(target: VendorTarget, tool: string, args: Record<string, unknown>, fetch: FetchLike): Promise<VendorAnswer> {
+export async function callVendorMethod(target: VendorTarget, method: string, params: Record<string, unknown>, fetch: FetchLike, timeoutMs = VENDOR_CALL_MS): Promise<Record<string, unknown>> {
   const session: Session = new Map();
   try {
     const init = await rpc(target, session, INITIALIZE, VENDOR_INIT_MS, fetch);
     if (typeof init.protocolVersion !== 'string') throw refused(`${target.url.hostname} answered, but it does not speak MCP`);
     session.set('mcp-protocol-version', init.protocolVersion);
     await post(target, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, VENDOR_INIT_MS, fetch);
-    return answerOf(await rpc(target, session, { jsonrpc: '2.0', id: CALL_ID, method: 'tools/call', params: { name: tool, arguments: args } }, VENDOR_CALL_MS, fetch));
+    return await rpc(target, session, { jsonrpc: '2.0', id: CALL_ID, method, params }, timeoutMs, fetch);
   } finally {
     endSession(target, session, fetch);
   }
+}
+
+export async function callVendorTool(target: VendorTarget, tool: string, args: Record<string, unknown>, fetch: FetchLike): Promise<VendorAnswer> {
+  return answerOf(await callVendorMethod(target, 'tools/call', { name: tool, arguments: args }, fetch));
 }

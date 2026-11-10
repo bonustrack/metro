@@ -106,7 +106,7 @@ describe('safe organization tool discovery', () => {
       listed = [{ name: 'find', title: 'Workspace: p4thSecret', description: 'Workspace: p4thSecret' }];
       const response = await call(`/${row.id}/tools`);
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ tools: [{ name: 'find', title: 'Workspace: [redacted]', description: 'Workspace: [redacted]', readOnly: false }] });
+      expect(await response.json()).toEqual({ events: [], tools: [{ name: 'find', title: 'Workspace: [redacted]', description: 'Workspace: [redacted]', readOnly: false }] });
     }
   });
 
@@ -139,7 +139,7 @@ describe('safe organization tool discovery', () => {
       listed = [{ name, title: 'Status', description: `Route: ${route}`, annotations: { readOnlyHint: true } }];
       const response = await call(`/${row.id}/tools`);
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ tools: [{ name, title: 'Status', description: 'Route: [redacted]', readOnly: true }] });
+      expect(await response.json()).toEqual({ events: [], tools: [{ name, title: 'Status', description: 'Route: [redacted]', readOnly: true }] });
     }
   });
 
@@ -185,7 +185,7 @@ describe('safe organization tool discovery', () => {
     const response = await call(`/${row.id}/tools`);
     expect(response.status).toBe(200);
     const titles = ['Files/read', 'Files:read', `X${'x'.repeat(255)}`];
-    expect(await response.json()).toEqual({ tools: names.map((name, at) => ({ name, title: titles[at], description: '', readOnly: true })) });
+    expect(await response.json()).toEqual({ events: [], tools: names.map((name, at) => ({ name, title: titles[at], description: '', readOnly: true })) });
   });
 
   test('no auth or another organization cannot discover or infer a connector', async () => {

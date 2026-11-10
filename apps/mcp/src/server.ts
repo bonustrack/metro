@@ -5,7 +5,8 @@ import { egressFetch } from '@metro-labs/connectors/egress';
 import { handleRequest, mcpDeps } from './app.js';
 import { readMcpConfig, type McpConfig } from './config.js';
 import { connectDb } from './db.js';
-import { startApprovalPruning } from './prune.js';
+import { startApprovalPruning, startMailPruning } from './prune.js';
+import { startSubscriptions } from './subscriptions.js';
 import { VENDOR_CALL_MS } from './vendor.js';
 
 function configOrExit(): McpConfig {
@@ -42,3 +43,5 @@ server.listen(config.port, config.host, () => {
 });
 
 startApprovalPruning(() => db);
+startMailPruning(() => db, deps);
+startSubscriptions(deps);

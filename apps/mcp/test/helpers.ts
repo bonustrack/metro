@@ -27,7 +27,7 @@ export const MASTER = randomBytes(32);
 export const VENDOR_ORIGIN = 'https://vendor.example.com';
 
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'api', 'drizzle');
-const TABLES = ['oauth_grants', 'model_calls', 'model_windows', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
+const TABLES = ['mcp_leases', 'connector_inbox', 'connector_subscriptions', 'connector_tools', 'oauth_grants', 'model_calls', 'model_windows', 'mcp_calls', 'mcp_approvals', 'agent_nonces', 'agent_tokens', 'agent_keys', 'connector_agents', 'connectors', 'agents'];
 
 export interface TestDb {
   db: Database;

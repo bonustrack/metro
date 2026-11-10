@@ -52,7 +52,7 @@ function checkOAuth(secret: OAuthSecret, name: string, now: number): void {
   if (expired(secret, now)) throw secret.tokens.refreshToken === undefined ? signinError(name) : unavailableError(name);
 }
 
-function targetOf(deps: CredentialDeps, row: ConnectorRow): VendorTarget {
+export function targetOf(deps: CredentialDeps, row: ConnectorRow): VendorTarget {
   const secret = opened(deps, row);
   if (secret === null || secret.kind !== row.auth) throw unavailableError(row.name);
   if (secret.kind === 'oauth') checkOAuth(secret, row.name, deps.now());

@@ -86,7 +86,7 @@ test('the deployed phase-one database upgrades without replacing keys, assignmen
     await migrate(db, { migrationsFolder: DIR });
     const upgraded = keys.map(({ sealing_key: _sealing, ...row }) => ({ ...row, mcp_token_hash: null }));
     expect(await rows(client, 'agent_keys')).toEqual(upgraded);
-    expect(await rows(client, 'connector_agents')).toEqual(assignments);
+    expect(await rows(client, 'connector_agents')).toEqual(assignments.map((row) => ({ ...row, senders: '["*"]', receive: true })));
     expect(events).toHaveLength(1);
     expect((await client.query("SELECT to_regclass('connector_events') AS t")).rows).toEqual([{ t: null }]);
     expect(await rows(client, 'connectors')).toEqual(connectors.map((row) => ({ ...row, detail: null, auth_generation: null })));

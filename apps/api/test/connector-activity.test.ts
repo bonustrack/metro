@@ -102,9 +102,9 @@ describe('what the activity answers', () => {
       row({ id: 'callthird01', connector: null, connectorKey: 'jira', connectorName: null, tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000 }),
     );
     expect(await calls()).toEqual([
-      { id: 'callthird01', agent: OURS, agentName: 'Emma', connector: null, connectorKey: 'jira', tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000 },
-      { id: 'callsecond1', agent: SECOND, agentName: 'agent000002.tail0000.ts.net', connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', connectorUrl: 'https://mcp.linear.app', tool: 'create_issue', outcome: 'needs_approval', ms: 40, at: NOW - 2_000 },
-      { id: 'callfirst01', agent: OURS, agentName: 'Emma', connector: NOTION, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 120, at: NOW - 3_000 },
+      { id: 'callthird01', agent: OURS, agentName: 'Emma', connector: null, connectorKey: 'jira', tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000, kind: 'call' },
+      { id: 'callsecond1', agent: SECOND, agentName: 'agent000002.tail0000.ts.net', connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', connectorUrl: 'https://mcp.linear.app', tool: 'create_issue', outcome: 'needs_approval', ms: 40, at: NOW - 2_000, kind: 'call' },
+      { id: 'callfirst01', agent: OURS, agentName: 'Emma', connector: NOTION, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 120, at: NOW - 3_000, kind: 'call' },
     ]);
   });
 

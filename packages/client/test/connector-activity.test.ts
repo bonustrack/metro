@@ -21,7 +21,7 @@ function serve(body: unknown, status = 200): void {
 }
 
 const call = (id: string, at: number, patch: Partial<ActivityCall> = {}): ActivityCall => ({
-  id, agent: 'aB3-_xYz9Qw', agentName: 'Emma', connector: 'cN3-_xYz9Qw', connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 12, at, ...patch,
+  id, kind: 'call', agent: 'aB3-_xYz9Qw', agentName: 'Emma', connector: 'cN3-_xYz9Qw', connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 12, at, ...patch,
 });
 
 const ids = (feed: ActivityFeed): string[] => feed.calls.map((one) => one.id);
@@ -44,8 +44,10 @@ afterAll(() => {
 describe('reading the connector activity', () => {
   test('a row is read with safe defaults, and a row without an id, agent, tool or time is dropped', () => {
     expect(toActivityCall({ id: 'a', agent: 'b', tool: 'search', at: NOW, ms: -4, connector: null, connectorKey: 'jira' })).toEqual({
-      id: 'a', agent: 'b', agentName: null, connector: null, connectorKey: 'jira', connectorName: null, connectorUrl: null, tool: 'search', outcome: '', ms: 0, at: NOW,
+      id: 'a', kind: 'call', agent: 'b', agentName: null, connector: null, connectorKey: 'jira', connectorName: null, connectorUrl: null, tool: 'search', outcome: '', ms: 0, at: NOW,
     });
+    expect(toActivityCall({ id: 'r', kind: 'received', agent: 'b', tool: 'email.received', outcome: 'dropped_sender', at: NOW, ms: 0 })?.kind).toBe('received');
+    expect(toActivityCall({ id: 'r', kind: 'something', agent: 'b', tool: 'search', at: NOW })?.kind).toBe('call');
     for (const bad of [null, { agent: 'b', tool: 't', at: 1 }, { id: 'a', tool: 't', at: 1 }, { id: 'a', agent: 'b', at: 1 }, { id: 'a', agent: 'b', tool: 't', at: 'soon' }]) expect(toActivityCall(bad)).toBeNull();
   });
 

@@ -19,7 +19,7 @@ import { BoundedEventStore } from '../src/mcp/event-store.ts';
 import { serveStandaloneGet } from '../src/mcp/raw-get-stream.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
-import { eventInScope } from '../src/agents/scope.ts';
+import { eventInScope, forgetConnectorLines, noteConnectorLine } from '../src/agents/scope.ts';
 import { callInScope } from '../src/mcp/call-bridge.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -34,6 +34,11 @@ const TONY_LINE = 'metro://whatsapp/m1-tony/111@lid';
 const GHOST_LINE = 'metro://whatsapp/m99-ghost/444@lid';
 const TONY_HOOK = 'metro://webhook/a1-gh';
 const GHOST_HOOK = 'metro://webhook/nobody-gh';
+
+const TONY_MAIL = 'metro://work-mail/conn0000001/thread-1';
+const TONY_MAIL_AS_STATION = 'metro://gmail/conn0000002/thread-2';
+const OTHER_MAIL = 'metro://work-mail/conn0000003/thread-3';
+const UNKNOWN_MAIL = 'metro://gmail/conn0000004/thread-4';
 
 const TONY_KEY = 'mk_matrix_tony';
 
@@ -70,6 +75,11 @@ const CASES: Case[] = [
     delivered: false,
   },
   { name: 'any webhook at all', reader: NOBODY, line: TONY_HOOK, delivered: false },
+  { name: 'its own connector mail', reader: TONY, line: TONY_MAIL, delivered: true },
+  { name: 'its own connector mail under a station name', reader: TONY, line: TONY_MAIL_AS_STATION, delivered: true },
+  { name: 'connector mail of another agent', reader: TONY, line: OTHER_MAIL, delivered: false },
+  { name: 'connector mail nobody announced', reader: TONY, line: UNKNOWN_MAIL, delivered: false },
+  { name: 'any connector mail at all', reader: NOBODY, line: TONY_MAIL, delivered: false },
 ];
 
 let daemon: Daemon | undefined;
@@ -81,6 +91,9 @@ beforeAll(async () => {
     { ['agent000001']: 'Tony' },
   );
   setKeyMap([{ key: TONY_KEY, agentId: 'agent000001' }]);
+  noteConnectorLine('work-mail', 'conn0000001', 'agent000001');
+  noteConnectorLine('gmail', 'conn0000002', 'agent000001');
+  noteConnectorLine('work-mail', 'conn0000003', 'agent000002');
   daemon = await bootDaemon({}, { monitor: true });
   monitorBase = daemon.base;
 });
@@ -88,6 +101,7 @@ beforeAll(async () => {
 afterAll(async () => {
   setAgentMap({}, {});
   setKeyMap([]);
+  forgetConnectorLines();
   if (daemon) await daemon.close();
 });
 

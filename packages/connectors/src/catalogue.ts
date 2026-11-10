@@ -7,6 +7,7 @@ import { listRemoteServer, type RemoteTool } from '@metro-labs/http/connector-to
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { ConnectorUnauthorized } from '@metro-labs/http/connector-url';
 import type { ConnectorAuth } from '@metro-labs/http/connector-mcp';
+import { webhookEventNames } from '@metro-labs/http/mcp-events';
 import type { ConnectorRow } from './db/connectors.js';
 import { catalogueCredential, catalogueSecret, catalogueSignin, catalogueUnavailable, type CatalogueDeps } from './catalogue-auth.js';
 import { credentialRevision } from './revision.js';
@@ -99,7 +100,12 @@ export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {
   return { kind: 'none' };
 }
 
-async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<RemoteTool[]> {
+interface Discovered {
+  tools: RemoteTool[];
+  events: string[];
+}
+
+async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): Promise<Discovered> {
   const key = sealingKey(deps);
   const secret = catalogueSecret(key, row, deps.now());
   const server = await listRemoteServer(parsePublicConnectorUrl(secret.targetUrl), connectorAuthOf(secret), deps.fetch);
@@ -107,22 +113,22 @@ async function discover(deps: CatalogueDeps, owner: string, row: ConnectorRow): 
   if (current === null) throw new ApiError('no such connector', 404);
   if (credentialRevision(key, current) !== credentialRevision(key, row)) throw new ApiError('This connector changed. Refresh its tool list.', 409);
   const tools = publicTools(server.tools, secret);
-  await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret) }).catch((err: unknown) => {
+  await deps.saveListing?.(row.id, { tools, icons: publicIcons(server.icons, secret), events: server.events }).catch((err: unknown) => {
     log.warn({ connector: row.id, err: errMsg(err) }, 'connectors: the tool list could not be kept for mcp.metro.box');
   });
-  return tools;
+  return { tools, events: webhookEventNames(server.events) };
 }
 
-export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<{ tools: RemoteTool[] }> {
+export async function listConnectorTools(deps: CatalogueDeps, owner: string, id: string): Promise<Discovered> {
   const deadline = AbortSignal.timeout(45_000);
   const bounded: CatalogueDeps = { ...deps, fetch: (url, init) => deps.fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) }) };
   try {
     let row = await catalogueCredential(bounded, owner, id);
-    try { return { tools: await discover(bounded, owner, row) }; } catch (err) {
+    try { return await discover(bounded, owner, row); } catch (err) {
       if (!(err instanceof ConnectorUnauthorized)) throw err;
       if (row.auth !== 'oauth') throw catalogueSignin();
       row = await catalogueCredential(bounded, owner, id, credentialRevision(sealingKey(deps), row));
-      return { tools: await discover(bounded, owner, row) };
+      return await discover(bounded, owner, row);
     }
   } catch (err) {
     if (err instanceof ApiError && [404, 409, 424].includes(err.status)) throw err;

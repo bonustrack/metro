@@ -8,6 +8,8 @@ import {
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
 import { isMetroNotice } from './notice.js';
+import { connectorMeta, knownSource } from './connector-mail.js';
+import { isConnectorLine } from '../agents/scope.js';
 import { replyMeta } from './addressed.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
@@ -266,18 +268,18 @@ export class InboundRelay {
 
   private async handlePermissionReply(ev: Record<string, unknown>, base: EventBase): Promise<boolean> {
     const answer = this.deps.answerPermission;
-    if (answer === undefined || base.evType !== 'msg' || !this.approves(base.station) || ev.senderVerified === false) return false;
+    if (answer === undefined || base.evType !== 'msg' || !this.approves(base.station, base.line) || ev.senderVerified === false) return false;
     const m = PERMISSION_REPLY_RE.exec(base.text);
     if (m?.[1] === undefined || m[2] === undefined) return false;
     return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line, base.from);
   }
 
-  private approves(station: string): boolean {
-    return this.deps.approves?.(station) !== false;
+  private approves(station: string, line: string): boolean {
+    return !isConnectorLine(line) && this.deps.approves?.(station) !== false;
   }
 
   private noteLine(base: EventBase, direct: boolean): void {
-    if (base.evType !== 'system' && this.approves(base.station)) {
+    if (base.evType !== 'system' && this.approves(base.station, base.line)) {
       this.lastLine = base.line;
       if (direct) this.deps.noteDirect?.(base.line, base.from);
     }
@@ -287,7 +289,7 @@ export class InboundRelay {
   }
 
   private droppedSender(ev: Record<string, unknown>, from: string, line: string): boolean {
-    if (isMetroNotice(ev)) return false;
+    if (isMetroNotice(ev) || isConnectorLine(line)) return false;
     const verified = ev.senderVerified;
     if (
       from.startsWith('metro://claude') ||
@@ -311,18 +313,13 @@ export class InboundRelay {
     if (evType !== 'msg' && evType !== 'react' && evType !== 'system')
       return null;
     const station = str(ev.station);
-    if (!this.deps.getStations().has(station)) return null;
-    const from = str(ev.from);
     const line = str(ev.line);
+    if (!knownSource(this.deps.getStations(), station, line)) return null;
+    const from = str(ev.from);
     if (this.droppedSender(ev, from, line)) return null;
     const text = str(ev.text);
     if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
-      this.deps.log(
-        'drop: duplicate (per-account) event',
-        evType,
-        station,
-        str(ev.messageId),
-      );
+      this.deps.log('drop: duplicate (per-account) event', evType, station, str(ev.messageId));
       return null;
     }
     return { evType, station, from, line, text };
@@ -353,6 +350,7 @@ export class InboundRelay {
         from_name: str(ev.fromName),
         ...displayNameMeta(ev.fromDisplayName),
         ...replyMeta(ev, this.sentIds),
+        ...connectorMeta(base.line, ev.payload),
         ...(!replay && base.evType === 'msg' ? this.deps.callMeta?.(ev)?.() : {}),
       },
     });

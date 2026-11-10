@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { isAttachSession, signInPage, toSession } from '../src/api/attach-session.js';
-import { offeredStations, STATION_FORMS, stationLabel } from '../src/api/attach.js';
+import { connectsAsConnector, offeredStations, STATION_FORMS, stationLabel } from '../src/api/attach.js';
 
 const PENDING = {
   attachId: 'as_AAAAAAAAAAAAAAAAAAAAAA',
@@ -108,7 +108,15 @@ describe('interactive station forms', () => {
   });
 
   test('a channel the page has no form for is never offered', () => {
-    expect(offeredStations(['telegram', 'outlook', 'pigeon'])).toEqual(['telegram', 'outlook']);
+    expect(offeredStations(['telegram', 'whatsapp', 'pigeon'])).toEqual(['telegram', 'whatsapp']);
+  });
+
+  test('Gmail and Outlook are no longer offered as channels: they connect as connectors', () => {
+    expect(offeredStations(['telegram', 'outlook', 'gmail'])).toEqual(['telegram']);
+    expect(connectsAsConnector('gmail')).toBe(true);
+    expect(connectsAsConnector('outlook')).toBe(true);
+    expect(connectsAsConnector('telegram')).toBe(false);
+    expect(STATION_FORMS.gmail).toBeDefined();
   });
 
   test('the sign-in link is Microsoft\'s own page, never a non-https one', () => {
