@@ -24,6 +24,7 @@ type WebhookDeps = Pick<McpDeps, 'key' | 'events' | 'subscriptions' | 'receivers
 type Control = Exclude<WebhookBody, { kind: 'event' }>;
 
 const READING_MAX = 32;
+const BODY_READ_MS = 15_000;
 const OK: Answer = { status: 200, body: { ok: true } };
 const GONE: Answer = { status: 410, body: { error: 'Metro has no subscription at this address.' } };
 const UNWANTED: Answer = { status: 410, body: { error: 'This agent does not receive this event.' } };
@@ -108,8 +109,20 @@ function parsed(bytes: Buffer): WebhookBody | null {
   }
 }
 
+async function bodyOf(req: IncomingMessage): Promise<Buffer> {
+  const slow = setTimeout(() => {
+    req.destroy();
+  }, BODY_READ_MS);
+  slow.unref();
+  try {
+    return await readBodyBytes(req, WEBHOOK_BODY_MAX);
+  } finally {
+    clearTimeout(slow);
+  }
+}
+
 async function taken(req: IncomingMessage, deps: WebhookDeps, id: string, held: HeldReceiver, headers: WebhookHeaders): Promise<Answer> {
-  const bytes = await readBodyBytes(req, WEBHOOK_BODY_MAX);
+  const bytes = await bodyOf(req);
   const sub = await authentic(deps, id, held, headers, bytes);
   if (sub === null) {
     log.warn({ subscription: id }, 'mcp: a webhook delivery did not verify');
