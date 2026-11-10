@@ -241,7 +241,13 @@ rules are in `docs/rules/TOOL-POLICIES.md`; this is the summary.
   the same live call, and its approval ends at hang-up. Every gated metro tool's schema has an
   optional `approval` string.
 - The rule is decided again on every call: a rule moved to Block wins over an approval, and a
-  rule moved to Allow or Block withdraws the call's question and its unused approval.
+  rule moved to Allow or Block withdraws the question and the unused approval at once, and
+  tells an agent that was waiting.
+- The rule that applies is the rule of the account that acts: the account of the call's line,
+  always, plus an account the call names. Until this step an added `account` argument could
+  lift a Block or an Ask.
+- The chat question never leaves an argument out unseen: what does not fit in 1,000 characters
+  is named, with a pointer to metro.box.
 - An id that cannot be used says why (not known after a restart, another call, used, too old,
   expired, withdrawn) and the owner is asked again. 50 requests wait at most; arguments too
   large to show are refused. Everything is in memory: no file, no stored call.
