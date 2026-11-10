@@ -83,8 +83,9 @@ async function authentic(deps: WebhookDeps, id: string, headers: WebhookHeaders,
   const fresh = await deps.receivers.reload(id, secret);
   if (fresh !== null && webhookSigned(fresh, headers, bytes)) return true;
   const now = Date.now();
-  if (now - unsignedLoggedAt >= UNSIGNED_LOG_MS) log.warn({ subscription: id }, 'mcp: a webhook delivery did not verify (said once a minute at most)');
+  if (now - unsignedLoggedAt < UNSIGNED_LOG_MS) return false;
   unsignedLoggedAt = now;
+  log.warn({ subscription: id }, 'mcp: a webhook delivery did not verify (said once a minute at most)');
   return false;
 }
 

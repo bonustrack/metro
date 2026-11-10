@@ -48,7 +48,9 @@ Beyond the SEP's own rules, a server works with Metro when:
 - The handshake happens inside the `events/subscribe` call and is signed with the secret of
   that call. Metro waits 30 seconds for the call, 90 seconds for the whole step.
 - `events/subscribe` carries `ttlMs` (24 hours) and `maxAgeMs` (7 days: Metro keeps nothing
-  older, so a resume after weeks should not replay them). A server may ignore `maxAgeMs`.
+  older, so a resume after weeks should not replay them). A server may ignore `maxAgeMs`. One
+  that honours it answers `truncated: true` only when that floor really passed the cursor (the
+  SEP's rule), since Metro writes one `skipped` activity row for every `truncated` answer.
 - Every POST carries the four headers. `webhook-id` has only letters, digits, `_` and `-` (256
   at most), `X-MCP-Subscription-Id` is at most 128 printable ASCII characters without a space,
   `eventId` at most 512 characters with no control character, a cursor at most 8,192, the body
