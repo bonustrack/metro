@@ -208,7 +208,7 @@ once Metro has accepted every mail before it (see Delivery), so a failure is rea
 
 ## Removing the two channels
 
-Once the mailboxes have moved:
+Done on 2026-11-10 (see `docs/HISTORY.md`). Once the mailboxes have moved:
 
 - Remove `packages/gmail`, `packages/outlook`, their entries in `stations/registry.ts`,
   `stations/attach-browser.ts`, `stations/attach-gmail.ts`, the sign-in return
