@@ -1,6 +1,7 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import type { RemoteEvent } from '@metro-labs/http/connector-tools';
+import { EVENT_NAME_RE } from '@metro-labs/http/mcp-events';
 import type { Database } from './database.js';
 import { readOfferedEvents } from './connector-tools.js';
 import { isUniqueViolation } from './errors.js';
@@ -47,10 +48,21 @@ export interface SubscriptionState {
   error: string | null;
 }
 
-const NO_EVENTS = '[]';
-const ANYONE = '["*"]';
+export const NO_EVENTS = '[]';
+const ANYONE_LIST = '["*"]';
+export const EVENTS_MAX = 50;
 
-const eventsOf = (held: AssignmentRow | undefined): Pick<AssignmentRow, 'events' | 'senders'> => (held === undefined ? { events: NO_EVENTS, senders: ANYONE } : { events: held.events, senders: held.senders });
+export function eventNamesOf(text: string | null): string[] {
+  try {
+    const parsed: unknown = text === null ? [] : JSON.parse(text);
+    const names = Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string' && EVENT_NAME_RE.test(name)) : [];
+    return [...new Set(names)].slice(0, EVENTS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+const eventsOf = (held: AssignmentRow | undefined): Pick<AssignmentRow, 'events' | 'senders'> => (held === undefined ? { events: NO_EVENTS, senders: ANYONE_LIST } : { events: held.events, senders: held.senders });
 
 export interface OrgConnectorStore {
   list: (owner: string) => Promise<{ connectors: ConnectorRow[]; assignments: AssignmentRow[] }>;
@@ -105,17 +117,24 @@ async function unassignIn(tx: Database, input: Pick<AssignInput, 'owner' | 'conn
   if (gone.length === 0) throw new ApiError('that agent does not have this connector', 404);
 }
 
+async function checkEvents(tx: Database, connector: string, boxed: boolean, held: string[], wanted: string[]): Promise<void> {
+  if (wanted.length > 0 && !boxed) throw new ApiError('This agent has no server, so it cannot receive events. It can still use the tools.', 409);
+  const added = wanted.filter((name) => !held.includes(name));
+  if (added.length === 0) return;
+  const offered = (await readOfferedEvents(tx, [connector])).get(connector) ?? [];
+  const unknown = added.find((name) => !offered.some((event) => event.name === name));
+  if (unknown !== undefined) throw new ApiError(`This connector does not offer "${unknown}".`, 400);
+}
+
 async function setEventsIn(tx: Database, input: EventsInput): Promise<AssignmentRow> {
   const connector = await lockConnector(tx, input.owner, input.connector);
   const agent = (await tx.select({ kind: agents.kind }).from(agents).where(and(eq(agents.id, input.agent), eq(agents.owner, input.owner))).for('update'))[0];
-  if (agent === undefined) throw new ApiError('no such agent in this organization', 404);
-  if (agent.kind !== 'box' && (input.events ?? []).length > 0) throw new ApiError('This agent has no server, so it cannot receive events. It can still use the tools.', 409);
-  const held = and(eq(connectorAgents.connector, connector.id), eq(connectorAgents.agent, input.agent));
+  const assigned = and(eq(connectorAgents.connector, connector.id), eq(connectorAgents.agent, input.agent));
+  const held = agent === undefined ? undefined : (await tx.select().from(connectorAgents).where(assigned))[0];
+  if (agent === undefined || held === undefined) throw new ApiError('that agent does not have this connector', 404);
+  if (input.events !== undefined) await checkEvents(tx, connector.id, agent.kind === 'box', eventNamesOf(held.events), input.events);
   const change = { ...(input.events === undefined ? {} : { events: JSON.stringify(input.events) }), ...(input.senders === undefined ? {} : { senders: JSON.stringify(input.senders) }) };
-  const saved = Object.keys(change).length === 0 ? await tx.select().from(connectorAgents).where(held) : await tx.update(connectorAgents).set(change).where(held).returning();
-  const row = saved[0];
-  if (row === undefined) throw new ApiError('that agent does not have this connector', 404);
-  return row;
+  return Object.keys(change).length === 0 ? held : ((await tx.update(connectorAgents).set(change).where(assigned).returning())[0] ?? held);
 }
 
 function subscriptionsFor(db: Database, owner: string): Promise<SubscriptionState[]> {

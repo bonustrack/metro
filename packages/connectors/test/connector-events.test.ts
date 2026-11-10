@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { publicEvents } from '../src/catalogue.ts';
-import { eventNamesOf } from '../src/db/connector-subscriptions.ts';
+import { eventNamesOf } from '../src/db/connectors.ts';
 import type { ConnectorSecret } from '../src/model.ts';
 import { openSecret, sealSecret } from '../src/secrets.ts';
 
