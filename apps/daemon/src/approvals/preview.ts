@@ -1,114 +1,28 @@
 import { isDeepStrictEqual } from 'node:util';
 import { isRecord } from '@metro-labs/core/is-record';
 
-const ELIDED = '\u0000';
-const LONG = 3_500;
-const HEAD = 1_999;
-const TAIL = 1_499;
+const INLINE_MAX = 256;
+const EDGE = 64;
 
 export const PREVIEW_MAX = 100_000;
 
-function codePoints(text: string): number {
-  let pairs = 0;
-  for (let at = 0; at < text.length - 1; at += 1) {
-    const high = text.charCodeAt(at);
-    const low = text.charCodeAt(at + 1);
-    if (high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff) {
-      pairs += 1;
-      at += 1;
-    }
-  }
-  return text.length - pairs;
+const inlineData = (data: string): string =>
+  data.length <= INLINE_MAX ? data : `${data.slice(0, EDGE)}\n⋯ ${String(data.length - 2 * EDGE)} code points elided ⋯\n${data.slice(-EDGE)}`;
+
+const withoutBytes = (file: unknown): unknown => (isRecord(file) && typeof file.data === 'string' ? { ...file, data: inlineData(file.data) } : file);
+
+export function previewText(args: Record<string, unknown>): string {
+  const files = args.attachments;
+  return JSON.stringify(Array.isArray(files) ? { ...args, attachments: files.map(withoutBytes) } : args);
 }
 
-function shortened(text: string): string {
-  if (text.length <= LONG) return text;
-  const total = codePoints(text);
-  if (total <= LONG) return text;
-  const head = Array.from(text.slice(0, HEAD * 2)).slice(0, HEAD).join('');
-  const tail = Array.from(text.slice(-TAIL * 2)).slice(-TAIL).join('');
-  return `${head}\n⋯ ${String(total - HEAD - TAIL)} code points elided ⋯\n${tail}`;
-}
-
-function elided(value: unknown): unknown {
-  if (typeof value === 'string') return shortened(value);
-  if (Array.isArray(value)) return value.map(elided);
-  return isRecord(value) ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, elided(inner)])) : value;
-}
-
-export const previewText = (args: Record<string, unknown>): string => JSON.stringify(elided(args));
-
-const CODE_POINTS = /(?:\\n|\n)⋯ \d+ code points elided ⋯(?:\\n|\n)/g;
-const MARK = '⋯';
-
-export interface ReadPreview {
-  input: Record<string, unknown> | undefined;
-  partial: boolean;
-}
-
-function parsedRecord(text: string): Record<string, unknown> | undefined {
+export function previewInput(preview: string): Record<string, unknown> | undefined {
   try {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(preview);
     return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 }
 
-const gap = (char: string | undefined): boolean => char !== undefined && (char === ',' || char.trim() === '');
-
-function gapStart(text: string, end: number): number {
-  let at = end;
-  while (at > 0 && gap(text[at - 1])) at -= 1;
-  return at;
-}
-
-function beforeElision(text: string): string {
-  const end = gapStart(text, text.indexOf(MARK));
-  return text.slice(0, text.endsWith('\\n', end) ? gapStart(text, end - 2) : end);
-}
-
-export function readPreview(preview: string): ReadPreview {
-  const text = preview.replace(CODE_POINTS, '\\u0000');
-  const whole = parsedRecord(text);
-  if (whole !== undefined) return { input: whole, partial: false };
-  if (!text.includes(MARK)) return { input: undefined, partial: false };
-  const head = beforeElision(text);
-  const input = parsedRecord(`${head}}`) ?? parsedRecord(head);
-  return { input, partial: input !== undefined };
-}
-
-export const shownValue = (text: string): string => text.split(ELIDED).join('…');
-
-function stringMatches(shown: string, real: string): boolean {
-  if (!shown.includes(ELIDED)) return shown === real;
-  const [first = '', ...rest] = shown.split(ELIDED);
-  const last = rest.pop() ?? '';
-  if (!real.startsWith(first) || !real.endsWith(last)) return false;
-  let at = first.length;
-  for (const part of rest) {
-    const found = real.indexOf(part, at);
-    if (found < 0) return false;
-    at = found + part.length;
-  }
-  return at <= real.length - last.length;
-}
-
-function valueMatches(shown: unknown, real: unknown): boolean {
-  if (typeof shown === 'string') return typeof real === 'string' && stringMatches(shown, real);
-  if (Array.isArray(shown))
-    return Array.isArray(real) && shown.length === real.length && shown.every((v, i) => valueMatches(v, real[i]));
-  if (isRecord(shown)) return isRecord(real) && recordMatches(shown, real, false);
-  return isDeepStrictEqual(shown, real);
-}
-
-function recordMatches(shown: Record<string, unknown>, real: Record<string, unknown>, partial: boolean): boolean {
-  const keys = Object.keys(shown);
-  if (!partial && keys.length !== Object.keys(real).length) return false;
-  return keys.every((key) => key in real && valueMatches(shown[key], real[key]));
-}
-
-export function previewMatches(preview: string, args: Record<string, unknown>): boolean {
-  const { input, partial } = readPreview(preview);
-  return input !== undefined && recordMatches(input, args, partial);
-}
+export const previewMatches = (preview: string, args: Record<string, unknown>): boolean => isDeepStrictEqual(previewInput(preview), args);
