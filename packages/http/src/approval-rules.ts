@@ -1,4 +1,4 @@
-export const APPROVAL_ID_PATTERN = '^[a-km-z]{5}$';
+const APPROVAL_ID_PATTERN = '^[a-km-z]{5}$';
 export const APPROVAL_ID_RE = new RegExp(APPROVAL_ID_PATTERN);
 export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
 export const APPROVAL_USE_MS = 10 * 60_000;

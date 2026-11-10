@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
-import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
+import { APPROVAL_ID_RE, APPROVAL_PENDING_MAX, APPROVAL_TTL_MS, APPROVAL_USE_MS } from '@metro-labs/http/approval-rules';
 import { agents, mcpApprovals } from '@metro-labs/connectors/db/schema';
-import { APPROVAL_TTL_MS, GRANT_WINDOW_MS, PENDING_MAX, REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
+import { REDELIVER_MS, approvalStore, type ApprovalRequest, type ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { argsDigest, canonicalJson } from '@metro-labs/http/args-digest';
 import { PREVIEW_MAX, previewOf } from '../src/preview.ts';
 import { createAgentToken, newAgentToken, tokenHashOf } from '@metro-labs/connectors/db/agent-tokens';
@@ -42,7 +42,7 @@ describe('argument digests and previews', () => {
 describe('the approval state machine', () => {
   test('an Ask call makes one pending row, and the same call reuses its id', async () => {
     const id = await store.request(agent.row, call({ page: 1 }), T0);
-    expect(id).toMatch(MCP_APPROVAL_ID_RE);
+    expect(id).toMatch(APPROVAL_ID_RE);
     expect(await store.request(agent.row, call({ page: 1 }), T0 + 1000)).toBe(id);
     expect(await store.request(agent.row, call({ page: 2 }), T0)).not.toBe(id);
     expect(await store.request(other.row, call({ page: 1 }), T0)).not.toBe(id);
@@ -65,8 +65,8 @@ describe('the approval state machine', () => {
   test('an approval works only within 10 minutes of the answer', async () => {
     const id = await store.request(agent.row, call({ page: 1 }), T0);
     await store.answer(agent.row, id, 'allow', T0);
-    expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + GRANT_WINDOW_MS + 1)).toBe('invalid');
-    expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + GRANT_WINDOW_MS)).toBe('used');
+    expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + APPROVAL_USE_MS + 1)).toBe('invalid');
+    expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + APPROVAL_USE_MS)).toBe('used');
   });
 
   test('a denied approval says so for the same call', async () => {
@@ -103,7 +103,7 @@ describe('the approval state machine', () => {
   });
 
   test('an agent cannot pile up more than the pending limit', async () => {
-    for (let i = 0; i < PENDING_MAX; i += 1) await store.request(agent.row, call({ i }), T0);
+    for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) await store.request(agent.row, call({ i }), T0);
     await expect(store.request(agent.row, call({ i: 'one more' }), T0)).rejects.toThrow('already waiting');
   });
 

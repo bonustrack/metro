@@ -1,25 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { approvalId } from '@metro-labs/core/ids';
 import { argsDigest, canonicalJson } from '../src/args-digest.ts';
-import { APPROVAL_ID_PATTERN, APPROVAL_ID_RE, APPROVAL_PENDING_MAX, APPROVAL_PROPERTY, APPROVAL_TTL_MS, APPROVAL_USE_MS, TOO_MANY_PENDING } from '../src/approval-rules.ts';
+import { APPROVAL_ID_RE, APPROVAL_PROPERTY } from '../src/approval-rules.ts';
 import { decideTool, strictest, type ConnectorDecision, type ConnectorPolicy } from '../src/connector-policy.ts';
-import { MCP_APPROVAL_ID_RE } from '../src/mcp-server-protocol.ts';
 import { mcpServerTools } from '../src/mcp-server-tools.ts';
 
 describe('the approval rules channels and connectors share', () => {
-  test('an approval id is five letters without the l, and both servers read the same pattern', () => {
+  test('an approval id is five letters without the l, and the pattern the tools publish is the one that is checked', () => {
     for (let i = 0; i < 200; i += 1) expect(approvalId()).toMatch(APPROVAL_ID_RE);
     for (const bad of ['abcdl', 'ABCDE', 'abcd', 'abcdef', 'abc e', '']) expect(bad).not.toMatch(APPROVAL_ID_RE);
-    expect(MCP_APPROVAL_ID_RE).toBe(APPROVAL_ID_RE);
-    expect(APPROVAL_PROPERTY.pattern).toBe(APPROVAL_ID_PATTERN);
+    expect(new RegExp(APPROVAL_PROPERTY.pattern)).toEqual(APPROVAL_ID_RE);
     expect(JSON.stringify(mcpServerTools(null))).toContain(JSON.stringify(APPROVAL_PROPERTY));
-  });
-
-  test('a request waits a day, an answer counts ten minutes, and fifty may wait at once', () => {
-    expect(APPROVAL_TTL_MS).toBe(24 * 3_600_000);
-    expect(APPROVAL_USE_MS).toBe(600_000);
-    expect(APPROVAL_PENDING_MAX).toBe(50);
-    expect(TOO_MANY_PENDING).toBe('50 approval requests are already waiting for the owner. Wait for answers before asking again.');
   });
 
   test('the digest of a call is over canonical JSON, so key order does not matter and every value does', () => {

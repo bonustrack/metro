@@ -1,7 +1,7 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { readJson, writeSecure } from '@metro-labs/core/secure-fs';
-import { MCP_APPROVAL_ID_RE } from '@metro-labs/http/mcp-server-protocol';
+import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 
 const KEEP_MS = 24 * 3_600_000;
 const MAX = 200;
@@ -24,7 +24,7 @@ function parse(raw: unknown): Map<string, Announced> {
   const entries = isRecord(raw) && raw.version === 1 && isRecord(raw.announced) ? raw.announced : {};
   for (const [id, value] of Object.entries(entries)) {
     const entry = entryOf(value);
-    if (MCP_APPROVAL_ID_RE.test(id) && entry !== null) out.set(id, entry);
+    if (APPROVAL_ID_RE.test(id) && entry !== null) out.set(id, entry);
   }
   return out;
 }
