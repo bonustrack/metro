@@ -27,6 +27,7 @@ import { dispatchCreateUpload } from './upload-tool.js';
 import { dispatchSetProfile, profileCapabilities } from './profile-tool.js';
 import { dispatchGetProfile, profileScopeLine } from './profile-lookup.js';
 import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
+import { CONNECTOR_LINE_REFUSAL } from '../channels/connector-event.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
 import { log } from '@metro-labs/core/log';
@@ -155,6 +156,7 @@ async function runTool(
     if (invalid) return invalid;
   }
 
+  if (typeof a.line === 'string' && Line.isConnector(a.line)) return errResult(CONNECTOR_LINE_REFUSAL);
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');

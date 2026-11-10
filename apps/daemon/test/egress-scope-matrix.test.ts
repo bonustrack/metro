@@ -23,7 +23,9 @@ import { eventInScope } from '../src/agents/scope.ts';
 import { callInScope } from '../src/mcp/call-bridge.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { asLine } from '@metro-labs/core/lines';
+import { newId } from '@metro-labs/core/ids';
+import { asLine, Line } from '@metro-labs/core/lines';
+import { connectorEvent } from '../src/channels/connector-event.ts';
 import { SessionSlot } from '../src/mcp/session-slot.ts';
 import { diagnosticTag, incomingDiagnostic } from '../src/mcp/diagnostics.ts';
 import { auth, TEST_OWNER } from './identity-helper.js';
@@ -34,6 +36,9 @@ const TONY_LINE = 'metro://whatsapp/m1-tony/111@lid';
 const GHOST_LINE = 'metro://whatsapp/m99-ghost/444@lid';
 const TONY_HOOK = 'metro://webhook/a1-gh';
 const GHOST_HOOK = 'metro://webhook/nobody-gh';
+
+const TONY_EVENT = 'metro://connector/agent000001/conn0000001';
+const OTHER_EVENT = 'metro://connector/agent000002/conn0000001';
 
 const TONY_KEY = 'mk_matrix_tony';
 
@@ -70,7 +75,12 @@ const CASES: Case[] = [
     delivered: false,
   },
   { name: 'any webhook at all', reader: NOBODY, line: TONY_HOOK, delivered: false },
+  { name: 'its own connector event', reader: TONY, line: TONY_EVENT, delivered: true },
+  { name: 'a connector event of another agent', reader: TONY, line: OTHER_EVENT, delivered: false },
+  { name: 'any connector event at all', reader: NOBODY, line: TONY_EVENT, delivered: false },
 ];
+
+const NEVER_SHOWS_CONNECTOR_EVENTS = new Set(['Run events', 'content-free MCP diagnostic']);
 
 let daemon: Daemon | undefined;
 let monitorBase = '';
@@ -93,7 +103,16 @@ afterAll(async () => {
 
 const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
 
+const connectorInbound = (line: string, text: string): MetroEvent =>
+  connectorEvent(
+    { id: newId(), connector: { id: 'conn0000001', key: 'work-mail', name: 'Work mail' }, event: 'email.received', timestamp: new Date().toISOString(), kind: 'event', eventId: randomUUID(), data: { subject: text } },
+    Line.parseConnector(line)?.agentId ?? '',
+  );
+
 const inbound = (line: string, text: string): MetroEvent =>
+  Line.isConnector(line) ? connectorInbound(line, text) : chatInbound(line, text);
+
+const chatInbound = (line: string, text: string): MetroEvent =>
   ({
     id: `id-${randomUUID()}`,
     ts: new Date().toISOString(),
@@ -133,7 +152,7 @@ async function liveChannel(reader: Reader, line: string, text: string): Promise<
   publishEvent(inbound(line, text));
   await settle(40);
   stop();
-  return notifs.some((n) => n.params.content === text);
+  return notifs.some((n) => String(n.params.content).includes(text));
 }
 
 async function busReplayAfterReconnect(
@@ -150,7 +169,7 @@ async function busReplayAfterReconnect(
   channel.replayMissed();
   await settle(40);
   stop();
-  return notifs.some((n) => n.params.content === text);
+  return notifs.some((n) => String(n.params.content).includes(text));
 }
 
 const fakeGetReq = (lastEventId: string): IncomingMessage => {
@@ -294,12 +313,13 @@ describe('every egress applies the same scope predicate', () => {
 
   for (const [path, run] of Object.entries(EGRESS)) {
     for (const c of CASES) {
-      const verb = c.delivered ? 'delivered' : 'withheld';
+      const delivered = c.delivered && !(Line.isConnector(c.line) && NEVER_SHOWS_CONNECTOR_EVENTS.has(path));
+      const verb = delivered ? 'delivered' : 'withheld';
       test(
         `${path}: ${c.reader.label} and ${c.name} -> ${verb}`,
         async () => {
           const text = `probe-${randomUUID()}`;
-          expect(await run(c.reader, c.line, text)).toBe(c.delivered);
+          expect(await run(c.reader, c.line, text)).toBe(delivered);
         },
         15000,
       );

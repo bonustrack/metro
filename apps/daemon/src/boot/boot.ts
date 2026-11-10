@@ -22,6 +22,8 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { stopConnectorEvents, watchConnectorEvents } from '../mcp-server/event-link.js';
+import { connectorEventTaker } from '../mcp/connector-events.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
@@ -177,6 +179,7 @@ installBearerSessions(agentsDir(), localOwner);
       });
     },
   });
+  watchConnectorEvents({ owner: localOwner, take: connectorEventTaker(emit, liveEvents) });
   watchConnectorTools();
   startCloudWatchPublisher();
   announceLocalEndpoint();
@@ -221,6 +224,9 @@ async function shutdown(): Promise<void> {
   log.info('dispatcher shutting down');
   stopMcpServer().catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the approval relay');
+  });
+  stopConnectorEvents().catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the connector event loop');
   });
   const leaving = leaveCallsForShutdown();
   stopOrgModels();

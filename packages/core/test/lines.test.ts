@@ -16,6 +16,19 @@ describe('Line builders', () => {
   });
 });
 
+describe('a connector event line names the agent and the connector', () => {
+  test('builds and parses the canonical form only', () => {
+    const line = Line.connector('agent000001', 'conn0000001');
+    expect(line as string).toBe('metro://connector/agent000001/conn0000001');
+    expect(Line.parseConnector(line)).toEqual({ agentId: 'agent000001', connectorId: 'conn0000001' });
+    expect(Line.isConnector(line)).toBe(true);
+    for (const bad of ['metro://connector', 'metro://connector/', 'metro://connector/a', 'metro://connector/a/b/c', 'metro://connector//a/b', 'metro://connector/a/b/', 'metro://connectors/a/b', 'metro://gmail/a/b'])
+      expect(Line.parseConnector(bad)).toBeNull();
+    for (const mine of ['metro://connector', 'metro://connector/', 'metro://connector/a/b/c']) expect(Line.isConnector(mine)).toBe(true);
+    for (const other of ['metro://connectors/a/b', 'metro://gmail/a/b', 'connector/a/b']) expect(Line.isConnector(other)).toBe(false);
+  });
+});
+
 describe('Line.parse — generic station/path split', () => {
   test('single-segment path', () => {
     expect(Line.parse('metro://discord-bot/456')).toEqual({ station: 'discord-bot', path: ['456'] });

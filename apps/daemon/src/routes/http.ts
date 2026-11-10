@@ -143,6 +143,10 @@ export function trainEventToMetroEvent(
     log.warn({ train: trainName }, 'train: dropped event without `line`');
     return null;
   }
+  if (Line.isConnector(line)) {
+    log.warn({ train: trainName }, 'train: dropped an event on a connector line, which only mcp.metro.box may speak for');
+    return null;
+  }
   const station = env.station ?? Line.station(line) ?? trainName;
   const isPrivate = env.is_private === true;
   const text = eventText(env);
