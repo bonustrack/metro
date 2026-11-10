@@ -1,6 +1,5 @@
 import { type ReactNode } from 'react';
 import { stationLabel } from '@metro-labs/client/api/attach';
-import { GMAIL_MANAGED } from '@metro-labs/client/api/gmail';
 import { Summary } from '../ui/Summary.js';
 import { type ChannelProps } from './channel-props.js';
 import { useSenderCards } from './use-sender-cards.js';
@@ -23,7 +22,6 @@ export function ChannelSummary({ agentId, found, view }: Pick<ChannelProps, 'age
     people: peopleOf({ station, entries, approvers: row.approvers, cards, seen: [], technical: false }),
     reportsStatus: view.reportsStatus.includes(station),
     pairAgain: view.pairAgain.includes(station),
-    readOnly: station === 'gmail' && view.features.includes(GMAIL_MANAGED) && row.sendEnabled === false,
   });
   return <Summary segments={segments} />;
 }

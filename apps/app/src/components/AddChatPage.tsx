@@ -1,10 +1,8 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { connectsAsConnector, offeredStations, STATION_FORMS, type AttachResult } from '@metro-labs/client/api/attach';
+import { offeredStations, type AttachResult } from '@metro-labs/client/api/attach';
 import { agentsUrl } from '@metro-labs/client/api/client';
-import { GMAIL_MANAGED } from '@metro-labs/client/api/gmail';
 import { routeHash } from '@metro-labs/client/route';
 import { AttachedAccount } from './AttachedAccount.js';
 import { AttachSession } from './AttachSession.js';
@@ -33,8 +31,6 @@ const STEPS: FocusStep[] = [
 
 const rank = (station: string): number => TAIL.indexOf(station);
 
-const inOneStep = (station: string): boolean => Platform.OS === 'web' && STATION_FORMS[station]?.provider !== undefined;
-
 function orderStations(attachable: string[]): string[] {
   return offeredStations(attachable).sort((a, b) => rank(a) - rank(b));
 }
@@ -43,7 +39,6 @@ interface FlowProps {
   project: string;
   agentId: string;
   attachable: string[];
-  features: string[];
   station: string | null;
 }
 
@@ -58,20 +53,20 @@ function EmailRow(): ReactNode {
   );
 }
 
-function Picker({ project, known, email }: { project: string; known: string[]; email: boolean }): ReactNode {
+function Picker({ project, known }: { project: string; known: string[] }): ReactNode {
   const name = useAgentName();
-  if (known.length === 0 && !email)
+  if (known.length === 0)
     return <StateBlock icon="chat" title="No channel to connect" text="This Metro offers no channel you can connect." action={{ label: 'Back to Channels', onPress: () => { go({ kind: 'chats', project }); } }} />;
   return (
     <>
       <FocusIntro title={`Where should ${name} be reachable?`} text="Pick a channel. Next, you sign in or paste its details." />
       <StationPicker stations={known} hrefOf={(station) => routeHash({ kind: 'add-chat', project, station })} />
-      {email ? <EmailRow /> : null}
+      <EmailRow />
     </>
   );
 }
 
-function AddChatFlow({ project, agentId, attachable, features, station }: FlowProps): ReactNode {
+function AddChatFlow({ project, agentId, attachable, station }: FlowProps): ReactNode {
   const client = useQueryClient();
   const [result, setResult] = useState<AttachResult | null>(null);
   const attach = useAttach(agentId);
@@ -96,9 +91,9 @@ function AddChatFlow({ project, agentId, attachable, features, station }: FlowPr
   const step = result !== null ? 'done' : pending !== null || picked !== null ? 'connect' : 'pick';
   const body = (): ReactNode => {
     if (result !== null) return <AttachedAccount result={result} onDismiss={close} />;
-    if (pending !== null) return <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} opened={attach.opened} onUpdate={attach.update} onDone={done} onClose={close} />;
-    if (picked === null) return <Picker project={project} known={known} email={attachable.some(connectsAsConnector)} />;
-    return <StationForm key={picked} station={picked} gmailManaged={features.includes(GMAIL_MANAGED)} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { if (inOneStep(picked)) attach.startInTab(picked, fields); else attach.start(picked, fields); }} />;
+    if (pending !== null) return <AttachSession agentId={agentId} base={attach.base} identity={attach.identity} session={pending} onUpdate={attach.update} onDone={done} onClose={close} />;
+    if (picked === null) return <Picker project={project} known={known} />;
+    return <StationForm key={picked} station={picked} busy={attach.busy} error={attach.error} onBack={back} onStart={(fields) => { attach.start(picked, fields); }} />;
   };
   return (
     <FocusFrame title="Add channel" onClose={close} steps={STEPS} step={step} onStep={step === 'connect' && pending === null ? back : undefined}>
@@ -125,5 +120,5 @@ export function AddChatPage({ project, station }: { project: string; station?: s
         )}
       </FocusFrame>
     );
-  return <AddChatFlow key={`${agentsUrl()}/${agent.id}`} project={project} agentId={agent.id} attachable={data.attachable} features={data.features} station={station ?? null} />;
+  return <AddChatFlow key={`${agentsUrl()}/${agent.id}`} project={project} agentId={agent.id} attachable={data.attachable} station={station ?? null} />;
 }

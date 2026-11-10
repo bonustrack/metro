@@ -15,7 +15,7 @@ import { Item } from './ui/Item.js';
 import { Readable } from './ui/Layout.js';
 import { pickText } from '../lib/files.js';
 
-const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose. Exports skip Gmail logins managed by Metro, so reconnect those mailboxes after.';
+const HOW = 'Opens in your browser with its passphrase. Nothing is sent until you choose. Gmail and Outlook channels in an older file are left alone: add those mailboxes in Connectors.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const APPEND = 'Adds what is missing. Nothing already here is replaced.';
 const OVERWRITE = 'Replaces what matches. The rest stays.';

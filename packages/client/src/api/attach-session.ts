@@ -2,7 +2,7 @@ import { accountIdentity, checkAccountIdentity, type AccountIdentity } from '../
 import { filled, isRecord } from '../read.js';
 import { call } from './client.js';
 
-type AttachStep = 'code' | 'password' | 'scan' | 'pair' | 'device' | 'browser';
+type AttachStep = 'code' | 'password' | 'scan' | 'pair';
 
 export interface AttachSession {
   attachId: string;
@@ -12,22 +12,13 @@ export interface AttachSession {
   prompt: string;
   qr: string | null;
   pairingCode: string | null;
-  userCode: string | null;
-  verificationUri: string | null;
-  authorizeUrl: string | null;
   accountId: string | null;
   identity: Record<string, string>;
   activated: boolean;
   error: string | null;
 }
 
-const DEVICE_LOGIN = 'https://microsoft.com/devicelogin';
-
-export function signInPage(uri: string | null): string {
-  return uri?.startsWith('https://') === true ? uri : DEVICE_LOGIN;
-}
-
-const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair', 'device', 'browser'];
+const STEPS: AttachStep[] = ['code', 'password', 'scan', 'pair'];
 
 
 export function toIdentity(value: unknown): Record<string, string> {
@@ -56,9 +47,6 @@ export function toSession(body: unknown): AttachSession {
     prompt: typeof body.prompt === 'string' ? body.prompt : '',
     qr: filled(body.qr),
     pairingCode: filled(body.pairingCode),
-    userCode: filled(body.userCode),
-    verificationUri: filled(body.verificationUri),
-    authorizeUrl: filled(body.authorizeUrl),
     accountId: filled(body.accountId),
     identity: toIdentity(body.identity),
     activated: body.activated === true,
@@ -69,15 +57,6 @@ export function toSession(body: unknown): AttachSession {
 export interface StepBody {
   code?: string;
   password?: string;
-  mode?: 'device';
-}
-
-export function stateOf(authorizeUrl: string): string {
-  try {
-    return new URL(authorizeUrl).searchParams.get('state') ?? '';
-  } catch {
-    return '';
-  }
 }
 
 const sessionPath = (agentId: string, attachId: string): string =>

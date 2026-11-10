@@ -5,7 +5,6 @@ import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth
 import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
 import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
-import { clearInitialSignInReturn, initialSignInReturn } from '../lib/location.js';
 import { location } from '@metro-labs/client/platform';
 import { type Selection } from '@metro-labs/client/selection';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -14,7 +13,6 @@ import { BuildDot } from './BuildDot.js';
 import { Login } from './Login.js';
 import { LegalPage } from './legal/LegalPage.js';
 import { OrganizationSetup } from './OrganizationSetup.js';
-import { SignInReturn } from './SignInReturn.js';
 import { UnlockedPage } from './UnlockedPage.js';
 import { OrganizationGate } from './gates.js';
 import { dropStaleQueries, makeQueryClient } from '../lib/queries.js';
@@ -108,16 +106,12 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
 export function Screen(): ReactNode {
   const palette = useKitPalette();
   const selection = useSelection();
-  const [returned] = useState(initialSignInReturn);
-  useEffect(() => {
-    if (returned === null) clearInitialSignInReturn();
-  }, [returned]);
   const insets = useSafeAreaInsets();
   const legal = selection.kind === 'terms-of-use' || selection.kind === 'privacy-policy';
   const root = [styles.root, { backgroundColor: palette.bg }];
   return (
     <View style={root}>
-      {legal ? <LegalPage kind={selection.kind} /> : returned === null ? <MetroApp selection={selection} /> : <SignInReturn ret={returned} />}
+      {legal ? <LegalPage kind={selection.kind} /> : <MetroApp selection={selection} />}
       <BuildDot bottom={insets.bottom} />
     </View>
   );

@@ -1,3 +1,4 @@
+import { isRetiredStation } from '@metro-labs/core/station-names';
 import { isRecord, recordOf } from '../read.js';
 import {
   createClaudeSkill,
@@ -117,15 +118,17 @@ async function applyStations(
   sections: Set<Section>,
   mode: Mode,
   agent: LocalAgent,
-): Promise<{ channels: number }> {
-  const channels = picked(sections, 'channels', payload.channels);
-  if (channels.length === 0) return { channels: 0 };
+): Promise<{ channels: number; skipped: number }> {
+  const all = picked(sections, 'channels', payload.channels);
+  const channels = all.filter((c) => !isRetiredStation(c.station));
+  const skipped = all.length - channels.length;
+  if (channels.length === 0) return { channels: 0, skipped };
   await restoreBundle({
     version: 1,
     mode,
     agent: { id: agent.id, name: agent.name, stations: channels },
   });
-  return { channels: channels.length };
+  return { channels: channels.length, skipped };
 }
 
 async function applySkills(skills: PackedSkill[], mode: Mode): Promise<{ written: number; skipped: number }> {
@@ -215,10 +218,10 @@ export async function applyPayload(
   const memory = await applyMemory(wanted, mode, known);
   const sessions = await applySessions(transcripts, mode, known);
   return {
-    ...moved,
+    channels: moved.channels,
     skills: skills.written,
     memory: memory.written,
     sessions: sessions.written,
-    skipped: skills.skipped + memory.skipped + sessions.skipped,
+    skipped: moved.skipped + skills.skipped + memory.skipped + sessions.skipped,
   };
 }

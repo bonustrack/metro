@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { CheckBox } from '@stage-labs/kit/react-native/check-box';
+import { isRetiredStation } from '@metro-labs/core/station-names';
 import { useQueryClient } from '@tanstack/react-query';
 import { findAccount, stationFields, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { detachAccount, stationLabel } from '@metro-labs/client/api/attach';
@@ -20,7 +21,6 @@ import { ChannelRules } from './ChannelRules.js';
 import { channelTitle } from './ChannelRow.js';
 import { ChannelDetails, ChannelSetup } from './ChannelSetup.js';
 import { ExceptionsPage } from './ExceptionsPage.js';
-import { GmailAccess } from './GmailAccess.js';
 import { Group } from '../ui/Group.js';
 import { useReceive } from './use-receive.js';
 import { channelLine } from '../../lib/channel-people.js';
@@ -47,7 +47,7 @@ function ChannelMenu({ project, agentId, found, onPairAgain }: Pick<ChannelProps
       items={[...open, ...pair]}
       action="Delete channel"
       title="Delete channel"
-      lines={detachLines(station, row.managed === true)}
+      lines={detachLines(station)}
       word={id}
       failure="Could not delete the channel."
       run={async () => {
@@ -101,10 +101,25 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       {id === null || row.allowlist === null ? null : (
         <ChannelPeople agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle ?? ''} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />
       )}
-      {station === 'gmail' ? <GmailAccess key={`${agentId}/${id ?? ''}`} agentId={agentId} row={row} features={view.features} onSaved={onSaved} /> : null}
       <ChannelRules project={project} agentId={agentId} found={found} view={view} onSaved={onSaved} />
       <ChannelSetup station={station} row={row} agentId={agentId} />
       <ChannelDetails station={station} row={row} />
+    </AgentDeepPage>
+  );
+}
+
+function Moved({ project, agentId, found }: Pick<ChannelProps, 'project' | 'agentId' | 'found'>): ReactNode {
+  const label = stationLabel(found.station);
+  return (
+    <AgentDeepPage
+      project={project}
+      tab="chats"
+      trail={[{ label }]}
+      title={channelTitle(found)}
+      leading={<StationIcon station={found.station} size={AVATAR_SIZE.header} />}
+      action={<ChannelMenu project={project} agentId={agentId} found={found} onPairAgain={null} />}
+    >
+      <StateBlock icon="plug" title={`${label} is a connector now`} text="Add this mailbox in Connectors, then delete this channel." action={{ label: 'Open Connectors', onPress: () => { go({ kind: 'org-connectors' }); } }} />
     </AgentDeepPage>
   );
 }
@@ -134,6 +149,7 @@ export function ChannelPage({ project, accountId, rule }: { project: string; acc
 }
 
 function ChannelView({ props, rule }: { props: ChannelProps; rule: string | undefined }): ReactNode {
+  if (isRetiredStation(props.found.station)) return <Moved project={props.project} agentId={props.agentId} found={props.found} />;
   const target = rule === undefined ? null : ruleTarget(rule);
   if (rule === 'exceptions' || (target !== null && targetTool(target) !== null)) return <ExceptionsPage {...props} />;
   return <ChannelDetail {...props} />;

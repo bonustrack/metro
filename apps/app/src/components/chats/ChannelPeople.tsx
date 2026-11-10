@@ -11,7 +11,7 @@ import { SAVE_FAILED } from './people-text.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
+  approverNames, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
 } from '../../lib/channel-people.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError } from '../../lib/queries.js';
@@ -39,8 +39,8 @@ function Check({ on }: { on: boolean }): ReactNode {
   return on ? <Icon name="check" size={MARK} color={palette.link} /> : null;
 }
 
-function anyoneNote(chat: boolean, name: string): string {
-  return chat ? `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.` : `Anyone who writes here reaches ${name}.`;
+function anyoneNote(name: string): string {
+  return `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.`;
 }
 
 function Questions({ people, handle }: { people: Person[]; handle: string }): ReactNode {
@@ -55,7 +55,6 @@ function Questions({ people, handle }: { people: Person[]; handle: string }): Re
 interface PeopleListProps {
   people: Person[];
   heading: string;
-  chat: boolean;
   busy: boolean;
   error: string | null;
   onApprove: (id: string, approves: boolean) => void;
@@ -63,14 +62,14 @@ interface PeopleListProps {
   onAdd: () => void;
 }
 
-function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, onAdd }: PeopleListProps): ReactNode {
+function PeopleList({ people, heading, busy, error, onApprove, onRemove, onAdd }: PeopleListProps): ReactNode {
   const palette = useKitPalette();
   const name = useAgentName();
   return (
     <Group
       label={heading}
-      action={chat ? <Text size="xs" color="secondary">Can approve</Text> : undefined}
-      note={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
+      action={<Text size="xs" color="secondary">Can approve</Text>}
+      note={`People who can approve say yes or no when ${name} asks first.`}
       error={error}
     >
       {people.map((person) => (
@@ -81,8 +80,8 @@ function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, o
   );
 }
 
-function whoNote(editing: boolean, empty: boolean, chat: boolean, name: string): string | undefined {
-  if (!editing) return anyoneNote(chat, name);
+function whoNote(editing: boolean, empty: boolean, name: string): string | undefined {
+  if (!editing) return anyoneNote(name);
   return empty ? NOBODY : undefined;
 }
 
@@ -98,7 +97,6 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
   const [addError, setAddError] = useState<string | null>(null);
   const restricted = writersOf(allowlist) === 'some';
   const editing = restricted || restricting;
-  const chat = approvesInChat(station);
   const people = peopleOf({ station, entries, approvers, cards, seen: [], technical });
 
   const save = (next: string[], nextApprovers: string[], report: Report, after?: () => void): void => {
@@ -137,7 +135,7 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
 
   return (
     <>
-      <Group label="Who can write" note={whoNote(editing, entries.length === 0, chat, name)} error={editing ? null : error}>
+      <Group label="Who can write" note={whoNote(editing, entries.length === 0, name)} error={editing ? null : error}>
         <Item title="Only these people" trailing={<Check on={editing} />} chevron={false} onPress={() => { setError(null); setRestricting(true); }} />
         <Item title="Anyone" trailing={<Check on={!editing} />} chevron={false} onPress={anyone} />
       </Group>
@@ -145,7 +143,6 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
         <PeopleList
           people={people}
           heading="People"
-          chat={chat}
           busy={busy}
           error={error}
           onApprove={(id, yes) => { save(entries, withApprover(approvers, id, yes), setError); }}
@@ -153,7 +150,7 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
           onAdd={() => { setAddError(null); setAdding(true); }}
         />
       ) : null}
-      {chat && editing ? <Questions people={people} handle={handle} /> : null}
+      {editing ? <Questions people={people} handle={handle} /> : null}
       {adding ? (
         <AddPerson agentId={agentId} station={station} accountId={accountId} entries={entries} busy={busy} error={addError} onAdd={add} onError={setAddError} onClose={() => { setAdding(false); }} />
       ) : null}

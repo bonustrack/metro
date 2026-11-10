@@ -18,12 +18,9 @@ import {
   type AttachSession as Session,
   type StepBody as StepInput,
 } from '@metro-labs/client/api/attach-session';
-import { STATION_FORMS, stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
-import { DeviceSignIn } from './DeviceSignIn.js';
-import { BrowserSignIn } from './BrowserSignIn.js';
+import { stationLabel, type AttachResult } from '@metro-labs/client/api/attach';
 import { Actions } from './ui/Actions.js';
 import { logError } from '../lib/log.js';
-import type { SignInOpened } from '../lib/use-attach.js';
 
 const POLL_MS = 2_000;
 const UNSAVED = 'Nothing is saved until you finish signing in. An unfinished sign-in expires after a few minutes.';
@@ -36,7 +33,6 @@ interface AttachSessionProps {
   onUpdate: (session: Session) => void;
   onDone: (result: AttachResult) => void;
   onClose: () => void;
-  opened?: SignInOpened | null;
 }
 
 function Waiting({ label }: { label: string }): ReactNode {
@@ -91,68 +87,8 @@ function CodeEntry({
   );
 }
 
-interface StepProps {
-  agentId: string;
-  base: string;
-  identity: AccountIdentity | null;
-  session: Session;
-  busy: boolean;
-  onSubmit: (input: StepInput) => void;
-  opened: SignInOpened | null;
-}
-
-function BrowserStep({
-  agentId,
-  base,
-  identity,
-  session,
-  busy,
-  onSubmit,
-  opened,
-}: StepProps): ReactNode {
-  if (session.step === 'device')
-    return session.userCode === null ? (
-      <Waiting label="Asking Microsoft for a sign-in code." />
-    ) : (
-      <DeviceSignIn code={session.userCode} uri={session.verificationUri} />
-    );
-  const form = STATION_FORMS[session.station];
-  const provider = form?.provider ?? stationLabel(session.station);
-  return session.authorizeUrl === null ? (
-    <Waiting label={`Preparing the ${provider} sign-in.`} />
-  ) : (
-    <BrowserSignIn
-      agentId={agentId}
-      base={base}
-      identity={identity}
-      attachId={session.attachId}
-      authorizeUrl={session.authorizeUrl}
-      provider={provider}
-      busy={busy}
-      openedBefore={opened}
-      onUseCode={
-        form?.codeFallback === true
-          ? () => {
-              onSubmit({ mode: 'device' });
-            }
-          : null
-      }
-    />
-  );
-}
-
-function StepBody({
-  agentId,
-  base,
-  identity,
-  session,
-  busy,
-  onSubmit,
-  opened,
-}: StepProps): ReactNode {
+function StepBody({ session, busy, onSubmit }: { session: Session; busy: boolean; onSubmit: (input: StepInput) => void }): ReactNode {
   const { step, qr, pairingCode } = session;
-  if (step === 'browser' || step === 'device')
-    return <BrowserStep agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={onSubmit} opened={opened} />;
   if (step === 'scan')
     return qr === null ? (
       <Waiting label="Waiting for WhatsApp to hand over a QR code." />
@@ -184,7 +120,7 @@ function StepBody({
 }
 
 export function AttachSession(props: AttachSessionProps): ReactNode {
-  const { agentId, base, identity, session, onUpdate, onDone, onClose, opened = null } = props;
+  const { agentId, base, identity, session, onUpdate, onDone, onClose } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(true);
@@ -249,7 +185,7 @@ export function AttachSession(props: AttachSessionProps): ReactNode {
           {session.prompt}
         </Text>
       </Column>
-      <StepBody agentId={agentId} base={base} identity={identity} session={session} busy={busy} onSubmit={submit} opened={opened} />
+      <StepBody session={session} busy={busy} onSubmit={submit} />
       <Actions error={failed ?? error} note={UNSAVED} cancel={{ label: session.status === 'pending' ? 'Cancel' : 'Close', onPress: onClose }} />
     </Column>
   );
