@@ -6,12 +6,8 @@ const HELD_MAX = 5_000;
 const BURST = 30;
 const PER_SECOND = 10;
 
-export interface HeldReceiver {
-  row: SubscriptionRow;
+interface Held {
   secret: string;
-}
-
-interface Held extends HeldReceiver {
   at: number;
 }
 
@@ -46,28 +42,26 @@ export class Receivers {
     this.held.delete(id);
   }
 
-  async find(id: string): Promise<HeldReceiver | null | 'busy'> {
+  async find(id: string): Promise<{ secret: string } | 'busy' | null> {
     const held = this.held.get(id);
     if (held !== undefined && this.now() - held.at < HELD_MS) return held;
     if (!this.known.has(id) && !this.spend()) return 'busy';
     return this.load(id);
   }
 
-  async reload(id: string, stale: HeldReceiver): Promise<HeldReceiver | null> {
-    if (!this.spend()) return null;
-    const fresh = await this.load(id);
-    return fresh === null || (fresh.row.secret === stale.row.secret && fresh.row.serverId === stale.row.serverId) ? null : fresh;
+  async reload(id: string, stale: string): Promise<string | null> {
+    const fresh = this.spend() ? await this.load(id) : null;
+    return fresh === null || fresh.secret === stale ? null : fresh.secret;
   }
 
-  private async load(id: string): Promise<HeldReceiver | null> {
+  private async load(id: string): Promise<Held | null> {
     const row = await this.store.find(id);
+    this.held.delete(id);
     if (row === null) {
-      this.held.delete(id);
       this.known.delete(id);
       return null;
     }
-    const held = { row, secret: webhookSecretOf(this.key, row), at: this.now() };
-    this.held.delete(id);
+    const held = { secret: webhookSecretOf(this.key, row), at: this.now() };
     this.held.set(id, held);
     this.known.add(id);
     for (const oldest of this.held.keys()) {

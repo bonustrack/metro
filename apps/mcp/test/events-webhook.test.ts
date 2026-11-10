@@ -4,8 +4,8 @@ import { MCP_RECEIVER_PATH } from '@metro-labs/http/mcp-server-protocol';
 import { newWebhookSecret, webhookSignature } from '@metro-labs/http/standard-webhooks';
 import { connectorAgents, connectorEvents, connectorSubscriptions, mcpCalls } from '@metro-labs/connectors/db/schema';
 import type { SubscriptionRow } from '@metro-labs/connectors/db/connector-subscriptions';
-import { reconcileSubscriptions } from '../src/subscriptions.ts';
-import { ACCESS_LOST, RETRY_MS } from '../src/subscription-state.ts';
+import { connect } from 'node:net';
+import { ACCESS_LOST, reconcileSubscriptions, RETRY_MS } from '../src/subscriptions.ts';
 import { startEventsServer, type FakeEventsServer } from './events-server.ts';
 import { addConnector, assign, enrollAgent, headerSecret, PGLITE_START_MS, rewrite, startApp, testDb, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 
@@ -119,17 +119,35 @@ describe('refusing a bad request is cheap', () => {
     expect((await vendor.deliver(vendor.only(), { eventId: 'still-fine', data: mail('a@example.com') })).status).toBe(200);
   });
 
-  test('a wrong signature, another subscription\'s secret and a wrong subscription id are 401, and nothing is kept', async () => {
+  test('a wrong signature and another subscription\'s secret are 401, nothing is kept, and re-reading the secret draws on the budget', async () => {
     const sub = vendor.only();
     const event = { eventId: 'm1', data: mail('a@example.com') };
     expect((await vendor.deliver(sub, event, { secrets: [newWebhookSecret()] })).status).toBe(401);
     expect((await vendor.deliver(sub, event, { signature: 'v1,AAAA' })).status).toBe(401);
     expect((await vendor.deliver(sub, event, { signature: 'not-a-signature' })).status).toBe(401);
-    expect((await vendor.deliver(sub, event, { subscriptionId: 'sub_someone_else' })).status).toBe(401);
     expect(await kept()).toEqual([]);
-    expect(finds).toBe(5);
+    expect(finds).toBe(3);
     for (let at = 0; at < 40; at += 1) expect((await vendor.deliver(sub, event, { signature: 'v1,AAAA' })).status).toBe(401);
-    expect(finds).toBe(31);
+    expect(finds).toBe(30);
+  });
+
+  test('slow unsigned bodies on one address hold only that address: another subscription is still served', async () => {
+    const second = await enrollAgent(held.db, 'agent000002');
+    await assign(held.db, CONNECTOR, second.row.agent);
+    await want([MAIL], ['*'], second.row.agent);
+    await reconcileSubscriptions(app.deps);
+    const [mine, other] = [...vendor.subscriptions.values()];
+    if (mine === undefined || other === undefined) throw new Error('expected two subscriptions');
+    const target = new URL(mine.url.replace('https://mcp.metro.box', app.base));
+    const head = `POST ${target.pathname} HTTP/1.1\r\nhost: ${target.host}\r\nwebhook-id: msg_slow\r\nwebhook-timestamp: ${String(Math.floor(clock / 1000))}\r\nwebhook-signature: v1,AAAA\r\nx-mcp-subscription-id: sub_x\r\ncontent-length: 1000\r\n\r\n{`;
+    const sockets = Array.from({ length: 4 }, () => connect(Number(target.port), target.hostname, function send() { this.write(head); }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    try {
+      expect((await vendor.deliver(mine, { eventId: 'm1', data: mail('a@example.com') })).status).toBe(503);
+      expect((await vendor.deliver(other, { eventId: 'm1', data: mail('a@example.com') })).status).toBe(200);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+    }
   });
 });
 
@@ -149,7 +167,7 @@ describe('a signed delivery', () => {
     expect(posted.status).toBe(200);
     const rows = await kept();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ agent: agent.row.agent, connector: CONNECTOR, event: MAIL, eventId: 'm1', kind: 'event', state: 'waiting', receivedAt: clock, settledAt: null });
+    expect(rows[0]).toMatchObject({ agent: agent.row.agent, connector: CONNECTOR, event: MAIL, eventId: 'm1', receivedAt: clock, deliveredAt: null });
     expect(rows[0]?.body).toMatch(/^v1\./);
     expect(JSON.stringify(rows)).not.toContain(MARKER);
     expect(JSON.stringify(rows)).not.toContain('a@example.com');
@@ -232,11 +250,11 @@ describe('who can write', () => {
       expect(rows).toHaveLength(1);
       expect((await row()).cursor).toBe('cursor-gate');
       if (entry.outcome === 'waiting') {
-        expect(rows[0]).toMatchObject({ state: 'waiting' });
+        expect(rows[0]?.body).toMatch(/^v1\./);
         expect(await held.db.select().from(mcpCalls)).toEqual([]);
         return;
       }
-      expect(rows[0]).toMatchObject({ state: 'dropped', body: null, settledAt: clock });
+      expect(rows[0]).toMatchObject({ body: null, receivedAt: clock });
       const calls = await recorded(1);
       expect(calls).toHaveLength(1);
       expect(calls[0]).toMatchObject({ kind: 'event', agent: agent.row.agent, connector: CONNECTOR, connectorKey: 'work-mail', connectorName: 'Work mail', tool: MAIL, outcome: entry.outcome });
@@ -251,27 +269,24 @@ describe('who can write', () => {
     const page = [...vendor.subscriptions.values()].find((sub) => sub.name === 'page.updated');
     if (page === undefined) throw new Error('no page subscription');
     expect((await vendor.deliver(page, { eventId: 'p1', data: { title: 'Roadmap' } })).status).toBe(200);
-    expect((await kept())[0]).toMatchObject({ event: 'page.updated', eventId: 'p1', state: 'dropped' });
+    expect((await kept())[0]).toMatchObject({ event: 'page.updated', eventId: 'p1', body: null });
     await want([MAIL, 'page.updated'], ['*']);
     expect((await vendor.deliver(page, { eventId: 'p2', data: { title: 'Roadmap' } })).status).toBe(200);
-    expect((await kept()).map((event) => `${event.eventId} ${event.state}`).sort()).toEqual(['p1 dropped', 'p2 waiting']);
+    expect((await kept()).map((event) => `${event.eventId} ${event.body === null ? 'dropped' : 'waiting'}`).sort()).toEqual(['p1 dropped', 'p2 waiting']);
   });
 });
 
 describe('control envelopes', () => {
-  test('a gap saves the fresh position and leaves the agent one note, however often it is sent', async () => {
-    const sub = vendor.only();
-    expect((await vendor.post(sub, { type: 'gap', cursor: 'cursor-fresh' }, { id: 'msg_gap_1' })).status).toBe(200);
-    expect((await vendor.post(sub, { type: 'gap', cursor: 'cursor-fresh' }, { id: 'msg_gap_1' })).status).toBe(200);
+  test('a gap saves the fresh position and is one activity row; nothing waits for the agent', async () => {
+    expect((await vendor.post(vendor.only(), { type: 'gap', cursor: 'cursor-fresh' })).status).toBe(200);
     expect((await row()).cursor).toBe('cursor-fresh');
-    const rows = await kept();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: 'gap', state: 'waiting', event: MAIL });
+    expect(await kept()).toEqual([]);
+    expect(await recorded(1)).toMatchObject([{ kind: 'event', tool: MAIL, outcome: 'skipped', connector: CONNECTOR }]);
   });
 
   test('terminated because access was lost: the subscription waits for a new sign-in', async () => {
     expect((await vendor.post(vendor.only(), { type: 'terminated', error: { code: -32024, message: 'Forbidden', data: { reason: 'signed_out' } } })).status).toBe(200);
-    expect(await row()).toMatchObject({ status: 'signed_out', error: ACCESS_LOST, serverId: null, refreshBefore: null });
+    expect(await row()).toMatchObject({ status: 'signed_out', error: ACCESS_LOST });
     clock += 60 * 60_000;
     vendor.requests.length = 0;
     expect(await reconcileSubscriptions(app.deps)).toBe(0);
@@ -280,11 +295,48 @@ describe('control envelopes', () => {
 
   test('terminated for another reason: Metro subscribes again a minute later', async () => {
     expect((await vendor.post(vendor.only(), { type: 'terminated', error: { code: -32026, message: 'Unsupported', data: { feature: 'payloadSchema', reason: 'schema_changed' } } })).status).toBe(200);
-    expect(await row()).toMatchObject({ status: 'pending', error: null, serverId: null, nextAt: clock + RETRY_MS });
+    expect(await row()).toMatchObject({ status: 'pending', error: null, nextAt: clock + RETRY_MS });
     clock += RETRY_MS;
     vendor.requests.length = 0;
     expect(await reconcileSubscriptions(app.deps)).toBe(1);
     expect(vendor.requests.map((request) => request.method)).toEqual(['events/list', 'events/subscribe']);
     expect((await row()).status).toBe('active');
+  });
+});
+
+describe('what Metro will not keep yet, or ever', () => {
+  test('an event that arrives before the first subscribe answer is recorded is asked to come again, then gated with the pointers', async () => {
+    const sub = await row();
+    await held.db.update(connectorSubscriptions).set({ sender: null }).where(eq(connectorSubscriptions.id, sub.id));
+    await want([MAIL], ['boss@example.com']);
+    const early = await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail('boss@example.com') });
+    expect(early.status).toBe(503);
+    expect(await kept()).toEqual([]);
+    await held.db.update(connectorSubscriptions).set({ sender: sub.sender }).where(eq(connectorSubscriptions.id, sub.id));
+    expect((await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail('boss@example.com') })).status).toBe(200);
+    expect((await kept())[0]?.body).toMatch(/^v1\./);
+  });
+
+  test('past a thousand events waiting for one agent, the next is asked to come again', async () => {
+    const waiting = app.deps.events.waiting;
+    app.deps.events.waiting = () => Promise.resolve(1000);
+    const full = await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail('a@example.com') });
+    expect(full.status).toBe(503);
+    expect(await kept()).toEqual([]);
+    app.deps.events.waiting = waiting;
+    expect((await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail('a@example.com') })).status).toBe(200);
+  });
+
+  test('data nested too deep and an event id with a line break are refused for good, not retried for ever', async () => {
+    const at = new Date(clock).toISOString();
+    const deep = `{"eventId":"deep","name":"${MAIL}","timestamp":"${at}","data":${'{"a":'.repeat(40_000)}1${'}'.repeat(40_000)}}`;
+    expect((await vendor.post(vendor.only(), null, { raw: deep })).status).toBe(410);
+    expect((await vendor.deliver(vendor.only(), { eventId: 'bad\nid', data: mail('a@example.com') })).status).toBe(410);
+    expect(await kept()).toEqual([]);
+  });
+
+  test('the address selects the subscription: the id header must be there, its value is not compared', async () => {
+    expect((await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail('a@example.com') }, { subscriptionId: 'sub_another_derivation' })).status).toBe(200);
+    expect((await vendor.deliver(vendor.only(), { eventId: 'm2', data: mail('a@example.com') }, { omit: ['x-mcp-subscription-id'] })).status).toBe(401);
   });
 });

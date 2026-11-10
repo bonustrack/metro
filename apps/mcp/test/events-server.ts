@@ -2,12 +2,18 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { EVENT_ERROR, EVENTS_EXTENSION, SENDER_META } from '@metro-labs/http/mcp-events';
-import { isWebhookSecret, webhookSignature } from '@metro-labs/http/standard-webhooks';
+import { webhookSignature } from '@metro-labs/http/standard-webhooks';
 import { HOST, listen } from './helpers.ts';
 
 const DAY_MS = 24 * 60 * 60_000;
 const MIN_TTL_MS = 10 * 60_000;
 const DUAL_SIGN_MS = 10 * 60_000;
+
+function isWebhookSecret(secret: string): boolean {
+  const encoded = /^whsec_([A-Za-z0-9+/]+={0,2})$/.exec(secret)?.[1] ?? '';
+  const bytes = Buffer.from(encoded, 'base64');
+  return bytes.length >= 24 && bytes.length <= 64 && bytes.toString('base64') === encoded;
+}
 
 export interface EventsRequest {
   method: string;

@@ -1,6 +1,5 @@
 import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { errMsg, log } from '@metro-labs/core/log';
-import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
 import { listRemoteServer, type RemoteServer, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { publicEvents, publicIcons, publicTools } from '@metro-labs/connectors/catalogue';
@@ -11,6 +10,7 @@ import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
 import { CallError } from './errors.js';
 import type { ToolGroup } from './policy.js';
+import { deadlineFetch } from './vendor.js';
 
 export const FIRST_LIST_WAIT_MS = 8_000;
 const LIST_DEADLINE_MS = 30_000;
@@ -32,15 +32,10 @@ export function failureOf(err: unknown, name: string): CallError {
 
 export const groupsOf = (tools: RemoteTool[]): Record<string, ToolGroup> => Object.fromEntries(tools.map((tool) => [tool.name, tool.readOnly ? 'read' : 'write']));
 
-const bounded = (fetch: FetchLike): FetchLike => {
-  const deadline = AbortSignal.timeout(LIST_DEADLINE_MS);
-  return (url, init) => fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) });
-};
-
 function refresh(deps: McpDeps, identity: DeliveryIdentity, connector: AgentConnector): Promise<ToolListing> {
   const list = (): Promise<RemoteServer> =>
     withCredential(deps, identity, connector.id, async (target) => {
-      const server = await listRemoteServer(target.url, target.auth, bounded(deps.fetch));
+      const server = await listRemoteServer(target.url, target.auth, deadlineFetch(deps.fetch, LIST_DEADLINE_MS));
       return { tools: publicTools(server.tools, target.secret), icons: publicIcons(server.icons, target.secret), events: publicEvents(server.events, target.secret) };
     });
   return deps.toolLists.refresh(connector.id, list, (err) => {

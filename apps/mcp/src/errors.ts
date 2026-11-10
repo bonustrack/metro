@@ -11,10 +11,10 @@ export class CallError extends Error {
 
 export class VendorRpcError extends CallError {
   constructor(
-    message: string,
+    readonly said: string,
     readonly rpcCode: number,
     readonly data: unknown,
   ) {
-    super('vendor_error', message);
+    super('vendor_error', `The connector answered with an error: ${said}`);
   }
 }

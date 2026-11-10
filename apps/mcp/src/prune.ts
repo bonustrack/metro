@@ -1,7 +1,7 @@
 import { errMsg, log } from '@metro-labs/core/log';
-import { expireEvents, pruneEvents } from '@metro-labs/connectors/db/connector-events';
+import { pruneEvents } from '@metro-labs/connectors/db/connector-events';
 import type { Database } from '@metro-labs/connectors/db/database';
-import { isNotMigrated } from '@metro-labs/connectors/db/errors';
+import { failureText, isNotMigrated } from '@metro-labs/connectors/db/errors';
 import { pruneApprovals } from '@metro-labs/connectors/db/mcp-approvals';
 import type { McpDeps } from './deps.js';
 import { recordEvent } from './events.js';
@@ -19,18 +19,17 @@ export async function pruneOnce(db: () => Database, now: () => number): Promise<
   }
 }
 
-type EventPruneDeps = Pick<McpDeps, 'events' | 'subscriptions' | 'calls' | 'now'>;
+type EventPruneDeps = Pick<McpDeps, 'events' | 'calls' | 'now'>;
 
 export async function pruneEventsOnce(deps: EventPruneDeps, db: () => Database): Promise<{ expired: number; removed: number } | null> {
   try {
-    const expired = await expireEvents(db(), deps.now());
+    const { expired, removed } = await pruneEvents(db(), deps.now());
     for (const row of expired) recordEvent(deps, row, 'expired', 0);
-    const removed = await pruneEvents(db(), deps.now());
-    if (expired.length + removed > 0) log.info({ expired: expired.length, removed }, 'mcp: expired connector events no agent took in 7 days, and removed settled ones older than 7 days');
+    if (removed > 0) log.info({ expired: expired.length, removed }, 'mcp: removed connector events older than 7 days; those no agent took are recorded as expired');
     return { expired: expired.length, removed };
   } catch (err) {
     if (isNotMigrated(err)) log.info('mcp: the connector event tables are not migrated yet, so there is nothing to expire');
-    else log.warn({ err: errMsg(err) }, 'mcp: could not expire old connector events');
+    else log.warn({ err: failureText(err) }, 'mcp: could not expire old connector events');
     return null;
   }
 }
@@ -38,7 +37,7 @@ export async function pruneEventsOnce(deps: EventPruneDeps, db: () => Database):
 export function startEventPruning(deps: EventPruneDeps, db: () => Database, everyMs = PRUNE_EVERY_MS): () => void {
   const run = (): void => {
     pruneEventsOnce(deps, db).catch((err: unknown) => {
-      log.warn({ err: errMsg(err) }, 'mcp: could not expire old connector events');
+      log.warn({ err: failureText(err) }, 'mcp: could not expire old connector events');
     });
   };
   run();

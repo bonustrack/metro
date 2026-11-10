@@ -82,7 +82,7 @@ describe('POST /v1/inbox', () => {
     const at = new Date(clock - 5000).toISOString();
     await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail(), timestamp: at });
     const row = (await events())[0];
-    expect(await poll()).toEqual([{ id: row?.id ?? '', connector: { id: CONNECTOR, key: 'work-mail', name: 'Work mail' }, event: MAIL, timestamp: at, kind: 'event', eventId: 'm1', data: mail(), sender: 'boss@example.com', senderVerified: true }]);
+    expect(await poll()).toEqual([{ id: row?.id ?? '', connector: { id: CONNECTOR, key: 'work-mail', name: 'Work mail' }, event: MAIL, timestamp: at, eventId: 'm1', data: mail(), sender: 'boss@example.com', senderVerified: true }]);
     expect(await poll(other)).toEqual([]);
   });
 
@@ -96,7 +96,7 @@ describe('POST /v1/inbox', () => {
     expect(await held.db.select().from(mcpCalls)).toEqual([]);
     clock += 4000;
     expect(await poll(agent, [{ id: first[0]?.id ?? '', outcome: 'delivered' }])).toEqual([]);
-    expect((await events())[0]).toMatchObject({ state: 'delivered', body: null, settledAt: clock });
+    expect((await events())[0]).toMatchObject({ body: null });
     const calls = await recorded(1);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ kind: 'event', agent: agent.row.agent, connector: CONNECTOR, connectorKey: 'work-mail', connectorName: 'Work mail', tool: MAIL, outcome: 'delivered', ms: EVENT_REDELIVER_MS + 4001, at: clock });
@@ -111,7 +111,7 @@ describe('POST /v1/inbox', () => {
     await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail() });
     const first = await poll();
     expect(await poll(agent, [{ id: first[0]?.id ?? '', outcome: 'paused' }])).toEqual([]);
-    expect((await events())[0]).toMatchObject({ state: 'dropped', body: null });
+    expect((await events())[0]).toMatchObject({ body: null });
     expect((await recorded(1))[0]).toMatchObject({ kind: 'event', outcome: 'dropped_paused' });
     clock += EVENT_REDELIVER_MS + 1;
     expect(await poll()).toEqual([]);
@@ -121,35 +121,36 @@ describe('POST /v1/inbox', () => {
     await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail() });
     const id = (await events())[0]?.id ?? '';
     await poll(other, [{ id, outcome: 'delivered' }]);
-    expect((await events())[0]).toMatchObject({ state: 'waiting' });
+    expect((await events())[0]?.body).toMatch(/^v1\./);
   });
 
-  test('gives at most a few events at a time, oldest first', async () => {
-    for (let at = 0; at < EVENTS_PER_POLL + 2; at += 1) {
-      clock += 1;
-      await vendor.deliver(vendor.only(), { eventId: `m${String(at)}`, data: mail() });
-    }
+  test('gives at most a few events at a time, in the order they were taken, even inside one millisecond', async () => {
+    for (let at = 0; at < EVENTS_PER_POLL + 4; at += 1) await vendor.deliver(vendor.only(), { eventId: `m${String(at)}`, data: mail() });
     const first = await poll();
-    expect(first.map((event) => (event.kind === 'event' ? event.eventId : ''))).toEqual(['m0', 'm1', 'm2', 'm3']);
-    const rest = await poll(agent, first.map((event) => ({ id: event.id, outcome: 'delivered' })));
-    expect(rest.map((event) => (event.kind === 'event' ? event.eventId : ''))).toEqual(['m4', 'm5']);
-  });
-
-  test('a gap reaches the agent as a note and is recorded as skipped', async () => {
-    await vendor.post(vendor.only(), { type: 'gap', cursor: 'cursor-fresh' });
-    const got = await poll();
-    expect(got).toHaveLength(1);
-    expect(got[0]).toMatchObject({ kind: 'gap', event: MAIL, connector: { key: 'work-mail' } });
-    await poll(agent, [{ id: got[0]?.id ?? '', outcome: 'delivered' }]);
-    expect((await recorded(1))[0]).toMatchObject({ kind: 'event', tool: MAIL, outcome: 'skipped' });
+    expect(first.map((event) => event.eventId)).toEqual(['m0', 'm1', 'm2', 'm3']);
+    const second = await poll(agent, first.map((event) => ({ id: event.id, outcome: 'delivered' })));
+    expect(second.map((event) => event.eventId)).toEqual(['m4', 'm5', 'm6', 'm7']);
   });
 
   test('an event for a connector the agent no longer has is dropped, not delivered', async () => {
     await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail() });
     await held.db.delete(connectorAgents).where(eq(connectorAgents.agent, agent.row.agent));
     expect(await poll()).toEqual([]);
-    expect((await events())[0]).toMatchObject({ state: 'dropped', body: null });
-    expect((await recorded(1))[0]).toMatchObject({ kind: 'event', outcome: 'dropped_unassigned', connectorKey: CONNECTOR, connectorName: 'Work mail' });
+    expect((await events())[0]).toMatchObject({ body: null });
+    expect((await recorded(1))[0]).toMatchObject({ kind: 'event', outcome: 'dropped_unassigned', connectorKey: CONNECTOR, connectorName: null });
+  });
+
+  test('two requests for one agent at once hand each event over, and settling twice records it once', async () => {
+    await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail() });
+    const [a, b] = await Promise.all([poll(), poll()]);
+    const got = [...a, ...b];
+    expect(got.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(got.map((event) => event.id)).size).toBe(1);
+    const settled = [{ id: got[0]?.id ?? '', outcome: 'delivered' }];
+    await Promise.all([poll(agent, settled), poll(agent, settled)]);
+    expect(await recorded(1)).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(await held.db.select().from(mcpCalls)).toHaveLength(1);
   });
 });
 
@@ -228,17 +229,19 @@ describe('waiting costs almost nothing', () => {
 });
 
 describe('events no agent took', () => {
-  test('wait seven days, are then recorded as expired, and their rows go a week later', async () => {
+  test('wait seven days, then go and are recorded as expired; a settled one goes at the same age without a second row', async () => {
     await vendor.deliver(vendor.only(), { eventId: 'm1', data: mail() });
-    clock += EVENT_KEEP_MS - 1000;
+    await vendor.deliver(vendor.only(), { eventId: 'm2', data: mail() });
+    const taken = (await poll()).find((event) => event.eventId === 'm2');
+    await poll(agent, [{ id: taken?.id ?? '', outcome: 'delivered' }]);
+    expect(await recorded(1)).toHaveLength(1);
+    clock += EVENT_KEEP_MS - 5000;
     expect(await pruneEventsOnce(app.deps, () => held.db)).toEqual({ expired: 0, removed: 0 });
-    clock += 2000;
-    expect(await pruneEventsOnce(app.deps, () => held.db)).toEqual({ expired: 1, removed: 0 });
-    expect((await events())[0]).toMatchObject({ state: 'expired', body: null });
-    expect((await recorded(1))[0]).toMatchObject({ kind: 'event', tool: MAIL, outcome: 'expired' });
-    expect(await poll()).toEqual([]);
-    clock += EVENT_KEEP_MS + 1000;
-    expect(await pruneEventsOnce(app.deps, () => held.db)).toEqual({ expired: 0, removed: 1 });
+    clock += 6000;
+    expect(await pruneEventsOnce(app.deps, () => held.db)).toEqual({ expired: 1, removed: 2 });
     expect(await events()).toEqual([]);
+    const calls = await recorded(2);
+    expect(calls.map((call) => call.outcome).sort()).toEqual(['delivered', 'expired']);
+    expect(await poll()).toEqual([]);
   });
 });

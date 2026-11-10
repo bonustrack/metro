@@ -36,6 +36,11 @@ interface RpcBody {
   params?: unknown;
 }
 
+export function deadlineFetch(fetch: FetchLike, ms: number): FetchLike {
+  const deadline = AbortSignal.timeout(ms);
+  return (url, init) => fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) });
+}
+
 function parsed(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -78,7 +83,7 @@ async function rpc(target: VendorTarget, session: Session, body: RpcBody, timeou
   if (!isRecord(reply)) throw refused(`${target.url.hostname} answered, but not with an MCP reply`);
   if (isRecord(reply.error)) {
     const message = typeof reply.error.message === 'string' ? reply.error.message.slice(0, MESSAGE_MAX) : 'no message';
-    throw new VendorRpcError(`The connector answered with an error: ${message}`, typeof reply.error.code === 'number' ? reply.error.code : 0, reply.error.data);
+    throw new VendorRpcError(message, typeof reply.error.code === 'number' ? reply.error.code : 0, reply.error.data);
   }
   return isRecord(reply.result) ? reply.result : {};
 }
