@@ -38,6 +38,27 @@ against the same contract file (2026-11-10). What Metro does with it:
 - **Errors** are read by number: InvalidParams -32602, NotFound -32023, Forbidden -32024,
   ResourceExhausted -32025, Unsupported -32026, CallbackEndpointError -32027.
 
+## What Metro expects from a server
+
+Beyond the SEP's own rules, a server works with Metro when:
+
+- `events/list` and `events/subscribe` work in the same MCP session, right after `initialize`,
+  with the connector's credential. Metro reads the list before every subscribe.
+- The handshake happens inside the `events/subscribe` call, is signed with the secret of that
+  call, and carries the `id` the call will return in `X-MCP-Subscription-Id`. Metro waits 30
+  seconds for the call.
+- Every POST carries the four headers. `webhook-id` has only letters, digits, `_` and `-` (256
+  at most), the subscription id is at most 128 printable ASCII characters without a space,
+  `eventId` at most 512 characters, a cursor at most 8,192, the body at most 256 KiB,
+  `timestamp` a date, `data` an object.
+- 401 and 503 mean "send it again later" (a 401 can follow a new sign-in, until the server signs
+  with the new secret; a 503 means Metro could not keep the event or is under load). 410 and
+  413 mean "never again".
+- After a new sign-in Metro sends a new secret on its next subscribe. If the sign-in is another
+  account, the cursor Metro passes belongs to the old one: the server must treat it as unknown,
+  start from now and answer `truncated: true`.
+- `events/unsubscribe` is called with `{name, arguments: {}, delivery: {url}}`.
+
 ## The path of one event
 
 ```
