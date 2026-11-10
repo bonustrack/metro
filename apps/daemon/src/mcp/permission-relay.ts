@@ -28,6 +28,9 @@ export async function metroSend(line: string, text: string): Promise<void> {
   await metroCall(trainOf(line), 'send', { line, text });
 }
 
+export const chatTeller = (line: string | undefined): ((text: string) => Promise<void>) | undefined =>
+  line === undefined ? undefined : (text) => metroSend(line, text);
+
 export interface PermissionRelayDeps {
   mcp: Server;
   relay: InboundRelay;
@@ -99,7 +102,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
       },
       mcp,
       answer(params.request_id),
-      line === undefined ? undefined : async (text) => metroSend(line, text),
+      chatTeller(line),
     );
     if (!held) {
       await answer(params.request_id)('deny');

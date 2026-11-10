@@ -19,7 +19,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { channelLog, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
 import { connectCallBridge } from './call-bridge.js';
-import { connectOwnerRoute, type Publish } from './owner-route.js';
+import { connectOwnerRoute, type OwnerRoute } from './owner-route.js';
 import { relayLine } from './permission-relay.js';
 import { publishEvent } from '@metro-labs/core/events';
 import { handleIncomingDiagnostic } from './diagnostics.js';
@@ -114,7 +114,7 @@ function promptLineIn(session: McpSession | undefined, requestId: string, callLi
   return relayLine({ relay: session.relay, inScope: (line) => session.inScope(line), live: session.live, log: channelLog }, requestId, callLine);
 }
 
-export async function createMetroMcp(options: { liveEvents?: boolean; publish?: Publish } = {}): Promise<{
+export async function createMetroMcp(options: { liveEvents?: boolean; publish?: OwnerRoute['publish'] } = {}): Promise<{
   httpHandler: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   startInbound: () => void;
   setLiveEvents: (on: boolean) => void;

@@ -1,7 +1,7 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import { decideTool, strictest as strictestOf, type ConnectorDecision, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
 import { isRecord } from '@metro-labs/core/is-record';
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import type { ToolGroup } from '@metro-labs/core/stations/types';
 
 export type Access = ConnectorDecision;
@@ -93,15 +93,19 @@ export function normalizePolicy(raw: unknown): ToolPolicy {
 const stored = new Map<string, { target: PolicyTarget; policy: ToolPolicy }>();
 const listeners = new Set<() => void>();
 
-export function onPoliciesChanged(listener: () => void): () => void {
+export function onPoliciesChanged(listener: () => void): void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
 }
 
 export function setPolicies(kind: PolicyTarget['kind'], entries: readonly (readonly [PolicyTarget, ToolPolicy])[]): void {
   for (const key of [...stored.keys()]) if (key.startsWith(`${kind}:`)) stored.delete(key);
   for (const [target, policy] of entries) if (target.kind === kind) stored.set(targetKey(target), { target, policy });
-  for (const listener of listeners) listener();
+  for (const listener of listeners)
+    try {
+      listener();
+    } catch (err) {
+      log.warn({ err: errMsg(err) }, 'policy: a listener of rule changes failed');
+    }
 }
 
 export const storedPolicy = (target: PolicyTarget): ToolPolicy | undefined => stored.get(targetKey(target))?.policy;

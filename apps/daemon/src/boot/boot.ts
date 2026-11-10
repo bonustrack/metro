@@ -166,9 +166,7 @@ installBearerSessions(agentsDir(), localOwner);
   startAttachReaper();
   watchMcpServer({
     owner: localOwner,
-    hold: (approval, answer) => {
-      holdServerApproval(approval, answer, emit);
-    },
+    hold: holdServerApproval,
     registered: () => {
       refreshConnectorTools().catch((err: unknown) => {
         log.warn({ err: errMsg(err) }, 'mcp-server: the connector tools could not be read after the token was registered');

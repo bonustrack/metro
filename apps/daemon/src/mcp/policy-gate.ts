@@ -3,7 +3,7 @@ import { str } from '@metro-labs/core/str';
 import type { ToolResult } from '@metro-labs/core/stations/types';
 import { accountFromLine, knownAccounts } from '../agents/map.js';
 import { policyFor, storedPolicy, strictest, type Access, type PolicyTarget } from '../policy/policy.js';
-import { askOwner, withdrawAsksFor } from './channel-asks.js';
+import { askOwner } from './channel-asks.js';
 import { errResult } from './ctx.js';
 import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
@@ -58,9 +58,9 @@ export function channelDecision(name: string, a: Record<string, unknown>): Polic
 
 export function policyGate(name: string, a: Record<string, unknown>, approval?: unknown): ToolResult | undefined {
   const { access, target } = channelDecision(name, a);
-  if (access === 'ask' && target !== undefined) return askOwner({ tool: name, target, args: a, approval });
-  withdrawAsksFor(name, a);
-  return access === 'deny' && target !== undefined ? errResult(`Blocked by the owner's policy for ${target.station} (${name}).`) : undefined;
+  if (access === 'allow' || target === undefined) return undefined;
+  if (access === 'deny') return errResult(`Blocked by the owner's policy for ${target.station} (${name}).`);
+  return askOwner(name, target, a, approval);
 }
 
 interface EffectivePolicy {

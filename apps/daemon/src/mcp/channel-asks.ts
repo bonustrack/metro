@@ -8,37 +8,15 @@ import { APPROVAL_ID_RE, TOO_MANY_PENDING } from '@metro-labs/http/approval-rule
 import { AskLedger, type Ask, type AskAnswer, type AskedCall, type Spent } from '../approvals/ledger.js';
 import { cancelPrompt, holdPrompt, isPromptHeld, type Behavior, type SettledVia } from '../approvals/pending.js';
 import { PREVIEW_MAX, previewText } from '../approvals/preview.js';
-import { onPoliciesChanged, policyFor } from '../policy/policy.js';
+import { onPoliciesChanged, policyFor, type PolicyTarget } from '../policy/policy.js';
 import { sharedCalls } from '../voice/shared.js';
 import { errResult } from './ctx.js';
-import { agentHearsNotices, ownerPromptLine, tellAgent } from './owner-route.js';
-import { promptBody } from './permission-prompt.js';
-import { metroSend } from './permission-relay.js';
+import { canTellAgent, ownerPromptLine, tellAgent } from './owner-route.js';
+import { channelQuestion } from './permission-prompt.js';
+import { chatTeller, metroSend } from './permission-relay.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
 import { toolGroupOf } from './tool-catalog.js';
 
-export interface AskTarget {
-  station: string;
-  account: string;
-}
-
-export interface AskedOfOwner {
-  tool: string;
-  target: AskTarget;
-  args: Record<string, unknown>;
-  approval?: unknown;
-}
-
-interface Asked {
-  call: AskedCall;
-  args: Record<string, unknown>;
-  bound: CallSource | undefined;
-  now: number;
-}
-
-type Presented = { run: true } | { run: false; refusal?: string; note: string };
-
-const NOT_AN_ID = 'The approval given is not an approval id (5 letters). ';
 const CALL_ENDED = 'The call or its authorized source has ended or changed. Nothing was spoken.';
 
 const owner = {};
@@ -48,60 +26,35 @@ const nameOf = (ask: AskedCall): string => `${ask.station} (${ask.tool})`;
 
 const repeat = (ask: Ask): string => `${ask.tool} again with the same arguments and approval: "${ask.id}"`;
 
-const SPENT: Record<Spent, (id: string) => string> = {
-  unknown: (id) => `Approval "${id}" is not known here, perhaps because Metro restarted since it was asked.`,
-  other: (id) => `Approval "${id}" was given for another call (another tool, channel or arguments), so it does not cover this one.`,
-  late: (id) => `Approval "${id}" was answered more than 10 minutes ago, so it no longer counts.`,
-  expired: (id) => `Approval "${id}" expired: the owner did not answer within 24 hours.`,
-  withdrawn: (id) => `Approval "${id}" was withdrawn before it was used.`,
-  used: (id) => `Approval "${id}" was already used, and an approval works once.`,
+const SPENT: Record<Spent, string> = {
+  unknown: 'is not known here, perhaps because Metro restarted since it was asked.',
+  other: 'was given for another call (another tool, channel or arguments), so it does not cover this one.',
+  late: 'was answered more than 10 minutes ago, so it no longer counts.',
+  expired: 'expired: the owner did not answer within 24 hours.',
+  withdrawn: 'was withdrawn before it was used.',
+  used: 'was already used, and an approval works once.',
 };
 
-const whereAsked = (ask: Ask, before: boolean): string =>
-  `The owner was asked ${ask.line === undefined ? "on the agent's page on metro.box" : 'in chat'}${before ? ' and has not answered yet' : ''}`;
-
-const howAnswered = (ask: Ask): string =>
-  agentHearsNotices()
-    ? `Keep working: metro tells you the answer. Once approved, call ${repeat(ask)}.`
-    : `Messages are paused, so metro cannot tell you the answer: to see it, call ${repeat(ask)}.`;
-
-const waitingText = (ask: Ask, note: string, before: boolean): string =>
-  `Needs the owner's approval for ${nameOf(ask)}. ${note}${whereAsked(ask, before)}, approval id "${ask.id}". ${howAnswered(ask)}`;
+function waitingText(ask: Ask, note: string, before: boolean): string {
+  const where = ask.line === undefined ? "on the agent's page on metro.box" : 'in chat';
+  const told = canTellAgent(ask.line) ? `Keep working: metro tells you the answer. Once approved, call ${repeat(ask)}.` : `Metro cannot tell you the answer right now: to see it, call ${repeat(ask)}.`;
+  return `Needs the owner's approval for ${nameOf(ask)}. ${note}The owner was asked ${where}${before ? ' and has not answered yet' : ''}, approval id "${ask.id}". ${told}`;
+}
 
 const approvedText = (ask: Ask, note: string): string =>
   `Already approved by the owner for ${nameOf(ask)}, approval id "${ask.id}". ${note}Nothing ran yet: call ${repeat(ask)} (once, within 10 minutes of the answer).`;
 
-const deniedText = (ask: Ask): string => `Denied by the owner for ${nameOf(ask)}, approval "${ask.id}". Do not repeat it.`;
-
-const tooLarge = (call: AskedCall, size: number): string =>
-  `Needs the owner's approval for ${nameOf(call)}, but its arguments are too large to show the owner (${String(size)} characters, ${String(PREVIEW_MAX)} at most). Nothing was asked: make the call smaller.`;
-
-const NOTICE: Record<Exclude<AskAnswer, 'withdrawn'>, (ask: Ask) => string> = {
+const NOTICE: Record<AskAnswer, (ask: Ask) => string> = {
   allow: (ask) => `Approved: ${ask.tool} on ${ask.station} (${ask.id}). Call ${repeat(ask)}.`,
   deny: (ask) => `Denied: ${ask.tool} on ${ask.station} (${ask.id}).`,
   expired: (ask) => `Expired: ${ask.tool} on ${ask.station} (${ask.id}). The owner did not answer within 24 hours, so it counts as denied.`,
 };
 
-function answerOf(behavior: Behavior, via: SettledVia): AskAnswer {
-  if (via === 'cancel') return 'withdrawn';
-  return via === 'expiry' ? 'expired' : behavior;
-}
-
 function settled(id: string, behavior: Behavior, via: SettledVia): Promise<void> {
-  const answer = answerOf(behavior, via);
-  const ask = ledger.settle(id, answer, Date.now());
-  if (ask !== undefined && answer !== 'withdrawn') tellAgent(NOTICE[answer](ask), ask.line);
+  const answer = via === 'expiry' ? 'expired' : behavior;
+  const ask = via === 'cancel' ? undefined : ledger.settle(id, answer, Date.now());
+  if (ask !== undefined) tellAgent(NOTICE[answer](ask), ask.line);
   return Promise.resolve();
-}
-
-function hold(ask: Ask, preview: string): void {
-  const { line } = ask;
-  holdPrompt(
-    { requestId: ask.id, tool: `mcp__metro__${ask.tool}`, description: '', preview, line, at: ask.askedAt, origin: 'channel', ...(ask.call === undefined ? {} : { call: ask.call }) },
-    owner,
-    (behavior, via) => settled(ask.id, behavior, via),
-    line === undefined ? undefined : (text) => metroSend(line, text),
-  );
 }
 
 function freshId(): string {
@@ -111,35 +64,28 @@ function freshId(): string {
   }
 }
 
-function post(ask: Ask, line: string, preview: string): void {
-  metroSend(line, promptBody({ request_id: ask.id, tool_name: `mcp__metro__${ask.tool}`, description: '', input_preview: preview })).catch((err: unknown) => {
-    log.warn({ id: ask.id, err: errMsg(err) }, 'approvals: the approval question could not be posted in chat, it waits on the page');
-  });
-}
-
-function open(asked: Asked, preview: string): Ask | undefined {
-  if (ledger.full) return undefined;
+function open(call: AskedCall, args: Record<string, unknown>, bound: CallSource | undefined): Ask | string {
+  const preview = previewText(args);
+  if (preview.length > PREVIEW_MAX)
+    return `Its arguments are too large to show the owner (${String(preview.length)} characters, ${String(PREVIEW_MAX)} at most), so nothing was asked: make the call smaller.`;
   const id = freshId();
-  const line = ownerPromptLine(id, asked.bound?.route.line);
-  const ask = ledger.ask(id, asked.call, { line, call: asked.bound }, asked.now);
-  if (ask === undefined) return undefined;
-  hold(ask, preview);
-  log.info({ id, tool: ask.tool, station: ask.station, inChat: line !== undefined }, 'approvals: a channel call waits for the owner');
-  if (line !== undefined) post(ask, line, preview);
+  const line = ownerPromptLine(id, bound?.route.line);
+  const ask = ledger.ask(id, call, { line, call: bound });
+  if (ask === undefined) return TOO_MANY_PENDING;
+  holdPrompt({ requestId: id, tool: `mcp__metro__${call.tool}`, description: '', preview, line, at: Date.now(), origin: 'channel' }, owner, (behavior, via) => settled(id, behavior, via), chatTeller(line));
+  log.info({ id, tool: call.tool, station: call.station, inChat: line !== undefined }, 'approvals: a channel call waits for the owner');
+  if (line !== undefined)
+    metroSend(line, channelQuestion(id, call.tool, args)).catch((err: unknown) => {
+      log.warn({ id, err: errMsg(err) }, 'approvals: the approval question could not be posted in chat, it waits on the page');
+    });
   return ask;
 }
 
-function askedAgain(asked: Asked, note: string): string {
-  const standing = ledger.standing(asked.call, asked.now);
-  if (standing?.state === 'allow') return approvedText(standing, note);
-  if (standing !== undefined) {
-    if (!isPromptHeld(standing.id)) hold(standing, previewText(asked.args));
-    return waitingText(standing, note, true);
-  }
-  const preview = previewText(asked.args);
-  if (preview.length > PREVIEW_MAX) return tooLarge(asked.call, preview.length);
-  const opened = open(asked, preview);
-  return opened === undefined ? `Needs the owner's approval for ${nameOf(asked.call)}. ${note}${TOO_MANY_PENDING}` : waitingText(opened, note, false);
+function asking(call: AskedCall, args: Record<string, unknown>, bound: CallSource | undefined, note: string): string {
+  const held = ledger.standing(call, Date.now());
+  if (held?.state === 'allow') return approvedText(held, note);
+  const asked = held ?? open(call, args, bound);
+  return typeof asked === 'string' ? `Needs the owner's approval for ${nameOf(call)}. ${note}${asked}` : waitingText(asked, note, held !== undefined);
 }
 
 function boundCall(tool: string, args: Record<string, unknown>): CallSource | null | undefined {
@@ -148,61 +94,47 @@ function boundCall(tool: string, args: Record<string, unknown>): CallSource | nu
   return target === null ? null : sharedCalls.source(str(args.line), target, allowedAgents(currentIdentity()));
 }
 
-function presented(given: unknown, asked: Asked): Presented {
-  const id = str(given);
-  if (id === '') return { run: false, note: '' };
-  if (!APPROVAL_ID_RE.test(id)) return { run: false, note: NOT_AN_ID };
-  const verdict = ledger.judge(id, asked.call, asked.now);
-  if (verdict.kind === 'ready' && ledger.use(verdict.ask, asked.now)) return { run: true };
-  if (verdict.kind === 'denied') return { run: false, refusal: deniedText(verdict.ask), note: '' };
-  return { run: false, note: verdict.kind === 'spent' ? `${SPENT[verdict.why](id)} ` : '' };
+type Presented = 'run' | { refusal: string } | { note: string };
+
+function presented(approval: unknown, call: AskedCall): Presented {
+  const id = str(approval);
+  if (id === '') return { note: '' };
+  if (!APPROVAL_ID_RE.test(id)) return { note: 'The approval given is not an approval id (5 letters). ' };
+  const now = Date.now();
+  const verdict = ledger.judge(id, call, now);
+  if (verdict.kind === 'ready' && ledger.use(verdict.ask, now)) return 'run';
+  if (verdict.kind === 'denied') return { refusal: `Denied by the owner for ${nameOf(call)}, approval "${id}". Do not repeat it.` };
+  return { note: verdict.kind === 'spent' ? `Approval "${id}" ${SPENT[verdict.why]} ` : '' };
 }
 
-export function askOwner({ tool, target, args, approval }: AskedOfOwner, now = Date.now()): ToolResult | undefined {
+export function askOwner(tool: string, target: PolicyTarget, args: Record<string, unknown>, approval?: unknown): ToolResult | undefined {
   const bound = boundCall(tool, args);
   if (bound === null) return errResult(CALL_ENDED);
   const call: AskedCall = { tool, digest: argsDigest(args), station: target.station, account: target.account, agent: currentIdentity()?.agentId ?? '' };
-  const asked: Asked = { call, args, bound, now };
-  ledger.sweep(now);
-  const answer = presented(approval, asked);
-  if (!answer.run) return errResult(answer.refusal ?? askedAgain(asked, answer.note));
+  const answer = presented(approval, call);
+  if (answer !== 'run') return errResult('refusal' in answer ? answer.refusal : asking(call, args, bound, answer.note));
   log.info({ id: str(approval), tool, station: target.station }, 'approvals: an approved channel call runs');
   return undefined;
 }
 
 function withdraw(ask: Ask, why: string): void {
-  if (!ledger.withdraw(ask, Date.now())) return;
+  if (!ledger.withdraw(ask)) return;
   cancelPrompt(ask.id, owner);
   log.info({ id: ask.id, tool: ask.tool, station: ask.station, why }, 'approvals: a channel approval was withdrawn');
-}
-
-export function withdrawAsksFor(tool: string, args: Record<string, unknown>): void {
-  const open = ledger.live().filter((ask) => ask.tool === tool);
-  if (open.length === 0) return;
-  const digest = argsDigest(args);
-  for (const ask of open) if (ask.digest === digest) withdraw(ask, 'this call no longer asks');
 }
 
 export function revokeCallAsks(route: CallRoute): void {
   for (const ask of ledger.live()) if (ask.call !== undefined && sameCall(ask.call.route, route)) withdraw(ask, 'its voice call ended');
 }
 
-const RULE_NOW: Record<'allow' | 'deny', (ask: Ask) => string> = {
-  allow: (ask) => `No approval needed any more: ${ask.tool} on ${ask.station} (${ask.id}). The owner changed the rule. Call ${ask.tool} again with the same arguments.`,
-  deny: (ask) => `Blocked: ${ask.tool} on ${ask.station} (${ask.id}). The owner changed the rule, so it will not run.`,
-};
-
-function ruleChanged(): void {
+onPoliciesChanged(() => {
   for (const ask of ledger.live()) {
-    const access = policyFor({ kind: 'channel', station: ask.station, account: ask.account }, { name: ask.tool, group: toolGroupOf(ask.tool) });
-    if (access === 'ask') continue;
+    if (policyFor({ kind: 'channel', station: ask.station, account: ask.account }, { name: ask.tool, group: toolGroupOf(ask.tool) }) === 'ask') continue;
     const waiting = ask.state === 'pending';
-    withdraw(ask, `the rule is now ${access}`);
-    if (waiting) tellAgent(RULE_NOW[access](ask), ask.line);
+    withdraw(ask, 'its rule no longer asks');
+    if (waiting) tellAgent(`Withdrawn: ${ask.tool} on ${ask.station} (${ask.id}). The owner changed the rule. Call ${ask.tool} again, without the approval, to see what applies now.`, ask.line);
   }
-}
-
-onPoliciesChanged(ruleChanged);
+});
 
 export function forgetChannelAsks(): void {
   ledger.clear();

@@ -1,8 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import { expirePrompts, pendingPrompts } from '../src/approvals/pending.ts';
-import { askOwner } from '../src/mcp/channel-asks.ts';
-import { runWithIdentity } from '../src/mcp/request-identity.ts';
-import { AGENT, AsksHarness, LINE, MEMBER, OTHER_LINE, OWNER, STRANGER, TARGET, idIn } from './channel-asks-harness.ts';
+import { AsksHarness, LINE, MEMBER, OTHER_LINE, OWNER, STRANGER, idIn } from './channel-asks-harness.ts';
 import { waitFor } from './wait.ts';
 
 const h = new AsksHarness('mk_channel_asks');
@@ -136,24 +134,19 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(h.posted('second')).toHaveLength(0);
   });
 
-  test('the page lists it under the tool name with a JSON preview, long text cut the way the page reads it', async () => {
+  test('the page lists it under the tool name with every argument in full, and the chat question keeps both ends of a long text', async () => {
     const long = `start ${'x'.repeat(5000)} end`;
-    const id = idIn(await h.send({ line: LINE, text: long, attachments: [{ url: 'https://example.com/a.pdf', name: 'a.pdf' }] }));
+    const args = { line: LINE, text: long, attachments: [{ url: 'https://example.com/a.pdf', name: 'a.pdf' }], zz: 'extra' };
+    const id = idIn(await h.send(args));
     const shown = (await h.listed()).find((approval) => approval.id === id);
     expect(shown).toMatchObject({ tool: 'mcp__metro__send', description: '', line: LINE });
-    const parsed = JSON.parse(shown?.preview ?? '') as { line: string; text: string; attachments: unknown[] };
-    expect(parsed.line).toBe(LINE);
-    expect(parsed.attachments).toEqual([{ url: 'https://example.com/a.pdf', name: 'a.pdf' }]);
-    expect(parsed.text).toStartWith('start xxx');
-    expect(parsed.text).toEndWith('xxx end');
-    expect(parsed.text).toContain(`\n⋯ ${String(long.length - 3498)} code points elided ⋯\n`);
+    expect(JSON.parse(shown?.preview ?? '')).toEqual(args);
     await waitFor(() => h.questions().length === 1);
     const question = String(h.questions()[0]?.args.text);
     expect(question.length).toBeLessThanOrEqual(1000);
     expect(question).toStartWith('Approval needed: send\nChannel: telegram-bot · -100777\nText: "start xxx');
-    expect(question).toContain('attachments: 1 file(s)');
-    expect(question).toEndWith(`Reply "yes ${id}" or "no ${id}"`);
-    expect((await h.send({ line: LINE, text: `${long}!`, approval: id })).text).toContain('was given for another call');
+    expect(question).toEndWith(`xxx end"\nfile 1 of 1: {"url":"https://example.com/a.pdf","name":"a.pdf"}\nzz: extra\n\nReply "yes ${id}" or "no ${id}"`);
+    expect((await h.send({ ...args, text: `${long}!`, approval: id })).text).toContain('was given for another call');
   });
 
   test('nobody answering for 24 hours denies it, and the agent and the chat are told it expired', async () => {
@@ -169,14 +162,19 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(h.posted('late')).toHaveLength(0);
   });
 
-  test('an approval answered more than 10 minutes ago no longer counts', async () => {
-    const args = { line: LINE, text: 'too slow' };
-    const id = idIn(await h.send(args));
+  test('an approval answered more than 10 minutes ago no longer counts, and the call is asked again', async () => {
+    const id = idIn(await h.send({ line: LINE, text: 'too slow' }));
     expect(await h.answerOnPage(id, 'allow')).toBe(200);
-    const late = await runWithIdentity({ kind: 'agent', agentId: AGENT }, () =>
-      Promise.resolve(askOwner({ tool: 'send', target: TARGET, args, approval: id }, Date.now() + 10 * 60_000 + 5_000)));
-    expect(late?.content[0]?.text).toContain(`Approval "${id}" was answered more than 10 minutes ago, so it no longer counts.`);
-    expect(late?.isError).toBe(true);
+    setSystemTime(new Date(Date.now() + 10 * 60_000 + 5_000));
+    try {
+      const late = await h.send({ line: LINE, text: 'too slow', approval: id });
+      expect(late.isError).toBe(true);
+      expect(late.text).toContain(`Approval "${id}" was answered more than 10 minutes ago, so it no longer counts.`);
+      expect(idIn(late)).not.toBe(id);
+      expect(h.posted('too slow')).toHaveLength(0);
+    } finally {
+      setSystemTime();
+    }
   });
 
   test('every gated metro tool takes an approval id, the ungated ones do not, and the field never reaches a station', async () => {

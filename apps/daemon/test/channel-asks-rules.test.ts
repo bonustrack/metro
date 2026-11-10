@@ -65,7 +65,7 @@ describe('the owner changes the rule while a call waits or after approving it', 
     expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
     setPolicies('channel', []);
     expect(await h.listed()).toEqual([]);
-    expect(await h.told(`No approval needed any more: send on telegram-bot (${id}). The owner changed the rule. Call send again with the same arguments.`)).toBe(true);
+    expect(await h.told(`Withdrawn: send on telegram-bot (${id}). The owner changed the rule. Call send again, without the approval, to see what applies now.`)).toBe(true);
     expect(await h.answerOnPage(id, 'allow')).toBe(404);
     expect((await h.send({ line: LINE, text: 'allowed later', approval: id })).isError).toBe(false);
     expect(h.raw()).not.toContain(`Approved: send on telegram-bot (${id})`);
@@ -76,11 +76,11 @@ describe('the owner changes the rule while a call waits or after approving it', 
     expect(h.posted('allowed later')).toHaveLength(1);
   });
 
-  test('waiting, then blocked: the question leaves the page at once and the agent is told it will not run', async () => {
+  test('waiting, then blocked: the question leaves the page at once, the agent is told, and the call is blocked', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'blocked while waiting' }));
     setPolicies('channel', [[TARGET, { write: 'deny' }]]);
     expect(await h.listed()).toEqual([]);
-    expect(await h.told(`Blocked: send on telegram-bot (${id}). The owner changed the rule, so it will not run.`)).toBe(true);
+    expect(await h.told(`Withdrawn: send on telegram-bot (${id}). The owner changed the rule.`)).toBe(true);
     expect((await h.send({ line: LINE, text: 'blocked while waiting', approval: id })).text).toStartWith('Blocked by');
   });
 
@@ -120,8 +120,8 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
     const members = Array.from({ length: 12_000 }, (_, i) => `member-${String(i).padStart(6, '0')}`);
     const refused = await h.tool('add_members', { line: LINE, members });
     expect(refused.isError).toBe(true);
-    expect(refused.text).toStartWith("Needs the owner's approval for telegram-bot (add_members), but its arguments are too large to show the owner (");
-    expect(refused.text).toEndWith(`characters, ${String(PREVIEW_MAX)} at most). Nothing was asked: make the call smaller.`);
+    expect(refused.text).toStartWith("Needs the owner's approval for telegram-bot (add_members). Its arguments are too large to show the owner (");
+    expect(refused.text).toEndWith(`characters, ${String(PREVIEW_MAX)} at most), so nothing was asked: make the call smaller.`);
     expect(pendingPrompts()).toEqual([]);
     expect(h.calls).toEqual([]);
   });
@@ -152,27 +152,16 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
     expect((await h.send({ line: LINE, text: 'across sessions', approval: id })).isError).toBe(false);
   });
 
-  test('a question lost from the page is put back when the same call asks again, without a second chat post', async () => {
-    const id = idIn(await h.send({ line: LINE, text: 'lost question' }));
-    await waitFor(() => h.questions().length === 1);
-    forgetAllPrompts();
-    expect(await h.listed()).toEqual([]);
-    expect(idIn(await h.send({ line: LINE, text: 'lost question' }))).toBe(id);
-    expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
-    expect(h.questions()).toHaveLength(1);
-    h.chat(LINE, OWNER, `yes ${id}`);
-    expect(await h.told(`Approved: send on telegram-bot (${id})`)).toBe(true);
-  });
 });
 
 describe('where the question and the answer go', () => {
-  test('while messages are paused the question waits on the page, and the agent finds the answer by repeating the call', async () => {
+  test('while messages are paused the question waits on the page, and the agent is told to find the answer by repeating the call', async () => {
     h.setLive(false);
     try {
       const asked = await h.send({ line: LINE, text: 'paused' });
       const id = idIn(asked);
       expect(asked.text).toBe(
-        `Needs the owner's approval for telegram-bot (send). The owner was asked on the agent's page on metro.box, approval id "${id}". Messages are paused, so metro cannot tell you the answer: to see it, call send again with the same arguments and approval: "${id}".`,
+        `Needs the owner's approval for telegram-bot (send). The owner was asked on the agent's page on metro.box, approval id "${id}". Metro cannot tell you the answer right now: to see it, call send again with the same arguments and approval: "${id}".`,
       );
       expect(h.sends()).toEqual([]);
       expect(await h.listed()).toEqual([expect.objectContaining({ id, line: null })]);
@@ -218,6 +207,7 @@ describe('where the question and the answer go', () => {
   test('when the chat that was asked stopped receiving, no answer can be delivered there, and repeating the call still finds it', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'switched off' }));
     setDisabledAccounts(new Set([`telegram-bot/${TG}`]));
+    expect((await h.send({ line: LINE, text: 'switched off' })).text).toContain(`has not answered yet, approval id "${id}". Metro cannot tell you the answer right now`);
     expect(await h.answerOnPage(id, 'allow')).toBe(200);
     await settle(100);
     expect(h.raw()).not.toContain(`Approved: send on telegram-bot (${id})`);

@@ -37,7 +37,6 @@ let stream: GetStream | undefined;
 let fake: FakeMcpServer;
 let dir = '';
 let link: McpServerLink | undefined;
-const emit = makeEmit();
 
 const chat = (line: string, from: string, text: string): void => {
   publishEvent({
@@ -68,9 +67,7 @@ async function pageCall(method: string, path: string, body?: unknown): Promise<{
 }
 
 function startLink(): void {
-  link = linkTo(fake, dir, (row, answer) => {
-    holdServerApproval(row, answer, emit);
-  });
+  link = linkTo(fake, dir, holdServerApproval);
   link.start();
 }
 
@@ -85,7 +82,7 @@ beforeAll(async () => {
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
   setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
   setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
-  const handler = await createMetroMcp();
+  const handler = await createMetroMcp({ publish: makeEmit() });
   handler.startInbound();
   mcpServer = createServer((req, res) => {
     handler.httpHandler(req, res).catch(() => undefined);

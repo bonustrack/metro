@@ -50,7 +50,7 @@ const shown = ({ requestId, tool, description, preview, line, at }: Held): Pendi
 
 function makeRoom(): void {
   while (held.size > PENDING_MAX) {
-    const oldest = [...held.values()].find((entry) => entry.origin === undefined) ?? held.values().next().value;
+    const oldest = [...held.values()].find((entry) => entry.origin === undefined);
     if (oldest === undefined) return;
     held.delete(oldest.requestId);
     log.warn({ requestId: oldest.requestId, tool: oldest.tool }, 'approvals: too many prompts are waiting, so the oldest one was dropped');
