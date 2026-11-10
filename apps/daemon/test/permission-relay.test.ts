@@ -361,6 +361,17 @@ describe('the prompt text', () => {
     ).toBe('Approval needed: create_group\nChannel: xmtp\nname: crew\nattachments: 2 file(s)\n\nReply "yes abcde" or "no abcde"');
   });
 
+  test('writes out a list of plain values, such as the people to remove, and counts a list of anything else', () => {
+    expect(
+      promptBody({
+        request_id: 'abcde',
+        tool_name: 'mcp__metro__remove_members',
+        description: 'Remove members',
+        input_preview: JSON.stringify({ line: 'metro://xmtp/x0/g1', inboxIds: ['a1', 'b2'], notes: [{}, {}], none: [] }),
+      }),
+    ).toBe('Approval needed: remove_members\nChannel: xmtp · g1\ninboxIds: a1, b2\nnotes: 2 item(s)\n\nReply "yes abcde" or "no abcde"');
+  });
+
   test('shows the frame of a send', () => {
     const frame = { title: 'Deploy', widget: { type: 'Card' } };
     expect(

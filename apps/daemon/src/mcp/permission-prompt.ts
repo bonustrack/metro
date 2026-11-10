@@ -22,11 +22,17 @@ const shorten = (text: string, max = FIELD_MAX): string => {
   return shown.length > max ? `${shown.slice(0, max)}…` : shown;
 };
 
+const plain = (value: unknown): value is string | number => typeof value === 'string' || typeof value === 'number';
+
+function listText(list: unknown[]): string | undefined {
+  if (list.length === 0) return undefined;
+  return list.every(plain) ? list.join(', ') : `${String(list.length)} item(s)`;
+}
+
 function valueText(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() === '' ? undefined : value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.length > 0 ? `${String(value.length)} item(s)` : undefined;
-  return undefined;
+  return Array.isArray(value) ? listText(value) : undefined;
 }
 
 function channelOf(input: Record<string, unknown>): string | undefined {
@@ -48,8 +54,8 @@ function discoveryChannel(input: Record<string, unknown>): string {
 }
 
 function argText(value: unknown): string | undefined {
-  const plain = valueText(value);
-  if (plain !== undefined || value === null || typeof value !== 'object') return plain;
+  const shown = valueText(value);
+  if (shown !== undefined || value === null || typeof value !== 'object') return shown;
   return JSON.stringify(value);
 }
 
