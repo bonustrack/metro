@@ -3,7 +3,7 @@ import { builtInDaemon } from '../auth/daemon.js';
 import { location, signInReturnUrl } from '../platform.js';
 import { call, type CallInit } from './client.js';
 import { accountIdentity, accountScopeIdentity, checkAccountIdentity } from '../auth/account.js';
-import { connectorToolsOf, type ConnectorTool } from './connectors.js';
+import { connectorListingOf, connectorToolsOf, type ConnectorListing, type ConnectorTool } from './connectors.js';
 import { agentEventsOf, offeredEventsOf, type AgentEvents, type AgentEventsChange, type OfferedEvent } from './connector-events.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 
@@ -129,6 +129,10 @@ export async function fetchOrgConnectors(): Promise<OrgConnectors> {
 
 export async function fetchOrgConnectorTools(id: string, signal?: AbortSignal): Promise<ConnectorTool[]> {
   return connectorToolsOf(await orgCall({ method: 'GET', base: base(), path: `/${id}/tools`, signal }));
+}
+
+export async function fetchOrgConnectorListing(id: string, signal?: AbortSignal): Promise<ConnectorListing> {
+  return connectorListingOf(await orgCall({ method: 'GET', base: base(), path: `/${id}/tools`, signal }));
 }
 
 function addPayload(input: NewOrgConnector): Record<string, string> {

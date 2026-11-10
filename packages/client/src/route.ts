@@ -46,6 +46,7 @@ const SCHEDULED_JOB_PATH = new RegExp(`^#?/(${HOST})/scheduled/([^/]+)$`);
 const SKILL_PATH = new RegExp(`^#?/(${HOST})/skill/(${SKILL})$`);
 const CHATS_PATH = new RegExp(`^#?/(${HOST})/(?:chats|channels)$`);
 const STATION_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})(?:/(${RULE}))?$`);
+const MOVE_CHANNEL_PATH = new RegExp(`^#?/(${HOST})/channel/(${ACCOUNT})/move$`);
 const TOOLS_PATH = new RegExp(`^#?/(${HOST})/(?:tools|connectors)$`);
 const CONNECTOR_PATH = new RegExp(`^#?/(${HOST})/connector/(${ID})$`);
 const SESSIONS_PATH = new RegExp(`^#?/(${HOST})/sessions(?:/(${CLAUDE})(?:/([A-Za-z0-9-]+))?)?$`);
@@ -151,6 +152,7 @@ const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] =
   [SKILL_PATH, (project, id) => ({ kind: 'skill', project, id: decodeURIComponent(id) })],
   [CHATS_PATH, (project) => ({ kind: 'chats', project })],
   [STATION_PATH, (project, accountId, rule) => ({ kind: 'station', project, accountId, ...(rule === '' ? {} : { rule: ruleOf(rule) }) })],
+  [MOVE_CHANNEL_PATH, (project, accountId) => ({ kind: 'move-channel', project, accountId })],
   [TOOLS_PATH, (project) => ({ kind: 'tools', project })],
   [CONNECTOR_PATH, (project, connector) => ({ kind: 'tools', project, connector })],
   [SESSIONS_PATH, (project, cp, id) => ({ kind: 'sessions', project, claudeProject: cp === '' ? null : cp, id: id === '' ? null : id })],
@@ -275,6 +277,7 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   skill: (s) => `/skill/${s.kind === 'skill' ? encodeURIComponent(s.id) : ''}`,
   chats: () => '/chats',
   station: (s) => (s.kind === 'station' ? `/channel/${s.accountId}${s.rule === undefined ? '' : `/${ruleSegment(s.rule)}`}` : ''),
+  'move-channel': (s) => (s.kind === 'move-channel' ? `/channel/${s.accountId}/move` : ''),
   tools: (s) => (s.kind === 'tools' && s.connector !== undefined ? `/connector/${s.connector}` : '/tools'),
   sessions: (s) =>
     s.kind === 'sessions'

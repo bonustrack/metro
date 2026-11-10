@@ -222,6 +222,7 @@ describe('pages that replaced dialogs have their own addresses', () => {
     const cases: Selection[] = [
       { kind: 'add-chat', project: agent },
       { kind: 'add-chat', project: agent, station: 'telegram-bot' },
+      { kind: 'move-channel', project: agent, accountId: 'mail-1' },
       { kind: 'backup', project: agent },
       { kind: 'agent-profile', project: agent },
       { kind: 'launch-log', project: agent },
@@ -239,6 +240,9 @@ describe('pages that replaced dialogs have their own addresses', () => {
     expect(routeSelection(`#/${agent}/run/helper/task-1`)).toEqual({ kind: 'run', project: agent, view: 'worker', id: 'task-1' });
     expect(routeHash({ kind: 'add-chat', project: agent, station: 'xmtp' })).toEndWith(`/${agent}/chats/add/xmtp`);
     expect(routeHash({ kind: 'access-keys', project: agent })).toEndWith(`/${agent}/keys`);
+    expect(routeHash({ kind: 'move-channel', project: agent, accountId: 'mail-1' })).toEndWith(`/${agent}/channel/mail-1/move`);
+    expect(routeSelection(`#/${agent}/channel/move`)).toEqual({ kind: 'station', project: agent, accountId: 'move' });
+    expect(routeSelection(`#/${agent}/channel/mail-1/move/more`)).toEqual({ kind: 'none' });
     expect(routeHash({ kind: 'agent-activity', project: agent })).toEndWith(`/${agent}/activity`);
   });
 
