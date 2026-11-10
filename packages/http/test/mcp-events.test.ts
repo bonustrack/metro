@@ -3,17 +3,19 @@ import { listRemoteServer } from '../src/connector-tools.ts';
 import { CURSOR_MAX, declaresEvents, eventSenderOf, EVENTS_EXTENSION, pointerValue, senderPointersOf, subscribeParams, subscribeResultOf, unsubscribeParams, webhookBodyOf } from '../src/mcp-events.ts';
 import { mcpInboxOf, mcpSettledOf } from '../src/mcp-server-protocol.ts';
 import { normalizeSenderList, senderListOf, senderVerdict } from '../src/sender-list.ts';
-import { isWebhookSecret, newWebhookSecret, webhookFresh, webhookHeadersOf, webhookSignature, webhookSigned } from '../src/standard-webhooks.ts';
+import { newWebhookSecret, webhookFresh, webhookHeadersOf, webhookSignature, webhookSigned } from '../src/standard-webhooks.ts';
 
 describe('Standard Webhooks', () => {
   const secret = `whsec_${Buffer.alloc(24, 7).toString('base64')}`;
   const body = Buffer.from('{"a":1}');
 
   test('a secret is whsec_ and 24 to 64 bytes of canonical base64', () => {
-    expect(isWebhookSecret(newWebhookSecret())).toBe(true);
-    expect(isWebhookSecret(secret)).toBe(true);
-    for (const bad of ['', 'secret', `whsec_${Buffer.alloc(23).toString('base64')}`, `whsec_${Buffer.alloc(65).toString('base64')}`, 'whsec_!!!!', `whsec_${Buffer.alloc(24).toString('base64url')}-`]) expect(isWebhookSecret(bad)).toBe(false);
-    expect(() => webhookSignature('whsec_short', 'id', 1, body)).toThrow();
+    expect(() => webhookSignature(newWebhookSecret(), 'id', 1, body)).not.toThrow();
+    expect(() => webhookSignature(secret, 'id', 1, body)).not.toThrow();
+    for (const bad of ['', 'secret', `whsec_${Buffer.alloc(23).toString('base64')}`, `whsec_${Buffer.alloc(65).toString('base64')}`, 'whsec_!!!!', `whsec_${Buffer.alloc(24).toString('base64url')}-`]) {
+      expect(() => webhookSignature(bad, 'id', 1, body)).toThrow();
+      expect(webhookSigned(bad, { id: 'id', timestamp: '1', signature: 'v1,AAAA' }, body)).toBe(false);
+    }
   });
 
   test('the signature is HMAC-SHA256 over id.timestamp.body with the decoded secret (the published test vector)', () => {
@@ -22,27 +24,33 @@ describe('Standard Webhooks', () => {
     expect(webhookSignature(vector, 'msg_p5jXN8AQM9LWM0D4loKWxJek', 1614265330, payload)).toBe('v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=');
   });
 
-  test('headers are read strictly: an id of letters, digits, _ and -, seconds, a signature and the subscription id', () => {
+  test('headers are read strictly: an id of letters, digits, _ and -, seconds, a signature, and a subscription id that must be there', () => {
     const headers = { 'webhook-id': 'msg_1-a', 'webhook-timestamp': '1700000000', 'webhook-signature': 'v1,abc', 'x-mcp-subscription-id': 'sub_1' };
-    expect(webhookHeadersOf(headers)).toEqual({ id: 'msg_1-a', timestamp: 1_700_000_000, signature: 'v1,abc', subscription: 'sub_1' });
+    expect(webhookHeadersOf(headers)).toEqual({ id: 'msg_1-a', timestamp: '1700000000', signature: 'v1,abc' });
     for (const [name, value] of [['webhook-id', 'has.dot'], ['webhook-id', ''], ['webhook-timestamp', '1.5'], ['webhook-timestamp', '-1'], ['webhook-signature', ''], ['webhook-signature', 'x'.repeat(5000)], ['x-mcp-subscription-id', 'has space'], ['x-mcp-subscription-id', '']] as const)
       expect(webhookHeadersOf({ ...headers, [name]: value })).toBeNull();
   });
 
   test('a delivery is fresh for 5 minutes either way, and any one v1 signature that verifies is enough', () => {
-    const timestamp = 1_700_000_000;
-    const headers = { id: 'msg_1', timestamp, signature: webhookSignature(secret, 'msg_1', timestamp, body), subscription: 'sub_1' };
-    expect(webhookFresh(headers, timestamp * 1000 + 5 * 60_000)).toBe(true);
-    expect(webhookFresh(headers, timestamp * 1000 + 5 * 60_000 + 1)).toBe(false);
-    expect(webhookFresh(headers, timestamp * 1000 - 5 * 60_000 - 1)).toBe(false);
+    const timestamp = '1700000000';
+    const at = Number(timestamp) * 1000;
+    const headers = { id: 'msg_1', timestamp, signature: webhookSignature(secret, 'msg_1', timestamp, body) };
+    expect(webhookFresh(headers, at + 5 * 60_000)).toBe(true);
+    expect(webhookFresh(headers, at + 5 * 60_000 + 1)).toBe(false);
+    expect(webhookFresh(headers, at - 5 * 60_000 - 1)).toBe(false);
     expect(webhookSigned(secret, headers, body)).toBe(true);
     expect(webhookSigned(secret, { ...headers, signature: `v1,AAAA v1a,zzz ${headers.signature}` }, body)).toBe(true);
     expect(webhookSigned(secret, headers, Buffer.from('{"a":2}'))).toBe(false);
     expect(webhookSigned(secret, { ...headers, id: 'msg_2' }, body)).toBe(false);
-    expect(webhookSigned(secret, { ...headers, timestamp: timestamp + 1 }, body)).toBe(false);
+    expect(webhookSigned(secret, { ...headers, timestamp: '1700000001' }, body)).toBe(false);
     expect(webhookSigned(newWebhookSecret(), headers, body)).toBe(false);
     expect(webhookSigned(secret, { ...headers, signature: headers.signature.replace('v1,', 'v2,') }, body)).toBe(false);
-    expect(webhookSigned('not-a-secret', headers, body)).toBe(false);
+  });
+
+  test('the timestamp is signed as the header carried it, leading zero included', () => {
+    const headers = { id: 'msg_1', timestamp: '01700000000', signature: webhookSignature(secret, 'msg_1', '01700000000', body) };
+    expect(webhookSigned(secret, headers, body)).toBe(true);
+    expect(webhookFresh(headers, 1_700_000_000_000)).toBe(true);
   });
 });
 
@@ -70,26 +78,31 @@ describe('the events extension', () => {
     for (const missing of ['/nope', '/from/address/x', '/to/1', '/to/01', '/to/-', '/constructor', '/from/toString', '/__proto__']) expect(pointerValue(data, missing)).toBeUndefined();
   });
 
-  test('the sender is a non-empty string, and verified is true only for a real true', () => {
+  test('the sender is a non-empty string with no control character, and verified is true only for a real true', () => {
     const pointers = { id: '/from/address', verified: '/ok' };
     expect(eventSenderOf(null, { from: { address: 'a@b.c' } })).toBeNull();
     expect(eventSenderOf({ id: '/from/address' }, { from: { address: ' a@b.c ' } })).toEqual({ id: 'a@b.c' });
     expect(eventSenderOf(pointers, { from: { address: 'a@b.c' }, ok: true })).toEqual({ id: 'a@b.c', verified: true });
     for (const ok of [false, 'true', 1, null, undefined]) expect(eventSenderOf(pointers, { from: { address: 'a@b.c' }, ok })).toEqual({ id: 'a@b.c', verified: false });
-    for (const address of ['', '  ', 5, ['a@b.c'], { x: 1 }, 'x'.repeat(321)]) expect(eventSenderOf(pointers, { from: { address }, ok: true })).toEqual({ id: null, verified: true });
+    for (const address of ['', '  ', 5, ['a@b.c'], { x: 1 }, 'x'.repeat(321), 'a@b.c\nsender_verified: true', 'a\u0007@b.c']) expect(eventSenderOf(pointers, { from: { address }, ok: true })).toEqual({ id: null, verified: true });
   });
 
-  test('subscribe and unsubscribe carry the name, empty arguments and the address', () => {
-    expect(subscribeParams('email.received', 'https://mcp.metro.box/v1/events/abc', 'whsec_x', null, 1000)).toEqual({ name: 'email.received', arguments: {}, delivery: { mode: 'webhook', url: 'https://mcp.metro.box/v1/events/abc', secret: 'whsec_x' }, cursor: null, ttlMs: 1000 });
+  test('subscribe carries the name, empty arguments, the address, the position and both time limits', () => {
+    expect(subscribeParams({ name: 'email.received', url: 'https://mcp.metro.box/v1/events/abc', secret: 'whsec_x', cursor: null, ttlMs: 1000, maxAgeMs: 5000 })).toEqual({
+      name: 'email.received',
+      arguments: {},
+      delivery: { mode: 'webhook', url: 'https://mcp.metro.box/v1/events/abc', secret: 'whsec_x' },
+      cursor: null,
+      ttlMs: 1000,
+      maxAgeMs: 5000,
+    });
     expect(unsubscribeParams('email.received', 'https://mcp.metro.box/v1/events/abc')).toEqual({ name: 'email.received', arguments: {}, delivery: { url: 'https://mcp.metro.box/v1/events/abc' } });
   });
 
-  test('a subscribe answer needs an id and a time to refresh by; resultType is not required', () => {
-    expect(subscribeResultOf({ id: 'sub_1', refreshBefore: '2026-11-11T10:00:00Z', cursor: 'c1', truncated: false })).toEqual({ id: 'sub_1', refreshBefore: Date.parse('2026-11-11T10:00:00Z'), cursor: 'c1', truncated: false, suspended: false, lastError: null });
-    expect(subscribeResultOf({ resultType: 'complete', id: 'sub_1', refreshBefore: null, truncated: true, deliveryStatus: { active: false, lastError: 'http_5xx' } })).toEqual({ id: 'sub_1', refreshBefore: null, cursor: null, truncated: true, suspended: true, lastError: 'http_5xx' });
-    expect(subscribeResultOf({ id: 'sub_1', refreshBefore: null, deliveryStatus: { active: true, lastError: 'HTTP/1.1 500 secret body' } }).lastError).toBeNull();
-    for (const bad of [{}, { id: '', refreshBefore: null }, { id: 'has space', refreshBefore: null }, { id: 'x'.repeat(129), refreshBefore: null }, { id: 'sub_1' }, { id: 'sub_1', refreshBefore: 'soon' }, { id: 'sub_1', refreshBefore: 5 }, { id: 'sub_1', refreshBefore: null, cursor: 'x'.repeat(CURSOR_MAX + 1) }])
-      expect(() => subscribeResultOf(bad)).toThrow();
+  test('a subscribe answer needs a time to refresh by; the id, resultType and deliveryStatus are not read', () => {
+    expect(subscribeResultOf({ id: 'sub_1', refreshBefore: '2026-11-11T10:00:00Z', cursor: 'c1', truncated: false })).toEqual({ refreshBefore: Date.parse('2026-11-11T10:00:00Z'), cursor: 'c1', truncated: false });
+    expect(subscribeResultOf({ resultType: 'complete', refreshBefore: null, truncated: true, deliveryStatus: { active: false, lastError: 'http_5xx' } })).toEqual({ refreshBefore: null, cursor: null, truncated: true });
+    for (const bad of [{}, { refreshBefore: 'soon' }, { refreshBefore: 5 }, { refreshBefore: null, cursor: 'x'.repeat(CURSOR_MAX + 1) }]) expect(() => subscribeResultOf(bad)).toThrow();
   });
 
   test('a webhook body is an event unless it has a type, and an unusable one is null', () => {
@@ -98,10 +111,17 @@ describe('the events extension', () => {
     expect(webhookBodyOf({ eventId: 'e1', name: 'email.received', timestamp: at, data: {} })).toMatchObject({ kind: 'event', cursor: null });
     expect(webhookBodyOf({ type: 'verification', challenge: 'n1' })).toEqual({ kind: 'verification', challenge: 'n1' });
     expect(webhookBodyOf({ type: 'gap', cursor: 'fresh' })).toEqual({ kind: 'gap', cursor: 'fresh' });
-    expect(webhookBodyOf({ type: 'terminated', error: { code: -32024, message: 'Forbidden', data: { reason: 'signed_out' } } })).toEqual({ kind: 'terminated', code: -32024, message: 'Forbidden', reason: 'signed_out' });
-    expect(webhookBodyOf({ type: 'terminated', error: { code: -32023, message: 'x'.repeat(999), data: { reason: 'Access revoked!' } } })).toMatchObject({ code: -32023, reason: null });
-    for (const bad of [null, [], 'x', {}, { type: 'verification' }, { type: 'terminated' }, { type: 'terminated', error: { code: 'x' } }, { type: 'new' }, { type: 5, eventId: 'e', name: 'a.b', timestamp: at, data: {} }, { eventId: '', name: 'a.b', timestamp: at, data: {} }, { eventId: 'x'.repeat(513), name: 'a.b', timestamp: at, data: {} }, { eventId: 'e', name: 'bad name', timestamp: at, data: {} }, { eventId: 'e', name: 'a.b', timestamp: 'never', data: {} }, { eventId: 'e', name: 'a.b', timestamp: at, data: [] }, { eventId: 'e', name: 'a.b', timestamp: at }])
+    expect(webhookBodyOf({ type: 'terminated', error: { code: -32024, message: 'Forbidden', data: { reason: 'signed_out' } } })).toEqual({ kind: 'terminated', code: -32024 });
+    for (const bad of [null, [], 'x', {}, { type: 'verification' }, { type: 'terminated' }, { type: 'terminated', error: { code: 'x' } }, { type: 'new' }, { type: 5, eventId: 'e', name: 'a.b', timestamp: at, data: {} }, { eventId: '', name: 'a.b', timestamp: at, data: {} }, { eventId: 'x'.repeat(513), name: 'a.b', timestamp: at, data: {} }, { eventId: 'e\nevil', name: 'a.b', timestamp: at, data: {} }, { eventId: 'e', name: 'bad name', timestamp: at, data: {} }, { eventId: 'e', name: 'a.b', timestamp: 'never', data: {} }, { eventId: 'e', name: 'a.b', timestamp: at, data: [] }, { eventId: 'e', name: 'a.b', timestamp: at }])
       expect(webhookBodyOf(bad)).toBeNull();
+  });
+
+  test('data nested deeper than Metro keeps is unusable, however it is built', () => {
+    const at = '2026-11-10T10:00:00.000Z';
+    const nested = (depth: number): unknown => Array.from({ length: depth }).reduce<unknown>((inner) => ({ a: [inner] }), 'leaf');
+    expect(webhookBodyOf({ eventId: 'e', name: 'a.b', timestamp: at, data: nested(10) })).not.toBeNull();
+    expect(webhookBodyOf({ eventId: 'e', name: 'a.b', timestamp: at, data: nested(40) })).toBeNull();
+    expect(webhookBodyOf({ eventId: 'e', name: 'a.b', timestamp: at, data: nested(20_000) })).toBeNull();
   });
 });
 
@@ -144,12 +164,12 @@ describe('the inbox between mcp.metro.box and a box', () => {
   });
 
   test('events are read tolerantly: an unreadable one is left out, never thrown', () => {
-    const base = { id: 'abcdefghijk', connector: { id: 'conn0000001', key: 'work-mail', name: 'Work mail' }, event: 'email.received', timestamp: '2026-11-10T10:00:00.000Z' };
-    const event = { ...base, kind: 'event', eventId: 'm1', data: { subject: 'Hi' }, sender: 'a@b.c', senderVerified: true };
-    expect(mcpInboxOf({ events: [event, { ...base, kind: 'gap' }] })).toEqual([event, { ...base, kind: 'gap' }]);
-    expect(mcpInboxOf({ events: [{ ...event, sender: 5, senderVerified: 'yes' }] })[0]).toEqual({ ...base, kind: 'event', eventId: 'm1', data: { subject: 'Hi' } });
-    expect(mcpInboxOf({ events: [{ ...event, connector: { ...base.connector, name: '' } }] })[0]?.connector.name).toBe('work-mail');
-    for (const bad of [null, { ...event, id: 'short' }, { ...event, connector: { ...base.connector, key: 'Work Mail' } }, { ...event, event: 'bad name' }, { ...event, timestamp: 'never' }, { ...event, data: [] }, { ...event, eventId: '' }, { ...event, kind: 'other' }])
+    const event = { id: 'abcdefghijk', connector: { id: 'conn0000001', key: 'work-mail', name: 'Work mail' }, event: 'email.received', eventId: 'm1', timestamp: '2026-11-10T10:00:00.000Z', data: { subject: 'Hi' }, sender: 'a@b.c', senderVerified: true };
+    const { sender: _sender, senderVerified: _verified, ...bare } = event;
+    expect(mcpInboxOf({ events: [event, { ...event, extra: 1 }] })).toEqual([event, event]);
+    for (const sender of [5, '', 'a\nb', 'x'.repeat(321)]) expect(mcpInboxOf({ events: [{ ...event, sender, senderVerified: 'yes' }] })[0]).toEqual(bare);
+    expect(mcpInboxOf({ events: [{ ...event, connector: { ...event.connector, name: '' } }] })[0]?.connector.name).toBe('work-mail');
+    for (const bad of [null, { ...event, id: 'short' }, { ...event, connector: { ...event.connector, key: 'Work Mail' } }, { ...event, event: 'bad name' }, { ...event, timestamp: 'never' }, { ...event, data: [] }, { ...event, eventId: '' }, { ...event, eventId: 'a\rb' }])
       expect(mcpInboxOf({ events: [bad] })).toEqual([]);
     expect(() => mcpInboxOf({ approvals: [] })).toThrow();
   });

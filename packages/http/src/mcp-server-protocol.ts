@@ -1,6 +1,6 @@
 import { parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
-import { EVENT_ID_MAX, EVENT_NAME_RE } from './mcp-events.js';
+import { EVENT_ID_RE, EVENT_NAME_RE, SENDER_ID_RE } from './mcp-events.js';
 
 export const MCP_PATHS = { token: '/v1/token', approvals: '/v1/approvals', answer: '/v1/approvals/answer', inbox: '/v1/inbox' } as const;
 export const MCP_EVENTS_PATH = '/v1/events/';
@@ -117,20 +117,19 @@ interface McpEventConnector {
   name: string;
 }
 
-interface McpEventBase {
+export interface McpConnectorEvent {
   id: string;
   connector: McpEventConnector;
   event: string;
+  eventId: string;
   timestamp: string;
+  data: Record<string, unknown>;
+  sender?: string;
+  senderVerified?: boolean;
 }
-
-export type McpConnectorEvent =
-  | (McpEventBase & { kind: 'event'; eventId: string; data: Record<string, unknown>; sender?: string; senderVerified?: boolean })
-  | (McpEventBase & { kind: 'gap' });
 
 const CONNECTOR_KEY_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const CONNECTOR_NAME_MAX = 256;
-const SENDER_MAX = 320;
 
 function settledOf(raw: unknown): McpSettled {
   const id = isRecord(raw) ? parseId(raw.id) : null;
@@ -151,28 +150,32 @@ function eventConnectorOf(raw: unknown): McpEventConnector | null {
   return id === null ? null : { id, key: raw.key, name: name === '' ? raw.key : name };
 }
 
-function senderOf(raw: Record<string, unknown>): { sender?: string; senderVerified?: boolean } {
-  const verified = typeof raw.senderVerified === 'boolean' ? { senderVerified: raw.senderVerified } : {};
-  const sender = typeof raw.sender === 'string' ? raw.sender.replace(/\p{Cc}/gu, '').trim() : '';
-  return sender === '' || sender.length > SENDER_MAX ? verified : { sender, ...verified };
-}
+const matching = (raw: unknown, shape: RegExp): string | null => (typeof raw === 'string' && shape.test(raw) ? raw : null);
 
-function eventBaseOf(raw: Record<string, unknown>): McpEventBase | null {
-  const id = parseId(raw.id);
-  const connector = eventConnectorOf(raw.connector);
-  const time = typeof raw.timestamp === 'string' ? Date.parse(raw.timestamp) : Number.NaN;
-  if (id === null || connector === null || typeof raw.event !== 'string' || !EVENT_NAME_RE.test(raw.event) || !Number.isFinite(time)) return null;
-  return { id, connector, event: raw.event, timestamp: new Date(time).toISOString() };
+function timeOf(raw: unknown): string | null {
+  const time = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
-
-const usableEventId = (raw: unknown): raw is string => typeof raw === 'string' && raw !== '' && raw.length <= EVENT_ID_MAX;
 
 function connectorEventOf(raw: unknown): McpConnectorEvent | null {
-  const base = isRecord(raw) ? eventBaseOf(raw) : null;
-  if (!isRecord(raw) || base === null) return null;
-  if (raw.kind === 'gap') return { ...base, kind: 'gap' };
-  if (raw.kind !== 'event' || !usableEventId(raw.eventId) || !isRecord(raw.data)) return null;
-  return { ...base, kind: 'event', eventId: raw.eventId, data: raw.data, ...senderOf(raw) };
+  if (!isRecord(raw) || !isRecord(raw.data)) return null;
+  const id = parseId(raw.id);
+  const connector = eventConnectorOf(raw.connector);
+  const event = matching(raw.event, EVENT_NAME_RE);
+  const eventId = matching(raw.eventId, EVENT_ID_RE);
+  const timestamp = timeOf(raw.timestamp);
+  if (id === null || connector === null || event === null || eventId === null || timestamp === null) return null;
+  const sender = matching(raw.sender, SENDER_ID_RE);
+  return {
+    id,
+    connector,
+    event,
+    eventId,
+    timestamp,
+    data: raw.data,
+    ...(sender === null ? {} : { sender }),
+    ...(typeof raw.senderVerified === 'boolean' ? { senderVerified: raw.senderVerified } : {}),
+  };
 }
 
 export function mcpInboxOf(raw: unknown): McpConnectorEvent[] {

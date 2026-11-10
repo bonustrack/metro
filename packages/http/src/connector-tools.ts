@@ -37,7 +37,7 @@ const MIME_RE = /^image\/[a-z0-9.+-]{1,64}$/i;
 const SIZE_RE = /^(any|\d{1,4}x\d{1,4})$/;
 const MAX_PAGES = 100;
 const MAX_TOOLS = 2000;
-const EVENT_PAGES = 10;
+const EVENT_PAGES = 5;
 const MAX_EVENTS = 100;
 const EVENTS_ID = 1000;
 const DELIVERY_RE = /^[a-z]{1,16}$/;
@@ -139,7 +139,7 @@ function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
   return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
 }
 
-export function remoteEventOf(raw: unknown): RemoteEvent | null {
+function remoteEventOf(raw: unknown): RemoteEvent | null {
   if (!isRecord(raw) || typeof raw.name !== 'string' || !EVENT_NAME_RE.test(raw.name) || !Array.isArray(raw.delivery)) return null;
   const delivery = raw.delivery.filter((mode): mode is string => typeof mode === 'string' && DELIVERY_RE.test(mode)).slice(0, DELIVERY_MAX);
   if (delivery.length === 0) return null;
@@ -149,23 +149,30 @@ export function remoteEventOf(raw: unknown): RemoteEvent | null {
 
 export const deliversByWebhook = (event: Pick<RemoteEvent, 'delivery'>): boolean => event.delivery.includes(WEBHOOK_DELIVERY);
 
-function addEvents(result: Record<string, unknown> | null, events: Map<string, RemoteEvent>): string | null {
+function addEvents(result: Record<string, unknown> | null, events: Map<string, RemoteEvent>): unknown {
   if (result === null || !Array.isArray(result.events)) throw refused('The provider did not return its event list.');
   for (const event of result.events.map(remoteEventOf)) if (event !== null && !events.has(event.name) && events.size < MAX_EVENTS) events.set(event.name, event);
-  return typeof result.nextCursor === 'string' && result.nextCursor !== '' ? result.nextCursor : null;
+  return result.nextCursor;
+}
+
+export async function listRemoteEvents(page: (params: Record<string, unknown>) => Promise<Record<string, unknown> | null>): Promise<RemoteEvent[]> {
+  const events = new Map<string, RemoteEvent>();
+  let cursor: string | null = null;
+  for (let at = 0; at < EVENT_PAGES; at += 1) {
+    const next = addEvents(await page(cursor === null ? {} : { cursor }), events);
+    if (typeof next !== 'string' || next === '' || next === cursor) break;
+    cursor = next;
+  }
+  return [...events.values()];
 }
 
 async function walkEvents(url: URL, auth: ConnectorAuth, session: Map<string, string>, fetchImpl?: FetchLike): Promise<RemoteEvent[] | null> {
-  const events = new Map<string, RemoteEvent>();
-  let cursor: string | null = null;
+  let id = EVENTS_ID;
   try {
-    for (let page = 0; page < EVENT_PAGES; page += 1) {
-      const result = await rpc(url, auth, session, { jsonrpc: '2.0', id: EVENTS_ID + page, method: EVENTS_LIST, params: cursor === null ? {} : { cursor } }, fetchImpl, { 'mcp-method': EVENTS_LIST });
-      const next = addEvents(result, events);
-      if (next === null || next === cursor) break;
-      cursor = next;
-    }
-    return [...events.values()];
+    return await listRemoteEvents((params) => {
+      id += 1;
+      return rpc(url, auth, session, { jsonrpc: '2.0', id, method: EVENTS_LIST, params }, fetchImpl, { 'mcp-method': EVENTS_LIST });
+    });
   } catch (err) {
     log.debug(fetchImpl === undefined ? { host: url.hostname, err: errMsg(err) } : {}, 'connector-tools: the remote declares events but did not list them');
     return null;

@@ -1,6 +1,6 @@
 import { ApiError } from './api-error.js';
 
-export const ANYONE = '*';
+const ANYONE = '*';
 const MAX_ENTRIES = 500;
 const MAX_LENGTH = 200;
 const DOMAIN_ENTRY_RE = /^@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
@@ -8,12 +8,12 @@ const EMAIL_RE = /^[^@\s/]+@([^@\s/]+)$/;
 
 export type SenderVerdict = 'allow' | 'not_listed' | 'not_verified';
 
-export interface ListedSender {
+interface ListedSender {
   id: string | null;
   verified?: boolean;
 }
 
-function entryOf(raw: unknown): string {
+export function senderEntry(raw: unknown): string {
   if (typeof raw !== 'string') throw new ApiError('The people who can write must be a list of sender ids.', 400);
   const value = raw.trim();
   if (value.length > MAX_LENGTH || /\p{Cc}/u.test(value)) throw new ApiError(`A sender id is at most ${String(MAX_LENGTH)} plain characters.`, 400);
@@ -29,7 +29,7 @@ export function normalizeSenderList(raw: unknown): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const entry of raw) {
-    const value = entryOf(entry);
+    const value = senderEntry(entry);
     if (value === ANYONE) return [ANYONE];
     const key = value.toLowerCase();
     if (key === '' || seen.has(key)) continue;
@@ -50,11 +50,11 @@ export function senderListOf(text: string | null): string[] | null {
   }
 }
 
-export const anyoneListed = (list: string[]): boolean => list.length === 0 || list.includes(ANYONE);
+const anyoneListed = (list: string[]): boolean => list.length === 0 || list.includes(ANYONE);
 
 export function senderListed(list: string[], id: string): boolean {
   if (anyoneListed(list)) return true;
-  const sender = id.trim().toLowerCase();
+  const sender = id.toLowerCase();
   return list.some((entry) => {
     const wanted = entry.toLowerCase();
     return wanted === sender || (wanted.startsWith('@') && wanted.length > 1 && EMAIL_RE.exec(sender)?.[1] === wanted.slice(1));
