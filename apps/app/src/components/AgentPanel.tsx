@@ -11,6 +11,7 @@ import { ClaudeSettings } from './ClaudeSettings.js';
 import { Skills } from './Skills.js';
 import { SkillPage } from './SkillPage.js';
 import { ChannelPage } from './chats/ChannelPage.js';
+import { MoveChannelPage } from './chats/MoveChannelPage.js';
 import { ChatsPage } from './chats/ChatsPage.js';
 import { Files } from './Files.js';
 import { VoicePage } from './VoicePage.js';
@@ -60,6 +61,7 @@ function SettingsPage({ project, selection, children }: { project: string; selec
 
 function replacedDialog(project: string, selection: Selection): ReactNode {
   if (selection.kind === 'add-chat') return <AddChatPage project={project} station={selection.station} />;
+  if (selection.kind === 'move-channel') return <MoveChannelPage project={project} accountId={selection.accountId} />;
   if (selection.kind === 'backup') return <BackupPage project={project} />;
   if (selection.kind === 'agent-profile') return <ProfilePage project={project} />;
   if (selection.kind === 'launch-log') return <LaunchLogPage project={project} />;
