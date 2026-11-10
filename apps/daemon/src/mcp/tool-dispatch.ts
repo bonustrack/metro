@@ -149,7 +149,7 @@ async function runTool(
   hooks: ToolHooks,
 ): Promise<ToolResult> {
   const name = req.params.name;
-  const a = req.params.arguments ?? {};
+  const { approval, ...a } = req.params.arguments ?? {};
   if (name === 'list_channels') {
     const invalid = channelArgsError(a);
     if (invalid) return invalid;
@@ -160,7 +160,7 @@ async function runTool(
     return errResult('metro: this account is outside your authorized scope');
 
   settlePromptsFor(name, a);
-  const blocked = policyGate(name, a);
+  const blocked = policyGate(name, a, approval);
   if (blocked) return blocked;
 
   return dispatchTool(name, a, identity, hooks);

@@ -6,7 +6,9 @@ import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
-import { answerPrompt, forgetAllPrompts, holdPrompt } from '../src/approvals/pending.ts';
+import { answerPrompt, forgetAllPrompts, holdPrompt, pendingPrompts } from '../src/approvals/pending.ts';
+import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
+import { approvalIdIn, approvalIdOf } from './approval-id.ts';
 import { decide, normalizePolicy, parsePolicy, setPolicies, type Access, type ToolPolicy } from '../src/policy/policy.ts';
 
 const AGENT = 'agent000001';
@@ -91,6 +93,8 @@ afterAll(() => {
 
 beforeEach(() => {
   trainCalls = [];
+  forgetAllPrompts();
+  forgetChannelAsks();
   setTrainCallBackend((train, action) => {
     trainCalls.push(`${train}:${action}`);
     return Promise.resolve({ result: { messageId: 'm1', members: [], capability: { supported: true } } });
@@ -164,8 +168,6 @@ describe('list_members policies follow the line, not an undeclared account argum
     [{ read: 'allow', tools: { list_members: 'ask' } }, "Needs the owner's approval"],
   ];
 
-  beforeEach(() => forgetAllPrompts());
-
   for (const [policy, prefix] of cases)
     test(`an allowed account cannot bypass ${JSON.stringify(policy)} on the line account`, async () => {
       setPolicies('channel', [[WA_TARGET, policy]]);
@@ -175,27 +177,27 @@ describe('list_members policies follow the line, not an undeclared account argum
       expect(trainCalls).toEqual([]);
     });
 
-  test('an exact grant allows one roster dispatch on the line account only', async () => {
-    setPolicies('channel', [[WA_TARGET, { read: 'ask' }]]);
+  test('an approval allows one roster dispatch of the exact call, on the line account only', async () => {
+    setPolicies('channel', [[WA_TARGET, { read: 'ask' }], [{ ...WA_TARGET, account: WA_OTHER }, { read: 'ask' }]]);
     const dispatched: unknown[] = [];
     setTrainCallBackend((train, action, input) => {
       trainCalls.push(`${train}:${action}`);
       dispatched.push(input);
       return Promise.resolve({ result: { members: [], capability: { supported: true, complete: true } } });
     });
-    const approve = async (id: string, input: Record<string, unknown>): Promise<void> => {
-      holdPrompt({ requestId: id, tool: 'mcp__metro__list_members', description: '', preview: JSON.stringify(input), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
-      await answerPrompt(id, 'allow', 'page');
-    };
-    expect((await run()).isError).toBe(true);
-    await approve('aaaaa', { ...args, line: `metro://whatsapp/${WA_OTHER}/123@g.us` });
-    expect((await run()).isError).toBe(true);
+    const elsewhere = { ...args, line: `metro://whatsapp/${WA_OTHER}/123@g.us` };
+    const otherId = approvalIdOf(await run(elsewhere));
+    await answerPrompt(otherId, 'allow', 'page');
+    expect((await run({ ...args, approval: otherId })).content[0]?.text).toContain('was given for another call');
     expect(trainCalls).toEqual([]);
-    await approve('bbbbb', args);
-    expect((await run()).isError).not.toBe(true);
+    const id = approvalIdOf(await run());
+    expect(id).not.toBe(otherId);
+    expect((await run({ ...args, approval: id })).content[0]?.text).toContain('has not answered yet');
+    await answerPrompt(id, 'allow', 'page');
+    expect((await run({ ...args, approval: id })).isError).not.toBe(true);
     expect(trainCalls).toEqual(['whatsapp:listMembers']);
     expect(dispatched).toEqual([{ line: WA_LINE, limit: 5 }]);
-    expect((await run()).content[0]?.text).toStartWith("Needs the owner's approval");
+    expect((await run({ ...args, approval: id })).content[0]?.text).toStartWith("Needs the owner's approval");
     expect(trainCalls).toEqual(['whatsapp:listMembers']);
   });
 
@@ -225,27 +227,57 @@ describe('a call that needs approval runs only once the owner approved that exac
     const res = await runWithIdentity({ kind: 'agent', agentId: AGENT }, () => callToolHandler({ params: { name: 'send', arguments: args } }));
     return res.content.map((x) => x.text).join('\n');
   };
-  const ask = (id: string, args: Record<string, unknown>): void => {
+  const promptedInClaudeCode = (id: string, args: Record<string, unknown>): void => {
     holdPrompt({ requestId: id, tool: 'mcp__metro__send', description: '', preview: JSON.stringify(args), line: undefined, at: Date.now() }, {}, () => Promise.resolve());
   };
 
-  test('approved once: that call runs once, another call or a second run waits again, a denial grants nothing', async () => {
-    forgetAllPrompts();
+  test('approved once: that call runs once, another call or a second run waits again, a denial stays denied', async () => {
     setPolicies('channel', [[TARGET, WRITE_ASK]]);
     const args = { line: LINE, text: 'hello' };
-    ask('ccccc', args);
-    expect(await run(args)).toStartWith("Needs the owner's approval");
-    expect(await answerPrompt('ccccc', 'allow', 'chat')).toBeUndefined();
-    expect(await run(args)).toStartWith("Needs the owner's approval");
-    ask('aaaaa', args);
-    await answerPrompt('aaaaa', 'allow', 'chat');
-    expect(await run({ line: LINE, text: 'something else' })).toStartWith("Needs the owner's approval");
-    expect(await run(args)).toStartWith('sent');
+    const first = await run(args);
+    expect(first).toStartWith("Needs the owner's approval for telegram (send). The owner was asked on the agent's page on metro.box, approval id");
+    const id = approvalIdIn(first);
+    expect(approvalIdIn(await run(args))).toBe(id);
+    expect(await run({ ...args, approval: id })).toStartWith("Needs the owner's approval");
+    await answerPrompt(id, 'allow', 'chat');
+    expect(approvalIdIn(await run({ line: LINE, text: 'something else', approval: id }))).not.toBe(id);
+    expect(await run({ ...args, approval: id })).toStartWith('sent');
     expect(trainCalls).toEqual(['telegram:send']);
-    expect(await run(args)).toStartWith("Needs the owner's approval");
-    ask('bbbbb', args);
-    await answerPrompt('bbbbb', 'deny', 'page');
-    expect(await run(args)).toStartWith("Needs the owner's approval");
+    const again = await run({ ...args, approval: id });
+    expect(again).toStartWith("Needs the owner's approval");
+    const denied = approvalIdIn(again);
+    expect(denied).not.toBe(id);
+    await answerPrompt(denied, 'deny', 'page');
+    expect(await run({ ...args, approval: denied })).toStartWith('Denied by the owner for telegram (send)');
     expect(trainCalls).toEqual(['telegram:send']);
+  });
+
+  test("a yes to Claude Code's own prompt for the same call does not run it, and the call settles that prompt", async () => {
+    setPolicies('channel', [[TARGET, WRITE_ASK]]);
+    const args = { line: LINE, text: 'hello' };
+    promptedInClaudeCode('ccccc', args);
+    await answerPrompt('ccccc', 'allow', 'chat');
+    expect(await run(args)).toStartWith("Needs the owner's approval");
+    expect(await run({ ...args, approval: 'ccccc' })).toContain('Approval "ccccc" is not known here');
+    promptedInClaudeCode('ddddd', args);
+    const asked = approvalIdIn(await run(args));
+    expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([asked]);
+    expect(trainCalls).toEqual([]);
+  });
+
+  test('the approval field never reaches the station', async () => {
+    const seen: unknown[] = [];
+    setTrainCallBackend((train, action, input) => {
+      trainCalls.push(`${train}:${action}`);
+      seen.push(input);
+      return Promise.resolve({ result: { messageId: 'm1' } });
+    });
+    setPolicies('channel', []);
+    expect(await run({ line: LINE, text: 'no rule', approval: 'abcde' })).toStartWith('sent');
+    setPolicies('channel', [[TARGET, WRITE_ASK]]);
+    const id = approvalIdIn(await run({ line: LINE, text: 'hello' }));
+    await answerPrompt(id, 'allow', 'page');
+    expect(await run({ line: LINE, text: 'hello', approval: id })).toStartWith('sent');
+    expect(seen).toEqual([{ line: LINE, text: 'no rule' }, { line: LINE, text: 'hello' }]);
   });
 });

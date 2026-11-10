@@ -3,16 +3,13 @@ import { str } from '@metro-labs/core/str';
 import type { ToolResult } from '@metro-labs/core/stations/types';
 import { accountFromLine, knownAccounts } from '../agents/map.js';
 import { policyFor, storedPolicy, strictest, type Access, type PolicyTarget } from '../policy/policy.js';
+import { askOwner, withdrawAsksFor } from './channel-asks.js';
 import { errResult } from './ctx.js';
-import { NEEDS_APPROVAL, takeGrant } from '../approvals/pending.js';
 import { profileScopeLine } from './profile-lookup.js';
 import { stationOfAccount } from './read-tool.js';
-import { stationForTool, toolGroupOf } from './tool-catalog.js';
-import { CONNECTOR_TOOLS } from '../mcp-server/connector-tools.js';
+import { stationForTool, toolGroupOf, UNGATED } from './tool-catalog.js';
 
 type ChannelTarget = Extract<PolicyTarget, { kind: 'channel' }>;
-
-export const UNGATED = new Set<string>(['list_accounts', 'create_upload', ...CONNECTOR_TOOLS]);
 
 function fromLine(line: string, override = ''): ChannelTarget[] {
   const acct = accountFromLine(line);
@@ -57,13 +54,11 @@ export function channelDecision(name: string, a: Record<string, unknown>): Polic
   return verdict;
 }
 
-const isChannelTool = (name: string) => (tool: string): boolean => tool === `mcp__metro__${name}`;
-
-export function policyGate(name: string, a: Record<string, unknown>): ToolResult | undefined {
+export function policyGate(name: string, a: Record<string, unknown>, approval?: unknown): ToolResult | undefined {
   const { access, target } = channelDecision(name, a);
-  if (access === 'allow' || target === undefined) return undefined;
-  if (access === 'deny') return errResult(`Blocked by the owner's policy for ${target.station} (${name}).`);
-  return takeGrant(isChannelTool(name), a) ? undefined : errResult(NEEDS_APPROVAL(target.station, name));
+  if (access === 'ask' && target !== undefined) return askOwner({ tool: name, target, args: a, approval });
+  withdrawAsksFor(name, a);
+  return access === 'deny' && target !== undefined ? errResult(`Blocked by the owner's policy for ${target.station} (${name}).`) : undefined;
 }
 
 interface EffectivePolicy {

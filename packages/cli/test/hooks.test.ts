@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -93,56 +93,56 @@ const SNAPSHOT = {
   stations: { telegram: [TG, TG2], xmtp: ['xm000000001'] },
 };
 
-describe('the owner policy the guard applies to metro tools', () => {
+describe('the owner rules are the daemon\'s alone: the guard reads none', () => {
   const dir = mkdtempSync(join(tmpdir(), 'metro-guard-policy-'));
   writeFileSync(join(dir, 'policy.json'), JSON.stringify(SNAPSHOT));
   const main = (tool: string, input: Record<string, unknown>): string => guard({ tool_name: `mcp__metro__${tool}`, tool_input: input }, dir);
   const worker = (tool: string, input: Record<string, unknown>): string =>
     guard({ tool_name: `mcp__metro__${tool}`, tool_input: input, agent_id: 'w1' }, dir);
 
-  test('an approval is asked inside a worker, and refused on the main thread with the way out', () => {
-    expect(worker('send', { line: LINE, text: 'hi' })).toMatch(/^ask: The owner asked to approve send on/);
-    expect(main('send', { line: LINE, text: 'hi' })).toMatch(/^deny: send on telegram \(tg000000001\) needs the/);
-    const full = spawnSync('node', [GUARD], {
-      input: JSON.stringify({ tool_name: 'mcp__metro__send', tool_input: { line: LINE } }),
-      encoding: 'utf8',
-      env: { ...process.env, METRO_AGENTS_DIR: dir },
-    }).stdout;
-    expect(full).toContain('run_in_background: true');
+  test('the hook package ships no copy of the rules', () => {
+    expect(readdirSync(HOOKS).sort()).toEqual(['guard.mjs', 'session-start.mjs']);
+    expect(readFileSync(GUARD, 'utf8')).not.toContain('policy');
   });
 
-  test('a blocked tool is denied everywhere, and a per-tool entry beats the group', () => {
-    expect(main('delete', { line: LINE, message_id: 'm1' })).toMatch(/^deny: Blocked by the owner's policy for tele/);
-    expect(worker('delete', { line: LINE, message_id: 'm1' })).toMatch(/^deny: Blocked by the owner's policy for tele/);
-    expect(main('read', { line: LINE })).toBe('allow');
+  test('a snapshot an older Metro left behind changes nothing: an Ask or a Block there neither asks nor denies', () => {
+    const calls: [string, Record<string, unknown>][] = [
+      ['send', { line: LINE, text: 'hi' }],
+      ['send', { line: LINE, text: 'hi', approval: 'abcde' }],
+      ['delete', { line: LINE, message_id: 'm1' }],
+      ['read', { line: LINE, account: TG2 }],
+      ['read', { account: TG2 }],
+      ['create_group', { station: 'telegram', name: 'crew' }],
+      ['group_info', {}],
+      ['get_profile', { from: `metro://telegram/${TG2}/user/42` }],
+      ['brand_new_tool', { line: LINE }],
+      ['list_accounts', {}],
+    ];
+    for (const [tool, input] of calls) {
+      expect(main(tool, input)).toBe('allow');
+      expect(worker(tool, input)).toBe('allow');
+      expect(guard({ tool_name: `mcp__metro__${tool}`, tool_input: input })).toBe('allow');
+    }
   });
 
-  test('the target comes from the line, an account override, the account alone, or the whole station', () => {
-    expect(main('read', { line: LINE, account: TG2 })).toMatch(/^deny: Blocked/);
-    expect(main('read', { account: TG2 })).toMatch(/^deny: Blocked/);
-    expect(main('read', { account: TG })).toBe('allow');
-    expect(worker('create_group', { station: 'telegram', name: 'crew' })).toMatch(/^ask/);
-    expect(worker('group_info', {})).toMatch(/^ask: The owner asked to approve group_info on/);
-    expect(main('get_profile', { from: `metro://telegram/${TG2}/user/42` })).toMatch(/^deny: Blocked/);
-    expect(main('list_accounts', {})).toBe('allow');
-  });
-
-  test('an unknown tool counts as a write, and a call with no channel passes', () => {
-    expect(worker('brand_new_tool', { line: LINE })).toMatch(/^ask/);
-    expect(main('create_upload', { name: 'a.png' })).toBe('allow');
-    expect(main('send', { text: 'no target' })).toBe('allow');
-  });
-
-  test('with no snapshot, or one that does not parse, the call passes (the daemon still refuses what is blocked)', () => {
-    expect(guard({ tool_name: 'mcp__metro__delete', tool_input: { line: LINE } })).toBe('allow');
+  test('a snapshot that does not parse, a folder or a link in its place changes nothing either', () => {
     const broken = mkdtempSync(join(tmpdir(), 'metro-guard-broken-'));
     writeFileSync(join(broken, 'policy.json'), '{nope');
-    expect(guard({ tool_name: 'mcp__metro__delete', tool_input: { line: LINE } }, broken)).toBe('allow');
+    const folder = mkdtempSync(join(tmpdir(), 'metro-guard-folder-'));
+    mkdirSync(join(folder, 'policy.json'));
+    const linked = mkdtempSync(join(tmpdir(), 'metro-guard-linked-'));
+    symlinkSync(join(dir, 'policy.json'), join(linked, 'policy.json'));
+    for (const where of [broken, folder, linked]) {
+      expect(guard({ tool_name: 'mcp__metro__delete', tool_input: { line: LINE } }, where)).toBe('allow');
+      expect(guard({ tool_name: 'mcp__metro__send', tool_input: { line: LINE, text: 'hi' }, agent_id: 'w1' }, where)).toBe('allow');
+      rmSync(where, { recursive: true, force: true });
+    }
   });
 
   test('other tools keep the guard rules they had', () => {
     expect(guard({ tool_name: 'Bash', tool_input: {} }, dir)).toMatch(/^deny: The main thread is orchestrator-only/);
     expect(guard({ tool_name: 'Bash', agent_id: 'w1', tool_input: {} }, dir)).toBe('allow');
+    expect(guard({ tool_name: 'mcp__metro__tool_call', tool_input: { calls: [] } }, dir)).toMatch(/^deny: A connector call is work, not orches/);
   });
 });
 

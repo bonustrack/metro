@@ -3,6 +3,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { eventInScope } from '../agents/scope.js';
 import { revokeCallPrompts } from '../approvals/pending.js';
 import { sharedCalls } from '../voice/shared.js';
+import { revokeCallAsks } from './channel-asks.js';
 import type { McpSession } from './session.js';
 
 export const callInScope = (scope: Set<string>, route: CallRoute): boolean =>
@@ -40,6 +41,9 @@ export function connectCallBridge(current: () => McpSession | undefined): void {
       });
       return true;
     },
-    revoked: (ended) => { revokeCallPrompts(ended); },
+    revoked: (ended) => {
+      revokeCallPrompts(ended);
+      revokeCallAsks(ended);
+    },
   });
 }

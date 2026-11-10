@@ -2,6 +2,41 @@ import { isDeepStrictEqual } from 'node:util';
 import { isRecord } from '@metro-labs/core/is-record';
 
 const ELIDED = '\u0000';
+const LONG = 3_500;
+const HEAD = 1_999;
+const TAIL = 1_499;
+
+export const PREVIEW_MAX = 100_000;
+
+function codePoints(text: string): number {
+  let pairs = 0;
+  for (let at = 0; at < text.length - 1; at += 1) {
+    const high = text.charCodeAt(at);
+    const low = text.charCodeAt(at + 1);
+    if (high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff) {
+      pairs += 1;
+      at += 1;
+    }
+  }
+  return text.length - pairs;
+}
+
+function shortened(text: string): string {
+  if (text.length <= LONG) return text;
+  const total = codePoints(text);
+  if (total <= LONG) return text;
+  const head = Array.from(text.slice(0, HEAD * 2)).slice(0, HEAD).join('');
+  const tail = Array.from(text.slice(-TAIL * 2)).slice(-TAIL).join('');
+  return `${head}\n⋯ ${String(total - HEAD - TAIL)} code points elided ⋯\n${tail}`;
+}
+
+function elided(value: unknown): unknown {
+  if (typeof value === 'string') return shortened(value);
+  if (Array.isArray(value)) return value.map(elided);
+  return isRecord(value) ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, elided(inner)])) : value;
+}
+
+export const previewText = (args: Record<string, unknown>): string => JSON.stringify(elided(args));
 
 const CODE_POINTS = /(?:\\n|\n)⋯ \d+ code points elided ⋯(?:\\n|\n)/g;
 const FIELD_BLOCK = /[\s,]*(?:\\n|\n)?\s*⋯[^]*$/;

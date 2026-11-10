@@ -91,20 +91,11 @@ export function normalizePolicy(raw: unknown): ToolPolicy {
 }
 
 const stored = new Map<string, { target: PolicyTarget; policy: ToolPolicy }>();
-const listeners = new Set<() => void>();
-
-export function onPoliciesChanged(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
 
 export function setPolicies(kind: PolicyTarget['kind'], entries: readonly (readonly [PolicyTarget, ToolPolicy])[]): void {
   for (const key of [...stored.keys()]) if (key.startsWith(`${kind}:`)) stored.delete(key);
   for (const [target, policy] of entries) if (target.kind === kind) stored.set(targetKey(target), { target, policy });
-  for (const listener of listeners) listener();
 }
-
-export const storedPolicies = (): { target: PolicyTarget; policy: ToolPolicy }[] => [...stored.values()];
 
 export const storedPolicy = (target: PolicyTarget): ToolPolicy | undefined => stored.get(targetKey(target))?.policy;
 
