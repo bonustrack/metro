@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, channelLine, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
+  approverNames, entriesOf, keptApprovers, channelLine, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
 } from '../src/lib/channel-people.ts';
 import { namesList } from '../src/lib/rule-sentence.ts';
 
@@ -86,12 +86,9 @@ describe('the people list', () => {
     expect(wan?.title).toBe('Wan');
   });
 
-  test('email channels never approve in chat, so nobody gets a Can approve switch', () => {
-    expect(approvesInChat('outlook')).toBe(false);
-    expect(approvesInChat('gmail')).toBe(false);
-    expect(approvesInChat('telegram-bot')).toBe(true);
-    const people = peopleOf({ station: 'outlook', entries: ['@anderra.ch', 'a@b.ch'], approvers: ['a@b.ch'], cards: [], seen: [], technical: false });
-    expect(people.map((p) => p.approves)).toEqual([null, null]);
+  test('a domain entry reads as everyone at that domain', () => {
+    const people = peopleOf({ station: 'telegram-bot', entries: ['@anderra.ch', '111'], approvers: ['111'], cards: [], seen: [], technical: false });
+    expect(people.map((p) => p.approves)).toEqual([false, true]);
     expect(people[0]?.subtitle).toBe('Anyone with an address at anderra.ch');
   });
 });

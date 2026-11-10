@@ -8,6 +8,7 @@ import { parseId } from '@metro-labs/core/ids';
 import type { LoadedAccount, LoadedAgent } from '../stations/materialize.js';
 import { approversOf } from './files.js';
 import { isStationName } from './account-attach.js';
+import { isRetiredStation } from '@metro-labs/core/station-names';
 
 const AGENTS = '/api/agents';
 const RESTORE_PATH = `${AGENTS}/restore`;
@@ -72,7 +73,14 @@ function agentOf(raw: unknown): AgentBundle['agent'] {
   const { id, name, stations } = raw;
   if (typeof id !== 'string' || parseId(id) === null) throw bad('agent id is not an id');
   if (!Array.isArray(stations)) throw bad('agent has no station list');
-  return { id, name: typeof name === 'string' ? name : '', stations: stations.map(stationOf) };
+  return { id, name: typeof name === 'string' ? name : '', stations: stations.filter((s) => !retired(s)).map(stationOf) };
+}
+
+const retired = (raw: unknown): boolean => isRecord(raw) && isRetiredStation(raw.station);
+
+function retiredCount(raw: unknown): number {
+  const stations = isRecord(raw) && isRecord(raw.agent) ? raw.agent.stations : undefined;
+  return Array.isArray(stations) ? stations.filter(retired).length : 0;
 }
 
 export function parseBundle(raw: unknown): AgentBundle {
@@ -83,7 +91,9 @@ export function parseBundle(raw: unknown): AgentBundle {
 async function answer(req: IncomingMessage, deps: BundleApiDeps, path: string): Promise<unknown> {
   if (path === RESTORE_PATH) {
     const body: unknown = await readJsonBody(req, BUNDLE_MAX);
-    return deps.restore(parseBundle(body), parseMode(body));
+    const skipped = retiredCount(body);
+    const restored = await deps.restore(parseBundle(body), parseMode(body));
+    return skipped === 0 ? restored : { ...restored, skipped };
   }
   const id = parseId(path.slice(AGENTS.length + 1).split('/')[0] ?? '');
   if (id === null) throw new ApiError('no such agent', 404);

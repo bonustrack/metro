@@ -70,18 +70,6 @@ describe('isLocal', () => {
   });
 });
 
-describe('mail lines', () => {
-  test('a conversation id with the escaped base64 characters parses', () => {
-    expect(Line.parseMail('metro://outlook/o1/AAQkAD%2Fabc%2Bdef_-=', 'outlook')).toEqual({ accountId: 'o1', resource: 'AAQkAD%2Fabc%2Bdef_-=' });
-    expect(Line.parseMail('metro://gmail/g1/18c2f0a9d1e3b4c5', 'gmail')).toEqual({ accountId: 'g1', resource: '18c2f0a9d1e3b4c5' });
-  });
-  test('a sender line and another station are not conversations', () => {
-    expect(Line.parseMail('metro://outlook/o1/user/bea@example.ch', 'outlook')).toBeNull();
-    expect(Line.parseMail('metro://threema/o1/ECHOECHO', 'outlook')).toBeNull();
-    expect(Line.parseMail('metro://outlook/o1/AAQkAD=', 'gmail')).toBeNull();
-  });
-});
-
 describe('account-scoped xmtp lines', () => {
   test('extra path segments are all preserved', () => {
     expect(Line.parse('metro://xmtp/tony/group/0xdef')).toEqual({

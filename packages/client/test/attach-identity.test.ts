@@ -3,13 +3,12 @@ import { AttachLifetime } from '../src/api/attach-lifetime.js';
 import { cancelAttachSession, pollAttachSession, submitAttachStep } from '../src/api/attach-session.js';
 import { startAttach } from '../src/api/attach.js';
 import { refreshAccount } from '../src/api/auth.js';
-import { finishReturn, rememberSignIn } from '../src/api/sign-in-return.js';
 import { accountIdentity, activeAccount, clearAccount, storeAccount, type Account, type AccountIdentity } from '../src/auth/account.js';
 import { configurePlatform, memoryKeyValue, readItem, writeItem } from '../src/platform.js';
 import { installTestAccount, testToken } from './account-fixture.js';
 
 const BASE = 'https://original-box.invalid/api/agents';
-const PENDING = { attachId: 'attach', station: 'gmail', status: 'pending', step: 'browser' };
+const PENDING = { attachId: 'attach', station: 'whatsapp', status: 'pending', step: 'scan' };
 const realFetch = globalThis.fetch;
 const realWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
 const realNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -66,14 +65,8 @@ function changed(part: 'user' | 'organization' | 'session'): Account {
   };
 }
 
-function remember(): void {
-  rememberSignIn({ state: 'state', agentsBase: BASE, agentId: 'agent', attachId: 'attach', backHash: '#/channels', startedAt: Date.now(), identity });
-}
-
-const returned = { kind: 'code', code: 'synthetic-code', state: 'state' } as const;
-
 const operations = [
-  () => startAttach('agent', 'gmail', {}, BASE, identity),
+  () => startAttach('agent', 'whatsapp', {}, BASE, identity),
   () => pollAttachSession('agent', 'attach', BASE, identity),
   () => submitAttachStep('agent', 'attach', { code: 'synthetic' }, BASE, identity),
   () => cancelAttachSession('agent', 'attach', BASE, identity),
@@ -81,11 +74,9 @@ const operations = [
 
 describe('attachment initiating account boundary', () => {
   for (const part of ['user', 'organization', 'session'] as const) {
-    test(`every attach request and callback refuses a changed ${part}`, async () => {
-      remember();
+    test(`every attach request refuses a changed ${part}`, async () => {
       storeAccount(changed(part));
       for (const operation of operations) await expect(operation()).rejects.toThrow('account changed');
-      expect(await finishReturn(returned)).toMatchObject({ ok: false, message: expect.stringContaining('account changed') });
       expect(seen).toEqual([]);
     });
   }
@@ -103,17 +94,15 @@ describe('attachment initiating account boundary', () => {
 
   test('an identity missing its WorkOS session never starts', async () => {
     installTestAccount({ sid: undefined });
-    await expect(new AttachLifetime('agent', BASE).start('gmail', {})).rejects.toThrow('account changed');
+    await expect(new AttachLifetime('agent', BASE).start('whatsapp', {})).rejects.toThrow('account changed');
     expect(seen).toEqual([]);
   });
 
-  test('closing after an account switch removes local pending state without sending the new bearer', async () => {
+  test('closing after an account switch never sends the new bearer', async () => {
     const life = new AttachLifetime('agent', BASE);
-    await life.start('gmail', {});
-    remember();
+    await life.start('whatsapp', {});
     storeAccount(changed('user'));
     await expect(life.close()).rejects.toThrow('account changed');
-    expect(readItem('metro.outlook.pending')).toBeNull();
     expect(seen).toEqual([{ url: `${BASE}/agent/accounts/start`, bearer: `Bearer ${original.accessToken}` }]);
   });
 
@@ -122,7 +111,7 @@ describe('attachment initiating account boundary', () => {
     const requested = Promise.withResolvers<void>();
     respond = () => { requested.resolve(); return response.promise; };
     const life = new AttachLifetime('agent', BASE);
-    const starting = life.start('gmail', {});
+    const starting = life.start('whatsapp', {});
     await requested.promise;
     await life.close();
     storeAccount(changed('session'));
@@ -133,7 +122,7 @@ describe('attachment initiating account boundary', () => {
   });
 
   test('switching during token lookup prevents the first request', async () => {
-    const starting = startAttach('agent', 'gmail', {}, BASE, identity);
+    const starting = startAttach('agent', 'whatsapp', {}, BASE, identity);
     storeAccount(changed('user'));
     await expect(starting).rejects.toThrow('account changed');
     expect(seen).toEqual([]);
@@ -147,16 +136,6 @@ describe('attachment initiating account boundary', () => {
     await expect(pollAttachSession('agent', 'attach', BASE, identity)).rejects.toThrow('account changed');
     expect(seen).toHaveLength(1);
     expect(seen[0]?.bearer).toBe(`Bearer ${original.accessToken}`);
-  });
-
-  test('callback settlement refuses a switched account before its next poll', async () => {
-    remember();
-    const finishing = finishReturn(returned);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    storeAccount(changed('organization'));
-    expect(await finishing).toMatchObject({ ok: false, message: expect.stringContaining('account changed') });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]?.url).toBe(`${BASE}/agent/accounts/attach/step`);
   });
 });
 
@@ -200,7 +179,7 @@ describe('refresh races during an attachment', () => {
     const response = Promise.withResolvers<Response>();
     const requested = Promise.withResolvers<void>();
     respond = () => { requested.resolve(); return response.promise; };
-    const starting = startAttach('agent', 'gmail', {}, BASE, identity);
+    const starting = startAttach('agent', 'whatsapp', {}, BASE, identity);
     await requested.promise;
     const next = changed('user');
     storeAccount(next);

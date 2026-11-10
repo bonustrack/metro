@@ -40,7 +40,7 @@ describe('per-account allowlist', () => {
 });
 
 describe('domain entries', () => {
-  const from = (address: string): string => `metro://outlook/o1/user/${address}`;
+  const from = (address: string): string => `metro://threema/t1/user/${address}`;
 
   test('an exact address still matches only that address', () => {
     expect(senderMatchesAllowlist(['andy@anderra.ch'], from('andy@anderra.ch'))).toBe(true);

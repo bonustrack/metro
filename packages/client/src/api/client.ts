@@ -39,7 +39,6 @@ export interface StationsView {
   agent: AgentSummary | undefined;
   groups: AccountGroup[];
   attachable: string[];
-  features: string[];
   unavailable: string[];
   reportsStatus: string[];
   pairAgain: string[];
@@ -164,7 +163,6 @@ export async function fetchStations(): Promise<StationsView> {
     agent: toAgent(body.agents),
     groups: groupAccounts(body.accounts),
     attachable: toStationList(body.attachable),
-    features: toStationList(body.features),
     unavailable: toStationList(body.unavailable),
     reportsStatus: toStationList(body.reportsStatus),
     pairAgain: toStationList(body.pairAgain),

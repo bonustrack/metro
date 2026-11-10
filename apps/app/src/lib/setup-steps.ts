@@ -29,8 +29,6 @@ export interface Setup {
   open: SetupStep | null;
 }
 
-const NO_APPROVALS = new Set(['outlook', 'gmail', 'webhook']);
-
 const chats = (groups: AccountGroup[]): FlatAccount[] => flattenAccounts(groups).filter((a) => a.station !== 'webhook');
 
 export const modelReady = (model: ModelSettings): boolean => model.ready || (model.route !== null && model.reason === null);
@@ -54,7 +52,7 @@ export function accountName(account: FlatAccount): string {
 
 function chatStep(input: SetupInput, accounts: FlatAccount[]): SetupStep {
   const first = accounts[0];
-  const hint = first === undefined ? `Where your team writes to ${input.name}: WhatsApp, Outlook, Telegram…` : accountName(first);
+  const hint = first === undefined ? `Where your team writes to ${input.name}: WhatsApp, Telegram, Discord…` : accountName(first);
   return { id: 'chat', title: 'Connect a channel', hint, done: first !== undefined, target: { kind: 'chats', project: input.project } };
 }
 
@@ -86,9 +84,7 @@ export function setupOf(input: SetupInput): Setup {
   if (input.model !== undefined) steps.push(modelStep(input, input.model));
   if (input.groups !== undefined) {
     const accounts = chats(input.groups);
-    const approving = accounts.filter((a) => !NO_APPROVALS.has(a.station));
-    steps.push(chatStep(input, accounts), writeStep(input, accounts));
-    if (accounts.length === 0 || approving.length > 0) steps.push(approveStep(input, approving));
+    steps.push(chatStep(input, accounts), writeStep(input, accounts), approveStep(input, accounts));
   }
   if (input.conversations !== undefined) steps.push(helloStep(input, input.conversations));
   return { steps, done: steps.filter((step) => step.done).length, open: steps.find((step) => !step.done) ?? null };

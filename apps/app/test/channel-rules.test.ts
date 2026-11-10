@@ -7,7 +7,7 @@ import {
 const W = (name: string): GroupedTool => ({ name, group: 'write' });
 const R = (name: string): GroupedTool => ({ name, group: 'read' });
 const TELEGRAM: GroupedTool[] = [W('send'), W('reply'), W('react'), W('typing'), W('delete'), R('read'), R('list_members')];
-const OUTLOOK: GroupedTool[] = [W('send'), W('reply'), R('read'), R('list_members')];
+const THREEMA: GroupedTool[] = [W('send'), W('reply'), R('read'), R('list_members')];
 const WHATSAPP: GroupedTool[] = [...TELEGRAM, W('remove_members')];
 
 describe('the rows of What the agent may do', () => {
@@ -57,7 +57,7 @@ describe('the rows of What the agent may do', () => {
   });
 
   test('a station with nothing to delete has no Delete row', () => {
-    expect(ruleRows({ write: 'deny' }, OUTLOOK).map((row) => row.target)).toEqual(['read', 'write']);
+    expect(ruleRows({ write: 'deny' }, THREEMA).map((row) => row.target)).toEqual(['read', 'write']);
   });
 });
 
@@ -92,13 +92,12 @@ describe('choosing a rule writes the policy the daemon reads', () => {
 
 describe('the approval note under Ask', () => {
   test('shows the message the people who approve get', () => {
-    expect(askNote('write', { chat: true, approvers: 2 })).toBe('They get: "Approval needed: send. Reply yes kqfmz or no kqfmz"');
-    expect(askNote('delete', { chat: true, approvers: 1 })).toContain('Approval needed: delete.');
+    expect(askNote('write', 2)).toBe('They get: "Approval needed: send. Reply yes kqfmz or no kqfmz"');
+    expect(askNote('delete', 1)).toContain('Approval needed: delete.');
   });
 
   test('says the questions show on Home when nobody can answer in the chat', () => {
-    expect(askNote('write', { chat: true, approvers: 0 })).toBe('Questions show on Home: nobody here can approve yet.');
-    expect(askNote('write', { chat: false, approvers: 3 })).toBe('Questions show on Home. Email does not carry them.');
+    expect(askNote('write', 0)).toBe('Questions show on Home: nobody here can approve yet.');
   });
 });
 

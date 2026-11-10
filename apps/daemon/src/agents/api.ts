@@ -26,7 +26,6 @@ export interface AgentApiDeps extends AccountApiDeps {
   capabilities: () => Record<string, string[]>;
   toolGroups?: () => Record<string, { name: string; group: string }[]>;
   attachable?: string[];
-  features?: string[];
 }
 
 type Routable =
@@ -69,7 +68,6 @@ async function handleList(
   const base = {
     agents: list.map((a) => agentPayload(a)),
     capabilities: deps.capabilities(),
-    features: deps.features ?? [],
     attachable: deps.attachable ?? ATTACHABLE,
     reportsStatus: statusStations(),
     pairAgain: pairAgainStations(),

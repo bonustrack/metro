@@ -1,3 +1,4 @@
+import { isRetiredStation, type RetiredStation } from '@metro-labs/core/station-names';
 import { accountIdentity, checkAccountIdentity, type AccountIdentity } from '../auth/account.js';
 import { policyOf, type ToolPolicy } from './policy.js';
 import { filled, isRecord } from '../read.js';
@@ -32,8 +33,6 @@ export interface StationForm {
   links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
-  provider?: string;
-  codeFallback?: boolean;
 }
 
 
@@ -137,25 +136,6 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
-  outlook: {
-    label: 'Outlook',
-    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. Sign in with Microsoft in a new tab. The agent reads, searches and answers mail.',
-    interactive: true,
-    provider: 'Microsoft',
-    codeFallback: true,
-    fields: [],
-  },
-  gmail: {
-    label: 'Gmail',
-    hint: 'Connects a Gmail or Google Workspace mailbox with your own Google OAuth client. Sign in with Google in a new tab. The agent reads, searches and answers mail.',
-    links: [{ text: 'How to set up the Google client', href: 'https://github.com/bonustrack/metro/blob/main/docs/GMAIL.md' }],
-    interactive: true,
-    provider: 'Google',
-    fields: [
-      { key: 'clientId', label: 'Client ID', placeholder: '1234-abcd.apps.googleusercontent.com', secret: false, kind: 'text' },
-      { key: 'clientSecret', label: 'Client secret', placeholder: 'GOCSPX-...', secret: true, kind: 'text' },
-    ],
-  },
   webhook: {
     label: 'Webhook',
     hint: 'Metro makes a URL to POST events to. Keep it private: the URL is the password. Inbound only, the agent cannot reply.',
@@ -179,16 +159,14 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
 };
 
-const MAIL_CONNECTORS = new Set(['gmail', 'outlook']);
-
-export const connectsAsConnector = (station: string): boolean => MAIL_CONNECTORS.has(station);
+const RETIRED_LABELS: Record<RetiredStation, string> = { outlook: 'Outlook', gmail: 'Gmail' };
 
 export function offeredStations(attachable: string[]): string[] {
-  return attachable.filter((s) => STATION_FORMS[s] !== undefined && !connectsAsConnector(s));
+  return attachable.filter((s) => STATION_FORMS[s] !== undefined);
 }
 
 export function stationLabel(station: string): string {
-  return STATION_FORMS[station]?.label ?? station;
+  return STATION_FORMS[station]?.label ?? (isRetiredStation(station) ? RETIRED_LABELS[station] : station);
 }
 
 interface OneTimeSecret {

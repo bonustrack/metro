@@ -166,14 +166,6 @@ await ok('fetchRecentSenders', () => attach.fetchRecentSenders(agent, 'threema',
 await refused('lookupSender on threema', /resolve|look/i, () => attach.lookupSender(agent, 'threema', account, '+33600000000'));
 await refused('accountName on threema', /name/i, () => attach.accountName(agent, 'threema', account));
 await refused('startAttach webhook', /webhook|public/i, () => attach.startAttach(agent, 'webhook', {}));
-if (stations?.features.includes('gmail-managed') === true) {
-  await refused('startAttach Gmail upgrade unknown account', /account|not found|no such/i, () =>
-    attach.startAttach(agent, 'gmail', { mode: 'upgrade', accountId: 'missing-compat-account', sendEnabled: 'true' }),
-  );
-  await refused('startAttach Gmail BYO without credentials', /client|credential/i, () =>
-    attach.startAttach(agent, 'gmail', { mode: 'byo', sendEnabled: 'false' }),
-  );
-}
 if (stations?.pairAgain.includes('whatsapp') === true) {
   await refused('startPairAgain on a station that cannot', /cannot pair again/, () => pairAgain.startPairAgain(agent, 'threema', account, {}));
   await refused('startPairAgain unknown WhatsApp channel', /no such channel/i, () => pairAgain.startPairAgain(agent, 'whatsapp', 'cmpGone0001', {}));

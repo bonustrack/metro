@@ -10,7 +10,7 @@ const W = (name: string): GroupedTool => ({ name, group: 'write' });
 const R = (name: string): GroupedTool => ({ name, group: 'read' });
 const MESSAGING: GroupedTool[] = [W('send'), W('reply'), W('react'), W('typing'), W('delete'), R('read'), R('list_members'), R('get_profile')];
 const WHATSAPP: GroupedTool[] = [...MESSAGING, W('create_group'), W('ask'), W('remove_members')];
-const MAIL: GroupedTool[] = [W('send'), W('reply'), R('read')];
+const SEND_ONLY: GroupedTool[] = [W('send'), W('reply'), R('read')];
 const VERBS = ['send', 'reply', 'react', 'delete'];
 
 const CARDS: SenderCard[] = [
@@ -24,8 +24,8 @@ const NOW = Date.UTC(2026, 9, 23, 12);
 
 const row = (extra: Partial<AccountRow> = {}): AccountRow => ({ id: 'acct1', allowlist: ['*'], approvers: [], enabled: true, policy: {}, status: null, fields: [], ...extra });
 
-const LABELS: Record<string, string> = { whatsapp: 'WhatsApp', gmail: 'Gmail', webhook: 'Webhook', 'telegram-bot': 'Telegram bot' };
-const TOOLS: Record<string, GroupedTool[]> = { whatsapp: WHATSAPP, gmail: MAIL, outlook: MAIL, webhook: [] };
+const LABELS: Record<string, string> = { whatsapp: 'WhatsApp', webhook: 'Webhook', 'telegram-bot': 'Telegram bot' };
+const TOOLS: Record<string, GroupedTool[]> = { whatsapp: WHATSAPP, webhook: [] };
 
 function facts(station: string, extra: Partial<AccountRow> = {}, more: Partial<ChannelFacts> = {}): ChannelFacts {
   const account = row(extra);
@@ -40,7 +40,6 @@ function facts(station: string, extra: Partial<AccountRow> = {}, more: Partial<C
     people: peopleOf({ station, entries, approvers: account.approvers, cards: CARDS, seen: [], technical: false }),
     reportsStatus: station === 'whatsapp',
     pairAgain: station === 'whatsapp',
-    readOnly: false,
     ...more,
   };
 }
@@ -64,9 +63,9 @@ describe('who can write', () => {
   });
 
   test('an email domain reads as anyone at it, and an address keeps its small letter', () => {
-    expect(summary('gmail', { allowlist: ['@anderra.ch'] })).toStartWith('Anyone at @anderra.ch can write.');
-    expect(summary('gmail', { allowlist: ['andy@anderra.ch', '@mcigroup.ch'] })).toStartWith('Anyone at @mcigroup.ch and andy@anderra.ch can write.');
-    expect(summary('gmail', { allowlist: ['andy@anderra.ch'] })).toStartWith('andy@anderra.ch can write.');
+    expect(summary('threema', { allowlist: ['@anderra.ch'] })).toStartWith('Anyone at @anderra.ch can write.');
+    expect(summary('threema', { allowlist: ['andy@anderra.ch', '@mcigroup.ch'] })).toStartWith('Anyone at @mcigroup.ch and andy@anderra.ch can write.');
+    expect(summary('threema', { allowlist: ['andy@anderra.ch'] })).toStartWith('andy@anderra.ch can write.');
   });
 });
 
@@ -80,10 +79,6 @@ describe('approvals', () => {
       'Marco, Mustafa and 9 others can write. Marco and Mustafa approve in a private chat.',
     );
     expect(summary('telegram-bot', { allowlist: NAMED, approvers: ['ana@lid'] })).toContain('Ana approves in a private chat.');
-  });
-
-  test('an email channel never takes them, even with approvers saved', () => {
-    expect(summary('gmail', { allowlist: ['andy@anderra.ch'], approvers: ['andy@anderra.ch'] })).toBe('andy@anderra.ch can write. Approvals only on metro.box. Lisa reads and sends freely.');
   });
 });
 
@@ -102,7 +97,7 @@ describe('what the agent may do', () => {
   });
 
   test('a channel without delete tools has no Delete words', () => {
-    expect(rules({ write: 'ask' }, MAIL)).toBe('Lisa reads freely, asks before sending.');
+    expect(rules({ write: 'ask' }, SEND_ONLY)).toBe('Lisa reads freely, asks before sending.');
   });
 
   test('tool by tool exceptions are named, three at most', () => {
@@ -137,12 +132,6 @@ describe('receiving, the connection and stations without people', () => {
 
   test('a webhook only receives', () => {
     expect(summary('webhook', { allowlist: null })).toBe('Lisa only receives messages and cannot write.');
-  });
-
-  test('a read-only Gmail says it cannot send', () => {
-    expect(summary('gmail', { allowlist: ['@anderra.ch'] }, { readOnly: true })).toBe(
-      'Anyone at @anderra.ch can write. Approvals only on metro.box. Lisa reads freely. Google access is read-only, so Lisa cannot send.',
-    );
   });
 
   test('an unknown agent name starts the sentence with a capital', () => {

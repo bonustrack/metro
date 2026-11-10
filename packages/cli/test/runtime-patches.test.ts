@@ -8,7 +8,7 @@ import { readManifest } from '../src/runtime-install.js';
 
 const CLI = join(import.meta.dir, '..');
 const REPO = join(CLI, '..', '..');
-const STATIONS = ['xmtp', 'telegram-bot', 'telegram', 'discord-bot', 'whatsapp', 'threema', 'outlook', 'gmail', 'webhook'];
+const STATIONS = ['xmtp', 'telegram-bot', 'telegram', 'discord-bot', 'whatsapp', 'threema', 'webhook'];
 const PATCH_KEY = 'baileys@7.0.0-rc14';
 const PATCH_FILE = `patches/${PATCH_KEY}.patch`;
 let root = '';

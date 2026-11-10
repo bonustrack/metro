@@ -5,7 +5,6 @@ import { Group } from '../ui/Group.js';
 import { PermissionControl } from '../ui/PermissionControl.js';
 import { type ChannelProps } from './channel-props.js';
 import { useSaveRule } from './use-save-rule.js';
-import { approvesInChat } from '../../lib/channel-people.js';
 import { askNote, changedCount, exceptionSummary, ruleRows } from '../../lib/channel-rules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 
@@ -26,7 +25,6 @@ export function ChannelRules(props: ChannelProps): ReactNode {
       </Group>
     );
   if (tools.length === 0) return null;
-  const where = { chat: approvesInChat(station), approvers: row.approvers.length };
   return (
     <Group label={label} error={saving.error}>
       {ruleRows(row.policy, tools).map((rule) => (
@@ -34,7 +32,7 @@ export function ChannelRules(props: ChannelProps): ReactNode {
           key={rule.target}
           title={rule.label}
           subtitle={rule.note}
-          detail={rule.value === 'ask' ? askNote(rule.target, where) : undefined}
+          detail={rule.value === 'ask' ? askNote(rule.target, row.approvers.length) : undefined}
           trailing={<PermissionControl label={rule.label} value={rule.value} disabled={saving.busy} onChange={(choice) => { saving.pick(rule.target, choice); }} />}
           chevron={false}
         />

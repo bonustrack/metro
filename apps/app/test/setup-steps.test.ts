@@ -37,11 +37,6 @@ describe('the setup checklist on Home', () => {
     expect(setupOf(input({ groups: unsettled, conversations: 1 })).open?.id).toBe('approve');
   });
 
-  test('a mailbox cannot answer approvals, so a box with only email skips that step', () => {
-    const groups = groupAccounts({ outlook: [{ id: 'o1', handle: 'andy@anderra.ch', allowlist: ['@anderra.ch'] }] });
-    expect(ids(setupOf(input({ groups, conversations: 2 })))).toEqual(['model:done', 'chat:done', 'write:done', 'hello:done']);
-  });
-
   test('a step whose facts are unknown is left out, never guessed', () => {
     expect(ids(setupOf(input({ model: undefined, groups: undefined, conversations: undefined })))).toEqual([]);
     expect(ids(setupOf(input({ conversations: undefined, groups: undefined })))).toEqual(['model:done']);

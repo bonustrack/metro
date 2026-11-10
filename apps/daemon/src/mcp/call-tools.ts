@@ -33,13 +33,7 @@ const withId = (text: string, messageId: string | undefined): string =>
 interface Sent {
   labels: string[];
   messageId?: string;
-  thread?: string;
 }
-
-const threadOf = (response: { result: unknown }, asked: string): string | undefined => {
-  const line = (response.result as { line?: unknown } | null)?.line;
-  return typeof line === 'string' && line !== '' && line !== asked ? line : undefined;
-};
 
 const deliveredLabels = (response: { result: unknown }): string[] => {
   const list = (response.result as { attachments?: unknown } | null)
@@ -108,19 +102,17 @@ async function sendForwarded(
   const { line, ctx, station } = m;
   const args: Record<string, unknown> = { line, ...stagePartArgs(m) };
   if (text) args.text = text;
-  if (typeof m.a.subject === 'string' && m.a.subject.trim() !== '') args.subject = m.a.subject;
   if (replyTo) args.replyTo = replyTo;
   if (atts.length) args.attachments = atts.map(toCanonical);
   const response = await ctx.call('send', args);
   const messageId = messageIdOf(response);
-  const thread = threadOf(response, line);
   const labels = sentLabels(m, text);
   if (atts.length) {
     const delivered = deliveredLabels(response);
     assertDelivered(station, delivered, atts);
     labels.push(...delivered);
   }
-  return thread === undefined ? { labels, messageId } : { labels, messageId, thread };
+  return { labels, messageId };
 }
 
 const unsupported = (station: Station, atts: CanonicalAttachment[]): string =>
@@ -158,8 +150,7 @@ async function handleSend(m: MessageArgs): Promise<ToolResult> {
       : await sendForwarded(m, text, replyTo, atts);
     if (!sent.labels.length) return errResult(NOTHING_TO_SEND);
     if (sent.messageId !== undefined) m.onSent?.(sent.messageId);
-    const done = withId(`sent: ${sent.labels.join(', ')}`, sent.messageId);
-    return ok(sent.thread === undefined ? done : `${done} — new thread line: ${sent.thread}`);
+    return ok(withId(`sent: ${sent.labels.join(', ')}`, sent.messageId));
   } finally {
     await cleanupAttachments(atts);
   }

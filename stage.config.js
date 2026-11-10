@@ -116,14 +116,6 @@ export default defineConfig({
       type: 'library',
       knip: { project: ['src/**/*.ts'] },
     },
-    'packages/outlook': {
-      type: 'library',
-      knip: { project: ['src/**/*.ts'] },
-    },
-    'packages/gmail': {
-      type: 'library',
-      knip: { project: ['src/**/*.ts'] },
-    },
     'packages/whatsapp': {
       type: 'library',
       knip: { project: ['src/**/*.ts'] },

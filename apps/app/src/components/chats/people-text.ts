@@ -4,8 +4,6 @@ export const PLACEHOLDER: Record<string, string> = {
   'discord-bot': 'Discord user id, a long number',
   whatsapp: 'WhatsApp id',
   threema: 'Threema ID, like ECHOECHO',
-  outlook: 'Email address, or @company.com',
-  gmail: 'Email address, or @company.com',
   xmtp: 'Inbox id',
 };
 
@@ -15,8 +13,6 @@ export const WHERE_TO_FIND: Record<string, string> = {
   'discord-bot': 'In Discord, turn on Developer Mode, right-click the person and choose Copy User ID.',
   whatsapp: 'Easiest: look them up by phone number below.',
   threema: 'Easiest: have them write once, then pick them below.',
-  outlook: '@company.com lets in everyone at that company. A subdomain needs its own entry.',
-  gmail: '@company.com lets in everyone at that company. A subdomain needs its own entry.',
   xmtp: 'Their inbox id, not their wallet address. Easiest: have them write once, then pick them below.',
 };
 

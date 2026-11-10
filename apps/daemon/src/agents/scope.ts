@@ -3,9 +3,9 @@ import {
   agentIdForAccount,
   stationAgentIds,
 } from './map.js';
-import { STATIONS } from '@metro-labs/core/station-names';
+import { RETIRED_STATIONS, STATIONS } from '@metro-labs/core/station-names';
 
-const ACCOUNT_STATIONS = new Set<string>(STATIONS);
+const ACCOUNT_STATIONS = new Set<string>([...STATIONS, ...RETIRED_STATIONS]);
 const CONNECTOR_LINES_MAX = 500;
 const connectorLines = new Map<string, string>();
 

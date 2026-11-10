@@ -50,7 +50,7 @@ describe('the Metro files the agent may read', () => {
   test('carry the key and the route, never a channel credential or a provider key', () => {
     writeFileSync(
       join(dir, 'agent.json'),
-      JSON.stringify({ version: 1, id: 'agent000001', key: 'secret-agent-key-0123456789', stations: [{ station: 'outlook', id: 'o1', config: { refreshToken: 'rt-SECRET' } }] }),
+      JSON.stringify({ version: 1, id: 'agent000001', key: 'secret-agent-key-0123456789', stations: [{ station: 'telegram-bot', id: 't1', config: { token: 'bot-SECRET' } }] }),
     );
     writeFileSync(join(dir, 'model.json'), JSON.stringify({ version: 2, route: 'c1', connections: [{ id: 'c1', provider: 'openrouter', model: 'x/y', apiKey: 'sk-SECRET', label: 'OpenRouter' }] }));
     const delivered = { route: { primary: { connection: 'c1', model: 'x/y' }, fallbacks: [] }, source: 'organization' as const, connections: [makeConnection('openrouter', { id: 'c1', apiKey: 'sk-SECRET' })] };

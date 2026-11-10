@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { isAttachSession, signInPage, toSession } from '../src/api/attach-session.js';
-import { connectsAsConnector, offeredStations, STATION_FORMS, stationLabel } from '../src/api/attach.js';
+import { isAttachSession, toSession } from '../src/api/attach-session.js';
+import { offeredStations, STATION_FORMS, stationLabel } from '../src/api/attach.js';
 
 const PENDING = {
   attachId: 'as_AAAAAAAAAAAAAAAAAAAAAA',
@@ -27,21 +27,11 @@ describe('attach session parsing', () => {
       prompt: 'scan this',
       qr: 'wa-qr-payload',
       pairingCode: null,
-      userCode: null,
-      verificationUri: null,
-      authorizeUrl: null,
       accountId: null,
       identity: {},
       activated: false,
       error: null,
     });
-  });
-
-  test('a Microsoft sign-in carries the code and the page to type it on', () => {
-    const device = toSession({ ...PENDING, station: 'outlook', step: 'device', qr: null, userCode: 'XK7P9QRT', verificationUri: 'https://microsoft.com/devicelogin' });
-    expect(device.step).toBe('device');
-    expect(device.userCode).toBe('XK7P9QRT');
-    expect(device.verificationUri).toBe('https://microsoft.com/devicelogin');
   });
 
   test('a one-shot attach response is not mistaken for a session', () => {
@@ -101,28 +91,15 @@ describe('interactive station forms', () => {
     expect(fields.find((f) => f.key === 'phone')?.secret).toBe(false);
   });
 
-  test('Outlook asks for nothing, then signs in with Microsoft', () => {
-    expect(STATION_FORMS.outlook?.interactive).toBe(true);
-    expect(STATION_FORMS.outlook?.fields).toEqual([]);
-    expect(stationLabel('outlook')).toBe('Outlook');
-  });
-
   test('a channel the page has no form for is never offered', () => {
     expect(offeredStations(['telegram', 'whatsapp', 'pigeon'])).toEqual(['telegram', 'whatsapp']);
   });
 
-  test('Gmail and Outlook are no longer offered as channels: they connect as connectors', () => {
+  test('Gmail and Outlook are connectors now: an older daemon that still lists them never offers them, and keeps their names', () => {
     expect(offeredStations(['telegram', 'outlook', 'gmail'])).toEqual(['telegram']);
-    expect(connectsAsConnector('gmail')).toBe(true);
-    expect(connectsAsConnector('outlook')).toBe(true);
-    expect(connectsAsConnector('telegram')).toBe(false);
-    expect(STATION_FORMS.gmail).toBeDefined();
-  });
-
-  test('the sign-in link is Microsoft\'s own page, never a non-https one', () => {
-    expect(signInPage('https://microsoft.com/devicelogin')).toBe('https://microsoft.com/devicelogin');
-    expect(signInPage('javascript:alert(1)')).toBe('https://microsoft.com/devicelogin');
-    expect(signInPage(null)).toBe('https://microsoft.com/devicelogin');
+    expect(STATION_FORMS.gmail).toBeUndefined();
+    expect(stationLabel('outlook')).toBe('Outlook');
+    expect(stationLabel('gmail')).toBe('Gmail');
   });
 
   test('both interactive stations have a human label', () => {

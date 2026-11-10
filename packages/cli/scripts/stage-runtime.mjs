@@ -22,8 +22,6 @@ const STATION_SOURCES = [
   ['packages/discord-bot', 'discord-bot'],
   ['packages/whatsapp', 'whatsapp'],
   ['packages/threema', 'threema'],
-  ['packages/outlook', 'outlook'],
-  ['packages/gmail', 'gmail'],
   ['packages/webhook', 'webhook'],
 ];
 
