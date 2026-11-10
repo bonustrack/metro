@@ -246,8 +246,10 @@ rules are in `docs/rules/TOOL-POLICIES.md`; this is the summary.
 - The rule that applies is the rule of the account that acts: the account of the call's line,
   always, plus an account the call names. Until this step an added `account` argument could
   lift a Block or an Ask.
-- The chat question never leaves an argument out unseen: what does not fit in 1,000 characters
-  is named, with a pointer to metro.box.
+- The owner can see everything that will run: the chat question shows what matters first,
+  never lets an argument write one of its lines, and counts what does not fit in 1,000
+  characters with a pointer to metro.box, where the approval card lists every argument.
+- A name that is no metro tool is refused before any rule or question.
 - An id that cannot be used says why (not known after a restart, another call, used, too old,
   expired, withdrawn) and the owner is asked again. 50 requests wait at most; arguments too
   large to show are refused. Everything is in memory: no file, no stored call.
@@ -255,8 +257,8 @@ rules are in `docs/rules/TOOL-POLICIES.md`; this is the summary.
   a call's arguments (`args-digest`), and the id pattern, the 24 hours, the 10 minutes, the 50
   and the `approval` schema property (`approval-rules`).
 - **Removed**: the hook's copy of the rules (`packages/cli/hooks/policy.mjs`, its use in
-  `guard.mjs`), `policy.json` and `mcp/policy-snapshot.ts` (the file is deleted at boot from
-  Metro's folder and from the agent view), the grants in `approvals/pending.ts`, and the rule
+  `guard.mjs`), `policy.json` and `mcp/policy-snapshot.ts` (the agent view removes the agent's
+  copy; the one in Metro's folder stays, unread), the grants in `approvals/pending.ts`, and the rule
   that an Ask on the main thread must move to a worker (server instructions and the `metro`
   skill).
 - **Kept**: the relay of Claude Code's own prompts (the auto mode classifier, any other tool),
