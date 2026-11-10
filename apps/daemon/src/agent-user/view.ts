@@ -4,14 +4,13 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { agentsDir } from '../agents/files.js';
 import { MCP_TOKEN_FILE } from '../mcp-server/token.js';
-import { POLICY_SNAPSHOT_FILE } from '../policy/leftovers.js';
 import { effectiveSetup, modelViewText } from '../gateway/effective.js';
 import { removeHome, writeHomeText } from './home-fs.js';
 import { closeMetroHome } from './metro-home.js';
 import { agentUser, agentViewDir, type AgentUser } from './user.js';
 
 const COPIED = ['claude-setup.json', 'system-prompt.md'] as const;
-const NEVER_COPIED = [MCP_TOKEN_FILE, POLICY_SNAPSHOT_FILE] as const;
+const NEVER_COPIED = [MCP_TOKEN_FILE, 'policy.json'] as const;
 const SYNC_MS = 5_000;
 
 const readText = (path: string): string | null => {
