@@ -25,11 +25,18 @@ const escaped = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/g, '\
 const codeOf = (err: unknown): unknown => (err instanceof Error && 'code' in err ? err.code : undefined);
 
 function readAgent(path: string): Record<string, unknown> | null {
+  let text: string;
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    return isRecord(parsed) ? parsed : null;
+    text = readFileSync(path, 'utf8');
   } catch (err) {
     if (codeOf(err) !== 'ENOENT') log.warn({ err: errMsg(err), path }, 'mail: could not read the agent file to drop the old mail channels');
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    log.warn({ path }, 'mail: the agent file is not JSON, so its old mail channels stay');
     return null;
   }
 }
