@@ -113,7 +113,10 @@ describe('who can write', () => {
     for (const bad of ['x', [5], ['@'], ['@nodot'], ['@bad domain.com'], ['x'.repeat(201)], ['a\nb'], Array.from({ length: 501 }, (_unused, at) => `p${String(at)}@x.y`)]) expect(() => normalizeSenderList(bad)).toThrow();
     expect(senderListOf('["a@b.c"]')).toEqual(['a@b.c']);
     for (const stored of [null, '[]', '["a@b.c","*"]']) expect(senderListOf(stored)).toEqual(['*']);
-    for (const stored of ['', 'nope', '{}', '[5]']) expect(senderVerdict(senderListOf(stored), { id: 'a@b.c', verified: true })).toBe('not_listed');
+    for (const stored of ['', 'nope', '{}', '[5]']) {
+      expect(senderListOf(stored)).toBeNull();
+      expect(senderVerdict(senderListOf(stored), { id: 'a@b.c', verified: true })).toBe('not_listed');
+    }
   });
 
   test('the verdict: listed and not forged, or anyone', () => {

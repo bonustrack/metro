@@ -39,19 +39,18 @@ export function normalizeSenderList(raw: unknown): string[] {
   return out.length === 0 ? [ANYONE] : out;
 }
 
-export function senderListOf(text: string | null): string[] {
+export function senderListOf(text: string | null): string[] | null {
   if (text === null) return [ANYONE];
   try {
     const parsed: unknown = JSON.parse(text);
-    if (!Array.isArray(parsed)) return [];
-    if (parsed.length === 0 || parsed.includes(ANYONE)) return [ANYONE];
-    return parsed.filter((entry): entry is string => typeof entry === 'string' && entry !== '');
+    if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== 'string')) return null;
+    return parsed.length === 0 || parsed.includes(ANYONE) ? [ANYONE] : parsed.filter((entry): entry is string => entry !== '');
   } catch {
-    return [];
+    return null;
   }
 }
 
-export const anyoneListed = (list: string[]): boolean => list.includes(ANYONE);
+export const anyoneListed = (list: string[]): boolean => list.length === 0 || list.includes(ANYONE);
 
 export function senderListed(list: string[], id: string): boolean {
   if (anyoneListed(list)) return true;
@@ -62,7 +61,8 @@ export function senderListed(list: string[], id: string): boolean {
   });
 }
 
-export function senderVerdict(list: string[], sender: ListedSender | null): SenderVerdict {
+export function senderVerdict(list: string[] | null, sender: ListedSender | null): SenderVerdict {
+  if (list === null) return 'not_listed';
   if (anyoneListed(list)) return 'allow';
   if (sender === null || sender.id === null || !senderListed(list, sender.id)) return 'not_listed';
   return sender.verified === false ? 'not_verified' : 'allow';

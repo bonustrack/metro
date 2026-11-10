@@ -126,7 +126,7 @@ describe('events in the connector view', () => {
     expect(theirs.connectors[0]).toMatchObject({ events: [{ name: 'item.updated', sender: false }], agents: [{ id: THEIRS, events: ['item.updated'], senders: ['them@example.net'], subscriptions: [{ event: 'item.updated', status: 'active' }] }] });
   });
 
-  test('a stored value Metro cannot read falls back to nothing wanted, anyone, and a subscription still connecting', () => {
+  test('a stored value Metro cannot read falls back to nothing wanted, nobody listed, and a subscription still connecting', () => {
     const row: ConnectorRow = { id: TRACKER, owner: TEST_OWNER, name: 'Tracker', url: 'https://tracker.example', auth: 'header', authGeneration: null, policy: null, secret: null, detail: null, createdBy: 'user_01TEST', createdAt: AT, updatedAt: AT };
     const assignment: AssignmentRow = { connector: TRACKER, agent: OURS, policy: null, createdBy: 'user_01TEST', createdAt: AT, events: '{"item.created":true}', senders: 'not json' };
     const shown = connectorView(row, [assignment, { ...assignment, agent: SECOND, events: '["item.created","bad name","item.created",7]', senders: '[]' }], {
@@ -138,9 +138,9 @@ describe('events in the connector view', () => {
       ],
     });
     expect(shown.events).toEqual([{ name: 'item.created', title: 'Item created', description: 'A new item was added.', sender: true }]);
-    expect(agentOf(shown, OURS)).toMatchObject({ events: [], senders: ['*'], subscriptions: [{ event: 'item.created', status: 'pending' }] });
+    expect(agentOf(shown, OURS)).toMatchObject({ events: [], senders: [], subscriptions: [{ event: 'item.created', status: 'pending' }] });
     expect(agentOf(shown, SECOND)).toMatchObject({ events: ['item.created'], senders: ['*'], subscriptions: [] });
-    expect(connectorView(row, [assignment])).toMatchObject({ events: [], agents: [{ id: OURS, events: [], senders: ['*'], subscriptions: [] }] });
+    expect(connectorView(row, [assignment])).toMatchObject({ events: [], agents: [{ id: OURS, events: [], senders: [], subscriptions: [] }] });
   });
 });
 

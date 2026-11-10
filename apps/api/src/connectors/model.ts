@@ -110,7 +110,7 @@ function agentView(assignment: AssignmentRow, subscriptions: SubscriptionState[]
     policy: fullPolicy(assignment.policy),
     assignedAt: assignment.createdAt,
     events: eventNamesOf(assignment.events),
-    senders: senderListOf(assignment.senders),
+    senders: senderListOf(assignment.senders) ?? [],
     subscriptions: subscriptionsOf(subscriptions, assignment.connector, assignment.agent),
   };
 }
