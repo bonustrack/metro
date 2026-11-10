@@ -3,8 +3,8 @@ import { randomInt } from 'node:crypto';
 import { readBodyBytes } from '@metro-labs/http/api-http';
 import { agentKeyId, agentSignatureValid, readAgentProof } from '@metro-labs/http/agent-signature';
 import type { McpApproval, McpConnectorEvent } from '@metro-labs/http/mcp-server-protocol';
-import { McpEventLink, type EventTiming } from '../src/mcp-server/event-link.ts';
-import type { TakeEvent } from '../src/mcp-server/event-intake.ts';
+import { McpEventLink, type EventTiming, type TakeEvent } from '../src/mcp-server/event-link.ts';
+
 import { McpServerLink, type HoldApproval, type McpTiming } from '../src/mcp-server/link.ts';
 import { readAgentKey } from '../src/connectors/agent-key.ts';
 

@@ -2,8 +2,9 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { MCP_APPROVAL_WAIT_MS, MCP_PATHS, mcpApprovalsOf, type McpApproval, type McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { agentsDir } from '../agents/files.js';
 import { readAgentKey, type AgentKey } from '../connectors/agent-key.js';
-import { agentCall, MetroApiRefusal, type AgentFetch, type MetroApi } from '../connectors/metro-api.js';
+import { agentCall, type AgentFetch, type MetroApi } from '../connectors/metro-api.js';
 import { mcpServerUrl } from './config.js';
+import { backoff, enrolledKey, pause, refusedWith } from './loop.js';
 import { ensureMcpToken } from './token.js';
 
 export type AnswerOutcome = 'acknowledged' | 'gone' | 'stopped';
@@ -31,8 +32,6 @@ export interface McpLinkDeps {
 
 const TIMING: McpTiming = { retryMs: 2_000, retryMaxMs: 60_000, idleMs: 30_000, minPollMs: 1_000, pollTimeoutMs: MCP_APPROVAL_WAIT_MS + 15_000 };
 const APPROVALS_MAX = 256 * 1024;
-
-const refusedWith = (err: unknown, status: number): boolean => err instanceof MetroApiRefusal && err.upstreamStatus === status;
 
 export class McpServerLink {
   private readonly api: MetroApi;
@@ -85,14 +84,7 @@ export class McpServerLink {
   }
 
   private enrolledKey(): AgentKey | null {
-    try {
-      const key = this.deps.key();
-      const owner = this.deps.owner();
-      return key !== null && owner !== null && key.enrollment?.organization === owner ? key : null;
-    } catch (err) {
-      log.warn({ err: errMsg(err) }, 'mcp-server: the agent key could not be read');
-      return null;
-    }
+    return enrolledKey(this.deps.key, this.deps.owner);
   }
 
   private async run(): Promise<void> {
@@ -150,22 +142,11 @@ export class McpServerLink {
   }
 
   private delay(attempt: number): number {
-    return Math.min(this.timing.retryMs * 2 ** Math.min(attempt - 1, 20), this.timing.retryMaxMs);
+    return backoff(this.timing, attempt);
   }
 
   private pause(ms: number): Promise<void> {
-    if (this.stopped) return Promise.resolve();
-    const signal = this.abort.signal;
-    return new Promise((resolve) => {
-      const done = (): void => {
-        clearTimeout(timer);
-        signal.removeEventListener('abort', done);
-        resolve();
-      };
-      const timer = setTimeout(done, ms);
-      timer.unref();
-      signal.addEventListener('abort', done, { once: true });
-    });
+    return pause(ms, this.abort.signal);
   }
 }
 

@@ -105,7 +105,7 @@ const stationOf = (line: string): string => line.split('/')[2] ?? 'whatsapp';
 
 const connectorInbound = (line: string, text: string): MetroEvent =>
   connectorEvent(
-    { id: newId(), connector: { id: 'conn0000001', key: 'work-mail', name: 'Work mail' }, event: 'email.received', timestamp: new Date().toISOString(), kind: 'event', eventId: randomUUID(), data: { subject: text } },
+    { id: newId(), connector: { id: 'conn0000001', key: 'work-mail', name: 'Work mail' }, event: 'email.received', timestamp: new Date().toISOString(), eventId: randomUUID(), data: { subject: text } },
     Line.parseConnector(line)?.agentId ?? '',
   );
 
