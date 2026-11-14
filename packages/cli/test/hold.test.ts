@@ -151,7 +151,7 @@ describe('holding the port between stop and start', () => {
     });
     await until(() => answers(base));
     expect(readFileSync(lockFile, 'utf8')).toBe(String(process.pid));
-    await until(() => Promise.resolve(existsSync(calls)));
+    await until(() => Promise.resolve(existsSync(calls) && readFileSync(calls, 'utf8').trim() !== ''));
     expect(readFileSync(calls, 'utf8').trim()).toBe(`funnel ${String(port)}`);
     expect(lines[0]).toContain(`http://127.0.0.1:${String(port)} and the Funnel address`);
     expect((await fetch(`${base}/api/start`, { method: 'POST' })).status).toBe(200);
