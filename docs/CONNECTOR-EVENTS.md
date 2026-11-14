@@ -11,8 +11,8 @@ then acts with `tool_search` and `tool_call` on that connector.
 
 **Metro is generic.** It knows no event type by name and no payload shape. Nothing in the code,
 the tables or the routes is named after mail. The first users are two MCP servers for Gmail and
-Outlook (repository `stagelabs/mcps`), which emit `email.received`. They will replace the
-`gmail` and `outlook` channels in a later change; those channels are untouched here.
+Outlook (repository `stagelabs/mcps`), which emit `email.received`. They replaced the `gmail`
+and `outlook` channels, which were removed on 2026-11-14 (see How a mailbox moved, below).
 
 ## The standard and the contract
 
@@ -355,70 +355,25 @@ two deploys, or until the api deploy is fixed if it fails.
 5. On metro.box: add the connector, sign in, give it to the agent, open the agent's page for
    that connector, turn the event on and set Who can write.
 
-## How a mailbox moves (2026-11-11)
+## How a mailbox moved (2026-11-11 to 2026-11-14, history)
 
-An admin moves a Gmail or Outlook channel from its own page: Move to a connector, in the
-channel's menu and in the note at the top of the page. It opens a guided page
-(`#/<agent>/channel/<account>/move`, rules in `docs/rules/APP.md`). **The sign-in is not
-moved** (owner's decision, 2026-11-09): the channel's tokens belong to other OAuth apps and
-never leave the box, so the mailbox signs in again. Everything else is done by the page, with
-the existing APIs of api.metro.box and of the box. This is the one place where the page knows
-mail: Metro's services stay generic.
+From 2026-11-11 (#420) an admin could move a Gmail or Outlook channel to a connector from the
+channel's own page (Move to a connector): the page made or reused the connector of the mailbox
+at `https://mcp.gmail.piston.box/` or `https://mcp.outlook.piston.box/`, signed the mailbox in
+again (the sign-in was never moved: the channel's tokens belonged to other OAuth apps and never
+left the box), carried over who can write and the channel's rules (never looser than the
+channel), turned `email.received` on while the channel still received, waited until the
+subscription was `active` and one more minute, and only then switched the channel off. The page
+kept no state of its own and went on from the real state. On 2026-11-14 every mail channel had
+moved, and the `gmail` and `outlook` stations, their boot cleanup and the removal of the move
+page shipped together (`docs/rules/STATIONS.md`). A mailbox now reaches an agent only as a
+connector with `email.received`.
 
-1. **Connector.** One connector per mailbox, at the provider's server address
-   (`https://mcp.gmail.piston.box/` or `https://mcp.outlook.piston.box/`, one constant per
-   provider in `apps/app/src/lib/mail-move.ts`; `EXPO_PUBLIC_METRO_GMAIL_MCP_URL` and
-   `EXPO_PUBLIC_METRO_OUTLOOK_MCP_URL` replace them in a test build). A connector at that
-   address that is signed in to the mailbox is reused, whatever its name. Else the one named
-   after the mailbox is reused. Else one is made, named after the mailbox.
-2. **Sign in**, with the connector's own OAuth sign-in. Then the page checks the mailbox (below)
-   and refuses to go on when the connector is signed in to another one.
-3. **Settings**, shown before anything is written: the connector is given to the agent; the
-   channel's people who can write become the assignment's list (addresses and `@domain` in
-   lower case, `*` stays anyone; an entry that is neither is left out and named; a list with
-   nothing left cannot be stored, so Email received then stays off); the channel's Allow, Ask
-   and Block rules become the agent's rules for the connector, tool by tool (`send`, `reply`
-   and `read` keep their rule; `list_members` and `list_channels` have no twin, so `read`, which
-   does their job, takes the strictest of the three); `email.received` is turned on when the
-   channel received messages. **Never looser than the channel**: the stricter of the channel's
-   rule, a rule the agent already has for the connector and the organization's rule applies,
-   and the page says which one made a rule stricter. Not carried over, and said so: approvers
-   (email never had them), mail the connector skips as automated (`includeAutomated`), and past
-   conversations, which stay on the channel's page.
-4. **The switch.** The order that cannot lose a mail: who can write is set, then
-   `email.received` is turned on while the channel still receives, the page waits until the
-   subscription is `active` (the server delivers mail from that moment on), then for one more
-   minute (`MOVE_OVERLAP_MS`, two of the channel's 30 second polls, so the channel delivers
-   what arrived before that moment), and only then turns the channel's Receive messages off. A
-   mail that arrives in that minute reaches the agent twice, once on each path; the page says
-   so. The other order (channel off first) loses every mail until the subscription starts.
-5. **Finish.** The page shows that the connector receives, then offers to remove the old
-   channel (the box's detach, behind the typed confirmation) or to keep it switched off.
-
-**It goes on from the real state.** The page keeps nothing of its own: the next step is decided
-from the connector (there or not, signed in or not, to which mailbox), the assignment, the
-event and its subscription, and the channel's switch (`moveStep` in the client's
-`api/mail-move.ts`). Closing the page and opening it again continues there. If it is closed
-while both paths receive, the channel's page says in red that mail arrives twice, and the move
-page asks to switch the old channel off (it waits its minute again). A step that fails says
-which one, what stays in place, and that pressing the button again goes on from there.
-
-**Which mailbox a connector is signed in to.** `GET /api/connectors/<id>/tools` reads the
+**Which account a connector is signed in to** (kept): `GET /api/connectors/<id>/tools` reads the
 server's `initialize` answer and passes on two things, with credentials withheld like a tool
 description: `account`, the string a server declares as
 `capabilities.extensions["box.metro/account"] = {"id": "<who this sign-in is>"}`, and
-`instructions`. The page takes `account` when it is an address, else the one email address the
-instructions name (the mail servers write `This server is the Gmail mailbox <address>.`), else
-it does not know, and asks the admin to confirm the mailbox by hand. Neither is stored. **The
-mail servers do not declare `box.metro/account` yet**: until they do, the check rests on that
-sentence.
-
-Limits: a channel whose poll interval was raised above 30 seconds (`METRO_GMAIL_POLL_MS`,
-`METRO_OUTLOOK_POLL_MS`) needs a longer overlap than the page gives; a connector that was
-renamed and signed out cannot be recognized, so a second one is made for its mailbox; and the
-note on the channel's page finds a move only through a connector named after the mailbox.
-
-Removing the `gmail` and `outlook` stations is a later pull request.
+`instructions`. Neither is stored. The move page was its first reader.
 
 ## Open points
 

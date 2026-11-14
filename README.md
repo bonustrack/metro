@@ -10,11 +10,11 @@ networks to Claude Code through MCP (the Model Context Protocol):
 - **discord-bot**: a Discord bot.
 - **whatsapp**: a real WhatsApp **user account**, through the multi-device Web protocol.
 - **threema**: a Threema Gateway ID in end-to-end mode. Messages cost Gateway credits.
-- **outlook**: a Microsoft 365 or Outlook.com mailbox, connected with a Microsoft sign-in code.
-- **gmail**: a Gmail or Google Workspace mailbox, connected with your own Google OAuth client
-  ([docs/GMAIL.md](docs/GMAIL.md)).
 - **webhook**: an inbound-only HTTP receiver. The code is there, but the page does not
   offer it yet.
+
+Mail (Gmail, Outlook) reaches an agent as an organization connector with events, not as a
+channel ([docs/CONNECTOR-EVENTS.md](docs/CONNECTOR-EVENTS.md)).
 
 Inbound messages reach the Claude Code session as channel events. The agent answers with
 the `mcp__metro__*` tools: `send`, `reply`, `react`, `unreact`, `edit`, `delete`, `read`,
@@ -263,9 +263,9 @@ packages/
   http/       @metro-labs/http    how a metro server authenticates and answers a request
   cli/        @stage-labs/metro   the CLI, the only published package, with the Claude Code
                                   hooks (hooks/) and the metro skills (skills/)
-  xmtp/ telegram-bot/ telegram/ discord-bot/ whatsapp/ threema/ outlook/ gmail/ webhook/
+  xmtp/ telegram-bot/ telegram/ discord-bot/ whatsapp/ threema/ webhook/
               one package per chat network
-docs/         SETUP.md, ISSUING-SERVERS.md, MICROSOFT-365.md, GMAIL.md
+docs/         SETUP.md, ISSUING-SERVERS.md, MICROSOFT-365.md
 ```
 
 Each package has its own README: [apps/daemon](apps/daemon/README.md),

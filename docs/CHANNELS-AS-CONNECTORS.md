@@ -3,10 +3,10 @@
 Status: **step 1 is built** (2026-11-10, see Step 1 below; the rules are in
 `docs/rules/TOOL-POLICIES.md`). **The rest is parked** (Less, 2026-11-09: "We should not worry
 about other channels"): steps 2 to 8 are a record of the direction, not work in progress.
-Gmail and Outlook are handled apart from this plan: they become connectors with events, in a
-separate pull request.
+Gmail and Outlook were handled apart from this plan: they became connectors with events, and
+the two stations were removed on 2026-11-14 (`docs/CONNECTOR-EVENTS.md`).
 
-A channel (WhatsApp, Telegram, Discord, Gmail, and so on) becomes a connector that can also
+A channel (WhatsApp, Telegram, Discord, Threema, and so on) becomes a connector that can also
 receive messages. It is stored, ruled, approved, logged and shown like any connector, and it
 pushes its messages to the agent with the standard MCP channel contract. Only two things stay
 special: its secret and its session live where it runs, and it belongs to one agent.
@@ -212,8 +212,8 @@ Each step ships alone and keeps older daemons working.
    (a version gate for older boxes).
 3. **The daemon as an MCP channel host** with the Metro extension, proven with a server we did
    not write (fakechat). Decide the isolation question first (see Open questions).
-4. **Our stations rewritten**, one at a time: webhook, Telegram bot, Discord bot, Gmail,
-   Outlook, Threema, Telegram, WhatsApp, XMTP last (the single writer).
+4. **Our stations rewritten**, one at a time: webhook, Telegram bot, Discord bot, Threema,
+   Telegram, WhatsApp, XMTP last (the single writer).
 5. **Per-channel tools for the agent**, the skill and the server instructions updated. The
    generic message tools stay until every box runs this.
 6. **Remote channels** through mcp.metro.box.
