@@ -15,6 +15,7 @@ import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approval
 import { forgetOwnerLine, ownerLine, setOwnerLineFile } from '../src/approvals/owner-line.ts';
 import { promptBody, serverPromptBody } from '../src/mcp/permission-prompt.ts';
 import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
+import { elsewhereText } from '../src/mcp/approval-elsewhere.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
 import { initSession, openGet, type GetStream } from './mcp-probe.ts';
@@ -303,6 +304,28 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     expect(answered('ghijk', 'allow')).toBe(true);
   });
 
+  test('a yes in another chat answers nothing there, that chat is told where the question is, and the message still reaches the agent', async () => {
+    publishEvent({ id: `ev-${randomUUID()}`, ts: new Date().toISOString(), station: 'telegram-bot', line: asLine(OWNER_DM), from: asLine(OWNER_SENDER), to: asLine(OWNER_DM), text: 'private again', lineName: 'Fabien\nAdmin', messageId: `mm-${randomUUID()}`, event: { type: 'msg' }, isPrivate: true } as unknown as MetroEvent);
+    await waitFor(() => (stream?.raw() ?? '').includes('private again'));
+    await ask('jkmnp', { line: LINE, text: 'asked in private' });
+    await waitFor(() => calls.some((c) => c.action === 'send'));
+    expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([OWNER_DM]);
+    calls = [];
+    chat(LINE, MEMBER, 'yes jkmnp');
+    await waitFor(() => (stream?.raw() ?? '').split('yes jkmnp').length === 2);
+    chat(LINE, OWNER_SENDER, 'yes jkmnp', false);
+    chat(LINE, OWNER_SENDER, 'Yes JKMNP');
+    await waitFor(() => calls.some((c) => c.action === 'send'));
+    expect(calls.filter((c) => c.action === 'send').map((c) => c.args)).toEqual([{ line: LINE, text: 'Approval jkmnp is answered in your private chat with me ("Fabien Admin") or on metro.box, not in this chat.' }]);
+    await waitFor(() => (stream?.raw() ?? '').includes('Yes JKMNP'));
+    expect(pendingPrompts().map((p) => p.requestId)).toContain('jkmnp');
+    expect(answered('jkmnp', 'allow')).toBe(false);
+    direct(OWNER_DM, OWNER_SENDER, 'yes jkmnp');
+    await waitFor(() => answered('jkmnp', 'allow'));
+    expect(elsewhereText('jkmnp', undefined, () => 'never')).toBe('Approval jkmnp is answered on metro.box, not in this chat.');
+    expect(elsewhereText('jkmnp', OTHER_LINE, () => undefined)).toBe('Approval jkmnp is answered in the chat where I asked or on metro.box, not in this chat.');
+  });
+
   test('goes back to the last chat once the person of that direct chat may no longer approve', async () => {
     setApproversMap({ [`telegram-bot/${TG}`]: ['222'] });
     try {
@@ -322,6 +345,8 @@ describe('the prompt text', () => {
   test('the server instructions fit the 2048 characters Claude Code keeps', () => {
     expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
     expect(MCP_INSTRUCTIONS).toContain('yes <id>');
+    expect(MCP_INSTRUCTIONS).toContain('metro asks the owner in their private chat with you and on metro.box');
+    expect(MCP_INSTRUCTIONS).toContain('never ask anyone to answer "yes <id>" in another chat');
   });
 
   const metro = (tool: string, input: Record<string, unknown>): string =>

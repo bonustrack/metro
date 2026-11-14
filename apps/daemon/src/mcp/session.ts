@@ -1,7 +1,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
-import { answerPrompt, forgetPromptsOf, promptLine } from '../approvals/pending.js';
+import { answerPrompt, forgetPromptsOf, isPromptHeld, promptLine } from '../approvals/pending.js';
+import { pointToPrompt } from './approval-elsewhere.js';
 import { noteOwnerLine } from '../approvals/owner-line.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
@@ -30,9 +31,12 @@ const noteDirect = (line: string, from: string): void => {
   if (mayApprove(line, from)) noteOwnerLine(line, from);
 };
 
-async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string, from: string): Promise<boolean> {
-  if (promptLine(requestId) !== line || !mayApprove(line, from)) return false;
-  return (await answerPrompt(requestId, behavior, 'chat', line)) !== undefined;
+async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string, from: string, nameOf: (line: string) => string | undefined): Promise<boolean> {
+  if (!isPromptHeld(requestId) || !mayApprove(line, from)) return false;
+  const asked = promptLine(requestId);
+  if (asked === line) return (await answerPrompt(requestId, behavior, 'chat', line)) !== undefined;
+  await pointToPrompt(requestId, asked, line, nameOf);
+  return false;
 }
 
 function makeTransport(
@@ -115,7 +119,7 @@ export class McpSession {
       getStations,
       senderAllowed,
       noteDirect,
-      answerPermission,
+      answerPermission: (requestId, behavior, line, from) => answerPermission(requestId, behavior, line, from, (asked) => this.relay.lineNames.of(asked)),
       callMeta: (event) => sharedCalls.bindChat(event, this.scope),
     });
     registerPermissionRelay({
