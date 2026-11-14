@@ -33,6 +33,7 @@ const CHATS: AgentPage[] = [
   { label: 'Voice calls', kinds: ['voice'], target: (project) => ({ kind: 'voice', project }), deep: true },
   { label: 'Conversations', kinds: ['sessions'], target: (project) => ({ kind: 'sessions', project, claudeProject: null, id: null }), deep: true },
   { label: 'Add channel', kinds: ['add-chat'], target: (project) => ({ kind: 'add-chat', project }), deep: true },
+  { label: 'Move to a connector', kinds: ['move-channel'], target: chats, deep: true },
 ];
 
 const MEMORY: AgentPage[] = [

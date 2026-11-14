@@ -35,6 +35,7 @@ export type Selection =
   | { kind: 'model'; project: string }
   | { kind: 'chats'; project: string }
   | { kind: 'station'; project: string; accountId: string; rule?: string }
+  | { kind: 'move-channel'; project: string; accountId: string }
   | { kind: 'tools'; project: string; connector?: string }
   | { kind: 'sessions'; project: string; claudeProject: string | null; id: string | null }
   | { kind: 'memory'; project: string; claudeProject: string | null; file: string | null }

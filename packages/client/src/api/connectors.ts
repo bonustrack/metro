@@ -1,4 +1,4 @@
-import { isRecord, str } from '../read.js';
+import { filled, isRecord, recordOf, str } from '../read.js';
 
 interface Named {
   id: string;
@@ -46,4 +46,16 @@ function toolOf(raw: unknown): ConnectorTool[] {
 export function connectorToolsOf(body: unknown): ConnectorTool[] {
   if (!isRecord(body) || !Array.isArray(body.tools)) throw new Error('Metro returned an unexpected response.');
   return body.tools.flatMap(toolOf);
+}
+
+export interface ConnectorListing {
+  tools: ConnectorTool[];
+  account: string | null;
+  instructions: string | null;
+}
+
+export function connectorListingOf(body: unknown): ConnectorListing {
+  const tools = connectorToolsOf(body);
+  const answer = recordOf(body);
+  return { tools, account: filled(answer.account), instructions: filled(answer.instructions) };
 }

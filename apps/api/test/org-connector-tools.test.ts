@@ -18,6 +18,7 @@ let broken = false;
 let denied = 0;
 let escaped = false;
 let listed: Record<string, unknown>[] | null = null;
+let declared: Record<string, unknown> = {};
 let seen: { url: string; method: string; rpc: string; authorization: string; session: string | null }[] = [];
 const result = (id: unknown, value: unknown): Response => Response.json({ jsonrpc: '2.0', id, result: value }, { headers: { 'mcp-session-id': 'catalogue-session' } });
 
@@ -30,7 +31,7 @@ const send: FetchLike = async (url, init) => {
   seen.push({ url, method: init?.method ?? '', rpc: body.method ?? '', authorization: headers.get('authorization') ?? '', session: headers.get('mcp-session-id') });
   if (init?.method === 'DELETE') return new Response(null, { status: 204 });
   if (denied > 0) { denied -= 1; return new Response('secret refused', { status: 401 }); }
-  if (body.method === 'initialize') return result(body.id, { protocolVersion: '2025-11-25', capabilities: {}, serverInfo: { name: 'vendor', icons: [{ src: 'https://cdn.vendor.example/icon.png', mimeType: 'image/png' }, { src: `https://cdn.vendor.example/i.png?k=${GOOD_KEY}` }] } });
+  if (body.method === 'initialize') return result(body.id, { protocolVersion: '2025-11-25', capabilities: {}, serverInfo: { name: 'vendor', icons: [{ src: 'https://cdn.vendor.example/icon.png', mimeType: 'image/png' }, { src: `https://cdn.vendor.example/i.png?k=${GOOD_KEY}` }] }, ...declared });
   if (body.method === 'notifications/initialized') return new Response(null, { status: 202 });
   if (body.method !== 'tools/list') throw new Error('Actual tool execution must never be relayed centrally');
   if (escaped) throw new Error(`${url} ${GOOD_KEY} ${REFRESH}`);
@@ -60,7 +61,7 @@ async function oauth(row: ConnectorView, imported = false): Promise<void> {
 }
 
 beforeAll(async () => { held = await testDb(); vendor = await startVendor(); api = await startApi(() => held.db, () => now, send); }, PGLITE_START_MS);
-beforeEach(async () => { now += 60_000; await held.reset(); seen = []; broken = false; denied = 0; escaped = false; listed = null; vendor.tokenCalls = 0; }, PGLITE_STEP_MS);
+beforeEach(async () => { now += 60_000; await held.reset(); seen = []; broken = false; denied = 0; escaped = false; listed = null; declared = {}; vendor.tokenCalls = 0; }, PGLITE_STEP_MS);
 afterAll(async () => { await api.close(); await vendor.close(); await held.close(); });
 
 describe('safe organization tool discovery', () => {
@@ -84,6 +85,26 @@ describe('safe organization tool discovery', () => {
     expect(kept?.tools?.map((tool) => tool.name)).toEqual(['find', 'destroy', 'unknown']);
     expect(kept?.icons).toEqual([{ src: 'https://cdn.vendor.example/icon.png', mimeType: 'image/png' }]);
     expect(await declaredIcons(held.db, new URL(vendor.base).origin)).toEqual(kept?.icons ?? []);
+  });
+
+  test('answers the account the server declares and its instructions, with credentials withheld, and neither when the server gives none', async () => {
+    const row = await add();
+    const silent = await (await call(`/${row.id}/tools`)).json() as Record<string, unknown>;
+    expect(Object.keys(silent)).toEqual(['tools']);
+    declared = {
+      capabilities: { extensions: { 'box.metro/account': { id: ' andy@anderra.example ' } } },
+      instructions: `This server is the Gmail mailbox andy@anderra.example. Key ${GOOD_KEY} at ${vendor.base}/private/path`,
+    };
+    const told = await (await call(`/${row.id}/tools`, await auth(TEST_OWNER, 'member'))).json() as Record<string, unknown>;
+    expect(told.account).toBe('andy@anderra.example');
+    expect(told.instructions).toBe('This server is the Gmail mailbox andy@anderra.example. Key [redacted] at [address withheld]');
+    for (const odd of [{ id: 'two\nlines' }, { id: '' }, { id: 'x'.repeat(321) }, { id: 7 }, 'andy@anderra.example']) {
+      declared = { capabilities: { extensions: { 'box.metro/account': odd } }, instructions: 42 };
+      expect(Object.keys(await (await call(`/${row.id}/tools`)).json() as Record<string, unknown>)).toEqual(['tools']);
+    }
+    declared = { instructions: 'i'.repeat(5000) };
+    expect(((await (await call(`/${row.id}/tools`)).json() as { instructions: string }).instructions).length).toBe(4096);
+    expect((await readToolListings(held.db, [row.id])).get(row.id)).not.toHaveProperty('account');
   });
 
   test('withholds individual endpoint segments and their encoded and decoded forms', async () => {

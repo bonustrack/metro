@@ -1,5 +1,14 @@
 # Metro history
 
+## 2026-11-11: A Gmail or Outlook channel moves to a connector from its page
+
+Gmail and Outlook are being replaced by two MCP servers that an organization adds as connectors (`stagelabs/mcps`, events since 2026-11-10 below). Less asked for the way over: "make it so I can convert a channel Outlook or Gmail to an org connector". He had decided on 2026-11-09 that the sign-in is not moved: the channel's tokens belong to other OAuth apps (Outlook's public Metro Mail app, a Workspace's own Google client) and must never leave the box, so the mailbox signs in again and the page does everything else. The rules are in `docs/rules/APP.md`, the steps in `docs/CONNECTOR-EVENTS.md`.
+
+- **The page keeps no state.** It could have remembered where a move stood, in the browser or in a new table. Instead every step is read from what is real (the connector, its sign-in, the assignment, the event and its subscription, the channel's switch), so a closed tab, a second admin or a step done by hand cannot put it out of step. Whether the settings were carried is read the same way: the agent's rules are as strict as the channel's and the list is the same.
+- **The order of the switch.** The manual steps written on 2026-11-10 turned the channel off first, which loses every mail until the connector's subscription starts (it starts from "now", and a failed subscribe can take long). The page turns the event on first, waits for the subscription to be active, gives the channel one more minute to deliver what arrived before that (its poll is 30 seconds), then turns the channel off. A mail in that minute arrives twice: the two paths have nothing in common that could drop the second copy, and the stations are not touched here.
+- **The wrong mailbox** (the trap of 2026-09-24, when an admin's browser was signed in to another account and Andy's agent got Fabien's mail): nothing in the api said which account a connector is signed in as. `GET /api/connectors/<id>/tools` now passes on what the server says about itself in `initialize`: a declared account (`capabilities.extensions["box.metro/account"]`, which the mail servers do not send yet) and its instructions, where they name the mailbox today. The page refuses another mailbox, and asks the admin to confirm when it cannot read one.
+- **Never looser.** A channel rule for a tool the connector does not have (`list_channels`, `list_members`) makes `read` as strict, since `read` does that job there, and a list with no entry the connector can hold never becomes "anyone": Email received stays off.
+
 ## 2026-11-11: What the owner sees before saying yes, and fewer parts
 
 An independent review of the channel approvals below found no way around the rules, and two weak sides: what the owner sees before answering, and code that could go. Less asked for both ("make sure it is working and solid, simplify the codebase and make it lightweight").

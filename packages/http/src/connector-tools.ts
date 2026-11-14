@@ -28,7 +28,11 @@ export interface RemoteServer {
   tools: RemoteTool[];
   icons: ConnectorIcon[];
   events: RemoteEvent[] | null;
+  account?: string;
+  instructions?: string;
 }
+
+const ACCOUNT_EXTENSION = 'box.metro/account';
 
 const TIMEOUT_MS = 15_000;
 const ICONS_MAX = 4;
@@ -42,6 +46,8 @@ const MAX_EVENTS = 100;
 const EVENTS_ID = 1000;
 const DELIVERY_RE = /^[a-z]{1,16}$/;
 const DELIVERY_MAX = 8;
+const ACCOUNT_RE = /^\P{Cc}{1,320}$/u;
+const INSTRUCTIONS_MAX = 4096;
 
 async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike, headers: Record<string, string> = {}): Promise<Record<string, unknown> | null> {
   const res = await mcpPost(url, auth, body, { timeoutMs: TIMEOUT_MS, headers: { ...Object.fromEntries(session), ...headers }, fetch: fetchImpl });
@@ -139,6 +145,20 @@ function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
   return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
 }
 
+function declaredAccount(init: Record<string, unknown>): string | null {
+  const capabilities = isRecord(init.capabilities) ? init.capabilities : {};
+  const extensions = isRecord(capabilities.extensions) ? capabilities.extensions : {};
+  const declared = extensions[ACCOUNT_EXTENSION];
+  const id = isRecord(declared) && typeof declared.id === 'string' ? declared.id.trim() : '';
+  return ACCOUNT_RE.test(id) ? id : null;
+}
+
+function identityOf(init: Record<string, unknown>): Pick<RemoteServer, 'account' | 'instructions'> {
+  const account = declaredAccount(init);
+  const instructions = filled(init.instructions)?.slice(0, INSTRUCTIONS_MAX) ?? null;
+  return { ...(account === null ? {} : { account }), ...(instructions === null ? {} : { instructions }) };
+}
+
 function remoteEventOf(raw: unknown): RemoteEvent | null {
   if (!isRecord(raw) || typeof raw.name !== 'string' || !EVENT_NAME_RE.test(raw.name) || !Array.isArray(raw.delivery)) return null;
   const delivery = raw.delivery.filter((mode): mode is string => typeof mode === 'string' && DELIVERY_RE.test(mode)).slice(0, DELIVERY_MAX);
@@ -189,7 +209,7 @@ export async function listRemoteServer(url: URL, auth: ConnectorAuth, fetchImpl?
     session.set('mcp-protocol-version', init.protocolVersion);
     await rpc(url, auth, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, fetchImpl);
     const tools = await walkTools(url, auth, session, fetchImpl);
-    return { tools, icons: serverIconsOf(init), events: declaresEvents(init) ? await walkEvents(url, auth, session, fetchImpl) : [] };
+    return { tools, icons: serverIconsOf(init), events: declaresEvents(init) ? await walkEvents(url, auth, session, fetchImpl) : [], ...identityOf(init) };
   } finally {
     await endSession(url, auth, session, fetchImpl);
   }
