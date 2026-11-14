@@ -60,7 +60,7 @@ daemon.setCurrentServer({ id: LISA, host: 'lisa.box.example' });
 stations = view('outlook', channel());
 connectors = list([]);
 listings = {};
-box = { remote: false, version: '0.1.0-beta.330' };
+box = { remote: false, version: '0.1.0-beta.331' };
 const render = () => {
   frames = []; intros = []; groups = []; items = []; actions = []; skeletons = []; blocks = []; texts = []; polls = []; calls = []; went = []; dialogs = [];
   return renderToStaticMarkup(createElement(MoveChannelPage, { project: LISA, accountId: 'mail' }));
@@ -95,7 +95,7 @@ render();
 assert.deepEqual(blocks.map((block) => [block.title, block.text]), [['Not open yet', "Not open yet: Metro's servers cannot deliver mail from a connector."]]);
 
 connectors = list([]);
-box = { remote: false, version: '0.1.0-beta.329' };
+box = { remote: false, version: '0.1.0-beta.330' };
 render();
 assert.deepEqual(blocks.map((block) => [block.title, block.action.label]), [['Update first', 'Open Server']]);
 blocks[0].action.onPress();
