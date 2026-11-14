@@ -105,7 +105,7 @@ describe('access keys', () => {
 
   test('the Claude Code command names the one endpoint and the key as a bearer header', () => {
     expect(claudeCommand(SECRET)).toBe(`claude mcp add --transport http metro ${MCP_URL} --header "Authorization: Bearer ${SECRET}"`);
-    expect(MCP_URL).toBe('https://mcp.metro.box/mcp');
+    expect(MCP_URL).toBe('https://mcp.metro.box');
   });
 });
 
