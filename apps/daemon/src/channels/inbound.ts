@@ -40,7 +40,6 @@ interface InboundDeps {
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
-  approves?: (station: string) => boolean;
   noteDirect?: (line: string, from: string) => void;
   callMeta?: (event: Record<string, unknown>) => () => Record<string, string>;
   answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string, from: string) => Promise<boolean>;
@@ -267,18 +266,14 @@ export class InboundRelay {
 
   private async handlePermissionReply(ev: Record<string, unknown>, base: EventBase): Promise<boolean> {
     const answer = this.deps.answerPermission;
-    if (answer === undefined || base.evType !== 'msg' || !this.approves(base.station) || ev.senderVerified === false) return false;
+    if (answer === undefined || base.evType !== 'msg' || ev.senderVerified === false) return false;
     const m = PERMISSION_REPLY_RE.exec(base.text);
     if (m?.[1] === undefined || m[2] === undefined) return false;
     return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line, base.from);
   }
 
-  private approves(station: string): boolean {
-    return this.deps.approves?.(station) !== false;
-  }
-
   private noteLine(base: EventBase, direct: boolean): void {
-    if (base.evType !== 'system' && this.approves(base.station)) {
+    if (base.evType !== 'system') {
       this.lastLine = base.line;
       if (direct) this.deps.noteDirect?.(base.line, base.from);
     }

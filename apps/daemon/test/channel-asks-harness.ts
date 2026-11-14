@@ -19,16 +19,14 @@ import { waitFor } from './wait.ts';
 
 export const AGENT = 'agent000001';
 export const TG = 'tb000000001';
-export const GM = 'gm000000001';
+export const WA = 'wa000000001';
 export const LINE = `metro://telegram-bot/${TG}/-100777`;
 export const OTHER_LINE = `metro://telegram-bot/${TG}/-100888`;
-export const MAIL_LINE = `metro://gmail/${GM}/thread1`;
 export const OWNER = `metro://telegram-bot/${TG}/user/111`;
 export const MEMBER = `metro://telegram-bot/${TG}/user/222`;
 export const STRANGER = `metro://telegram-bot/${TG}/user/999`;
-export const MAIL_OWNER = `metro://gmail/${GM}/user/owner@example.com`;
 export const TARGET = { kind: 'channel', station: 'telegram-bot', account: TG } as const;
-export const MAIL_TARGET = { kind: 'channel', station: 'gmail', account: GM } as const;
+export const OTHER_TARGET = { kind: 'channel', station: 'whatsapp', account: WA } as const;
 
 export interface TrainCall {
   train: string;
@@ -78,9 +76,9 @@ export class AsksHarness {
     forgetChannelAsks();
     forgetOwnerLine();
     setKeyMap([{ key: this.token, agentId: AGENT }]);
-    setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`gmail/${GM}`]: AGENT }, { [AGENT]: 'Andy' });
-    setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'], [`gmail/${GM}`]: ['owner@example.com'] });
-    setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`gmail/${GM}`]: ['owner@example.com'] });
+    setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`whatsapp/${WA}`]: AGENT }, { [AGENT]: 'Andy' });
+    setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
+    setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     const handler = await createMetroMcp({ publish: makeEmit() });
     this.handler = handler;
     handler.startInbound();

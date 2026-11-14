@@ -6,7 +6,7 @@ export interface ApprovalField {
 }
 
 const FIRST = [
-  'text', 'attachments', 'wallet', 'frame', 'speech', 'subject', 'reply_to', 'account', 'members', 'addresses', 'inboxIds', 'removeInboxIds', 'removeSelf',
+  'text', 'attachments', 'wallet', 'frame', 'speech', 'reply_to', 'account', 'members', 'addresses', 'inboxIds', 'removeInboxIds', 'removeSelf',
   'message_id', 'emoji', 'name', 'bio', 'avatar', 'question', 'questions', 'options', 'query', 'from',
 ];
 const PLAIN_NAME = /^[a-z]\w*$/;

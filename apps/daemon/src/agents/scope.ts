@@ -4,9 +4,9 @@ import {
   stationAgentIds,
 } from './map.js';
 import { Line } from '@metro-labs/core/lines';
-import { STATIONS } from '@metro-labs/core/station-names';
+import { RETIRED_STATIONS, STATIONS } from '@metro-labs/core/station-names';
 
-const ACCOUNT_STATIONS = new Set<string>(STATIONS);
+const ACCOUNT_STATIONS = new Set<string>([...STATIONS, ...RETIRED_STATIONS]);
 
 const stationHasAccounts = (station: string): boolean =>
   ACCOUNT_STATIONS.has(station);

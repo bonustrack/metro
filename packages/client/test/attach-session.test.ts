@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isAttachSession, signInPage, toSession } from '../src/api/attach-session.js';
+import { isAttachSession, toSession } from '../src/api/attach-session.js';
 import { offeredStations, STATION_FORMS, stationLabel } from '../src/api/attach.js';
 
 const PENDING = {
@@ -27,9 +27,6 @@ describe('attach session parsing', () => {
       prompt: 'scan this',
       qr: 'wa-qr-payload',
       pairingCode: null,
-      userCode: null,
-      verificationUri: null,
-      authorizeUrl: null,
       accountId: null,
       identity: {},
       activated: false,
@@ -37,11 +34,8 @@ describe('attach session parsing', () => {
     });
   });
 
-  test('a Microsoft sign-in carries the code and the page to type it on', () => {
-    const device = toSession({ ...PENDING, station: 'outlook', step: 'device', qr: null, userCode: 'XK7P9QRT', verificationUri: 'https://microsoft.com/devicelogin' });
-    expect(device.step).toBe('device');
-    expect(device.userCode).toBe('XK7P9QRT');
-    expect(device.verificationUri).toBe('https://microsoft.com/devicelogin');
+  test('a browser or device step from an older box degrades to no step', () => {
+    for (const step of ['browser', 'device']) expect(toSession({ ...PENDING, station: 'outlook', step, authorizeUrl: 'https://login.example/authorize' })).toMatchObject({ step: null, station: 'outlook' });
   });
 
   test('a one-shot attach response is not mistaken for a session', () => {
@@ -101,20 +95,8 @@ describe('interactive station forms', () => {
     expect(fields.find((f) => f.key === 'phone')?.secret).toBe(false);
   });
 
-  test('Outlook asks for nothing, then signs in with Microsoft', () => {
-    expect(STATION_FORMS.outlook?.interactive).toBe(true);
-    expect(STATION_FORMS.outlook?.fields).toEqual([]);
-    expect(stationLabel('outlook')).toBe('Outlook');
-  });
-
-  test('a channel the page has no form for is never offered', () => {
-    expect(offeredStations(['telegram', 'outlook', 'pigeon'])).toEqual(['telegram', 'outlook']);
-  });
-
-  test('the sign-in link is Microsoft\'s own page, never a non-https one', () => {
-    expect(signInPage('https://microsoft.com/devicelogin')).toBe('https://microsoft.com/devicelogin');
-    expect(signInPage('javascript:alert(1)')).toBe('https://microsoft.com/devicelogin');
-    expect(signInPage(null)).toBe('https://microsoft.com/devicelogin');
+  test('a channel the page has no form for is never offered, Gmail and Outlook included', () => {
+    expect(offeredStations(['telegram', 'outlook', 'gmail', 'pigeon'])).toEqual(['telegram']);
   });
 
   test('both interactive stations have a human label', () => {

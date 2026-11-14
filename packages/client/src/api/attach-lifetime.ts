@@ -3,7 +3,6 @@ import { startAttach, type AttachStarted } from './attach.js';
 import { startPairAgain } from './pair-again.js';
 import { cancelAttachSession, type AttachSession } from './attach-session.js';
 import { agentsUrl } from './client.js';
-import { forgetAttachSignIn } from './sign-in-return.js';
 
 export class AttachLifetime {
   private closed = false;
@@ -44,7 +43,6 @@ export class AttachLifetime {
   }
 
   private async cancel(session: AttachSession): Promise<void> {
-    forgetAttachSignIn(this.base, this.agentId, session.attachId);
     if (session.status === 'pending') await cancelAttachSession(this.agentId, session.attachId, this.base, this.identity);
   }
 }

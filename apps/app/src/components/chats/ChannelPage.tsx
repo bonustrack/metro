@@ -2,9 +2,8 @@ import { type ReactNode, useState } from 'react';
 import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { useQueryClient } from '@tanstack/react-query';
 import { findAccount, stationFields, type FlatAccount } from '@metro-labs/client/api/accounts';
-import { detachAccount, stationLabel } from '@metro-labs/client/api/attach';
-import { isMailStation, type MailStation } from '@metro-labs/client/api/mail-move';
-import { DeleteMenu } from '../DeleteMenu.js';
+import { detachAccount, stationLabel, supportedStation, unsupportedNote } from '@metro-labs/client/api/attach';
+import { ConfirmDialog, DeleteMenu, useConfirm } from '../DeleteMenu.js';
 import { detachLines } from './detach-lines.js';
 import { StationIcon } from '../StationIcon.js';
 import { AgentDeepPage } from '../agent/AgentDeepPage.js';
@@ -21,13 +20,10 @@ import { ChannelRules } from './ChannelRules.js';
 import { channelTitle } from './ChannelRow.js';
 import { ChannelDetails, ChannelSetup } from './ChannelSetup.js';
 import { ExceptionsPage } from './ExceptionsPage.js';
-import { GmailAccess } from './GmailAccess.js';
-import { MoveNote, useMoveEntry } from './MoveNote.js';
 import { Group } from '../ui/Group.js';
 import { useReceive } from './use-receive.js';
 import { channelLine } from '../../lib/channel-people.js';
 import { ruleTarget, targetTool } from '../../lib/channel-rules.js';
-import { MOVE_TITLE } from '../../lib/mail-move.js';
 import { go } from '../../lib/nav.js';
 import { openExternal } from '../../lib/open.js';
 import { dropAccount, queryError, refresh, useStationsQuery } from '../../lib/queries.js';
@@ -36,50 +32,43 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 
 const RECEIVE_NOTE = 'Off stops new messages. Tools keep working.';
 
-type MenuProps = Pick<ChannelProps, 'project' | 'agentId' | 'found'> & { onPairAgain: (() => void) | null; onMove?: (() => void) | null };
+type MenuProps = Pick<ChannelProps, 'project' | 'agentId' | 'found'> & { onPairAgain: (() => void) | null };
 
-function MailMenu({ station, ...props }: MenuProps & { station: MailStation }): ReactNode {
-  const entry = useMoveEntry(props.found, station);
-  const { project } = props;
-  const accountId = props.found.row.id;
-  const onMove = entry?.opens === 'move' && accountId !== null ? () => { go({ kind: 'move-channel', project, accountId }); } : null;
-  return <ChannelMenu {...props} onMove={onMove} />;
-}
+const deleteLabels = { action: 'Delete channel', title: 'Delete channel', failure: 'Could not delete the channel.' };
 
-function Menu(props: MenuProps): ReactNode {
-  const { station } = props.found;
-  return isMailStation(station) ? <MailMenu station={station} {...props} /> : <ChannelMenu {...props} />;
-}
-
-function Moving({ project, found }: Pick<ChannelProps, 'project' | 'found'>): ReactNode {
-  const { station } = found;
-  return isMailStation(station) ? <MoveNote project={project} found={found} station={station} /> : null;
-}
-
-function ChannelMenu({ project, agentId, found, onPairAgain, onMove = null }: MenuProps): ReactNode {
+function useDetach({ project, agentId, found }: Pick<ChannelProps, 'project' | 'agentId' | 'found'>): { run: () => Promise<void>; onDone: () => void } {
   const client = useQueryClient();
   const { station, row } = found;
+  return {
+    run: async () => {
+      if (row.id === null) return;
+      await detachAccount(agentId, station, row.id);
+      dropAccount(client, station, row.id);
+      await refresh(client, 'stations');
+    },
+    onDone: () => { go({ kind: 'chats', project }); },
+  };
+}
+
+function Menu({ onPairAgain, ...props }: MenuProps): ReactNode {
+  const detach = useDetach(props);
+  const { station, row } = props.found;
   const url = stationFields(row).url;
   const id = row.id;
   if (id === null) return null;
   const open = url === undefined ? [] : [{ label: `Open in ${stationLabel(station)}`, icon: 'chat' as const, onSelect: () => { openExternal(url); } }];
   const pair = onPairAgain === null ? [] : [{ label: 'Pair again', icon: 'refresh' as const, onSelect: onPairAgain }];
-  const move = onMove === null ? [] : [{ label: MOVE_TITLE, icon: 'plug' as const, onSelect: onMove }];
   return (
     <DeleteMenu
       label="Channel actions"
-      items={[...open, ...pair, ...move]}
-      action="Delete channel"
-      title="Delete channel"
-      lines={detachLines(station, row.managed === true)}
+      items={[...open, ...pair]}
+      action={deleteLabels.action}
+      title={deleteLabels.title}
+      lines={detachLines(station)}
       word={id}
-      failure="Could not delete the channel."
-      run={async () => {
-        await detachAccount(agentId, station, id);
-        dropAccount(client, station, id);
-        await refresh(client, 'stations');
-      }}
-      onDone={() => { go({ kind: 'chats', project }); }}
+      failure={deleteLabels.failure}
+      run={detach.run}
+      onDone={detach.onDone}
     />
   );
 }
@@ -117,7 +106,6 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       action={<Menu project={project} agentId={agentId} found={found} onPairAgain={canPair ? () => { setPairing(row.status?.state === 'logged_out' ? 'fix' : 'replace'); } : null} />}
       summary={<ChannelSummary agentId={agentId} found={found} view={view} />}
     >
-      <Moving project={project} found={found} />
       <ChannelConnection found={found} view={view} onPairAgain={() => { setPairing('fix'); }} />
       {pairing === null || id === null ? null : (
         <PairAgain agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle} replaces={pairing === 'replace'} onSaved={onSaved} onClose={() => { setPairing(null); }} />
@@ -126,10 +114,27 @@ function ChannelDetail({ project, agentId, found, view, onSaved }: ChannelProps)
       {id === null || row.allowlist === null ? null : (
         <ChannelPeople agentId={agentId} station={station} accountId={id} handle={stationFields(row).handle ?? ''} allowlist={row.allowlist} approvers={row.approvers} onSaved={onSaved} />
       )}
-      {station === 'gmail' ? <GmailAccess key={`${agentId}/${id ?? ''}`} agentId={agentId} row={row} features={view.features} onSaved={onSaved} /> : null}
       <ChannelRules project={project} agentId={agentId} found={found} view={view} onSaved={onSaved} />
       <ChannelSetup station={station} row={row} agentId={agentId} />
       <ChannelDetails station={station} row={row} />
+    </AgentDeepPage>
+  );
+}
+
+function Unsupported({ project, agentId, found }: Pick<ChannelProps, 'project' | 'agentId' | 'found'>): ReactNode {
+  const detach = useDetach({ project, agentId, found });
+  const confirming = useConfirm(detach.run, deleteLabels.failure, detach.onDone);
+  const { station, row } = found;
+  const label = stationLabel(station);
+  return (
+    <AgentDeepPage project={project} tab="chats" trail={[{ label }]} title={channelTitle(found)} subtitle={label} leading={<StationIcon station={station} size={AVATAR_SIZE.header} />}>
+      <StateBlock
+        icon="exclamationCircle"
+        title="No longer supported"
+        text={unsupportedNote(station)}
+        action={row.id === null ? undefined : { label: deleteLabels.action, onPress: confirming.show }}
+      />
+      {row.id === null ? null : <ConfirmDialog confirming={confirming} title={deleteLabels.title} lines={detachLines(station)} action={deleteLabels.action} word={row.id} />}
     </AgentDeepPage>
   );
 }
@@ -159,6 +164,7 @@ export function ChannelPage({ project, accountId, rule }: { project: string; acc
 }
 
 function ChannelView({ props, rule }: { props: ChannelProps; rule: string | undefined }): ReactNode {
+  if (!supportedStation(props.found.station)) return <Unsupported project={props.project} agentId={props.agentId} found={props.found} />;
   const target = rule === undefined ? null : ruleTarget(rule);
   if (rule === 'exceptions' || (target !== null && targetTool(target) !== null)) return <ExceptionsPage {...props} />;
   return <ChannelDetail {...props} />;

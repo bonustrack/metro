@@ -344,16 +344,6 @@ export function forgetOrganizationAccount(organization: string): void {
   if (active?.organization !== organization) tokens.delete(organization);
 }
 
-export function shareActiveAccount(): Promise<void> {
-  return withAccountLock(() => {
-    if (active !== null && shared !== null && active.organization !== shared.organization && tokenMatchesAccount(active)) {
-      shared = active;
-      persist();
-    }
-    return Promise.resolve();
-  });
-}
-
 export function clearAccount(): void {
   const before = identities();
   shared = null;

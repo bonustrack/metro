@@ -8,6 +8,7 @@ import { parseId } from '@metro-labs/core/ids';
 import type { LoadedAccount, LoadedAgent } from '../stations/materialize.js';
 import { approversOf } from './files.js';
 import { isStationName } from './account-attach.js';
+import { isRetiredStation } from '@metro-labs/core/station-names';
 
 const AGENTS = '/api/agents';
 const RESTORE_PATH = `${AGENTS}/restore`;
@@ -72,7 +73,7 @@ function agentOf(raw: unknown): AgentBundle['agent'] {
   const { id, name, stations } = raw;
   if (typeof id !== 'string' || parseId(id) === null) throw bad('agent id is not an id');
   if (!Array.isArray(stations)) throw bad('agent has no station list');
-  return { id, name: typeof name === 'string' ? name : '', stations: stations.map(stationOf) };
+  return { id, name: typeof name === 'string' ? name : '', stations: stations.filter((s) => !isRecord(s) || !isRetiredStation(s.station)).map(stationOf) };
 }
 
 export function parseBundle(raw: unknown): AgentBundle {

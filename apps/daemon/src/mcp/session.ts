@@ -6,7 +6,7 @@ import { noteOwnerLine } from '../approvals/owner-line.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
 import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
-import { accountStationNames, stationByName } from '../stations/registry.js';
+import { accountStationNames } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
 import { MCP_INSTRUCTIONS } from './instructions.js';
 import { BoundedEventStore } from './event-store.js';
@@ -25,8 +25,6 @@ const getStations = (): Set<string> => new Set(accountStationNames());
 
 const senderAllowed = (from: string, line: string, verified?: boolean): boolean =>
   senderPermitted(allowlistForLine(line), from, verified);
-
-const approves = (station: string): boolean => stationByName(station)?.approvals !== false;
 
 const noteDirect = (line: string, from: string): void => {
   if (mayApprove(line, from)) noteOwnerLine(line, from);
@@ -116,7 +114,6 @@ export class McpSession {
       log: channelLog,
       getStations,
       senderAllowed,
-      approves,
       noteDirect,
       answerPermission,
       callMeta: (event) => sharedCalls.bindChat(event, this.scope),

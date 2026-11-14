@@ -73,7 +73,7 @@ describe('At a glance on Home', () => {
   });
 
   test('chats count the ones switched on and say when anyone can write', () => {
-    expect(chatsGlance(groupAccounts({ outlook: [{ id: 'o1', allowlist: ['@a.ch'] }], whatsapp: [{ id: 'w1', enabled: false, allowlist: ['1'] }] }))).toEqual({ subtitle: 'Outlook, WhatsApp', value: '1 of 2 on' });
+    expect(chatsGlance(groupAccounts({ threema: [{ id: 'o1', allowlist: ['ECHOECHO'] }], whatsapp: [{ id: 'w1', enabled: false, allowlist: ['1'] }] }))).toEqual({ subtitle: 'Threema, WhatsApp', value: '1 of 2 on' });
     expect(chatsGlance(groupAccounts({ 'telegram-bot': [{ id: 't1' }] })).subtitle).toBe('Telegram bot · anyone can write');
     expect(chatsGlance([])).toEqual({ subtitle: 'No chat yet', value: null });
   });
@@ -101,23 +101,23 @@ describe('At a glance on Home', () => {
 });
 
 describe('the note under an approval card', () => {
-  const groups = groupAccounts({ outlook: [{ id: 'o1', policy: { write: 'ask' } }], 'telegram-bot': [{ id: 't1', allowlist: ['1', '2'], approvers: ['2'] }] });
-  const tools = { outlook: [{ name: 'send', group: 'write' as const }, { name: 'read', group: 'read' as const }] };
+  const groups = groupAccounts({ threema: [{ id: 'o1', policy: { write: 'ask' } }], 'telegram-bot': [{ id: 't1', allowlist: ['1', '2'], approvers: ['2'] }] });
+  const tools = { threema: [{ name: 'send', group: 'write' as const }, { name: 'read', group: 'read' as const }] };
 
   test('names the channel rule that asked, only when it really is Asks first', () => {
-    const send = approvalOf({ id: 'abcde', tool: 'mcp__metro__send', preview: '{"line":"metro://outlook/o1/a@b.ch","text":"Hi"}', line: 'metro://telegram-bot/t1/2' });
-    const read = approvalOf({ id: 'bcdef', tool: 'mcp__metro__read', preview: '{"line":"metro://outlook/o1/x"}', line: '' });
+    const send = approvalOf({ id: 'abcde', tool: 'mcp__metro__send', preview: '{"line":"metro://threema/o1/ECHOECHO","text":"Hi"}', line: 'metro://telegram-bot/t1/2' });
+    const read = approvalOf({ id: 'bcdef', tool: 'mcp__metro__read', preview: '{"line":"metro://threema/o1/ECHOECHO"}', line: '' });
     if (send === null || read === null) throw new Error('not an approval');
-    expect(ruleLine(approvalCard(send), send.tool, groups, tools)).toBe('Outlook asks first.');
+    expect(ruleLine(approvalCard(send), send.tool, groups, tools)).toBe('Threema asks first.');
     expect(ruleLine(approvalCard(read), read.tool, groups, tools)).toBeNull();
   });
 
   test('names the rule for a call on the whole station and for a connector', () => {
-    const group = approvalOf({ id: 'cdefg', tool: 'mcp__metro__create_group', preview: '{"station":"outlook","name":"Team"}', line: '' });
+    const group = approvalOf({ id: 'cdefg', tool: 'mcp__metro__create_group', preview: '{"station":"threema","name":"Team"}', line: '' });
     const server = approvalOf({ id: 'defgh', tool: 'granola.list_meetings', preview: '{"limit":5}', line: '' });
     const plugin = approvalOf({ id: 'efghi', tool: 'mcp__plugin_metro_notion__notion-search', preview: '{"query":"x"}', line: '' });
     if (group === null || server === null || plugin === null) throw new Error('not an approval');
-    expect(ruleLine(approvalCard(group), group.tool, groups, tools)).toBe('Outlook asks first.');
+    expect(ruleLine(approvalCard(group), group.tool, groups, tools)).toBe('Threema asks first.');
     expect(ruleLine(approvalCard(group), group.tool, [], tools)).toBeNull();
     expect(ruleLine(approvalCard(server), server.tool, groups, tools)).toBe('Granola asks first.');
     expect(ruleLine(approvalCard(plugin), plugin.tool, groups, tools)).toBe('Notion asks first.');

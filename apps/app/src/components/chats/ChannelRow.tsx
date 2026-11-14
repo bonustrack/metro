@@ -5,14 +5,14 @@ import { Row } from '@stage-labs/kit/react-native/row';
 import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { stationLabel } from '@metro-labs/client/api/attach';
+import { stationLabel, supportedStation } from '@metro-labs/client/api/attach';
 import { stationFields, type FlatAccount } from '@metro-labs/client/api/accounts';
 import { routeHash } from '@metro-labs/client/route';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { StationIcon } from '../StationIcon.js';
 import { side } from '../ui/edges.js';
-import { writersSummary } from '../../lib/channel-people.js';
+import { channelSubtitle } from '../../lib/channel-people.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 
 const CHEVRON = 20;
@@ -23,14 +23,6 @@ const styles = StyleSheet.create({
 });
 
 export const channelTitle = (item: FlatAccount): string => stationFields(item.row).handle ?? item.row.id ?? stationLabel(item.station);
-
-function subtitleOf(item: FlatAccount): string {
-  const label = stationLabel(item.station);
-  if (!item.row.enabled) return `${label} · Not receiving`;
-  if (item.stale) return `${label} · Not responding`;
-  const who = writersSummary(item.row.allowlist);
-  return who === null || who === '' ? label : `${label} · ${who}`;
-}
 
 interface ChannelRowProps {
   item: FlatAccount;
@@ -55,11 +47,11 @@ export function ChannelRow({ item, project, receiving, busy, onToggle }: Channel
             {title}
           </Text>
           <Text size="xs" color={stale ? 'danger' : 'secondary'} numberOfLines={1}>
-            {subtitleOf(item)}
+            {channelSubtitle(item)}
           </Text>
         </Column>
       </RouteLink>
-      {id === null ? null : <CheckBox displayStyle="switch" value={receiving} disabled={busy} name={`Receive messages on ${title}`} onChange={onToggle} />}
+      {id === null || !supportedStation(item.station) ? null : <CheckBox displayStyle="switch" value={receiving} disabled={busy} name={`Receive messages on ${title}`} onChange={onToggle} />}
       <RouteLink to={href} label={`Open ${title}`} style={styles.chevron}>
         <Icon name="chevronRight" size={CHEVRON} color={palette.sub} />
       </RouteLink>

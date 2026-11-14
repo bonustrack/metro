@@ -105,13 +105,7 @@ export function withChoice(policy: ToolPolicy, tools: GroupedTool[], target: Rul
   return deleteTools(policy, tools).reduce((next, tool) => withTool(next, tool.name, access), policy);
 }
 
-interface AskWhere {
-  chat: boolean;
-  approvers: number;
-}
-
-export function askNote(target: RowTarget, where: AskWhere): string {
-  if (!where.chat) return 'Questions show on Home. Email does not carry them.';
-  if (where.approvers === 0) return 'Questions show on Home: nobody here can approve yet.';
+export function askNote(target: RowTarget, approvers: number): string {
+  if (approvers === 0) return 'Questions show on Home: nobody here can approve yet.';
   return `They get: "Approval needed: ${PREVIEW_TOOL[target]}. Reply yes ${SAMPLE_ID} or no ${SAMPLE_ID}"`;
 }

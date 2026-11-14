@@ -135,7 +135,6 @@ describe('how often the chats are read again', () => {
     agent: undefined,
     groups: [{ station: 'whatsapp', rows: [{ id: 'w1', allowlist: null, approvers: [], enabled: true, policy: {}, status, fields: [] }] }],
     attachable: [],
-    features: [],
     unavailable: [],
     reportsStatus: ['whatsapp'],
     pairAgain: ['whatsapp'],
