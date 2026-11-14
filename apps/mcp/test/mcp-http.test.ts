@@ -126,6 +126,15 @@ describe('MCP over HTTP', () => {
     expect(await res.json()).toEqual([{ jsonrpc: '2.0', id: 'a', result: {} }, { jsonrpc: '2.0', id: 'b', result: {} }]);
   });
 
+  test('the root address and /mcp serve the same MCP, since services still use /mcp', async () => {
+    const list = async (path: string): Promise<unknown> => {
+      const res = await fetch(`${app.base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${agent.token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+      expect(res.status).toBe(200);
+      return res.json();
+    };
+    expect(await list('/')).toEqual(await list('/mcp'));
+  });
+
   test('GET and DELETE answer 405, other paths 404, /health is open', async () => {
     expect((await fetch(`${app.base}/mcp`, { headers: { authorization: `Bearer ${agent.token}` } })).status).toBe(405);
     expect((await fetch(`${app.base}/`, { method: 'DELETE' })).status).toBe(405);

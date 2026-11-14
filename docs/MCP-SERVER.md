@@ -29,7 +29,9 @@ messages, and the two connector tools). Claude Code names the connector tools
 
 ## The agent's view
 
-mcp.metro.box is Streamable HTTP at `/` (also `/mcp`), JSON answers, no session state. Every
+mcp.metro.box is Streamable HTTP at `/` (also `/mcp`), JSON answers, no session state. The
+address shown to people is `https://mcp.metro.box` (since 2026-11-15, Less); `/mcp`, with its
+own protected resource metadata, stays served because services already use it. Every
 request carries `Authorization: Bearer <MCP token>`, or `Authorization: Bearer <access key>`
 for an agent without a server. The daemon's `metro` server publishes
 the same two tools with the same schemas, descriptions and annotations (one source,
@@ -141,7 +143,7 @@ with a server or not, can have access keys.
   random bytes in base64url, the shape of an MCP token, answered once; only its SHA-256 is
   stored. At most 20 live keys per agent; Revoke (`DELETE …/tokens/<id>`) keeps the row with
   its `revoked_at`. Claude Code:
-  `claude mcp add --transport http metro https://mcp.metro.box/mcp --header "Authorization: Bearer <key>"`.
+  `claude mcp add --transport http metro https://mcp.metro.box --header "Authorization: Bearer <key>"`.
 - **Authentication**: a bearer is looked up first as a box's MCP token
   (`agent_keys.mcp_token_hash`), then as an access key that is not revoked, of an agent row
   still in the key's organization. Deleting the agent deletes its keys; moving it to another

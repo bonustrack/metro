@@ -3,7 +3,7 @@ import { filled, isRecord, recordOf } from '../read.js';
 import { approvalOf, type Approval, type Decision } from './approvals.js';
 import { orgCall } from './org-connectors.js';
 
-export const MCP_URL = 'https://mcp.metro.box/mcp';
+export const MCP_URL = 'https://mcp.metro.box';
 export const GATEWAY_URL = 'https://gateway.metro.box';
 
 export const KEY_SCOPES = ['connectors', 'gateway'] as const;
