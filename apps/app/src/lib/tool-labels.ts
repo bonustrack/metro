@@ -34,3 +34,5 @@ export function toolLabel(name: string): string {
 }
 
 export const eventLabel = (name: string): string => inWords(name, /[_\-.:/]+/g);
+
+export const connectorToolLabel = (name: string, title: string | null): string => title ?? inWords(name, /[_-]+/g);

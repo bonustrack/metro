@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 import type { Database } from './database.js';
 import { agents, connectors, mcpCalls } from './schema.js';
 import { callStats, connectorGroup, type CallStats, type StatsScope } from './mcp-call-stats.js';
+import { toolTitleReader, type ToolTitles } from './connector-tools.js';
 
 export type McpCallRow = typeof mcpCalls.$inferSelect;
 
@@ -44,6 +45,7 @@ export interface CallView {
 export interface McpCallStore {
   recent: (owner: string, filter: CallFilter) => Promise<CallView[]>;
   stats: (scope: StatsScope) => Promise<CallStats>;
+  titles: ToolTitles;
 }
 
 export async function recordCall(db: Database, row: NewMcpCall): Promise<void> {
@@ -90,5 +92,5 @@ async function recentCalls(db: Database, owner: string, filter: CallFilter): Pro
 }
 
 export function mcpCallStore(db: () => Database): McpCallStore {
-  return { recent: (owner, filter) => recentCalls(db(), owner, filter), stats: (scope) => callStats(db(), scope) };
+  return { recent: (owner, filter) => recentCalls(db(), owner, filter), stats: (scope) => callStats(db(), scope), titles: toolTitleReader(db) };
 }

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { recordCall, type NewMcpCall } from '@metro-labs/connectors/db/mcp-calls';
-import { agents, connectors, mcpCalls } from '../src/db/schema.ts';
+import { agents, connectors, connectorTools, mcpCalls } from '../src/db/schema.ts';
 import { auth, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { startApi, type Api } from './org-connectors-fixture.ts';
@@ -130,6 +130,25 @@ describe('what the activity answers', () => {
       await held.client.query("DELETE FROM mcp_calls WHERE kind = 'later'");
       await held.client.query("ALTER TABLE mcp_calls ADD CONSTRAINT mcp_calls_kind_check CHECK (kind IN ('call', 'event')) NOT VALID");
     }
+  });
+
+  test('a call carries the tool title its connector lists, never for an event, another tool or a connector no longer here', async () => {
+    const tools = (title: string): string => JSON.stringify([{ name: 'search', title, description: '', readOnly: true }, { name: 'read', title: 'Read mail', description: '', readOnly: true }]);
+    await held.db.insert(connectorTools).values({ connector: NOTION, tools: tools('Search pages'), icons: '[]', listedAt: NOW - 60_000 });
+    await held.db.insert(connectorTools).values({ connector: FOREIGN, tools: tools('Their search'), icons: '[]', listedAt: NOW - 60_000 });
+    await record(
+      row({ id: 'callread001', tool: 'read', at: NOW - 4_000 }),
+      row({ id: 'callsearch1', at: NOW - 3_000 }),
+      row({ id: 'callunlist1', tool: 'create_page', at: NOW - 2_000 }),
+      row({ id: 'eventread01', kind: 'event', tool: 'read', outcome: 'delivered', ms: 0, at: NOW - 1_000 }),
+      row({ id: 'callforeign', connector: FOREIGN, at: NOW }),
+    );
+    const titles = async (): Promise<[string, string | undefined][]> => (await calls()).map((call) => [call.id, (call as Call & { toolTitle?: string }).toolTitle]);
+    expect(await titles()).toEqual([['callforeign', undefined], ['eventread01', undefined], ['callunlist1', undefined], ['callsearch1', 'Search pages'], ['callread001', 'Read mail']]);
+    await held.db.update(connectorTools).set({ tools: tools('Find pages'), listedAt: NOW }).where(eq(connectorTools.connector, NOTION));
+    expect((await titles()).find(([id]) => id === 'callsearch1')?.[1]).toBe('Find pages');
+    await held.db.delete(connectors).where(eq(connectors.id, NOTION));
+    expect((await titles()).every(([, title]) => title === undefined)).toBe(true);
   });
 
   test('a renamed connector shows its new name, a deleted one keeps the name it had when the call ran', async () => {

@@ -63,6 +63,43 @@ export async function saveToolListing(db: Database, connector: string, listing: 
   await db.insert(connectorTools).values({ connector, ...tools, ...events, ...failure }).onConflictDoUpdate({ target: connectorTools.connector, set: { ...tools, ...events, ...failure } });
 }
 
+export type ToolTitles = (connectors: readonly string[]) => Promise<Map<string, ReadonlyMap<string, string>>>;
+
+const TITLES_KEPT = 500;
+
+interface KeptTitles {
+  listedAt: number;
+  titles: ReadonlyMap<string, string>;
+}
+
+const titlesOf = (text: string | null): ReadonlyMap<string, string> => new Map((listOf(text, isTool) ?? []).map((tool) => [tool.name, tool.title]));
+
+export function toolTitleReader(db: () => Database): ToolTitles {
+  const kept = new Map<string, KeptTitles>();
+  const keep = (connector: string, entry: KeptTitles): void => {
+    kept.delete(connector);
+    kept.set(connector, entry);
+    for (const oldest of kept.keys()) {
+      if (kept.size <= TITLES_KEPT) break;
+      kept.delete(oldest);
+    }
+  };
+  return async (wanted) => {
+    const ids = [...new Set(wanted)];
+    if (ids.length === 0) return new Map();
+    const stamps = await db().select({ connector: connectorTools.connector, listedAt: connectorTools.listedAt }).from(connectorTools).where(inArray(connectorTools.connector, ids));
+    const stale = stamps.filter((row) => kept.get(row.connector)?.listedAt !== (row.listedAt ?? 0)).map((row) => row.connector);
+    if (stale.length > 0) {
+      const rows = await db().select({ connector: connectorTools.connector, tools: connectorTools.tools, listedAt: connectorTools.listedAt }).from(connectorTools).where(inArray(connectorTools.connector, stale));
+      for (const row of rows) keep(row.connector, { listedAt: row.listedAt ?? 0, titles: titlesOf(row.tools) });
+    }
+    return new Map(stamps.flatMap((row) => {
+      const titles = kept.get(row.connector)?.titles;
+      return titles === undefined ? [] : [[row.connector, titles] as const];
+    }));
+  };
+}
+
 export async function readOfferedEvents(db: Database, connectors: string[]): Promise<Map<string, RemoteEvent[]>> {
   if (connectors.length === 0) return new Map();
   const rows = await db.select({ connector: connectorTools.connector, events: connectorTools.events }).from(connectorTools).where(inArray(connectorTools.connector, connectors));

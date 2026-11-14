@@ -12,6 +12,7 @@ export interface ActivityCall {
   connectorName: string | null;
   connectorUrl: string | null;
   tool: string;
+  toolTitle: string | null;
   outcome: string;
   ms: number;
   at: number;
@@ -60,6 +61,7 @@ export function toActivityCall(value: unknown): ActivityCall | null {
     connectorName: filled(value.connectorName),
     connectorUrl: filled(value.connectorUrl),
     tool: value.tool,
+    toolTitle: filled(value.toolTitle),
     outcome: typeof value.outcome === 'string' ? value.outcome : '',
     ms: Math.max(0, number(value.ms) ?? 0),
     at,

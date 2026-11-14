@@ -1,4 +1,5 @@
 import { parseId } from '@metro-labs/core/ids';
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { CALLS_PAGE, CALLS_PAGE_MAX, type CallCursor, type CallFilter, type CallView, type McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
 
@@ -15,6 +16,7 @@ interface ActivityCall {
   connectorName?: string;
   connectorUrl?: string;
   tool: string;
+  toolTitle?: string;
   outcome: string;
   ms: number;
   at: number;
@@ -68,8 +70,11 @@ function activityFilter(query: URLSearchParams): CallFilter {
 
 const named = (value: string | null): string | undefined => (value === null || value === '' ? undefined : value);
 
-function activityCall(row: CallView): ActivityCall {
+const titled = (row: CallView): string | null => (row.kind === 'event' || row.connectorUrl === null ? null : row.connector);
+
+function activityCall(row: CallView, titles: Map<string, ReadonlyMap<string, string>>): ActivityCall {
   const agentName = named(row.agentName);
+  const toolTitle = titled(row) === null ? undefined : titles.get(row.connector ?? '')?.get(row.tool);
   const connectorName = named(row.connectorName);
   const connectorUrl = named(row.connectorUrl);
   return {
@@ -81,6 +86,7 @@ function activityCall(row: CallView): ActivityCall {
     ...(connectorName === undefined ? {} : { connectorName }),
     ...(connectorUrl === undefined ? {} : { connectorUrl }),
     tool: row.tool,
+    ...(toolTitle === undefined ? {} : { toolTitle }),
     outcome: row.outcome,
     ms: row.ms,
     at: row.at,
@@ -90,5 +96,9 @@ function activityCall(row: CallView): ActivityCall {
 
 export async function connectorActivity(store: McpCallStore, owner: string, query: URLSearchParams): Promise<{ calls: ActivityCall[] }> {
   const rows = await store.recent(owner, activityFilter(query));
-  return { calls: rows.map(activityCall) };
+  const titles = await store.titles(rows.flatMap((row) => titled(row) ?? [])).catch((err: unknown) => {
+    log.warn({ owner, err: errMsg(err) }, 'org-connectors: the tool titles could not be read, so the activity shows tool names');
+    return new Map<string, ReadonlyMap<string, string>>();
+  });
+  return { calls: rows.map((row) => activityCall(row, titles)) };
 }
