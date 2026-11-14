@@ -2,6 +2,7 @@ export type Line = string & { readonly __line: unique symbol };
 export const asLine = (s: string): Line => s as Line;
 
 const PREFIX = 'metro://';
+const CONNECTOR = 'connector';
 
 function parseAccountScoped(
   line: Line | string,
@@ -56,6 +57,15 @@ export const Line = {
   station: (line: Line | string): string | null =>
     Line.parse(line)?.station ?? null,
   isLocal: (line: Line | string): boolean => Line.station(line) === 'claude',
+
+  connector: (agentId: string, connectorId: string): Line => asLine(`${PREFIX}${CONNECTOR}/${agentId}/${connectorId}`),
+  isConnector: (line: Line | string): boolean => line === `${PREFIX}${CONNECTOR}` || line.startsWith(`${PREFIX}${CONNECTOR}/`),
+  parseConnector(line: Line | string): { agentId: string; connectorId: string } | null {
+    const p = Line.parse(line);
+    if (p?.station !== CONNECTOR || p.path.length !== 2 || line !== `${PREFIX}${CONNECTOR}/${p.path.join('/')}`) return null;
+    const [agentId, connectorId] = p.path;
+    return agentId === undefined || connectorId === undefined ? null : { agentId, connectorId };
+  },
 
   parseXmtp: (line: Line | string) => parseAccountScoped(line, 'xmtp'),
 

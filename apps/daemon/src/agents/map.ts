@@ -1,3 +1,5 @@
+import { senderListed } from '@metro-labs/http/sender-list';
+
 export type AgentMap = Record<string, string>;
 export type AgentNameMap = Record<string, string>;
 export type AllowlistMap = Record<string, string[]>;
@@ -17,6 +19,11 @@ export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
 }
 
 export const knownAgentIds = (): string[] => Object.keys(agentNames);
+
+export function soleAgent(): { id: string; name?: string } | null {
+  const id = Object.keys(agentNames)[0];
+  return id === undefined ? null : { id, name: agentNames[id] };
+}
 
 export function setAllowlistMap(map: AllowlistMap): void {
   allowlistMap = map;
@@ -118,18 +125,6 @@ export function senderMatchesAllowlist(
   allowlist: string[],
   from: string,
 ): boolean {
-  if (allowlist.length === 0 || allowlist.includes('*')) return true;
-  const f = (from ?? '').toLowerCase();
-  const id = f.split('/').pop() ?? f;
-  return allowlist.some((a) => {
-    const v = a.toLowerCase();
-    return v === f || v === id || domainMatches(v, id);
-  });
-}
-
-const EMAIL_RE = /^[^@\s/]+@([^@\s/]+)$/;
-
-function domainMatches(entry: string, id: string): boolean {
-  if (!entry.startsWith('@') || entry.length < 2) return false;
-  return EMAIL_RE.exec(id)?.[1] === entry.slice(1);
+  const sender = from ?? '';
+  return senderListed(allowlist, sender) || senderListed(allowlist, sender.split('/').pop() ?? sender);
 }

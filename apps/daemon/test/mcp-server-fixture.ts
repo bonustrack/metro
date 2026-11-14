@@ -2,7 +2,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { randomInt } from 'node:crypto';
 import { readBodyBytes } from '@metro-labs/http/api-http';
 import { agentKeyId, agentSignatureValid, readAgentProof } from '@metro-labs/http/agent-signature';
-import type { McpApproval } from '@metro-labs/http/mcp-server-protocol';
+import type { McpApproval, McpConnectorEvent } from '@metro-labs/http/mcp-server-protocol';
+import { McpEventLink, type EventTiming, type TakeEvent } from '../src/mcp-server/event-link.ts';
+
 import { McpServerLink, type HoldApproval, type McpTiming } from '../src/mcp-server/link.ts';
 import { readAgentKey } from '../src/connectors/agent-key.ts';
 
@@ -26,6 +28,8 @@ export interface FakeMcpServer {
   seen: Seen[];
   signers: Set<string>;
   pending: McpApproval[];
+  events: McpConnectorEvent[];
+  settled: { id: string; outcome: string }[];
   answers: { id: string; decision: string }[];
   reply: ((path: string, count: number) => Reply | null) | null;
   holdMs: number;
@@ -43,6 +47,13 @@ async function answerOf(fake: FakeMcpServer, path: string, body: Record<string, 
   if (path === '/v1/approvals') {
     if (fake.pending.length === 0) await sleep(fake.holdMs);
     return { status: 200, body: { approvals: fake.pending } };
+  }
+  if (path === '/v1/inbox') {
+    const settled = Array.isArray(body.settled) ? (body.settled as { id: string; outcome: string }[]) : [];
+    fake.settled.push(...settled);
+    fake.events = fake.events.filter((event) => !settled.some((entry) => entry.id === event.id));
+    if (fake.events.length === 0) await sleep(fake.holdMs);
+    return { status: 200, body: { events: fake.events } };
   }
   if (path === '/v1/approvals/answer') {
     const at = fake.pending.findIndex((row) => row.id === body.id);
@@ -78,6 +89,8 @@ export async function fakeMcpServer(): Promise<FakeMcpServer> {
     seen: [],
     signers: new Set(),
     pending: [],
+    events: [],
+    settled: [],
     answers: [],
     reply: null,
     holdMs: 50,
@@ -107,6 +120,12 @@ export const FAST: Partial<McpTiming> = { retryMs: 20, retryMaxMs: 160, idleMs: 
 
 export function linkTo(fake: FakeMcpServer, dir: string, hold: HoldApproval, timing: Partial<McpTiming> = FAST, owner = OWNER): McpServerLink {
   return new McpServerLink({ url: fake.base, owner: () => owner, key: () => readAgentKey(dir), dir: () => dir, hold, timing });
+}
+
+export const FAST_EVENTS: Partial<EventTiming> = { retryMs: 20, retryMaxMs: 160, idleMs: 30, minPollMs: 20, pollTimeoutMs: 3000, olderServerMs: 60_000 };
+
+export function eventLinkTo(fake: FakeMcpServer, dir: string, take: TakeEvent, timing: Partial<EventTiming> = FAST_EVENTS, owner = OWNER): McpEventLink {
+  return new McpEventLink({ url: fake.base, owner: () => owner, key: () => readAgentKey(dir), take, timing });
 }
 
 export const approval = (id: string, over: Partial<McpApproval> = {}): McpApproval => ({

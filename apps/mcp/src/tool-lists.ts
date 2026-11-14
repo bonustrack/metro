@@ -2,14 +2,14 @@ import { errMsg, log } from '@metro-labs/core/log';
 import type { RemoteServer } from '@metro-labs/http/connector-tools';
 import { readToolListings, saveToolListing, type ToolFailure, type ToolListing } from '@metro-labs/connectors/db/connector-tools';
 import type { Database } from '@metro-labs/connectors/db/database';
-import { isUndefinedTable } from '@metro-labs/connectors/db/errors';
+import { isNotMigrated } from '@metro-labs/connectors/db/errors';
 import { Flights } from './flights.js';
 
 export const TOOL_LIST_TTL_MS = 5 * 60_000;
 export const FAILURE_PAUSE_MS = 60_000;
 const HELD_MAX = 500;
 
-const EMPTY: ToolListing = { tools: null, icons: [], listedAt: 0, failure: null, failedAt: 0 };
+const EMPTY: ToolListing = { tools: null, icons: [], events: [], listedAt: 0, failure: null, failedAt: 0 };
 
 const newer = (a: ToolListing, b: ToolListing | undefined): ToolListing => (b !== undefined && Math.max(b.listedAt, b.failedAt) > Math.max(a.listedAt, a.failedAt) ? b : a);
 
@@ -49,7 +49,8 @@ export class ToolLists {
       if (this.fresh(known) || this.paused(known)) return this.keep(connector, known);
       let next: ToolListing;
       try {
-        next = { ...(await list()), listedAt: this.now(), failure: null, failedAt: 0 };
+        const listed = await list();
+        next = { tools: listed.tools, icons: listed.icons, events: listed.events ?? known.events, listedAt: this.now(), failure: null, failedAt: 0 };
       } catch (err) {
         next = { ...known, failure: failureOf(err), failedAt: this.now() };
       }
@@ -80,7 +81,7 @@ export class ToolLists {
       return done;
     } catch (err) {
       if (!this.quiet) {
-        if (isUndefinedTable(err)) log.warn('mcp: the connector_tools table does not exist yet, so tool lists stay in memory until api.metro.box migrates');
+        if (isNotMigrated(err)) log.warn('mcp: the connector_tools table is not migrated yet, so tool lists stay in memory until api.metro.box migrates');
         else log.warn({ err: errMsg(err) }, 'mcp: could not read or save a tool list, later failures stay quiet until one works');
       }
       this.quiet = true;

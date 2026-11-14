@@ -1,13 +1,10 @@
 import { type ReactNode, useState } from 'react';
-import { Text } from '@stage-labs/kit/react-native/text';
-import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { EVERYONE } from '@metro-labs/client/api/accounts';
 import { setAllowlist } from '@metro-labs/client/api/attach';
-import { Icon } from '../Icon.js';
 import { Item } from '../ui/Item.js';
 import { AddPerson } from './AddPerson.js';
-import { PersonRow } from './PersonRow.js';
-import { SAVE_FAILED } from './people-text.js';
+import { DUPLICATE, NOBODY, SAVE_FAILED } from './people-text.js';
+import { WhoCanWrite } from './WhoCanWrite.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import {
@@ -16,11 +13,6 @@ import {
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
-import { ICON_SIZE } from '../ui/sizes.js';
-
-const MARK = ICON_SIZE.md;
-const NOBODY = 'Nobody added yet, so anyone can still write. Add the first person below.';
-const DUPLICATE = 'This person is already in the list.';
 
 type Report = (message: string | null) => void;
 
@@ -34,11 +26,6 @@ interface ChannelPeopleProps {
   onSaved: () => Promise<unknown>;
 }
 
-function Check({ on }: { on: boolean }): ReactNode {
-  const palette = useKitPalette();
-  return on ? <Icon name="check" size={MARK} color={palette.link} /> : null;
-}
-
 function anyoneNote(chat: boolean, name: string): string {
   return chat ? `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.` : `Anyone who writes here reaches ${name}.`;
 }
@@ -48,35 +35,6 @@ function Questions({ people, handle }: { people: Person[]; handle: string }): Re
   return (
     <Group label="Approval questions go to">
       <Item title={goes.title} subtitle={goes.subtitle} chevron={false} />
-    </Group>
-  );
-}
-
-interface PeopleListProps {
-  people: Person[];
-  heading: string;
-  chat: boolean;
-  busy: boolean;
-  error: string | null;
-  onApprove: (id: string, approves: boolean) => void;
-  onRemove: (id: string) => void;
-  onAdd: () => void;
-}
-
-function PeopleList({ people, heading, chat, busy, error, onApprove, onRemove, onAdd }: PeopleListProps): ReactNode {
-  const palette = useKitPalette();
-  const name = useAgentName();
-  return (
-    <Group
-      label={heading}
-      action={chat ? <Text size="xs" color="secondary">Can approve</Text> : undefined}
-      note={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
-      error={error}
-    >
-      {people.map((person) => (
-        <PersonRow key={person.id} person={person} busy={busy} onApprove={(yes) => { onApprove(person.id, yes); }} onRemove={() => { onRemove(person.id); }} />
-      ))}
-      <Item title="Add a person" leading={<Icon name="plus" size={MARK} color={palette.link} />} chevron={false} onPress={onAdd} />
     </Group>
   );
 }
@@ -137,22 +95,20 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
 
   return (
     <>
-      <Group label="Who can write" note={whoNote(editing, entries.length === 0, chat, name)} error={editing ? null : error}>
-        <Item title="Only these people" trailing={<Check on={editing} />} chevron={false} onPress={() => { setError(null); setRestricting(true); }} />
-        <Item title="Anyone" trailing={<Check on={!editing} />} chevron={false} onPress={anyone} />
-      </Group>
-      {editing ? (
-        <PeopleList
-          people={people}
-          heading="People"
-          chat={chat}
-          busy={busy}
-          error={error}
-          onApprove={(id, yes) => { save(entries, withApprover(approvers, id, yes), setError); }}
-          onRemove={remove}
-          onAdd={() => { setAddError(null); setAdding(true); }}
-        />
-      ) : null}
+      <WhoCanWrite
+        editing={editing}
+        note={whoNote(editing, entries.length === 0, chat, name)}
+        error={error}
+        people={people}
+        busy={busy}
+        approving={chat}
+        peopleNote={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
+        onRestrict={() => { setError(null); setRestricting(true); }}
+        onAnyone={anyone}
+        onApprove={(id, yes) => { save(entries, withApprover(approvers, id, yes), setError); }}
+        onRemove={remove}
+        onAdd={() => { setAddError(null); setAdding(true); }}
+      />
       {chat && editing ? <Questions people={people} handle={handle} /> : null}
       {adding ? (
         <AddPerson agentId={agentId} station={station} accountId={accountId} entries={entries} busy={busy} error={addError} onAdd={add} onError={setAddError} onClose={() => { setAdding(false); }} />

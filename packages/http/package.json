@@ -27,7 +27,10 @@
     "./mcp-server-protocol": "./src/mcp-server-protocol.ts",
     "./mcp-server-tools": "./src/mcp-server-tools.ts",
     "./args-digest": "./src/args-digest.ts",
-    "./approval-rules": "./src/approval-rules.ts"
+    "./approval-rules": "./src/approval-rules.ts",
+    "./mcp-events": "./src/mcp-events.ts",
+    "./standard-webhooks": "./src/standard-webhooks.ts",
+    "./sender-list": "./src/sender-list.ts"
   },
   "scripts": {
     "build": "tsc",

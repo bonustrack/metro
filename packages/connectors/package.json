@@ -24,6 +24,8 @@
     "./db/connectors": "./src/db/connectors.ts",
     "./db/connector-delivery": "./src/db/connector-delivery.ts",
     "./db/connector-tools": "./src/db/connector-tools.ts",
+    "./db/connector-subscriptions": "./src/db/connector-subscriptions.ts",
+    "./db/connector-events": "./src/db/connector-events.ts",
     "./db/agent-keys": "./src/db/agent-keys.ts",
     "./db/agent-nonces": "./src/db/agent-nonces.ts",
     "./db/mcp-calls": "./src/db/mcp-calls.ts",

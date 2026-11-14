@@ -4,11 +4,11 @@ import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { authHeaders, INITIALIZE, mcpPost } from '@metro-labs/http/connector-mcp';
 import { ConnectorUnauthorized, refused } from '@metro-labs/http/connector-url';
 import type { VendorTarget } from './credential.js';
-import { CallError } from './errors.js';
+import { VendorRpcError } from './errors.js';
 
 const VENDOR_INIT_MS = 15_000;
 export const VENDOR_CALL_MS = 60_000;
-const CALL_ID = 2;
+const FIRST_ID = 2;
 const MESSAGE_MAX = 500;
 
 interface VendorAnswer {
@@ -19,11 +19,26 @@ interface VendorAnswer {
 
 type Session = Map<string, string>;
 
+interface RequestOptions {
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+}
+
+export interface VendorSession {
+  initialize: Record<string, unknown>;
+  request: (method: string, params: unknown, options?: RequestOptions) => Promise<Record<string, unknown>>;
+}
+
 interface RpcBody {
   jsonrpc: string;
   id: number;
   method: string;
   params?: unknown;
+}
+
+export function deadlineFetch(fetch: FetchLike, ms: number): FetchLike {
+  const deadline = AbortSignal.timeout(ms);
+  return (url, init) => fetch(url, { ...init, signal: init?.signal === undefined || init.signal === null ? deadline : AbortSignal.any([deadline, init.signal]) });
 }
 
 function parsed(text: string): unknown {
@@ -53,8 +68,8 @@ function checkStatus(res: Response, target: VendorTarget): void {
   if (!res.ok) throw refused(`${target.url.hostname} answered ${String(res.status)}`);
 }
 
-async function post(target: VendorTarget, session: Session, body: unknown, timeoutMs: number, fetch: FetchLike): Promise<{ res: Response; text: string }> {
-  const res = await mcpPost(target.url, target.auth, body, { timeoutMs, headers: Object.fromEntries(session), fetch });
+async function post(target: VendorTarget, session: Session, body: unknown, timeoutMs: number, fetch: FetchLike, headers: Record<string, string> = {}): Promise<{ res: Response; text: string }> {
+  const res = await mcpPost(target.url, target.auth, body, { timeoutMs, headers: { ...Object.fromEntries(session), ...headers }, fetch });
   const id = res.headers.get('mcp-session-id');
   if (id !== null && id !== '' && !session.has('mcp-session-id')) session.set('mcp-session-id', id);
   const text = await res.text().catch(() => '');
@@ -62,13 +77,13 @@ async function post(target: VendorTarget, session: Session, body: unknown, timeo
   return { res, text };
 }
 
-async function rpc(target: VendorTarget, session: Session, body: RpcBody, timeoutMs: number, fetch: FetchLike): Promise<Record<string, unknown>> {
-  const { res, text } = await post(target, session, body, timeoutMs, fetch);
+async function rpc(target: VendorTarget, session: Session, body: RpcBody, timeoutMs: number, fetch: FetchLike, headers: Record<string, string> = {}): Promise<Record<string, unknown>> {
+  const { res, text } = await post(target, session, body, timeoutMs, fetch, headers);
   const reply = messagesOf(text, res.headers.get('content-type') ?? '').find((message) => isRecord(message) && message.id === body.id && ('result' in message || 'error' in message));
   if (!isRecord(reply)) throw refused(`${target.url.hostname} answered, but not with an MCP reply`);
   if (isRecord(reply.error)) {
     const message = typeof reply.error.message === 'string' ? reply.error.message.slice(0, MESSAGE_MAX) : 'no message';
-    throw new CallError('vendor_error', `The connector answered with an error: ${message}`);
+    throw new VendorRpcError(message, typeof reply.error.code === 'number' ? reply.error.code : 0, reply.error.data);
   }
   return isRecord(reply.result) ? reply.result : {};
 }
@@ -87,15 +102,27 @@ function answerOf(result: Record<string, unknown>): VendorAnswer {
   return { content, isError: result.isError === true, ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }) };
 }
 
-export async function callVendorTool(target: VendorTarget, tool: string, args: Record<string, unknown>, fetch: FetchLike): Promise<VendorAnswer> {
+export async function withVendorSession<T>(target: VendorTarget, fetch: FetchLike, work: (session: VendorSession) => Promise<T>): Promise<T> {
   const session: Session = new Map();
+  let nextId = FIRST_ID;
   try {
-    const init = await rpc(target, session, INITIALIZE, VENDOR_INIT_MS, fetch);
-    if (typeof init.protocolVersion !== 'string') throw refused(`${target.url.hostname} answered, but it does not speak MCP`);
-    session.set('mcp-protocol-version', init.protocolVersion);
+    const initialize = await rpc(target, session, INITIALIZE, VENDOR_INIT_MS, fetch);
+    if (typeof initialize.protocolVersion !== 'string') throw refused(`${target.url.hostname} answered, but it does not speak MCP`);
+    session.set('mcp-protocol-version', initialize.protocolVersion);
     await post(target, session, { jsonrpc: '2.0', method: 'notifications/initialized' }, VENDOR_INIT_MS, fetch);
-    return answerOf(await rpc(target, session, { jsonrpc: '2.0', id: CALL_ID, method: 'tools/call', params: { name: tool, arguments: args } }, VENDOR_CALL_MS, fetch));
+    return await work({
+      initialize,
+      request: (method, params, options = {}) => {
+        const id = nextId;
+        nextId += 1;
+        return rpc(target, session, { jsonrpc: '2.0', id, method, params }, options.timeoutMs ?? VENDOR_INIT_MS, fetch, options.headers);
+      },
+    });
   } finally {
     endSession(target, session, fetch);
   }
+}
+
+export async function callVendorTool(target: VendorTarget, tool: string, args: Record<string, unknown>, fetch: FetchLike): Promise<VendorAnswer> {
+  return withVendorSession(target, fetch, async (session) => answerOf(await session.request('tools/call', { name: tool, arguments: args }, { timeoutMs: VENDOR_CALL_MS })));
 }

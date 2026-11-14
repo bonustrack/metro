@@ -11,7 +11,7 @@ import type { Session } from '@metro-labs/http/workos-token';
 import type { ConnectorRow, OrgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
-import { connectorView, type ConnectorView } from './model.js';
+import { connectorView, type ConnectorEvents, type ConnectorView } from './model.js';
 import { beginSignIn, currentClient, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
 
 export const CONNECTORS_MAX = 100;
@@ -41,11 +41,16 @@ function connectorUrl(deps: ActionDeps, raw: unknown): URL {
   return url;
 }
 
+export async function eventsOf(deps: ActionDeps, owner: string, ids: string[]): Promise<ConnectorEvents> {
+  const [offered, subscriptions] = await Promise.all([deps.store.offered(ids), deps.store.subscriptions(owner)]);
+  return { offered, subscriptions };
+}
+
 export async function viewOf(deps: ActionDeps, owner: string, id: string): Promise<ConnectorView> {
   const { connectors, assignments } = await deps.store.list(owner);
   const row = connectors.find((c) => c.id === id);
   if (row === undefined) throw new ApiError('no such connector', 404);
-  return connectorView(row, assignments);
+  return connectorView(row, assignments, await eventsOf(deps, owner, [row.id]));
 }
 
 function newRow(caller: Caller, name: string, url: URL, now: string): ConnectorRow {

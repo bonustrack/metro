@@ -67,6 +67,7 @@ const percentile = (share: number): SQL<number | null> =>
 function scopeOf(scope: StatsScope): SQL | undefined {
   return and(
     eq(mcpCalls.owner, scope.owner),
+    eq(mcpCalls.kind, 'call'),
     gte(mcpCalls.at, scope.from),
     lt(mcpCalls.at, scope.to),
     scope.agent === undefined ? undefined : eq(mcpCalls.agent, scope.agent),

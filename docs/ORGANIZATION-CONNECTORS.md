@@ -23,6 +23,9 @@ organization's Connectors page. An agent reaches only the connectors assigned to
 - An assignment, a policy or a sign-in change reaches the agent at its next `tool_search`
   or `tool_call`; nothing needs a reload. Tool lists are kept 5 minutes on mcp.metro.box.
 - Tool names are `<connector key>.<tool>`, the key being the slug of the connector's name.
+- A connector whose server offers events can also tell an agent that something happened (a new
+  email, for example). It is off until an admin turns an event on for that agent on the
+  connector's page. Design: docs/CONNECTOR-EVENTS.md.
 - Sign-ins moved from boxes during the 2026 migration keep their original OAuth client and
   are refreshed centrally. Never restore an old local token copy.
 

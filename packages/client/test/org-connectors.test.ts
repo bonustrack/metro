@@ -6,6 +6,7 @@ import {
   signInOrgConnector,
   assignOrgConnector,
   fetchOrgConnectorTools,
+  setConnectorAgentEvents,
   setOrgConnectorPolicy,
   setOrgConnectorAgentPolicy,
   fetchOrgConnectors,
@@ -126,6 +127,54 @@ describe('the organization connectors client', () => {
     await expect(setOrgConnectorAgentPolicy(ROW.id, 'zz9-_xYz9Qw', { write: 'deny' })).rejects.toThrow('not found');
     expect(calls).toEqual([{ url: `${path}/policy`, method: 'PUT', body: { policy: { write: 'deny' } } }]);
     expect(readOnly).toBe(true);
+  });
+
+  test('an api that does not know events reads as no events at all, and never throws', () => {
+    const old = toOrgConnector(ROW);
+    expect(old.events).toBeNull();
+    expect(old.agents[0]).toMatchObject({ events: [], senders: [], subscriptions: [] });
+    expect(toOrgConnector({ ...ROW, events: 'nope', agents: [{ id: 'zz9-_xYz9Qw', events: 'all', senders: null, subscriptions: {} }] })).toMatchObject({ events: null, agents: [{ events: [], senders: [], subscriptions: [] }] });
+  });
+
+  test('offered events, what an agent receives, from whom and how each subscription stands are read with safe defaults', () => {
+    const row = {
+      ...ROW,
+      events: [{ name: 'item.created', title: 'Item created', description: 'A new item.', sender: true }, { name: 'item.updated' }, { title: 'No name' }, 'item.deleted'],
+      agents: [{
+        id: 'zz9-_xYz9Qw', events: ['item.created', 7, 'item.created', ''], senders: ['@example.com', 'lisa@example.org'],
+        subscriptions: [{ event: 'item.created', status: 'active' }, { event: 'item.updated', status: 'error', error: 'It refused.' }, { event: 'item.other', status: 'later', error: '' }, { status: 'active' }],
+      }, { id: 'yy9-_xYz9Qw', events: [], senders: ['someone@example.org', '*'] }, { id: 'xx9-_xYz9Qw', senders: [] }],
+    };
+    const read = toOrgConnector(row);
+    expect(read.events).toEqual([
+      { name: 'item.created', title: 'Item created', description: 'A new item.', sender: true },
+      { name: 'item.updated', title: 'item.updated', description: '', sender: false },
+    ]);
+    expect(read.agents[0]).toMatchObject({
+      events: ['item.created'], senders: ['@example.com', 'lisa@example.org'],
+      subscriptions: [{ event: 'item.created', status: 'active', error: null }, { event: 'item.updated', status: 'error', error: 'It refused.' }, { event: 'item.other', status: 'pending', error: null }],
+    });
+    expect(read.agents[1]).toMatchObject({ events: [], senders: ['*'], subscriptions: [] });
+    expect(read.agents[2]).toMatchObject({ events: [], senders: [], subscriptions: [] });
+    expect(toOrgConnector({ ...ROW, events: [] }).events).toEqual([]);
+  });
+
+  test('what an agent receives is one PUT on its events under the connector, with only what changed', async () => {
+    serve({ ...ROW, events: [{ name: 'item.created', title: 'Item created', description: '', sender: true }] });
+    const saved = await setConnectorAgentEvents(ROW.id, 'zz9-_xYz9Qw', { events: ['item.created'] });
+    expect(saved.events).toEqual([{ name: 'item.created', title: 'Item created', description: '', sender: true }]);
+    await setConnectorAgentEvents(ROW.id, 'zz9-_xYz9Qw', { senders: ['@example.com'] });
+    await setConnectorAgentEvents(ROW.id, 'zz9-_xYz9Qw', { events: [], senders: ['*'] });
+    const url = `${BASE}/${ROW.id}/agents/zz9-_xYz9Qw/events`;
+    expect(calls).toEqual([
+      { url, method: 'PUT', body: { events: ['item.created'] } },
+      { url, method: 'PUT', body: { senders: ['@example.com'] } },
+      { url, method: 'PUT', body: { events: [], senders: ['*'] } },
+    ]);
+    serve({ error: 'This connector does not offer "item.gone".' }, 400);
+    await expect(setConnectorAgentEvents(ROW.id, 'zz9-_xYz9Qw', { events: ['item.gone'] })).rejects.toThrow('does not offer');
+    serve({ error: 'not found' }, 404);
+    await expect(setConnectorAgentEvents(ROW.id, 'zz9-_xYz9Qw', { events: [] })).rejects.toThrow('not found');
   });
 
   test('the sign-in return is read once from the address and cleared', () => {

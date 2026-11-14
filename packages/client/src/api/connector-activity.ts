@@ -15,6 +15,7 @@ export interface ActivityCall {
   outcome: string;
   ms: number;
   at: number;
+  kind: 'call' | 'event';
 }
 
 interface ActivityQuery {
@@ -62,6 +63,7 @@ export function toActivityCall(value: unknown): ActivityCall | null {
     outcome: typeof value.outcome === 'string' ? value.outcome : '',
     ms: Math.max(0, number(value.ms) ?? 0),
     at,
+    kind: value.kind === 'event' ? 'event' : 'call',
   };
 }
 

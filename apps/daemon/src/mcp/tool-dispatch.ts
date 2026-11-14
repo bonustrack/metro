@@ -27,6 +27,7 @@ import { dispatchCreateUpload } from './upload-tool.js';
 import { dispatchSetProfile, profileCapabilities } from './profile-tool.js';
 import { dispatchGetProfile, profileScopeLine } from './profile-lookup.js';
 import { callTargetDenied, lineTargetDenied } from '../agents/scope.js';
+import { CONNECTOR_LINE_REFUSAL } from '../channels/connector-event.js';
 import { SOURCE_KEYS } from '../stations/attach-resolve.js';
 import { decodedLengthOf } from '../stations/attach-inline.js';
 import { log } from '@metro-labs/core/log';
@@ -159,6 +160,11 @@ function givenCall(raw: Record<string, unknown> | undefined): GivenCall | undefi
   return { args: Object.fromEntries(Object.entries(given).filter(([key]) => key !== 'account')), approval };
 }
 
+function argsRefusal(name: string, a: Record<string, unknown>): ToolResult | undefined {
+  if (typeof a.line === 'string' && Line.isConnector(a.line)) return errResult(CONNECTOR_LINE_REFUSAL);
+  return name === 'list_channels' ? channelArgsError(a) : undefined;
+}
+
 async function runTool(
   req: { params: { name: string; arguments?: Record<string, unknown> } },
   hooks: ToolHooks,
@@ -168,11 +174,8 @@ async function runTool(
   const given = givenCall(req.params.arguments);
   if (given === undefined) return errResult(ACCOUNT_SHAPE);
   const { args: a, approval } = given;
-  if (name === 'list_channels') {
-    const invalid = channelArgsError(a);
-    if (invalid) return invalid;
-  }
-
+  const refused = argsRefusal(name, a);
+  if (refused) return refused;
   const identity = currentIdentity();
   if (name !== 'list_accounts' && scopeDenied(identity, name, a))
     return errResult('metro: this account is outside your authorized scope');

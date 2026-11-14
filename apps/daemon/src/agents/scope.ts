@@ -3,6 +3,7 @@ import {
   agentIdForAccount,
   stationAgentIds,
 } from './map.js';
+import { Line } from '@metro-labs/core/lines';
 import { STATIONS } from '@metro-labs/core/station-names';
 
 const ACCOUNT_STATIONS = new Set<string>(STATIONS);
@@ -57,6 +58,10 @@ export function callTargetDenied(
 }
 
 export function eventInScope(allowed: Set<string>, line: string): boolean {
+  if (Line.isConnector(line)) {
+    const event = Line.parseConnector(line);
+    return event !== null && allowed.has(event.agentId);
+  }
   const acct = accountFromLine(line);
   if (!acct) return false;
   if (!stationHasAccounts(acct.station)) return true;

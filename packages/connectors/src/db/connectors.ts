@@ -1,8 +1,11 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
+import type { RemoteEvent } from '@metro-labs/http/connector-tools';
+import { EVENT_NAME_RE } from '@metro-labs/http/mcp-events';
 import type { Database } from './database.js';
+import { readOfferedEvents } from './connector-tools.js';
 import { isUniqueViolation } from './errors.js';
-import { agents, connectorAgents, connectors } from './schema.js';
+import { agents, connectorAgents, connectors, connectorSubscriptions } from './schema.js';
 
 export type ConnectorRow = typeof connectors.$inferSelect;
 export type AssignmentRow = typeof connectorAgents.$inferSelect;
@@ -29,6 +32,38 @@ interface AssignInput {
   at: string;
 }
 
+export interface EventsInput {
+  owner: string;
+  connector: string;
+  agent: string;
+  events?: string[];
+  senders?: string[];
+}
+
+export interface SubscriptionState {
+  connector: string;
+  agent: string;
+  event: string;
+  status: string;
+  error: string | null;
+}
+
+export const NO_EVENTS = '[]';
+const ANYONE_LIST = '["*"]';
+export const EVENTS_MAX = 50;
+
+export function eventNamesOf(text: string | null): string[] {
+  try {
+    const parsed: unknown = text === null ? [] : JSON.parse(text);
+    const names = Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string' && EVENT_NAME_RE.test(name)) : [];
+    return [...new Set(names)].slice(0, EVENTS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+const eventsOf = (held: AssignmentRow | undefined): Pick<AssignmentRow, 'events' | 'senders'> => (held === undefined ? { events: NO_EVENTS, senders: ANYONE_LIST } : { events: held.events, senders: held.senders });
+
 export interface OrgConnectorStore {
   list: (owner: string) => Promise<{ connectors: ConnectorRow[]; assignments: AssignmentRow[] }>;
   find: (owner: string, id: string) => Promise<ConnectorRow | null>;
@@ -39,6 +74,9 @@ export interface OrgConnectorStore {
   remove: (owner: string, id: string) => Promise<ConnectorRow>;
   assign: (input: AssignInput) => Promise<AssignmentRow>;
   unassign: (input: Pick<AssignInput, 'owner' | 'connector' | 'agent'>) => Promise<void>;
+  setEvents: (input: EventsInput) => Promise<AssignmentRow>;
+  offered: (ids: string[]) => Promise<Map<string, RemoteEvent[]>>;
+  subscriptions: (owner: string) => Promise<SubscriptionState[]>;
 }
 
 const missing = (): ApiError => new ApiError('no such connector', 404);
@@ -68,7 +106,7 @@ async function assignIn(tx: Database, input: AssignInput): Promise<AssignmentRow
   const before = held[0];
   const policy = typeof input.policy === 'function' ? input.policy(before?.policy ?? null) : input.policy;
   if (before !== undefined && before.policy === policy) return before;
-  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, createdBy: input.actor, createdAt: input.at };
+  const row: AssignmentRow = { connector: connector.id, agent: input.agent, policy, createdBy: input.actor, createdAt: input.at, ...eventsOf(before) };
   const saved = await tx.insert(connectorAgents).values(row).onConflictDoUpdate({ target: [connectorAgents.connector, connectorAgents.agent], set: { policy } }).returning();
   return saved[0] ?? row;
 }
@@ -79,10 +117,37 @@ async function unassignIn(tx: Database, input: Pick<AssignInput, 'owner' | 'conn
   if (gone.length === 0) throw new ApiError('that agent does not have this connector', 404);
 }
 
+async function checkEvents(tx: Database, connector: string, boxed: boolean, held: string[], wanted: string[]): Promise<void> {
+  if (wanted.length > 0 && !boxed) throw new ApiError('This agent has no server, so it cannot receive events. It can still use the tools.', 409);
+  const added = wanted.filter((name) => !held.includes(name));
+  if (added.length === 0) return;
+  const offered = (await readOfferedEvents(tx, [connector])).get(connector) ?? [];
+  const unknown = added.find((name) => !offered.some((event) => event.name === name));
+  if (unknown !== undefined) throw new ApiError(`This connector does not offer "${unknown}".`, 400);
+}
+
+async function setEventsIn(tx: Database, input: EventsInput): Promise<AssignmentRow> {
+  const connector = await lockConnector(tx, input.owner, input.connector);
+  const agent = (await tx.select({ kind: agents.kind }).from(agents).where(and(eq(agents.id, input.agent), eq(agents.owner, input.owner))).for('update'))[0];
+  const assigned = and(eq(connectorAgents.connector, connector.id), eq(connectorAgents.agent, input.agent));
+  const held = agent === undefined ? undefined : (await tx.select().from(connectorAgents).where(assigned))[0];
+  if (agent === undefined || held === undefined) throw new ApiError('that agent does not have this connector', 404);
+  if (input.events !== undefined) await checkEvents(tx, connector.id, agent.kind === 'box', eventNamesOf(held.events), input.events);
+  const change = { ...(input.events === undefined ? {} : { events: JSON.stringify(input.events) }), ...(input.senders === undefined ? {} : { senders: JSON.stringify(input.senders) }) };
+  return Object.keys(change).length === 0 ? held : ((await tx.update(connectorAgents).set(change).where(assigned).returning())[0] ?? held);
+}
+
+function subscriptionsFor(db: Database, owner: string): Promise<SubscriptionState[]> {
+  return db
+    .select({ connector: connectorSubscriptions.connector, agent: connectorSubscriptions.agent, event: connectorSubscriptions.event, status: connectorSubscriptions.status, error: connectorSubscriptions.error })
+    .from(connectorSubscriptions)
+    .where(eq(connectorSubscriptions.owner, owner));
+}
+
 async function listFor(db: Database, owner: string): Promise<{ connectors: ConnectorRow[]; assignments: AssignmentRow[] }> {
   const rows = await db.select().from(connectors).where(eq(connectors.owner, owner)).orderBy(connectors.name);
   const assignments = await db
-    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt })
+    .select({ connector: connectorAgents.connector, agent: connectorAgents.agent, policy: connectorAgents.policy, createdBy: connectorAgents.createdBy, createdAt: connectorAgents.createdAt, events: connectorAgents.events, senders: connectorAgents.senders })
     .from(connectorAgents)
     .innerJoin(connectors, and(eq(connectors.id, connectorAgents.connector), eq(connectors.owner, owner)))
     .innerJoin(agents, and(eq(agents.id, connectorAgents.agent), eq(agents.owner, owner)));
@@ -118,5 +183,8 @@ export function orgConnectorStore(db: () => Database): OrgConnectorStore {
       }),
     assign: (input) => db().transaction((tx) => assignIn(tx, input)),
     unassign: (input) => db().transaction((tx) => unassignIn(tx, input)),
+    setEvents: (input) => db().transaction((tx) => setEventsIn(tx, input)),
+    offered: (ids) => readOfferedEvents(db(), ids),
+    subscriptions: (owner) => subscriptionsFor(db(), owner),
   };
 }

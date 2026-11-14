@@ -1,7 +1,41 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connector-policy';
-import type { AssignmentRow, ConnectorRow } from '@metro-labs/connectors/db/connectors';
+import type { RemoteEvent } from '@metro-labs/http/connector-tools';
+import { senderListOf } from '@metro-labs/http/sender-list';
+import { eventNamesOf, type AssignmentRow, type ConnectorRow, type SubscriptionState } from '@metro-labs/connectors/db/connectors';
 import { detailOf, parsedJson, type ConnectorDetail } from '@metro-labs/connectors/model';
+
+type SubscriptionStatus = 'pending' | 'active' | 'signed_out' | 'error';
+
+interface OfferedEvent {
+  name: string;
+  title: string;
+  description: string;
+  sender: boolean;
+}
+
+interface SubscriptionView {
+  event: string;
+  status: SubscriptionStatus;
+  error?: string;
+}
+
+interface AgentView {
+  id: string;
+  readOnly: boolean;
+  policy: ConnectorPolicy;
+  assignedAt: string;
+  events: string[];
+  senders: string[];
+  subscriptions: SubscriptionView[];
+}
+
+export interface ConnectorEvents {
+  offered: Map<string, RemoteEvent[]>;
+  subscriptions: SubscriptionState[];
+}
+
+const NO_EVENTS: ConnectorEvents = { offered: new Map(), subscriptions: [] };
 
 export interface ConnectorView {
   id: string;
@@ -17,7 +51,8 @@ export interface ConnectorView {
   policy: ConnectorPolicy;
   createdAt: string;
   updatedAt: string;
-  agents: { id: string; readOnly: boolean; policy: ConnectorPolicy; assignedAt: string }[];
+  events: OfferedEvent[];
+  agents: AgentView[];
 }
 
 const READ_ONLY = '{"write":"deny"}';
@@ -56,7 +91,30 @@ function publicServerName(url: string): string | null {
   try { return new URL(url).hostname; } catch { return null; }
 }
 
-export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): ConnectorView {
+const offeredView = (event: RemoteEvent): OfferedEvent => ({ name: event.name, title: event.title, description: event.description, sender: event.sender !== undefined });
+
+const statusOf = (status: string): SubscriptionStatus => (status === 'active' || status === 'signed_out' || status === 'error' ? status : 'pending');
+
+function subscriptionsOf(rows: SubscriptionState[], connector: string, agent: string): SubscriptionView[] {
+  return rows
+    .filter((row) => row.connector === connector && row.agent === agent)
+    .map((row) => ({ event: row.event, status: statusOf(row.status), ...(row.error === null || row.error === '' ? {} : { error: row.error }) }))
+    .sort((a, b) => (a.event < b.event ? -1 : a.event > b.event ? 1 : 0));
+}
+
+function agentView(assignment: AssignmentRow, subscriptions: SubscriptionState[]): AgentView {
+  return {
+    id: assignment.agent,
+    readOnly: isReadOnly(assignment.policy),
+    policy: fullPolicy(assignment.policy),
+    assignedAt: assignment.createdAt,
+    events: eventNamesOf(assignment.events),
+    senders: senderListOf(assignment.senders) ?? [],
+    subscriptions: subscriptionsOf(subscriptions, assignment.connector, assignment.agent),
+  };
+}
+
+export function connectorView(row: ConnectorRow, assignments: AssignmentRow[], events: ConnectorEvents = NO_EVENTS): ConnectorView {
   const detail = detailOf(row.detail);
   return {
     id: row.id,
@@ -72,8 +130,7 @@ export function connectorView(row: ConnectorRow, assignments: AssignmentRow[]): 
     policy: fullPolicy(row.policy),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    agents: assignments
-      .filter((a) => a.connector === row.id)
-      .map((a) => ({ id: a.agent, readOnly: isReadOnly(a.policy), policy: fullPolicy(a.policy), assignedAt: a.createdAt })),
+    events: (events.offered.get(row.id) ?? []).map(offeredView),
+    agents: assignments.filter((a) => a.connector === row.id).map((a) => agentView(a, events.subscriptions)),
   };
 }

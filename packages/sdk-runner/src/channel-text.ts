@@ -2,7 +2,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 
 const KEY = /^[A-Za-z0-9_]+$/;
 
-const attr = (value: string): string => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+const attr = (value: string): string => value.replace(/[\p{Cc}\u2028\u2029]/gu, ' ').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const shown = (value: unknown): value is string | number | boolean =>
   typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';

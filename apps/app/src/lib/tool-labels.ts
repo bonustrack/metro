@@ -22,9 +22,15 @@ const LABELS: Record<string, string> = {
   set_channel_metadata: 'Change channel details',
 };
 
+function inWords(name: string, breaks: RegExp): string {
+  const words = name.replace(breaks, ' ').trim();
+  return words === '' ? name : `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
+}
+
 export function toolLabel(name: string): string {
   const known = LABELS[name];
   if (known !== undefined) return known;
-  const words = name.replace(/[_-]+/g, ' ').trim();
-  return words === '' ? name : `${words.slice(0, 1).toUpperCase()}${words.slice(1)}`;
+  return inWords(name, /[_-]+/g);
 }
+
+export const eventLabel = (name: string): string => inWords(name, /[_\-.:/]+/g);

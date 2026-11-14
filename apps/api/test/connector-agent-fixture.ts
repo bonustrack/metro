@@ -5,7 +5,7 @@ import { sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connector
 import { agentKeyStore, type AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import type { Database } from '../src/db/client.js';
 import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
-import { connectorAgents, connectors } from '../src/db/schema.js';
+import { connectors } from '../src/db/schema.js';
 import { addAgent } from './pglite-db.js';
 import { TEST_OWNER } from './identity-helper.js';
 
@@ -57,7 +57,7 @@ export async function seedConnector(db: Database, secret: ConnectorSecret, patch
 }
 
 export async function assignConnector(db: Database, agent: EnrolledAgent, connector = CONN, policy: string | null = null): Promise<void> {
-  await db.insert(connectorAgents).values({ connector, agent: agent.row.agent, policy, createdBy: 'user_01TEST', createdAt: new Date().toISOString() });
+  await db.execute(sql`INSERT INTO connector_agents (connector, agent, policy, created_by, created_at) VALUES (${connector}, ${agent.row.agent}, ${policy}, 'user_01TEST', ${new Date().toISOString()})`);
 }
 
 export async function seedLegacyMigration(db: Database, agent: EnrolledAgent, destination: string, operation = 'oper0000001'): Promise<void> {

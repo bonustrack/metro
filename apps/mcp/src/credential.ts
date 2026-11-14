@@ -81,21 +81,24 @@ async function vendorTarget(deps: CredentialDeps, identity: DeliveryIdentity, co
   return targetOf(deps, row);
 }
 
-export async function withCredential<T>(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, work: (target: VendorTarget) => Promise<T>): Promise<T> {
-  const first = await vendorTarget(deps, identity, connectorId);
+export async function renewing<T>(target: (forced?: string) => Promise<VendorTarget>, signin: () => Promise<Error>, work: (target: VendorTarget) => Promise<T>): Promise<T> {
+  const first = await target();
   try {
     return await work(first);
   } catch (err) {
     if (!(err instanceof ConnectorUnauthorized)) throw err;
   }
-  const name = (await currentRow(deps, identity, connectorId)).name;
-  if (first.secret.kind !== 'oauth') throw signinError(name);
-  const second = await vendorTarget(deps, identity, connectorId, first.revision);
-  if (second.revision === first.revision) throw signinError(name);
+  if (first.secret.kind !== 'oauth') throw await signin();
+  const second = await target(first.revision);
+  if (second.revision === first.revision) throw await signin();
   try {
     return await work(second);
   } catch (err) {
-    if (err instanceof ConnectorUnauthorized) throw signinError(name);
-    throw err;
+    throw err instanceof ConnectorUnauthorized ? await signin() : err;
   }
+}
+
+export function withCredential<T>(deps: CredentialDeps, identity: DeliveryIdentity, connectorId: string, work: (target: VendorTarget) => Promise<T>): Promise<T> {
+  const signin = async (): Promise<Error> => signinError((await currentRow(deps, identity, connectorId)).name);
+  return renewing((forced) => vendorTarget(deps, identity, connectorId, forced), signin, work);
 }

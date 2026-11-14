@@ -3,17 +3,22 @@ import type { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import type { AgentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import type { ConnectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
+import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
+import type { EventStore } from '@metro-labs/connectors/db/connector-events';
+import type { SubscriptionStore } from '@metro-labs/connectors/db/connector-subscriptions';
 import type { ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import type { CallRecorder } from './call-log.js';
 import type { Flights } from './flights.js';
 import type { Favicons } from '@metro-labs/connectors/favicons';
 import type { OauthDeps } from './oauth/flow.js';
+import type { Receivers } from './receivers.js';
 import type { TokenStore } from './token.js';
 import type { ToolLists } from './tool-lists.js';
 import type { Waiters } from './waiters.js';
 
 export interface McpDeps {
   key: Buffer;
+  publicHost: string;
   tokens: TokenStore;
   oauth: OauthDeps;
   keys: Pick<AgentKeyStore, 'find'>;
@@ -21,6 +26,10 @@ export interface McpDeps {
   auth: AgentAuth;
   store: Pick<ConnectorDeliveryStore, 'assigned' | 'refresh'>;
   approvals: ApprovalStore;
+  subscriptions: SubscriptionStore;
+  events: EventStore;
+  receivers: Receivers;
+  catalogue: CatalogueDeps;
   calls: CallRecorder;
   waiters: Waiters;
   toolLists: ToolLists;
@@ -32,4 +41,6 @@ export interface McpDeps {
   listWaitMs: number;
   approvalHoldMs: number;
   approvalPollMs: number;
+  inboxHoldMs: number;
+  inboxCheckMs: number;
 }

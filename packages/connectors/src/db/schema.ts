@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, index, integer, pgTable, primaryKey, real, smallint, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, index, integer, pgTable, primaryKey, real, smallint, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const agents = pgTable(
   'agents',
@@ -43,6 +43,7 @@ export const connectorTools = pgTable('connector_tools', {
   connector: text('connector').primaryKey().references(() => connectors.id, { onDelete: 'cascade' }),
   tools: text('tools'),
   icons: text('icons'),
+  events: text('events'),
   listedAt: bigint('listed_at', { mode: 'number' }),
   failureCode: text('failure_code'),
   failure: text('failure'),
@@ -57,8 +58,53 @@ export const connectorAgents = pgTable(
     policy: text('policy'),
     createdBy: text('created_by').notNull(),
     createdAt: text('created_at').notNull(),
+    events: text('events').notNull().default('[]'),
+    senders: text('senders').notNull().default('["*"]'),
   },
   (t) => [primaryKey({ columns: [t.connector, t.agent] }), index('connector_agents_agent_idx').on(t.agent)],
+);
+
+export const connectorSubscriptions = pgTable(
+  'connector_subscriptions',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    secret: text('secret').notNull(),
+    cursor: text('cursor'),
+    sender: text('sender'),
+    status: text('status').notNull().default('pending'),
+    error: text('error'),
+    failures: integer('failures').notNull().default(0),
+    signedIn: text('signed_in').notNull(),
+    nextAt: bigint('next_at', { mode: 'number' }).notNull().default(0),
+    claimedUntil: bigint('claimed_until', { mode: 'number' }).notNull().default(0),
+  },
+  (t) => [uniqueIndex('connector_subscriptions_key_idx').on(t.connector, t.agent, t.event), index('connector_subscriptions_agent_idx').on(t.agent)],
+);
+
+export const connectorEvents = pgTable(
+  'connector_events',
+  {
+    id: text('id').primaryKey(),
+    seq: bigserial('seq', { mode: 'number' }).notNull(),
+    owner: text('owner').notNull(),
+    connector: text('connector').notNull().references(() => connectors.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    subscription: text('subscription').notNull(),
+    event: text('event').notNull(),
+    eventId: text('event_id').notNull(),
+    body: text('body'),
+    receivedAt: bigint('received_at', { mode: 'number' }).notNull(),
+    deliveredAt: bigint('delivered_at', { mode: 'number' }),
+  },
+  (t) => [
+    uniqueIndex('connector_events_key_idx').on(t.subscription, t.eventId),
+    index('connector_events_waiting_idx').on(t.agent, t.seq).where(sql`${t.body} IS NOT NULL`),
+    index('connector_events_received_idx').on(t.receivedAt),
+  ],
 );
 
 export const agentKeys = pgTable(
@@ -142,6 +188,7 @@ export const mcpCalls = pgTable(
     outcome: text('outcome').notNull(),
     ms: integer('ms').notNull(),
     at: bigint('at', { mode: 'number' }).notNull(),
+    kind: text('kind').notNull().default('call'),
   },
   (t) => [index('mcp_calls_owner_at_idx').on(t.owner, t.at.desc(), t.id.desc())],
 );

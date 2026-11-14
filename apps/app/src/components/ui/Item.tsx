@@ -20,6 +20,8 @@ interface ItemProps {
   subtitle?: ReactNode;
   subtitleTone?: Tone;
   detail?: string;
+  detailTone?: Tone;
+  detailLines?: number;
   leading?: ReactNode;
   value?: string;
   valueTone?: Tone;
@@ -31,7 +33,9 @@ interface ItemProps {
   label?: string;
 }
 
-function Lines({ title, subtitle, subtitleTone = 'secondary', detail, danger = false }: Pick<ItemProps, 'title' | 'subtitle' | 'subtitleTone' | 'detail' | 'danger'>): ReactNode {
+type LinesProps = Pick<ItemProps, 'title' | 'subtitle' | 'subtitleTone' | 'detail' | 'detailTone' | 'detailLines' | 'danger'>;
+
+function Lines({ title, subtitle, subtitleTone = 'secondary', detail, detailTone = 'secondary', detailLines = 1, danger = false }: LinesProps): ReactNode {
   return (
     <Column weight={1} minWidth={0} gap={2}>
       <Text size="md" color={danger ? 'danger' : undefined} numberOfLines={2}>
@@ -43,7 +47,7 @@ function Lines({ title, subtitle, subtitleTone = 'secondary', detail, danger = f
         </Text>
       )}
       {detail === undefined ? null : (
-        <Text size="xs" color="secondary" numberOfLines={1}>
+        <Text size="xs" color={detailTone} numberOfLines={detailLines}>
           {detail}
         </Text>
       )}

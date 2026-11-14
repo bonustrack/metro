@@ -8,6 +8,7 @@ import {
 } from './media-note.js';
 import { buildWebhookNote } from './webhook-note.js';
 import { isMetroNotice } from './notice.js';
+import { connectorEventMeta, isConnectorEvent } from './connector-event.js';
 import { replyMeta } from './addressed.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
@@ -362,6 +363,10 @@ export class InboundRelay {
     ev: Record<string, unknown>,
     replay = false,
   ): Promise<void> {
+    if (isConnectorEvent(ev)) {
+      await this.notify('notifications/claude/channel', { content: str(ev.text), meta: connectorEventMeta(ev) });
+      return;
+    }
     if (await this.routeAttachment(ev, replay)) return;
 
     const base = this.routable(ev, replay);

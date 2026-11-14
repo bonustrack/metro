@@ -2,15 +2,16 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readBodyBytes } from '@metro-labs/http/api-http';
-import { MCP_PATHS, mcpAnswerOf, mcpTokenHashOf, type McpApproval } from '@metro-labs/http/mcp-server-protocol';
+import { MCP_PATHS, mcpAnswerOf, mcpSettledOf, mcpTokenHashOf, type McpApproval } from '@metro-labs/http/mcp-server-protocol';
 import { AgentKeyMissing, refuseBrowser } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import type { DeliveredApproval } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentConnectors } from './catalog.js';
 import type { McpDeps } from './deps.js';
+import { inboxFor } from './inbox.js';
 import { sendBody } from './mcp-http.js';
 
-const BODY_MAX = 4096;
+const BODY_MAX = 16 * 1024;
 const ROUTES = new Set<string>(Object.values(MCP_PATHS));
 
 interface Signed {
@@ -80,6 +81,7 @@ async function route(path: string, req: IncomingMessage, deps: McpDeps, signal: 
     return { ok: true };
   }
   if (path === MCP_PATHS.approvals) return { approvals: await pendingFor(deps, identity, signal) };
+  if (path === MCP_PATHS.inbox) return { events: await inboxFor(deps, identity, input(() => mcpSettledOf(body)), signal) };
   const { id, decision } = input(() => mcpAnswerOf(body));
   if (!(await deps.approvals.answer(identity, id, decision, deps.now()))) throw new ApiError('No pending approval has that id.', 404);
   log.info({ agent: identity.agent, id, decision }, 'mcp: the owner answered an approval');

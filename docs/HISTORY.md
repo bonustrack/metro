@@ -42,6 +42,35 @@ Checked with the real Agent SDK session and a scripted upstream, at no cost (`bu
 
 What it costs: a box in the `auto` permission mode whose classifier raises a Claude Code prompt for a metro call on an Ask rule now asks the owner twice (once for Claude Code, once for the rule), since the first answer no longer counts for the rule. Pending requests are in memory, so a daemon update forgets them, as a session restart forgot Claude Code's prompts before.
 
+## 2026-11-10: Connectors can deliver events to the agent (SEP-3415 webhooks)
+
+Gmail and Outlook are to become ordinary connectors (two MCP servers on Cloudflare Workers, `stagelabs/mcps`) and stop being channels. A first attempt (pull request 416, branch `feat/mail-connectors`, plan `docs/MAIL-MCP.md` on that branch) worked but was about mail from end to end and followed the February design sketch of the MCP Events proposal. Less asked for it to be redone: generic, on the published draft (SEP-3415), safer. Both sides were rebuilt against one contract file on the same day. Design as built: `docs/CONNECTOR-EVENTS.md`.
+
+What changed against the first attempt, and why:
+
+- **Generic.** Metro knows no event type and no payload shape. The server says, in its `events/list` descriptor, where the sender is in `data` (`_meta["box.metro/sender"]`, two JSON Pointers), and Metro's who-can-write gate reads it from there. The first attempt parsed the mail payload in `packages/http` and named its tables, routes and files after mail.
+- **The SEP, not the sketch.** The extension is detected only at `capabilities.extensions["io.modelcontextprotocol/events"]`; `webhook-id` is the server's own message id and events are deduplicated by `(subscription, eventId)`; the error numbers are the SEP's; `Mcp-Method` and `Mcp-Name` go on the requests.
+- **Opt-in.** An agent receives an event type only after an admin turns it on for that agent (`connector_agents.events`, default none). The first attempt subscribed every assigned agent with Receive on by default.
+- **Per-row claims, not a lease table.** Each subscription row is claimed with a conditional update for the one step that touches it, so both mcp.metro.box machines work, one step has 90 seconds in all (a slow server holds one of the four lanes that long at most), and there is no `mcp_leases` table.
+- **Its own long poll.** The box asks `POST /v1/inbox`; events no longer ride on the approvals poll, so neither can hold the other back and an older server (404) is simply asked again later.
+- **Not a fake station on the box.** A connector event has its own line, `metro://connector/<agent id>/<connector id>`, scoped by the agent id in it. The first attempt put the connector's key where a station name goes and kept a mutable map in `agents/scope.ts` to scope it.
+- **A cheaper webhook under attack.** Malformed requests cost no database read and no memory; unknown addresses and re-reads after a failed signature draw on a small per-machine budget.
+- Kept from the first attempt: the Standard Webhooks check, sealing with `METRO_CONNECTORS_KEY` under separate domains, the 7 days a waiting event is kept, the activity row per event with no content, and the rule that a quiet box costs reads only.
+
+The `gmail` and `outlook` stations, Add channel and managed Gmail are untouched. Removing them is a later change, after the mailboxes have moved.
+
+**Two independent checks before the merge (2026-11-11)** changed it again: a review of the pull request and a run of Metro's real code against the mail servers' real code in one process. What they found and what was done:
+
+- A machine that stopped right after writing a new secret left the row not due for up to 12 hours, with every delivery refused. The new secret now makes the row due at once.
+- 32 slow requests without the secret, on one known address, stopped every delivery on a machine. Body slots are now 4 per address (128 per machine, 5 seconds per body).
+- The sender and the event id reached the `<channel>` tag raw, and a carriage return in a value forged `key: value` lines. Every value from outside is now neutralized where it lands: the runner escapes `<`, `>` and control characters in every meta value (for chat messages too), an event id with a control character is refused, and the text writes such values as JSON and indents blocks.
+- An event that arrived before the first subscribe answer was recorded was judged without the sender pointers. It now gets 503 until then.
+- A failed write logged the cursor and the sealed body (the driver puts the parameters in its message). These paths now log the code and message only.
+- Draining a backlog spent the agent's 600 signed requests per 5 minutes, approvals included. The box now asks at most once a second.
+- The subscribe answer could put back an older cursor, same-millisecond events reached the box in the order of their random ids, and a list of files was cut in the middle of a link. The cursor is now written only if unchanged, events have a sequence, and a list is one item per line and never cut inside a value.
+- Gone as not worth their cost: the server's subscription id and its comparison (the address already selects the row and its secret, and the header is not signed), the note to the agent that events were skipped (the cursor is kept, one line is logged, one activity row is written), `deliveryStatus`, the box's own memory of taken ids (`emit` already has one), a second copy of the channel's people editor and of its sender list rules, and seven columns (the migration had not shipped, so they were simply never added). Added on purpose: `maxAgeMs` of 7 days on subscribe, a ceiling of 1,000 waiting events per agent, a depth limit on `data`.
+- Not done, and why: Metro cannot unsubscribe the old account after a sign-in to another one (api.metro.box has already replaced the credential), so the server should end it; the migration still merges with the code that needs it, which mcp.metro.box tolerates; a row per dropped event stays.
+
 ## 2026-11-06: tool_search gives the schemas in its structured answer too
 
 Lisa's agent would not call Vault's `create_file` (https://mcp-vault.piston.box): its `tool_search` showed only the name, the title and the connector, never the arguments or the description, so it could not know the call or that the tool never overwrites. Vault sent the full definition. mcp.metro.box put it only in the text block (the `<functions>` lines), and its `structuredContent` held `{name, title, connector}` per tool. The Claude Code bundled with Agent SDK 0.3.287 (2.1.287) turns an MCP result into the model's input from `structuredContent` alone when there is one: the text blocks are dropped and only images or documents are kept beside the JSON (read in the binary). So every agent on Claude Code, on a box or with an access key, searched tools without ever seeing a schema, and missed the no-match hint too.

@@ -11,8 +11,7 @@ import { AgentAvatar } from '../AgentAvatar.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
-import { agoWords, durationWords, outcomeWords } from '../../lib/activity-words.js';
-import { toolLabel } from '../../lib/tool-labels.js';
+import { activityLabel, agoWords, outcomeWords, timingWords } from '../../lib/activity-words.js';
 import { MONO, SHRINK } from '../../lib/style.js';
 
 const DOT = 8;
@@ -43,14 +42,15 @@ function useEntrance(fresh: boolean): Animated.Value {
   return shown;
 }
 
-function Outcome({ outcome }: { outcome: string }): ReactNode {
+function Outcome({ call }: { call: ActivityCall }): ReactNode {
   const palette = useKitPalette();
-  const words = outcomeWords(outcome);
+  const words = outcomeWords(call.outcome, call.kind);
   const dot = words.dot === null ? null : StyleSheet.flatten([styles.dot, { backgroundColor: words.dot === 'danger' ? palette.danger : palette.success }]);
+  const tone = words.dot === 'danger' ? 'danger' : words.quiet === true ? 'secondary' : undefined;
   return (
     <Row align="center" gap={6}>
       {dot === null ? null : <View style={dot} />}
-      <Text size="xs" color={words.dot === 'danger' ? 'danger' : undefined} numberOfLines={1}>
+      <Text size="xs" color={tone} numberOfLines={1}>
         {words.word}
       </Text>
     </Row>
@@ -74,7 +74,7 @@ function What({ call, technical }: { call: ActivityCall; technical: boolean }): 
       <Row align="center" gap={6} minWidth={0}>
         <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.sm} />
         <Text size="xs" color="secondary" numberOfLines={1} style={SHRINK}>
-          {`${connector} · ${toolLabel(call.tool)}`}
+          {`${connector} · ${activityLabel(call)}`}
         </Text>
       </Row>
       {technical ? <RawName call={call} /> : null}
@@ -103,7 +103,7 @@ function ConnectorLines({ call, technical }: { call: ActivityCall; technical: bo
       <ConnectorFavicon name={connector} url={call.connectorUrl ?? ''} size={ICON_SIZE.lg} />
       <Column weight={1} minWidth={0} gap={2}>
         <Text size="md" numberOfLines={1}>
-          {`${connector} · ${toolLabel(call.tool)}`}
+          {`${connector} · ${activityLabel(call)}`}
         </Text>
         {technical ? <RawName call={call} /> : null}
       </Column>
@@ -122,9 +122,9 @@ export function ActivityRow({ call, server, now, technical, fresh, showAgent = t
     <>
       {showAgent ? <AgentLines call={call} server={server} name={name} technical={technical} /> : <ConnectorLines call={call} technical={technical} />}
       <View style={styles.end}>
-        <Outcome outcome={call.outcome} />
+        <Outcome call={call} />
         <Text size="xs" color="secondary" numberOfLines={1}>
-          {`${durationWords(call.ms)} · ${when}`}
+          {timingWords(call, when)}
         </Text>
       </View>
     </>
@@ -134,7 +134,7 @@ export function ActivityRow({ call, server, now, technical, fresh, showAgent = t
       {server === undefined || !showAgent ? (
         <View style={frame}>{body}</View>
       ) : (
-        <RouteLink to={routeHash({ kind: 'home', project: server.id })} label={`${name}: ${toolLabel(call.tool)}`} style={frame}>
+        <RouteLink to={routeHash({ kind: 'home', project: server.id })} label={`${name}: ${activityLabel(call)}`} style={frame}>
           {body}
         </RouteLink>
       )}

@@ -3,6 +3,7 @@ import type { OrgConnector } from '@metro-labs/client/api/org-connectors';
 import { groupAccess, stricterAccess, type ToolGroup, type ToolPolicy } from '@metro-labs/client/api/policy';
 import { orgConnectorStatus } from '../components/org-connector-status.js';
 import { CHOICE_WORD, choiceOfAccess, type PermissionChoice, type PermissionGroup } from './permission-words.js';
+import { eventRows, eventSentences } from './connector-events.js';
 import { TOOL_GROUPS, explorerTools, isChanged, toolChoice, type ExplorerTool } from './connector-rules.js';
 import {
   asksAnywhere, countWords, ownRules, ownRulesSentence, paragraph, rulesClause, txt, unanimous, val, type GroupBases, type GroupWords, type RuledTool, type Segment,
@@ -123,5 +124,6 @@ export function connectorSummary(facts: ConnectorFacts): Segment[] {
     clause === null ? null : [val(agent), txt(' '), ...clause],
     tools === null ? countedRules(effectiveRule(organization, own).tools) : ownRulesSentence(ruled),
     asks ? approvalsLine(agent, remote) : null,
+    ...eventSentences(agent, eventRows(connector, agentId), held.senders),
   ]);
 }

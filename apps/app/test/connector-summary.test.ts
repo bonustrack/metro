@@ -18,14 +18,27 @@ const TOOLS: ConnectorTool[] = [
   tool('delete-page', 'Delete a page', false, true),
 ];
 
+type Held = OrgConnector['agents'][number];
+
+const held = (own: ToolPolicy, more: Partial<Held> = {}): Held => ({ id: 'agntLisa001', readOnly: false, policy: own, assignedAt: '', events: [], senders: ['*'], subscriptions: [], ...more });
+
 function notion(organization: ToolPolicy, own: ToolPolicy | null, extra: Partial<OrgConnector> = {}): OrgConnector {
   return {
     id: 'connNotion1', name: 'Notion', url: 'https://mcp.notion.com', auth: 'oauth', header: null, signIn: 'connected', server: null, verifiedAt: null, clientId: null, readOnly: false,
-    policy: organization, createdAt: '', updatedAt: '',
-    agents: own === null ? [] : [{ id: 'agntLisa001', readOnly: false, policy: own, assignedAt: '' }],
+    policy: organization, createdAt: '', updatedAt: '', events: null,
+    agents: own === null ? [] : [held(own)],
     ...extra,
   };
 }
+
+const OFFERED: NonNullable<OrgConnector['events']> = [
+  { name: 'page.created', title: 'Page created', description: 'A page was added.', sender: true },
+  { name: 'page.updated', title: 'Page updated', description: '', sender: true },
+  { name: 'page.moved', title: 'Page moved', description: '', sender: false },
+];
+
+const receiving = (more: Partial<Held>, extra: Partial<OrgConnector> = {}): string =>
+  plainText(connectorSummary(facts(notion({}, {}, { events: OFFERED, agents: [held({}, more)], ...extra }))));
 
 const facts = (connector: OrgConnector, more: Partial<ConnectorFacts> = {}): ConnectorFacts => ({ agent: 'Lisa', agentId: 'agntLisa001', connector, tools: TOOLS, remote: false, ...more });
 
@@ -91,5 +104,45 @@ describe('the connector summary', () => {
     const values = segmentsOf({ write: 'ask' }, { tools: { 'delete-page': 'deny', 'move-pages': 'deny' } }).filter((segment) => segment.value).map((segment) => segment.text);
     expect(values).toEqual(['6 tools', 'Lisa', 'looks things up', 'changes', 'delete', 'Move pages', 'private chat', 'metro.box']);
     expect(segmentsOf({}, {}, {}, { signIn: 'disconnected' }).filter((segment) => segment.value).map((segment) => segment.text).slice(0, 3)).toEqual(['Signed out', 'Lisa', 'Notion']);
+  });
+});
+
+describe('events in the connector summary', () => {
+  const RULES = '6 tools. Lisa looks things up, makes changes and deletes freely.';
+
+  test('nothing is said while no event is on, or against an api that does not know events', () => {
+    expect(receiving({})).toBe(RULES);
+    expect(receiving({ events: ['page.created'] }, { events: null })).toBe(RULES);
+    expect(summary({}, null, {}, { events: OFFERED })).toBe('Lisa does not have Notion.');
+  });
+
+  test('the events that are on say what reaches the agent, and from whom', () => {
+    expect(receiving({ events: ['page.created'], subscriptions: [{ event: 'page.created', status: 'active', error: null }] })).toBe(`${RULES} Page created reaches Lisa from anyone.`);
+    expect(receiving({ events: ['page.created', 'page.updated'] })).toEndWith('Page created and Page updated reach Lisa from anyone.');
+    expect(receiving({ events: ['page.created'], senders: ['marco@example.org'] })).toEndWith('Page created reaches Lisa from marco@example.org.');
+    expect(receiving({ events: ['page.created'], senders: ['marco@example.org', '@example.com', 'a@example.org', 'b@example.org', 'c@example.org'] })).toEndWith(
+      'Page created reaches Lisa from anyone at @example.com, marco@example.org, a@example.org and 2 others.',
+    );
+    expect(receiving({ events: ['page.moved'] })).toEndWith('Page moved reaches Lisa from anyone.');
+  });
+
+  test('an event that waits for a sign-in, is not arriving or names no sender says so', () => {
+    expect(receiving({ events: ['page.created'], subscriptions: [{ event: 'page.created', status: 'signed_out', error: null }] })).toEndWith('freely. Page created waits for a new sign-in.');
+    expect(receiving({ events: ['page.created', 'page.updated'] }, { signIn: 'disconnected' })).toBe(
+      'Signed out: Lisa cannot use Notion until an admin signs in again. Lisa looks things up, makes changes and deletes freely. Page created and Page updated wait for a new sign-in.',
+    );
+    expect(receiving({ events: ['page.created', 'page.updated'], subscriptions: [{ event: 'page.updated', status: 'error', error: 'Refused.' }] })).toEndWith(
+      'Page created reaches Lisa from anyone. Page updated is not arriving.',
+    );
+    expect(receiving({ events: ['page.gone'] })).toEndWith('freely. Page gone is not arriving.');
+    expect(receiving({ events: ['page.created', 'page.moved'], senders: ['marco@example.org'] })).toEndWith(
+      'Page created reaches Lisa from marco@example.org. Page moved is dropped, since it names no sender.',
+    );
+  });
+
+  test('the event titles, the agent and the people are values', () => {
+    const connector = notion({}, {}, { events: OFFERED, agents: [held({}, { events: ['page.created', 'page.updated'], senders: ['@example.com'] })] });
+    const values = connectorSummary(facts(connector)).filter((segment) => segment.value).map((segment) => segment.text);
+    expect(values.slice(-4)).toEqual(['Page created', 'Page updated', 'Lisa', '@example.com']);
   });
 });

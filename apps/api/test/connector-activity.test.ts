@@ -30,6 +30,7 @@ interface Call {
   outcome: string;
   ms: number;
   at: number;
+  kind: string;
 }
 
 const get = async (query = '', authorization?: string): Promise<Response> =>
@@ -102,10 +103,33 @@ describe('what the activity answers', () => {
       row({ id: 'callthird01', connector: null, connectorKey: 'jira', connectorName: null, tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000 }),
     );
     expect(await calls()).toEqual([
-      { id: 'callthird01', agent: OURS, agentName: 'Emma', connector: null, connectorKey: 'jira', tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000 },
-      { id: 'callsecond1', agent: SECOND, agentName: 'agent000002.tail0000.ts.net', connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', connectorUrl: 'https://mcp.linear.app', tool: 'create_issue', outcome: 'needs_approval', ms: 40, at: NOW - 2_000 },
-      { id: 'callfirst01', agent: OURS, agentName: 'Emma', connector: NOTION, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 120, at: NOW - 3_000 },
+      { id: 'callthird01', agent: OURS, agentName: 'Emma', connector: null, connectorKey: 'jira', tool: 'search', outcome: 'not_found', ms: 3, at: NOW - 1_000, kind: 'call' },
+      { id: 'callsecond1', agent: SECOND, agentName: 'agent000002.tail0000.ts.net', connector: LINEAR, connectorKey: 'linear', connectorName: 'Linear', connectorUrl: 'https://mcp.linear.app', tool: 'create_issue', outcome: 'needs_approval', ms: 40, at: NOW - 2_000, kind: 'call' },
+      { id: 'callfirst01', agent: OURS, agentName: 'Emma', connector: NOTION, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'search', outcome: 'ok', ms: 120, at: NOW - 3_000, kind: 'call' },
     ]);
+  });
+
+  test('a received event is a row of its own kind, named by its event, and a kind Metro does not know reads as a call', async () => {
+    await record(
+      row({ id: 'callplain01', at: NOW - 3_000 }),
+      row({ id: 'eventgood01', kind: 'event', tool: 'item.created', outcome: 'delivered', ms: 0, at: NOW - 2_000 }),
+      row({ id: 'eventdrop01', kind: 'event', tool: 'item.created', outcome: 'dropped_sender', ms: 0, at: NOW - 1_000 }),
+    );
+    expect((await calls()).map((call) => [call.id, call.kind, call.tool, call.outcome])).toEqual([
+      ['eventdrop01', 'event', 'item.created', 'dropped_sender'],
+      ['eventgood01', 'event', 'item.created', 'delivered'],
+      ['callplain01', 'call', 'search', 'ok'],
+    ]);
+    expect((await calls(`?connector=${NOTION}&agent=${OURS}&limit=1`)).map((call) => call.id)).toEqual(['eventdrop01']);
+    await expect(held.client.query("UPDATE mcp_calls SET kind = 'later' WHERE id = 'eventgood01'")).rejects.toThrow('mcp_calls_kind_check');
+    await held.client.query('ALTER TABLE mcp_calls DROP CONSTRAINT mcp_calls_kind_check');
+    try {
+      await held.client.query("UPDATE mcp_calls SET kind = 'later' WHERE id = 'eventgood01'");
+      expect((await calls()).find((call) => call.id === 'eventgood01')?.kind).toBe('call');
+    } finally {
+      await held.client.query("DELETE FROM mcp_calls WHERE kind = 'later'");
+      await held.client.query("ALTER TABLE mcp_calls ADD CONSTRAINT mcp_calls_kind_check CHECK (kind IN ('call', 'event')) NOT VALID");
+    }
   });
 
   test('a renamed connector shows its new name, a deleted one keeps the name it had when the call ran', async () => {

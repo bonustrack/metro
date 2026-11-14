@@ -22,6 +22,8 @@ import {
 } from '../routes/http.js';
 import { agentsDir, fileSource } from '../agents/files.js';
 import { stopMcpServer, watchMcpServer } from '../mcp-server/link.js';
+import { stopConnectorEvents, watchConnectorEvents } from '../mcp-server/event-link.js';
+import { connectorEventTaker } from '../channels/connector-event.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
@@ -51,7 +53,7 @@ import {
   stationByName,
 } from '../stations/registry.js';
 import { prepareAccount } from '../stations/attach.js';
-import { knownAccounts } from '../agents/map.js';
+import { knownAccounts, soleAgent } from '../agents/map.js';
 import { materializeFrom, reloadFrom } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
@@ -173,6 +175,7 @@ installBearerSessions(agentsDir(), localOwner);
       });
     },
   });
+  watchConnectorEvents({ owner: localOwner, take: connectorEventTaker(emit, liveEvents, soleAgent) });
   watchConnectorTools();
   startCloudWatchPublisher();
   announceLocalEndpoint();
@@ -217,6 +220,9 @@ async function shutdown(): Promise<void> {
   log.info('dispatcher shutting down');
   stopMcpServer().catch((err: unknown) => {
     log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the approval relay');
+  });
+  stopConnectorEvents().catch((err: unknown) => {
+    log.warn({ err: errMsg(err) }, 'mcp-server: could not stop the connector event loop');
   });
   const leaving = leaveCallsForShutdown();
   stopOrgModels();
