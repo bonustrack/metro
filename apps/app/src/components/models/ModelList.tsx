@@ -6,7 +6,6 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { OrgModelConnection, OrgModels } from '@metro-labs/client/api/org-models';
 import { providerInfo } from '@metro-labs/client/api/providers';
 import { routeHash } from '@metro-labs/client/route';
-import { boxesOf } from '@metro-labs/client/api/servers';
 import { Icon, type IconName } from '../Icon.js';
 import { ProviderLogo } from '../ProviderLogo.js';
 import { ErrorState } from '../ui/ErrorState.js';
@@ -17,6 +16,7 @@ import { Item } from '../ui/Item.js';
 import { ListPaneRow } from '../ui/ListPaneRow.js';
 import { ListPane } from '../shell/ListPane.js';
 import { TabRoot } from '../shell/TabRoot.js';
+import { routeUsers } from '../model-view.js';
 import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
 import { technicalLine } from '../../lib/agent-line.js';
 import { accountLine, agentsWord, routeSummary } from '../../lib/model-words.js';
@@ -52,9 +52,9 @@ function AccountMark({ connection }: { connection: OrgModelConnection }): ReactN
   );
 }
 
-function useDefaultCount(list: OrgModels): number {
+function useDefaultCount(list: OrgModels): number | null {
   const { data } = useServersQuery();
-  return boxesOf(data ?? []).filter((server) => list.agents[server.id] === undefined).length;
+  return data === undefined ? null : routeUsers(data, list).shared.length;
 }
 
 function AccountRow({ connection, pane, selected }: { connection: OrgModelConnection; pane: boolean; selected: boolean }): ReactNode {
@@ -92,7 +92,7 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
   return (
     <Column gap={40}>
       <Group>
-        <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={agentsWord(count)} href={href} />
+        <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={count === null ? undefined : agentsWord(count)} href={href} />
         <Item title="Usage" subtitle={USAGE_LINE} leading={<RouteMark icon="chart" />} href={usage} />
       </Group>
       <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>

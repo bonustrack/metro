@@ -6,13 +6,13 @@ import { storeServerId } from '@metro-labs/client/auth/daemon';
 import type { Selection } from '@metro-labs/client/selection';
 import { ActivityFeed } from '../activity/ActivityFeed.js';
 import { AgentConnectorPage } from '../connectors/AgentConnectorPage.js';
-import { GatewayUsage } from '../models/GatewayUsage.js';
 import { ProfilePage } from '../settings/ProfilePage.js';
 import { Tabbed } from '../tabbed.js';
 import { Wide } from '../ui/Layout.js';
 import { AccessKeys } from '../tools/AccessKeys.js';
 import { RemoteApprovals } from './RemoteApprovals.js';
 import { RemoteConnectors } from './RemoteConnectors.js';
+import { RemoteGateway } from './RemoteGateway.js';
 import { RemoteHeader } from './RemoteHeader.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { REMOTE_TABS, remoteTabOf } from '../../lib/remote-tabs.js';
@@ -26,13 +26,11 @@ function TabBody({ server, selection }: { server: RemoteServer; selection: Selec
   const name = serverLabel(server);
   useDocumentTitle(tab === 'connectors' ? name : `${REMOTE_TABS.find((one) => one.id === tab)?.label ?? ''} - ${name}`);
   if (tab === 'keys') return <AccessKeys agent={server.id} />;
+  if (tab === 'gateway') return <RemoteGateway agent={server.id} name={name} />;
   if (tab === 'activity')
     return (
       <Wide>
-        <Column gap={40}>
-          <GatewayUsage agent={server.id} label="Gateway" />
-          <ActivityFeed key={server.id} agent={server.id} fixed />
-        </Column>
+        <ActivityFeed key={server.id} agent={server.id} fixed />
       </Wide>
     );
   return <RemoteConnectors agent={server.id} name={name} />;

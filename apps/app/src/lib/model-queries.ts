@@ -44,7 +44,8 @@ export function useConnectionModelsQuery(connection: ConnectionRow | undefined):
 }
 
 export async function syncSelectedBox(client: QueryClient): Promise<void> {
-  if (currentServer() === null) return;
+  const server = currentServer();
+  if (server === null || server.host === null) return;
   await syncModel().catch(logError('model sync'));
   await refresh(client, 'model');
 }

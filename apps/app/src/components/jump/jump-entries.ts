@@ -31,7 +31,7 @@ export type JumpItem = JumpEntry<JumpTarget>;
 
 const TAB_ICONS: Record<AgentTabId, IconName> = { home: 'home', chats: 'chat', memory: 'documentText', tools: 'plug', scheduled: 'clock', settings: 'cog' };
 
-const REMOTE_ICONS: Record<RemoteTabId, IconName> = { connectors: 'plug', keys: 'key', activity: 'chartBar' };
+const REMOTE_ICONS: Record<RemoteTabId, IconName> = { connectors: 'plug', keys: 'key', gateway: 'processor', activity: 'chartBar' };
 
 const STATE_WORD: Record<ServerStatus['state'], string> = { live: 'Online', offline: 'Offline', stopped: 'Stopped', updating: 'Updating' };
 

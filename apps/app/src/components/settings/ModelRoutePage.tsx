@@ -1,94 +1,32 @@
 import { type ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@stage-labs/kit/react-native/button';
-import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelSettings, ProviderInfo } from '@metro-labs/client/api/model';
-import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { modelOrder } from '@metro-labs/client/api/model-order';
-import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
+import type { OrgModels } from '@metro-labs/client/api/org-models';
 import { currentServer } from '@metro-labs/client/auth/daemon';
 import { routeHash } from '@metro-labs/client/route';
 import { Group, Groups } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
-import { type RouteScope } from '../RouteEditor.js';
-import { useRouteControl, type RouteControl } from '../route-actions.js';
 import { helperItems, partsNeedUpdate, sourceLine, withRoute } from '../model-view.js';
-import { Check } from '../models/RouteParts.js';
+import { MEMBER_NOTE, ownNote, RouteChoice, UsageAndLinks, useEditing, type Editing } from '../models/AgentRoute.js';
 import { RouteSetup } from '../models/RouteSetup.js';
 import { Control, NoteRow } from './rows.js';
 import { useLinkWords, useRetryLink, type LinkWords } from '../../lib/auto-enroll.js';
-import { afterModelChange, useModelQuery, useOrgModelsQuery } from '../../lib/model-queries.js';
+import { useModelQuery, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { queryError } from '../../lib/queries.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { useOutdatedProvider } from '../../lib/outdated-provider.js';
-import { routeSummary } from '../../lib/settings-values.js';
 import { useDocumentTitle } from '../../lib/title.js';
-import { GatewayUsage } from '../models/GatewayUsage.js';
 
-const NO_CONNECTION = 'No account yet. Add one on the organization’s Gateway page, a Claude subscription included.';
-const MEMBER_NOTE = 'Only an admin of the organization can change the route.';
 const SYNC_FAILED = 'Could not reach the organization’s models, so the agent keeps the last setup it had.';
 
-interface Editing {
-  agent: string;
-  org: OrgModels;
-  own: boolean;
-  control: RouteControl;
-  scope: RouteScope;
-}
-
-function useEditing(org: OrgModels, agent: string): Editing {
-  const client = useQueryClient();
-  const scope: RouteScope = {
-    route: org.agents[agent] ?? org.default,
-    connections: org.connections,
-    empty: <Text size="md" color="secondary">{NO_CONNECTION}</Text>,
-    save: async (route: ModelRoute) => {
-      await setModelRoute(agent, route);
-      await afterModelChange(client);
-    },
-  };
-  return { agent, org, own: org.agents[agent] !== undefined, control: useRouteControl(scope.route, scope.save), scope };
-}
-
-function stepName(org: OrgModels): (connection: string, model: string) => string {
-  return (connection, model) => (model !== '' ? model : (org.connections.find((c) => c.id === connection)?.model ?? 'a model'));
-}
-
-function RouteChoice({ editing, name }: { editing: Editing; name: string }): ReactNode {
-  const client = useQueryClient();
-  const { org, own, control, agent } = editing;
-  const toOrg = (): void => {
-    control.run(async () => {
-      await clearModelRoute(agent);
-      await afterModelChange(client);
-    }, 'Could not go back to the organization’s route.');
-  };
-  const toOwn = (): void => {
-    const base = org.default;
-    if (base === null) {
-      control.actions.edit({ kind: 'primary' });
-      return;
-    }
-    control.run(() => editing.scope.save(base), 'Could not give this agent its own route.');
-  };
-  const busy = control.busy;
-  return (
-    <Group label="Route">
-      <Item title="Organization’s route" subtitle={routeSummary(org.default, stepName(org))} trailing={own ? undefined : <Check />} chevron={false} onPress={own && !busy ? toOrg : undefined} />
-      <Item title="Own route" subtitle={own ? 'The models below' : `Models just for ${name}`} trailing={own ? <Check /> : undefined} chevron={false} onPress={own || busy ? undefined : toOwn} />
-    </Group>
-  );
-}
-
 function EditableModels({ editing, settings, name }: { editing: Editing; settings: ModelSettings; name: string }): ReactNode {
-  const { control, scope, own } = editing;
+  const { control, scope } = editing;
   const items = modelOrder(withRoute(settings, scope.route, scope.connections));
   const helpers = helperItems(settings, scope.route?.helpers ?? null, scope.connections);
-  const note = own ? undefined : `Changing a model or the effort gives ${name} its own route.`;
-  return <RouteSetup items={items} helperItems={helpers} effort={scope.route?.effort ?? {}} who={name} mainNote={note} edit={{ control, scope }} />;
+  return <RouteSetup items={items} helperItems={helpers} effort={scope.route?.effort ?? {}} who={name} mainNote={ownNote(editing, name)} edit={{ control, scope }} />;
 }
 
 function ReadOnlyModels({ settings, org, orgError, name }: { settings: ModelSettings; org: OrgModels | undefined; orgError: Error | null; name: string }): ReactNode {
@@ -145,24 +83,12 @@ function Problems({ settings, error, outdated, partsOutdated, project }: Problem
   );
 }
 
-
 function Editable({ org, agent, settings, name }: { org: OrgModels; agent: string; settings: ModelSettings; name: string }): ReactNode {
   const editing = useEditing(org, agent);
   return (
     <>
       <RouteChoice editing={editing} name={name} />
       <EditableModels editing={editing} settings={settings} name={name} />
-    </>
-  );
-}
-
-function UsageAndLinks({ agent }: { agent: string | null }): ReactNode {
-  return (
-    <>
-      {agent === null ? null : <GatewayUsage agent={agent} />}
-      <Group label="Organization">
-        <Item title="Accounts and the default route" subtitle="On the organization’s Gateway page" href={routeHash({ kind: 'org-models' })} />
-      </Group>
     </>
   );
 }

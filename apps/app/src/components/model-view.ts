@@ -2,6 +2,8 @@ import type { ConnectionRow, ModelSettings, Provider } from '@metro-labs/client/
 import { modelOrder, type ModelOrderItem } from '@metro-labs/client/api/model-order';
 import type { ModelRoute, RouteChain } from '@metro-labs/client/api/model-route';
 import type { OrgModelPatch, OrgModels } from '@metro-labs/client/api/org-models';
+import type { Server } from '@metro-labs/client/api/servers';
+import type { Selection } from '@metro-labs/client/selection';
 
 export interface KeyDraft {
   label: string;
@@ -34,6 +36,17 @@ export function partsNeedUpdate(settings: ModelSettings, org: OrgModels | undefi
   if (settings.effort !== null || org === undefined || agent === null) return false;
   return routeParts(org.agents[agent] ?? org.default ?? undefined);
 }
+
+export interface RouteUsers {
+  shared: Server[];
+  own: Server[];
+}
+
+export function routeUsers(servers: readonly Server[], list: OrgModels): RouteUsers {
+  return { shared: servers.filter((server) => list.agents[server.id] === undefined), own: servers.filter((server) => list.agents[server.id] !== undefined) };
+}
+
+export const gatewayPage = (server: Server): Selection => ({ kind: 'model', project: server.id });
 
 export function connectionPatch(provider: Provider, draft: KeyDraft, row: ConnectionRow | null): OrgModelPatch {
   const key = draft.key.trim() === '' ? {} : { apiKey: draft.key.trim() };
