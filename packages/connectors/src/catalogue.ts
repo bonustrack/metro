@@ -61,8 +61,12 @@ function redactedValue(value: unknown, redact: (text: string) => string): unknow
   return isRecord(value) ? redactedRecord(value, redact) : value;
 }
 
+const SCHEMA_DIALECT = /^https?:\/\/json-schema\.org\/(?:draft-0[3467]\/schema|draft\/20(?:19-09|20-12)\/schema)#?$/;
+
+const keptDialect = (name: string, item: unknown): item is string => name === '$schema' && typeof item === 'string' && SCHEMA_DIALECT.test(item);
+
 function redactedRecord(value: Record<string, unknown>, redact: (text: string) => string): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactedValue(item, redact)]));
+  return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, keptDialect(name, item) ? item : redactedValue(item, redact)]));
 }
 
 interface Redaction {
