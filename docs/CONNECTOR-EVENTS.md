@@ -373,7 +373,14 @@ connector with `email.received`.
 server's `initialize` answer and passes on two things, with credentials withheld like a tool
 description: `account`, the string a server declares as
 `capabilities.extensions["box.metro/account"] = {"id": "<who this sign-in is>"}`, and
-`instructions`. Neither is stored. The move page was its first reader.
+`instructions`. Neither is stored. The move page was its first reader. The mail servers declare
+`box.metro/account` (seen live on 2026-11-14).
+
+**A connector is named after its account** (2026-11-14): when the admin leaves the name to
+Metro, the first sign-in names it `<Product> (<account>)`, for example
+`Gmail (fabien@snapshot.org)`, from the server's `serverInfo` and its declared account, and
+every later sign-in follows the account until an admin renames it (`docs/rules/HTTP-API.md`).
+Metro reads the account only when a server declares it, so this stays generic.
 
 ## Open points
 

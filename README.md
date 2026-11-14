@@ -104,6 +104,17 @@ Then the page can stop, start, restart and update the daemon without a shell. A 
 launched from metro.box (see [docs/ISSUING-SERVERS.md](docs/ISSUING-SERVERS.md)) does
 all of this on its own.
 
+**If metro.box says Offline for every agent while the boxes are up**, check whether this
+computer is on the boxes' tailnet. Tailscale then answers a box's `ts.net` name with its
+`100.x` address, which Chrome (since version 142) and Firefox count as your local network,
+and metro.box needs your browser's permission to reach the local network. Allow it when the
+browser asks ("look for and connect to any device on your local network"), or, if you
+blocked it once, open the site settings of https://metro.box (the icon left of the address)
+and set Local network access to Allow, then reload. A box's own address still answers
+`curl` from the same computer, since the permission is a browser rule. Nothing on the box can
+lift it; in Chrome an admin can also set the policy `LocalNetworkAccessAllowedForUrls` to
+`https://metro.box`.
+
 ## Claude Code on the box
 
 The agent runs as one Agent SDK session: `metro agent` starts Claude Code through the
