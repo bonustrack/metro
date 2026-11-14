@@ -104,12 +104,13 @@ describe('an event row in words', () => {
 });
 
 describe('an agent whose Metro is too old for events', () => {
-  test('only a known version before beta.330 says that events wait for the update', () => {
-    expect(CONNECTOR_EVENTS_SINCE).toBe('0.1.0-beta.330');
+  test('only a known version before beta.331 says that events wait for the update', () => {
+    expect(CONNECTOR_EVENTS_SINCE).toBe('0.1.0-beta.331');
     expect(waitsForUpdate('0.1.0-beta.329', false)).toBe(true);
     expect(waitsForUpdate('0.1.0-beta.12', false)).toBe(true);
-    expect(waitsForUpdate('0.1.0-beta.330', false)).toBe(false);
+    expect(waitsForUpdate('0.1.0-beta.330', false)).toBe(true);
     expect(waitsForUpdate('0.1.0-beta.331', false)).toBe(false);
+    expect(waitsForUpdate('0.1.0-beta.332', false)).toBe(false);
     expect(waitsForUpdate('0.1.0', false)).toBe(false);
   });
 
@@ -121,7 +122,7 @@ describe('an agent whose Metro is too old for events', () => {
   });
 
   test('the line says where the events wait, for how long, and how to update', () => {
-    expect(updateNote('Lisa')).toBe("Events wait on Metro's side, 7 days at most, until Lisa's Metro is updated to 0.1.0-beta.330 or later: open Lisa's Settings, then Metro version under Server.");
+    expect(updateNote('Lisa')).toBe("Events wait on Metro's side, 7 days at most, until Lisa's Metro is updated to 0.1.0-beta.331 or later: open Lisa's Settings, then Metro version under Server.");
   });
 });
 

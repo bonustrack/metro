@@ -1,7 +1,7 @@
 import { filled, isRecord, str } from '../read.js';
 import { EVERYONE } from './accounts.js';
 
-export const CONNECTOR_EVENTS_SINCE = '0.1.0-beta.330';
+export const CONNECTOR_EVENTS_SINCE = '0.1.0-beta.331';
 
 type SubscriptionStatus = 'pending' | 'active' | 'signed_out' | 'error';
 

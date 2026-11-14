@@ -97,11 +97,11 @@ assert.deepEqual(polls, [null]);
 assert.equal(render(tracker(on), { box: null }), '<div></div>');
 assert.deepEqual([groups.map((group) => group.label), skeletons.map((one) => one.rows), items.length, switches.length], [['Events'], [2], 0, 0]);
 
-render(tracker(on), { box: { remote: false, version: '0.1.0-beta.329' } });
-assert.match(groups[0].note, /^Lisa is told when one of these happens in Tracker\\. Events wait on Metro's side, 7 days at most, until Lisa's Metro is updated to 0\\.1\\.0-beta\\.330 or later/);
+render(tracker(on), { box: { remote: false, version: '0.1.0-beta.330' } });
+assert.match(groups[0].note, /^Lisa is told when one of these happens in Tracker\\. Events wait on Metro's side, 7 days at most, until Lisa's Metro is updated to 0\\.1\\.0-beta\\.331 or later/);
 assert.equal(items[0].detail, 'Receiving');
 assert.deepEqual(switches.map((one) => one.disabled), [false, false]);
-render(tracker(on), { box: { remote: false, version: '0.1.0-beta.330' } });
+render(tracker(on), { box: { remote: false, version: '0.1.0-beta.331' } });
 assert.equal(groups[0].note, 'Lisa is told when one of these happens in Tracker.');
 
 assert.equal(render(tracker(on, { events: undefined })), '');
