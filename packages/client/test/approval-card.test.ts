@@ -9,38 +9,23 @@ const approval = (tool: string, input: unknown, line = 'metro://telegram-bot/t1/
 };
 
 describe('an approval reads as a card in words', () => {
-  test('a new email shows who it goes to, its subject, its first lines and its file', () => {
+  test('a send waiting on a mail channel of an older box reads as a plain message', () => {
     const card = approvalCard(approval('mcp__metro__send', {
       line: 'metro://outlook/o1/wan@mcigroup.ch',
       subject: 'Offer for the March event',
       text: 'Hi Wan, thank you for the call on Tuesday.',
       attachments: [{ upload: 'u1', name: 'Anderra offer.pdf' }, { url: 'https://example.com/x/plan.png?sig=1' }],
     }));
-    expect(card).toEqual({
+    expect(card).toMatchObject({
       station: 'outlook',
       account: 'o1',
-      connector: null,
-      title: 'Send an email',
-      ask: 'send an email',
-      fields: [{ label: 'To', value: 'wan@mcigroup.ch' }, { label: 'Subject', value: 'Offer for the March event' }],
+      title: 'Send a message',
+      fields: [],
       body: 'Hi Wan, thank you for the call on Tuesday.',
       file: { name: 'Anderra offer.pdf', size: null },
       moreFiles: 1,
-      everything: [
-        { label: 'text', value: 'Hi Wan, thank you for the call on Tuesday.' },
-        { label: 'file 1 of 2', value: '{"upload":"u1","name":"Anderra offer.pdf"}' },
-        { label: 'file 2 of 2', value: '{"url":"https://example.com/x/plan.png?sig=1"}' },
-        { label: 'subject', value: 'Offer for the March event' },
-        { label: 'line', value: 'metro://outlook/o1/wan@mcigroup.ch' },
-      ],
     });
-  });
-
-  test('an email without a subject takes its first line, as the daemon does, and a reply has no recipient line', () => {
-    const fresh = approvalCard(approval('mcp__metro__send', { line: 'metro://gmail/g1/a@b.ch', text: 'Quick question\nAre you free?' }));
-    expect(fresh.fields).toEqual([{ label: 'To', value: 'a@b.ch' }, { label: 'Subject', value: 'Quick question' }]);
-    const reply = approvalCard(approval('mcp__metro__send', { line: 'metro://outlook/o1/AAQk%2Fconv', text: 'Thanks!' }));
-    expect(reply).toMatchObject({ title: 'Reply to an email', fields: [], body: 'Thanks!' });
+    expect(card.everything).toContainEqual({ label: 'subject', value: 'Offer for the March event' });
   });
 
   test('a chat message shows its text, a reaction its emoji, and an inline file its size', () => {
@@ -67,7 +52,7 @@ describe('an approval reads as a card in words', () => {
 
   test('a file Claude Code shortened still shows its size, counted from the elided part', () => {
     const head = `data:application/pdf;base64,${'A'.repeat(1971)}`;
-    const preview = `{"line":"metro://outlook/o1/a@b.ch","text":"Hi","attachments":[{"data":"${head}\\n⋯ 245000 code points elided ⋯\\n${'B'.repeat(1497)}==","name":"offer.pdf"}]}`;
+    const preview = `{"line":"metro://telegram-bot/t1/42","text":"Hi","attachments":[{"data":"${head}\\n⋯ 245000 code points elided ⋯\\n${'B'.repeat(1497)}==","name":"offer.pdf"}]}`;
     const parsed = approval('mcp__metro__send', preview);
     expect(parsed.fileBytes).toEqual([Math.floor(((1971 + 245000 + 1499) * 3) / 4) - 2]);
     expect(approvalCard(parsed).file).toEqual({ name: 'offer.pdf', size: '182 KB' });
@@ -110,7 +95,7 @@ describe('an approval reads as a card in words', () => {
   });
 
   test('a metro line splits into station, account and the resource', () => {
-    expect(lineTarget('metro://outlook/o1/AAQk%2Fconv')).toEqual({ station: 'outlook', account: 'o1', resource: 'AAQk/conv' });
+    expect(lineTarget('metro://xmtp/x1/conv%2Fa')).toEqual({ station: 'xmtp', account: 'x1', resource: 'conv/a' });
     expect(lineTarget('https://example.com')).toBeNull();
   });
 });

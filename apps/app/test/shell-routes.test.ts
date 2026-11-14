@@ -105,7 +105,6 @@ describe('every page of an agent has a place under one of its six tabs', () => {
       { kind: 'launch-log', project: AGENT },
       { kind: 'skills-github', project: AGENT },
       { kind: 'add-chat', project: AGENT },
-      { kind: 'move-channel', project: AGENT, accountId: 'mail' },
       { kind: 'tools', project: AGENT, connector: AGENT },
     ];
     for (const selection of deep) expect(isDeepPage(selection)).toBe(true);
@@ -191,7 +190,6 @@ describe('setup flows open full screen, like the launch', () => {
     const focus: Selection[] = [
       { kind: 'add-chat', project: AGENT },
       { kind: 'add-chat', project: AGENT, station: 'xmtp' },
-      { kind: 'move-channel', project: AGENT, accountId: 'mail' },
       { kind: 'org-model-add' },
       { kind: 'org-model-add', provider: 'codex' },
       { kind: 'org-model-sign-in', id: AGENT },

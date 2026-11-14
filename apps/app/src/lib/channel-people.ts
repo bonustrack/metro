@@ -1,11 +1,7 @@
-import { allowsEveryone, EVERYONE } from '@metro-labs/client/api/accounts';
-import { type RecentSender } from '@metro-labs/client/api/attach';
+import { allowsEveryone, EVERYONE, type FlatAccount } from '@metro-labs/client/api/accounts';
+import { stationLabel, supportedStation, type RecentSender } from '@metro-labs/client/api/attach';
 import { chatLink, type SenderCard } from '@metro-labs/client/api/senders';
 import { countWords } from './rule-sentence.js';
-
-const NO_CHAT_APPROVALS = new Set(['outlook', 'gmail']);
-
-export const approvesInChat = (station: string): boolean => !NO_CHAT_APPROVALS.has(station);
 
 const sameId = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
@@ -58,8 +54,6 @@ function subtitleOf(id: string, title: string, handle: string, technical: boolea
 
 const firstFilled = (...values: string[]): string => values.find((value) => value !== '') ?? '';
 
-const approvesOf = (station: string, approvers: string[], id: string): boolean | null => (approvesInChat(station) ? listed(approvers, id) : null);
-
 const linkOf = (station: string, id: string, handle: string): string | null => chatLink(station, id, handle === '' ? undefined : handle);
 
 function personOf({ station, approvers, cards, seen, technical }: PeopleInput, id: string): Person {
@@ -67,7 +61,7 @@ function personOf({ station, approvers, cards, seen, technical }: PeopleInput, i
   const handle = card.handle ?? '';
   const seenName = seen.find((s) => sameId(s.id, id))?.name ?? '';
   const title = firstFilled(card.name ?? '', seenName, handle, id);
-  return { id, title, subtitle: subtitleOf(id, title, handle, technical), avatar: card.avatar ?? null, approves: approvesOf(station, approvers, id), link: linkOf(station, id, handle) };
+  return { id, title, subtitle: subtitleOf(id, title, handle, technical), avatar: card.avatar ?? null, approves: listed(approvers, id), link: linkOf(station, id, handle) };
 }
 
 export const peopleOf = (input: PeopleInput): Person[] => input.entries.map((id) => personOf(input, id));
@@ -87,6 +81,15 @@ export function writersSummary(allowlist: string[] | null): string | null {
 export function channelLine(label: string, allowlist: string[] | null): string {
   const who = writersSummary(allowlist);
   return who === null || who === '' ? label : `${label} · ${who} can write`;
+}
+
+export function channelSubtitle(item: FlatAccount): string {
+  const label = stationLabel(item.station);
+  if (!supportedStation(item.station)) return `${label} · No longer supported`;
+  if (!item.row.enabled) return `${label} · Not receiving`;
+  if (item.stale) return `${label} · Not responding`;
+  const who = writersSummary(item.row.allowlist);
+  return who === null || who === '' ? label : `${label} · ${who}`;
 }
 
 export const approverNames = (people: Person[]): string[] => people.filter((person) => person.approves === true).map((person) => person.title);

@@ -17,7 +17,7 @@ import { saveText } from '../lib/files.js';
 
 const HOW = 'Locked in your browser with a passphrase you choose. Only it opens the file.';
 const SECRET = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'new-password' } as const;
-const NOTE = 'The agent id and key stay here: an import adds to the agent there. Gmail logins managed by Metro are skipped, so reconnect those mailboxes.';
+const NOTE = 'The agent id and key stay here: an import adds to the agent there.';
 
 export interface Portable {
   id: string;

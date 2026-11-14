@@ -32,10 +32,7 @@ export interface StationForm {
   links?: HintLink[];
   interactive: boolean;
   fields: AttachField[];
-  provider?: string;
-  codeFallback?: boolean;
 }
-
 
 export const STATION_FORMS: Record<string, StationForm> = {
   'discord-bot': {
@@ -137,25 +134,6 @@ export const STATION_FORMS: Record<string, StationForm> = {
       },
     ],
   },
-  outlook: {
-    label: 'Outlook',
-    hint: 'Connects a Microsoft 365 or Outlook.com mailbox. Sign in with Microsoft in a new tab. The agent reads, searches and answers mail.',
-    interactive: true,
-    provider: 'Microsoft',
-    codeFallback: true,
-    fields: [],
-  },
-  gmail: {
-    label: 'Gmail',
-    hint: 'Connects a Gmail or Google Workspace mailbox with your own Google OAuth client. Sign in with Google in a new tab. The agent reads, searches and answers mail.',
-    links: [{ text: 'How to set up the Google client', href: 'https://github.com/bonustrack/metro/blob/main/docs/GMAIL.md' }],
-    interactive: true,
-    provider: 'Google',
-    fields: [
-      { key: 'clientId', label: 'Client ID', placeholder: '1234-abcd.apps.googleusercontent.com', secret: false, kind: 'text' },
-      { key: 'clientSecret', label: 'Client secret', placeholder: 'GOCSPX-...', secret: true, kind: 'text' },
-    ],
-  },
   webhook: {
     label: 'Webhook',
     hint: 'Metro makes a URL to POST events to. Keep it private: the URL is the password. Inbound only, the agent cannot reply.',
@@ -179,12 +157,28 @@ export const STATION_FORMS: Record<string, StationForm> = {
   },
 };
 
-export function offeredStations(attachable: string[]): string[] {
-  return attachable.filter((s) => STATION_FORMS[s] !== undefined);
+interface RetiredStation {
+  label: string;
+  connector: string;
 }
 
+const RETIRED: Record<string, RetiredStation> = {
+  gmail: { label: 'Gmail', connector: 'a Gmail connector' },
+  outlook: { label: 'Outlook', connector: 'an Outlook connector' },
+};
+
 export function stationLabel(station: string): string {
-  return STATION_FORMS[station]?.label ?? station;
+  return STATION_FORMS[station]?.label ?? RETIRED[station]?.label ?? station;
+}
+
+export const supportedStation = (station: string): boolean => STATION_FORMS[station] !== undefined;
+
+export const offeredStations = (attachable: string[]): string[] => attachable.filter(supportedStation);
+
+export function unsupportedNote(station: string): string {
+  const retired = RETIRED[station];
+  if (retired === undefined) return 'metro.box no longer supports this channel. Delete it.';
+  return `${retired.label} channels are no longer supported. Delete this channel: mail now reaches the agent through ${retired.connector}.`;
 }
 
 interface OneTimeSecret {

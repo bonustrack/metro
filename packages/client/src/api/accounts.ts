@@ -11,8 +11,6 @@ export interface AccountRow {
   allowlist: string[] | null;
   approvers: string[];
   enabled: boolean;
-  sendEnabled?: boolean | null;
-  managed?: boolean | null;
   policy: ToolPolicy;
   status: AccountStatus | null;
   fields: AccountField[];
@@ -51,7 +49,7 @@ const APPROVERS = 'approvers';
 const ENABLED = 'enabled';
 const POLICY = 'policy';
 const STATUS = 'status';
-const HIDDEN_KEYS = new Set([AGENT_ID, ALLOWLIST, APPROVERS, ENABLED, POLICY, STATUS, 'connected', 'sendEnabled', 'managed']);
+const HIDDEN_KEYS = new Set([AGENT_ID, ALLOWLIST, APPROVERS, ENABLED, POLICY, STATUS, 'connected']);
 
 function toRow(account: unknown): AccountRow {
   if (!isRecord(account))
@@ -74,8 +72,6 @@ function toRow(account: unknown): AccountRow {
     allowlist: allowlistOf(account[ALLOWLIST]),
     approvers: allowlistOf(account[APPROVERS]) ?? [],
     enabled: account[ENABLED] !== false,
-    sendEnabled: typeof account.sendEnabled === 'boolean' ? account.sendEnabled : null,
-    managed: typeof account.managed === 'boolean' ? account.managed : null,
     policy: policyOf(account[POLICY]),
     status: accountStatusOf(account[STATUS]),
     fields,
@@ -144,12 +140,7 @@ function carriedRows(fresh: AccountRow[], before: AccountRow[]): AccountRow[] {
   if (fresh.length === 0) return before.map((row) => ({ ...row, status: null }));
   return fresh.map((row) => {
     const known = before.find((b) => b.id === row.id);
-    return known === undefined ? row : {
-      ...row,
-      fields: known.fields,
-      sendEnabled: row.sendEnabled ?? known.sendEnabled,
-      managed: row.managed ?? known.managed,
-    };
+    return known === undefined ? row : { ...row, fields: known.fields };
   });
 }
 

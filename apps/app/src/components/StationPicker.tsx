@@ -13,7 +13,7 @@ interface StationPickerProps {
 const lineOf = (station: string): string | undefined => {
   const form = STATION_FORMS[station];
   if (form === undefined) return undefined;
-  if (form.interactive) return `Sign in with ${form.provider ?? stationLabel(station)}`;
+  if (form.interactive) return `Sign in with ${stationLabel(station)}`;
   return form.fields.length === 0 ? 'Metro makes the address for you' : 'Paste its details';
 };
 

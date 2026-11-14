@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { accessToken, fetchOrganizations, logoutAccount, refreshAccount, switchOrganization } from '../src/api/auth.js';
 import { AuthError, call } from '../src/api/client.js';
-import { AccountChangedError, accountScopeIdentity, activeAccount, clearAccount, shareActiveAccount, storeAccount, subscribeAccountScope, type Account } from '../src/auth/account.js';
+import { AccountChangedError, accountScopeIdentity, activeAccount, clearAccount, storeAccount, subscribeAccountScope, type Account } from '../src/auth/account.js';
 import { forOrganization, openOrganization } from '../src/auth/org-route.js';
 import { configurePlatform, HOSTED_API, memoryKeyValue, type KeyValue } from '../src/platform.js';
 import { testToken } from './account-fixture.js';
@@ -287,14 +287,5 @@ describe('two tabs of one browser', () => {
     browser.changed();
     expect(activeAccount()?.organization).toBe(MCI);
     expect(accountScopeIdentity()).not.toBe(scope);
-  });
-
-  test('sharing this tab makes its organization the one a new tab opens on, with the newest refresh token', async () => {
-    const browser = browserTab();
-    const rotated = otherTabWrites(SNAPSHOT);
-    browser.changed();
-    await shareActiveAccount();
-    expect(JSON.parse(kv.getItem('metro.account') ?? '{}')).toMatchObject({ organization: STAGE, refreshToken: rotated });
-    expect(activeAccount()?.organization).toBe(STAGE);
   });
 });

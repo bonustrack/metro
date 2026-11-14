@@ -8,7 +8,7 @@ import { WhoCanWrite } from './WhoCanWrite.js';
 import { Group } from '../ui/Group.js';
 import { useSenderCards } from './use-sender-cards.js';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
+  approverNames, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
 } from '../../lib/channel-people.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
 import { queryError } from '../../lib/queries.js';
@@ -26,9 +26,7 @@ interface ChannelPeopleProps {
   onSaved: () => Promise<unknown>;
 }
 
-function anyoneNote(chat: boolean, name: string): string {
-  return chat ? `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.` : `Anyone who writes here reaches ${name}.`;
-}
+const anyoneNote = (name: string): string => `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.`;
 
 function Questions({ people, handle }: { people: Person[]; handle: string }): ReactNode {
   const goes = questionsGoTo(approverNames(people), handle);
@@ -39,8 +37,8 @@ function Questions({ people, handle }: { people: Person[]; handle: string }): Re
   );
 }
 
-function whoNote(editing: boolean, empty: boolean, chat: boolean, name: string): string | undefined {
-  if (!editing) return anyoneNote(chat, name);
+function whoNote(editing: boolean, empty: boolean, name: string): string | undefined {
+  if (!editing) return anyoneNote(name);
   return empty ? NOBODY : undefined;
 }
 
@@ -56,7 +54,6 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
   const [addError, setAddError] = useState<string | null>(null);
   const restricted = writersOf(allowlist) === 'some';
   const editing = restricted || restricting;
-  const chat = approvesInChat(station);
   const people = peopleOf({ station, entries, approvers, cards, seen: [], technical });
 
   const save = (next: string[], nextApprovers: string[], report: Report, after?: () => void): void => {
@@ -97,19 +94,19 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
     <>
       <WhoCanWrite
         editing={editing}
-        note={whoNote(editing, entries.length === 0, chat, name)}
+        note={whoNote(editing, entries.length === 0, name)}
         error={error}
         people={people}
         busy={busy}
-        approving={chat}
-        peopleNote={chat ? `People who can approve say yes or no when ${name} asks first.` : undefined}
+        approving
+        peopleNote={`People who can approve say yes or no when ${name} asks first.`}
         onRestrict={() => { setError(null); setRestricting(true); }}
         onAnyone={anyone}
         onApprove={(id, yes) => { save(entries, withApprover(approvers, id, yes), setError); }}
         onRemove={remove}
         onAdd={() => { setAddError(null); setAdding(true); }}
       />
-      {chat && editing ? <Questions people={people} handle={handle} /> : null}
+      {editing ? <Questions people={people} handle={handle} /> : null}
       {adding ? (
         <AddPerson agentId={agentId} station={station} accountId={accountId} entries={entries} busy={busy} error={addError} onAdd={add} onError={setAddError} onClose={() => { setAdding(false); }} />
       ) : null}

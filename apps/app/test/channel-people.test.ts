@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
-  approverNames, approvesInChat, entriesOf, keptApprovers, channelLine, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
+  approverNames, channelSubtitle, entriesOf, keptApprovers, channelLine, peopleOf, questionsGoTo, suggestionsOf, withApprover, withoutPerson, withPerson, writersOf, writersSummary,
 } from '../src/lib/channel-people.ts';
 import { namesList } from '../src/lib/rule-sentence.ts';
+import { detachLines } from '../src/components/chats/detach-lines.ts';
 
 const CARDS = [
   { id: '111', name: 'Less', handle: '@lessbt' },
@@ -86,13 +87,20 @@ describe('the people list', () => {
     expect(wan?.title).toBe('Wan');
   });
 
-  test('email channels never approve in chat, so nobody gets a Can approve switch', () => {
-    expect(approvesInChat('outlook')).toBe(false);
-    expect(approvesInChat('gmail')).toBe(false);
-    expect(approvesInChat('telegram-bot')).toBe(true);
-    const people = peopleOf({ station: 'outlook', entries: ['@anderra.ch', 'a@b.ch'], approvers: ['a@b.ch'], cards: [], seen: [], technical: false });
-    expect(people.map((p) => p.approves)).toEqual([null, null]);
+  test('a domain reads as anyone at it, and every listed person may get a Can approve switch', () => {
+    const people = peopleOf({ station: 'telegram-bot', entries: ['@anderra.ch', '111'], approvers: ['111'], cards: [], seen: [], technical: false });
+    expect(people.map((p) => p.approves)).toEqual([false, true]);
     expect(people[0]?.subtitle).toBe('Anyone with an address at anderra.ch');
+  });
+
+  test('a Gmail or Outlook channel of an older box lists as no longer supported', () => {
+    const row = { id: 'gm000000001', allowlist: ['*'], approvers: [], enabled: true, policy: {}, status: null, fields: [] };
+    expect(channelSubtitle({ station: 'gmail', row, stale: false })).toBe('Gmail · No longer supported');
+    expect(channelSubtitle({ station: 'outlook', row: { ...row, enabled: false }, stale: true })).toBe('Outlook · No longer supported');
+    expect(channelSubtitle({ station: 'whatsapp', row, stale: false })).toBe('WhatsApp · Anyone');
+    expect(channelSubtitle({ station: 'whatsapp', row: { ...row, enabled: false }, stale: false })).toBe('WhatsApp · Not receiving');
+    expect(detachLines('gmail')).toEqual(['This deletes the channel and its saved login. Messages stop reaching the agent at once.', 'This cannot be undone. This kind of channel cannot be connected again.']);
+    expect(detachLines('telegram-bot')[1]).toBe('This cannot be undone. To connect again, you sign in again.');
   });
 });
 

@@ -3,6 +3,8 @@ import { clearAccount } from '../src/auth/account.js';
 import { installTestAccount } from './account-fixture.js';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { fetchSession, fetchStations, StoppedError, type AgentSummary } from '../src/api/client.js';
+import { flattenAccounts } from '../src/api/accounts.js';
+import { offeredStations, supportedStation } from '../src/api/attach.js';
 
 beforeAll(() => {
   installTestAccount();
@@ -62,14 +64,26 @@ describe('the agent on the wire', () => {
   });
 });
 
-describe('daemon feature negotiation', () => {
-  test('managed Gmail is offered only on an explicit string capability', async () => {
-    for (const features of [undefined, null, 'gmail-managed', [true, null, 7]]) {
-      serve({ features });
-      expect((await fetchStations()).features).toEqual([]);
-    }
-    serve({ features: ['gmail-managed', 7, 'future-feature'] });
-    expect((await fetchStations()).features).toEqual(['gmail-managed', 'future-feature']);
+describe('a box from before the mail channels were removed', () => {
+  test('its Gmail and Outlook channels still list, and Add channel never offers them', async () => {
+    serve({
+      agents: [{ id: 'id000000001', name: 'ada-bot' }],
+      accounts: {
+        gmail: [{ id: 'gm000000001', handle: 'ada@example.com', enabled: true, sendEnabled: false, managed: true, allowlist: ['*'] }],
+        outlook: [{ id: 'ol000000001', handle: 'ada@example.ch', enabled: false, allowlist: ['@example.ch'] }],
+        whatsapp: [{ id: 'wa000000001', enabled: true }],
+      },
+      attachable: ['gmail', 'outlook', 'whatsapp'],
+      capabilities: { gmail: ['read', 'reply', 'send'], outlook: ['read', 'reply', 'send'] },
+      features: ['gmail-managed'],
+    });
+    const view = await fetchStations();
+    expect(view.groups.map((g) => g.station)).toEqual(['gmail', 'outlook', 'whatsapp']);
+    const gmail = flattenAccounts(view.groups).find((a) => a.station === 'gmail');
+    expect(gmail?.row).toMatchObject({ id: 'gm000000001', enabled: true, allowlist: ['*'] });
+    expect(offeredStations(view.attachable)).toEqual(['whatsapp']);
+    for (const station of ['gmail', 'outlook']) expect(supportedStation(station)).toBe(false);
+    expect(view).not.toHaveProperty('features');
   });
 });
 

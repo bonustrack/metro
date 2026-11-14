@@ -37,9 +37,9 @@ describe('the setup checklist on Home', () => {
     expect(setupOf(input({ groups: unsettled, conversations: 1 })).open?.id).toBe('approve');
   });
 
-  test('a mailbox cannot answer approvals, so a box with only email skips that step', () => {
-    const groups = groupAccounts({ outlook: [{ id: 'o1', handle: 'andy@anderra.ch', allowlist: ['@anderra.ch'] }] });
-    expect(ids(setupOf(input({ groups, conversations: 2 })))).toEqual(['model:done', 'chat:done', 'write:done', 'hello:done']);
+  test('a Gmail or Outlook channel of an older box does not count as a channel', () => {
+    const groups = groupAccounts({ outlook: [{ id: 'o1', handle: 'andy@anderra.ch', allowlist: ['@anderra.ch'] }], gmail: [{ id: 'g1', allowlist: ['*'] }] });
+    expect(ids(setupOf(input({ groups, conversations: 2 })))).toEqual(['model:done', 'chat:open', 'write:open', 'approve:open', 'hello:done']);
   });
 
   test('a step whose facts are unknown is left out, never guessed', () => {

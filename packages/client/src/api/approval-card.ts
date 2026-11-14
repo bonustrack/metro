@@ -35,16 +35,16 @@ interface Target {
   resource: string;
 }
 
-const EMAIL = new Set(['outlook', 'gmail']);
 const PLUGIN_TOOL = /^mcp__plugin_metro_(.+?)__(.+)$/;
 const SERVER_TOOL = /^([A-Za-z0-9][A-Za-z0-9_-]*)\.([^.\s]+)$/;
-const PLACE = new Set(['line', 'account', 'station', 'text', 'subject', 'attachments']);
+const PLACE = new Set(['line', 'account', 'station', 'text', 'attachments']);
 const BODY_MAX = 600;
 const VALUE_MAX = 120;
 const FIELDS_MAX = 4;
-const SUBJECT_MAX = 255;
 
 const TITLES: Record<string, string> = {
+  send: 'Send a message',
+  reply: 'Reply to a message',
   react: 'React to a message',
   unreact: 'Remove a reaction',
   edit: 'Edit a message',
@@ -127,20 +127,7 @@ function filesOf(input: Record<string, unknown> | null, bytes: (number | null)[]
   return { file: list.length === 0 ? null : fileOf(list[0], bytes[0] ?? null), moreFiles: Math.max(0, list.length - 1) };
 }
 
-function metroTitle(tool: string, target: Target | null): string {
-  const email = target !== null && EMAIL.has(target.station);
-  const address = email && target.resource.includes('@');
-  if (tool === 'send') return email ? (address ? 'Send an email' : 'Reply to an email') : 'Send a message';
-  if (tool === 'reply') return email ? 'Reply to an email' : 'Reply to a message';
-  return TITLES[tool] ?? humanize(tool);
-}
-
-function emailFields(tool: string, target: Target | null, input: Record<string, unknown> | null): CardField[] {
-  if (tool !== 'send' || target === null || !EMAIL.has(target.station) || !target.resource.includes('@')) return [];
-  const said = str(input?.text);
-  const subject = str(input?.subject).trim() || (said.split('\n')[0] ?? '').trim().slice(0, SUBJECT_MAX);
-  return [{ label: 'To', value: target.resource }, ...(subject === '' ? [] : [{ label: 'Subject', value: subject }])];
-}
+const metroTitle = (tool: string): string => TITLES[tool] ?? humanize(tool);
 
 function bodyOf(tool: string, input: Record<string, unknown> | null): string | null {
   const said = tool === 'react' || tool === 'unreact' ? str(input?.emoji) : str(input?.text);
@@ -150,8 +137,7 @@ function bodyOf(tool: string, input: Record<string, unknown> | null): string | n
 
 function metroCard(approval: Approval, input: Record<string, unknown> | null): CardSummary {
   const target = targetOf(input);
-  const title = metroTitle(approval.tool, target);
-  const email = emailFields(approval.tool, target, input);
+  const title = metroTitle(approval.tool);
   const messaging = ['send', 'reply', 'react', 'unreact', 'edit', 'delete', 'typing'].includes(approval.tool);
   return {
     station: target?.station ?? null,
@@ -159,7 +145,7 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): C
     connector: null,
     title,
     ask: lowerFirst(title),
-    fields: email.length > 0 || messaging ? email : argFields(input),
+    fields: messaging ? [] : argFields(input),
     body: bodyOf(approval.tool, input),
     ...filesOf(input, approval.fileBytes),
   };
