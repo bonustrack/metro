@@ -36,6 +36,20 @@ async function startOAuth(name = 'Linear'): Promise<Started> {
   return { id: body.connector.id, authorizeUrl: body.authorizeUrl };
 }
 
+async function addConnected(name = 'Linear', code = 'first-code'): Promise<Started> {
+  const started = await startOAuth(name);
+  expect((await post('/api/connectors/complete', { handoff: await handoffFor(started, code) })).status).toBe(200);
+  return started;
+}
+
+async function signInAgain(id: string): Promise<Started> {
+  const res = await post(`/api/connectors/${id}/sign-in`, { returnTo: RETURN_TO });
+  expect(res.status).toBe(200);
+  return { id, authorizeUrl: ((await res.json()) as { authorizeUrl: string }).authorizeUrl };
+}
+
+const savedIds = async (): Promise<string[]> => (await held.db.select().from(connectors)).map((row) => row.id);
+
 async function handoffFor(started: Started, code = 'code-1'): Promise<string> {
   const { state, challenge } = challengeOf(started.authorizeUrl);
   vendor.challenges.set(code, challenge);
@@ -74,9 +88,69 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(url.searchParams.get('redirect_uri')).toBe(CALLBACK);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(challengeOf(started.authorizeUrl)).toMatchObject({ clientId: `client-${String(vendor.registrations)}`, resource: `${vendor.base}/oauth` });
-    const row = (await held.db.select().from(connectors).where(eq(connectors.id, started.id)))[0];
-    expect(row?.auth).toBe('oauth');
-    expect(row?.secret).not.toContain('client-1');
+  });
+
+  test('a new connector is saved only once its first sign-in completes, so an abandoned one leaves nothing', async () => {
+    const started = await startOAuth();
+    expect(await savedIds()).toEqual([]);
+    const list = async (): Promise<{ id: string; signIn: string }[]> => ((await (await fetch(`${api.base}/api/connectors`, { headers: { authorization: await auth(TEST_OWNER) } })).json()) as { connectors: { id: string; signIn: string }[] }).connectors;
+    expect(await list()).toEqual([]);
+    expect((await fetch(`${api.base}/api/connectors/${started.id}`, { headers: { authorization: await auth(TEST_OWNER) } })).status).toBe(404);
+    expect((await post(`/api/connectors/${started.id}/sign-in`, { returnTo: RETURN_TO })).status).toBe(404);
+    const assign = await fetch(`${api.base}/api/connectors/${started.id}/agents/agent000001`, { method: 'PUT', headers: { authorization: await auth(TEST_OWNER), 'content-type': 'application/json' }, body: '{}' });
+    expect(assign.status).toBe(404);
+    expect((await post('/api/connectors/complete', { handoff: await handoffFor(started) })).status).toBe(200);
+    expect(await list()).toEqual([expect.objectContaining({ id: started.id, signIn: 'connected' })]);
+    const abandoned = await startOAuth('Abandoned');
+    now += 11 * 60_000;
+    expect((await back(`state=${challengeOf(abandoned.authorizeUrl).state}&code=late`)).status).toBe(400);
+    expect(await savedIds()).toEqual([started.id]);
+  });
+
+  test('a declined or refused first sign-in saves nothing, and the limit is checked again when it completes', async () => {
+    const declined = await startOAuth();
+    const res = await back(`state=${challengeOf(declined.authorizeUrl).state}&error=access_denied`);
+    expect(new URLSearchParams(new URL(res.headers.get('location') ?? '').hash.split('?')[1]).get('org_connector_error')).toBe('The sign-in was declined, so nothing changed.');
+    const refused = await startOAuth();
+    vendor.challenges.set('refused-code', 'not-the-challenge');
+    const handoff = new URLSearchParams(new URL((await back(`state=${challengeOf(refused.authorizeUrl).state}&code=refused-code`)).headers.get('location') ?? '').hash.split('?')[1]).get('org_connector') ?? '';
+    expect((await post('/api/connectors/complete', { handoff })).status).toBe(400);
+    expect(await savedIds()).toEqual([]);
+    const late = await startOAuth();
+    const lateHandoff = await handoffFor(late, 'late-code');
+    const at = '2026-10-11T00:00:00.000Z';
+    await held.db.insert(connectors).values(Array.from({ length: 100 }, (_, i) => ({ id: `conn${String(i).padStart(7, '0')}`, owner: TEST_OWNER, name: `C${String(i)}`, url: 'https://vendor.example.com', auth: 'none', createdBy: 'user_01TEST', createdAt: at, updatedAt: at })));
+    expect((await post('/api/connectors/complete', { handoff: lateHandoff })).status).toBe(400);
+    expect(await savedIds()).not.toContain(late.id);
+  });
+
+  test('a name the admin left to Metro becomes the product and the account the server declares, a typed name never changes', async () => {
+    vendor.account = 'fabien@snapshot.example';
+    vendor.serverTitle = 'gmail-mcp';
+    const startNamed = async (body: Record<string, unknown>): Promise<Started> => {
+      const res = await post('/api/connectors', { name: 'Vendor', url: `${vendor.base}/oauth`, returnTo: RETURN_TO, ...body });
+      const json = (await res.json()) as { connector: { id: string }; authorizeUrl: string };
+      return { id: json.connector.id, authorizeUrl: json.authorizeUrl };
+    };
+    const complete = async (started: Started, code: string): Promise<{ name: string }> =>
+      (await (await post('/api/connectors/complete', { handoff: await handoffFor(started, code) })).json()) as { name: string };
+    try {
+      const auto = await startNamed({ autoName: true });
+      expect(await complete(auto, 'auto-code')).toMatchObject({ name: 'Gmail (fabien@snapshot.example)' });
+      expect((await complete(await startNamed({ name: 'Team inbox' }), 'typed-code')).name).toBe('Team inbox');
+      vendor.account = 'other@snapshot.example';
+      expect((await complete(await signInAgain(auto.id), 'again-code')).name).toBe('Gmail (other@snapshot.example)');
+      const rename = await fetch(`${api.base}/api/connectors/${auto.id}`, { method: 'PUT', headers: { authorization: await auth(TEST_OWNER), 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Mine' }) });
+      expect(rename.status).toBe(200);
+      vendor.account = 'third@snapshot.example';
+      expect((await complete(await signInAgain(auto.id), 'third-code')).name).toBe('Mine');
+      vendor.account = 'PATH_SECRET https://vendor.example.com/oauth';
+      const withheld = await startNamed({ autoName: true });
+      expect((await complete(withheld, 'withheld-code')).name).toBe('Vendor');
+    } finally {
+      vendor.account = null;
+      vendor.serverTitle = null;
+    }
   });
 
   test('the callback hands the page a one-time handoff, and only the admin who started finishes it', async () => {
@@ -100,8 +174,8 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect(openSecret(key, TEST_OWNER, started.id, row.secret)).toMatchObject({ kind: 'oauth', client: { clientId: challengeOf(started.authorizeUrl).clientId }, tokens: { accessToken: ACCESS, refreshToken: REFRESH } });
   });
 
-  test('a declined sign-in goes back to the page with the reason and stores no token', async () => {
-    const started = await startOAuth();
+  test('a declined sign-in again goes back to the page with the reason and keeps the connector and its client', async () => {
+    const started = await signInAgain((await addConnected()).id);
     const res = await back(`state=${challengeOf(started.authorizeUrl).state}&error=access_denied`);
     expect(res.status).toBe(302);
     const location = new URL(res.headers.get('location') ?? '');
@@ -160,7 +234,9 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
   test('a client id the admin typed in is kept at sign-in again', async () => {
     const res = await post('/api/connectors', { name: 'Own app', url: `${vendor.base}/oauth`, clientId: 'admin-app', returnTo: RETURN_TO });
     expect(res.status).toBe(201);
-    const { connector } = (await res.json()) as { connector: { id: string } };
+    const { connector, authorizeUrl } = (await res.json()) as { connector: { id: string }; authorizeUrl: string };
+    const done = await post('/api/connectors/complete', { handoff: await handoffFor({ id: connector.id, authorizeUrl }) });
+    expect(await done.json()).toMatchObject({ id: connector.id, clientId: 'admin-app', signIn: 'connected' });
     const registered = vendor.registrations;
     const again = (await (await post(`/api/connectors/${connector.id}/sign-in`, { returnTo: RETURN_TO })).json()) as { authorizeUrl: string };
     expect(challengeOf(again.authorizeUrl).clientId).toBe('admin-app');
@@ -177,9 +253,10 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
     expect((await post(`/api/connectors/${id}/sign-in`, { returnTo: RETURN_TO })).status).toBe(400);
   });
 
-  test('a code the server refuses leaves the connector signed out', async () => {
-    const started = await startOAuth();
-    const { state } = challengeOf(started.authorizeUrl);
+  test('a code the server refuses at sign-in again leaves the connector signed out', async () => {
+    const started = await signInAgain((await addConnected()).id);
+    await fetch(`${api.base}/api/connectors/${started.id}/sign-in`, { method: 'DELETE', headers: { authorization: await auth(TEST_OWNER) } });
+    const { state } = challengeOf((await signInAgain(started.id)).authorizeUrl);
     vendor.challenges.set('code-2', 'not-the-challenge');
     const res = await back(`state=${state}&code=code-2`);
     const handoff = new URLSearchParams(new URL(res.headers.get('location') ?? '').hash.split('?')[1]).get('org_connector') ?? '';
@@ -195,7 +272,7 @@ describe('signing a connector in with OAuth on api.metro.box', () => {
 describe('only the current sign-in may complete', () => {
   test('deleting the connector or starting another sign-in refuses an old handoff before an exchange', async () => {
     for (const deleted of [false, true]) {
-      const started = await startOAuth(deleted ? 'Delete it' : 'Replace it');
+      const started = await signInAgain((await addConnected(deleted ? 'Delete it' : 'Replace it', `first-${String(deleted)}`)).id);
       const handoff = await handoffFor(started, 'pending-code');
       if (deleted) await fetch(`${api.base}/api/connectors/${started.id}`, { method: 'DELETE', headers: { authorization: await auth(TEST_OWNER) } });
       else await post(`/api/connectors/${started.id}/sign-in`, { returnTo: RETURN_TO });
@@ -206,7 +283,7 @@ describe('only the current sign-in may complete', () => {
   });
 
   test('a stalled older exchange cannot overwrite a newer successful sign-in', async () => {
-    const started = await startOAuth();
+    const started = await signInAgain((await addConnected()).id);
     const oldHandoff = await handoffFor(started, 'old-code');
     const original = api.deps.fetch;
     let release: () => void = () => undefined;

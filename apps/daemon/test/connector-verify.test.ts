@@ -185,7 +185,7 @@ describe('parseConnectorUrl is the security boundary', () => {
 
 describe('verifyRemoteMcp is one initialize, over SSE or plain JSON', () => {
   test('the happy path reports the server name from the SSE answer', async () => {
-    expect(await probe()).toEqual({ server: 'linear' });
+    expect(await probe()).toEqual({ server: 'linear', name: 'linear' });
   });
 
   test('initialize offers both media types and asks for the latest protocol', async () => {
@@ -209,7 +209,7 @@ describe('verifyRemoteMcp is one initialize, over SSE or plain JSON', () => {
 
   test('a stateless server that sends no mcp-session-id verifies the same', async () => {
     reply = sseServer(null);
-    expect(await probe()).toEqual({ server: 'linear' });
+    expect(await probe()).toEqual({ server: 'linear', name: 'linear' });
   });
 
   test('a keepalive comment, a retry directive, an id line and CRLF endings are all skipped', async () => {
@@ -218,7 +218,7 @@ describe('verifyRemoteMcp is one initialize, over SSE or plain JSON', () => {
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       res.end(`: keep-alive\r\n\r\nretry: 3000\r\n\r\nid: 7\r\nevent: message\r\ndata: ${answer}\r\n\r\n`);
     };
-    expect(await probe()).toEqual({ server: 'linear' });
+    expect(await probe()).toEqual({ server: 'linear', name: 'linear' });
   });
 
   test('the auth header rides on the frame', async () => {
@@ -231,9 +231,16 @@ describe('verifyRemoteMcp is one initialize, over SSE or plain JSON', () => {
     reply = (_req, res) => {
       asJson(res, { ...initResult, serverInfo: { name: 'linear', title: 'Linear' } }, 1);
     };
-    expect(await probe()).toEqual({ server: 'Linear' });
+    expect(await probe()).toEqual({ server: 'Linear', title: 'Linear', name: 'linear' });
     reply = jsonServer();
-    expect(await probe()).toEqual({ server: 'linear' });
+    expect(await probe()).toEqual({ server: 'linear', name: 'linear' });
+  });
+
+  test('the account a server declares comes back with its names, and a name with a control character does not', async () => {
+    reply = (_req, res) => {
+      asJson(res, { ...initResult, capabilities: { extensions: { 'box.metro/account': { id: ' fabien@snapshot.example ' } } }, serverInfo: { name: 'gmail-mcp', title: 'Bad\ntitle' } }, 1);
+    };
+    expect(await probe()).toEqual({ server: 'gmail-mcp', name: 'gmail-mcp', account: 'fabien@snapshot.example' });
   });
 
   test('a server with no serverInfo is named after its host', async () => {

@@ -29,9 +29,12 @@ export interface ConnectorDetail {
   signedInAt?: string;
   issuer?: string;
   clientId?: string;
+  named?: string;
 }
 
-const DETAIL_KEYS = ['header', 'server', 'verifiedAt', 'signedInAt', 'issuer', 'clientId'] as const;
+const DETAIL_KEYS = ['header', 'server', 'verifiedAt', 'signedInAt', 'issuer', 'clientId', 'named'] as const;
+
+export const AUTO_NAMED = 'auto';
 
 export function parsedJson(text: string | null): unknown {
   if (text === null) return null;

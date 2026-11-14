@@ -15,7 +15,7 @@ import { Item } from '../ui/Item.js';
 import { Actions } from '../ui/Actions.js';
 import { FocusIntro } from '../ui/FocusFrame.js';
 import { ICON_SIZE } from '../ui/sizes.js';
-import { nameFromAddress } from '../../lib/connector-address.js';
+import { connectorNaming, nameFromAddress } from '../../lib/connector-address.js';
 import { logError } from '../../lib/log.js';
 import { goExternal } from '../../lib/open.js';
 import { refreshOrgConnectors } from '../../lib/org-connector-queries.js';
@@ -93,7 +93,7 @@ function signInPart(mode: Mode, fields: Fields): Omit<NewOrgConnector, 'name' | 
 }
 
 function payload(url: string, mode: Mode, fields: Fields): NewOrgConnector {
-  return { name: fields.name.trim() === '' ? nameFromAddress(url) : fields.name, url, ...signInPart(mode, fields) };
+  return { ...connectorNaming(url, fields.name), url, ...signInPart(mode, fields) };
 }
 
 function useAdd(url: string, onAdded: (added: Added) => void): { busy: boolean; error: string | null; add: (mode: Mode, fields: Fields) => void } {

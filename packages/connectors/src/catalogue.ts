@@ -130,6 +130,11 @@ function publicIdentity(server: RemoteServer, secret: ConnectorSecret): Pick<Con
   };
 }
 
+export function plainAccount(account: string | undefined, secret: ConnectorSecret): string | null {
+  if (account === undefined) return null;
+  return redactionOf(secret).redact(account) === account ? account : null;
+}
+
 export function connectorAuthOf(secret: ConnectorSecret): ConnectorAuth {
   if (secret.kind === 'header') return { kind: 'header', name: secret.name, value: secret.value };
   if (secret.kind === 'oauth') return { kind: 'header', name: 'Authorization', value: `Bearer ${secret.tokens?.accessToken ?? ''}` };

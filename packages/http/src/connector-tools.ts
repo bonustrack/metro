@@ -2,7 +2,7 @@ import type { ConnectorIcon } from '@metro-labs/core/brands';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
-import { authHeaders, INITIALIZE, mcpPost, resultOf, type ConnectorAuth } from './connector-mcp.js';
+import { authHeaders, declaredAccount, INITIALIZE, mcpPost, resultOf, type ConnectorAuth } from './connector-mcp.js';
 import { ConnectorUnauthorized, refused } from './connector-url.js';
 import { declaresEvents, EVENT_NAME_RE, EVENTS_LIST, senderPointersOf, WEBHOOK_DELIVERY, type SenderPointers } from './mcp-events.js';
 
@@ -32,8 +32,6 @@ export interface RemoteServer {
   instructions?: string;
 }
 
-const ACCOUNT_EXTENSION = 'box.metro/account';
-
 const TIMEOUT_MS = 15_000;
 const ICONS_MAX = 4;
 const ICON_URL_MAX = 2048;
@@ -46,7 +44,6 @@ const MAX_EVENTS = 100;
 const EVENTS_ID = 1000;
 const DELIVERY_RE = /^[a-z]{1,16}$/;
 const DELIVERY_MAX = 8;
-const ACCOUNT_RE = /^\P{Cc}{1,320}$/u;
 const INSTRUCTIONS_MAX = 4096;
 
 async function rpc(url: URL, auth: ConnectorAuth, session: Map<string, string>, body: unknown, fetchImpl?: FetchLike, headers: Record<string, string> = {}): Promise<Record<string, unknown> | null> {
@@ -143,14 +140,6 @@ function serverIconsOf(init: Record<string, unknown>): ConnectorIcon[] {
   const info = isRecord(init.serverInfo) ? init.serverInfo : {};
   if (!Array.isArray(info.icons)) return [];
   return info.icons.map(iconOf).filter((icon): icon is ConnectorIcon => icon !== null).slice(0, ICONS_MAX);
-}
-
-function declaredAccount(init: Record<string, unknown>): string | null {
-  const capabilities = isRecord(init.capabilities) ? init.capabilities : {};
-  const extensions = isRecord(capabilities.extensions) ? capabilities.extensions : {};
-  const declared = extensions[ACCOUNT_EXTENSION];
-  const id = isRecord(declared) && typeof declared.id === 'string' ? declared.id.trim() : '';
-  return ACCOUNT_RE.test(id) ? id : null;
 }
 
 function identityOf(init: Record<string, unknown>): Pick<RemoteServer, 'account' | 'instructions'> {
