@@ -158,7 +158,7 @@ function Notes({ refreshError, saveError, editable, total, shown, query }: Notes
 }
 
 export function ToolExplorer(props: ExplorerProps): ReactNode {
-  const tools = useOrgConnectorToolsQuery(props.connector.id);
+  const tools = useOrgConnectorToolsQuery(props.connector);
   if (tools.data === undefined && tools.error !== null)
     return <ErrorState title="Could not list the tools" text={`${queryError(tools.error, 'The service did not answer.')} Saved rules are kept.`} onRetry={tools.refetch} />;
   if (tools.data === undefined) return <RowsSkeleton rows={6} leading={false} />;

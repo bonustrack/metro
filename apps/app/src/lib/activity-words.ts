@@ -1,6 +1,6 @@
 import type { ActivityCall } from '@metro-labs/client/api/connector-activity';
 import { whenLabel } from '@metro-labs/client/api/when';
-import { eventLabel, toolLabel } from './tool-labels.js';
+import { connectorToolLabel, eventLabel } from './tool-labels.js';
 import type { DotTone } from './tone.js';
 
 const SECOND = 1_000;
@@ -43,7 +43,7 @@ export function outcomeWords(outcome: string, kind: ActivityKind = 'call'): Outc
   return known(OUTCOMES, outcome) ?? { word: 'Ended', dot: null };
 }
 
-export const activityLabel = (call: Pick<ActivityCall, 'kind' | 'tool'>): string => (call.kind === 'event' ? eventLabel(call.tool) : toolLabel(call.tool));
+export const activityLabel = (call: Pick<ActivityCall, 'kind' | 'tool' | 'toolTitle'>): string => (call.kind === 'event' ? eventLabel(call.tool) : connectorToolLabel(call.tool, call.toolTitle));
 
 export const timingWords = (call: Pick<ActivityCall, 'kind' | 'ms'>, when: string): string => (call.kind === 'event' ? when : `${durationWords(call.ms)} · ${when}`);
 

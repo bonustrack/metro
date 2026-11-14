@@ -7,7 +7,7 @@ import { connectorPolicyOf, type ConnectorPolicy } from '@metro-labs/http/connec
 import { verifyRemoteMcp } from '@metro-labs/http/connector-mcp';
 import { parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import type { ConnectorEdit, ConnectorRow } from '@metro-labs/connectors/db/connectors';
-import { detailOf, detailText, openConnectorSecret, sealConnectorSecret } from '@metro-labs/connectors/model';
+import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
 import { connectorView, isReadOnly, readOnlyPolicy, simplePolicy, type ConnectorView } from './model.js';
 import { at, eventsOf, viewOf, type ActionDeps, type Caller } from './actions.js';
@@ -40,9 +40,15 @@ function changeOf(body: unknown): Change {
   return { kind: 'key', header: input.header, value: input.value };
 }
 
+function withoutAutoName(text: string | null): ConnectorDetail {
+  const detail = detailOf(text);
+  delete detail.named;
+  return detail;
+}
+
 function simpleEdit(change: Exclude<Change, { kind: 'key' }>): (row: ConnectorRow) => ConnectorEdit {
   return (row) => {
-    if (change.kind === 'name') return { change: row.name === change.name ? {} : { name: change.name } };
+    if (change.kind === 'name') return { change: row.name === change.name ? {} : { name: change.name, detail: detailText(withoutAutoName(row.detail)) } };
     if (change.kind === 'policy') return { change: { policy: JSON.stringify(change.policy) } };
     if (!simplePolicy(row.policy)) throw new ApiError('This connector has a custom policy. A readOnly switch cannot replace it.', 409);
     return { change: isReadOnly(row.policy) === change.readOnly ? {} : { policy: readOnlyPolicy(change.readOnly) } };

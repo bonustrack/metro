@@ -12,6 +12,6 @@ interface ConnectorSummaryProps {
 }
 
 export function ConnectorSummary({ connector, agentId, name, remote }: ConnectorSummaryProps): ReactNode {
-  const tools = useOrgConnectorToolsQuery(connector.id).data;
+  const tools = useOrgConnectorToolsQuery(connector).data;
   return <Summary segments={connectorSummary({ agent: name, agentId, connector, tools: tools ?? null, remote })} />;
 }

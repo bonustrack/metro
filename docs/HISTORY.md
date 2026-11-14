@@ -1,5 +1,18 @@
 # Metro history
 
+## 2026-11-14: What the first live mail connector test found
+
+Less added the Gmail and Outlook servers (`https://mcp.gmail.piston.box/`, `https://mcp.outlook.piston.box/`) as organization connectors on metro.box and used them for a day. Eight things went wrong; one pull request fixed them.
+
+- **"Could not list the tools" right after every sign-in.** Not a server cache: api.metro.box reads the list live. The page that the sign-in tab lands on read the tools while it was still finishing the sign-in, got "Sign in to this connector again", and the tools query (`retry: false`, `refetchOnMount: false`) kept that answer until Retry or a reload. The page now waits on a skeleton until the sign-in and the connector list are fresh, and the query is keyed by the connector's last sign-in.
+- **A connector existed before its sign-in.** Clicking Sign in saved a signed-out row, so an abandoned sign-in stayed in the list. A draft row (hidden from the list, the assignments and mcp.metro.box, deleted after a while) would have needed a migration and a filter in every read of two services. Since the sign-in state already lives in memory on api.metro.box for its 10 minutes, the new connector waits there and the row is written when the sign-in completes: nothing to hide, nothing to clean up.
+- **"Piston".** The name guess took the last label before the domain end. It now prefers a known brand, then the label under `mcp.` on a shared domain, and moved to core so the api uses the same guess.
+- **Names by account.** A name the admin left to Metro becomes `<Product> (<account>)` from the server's own name and its declared `box.metro/account`, at every sign-in, until an admin renames it. A typed name, and every connector from before, is never renamed: Metro cannot know who chose an old name.
+- **`$schema` read "[address withheld]"** in `tool_search`: the redaction of addresses in tool schemas did not spare the JSON Schema dialect. Only exact `json-schema.org` draft addresses are kept.
+- **"Read past messages"** for a connector's `read`: the activity rows used the channel tool labels. api.metro.box now adds the tool's own title from the cached list.
+- **`yes <id>` in a Stage group.** The agent told the owner to answer there; an answer counts only in the chat the question was posted in (his private chat). Metro now says so in that chat, and the agent's instructions say where the question is and never to ask for `yes <id>` in another chat. The message still reaches the agent, so it sees what the owner tried.
+- **Every agent Offline from a Mac on the tailnet.** Not Metro's code: on a tailnet device MagicDNS answers a box's `ts.net` name with its `100.x` address, and since Chrome 142 a public page needs the Local network access permission to reach such an address (Tailscale's range counts as local). The daemon's `Access-Control-Allow-Private-Network` answers belong to the older Private Network Access preflights, which this permission replaced. The Offline page now says when the browser reports the permission as blocked, and the README says how to allow it.
+
 ## 2026-11-14: The Gmail and Outlook channels are removed
 
 Gmail and Outlook reach agents as organization connectors since #419 and #420 (`https://mcp.gmail.piston.box/`, `https://mcp.outlook.piston.box/`, code in `stagelabs/mcps`, new mail as `email.received` connector events). They were tested live, Less removed every Gmail and Outlook channel from his agents and asked for the stations to leave the codebase. This replaces draft #417, which was built before #419 and #420.

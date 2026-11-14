@@ -6,7 +6,8 @@ import { openConnectorSecret, type ConnectorSecret } from '@metro-labs/connector
 import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import { orgConnectorStore, type ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { OwnerTickets } from '../src/agents/tickets.js';
-import { completeSignIn, type ActionDeps } from '../src/connectors/actions.js';
+import type { ActionDeps } from '../src/connectors/actions.js';
+import { completeSignIn } from '../src/connectors/complete.js';
 import type { Handoff, SignInState } from '../src/connectors/sign-in.js';
 import type { Database } from '../src/db/client.js';
 import { connectors } from '../src/db/schema.js';

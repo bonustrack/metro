@@ -33,13 +33,19 @@ describe('a connector call in words', () => {
   });
 
   test('a row names a tool or an event in words, and an event shows no duration', () => {
-    expect(activityLabel({ kind: 'call', tool: 'create_issue' })).toBe('Create issue');
-    expect(activityLabel({ kind: 'call', tool: 'send' })).toBe('Send messages');
-    expect(activityLabel({ kind: 'event', tool: 'item.created' })).toBe('Item created');
-    expect(activityLabel({ kind: 'event', tool: 'team/item:status_changed' })).toBe('Team item status changed');
-    expect(activityLabel({ kind: 'event', tool: 'send' })).toBe('Send');
+    expect(activityLabel({ kind: 'call', tool: 'create_issue', toolTitle: null })).toBe('Create issue');
+    expect(activityLabel({ kind: 'event', tool: 'item.created', toolTitle: null })).toBe('Item created');
+    expect(activityLabel({ kind: 'event', tool: 'team/item:status_changed', toolTitle: null })).toBe('Team item status changed');
+    expect(activityLabel({ kind: 'event', tool: 'send', toolTitle: null })).toBe('Send');
     expect(timingWords({ kind: 'call', ms: 1_234 }, '5 min ago')).toBe('1.2 s · 5 min ago');
     expect(timingWords({ kind: 'event', ms: 0 }, '5 min ago')).toBe('5 min ago');
+  });
+
+  test('a connector tool reads as its own title, else its name in words, never as the channel tool of the same name', () => {
+    expect(activityLabel({ kind: 'call', tool: 'read', toolTitle: 'Read mail' })).toBe('Read mail');
+    expect(activityLabel({ kind: 'call', tool: 'read', toolTitle: null })).toBe('Read');
+    expect(activityLabel({ kind: 'call', tool: 'send', toolTitle: null })).toBe('Send');
+    expect(activityLabel({ kind: 'call', tool: 'list_members', toolTitle: null })).toBe('List members');
   });
 
   test('a duration reads in ms, seconds or minutes', () => {

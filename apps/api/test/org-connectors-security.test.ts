@@ -46,6 +46,15 @@ async function handoff(authorizeUrl: string): Promise<string> {
   return new URLSearchParams(new URL(response.headers.get('location') ?? '').hash.split('?')[1]).get('org_connector') ?? '';
 }
 
+async function startedAgain(): Promise<{ connector: { id: string }; authorizeUrl: string }> {
+  const first = await started();
+  expect((await post('/api/connectors/complete', { handoff: await handoff(first.authorizeUrl) })).status).toBe(200);
+  expect((await fetch(`${api.base}/api/connectors/${first.connector.id}/sign-in`, { method: 'DELETE', headers: { authorization: await auth(TEST_OWNER) } })).status).toBe(200);
+  const again = await post(`/api/connectors/${first.connector.id}/sign-in`, { returnTo: RETURN_TO });
+  expect(again.status).toBe(200);
+  return { connector: first.connector, authorizeUrl: ((await again.json()) as { authorizeUrl: string }).authorizeUrl };
+}
+
 async function changeSecret(id: string, edit: (secret: Extract<ConnectorSecret, { kind: 'oauth' }>) => ConnectorSecret): Promise<void> {
   const row = (await held.db.select().from(connectors).where(eq(connectors.id, id)))[0];
   const key = api.deps.key();
@@ -214,23 +223,27 @@ describe('private inputs and provider errors never return to the page', () => {
   });
 
   test.each(['/token', PRIVATE_PATH])('redirects during %s are not followed or reflected', async (path) => {
-    const created = await started();
-    const ticket = await handoff(created.authorizeUrl);
-    vendor.replies.set(path, { status: 302, body: { error_description: TARGET }, headers: { location: `https://PRIVATE_USER:PRIVATE_PASSWORD@10.0.0.1/${PRIVATE_PATH}?key=PRIVATE_QUERY` } });
-    const response = await post('/api/connectors/complete', { handoff: ticket });
-    expect(response.status).toBe(400);
-    redacted(await response.text());
-    expect(vendor.requests.every((request) => new URL(request.url).origin === BASE)).toBe(true);
-    const shown = await fetch(`${api.base}/api/connectors/${created.connector.id}`, { headers: { authorization: await auth(TEST_OWNER) } });
-    const text = await shown.text();
-    expect(JSON.parse(text)).toMatchObject({ signIn: 'disconnected' });
-    redacted(text);
+    for (const fresh of [true, false]) {
+      vendor.replies.clear();
+      const created = fresh ? await started() : await startedAgain();
+      const ticket = await handoff(created.authorizeUrl);
+      vendor.replies.set(path, { status: 302, body: { error_description: TARGET }, headers: { location: `https://PRIVATE_USER:PRIVATE_PASSWORD@10.0.0.1/${PRIVATE_PATH}?key=PRIVATE_QUERY` } });
+      const response = await post('/api/connectors/complete', { handoff: ticket });
+      expect(response.status).toBe(400);
+      redacted(await response.text());
+      expect(vendor.requests.every((request) => new URL(request.url).origin === BASE)).toBe(true);
+      const shown = await fetch(`${api.base}/api/connectors/${created.connector.id}`, { headers: { authorization: await auth(TEST_OWNER) } });
+      const text = await shown.text();
+      if (fresh) expect(shown.status).toBe(404);
+      else expect(JSON.parse(text)).toMatchObject({ signIn: 'disconnected' });
+      redacted(text);
+    }
   });
 });
 
 describe('a pending sign-in is bound to its prepared configuration', () => {
   test.each(['transport', 'client', 'server', 'audience', 'audience removal'])('%s changed before code exchange refuses the handoff without issuing tokens', async (field) => {
-    const created = await started();
+    const created = await startedAgain();
     const ticket = await handoff(created.authorizeUrl);
     await changeSecret(created.connector.id, (secret) => ({
       ...secret,
@@ -249,7 +262,7 @@ describe('a pending sign-in is bound to its prepared configuration', () => {
   });
 
   test('configuration changed during code exchange cannot be overwritten by completed tokens', async () => {
-    const created = await started();
+    const created = await startedAgain();
     const ticket = await handoff(created.authorizeUrl);
     api.deps.fetch = async (url, init) => {
       const response = await vendor.fetch(url, init);
@@ -268,7 +281,7 @@ describe('a pending sign-in is bound to its prepared configuration', () => {
   });
 
   test('changing a held public audience is refused before replacing a valid pending sign-in', async () => {
-    const created = await started();
+    const created = await startedAgain();
     const before = (await held.db.select().from(connectors))[0]?.authGeneration;
     const response = await post(`/api/connectors/${created.connector.id}/sign-in`, { returnTo: RETURN_TO, oauthResource: `${BASE}/` });
     expect(response.status).toBe(409);

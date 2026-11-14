@@ -47,6 +47,7 @@ export interface NewOrgConnector {
   clientId: string;
   clientSecret: string;
   oauthResource?: string;
+  autoName?: boolean;
 }
 
 interface CopyOrgConnectorInput {
@@ -131,10 +132,11 @@ export async function fetchOrgConnectorTools(id: string, signal?: AbortSignal): 
   return connectorToolsOf(await orgCall({ method: 'GET', base: base(), path: `/${id}/tools`, signal }));
 }
 
-function addPayload(input: NewOrgConnector): Record<string, string> {
-  const out: Record<string, string> = { name: input.name.trim(), url: input.url.trim(), returnTo: signInReturnUrl() };
+function addPayload(input: NewOrgConnector): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = { name: input.name.trim(), url: input.url.trim(), returnTo: signInReturnUrl() };
   for (const key of ['header', 'value', 'clientId', 'clientSecret'] as const) if (input[key].trim() !== '') out[key] = input[key].trim();
   if (input.oauthResource?.trim()) out.oauthResource = input.oauthResource.trim();
+  if (input.autoName === true) out.autoName = true;
   return out;
 }
 
@@ -214,6 +216,8 @@ export function readOrgConnectorReturn(search: string, hash = ''): { result: Org
   const query = rest === '' ? '' : `?${rest}`;
   return fromHash ? { result, search, hash: `${hash.slice(0, cut)}${query}` } : { result, search: query, hash };
 }
+
+export const orgConnectorReturnWaiting = (): boolean => readOrgConnectorReturn(location().search(), location().hash()).result !== null;
 
 export function takeOrgConnectorReturn(): OrgConnectorReturn | null {
   const back = readOrgConnectorReturn(location().search(), location().hash());

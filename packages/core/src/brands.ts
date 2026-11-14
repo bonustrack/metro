@@ -57,6 +57,42 @@ const BY_DOMAIN: Record<string, string> = {
   'zapier.com': 'zapier',
 };
 
+const NAMES: Record<string, string> = {
+  gemini: 'Gemini',
+  aws: 'AWS',
+  'gmail-0a242131': 'Gmail',
+  googledrive: 'Google Drive',
+  xmtp: 'XMTP',
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  discord: 'Discord',
+  threema: 'Threema',
+  outlook: 'Outlook',
+  microsoft: 'Microsoft',
+  sharepoint: 'SharePoint',
+  linear: 'Linear',
+  notion: 'Notion',
+  claude: 'Claude',
+  slack: 'Slack',
+  github: 'GitHub',
+  openrouter: 'OpenRouter',
+  routeway: 'Routeway',
+  openai: 'OpenAI',
+  mistral: 'Mistral',
+  qwen: 'Qwen',
+  grok: 'Grok',
+  atlassian: 'Atlassian',
+  hubspot: 'HubSpot',
+  stripe: 'Stripe',
+  sentry: 'Sentry',
+  asana: 'Asana',
+  intercom: 'Intercom',
+  cloudflare: 'Cloudflare',
+  figma: 'Figma',
+  box: 'Box',
+  zapier: 'Zapier',
+};
+
 const WITH_DARK = new Set(['github', 'openrouter', 'aws', 'openai', 'grok']);
 const RASTER = new Set(['routeway']);
 
@@ -65,15 +101,24 @@ function logoOf(slug: string): BrandLogo {
   return WITH_DARK.has(slug) ? { light, dark: `/brands/${slug}-dark.svg` } : { light };
 }
 
-export function brandLogo(url: string): BrandLogo | null {
+function brandSlug(url: string): string | undefined {
   let host: string;
   try {
     host = new URL(url).hostname.toLowerCase();
   } catch {
-    return null;
+    return undefined;
   }
-  const slug = BY_HOST[host] ?? BY_DOMAIN[baseDomain(host)];
+  return BY_HOST[host] ?? BY_DOMAIN[baseDomain(host)];
+}
+
+export function brandLogo(url: string): BrandLogo | null {
+  const slug = brandSlug(url);
   return slug === undefined ? null : logoOf(slug);
+}
+
+export function brandName(url: string): string | null {
+  const slug = brandSlug(url);
+  return slug === undefined ? null : (NAMES[slug] ?? null);
 }
 
 export function brandSrc(url: string, dark: boolean): string | null {

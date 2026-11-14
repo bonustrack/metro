@@ -28,6 +28,21 @@ export type ConnectorAuth =
 
 export interface VerifiedServer {
   server: string;
+  title?: string;
+  name?: string;
+  account?: string;
+}
+
+const ACCOUNT_EXTENSION = 'box.metro/account';
+const ACCOUNT_RE = /^\P{Cc}{1,320}$/u;
+const INFO_MAX = 200;
+
+export function declaredAccount(init: Record<string, unknown>): string | null {
+  const capabilities = isRecord(init.capabilities) ? init.capabilities : {};
+  const extensions = isRecord(capabilities.extensions) ? capabilities.extensions : {};
+  const declared = extensions[ACCOUNT_EXTENSION];
+  const id = isRecord(declared) && typeof declared.id === 'string' ? declared.id.trim() : '';
+  return ACCOUNT_RE.test(id) ? id : null;
 }
 
 const PROBE_TIMEOUT_MS = 10_000;
@@ -81,13 +96,24 @@ export async function mcpPost(
   }
 }
 
-function serverNameOf(url: URL, text: string, contentType: string): string {
+const infoText = (value: unknown): string | undefined => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text === '' || !ACCOUNT_RE.test(text) ? undefined : text.slice(0, INFO_MAX);
+};
+
+function verifiedOf(url: URL, text: string, contentType: string): VerifiedServer {
   const result = resultOf(text, contentType);
   if (result === null || typeof result.protocolVersion !== 'string') throw refused(`${url.hostname} answered, but it does not speak MCP.`);
   const info = isRecord(result.serverInfo) ? result.serverInfo : {};
-  const title = typeof info.title === 'string' ? info.title : '';
-  if (title !== '') return title;
-  return typeof info.name === 'string' ? info.name : url.hostname;
+  const title = infoText(info.title);
+  const name = infoText(info.name);
+  const account = declaredAccount(result);
+  return {
+    server: title ?? name ?? url.hostname,
+    ...(title === undefined ? {} : { title }),
+    ...(name === undefined ? {} : { name }),
+    ...(account === null ? {} : { account }),
+  };
 }
 
 function refuseStatus(res: Response, url: URL, auth: ConnectorAuth): void {
@@ -103,5 +129,5 @@ export async function verifyRemoteMcp(url: URL, auth: ConnectorAuth, fetchImpl: 
   const res = await mcpPost(url, auth, INITIALIZE, { timeoutMs: PROBE_TIMEOUT_MS, fetch: fetchImpl });
   const text = await res.text().catch(() => '');
   refuseStatus(res, url, auth);
-  return { server: serverNameOf(url, text, res.headers.get('content-type') ?? '') };
+  return verifiedOf(url, text, res.headers.get('content-type') ?? '');
 }

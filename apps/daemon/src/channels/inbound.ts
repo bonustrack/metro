@@ -10,6 +10,7 @@ import { buildWebhookNote } from './webhook-note.js';
 import { isMetroNotice } from './notice.js';
 import { connectorEventMeta, isConnectorEvent } from './connector-event.js';
 import { replyMeta } from './addressed.js';
+import { LineNames } from './line-names.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
   capSize,
@@ -58,6 +59,7 @@ export class InboundRelay {
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
   private readonly sentIds = new Set<string>();
+  readonly lineNames = new LineNames();
   private lastLine: string | undefined;
 
   constructor(deps: InboundDeps) {
@@ -313,12 +315,7 @@ export class InboundRelay {
     if (this.droppedSender(ev, from, line)) return null;
     const text = str(ev.text);
     if (!replay && this.isDuplicate(station, line, evType, str(ev.messageId))) {
-      this.deps.log(
-        'drop: duplicate (per-account) event',
-        evType,
-        station,
-        str(ev.messageId),
-      );
+      this.deps.log('drop: duplicate (per-account) event', evType, station, str(ev.messageId));
       return null;
     }
     return { evType, station, from, line, text };
@@ -367,6 +364,7 @@ export class InboundRelay {
     const base = this.routable(ev, replay);
     if (!base) return;
     this.noteLine(base, ev.isPrivate === true);
+    this.lineNames.note(base.line, str(ev.lineName));
 
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;

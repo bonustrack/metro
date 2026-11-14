@@ -10,6 +10,7 @@
     "./is-record": "./src/is-record.ts",
     "./favicon": "./src/favicon.ts",
     "./brands": "./src/brands.ts",
+    "./connector-name": "./src/connector-name.ts",
     "./runner-activity": "./src/runner-activity.ts",
     "./automation-store": "./src/automation-store.ts",
     "./automation-types": "./src/automation-types.ts",

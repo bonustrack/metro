@@ -1,8 +1,8 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Column } from '@stage-labs/kit/react-native/column';
 import { Text } from '@stage-labs/kit/react-native/text';
-import { completeOrgConnectorSignIn, setOrgConnectorPolicy, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
+import { completeOrgConnectorSignIn, orgConnectorReturnWaiting, setOrgConnectorPolicy, takeOrgConnectorReturn, type OrgConnector } from '@metro-labs/client/api/org-connectors';
 import type { ToolPolicy } from '@metro-labs/client/api/policy';
 import { isRemote, serverLabel } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
@@ -25,7 +25,7 @@ import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { StateBlock } from './ui/StateBlock.js';
 import { AVATAR_SIZE } from './ui/sizes.js';
 import { useAgentRows } from '../lib/agent-rows.js';
-import { takeInitialOrgConnectorReturn } from '../lib/location.js';
+import { initialOrgConnectorReturnWaiting, takeInitialOrgConnectorReturn } from '../lib/location.js';
 import { logError } from '../lib/log.js';
 import { go } from '../lib/nav.js';
 import { refreshOrgConnectors, useConnectorScope, useOrgConnectorsQuery } from '../lib/org-connector-queries.js';
@@ -38,20 +38,27 @@ interface Outcome {
   error: string | null;
 }
 
-function useSignInReturn(onDone: () => void): Outcome {
-  const [outcome, setOutcome] = useState<Outcome>({ busy: false, note: null, error: null });
+const returnWaiting = (): boolean => initialOrgConnectorReturnWaiting() || orgConnectorReturnWaiting();
+
+function useSignInReturn(onDone: () => Promise<void>): Outcome {
+  const [outcome, setOutcome] = useState<Outcome>(() => ({ busy: returnWaiting(), note: null, error: null }));
+  const taken = useRef(false);
   useEffect(() => {
     const back = takeInitialOrgConnectorReturn() ?? takeOrgConnectorReturn();
-    if (back === null) return;
+    if (back === null) {
+      if (!taken.current) setOutcome((now) => (now.busy ? { ...now, busy: false } : now));
+      return;
+    }
+    taken.current = true;
     if (back.kind === 'error') {
       setOutcome({ busy: false, note: null, error: back.error });
       return;
     }
     setOutcome({ busy: true, note: null, error: null });
     completeOrgConnectorSignIn(back.handoff)
-      .then(() => {
+      .then(async () => {
+        await onDone().catch(logError('org-connector'));
         setOutcome({ busy: false, note: 'Signed in. Agents use the new sign-in from now on.', error: null });
-        onDone();
       })
       .catch((err: unknown) => {
         setOutcome({ busy: false, note: null, error: queryError(err, 'The sign-in did not finish.') });
@@ -60,10 +67,18 @@ function useSignInReturn(onDone: () => void): Outcome {
   return outcome;
 }
 
+function Finishing(): ReactNode {
+  return (
+    <Groups>
+      <Text size="md" color="secondary">Finishing the sign-in…</Text>
+      <RowsSkeleton rows={6} />
+    </Groups>
+  );
+}
+
 function Notes({ outcome }: { outcome: Outcome }): ReactNode {
   return (
     <>
-      {outcome.busy ? <Text size="md" color="secondary">Finishing the sign-in…</Text> : null}
       {outcome.note === null ? null : <Text size="md" color="secondary">{outcome.note}</Text>}
       {outcome.error === null ? null : <Text size="md" color="danger">{outcome.error}</Text>}
     </>
@@ -88,7 +103,7 @@ function OrganizationTools({ connector, admin }: { connector: OrgConnector; admi
   return <ToolExplorer connector={connector} scope={{ policy: connector.policy }} editable={admin} save={save} agents={agents} />;
 }
 
-function TabbedPage({ connector, admin, tab, outcome }: { connector: OrgConnector; admin: boolean; tab: ConnectorTabId; outcome: Outcome }): ReactNode {
+function TabbedPage({ connector, admin, tab = 'tools', outcome }: { connector: OrgConnector; admin: boolean; tab: ConnectorTabId | undefined; outcome: Outcome }): ReactNode {
   const adding = useAddAgent(connector);
   const add = admin ? <RoundButton label="Add an agent" icon="plus" onPress={adding.open} /> : undefined;
   return (
@@ -132,20 +147,24 @@ interface PageProps {
   agent?: string;
 }
 
+function Missing({ error }: { error: string | null }): ReactNode {
+  if (error !== null) return <StateBlock icon="plug" title="The connector was not added" text={error} action={{ label: 'Add it again', onPress: () => { go({ kind: 'org-connector-new' }); } }} />;
+  return <StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: 'Back to Connectors', onPress: () => { go({ kind: 'org-connectors' }); } }} />;
+}
+
 function Body({ id, tab, agent }: PageProps): ReactNode {
   const client = useQueryClient();
   const { data, error, refetch } = useOrgConnectorsQuery();
-  const reload = useCallback(() => {
-    refreshOrgConnectors(client).catch(logError('org-connector'));
-  }, [client]);
+  const reload = useCallback(() => refreshOrgConnectors(client), [client]);
   const outcome = useSignInReturn(reload);
   const connector = data?.connectors.find((c) => c.id === id);
   useDocumentTitle(connector?.name ?? 'Connector');
   if (data === undefined && error !== null) return <ErrorState title="Could not load this connector" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />;
+  if (outcome.busy) return <Finishing />;
   if (data === undefined) return <RowsSkeleton rows={6} />;
-  if (connector === undefined) return <StateBlock icon="plug" title="This connector is gone" text="It is not in this organization any more." action={{ label: 'Back to Connectors', onPress: () => { go({ kind: 'org-connectors' }); } }} />;
+  if (connector === undefined) return <Missing error={outcome.error} />;
   if (agent !== undefined) return <AgentPage connector={connector} agentId={agent} admin={data.admin} />;
-  return <TabbedPage connector={connector} admin={data.admin} tab={tab ?? 'tools'} outcome={outcome} />;
+  return <TabbedPage connector={connector} admin={data.admin} tab={tab} outcome={outcome} />;
 }
 
 export function OrgConnectorPage(props: PageProps): ReactNode {

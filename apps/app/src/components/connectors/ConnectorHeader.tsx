@@ -28,7 +28,7 @@ const TABS: { value: ConnectorTabId; label: string }[] = [
 
 function Subtitle({ connector }: { connector: OrgConnector }): ReactNode {
   const technical = useTechnicalDetails();
-  const tools = useOrgConnectorToolsQuery(connector.id).data;
+  const tools = useOrgConnectorToolsQuery(connector).data;
   const status = orgConnectorStatus(connector);
   const tone = status.bad ? 'danger' : connector.auth === 'oauth' ? 'success' : 'secondary';
   const rest = [tools === undefined ? null : `${String(tools.length)} ${tools.length === 1 ? 'tool' : 'tools'}`, technical ? connectorHost(connector.url) : null].filter((part) => part !== null);

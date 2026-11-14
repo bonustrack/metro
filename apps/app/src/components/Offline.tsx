@@ -16,6 +16,8 @@ import { shortVersion } from '../lib/agent-line.js';
 import { useLatestUsageQuery, useServerStatus, useServersQuery } from '../lib/queries.js';
 import { useTechnicalDetails } from '../lib/technical.js';
 import { useBootingState } from '../lib/use-launch.js';
+import { LOCAL_NETWORK_BLOCKED } from '../lib/local-network-state.js';
+import { useLocalNetworkBlocked } from '../lib/local-network.js';
 import { go } from '../lib/nav.js';
 
 const OFFLINE_PAGES: Selection['kind'][] = ['agent-settings', 'settings', 'launch-log'];
@@ -45,12 +47,13 @@ function Checks({ checks }: { checks: Check[] }): ReactNode {
   );
 }
 
-function useChecks(server: BoxServer | undefined): Check[] {
+function useChecks(server: BoxServer | undefined, blocked: boolean): Check[] {
   const servers = useServersQuery();
   const usage = useLatestUsageQuery().data?.[server?.id ?? ''];
   const runs = usage === undefined || usage.cpu === null ? [] : [{ label: 'The server runs', ok: true }];
   const reach = servers.isSuccess ? [{ label: 'Your connection works', ok: true }] : [];
-  return [...runs, { label: 'Metro does not answer', ok: false }, ...reach];
+  const browser = blocked ? [{ label: 'This browser blocks local network access', ok: false }] : [];
+  return [...runs, { label: 'Metro does not answer', ok: false }, ...reach, ...browser];
 }
 
 function GettingReady({ server, state }: { server: BoxServer; state: string }): ReactNode {
@@ -74,11 +77,13 @@ function ServerSections({ server }: { server: BoxServer }): ReactNode {
 
 function OfflineState({ server, name, onRetry }: { server: BoxServer | undefined; name: string; onRetry: () => void }): ReactNode {
   const technical = useTechnicalDetails();
-  const checks = useChecks(server);
+  const blocked = useLocalNetworkBlocked();
+  const checks = useChecks(server, blocked);
   const host = currentServer()?.host;
+  const answer = technical && host !== undefined ? `Metro does not answer at ${host}.` : 'Metro does not answer.';
   return (
     <Column gap={40}>
-      <StateBlock icon="server" danger title={`${name} is offline`} text={technical && host !== undefined ? `Metro does not answer at ${host}.` : 'Metro does not answer.'}
+      <StateBlock icon="server" danger title={`${name} is offline`} text={blocked ? `${answer} ${LOCAL_NETWORK_BLOCKED}` : answer}
         action={{ label: 'Try again', primary: true, onPress: onRetry }}>
         <Checks checks={checks} />
       </StateBlock>

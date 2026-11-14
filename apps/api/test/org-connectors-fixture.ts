@@ -35,6 +35,7 @@ export interface Vendor {
   openPaths: Set<string>;
   keyedPaths: Set<string>;
   serverTitle: string | null;
+  account: string | null;
   challenges: Map<string, string>;
   tokenForms: URLSearchParams[];
   tokenCalls: number;
@@ -68,8 +69,9 @@ const json = (res: ServerResponse, status: number, body: unknown, headers: Recor
   res.writeHead(status, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(body));
 };
 
-const initialized = (res: ServerResponse, name: string): void => {
-  json(res, 200, { jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities: {}, serverInfo: { name } } });
+const initialized = (res: ServerResponse, name: string, account: string | null = null): void => {
+  const capabilities = account === null ? {} : { extensions: { 'box.metro/account': { id: account } } };
+  json(res, 200, { jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-11-25', capabilities, serverInfo: { name } } });
 };
 
 async function bodyText(req: IncomingMessage): Promise<string> {
@@ -86,10 +88,10 @@ function mcp(vendor: Vendor, req: IncomingMessage, res: ServerResponse, path: st
     else json(res, 401, { error: 'unauthorized' });
   }
   else if (vendor.keyedPaths.has(path)) {
-    if (auth === GOOD_KEY) initialized(res, vendor.serverTitle ?? 'Keyed MCP');
+    if (auth === GOOD_KEY) initialized(res, vendor.serverTitle ?? 'Keyed MCP', vendor.account);
     else json(res, 401, { error: 'unauthorized' });
   } else if (vendor.oauthPaths.has(path)) {
-    if (auth === `Bearer ${ACCESS}`) initialized(res, vendor.serverTitle ?? 'OAuth MCP');
+    if (auth === `Bearer ${ACCESS}`) initialized(res, vendor.serverTitle ?? 'OAuth MCP', vendor.account);
     else json(res, 401, { error: 'unauthorized' });
   } else return false;
   return true;
@@ -129,7 +131,7 @@ export async function startVendor(): Promise<Vendor> {
   const base = 'https://vendor.example.com';
   let local = '';
   const vendor: Vendor = {
-    base, resource: `${base}/oauth`, requests: [], received: [], replies: new Map(), oauthPaths: new Set(['/oauth']), openPaths: new Set(['/open']), keyedPaths: new Set(['/keyed']), serverTitle: null,
+    base, resource: `${base}/oauth`, requests: [], received: [], replies: new Map(), oauthPaths: new Set(['/oauth']), openPaths: new Set(['/open']), keyedPaths: new Set(['/keyed']), serverTitle: null, account: null,
     challenges: new Map(), tokenForms: [], tokenCalls: 0, registrations: 0, close: () => Promise.resolve(),
     fetch: (raw, init) => {
       const url = new URL(raw);

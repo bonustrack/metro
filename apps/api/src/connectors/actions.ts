@@ -3,16 +3,17 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAuth, connectorClient, connectorName } from '@metro-labs/http/connector-input';
-import { verifyRemoteMcp, type ConnectorAuth } from '@metro-labs/http/connector-mcp';
+import { verifyRemoteMcp, type ConnectorAuth, type VerifiedServer } from '@metro-labs/http/connector-mcp';
 import { boundOAuthResource, optionalOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
 import { ConnectorUnauthorized, parseConnectorUrl } from '@metro-labs/http/connector-url';
 import type { Session } from '@metro-labs/http/workos-token';
 import type { ConnectorRow, OrgConnectorStore } from '@metro-labs/connectors/db/connectors';
-import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail } from '@metro-labs/connectors/model';
+import { AUTO_NAMED, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
 import { connectorView, type ConnectorEvents, type ConnectorView } from './model.js';
-import { beginSignIn, currentClient, finishSignIn, prepareSignIn, returnToOf, takeHandoff, type SignInDeps, type SignInState } from './sign-in.js';
+import { accountName } from './naming.js';
+import { beginSignIn, currentClient, prepareSignIn, returnToOf, type SignInDeps } from './sign-in.js';
 
 export const CONNECTORS_MAX = 100;
 const URL_MAX = 2048;
@@ -57,12 +58,14 @@ function newRow(caller: Caller, name: string, url: URL, now: string): ConnectorR
   return { id: newId(), owner: caller.owner, name, url: url.origin, auth: 'none', authGeneration: newId(), policy: null, secret: null, detail: null, createdBy: caller.session.userId, createdAt: now, updatedAt: now };
 }
 
-async function addVerified(deps: ActionDeps, caller: Caller, row: ConnectorRow, auth: ConnectorAuth, server: string, targetUrl: string): Promise<Created> {
-  const detail: ConnectorDetail = { server, verifiedAt: row.createdAt, ...(auth.kind === 'header' ? { header: auth.name } : {}) };
+async function addVerified(deps: ActionDeps, caller: Caller, row: ConnectorRow, auth: ConnectorAuth, verified: VerifiedServer, targetUrl: string, autoName: boolean): Promise<Created> {
+  const detail: ConnectorDetail = { server: verified.server, verifiedAt: row.createdAt, ...(auth.kind === 'header' ? { header: auth.name } : {}), ...(autoName ? { named: AUTO_NAMED } : {}) };
+  const secret: ConnectorSecret = auth.kind === 'header' ? { ...auth, targetUrl } : { kind: 'none', targetUrl };
   const saved: ConnectorRow = {
     ...row,
+    name: (autoName ? accountName(verified, secret) : null) ?? row.name,
     auth: auth.kind,
-    secret: sealConnectorSecret(sealingKey(deps), row, auth.kind === 'header' ? { ...auth, targetUrl } : { kind: 'none', targetUrl }),
+    secret: sealConnectorSecret(sealingKey(deps), row, secret),
     detail: detailText(detail),
   };
   await deps.store.create(saved);
@@ -75,11 +78,11 @@ async function addOAuth(deps: ActionDeps, caller: Caller, row: ConnectorRow, url
   const offered = connectorClient(body.clientId, body.clientSecret);
   const { server, client, resource } = await prepareSignIn(deps, url, offered, body.oauthResource);
   const detail: ConnectorDetail = { issuer: server.issuer, ...(offered === null ? {} : { clientId: offered.clientId }) };
-  const saved: ConnectorRow = { ...row, auth: 'oauth', secret: sealConnectorSecret(sealingKey(deps), row, { kind: 'oauth', targetUrl: url.toString(), client, server, oauthResource: resource }), detail: detailText(detail) };
-  await deps.store.create(saved);
-  const authorizeUrl = beginSignIn(deps, { owner: caller.owner, connector: saved.id, generation: saved.authGeneration ?? '', userId: caller.session.userId, returnTo, targetUrl: url.toString(), resource, configuredResource: resource, server, client });
-  log.info({ owner: caller.owner, id: saved.id, host: url.hostname }, 'org-connectors: connector added, sending the admin to sign in');
-  return { connector: connectorView(saved, []), authorizeUrl };
+  const pending: ConnectorRow = { ...row, auth: 'oauth', detail: detailText(detail) };
+  const create = { name: row.name, url: row.url, autoName: body.autoName === true, ...(offered === null ? {} : { clientId: offered.clientId }) };
+  const authorizeUrl = beginSignIn(deps, { create, owner: caller.owner, connector: row.id, generation: row.authGeneration ?? '', userId: caller.session.userId, returnTo, targetUrl: url.toString(), resource, configuredResource: resource, server, client });
+  log.info({ owner: caller.owner, id: row.id, host: url.hostname }, 'org-connectors: a new connector waits for its first sign-in, nothing is saved before it completes');
+  return { connector: connectorView(pending, []), authorizeUrl };
 }
 
 export async function createConnector(deps: ActionDeps, caller: Caller, body: unknown): Promise<Created> {
@@ -91,13 +94,14 @@ export async function createConnector(deps: ActionDeps, caller: Caller, body: un
   connectorClient(input.clientId, input.clientSecret);
   if ((await deps.store.count(caller.owner)) >= CONNECTORS_MAX) throw new ApiError(`An organization keeps at most ${String(CONNECTORS_MAX)} connectors. Remove one first.`, 400);
   const row = newRow(caller, name, url, at(deps));
+  let verified: VerifiedServer;
   try {
-    await verifyRemoteMcp(url, auth, deps.fetch);
+    verified = await verifyRemoteMcp(url, auth, deps.fetch);
   } catch (err) {
     if (auth.kind === 'none' && err instanceof ConnectorUnauthorized) return addOAuth(deps, caller, row, url, input);
     throw new ApiError('The provider could not verify the HTTP MCP endpoint. Check its endpoint and authentication settings.', 400);
   }
-  return addVerified(deps, caller, row, auth, url.hostname, url.toString());
+  return addVerified(deps, caller, row, auth, { ...verified, server: url.hostname }, url.toString(), input.autoName === true);
 }
 
 export async function startSignIn(deps: ActionDeps, caller: Caller, id: string, body: unknown): Promise<{ authorizeUrl: string }> {
@@ -133,40 +137,6 @@ async function signInResource(deps: ActionDeps, secret: Extract<NonNullable<Retu
   const discovered = await discoverPublicOAuth(secret.targetUrl, requested, deps.fetch);
   if (discovered.server.issuer !== secret.server.issuer || discovered.server.authorizationEndpoint !== secret.server.authorizationEndpoint || discovered.server.tokenEndpoint !== secret.server.tokenEndpoint) throw new ApiError('The provider’s OAuth configuration changed. Prepare the connector again.', 409);
   return discovered.resource;
-}
-
-export async function completeSignIn(deps: ActionDeps, caller: Caller, body: unknown): Promise<ConnectorView> {
-  const key = sealingKey(deps);
-  const entry = takeHandoff(deps, isRecord(body) ? body.handoff : undefined, caller.session);
-  const before = await deps.store.find(caller.owner, entry.connector);
-  checkGeneration(before, entry.generation);
-  checkSignInTarget(key, before, entry);
-  const { tokens, verified } = await finishSignIn(deps, entry);
-  const now = at(deps);
-  await deps.store.edit(caller.owner, entry.connector, now, (row) => {
-    checkGeneration(row, entry.generation);
-    const { imported, ...secret } = checkSignInTarget(key, row, entry);
-    const replaced = entry.storedClient !== undefined;
-    const { clientId, ...kept } = detailOf(row.detail);
-    const detail: ConnectorDetail = { ...kept, ...(clientId === undefined || replaced ? {} : { clientId }), issuer: entry.server.issuer, server: verified.server, verifiedAt: now, signedInAt: now };
-    const owned = imported === undefined || replaced ? {} : { imported: { state: 'owned' as const, tokenEndpointAuthMethod: imported.tokenEndpointAuthMethod, ...(entry.server.scopes.length === 0 ? {} : { scope: entry.server.scopes.join(' ') }) } };
-    return {
-      change: { secret: sealConnectorSecret(key, row, { ...secret, client: entry.client, ...owned, tokens: { ...tokens, resource: entry.resource } }), detail: detailText(detail) },
-    };
-  });
-  log.info({ owner: caller.owner, id: entry.connector }, 'org-connectors: sign-in completed');
-  return viewOf(deps, caller.owner, entry.connector);
-}
-
-function checkGeneration(row: ConnectorRow | null, generation: string): void {
-  if (row === null) throw new ApiError('no such connector', 404);
-  if (row.auth !== 'oauth' || row.authGeneration !== generation) throw new ApiError('A newer sign-in replaced this one. Start again from the connector page.', 409);
-}
-
-function checkSignInTarget(key: Buffer, row: ConnectorRow | null, entry: SignInState): Extract<NonNullable<ReturnType<typeof openConnectorSecret>>, { kind: 'oauth' }> {
-  const secret = row === null ? null : openConnectorSecret(key, row);
-  if (secret?.kind !== 'oauth' || secret.targetUrl !== entry.targetUrl || JSON.stringify(secret.client) !== JSON.stringify(entry.storedClient ?? entry.client) || JSON.stringify(secret.server) !== JSON.stringify(entry.server) || secret.oauthResource !== entry.configuredResource) throw new ApiError('The connector changed. Start sign-in again.', 409);
-  return secret;
 }
 
 async function importedSignIn(deps: ActionDeps, secret: Extract<NonNullable<ReturnType<typeof openConnectorSecret>>, { kind: 'oauth' }>, offered: unknown): Promise<typeof secret> {

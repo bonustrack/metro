@@ -19,6 +19,21 @@ describe('the public tool list', () => {
     expect(JSON.stringify(tool)).not.toMatch(/SECRET/);
   });
 
+  test('a standard JSON Schema dialect in $schema is kept, any other address there is still withheld', () => {
+    const dialects = ['https://json-schema.org/draft/2020-12/schema', 'http://json-schema.org/draft-07/schema#', 'https://json-schema.org/draft/2019-09/schema'];
+    for (const dialect of dialects) {
+      const [tool] = publicTools([{ ...TOOL, inputSchema: { $schema: dialect, type: 'object', properties: { q: { type: 'string', $schema: dialect } } } }], SECRET);
+      expect(tool?.inputSchema).toEqual({ $schema: dialect, type: 'object', properties: { q: { type: 'string', $schema: dialect } } });
+    }
+    const odd = ['https://vendor.example.com/v1/PATH_SECRET/mcp', 'https://json-schema.org/draft/2020-12/schema?k=QUERY_SECRET', 'https://json-schema.org.evil.example/draft-07/schema'];
+    for (const value of odd) {
+      const [tool] = publicTools([{ ...TOOL, inputSchema: { $schema: value, type: 'object' } }], SECRET);
+      expect(JSON.stringify(tool)).not.toMatch(/SECRET|evil/);
+    }
+    const [named] = publicTools([{ ...TOOL, inputSchema: { type: 'object', properties: { link: { type: 'string', default: 'https://json-schema.org/draft/2020-12/schema' } } } }], SECRET);
+    expect(JSON.stringify(named)).toContain('[address withheld]');
+  });
+
   test('a tool name carrying a credential fails the whole list', () => {
     expect(() => publicTools([{ ...TOOL, name: 'PATH_SECRET_tool' }], SECRET)).toThrow();
   });

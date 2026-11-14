@@ -70,9 +70,10 @@ function useToggle(connectorId: string): { busy: string | null; error: string | 
 function SignInState({ added, connector }: { added: Added; connector: OrgConnector | undefined }): ReactNode {
   if (!added.signingIn) return null;
   const done = connector?.signIn === 'connected';
+  const waiting = `Finish the sign-in in the new tab. This page notices when it is done. ${added.name} is added once you are signed in.`;
   return (
     <Column gap={6}>
-      <Text size="md" color={done ? 'success' : 'secondary'}>{done ? `Signed in to ${added.name}.` : 'Finish the sign-in in the new tab. This page notices when it is done.'}</Text>
+      <Text size="md" color={done ? 'success' : 'secondary'}>{done ? `Signed in to ${connector.name}.` : waiting}</Text>
       {added.link === null || done ? null : <TextLink url={added.link}>Open the sign-in</TextLink>}
     </Column>
   );
@@ -107,7 +108,7 @@ function AgentsStep({ added }: { added: Added }): ReactNode {
       <FocusIntro title={`Who gets ${added.name}?`} text="Each agent you switch on gets its tools with the rules of the organization. You can change this later." />
       <SignInState added={added} connector={connector} />
       <AgentList connector={connector} />
-      <Actions main={{ label: 'Done', onPress: () => { go({ kind: 'org-connector', id: added.id }); } }} />
+      <Actions cancel={connector === undefined ? { onPress: close } : undefined} main={{ label: 'Done', disabled: connector === undefined, onPress: () => { go({ kind: 'org-connector', id: added.id }); } }} />
     </>
   );
 }

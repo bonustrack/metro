@@ -10,7 +10,15 @@ import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import type { Session } from '@metro-labs/http/workos-token';
 import type { OwnerTickets } from '../agents/tickets.js';
 
+export interface NewConnector {
+  name: string;
+  url: string;
+  autoName: boolean;
+  clientId?: string;
+}
+
 export interface SignInState {
+  create?: NewConnector;
   owner: string;
   connector: string;
   generation: string;
@@ -123,8 +131,8 @@ export async function finishSignIn(deps: SignInDeps, entry: Handoff): Promise<{ 
     const tokens = await exchangeCode(entry.server, entry.client, { code: entry.code, redirectUri: deps.callbackUrl, verifier: entry.verifier, resource: entry.resource }, deps.fetch);
     const auth = { kind: 'oauth' as const, issuer: entry.server.issuer, tokenEndpoint: entry.server.tokenEndpoint, clientId: entry.client.clientId, ...tokens };
     const target = parsePublicConnectorUrl(entry.targetUrl);
-    await verifyRemoteMcp(target, auth, deps.fetch);
-    return { tokens, verified: { server: target.hostname } };
+    const verified = await verifyRemoteMcp(target, auth, deps.fetch);
+    return { tokens, verified: { ...verified, server: target.hostname } };
   } catch {
     throw new ApiError('The provider could not complete sign-in or verify the MCP endpoint. Check its public OAuth resource and client registration, then sign in again.', 400);
   }

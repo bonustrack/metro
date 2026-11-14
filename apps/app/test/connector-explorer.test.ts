@@ -167,6 +167,15 @@ describe('the address of a new connector', () => {
     expect(nameFromAddress('not an address')).toBe('');
   });
 
+  test('a server under mcp. on a shared domain is named after the label under mcp., a known brand by its brand', () => {
+    expect(nameFromAddress('https://mcp.gmail.piston.box/')).toBe('Gmail');
+    expect(nameFromAddress('https://mcp.outlook.piston.box/')).toBe('Outlook');
+    expect(nameFromAddress('https://gmailmcp.googleapis.com/mcp')).toBe('Gmail');
+    expect(nameFromAddress('https://api.githubcopilot.com/mcp/')).toBe('Githubcopilot');
+    expect(nameFromAddress('https://mcp.hubspot.com/')).toBe('HubSpot');
+    expect(nameFromAddress('https://n8n.anderra.ch/mcp')).toBe('Anderra');
+  });
+
   test('only a full web address goes on', () => {
     expect(addressProblem('')).toBe('Paste the address first.');
     expect(addressProblem('mcp.notion.com')).toBe('Use a full address that starts with https://.');
