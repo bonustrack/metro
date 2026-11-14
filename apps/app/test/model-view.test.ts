@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { toModelSettings, toConnection, type ConnectionRow } from '@metro-labs/client/api/model';
 import { toOrgModels } from '@metro-labs/client/api/org-models';
-import { connectionPatch, helperItems, partsNeedUpdate, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { toServer } from '@metro-labs/client/api/servers';
+import { routeSelection } from '@metro-labs/client/route';
+import { connectionPatch, gatewayPage, helperItems, partsNeedUpdate, routeUsers, sourceLine, withRoute } from '../src/components/model-view.ts';
+import { remoteTabOf } from '../src/lib/remote-tabs.ts';
 import { EFFORT_WORD } from '../src/lib/model-words.ts';
 
 const ROUTE = { primary: { connection: 'orA00000001', model: 'openai/gpt-5.2' }, fallbacks: [{ connection: 'bed00000001', model: 'eu.anthropic.claude-sonnet-4-6' }] };
@@ -30,6 +33,28 @@ describe('the organization Gateway page', () => {
     expect(connectionPatch('bedrock', { label: 'AWS', key: '  ', region: 'eu-central-1' }, row)).toEqual({});
     expect(connectionPatch('bedrock', { label: ' Prod ', key: ' k ', region: 'us-east-1' }, row)).toEqual({ apiKey: 'k', label: 'Prod', region: 'us-east-1' });
     expect(connectionPatch('openrouter', { label: '', key: '', region: 'x' }, null)).toEqual({});
+  });
+});
+
+describe('the Default route page', () => {
+  const lisa = toServer({ id: 'agentA00001', host: 'lisa.ts.net', name: 'Lisa' });
+  const tony = toServer({ id: 'agentB00001', host: 'tony.ts.net', name: 'Tony' });
+  const laptop = toServer({ id: 'agentC00001', kind: 'remote', host: null, name: 'Laptop' });
+  const phone = toServer({ id: 'agentD00001', kind: 'remote', host: null, name: 'Phone' });
+
+  test('lists every agent of the organization, with and without a server, as using the default or its own route', () => {
+    const own = toOrgModels({ connections: list.connections, default: ROUTE, agents: { agentA00001: ROUTE, agentD00001: ROUTE } });
+    const users = routeUsers([lisa, tony, laptop, phone], own);
+    expect(users.shared.map((server) => server.id)).toEqual(['agentB00001', 'agentC00001']);
+    expect(users.own.map((server) => server.id)).toEqual(['agentA00001', 'agentD00001']);
+    expect(routeUsers([], own)).toEqual({ shared: [], own: [] });
+  });
+
+  test('an own route row opens the Gateway page of its agent, a Settings page for a box and a tab for an agent without a server', () => {
+    expect(gatewayPage(lisa)).toEqual({ kind: 'model', project: 'agentA00001' });
+    expect(gatewayPage(phone)).toEqual({ kind: 'model', project: 'agentD00001' });
+    expect(routeSelection('#/stage-labs/agentD00001/model')).toEqual(gatewayPage(phone));
+    expect(remoteTabOf(gatewayPage(phone))).toBe('gateway');
   });
 });
 

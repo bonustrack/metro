@@ -3,8 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Text } from '@stage-labs/kit/react-native/text';
 import type { ModelRoute } from '@metro-labs/client/api/model-route';
 import { clearModelRoute, setModelRoute, type OrgModels } from '@metro-labs/client/api/org-models';
-import { routeItems } from '@metro-labs/client/api/model-order';
-import { agentSeed, boxesOf, serverLabel } from '@metro-labs/client/api/servers';
+import { agentSeed, serverLabel, type Server } from '@metro-labs/client/api/servers';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { ConfirmDialog, useConfirm } from '../DeleteMenu.js';
@@ -18,8 +17,9 @@ import { ErrorState } from '../ui/ErrorState.js';
 import { RowsSkeleton } from '../ui/RowsSkeleton.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { AVATAR_SIZE } from '../ui/sizes.js';
+import { gatewayPage, routeUsers } from '../model-view.js';
 import { AvatarStack, serverNames } from './RouteParts.js';
-import { RouteSetup } from './RouteSetup.js';
+import { OrgRouteSetup } from './RouteSetup.js';
 import { OpenRouterNote, useOpenRouterReturn } from './OpenRouterReturn.js';
 import { afterModelChange, useOrgModelsQuery } from '../../lib/model-queries.js';
 import { agentsWord, namesLine, routeSummary } from '../../lib/model-words.js';
@@ -47,27 +47,28 @@ function useScope(list: OrgModels): RouteScope {
 function Route({ list }: { list: OrgModels }): ReactNode {
   const scope = useScope(list);
   const control = useRouteControl(scope.route, scope.save);
-  const route = list.default;
-  const items = route === null ? [] : routeItems(route, list.connections);
-  const helpers = route?.helpers == null ? null : routeItems(route.helpers, list.connections);
-  return <RouteSetup items={items} helperItems={helpers} effort={route?.effort ?? {}} who="An agent" edit={list.admin ? { control, scope } : undefined} />;
+  return <OrgRouteSetup route={list.default} connections={list.connections} who="An agent" edit={list.admin ? { control, scope } : undefined} />;
+}
+
+function sharedLine(shared: Server[], own: Server[]): string {
+  if (shared.length > 0) return namesLine(serverNames(shared));
+  return own.length === 0 ? 'The organization has no agent yet.' : 'Every agent has its own route.';
 }
 
 function Agents({ list }: { list: OrgModels }): ReactNode {
-  const { data } = useServersQuery();
-  const servers = boxesOf(data ?? []);
-  const shared = servers.filter((server) => list.agents[server.id] === undefined);
-  const own = servers.filter((server) => list.agents[server.id] !== undefined);
+  const { data, error, refetch } = useServersQuery();
+  if (data === undefined) return error === null ? <RowsSkeleton rows={2} /> : <ErrorState title="Could not load the agents" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />;
+  const { shared, own } = routeUsers(data, list);
   return (
     <>
       <Group label="Used by">
-        <Item title={agentsWord(shared.length)} subtitle={shared.length === 0 ? 'Every agent has its own route.' : namesLine(serverNames(shared))} leading={shared.length === 0 ? undefined : <AvatarStack servers={shared} />} />
+        <Item title={agentsWord(shared.length)} subtitle={sharedLine(shared, own)} leading={shared.length === 0 ? undefined : <AvatarStack servers={shared} />} />
       </Group>
       {own.length === 0 ? null : (
-        <Group label="Own route" note="These agents use their own route. Change it on the agent's Settings, Model.">
+        <Group label="Own route" note="These agents use their own route. Change it on the agent’s Gateway page.">
           {own.map((server) => (
             <Item key={server.id} title={serverLabel(server)} subtitle={routeSummary(list.agents[server.id] ?? null)}
-              leading={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash({ kind: 'model', project: server.id })} />
+              leading={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.row} />} href={routeHash(gatewayPage(server))} />
           ))}
         </Group>
       )}

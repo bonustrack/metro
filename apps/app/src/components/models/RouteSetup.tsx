@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import type { ModelOrderItem } from '@metro-labs/client/api/model-order';
+import type { ConnectionRow } from '@metro-labs/client/api/model';
+import { routeItems, type ModelOrderItem } from '@metro-labs/client/api/model-order';
 import { EFFORT_LEVELS, effortOf, withEffort, withHelpers, type EffortLevel, type EffortThread, type ModelRoute, type RouteEffort } from '@metro-labs/client/api/model-route';
 import { helperSlotTitle } from '@metro-labs/client/api/route-edit';
 import { RouteEditor, type RouteScope } from '../RouteEditor.js';
@@ -135,4 +136,18 @@ export function RouteSetup({ items, helperItems, effort, who, mainNote, error, e
       )}
     </>
   );
+}
+
+interface OrgRouteSetupProps {
+  route: ModelRoute | null;
+  connections: ConnectionRow[];
+  who: string;
+  mainNote?: string;
+  edit?: RouteEdit;
+}
+
+export function OrgRouteSetup({ route, connections, who, mainNote, edit }: OrgRouteSetupProps): ReactNode {
+  const items = route === null ? [] : routeItems(route, connections);
+  const helpers = route?.helpers == null ? null : routeItems(route.helpers, connections);
+  return <RouteSetup items={items} helperItems={helpers} effort={route?.effort ?? {}} who={who} mainNote={mainNote} edit={edit} />;
 }

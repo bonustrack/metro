@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { agentLine, connectorsWords, orderAgents, remoteLine, shortVersion, technicalLine, type LineFacts } from '../src/lib/agent-line.ts';
 import { REMOTE_TABS, remoteTabOf } from '../src/lib/remote-tabs.ts';
+import { agentPageOf } from '../src/lib/agent-tabs.ts';
 import { healthFix } from '../src/lib/agent-health.ts';
 import type { Setup } from '../src/lib/setup-steps.ts';
 
@@ -108,9 +109,11 @@ describe('an agent without a server', () => {
     expect(rows.map((row) => row.name)).toEqual(['Zed', 'Alpha']);
   });
 
-  test('its page has three tabs, and any other address of it opens Connectors', () => {
-    expect(REMOTE_TABS.map((tab) => [tab.label, tab.target('laptop').kind])).toEqual([['Connectors', 'home'], ['Access keys', 'access-keys'], ['Activity', 'agent-activity']]);
+  test('its page has four tabs, Gateway at the address of a box’s Gateway page, and any other address of it opens Connectors', () => {
+    expect(REMOTE_TABS.map((tab) => [tab.label, tab.target('laptop').kind])).toEqual([['Connectors', 'home'], ['Access keys', 'access-keys'], ['Gateway', 'model'], ['Activity', 'agent-activity']]);
     expect(remoteTabOf({ kind: 'access-keys', project: 'laptop' })).toBe('keys');
+    expect(remoteTabOf({ kind: 'model', project: 'laptop' })).toBe('gateway');
+    expect(agentPageOf('model')?.label).toBe('Gateway');
     expect(remoteTabOf({ kind: 'agent-activity', project: 'laptop' })).toBe('activity');
     expect(remoteTabOf({ kind: 'chats', project: 'laptop' })).toBe('connectors');
   });
