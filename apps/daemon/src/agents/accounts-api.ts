@@ -139,7 +139,7 @@ async function storeAccount(
 
 function asInput(body: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of ['apiId', 'apiHash', 'phone', 'mailbox', 'clientId', 'clientSecret', 'mode', 'sendEnabled', 'accountId'])
+  for (const key of ['apiId', 'apiHash', 'phone'])
     out[key] = bodyField(body, key);
   return out;
 }
@@ -308,10 +308,6 @@ async function handleStep(
   const view = await deps.attachSessions.submit(owner, attachId, {
     code: field('code'),
     password: field('password'),
-    state: field('state'),
-    mode: field('mode'),
-    error: field('error'),
-    errorDescription: field('errorDescription'),
   });
   sendJson(req, res, 200, view);
 }
@@ -343,7 +339,7 @@ async function dispatchAttach(
   route: AttachRoute,
   session?: ApiSession,
 ): Promise<void> {
-  const owner: AttachOwner = { agentId, organization: session?.subject, userId: session?.userId, sessionId: session?.sessionId, authorization: req.headers.authorization };
+  const owner: AttachOwner = { agentId, organization: session?.subject, userId: session?.userId, sessionId: session?.sessionId };
   if (route.kind === 'start') return handleStart(req, res, deps, agentId, owner);
   if (route.kind === 'repair') return handleRepair(req, res, deps, owner, route);
   if (route.kind === 'session') return handleSession(req, res, deps, owner, route.attachId);

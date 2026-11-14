@@ -7,7 +7,7 @@ import { errResult, okJson } from './ctx.js';
 export function sendSpeech(line: string, args: Record<string, unknown>): ToolResult {
   const target = speechTarget(args.speech);
   if (target === null) return errResult('Call speech needs callId, generation and sourceId from its authenticated source.');
-  if (['reply_to', 'subject', 'attachments', 'frame', 'wallet', 'account'].some((key) => args[key] !== undefined))
+  if (['reply_to', 'attachments', 'frame', 'wallet', 'account'].some((key) => args[key] !== undefined))
     return errResult('Call speech cannot include chat content, media or an account override. Nothing was sent.');
   if (typeof args.text !== 'string') return errResult('Call speech needs text.');
   const receipt = sharedCalls.speak(line, target, args.text, allowedAgents(currentIdentity()));

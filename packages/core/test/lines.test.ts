@@ -22,10 +22,10 @@ describe('a connector event line names the agent and the connector', () => {
     expect(line as string).toBe('metro://connector/agent000001/conn0000001');
     expect(Line.parseConnector(line)).toEqual({ agentId: 'agent000001', connectorId: 'conn0000001' });
     expect(Line.isConnector(line)).toBe(true);
-    for (const bad of ['metro://connector', 'metro://connector/', 'metro://connector/a', 'metro://connector/a/b/c', 'metro://connector//a/b', 'metro://connector/a/b/', 'metro://connectors/a/b', 'metro://gmail/a/b'])
+    for (const bad of ['metro://connector', 'metro://connector/', 'metro://connector/a', 'metro://connector/a/b/c', 'metro://connector//a/b', 'metro://connector/a/b/', 'metro://connectors/a/b', 'metro://whatsapp/a/b'])
       expect(Line.parseConnector(bad)).toBeNull();
     for (const mine of ['metro://connector', 'metro://connector/', 'metro://connector/a/b/c']) expect(Line.isConnector(mine)).toBe(true);
-    for (const other of ['metro://connectors/a/b', 'metro://gmail/a/b', 'connector/a/b']) expect(Line.isConnector(other)).toBe(false);
+    for (const other of ['metro://connectors/a/b', 'metro://whatsapp/a/b', 'connector/a/b']) expect(Line.isConnector(other)).toBe(false);
   });
 });
 
@@ -80,18 +80,6 @@ describe('isLocal', () => {
   });
   test('malformed line is not local', () => {
     expect(Line.isLocal('garbage')).toBe(false);
-  });
-});
-
-describe('mail lines', () => {
-  test('a conversation id with the escaped base64 characters parses', () => {
-    expect(Line.parseMail('metro://outlook/o1/AAQkAD%2Fabc%2Bdef_-=', 'outlook')).toEqual({ accountId: 'o1', resource: 'AAQkAD%2Fabc%2Bdef_-=' });
-    expect(Line.parseMail('metro://gmail/g1/18c2f0a9d1e3b4c5', 'gmail')).toEqual({ accountId: 'g1', resource: '18c2f0a9d1e3b4c5' });
-  });
-  test('a sender line and another station are not conversations', () => {
-    expect(Line.parseMail('metro://outlook/o1/user/bea@example.ch', 'outlook')).toBeNull();
-    expect(Line.parseMail('metro://threema/o1/ECHOECHO', 'outlook')).toBeNull();
-    expect(Line.parseMail('metro://outlook/o1/AAQkAD=', 'gmail')).toBeNull();
   });
 });
 

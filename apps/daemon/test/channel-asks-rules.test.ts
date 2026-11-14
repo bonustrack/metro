@@ -6,7 +6,7 @@ import { PREVIEW_MAX } from '../src/approvals/preview.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { setPolicies } from '../src/policy/policy.ts';
 import { endSharedCall, hearSharedCall, openSharedCall } from '../src/voice/shared.ts';
-import { AGENT, AsksHarness, GM, LINE, MAIL_LINE, MAIL_OWNER, MAIL_TARGET, OWNER, TARGET, TG, idIn } from './channel-asks-harness.ts';
+import { AGENT, AsksHarness, LINE, OTHER_TARGET, OWNER, TARGET, TG, WA, idIn } from './channel-asks-harness.ts';
 import { settle, waitFor } from './wait.ts';
 
 const h = new AsksHarness('mk_channel_asks_rules');
@@ -87,7 +87,7 @@ describe('the owner changes the rule while a call waits or after approving it', 
   test('saving the same rule again, or a rule for another channel, withdraws nothing', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'unchanged' }));
     setPolicies('channel', [[TARGET, { write: 'ask' }]]);
-    setPolicies('channel', [[TARGET, { write: 'ask' }], [MAIL_TARGET, { write: 'deny' }]]);
+    setPolicies('channel', [[TARGET, { write: 'ask' }], [OTHER_TARGET, { write: 'deny' }]]);
     expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
     expect(await h.answerOnPage(id, 'allow')).toBe(200);
     setPolicies('channel', [[TARGET, { read: 'deny', write: 'ask' }]]);
@@ -112,7 +112,7 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
       idIn(await h.send({ line: LINE, text: 'one too many' }));
       expect(h.sends()).toEqual([]);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`gmail/${GM}`]: ['owner@example.com'] });
+      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     }
   });
 
@@ -186,22 +186,8 @@ describe('where the question and the answer go', () => {
       expect(h.sends()).toEqual([]);
       expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`gmail/${GM}`]: ['owner@example.com'] });
+      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     }
-  });
-
-  test('a mail channel never gets the question, and a yes from it is an ordinary message', async () => {
-    setPolicies('channel', [[MAIL_TARGET, { write: 'ask' }]]);
-    h.chat(MAIL_LINE, MAIL_OWNER, 'a mail arrives last', { verified: true });
-    expect(await h.told('a mail arrives last')).toBe(true);
-    const id = idIn(await h.send({ line: MAIL_LINE, text: 'a reply by mail' }));
-    await waitFor(() => h.questions().length === 1);
-    expect(h.questions().map((call) => [call.train, call.args.line])).toEqual([['telegram-bot', LINE]]);
-    h.chat(MAIL_LINE, MAIL_OWNER, `yes ${id}`, { verified: true });
-    expect(await h.told(`yes ${id}`)).toBe(true);
-    expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
-    h.chat(LINE, OWNER, `yes ${id}`);
-    expect(await h.told(`Approved: send on gmail (${id})`)).toBe(true);
   });
 
   test('when the chat that was asked stopped receiving, no answer can be delivered there, and repeating the call still finds it', async () => {

@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, afterAll, describe, expect, test } fr
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { outlookStation } from '@metro-labs/outlook';
+import { threemaStation } from '@metro-labs/threema';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import type { AgentApiDeps } from '../src/agents/api.ts';
 import { AttachSessions } from '../src/stations/attach-session.ts';
@@ -82,8 +82,6 @@ function fakePrepare(input: AttachInput): Promise<PreparedAccount> {
   });
 }
 
-const startInputs: { station: string; input: Record<string, unknown> }[] = [];
-
 const attachSessions = new AttachSessions({
   authorize: (owner) => {
     try {
@@ -105,7 +103,6 @@ const attachSessions = new AttachSessions({
     return Promise.resolve({ accountId, activated: true });
   },
   start: (station, input, hooks) => {
-    startInputs.push({ station, input });
     if (input.phone === 'reject')
       return Promise.reject(new AgentAdminError('that number was refused', 400));
     if (input.phone === 'handset-refuses')
@@ -607,35 +604,35 @@ describe('DELETE /api/agents/:id/accounts/:station/:account', () => {
 });
 
 describe('detaching removes the station files of that account', () => {
-  const stateDir = mkdtempSync(join(tmpdir(), 'metro-outlook-state-'));
-  const statePath = (id: string): string => join(stateDir, `outlook-state-${id}.json`);
-  const realForget = outlookStation.forget;
+  const stateDir = mkdtempSync(join(tmpdir(), 'metro-threema-state-'));
+  const statePath = (id: string): string => join(stateDir, `threema-groups-${id}.json`);
+  const realForget = threemaStation.forget;
 
   beforeEach(() => {
-    process.env.OUTLOOK_STATE_DIR = stateDir;
+    process.env.THREEMA_GROUPS_DIR = stateDir;
   });
 
   afterEach(() => {
-    outlookStation.forget = realForget;
-    delete process.env.OUTLOOK_STATE_DIR;
+    threemaStation.forget = realForget;
+    delete process.env.THREEMA_GROUPS_DIR;
   });
 
-  test('the Outlook refresh token file goes with the account, and only that one', async () => {
-    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000091', config: {} });
-    writeFileSync(statePath('acct0000091'), '{"refreshToken":"rt"}');
-    writeFileSync(statePath('acct0000092'), '{"refreshToken":"other"}');
-    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000091');
+  test('the Threema group file goes with the account, and only that one', async () => {
+    rows.push({ agentId: AGENT.id, station: 'threema', accountId: 'acct0000091', config: {} });
+    writeFileSync(statePath('acct0000091'), '{"groups":[]}');
+    writeFileSync(statePath('acct0000092'), '{"groups":[]}');
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'threema/acct0000091');
     expect(res.status).toBe(200);
     expect(existsSync(statePath('acct0000091'))).toBe(false);
     expect(existsSync(statePath('acct0000092'))).toBe(true);
   });
 
   test('a forget that throws is logged and the detach still answers 200', async () => {
-    rows.push({ agentId: AGENT.id, station: 'outlook', accountId: 'acct0000093', config: {} });
-    outlookStation.forget = () => {
+    rows.push({ agentId: AGENT.id, station: 'threema', accountId: 'acct0000093', config: {} });
+    threemaStation.forget = () => {
       throw new Error('disk on fire');
     };
-    const res = await detach('ada@lovelace.dev', AGENT.id, 'outlook/acct0000093');
+    const res = await detach('ada@lovelace.dev', AGENT.id, 'threema/acct0000093');
     expect(res.status).toBe(200);
     expect(((await res.json()) as { detached?: boolean }).detached).toBe(true);
     expect(rows).toEqual([]);
@@ -656,8 +653,6 @@ describe('GET /api/agents advertises what can be attached', () => {
       'webhook',
       'telegram',
       'whatsapp',
-      'outlook',
-      'gmail',
     ]);
   });
 });
@@ -1028,14 +1023,5 @@ describe('switching a station account off and on', () => {
     expect((await put('agent000001', 'telegram-bot', created.accountId, { enabled: 'no' })).status).toBe(400);
     expect((await put('agent000001', 'telegram-bot', 'acct9999999', { enabled: false })).status).toBe(404);
     expect((await put('agent000002', 'telegram-bot', created.accountId, { enabled: false })).status).toBe(404);
-  });
-});
-
-describe('POST /api/agents/:id/accounts/start for Outlook', () => {
-  test('the route hands the mailbox typed on the page to the Outlook sign-in', async () => {
-    startInputs.length = 0;
-    const res = await start('ada@lovelace.dev', 'agent000001', { station: 'outlook', mailbox: 'andy@anderra.ch' });
-    expect(res.status).toBe(201);
-    expect(startInputs.at(-1)).toMatchObject({ station: 'outlook', input: { mailbox: 'andy@anderra.ch' } });
   });
 });

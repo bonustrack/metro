@@ -113,7 +113,6 @@ function assertUnclaimed(existing: Stored[], agent: LoadedAgent): void {
 }
 
 function assertImportable(agent: LoadedAgent): void {
-  if (agent.accounts.some((a) => a.station === 'gmail' && a.config.managed === true)) throw new AgentAdminError('Managed Gmail cannot be imported. Connect the mailbox again on this box.', 400);
   const immovable = agent.accounts.find((a) => !MOVABLE_STATIONS.has(a.station));
   if (immovable !== undefined)
     throw new AgentAdminError(
@@ -168,7 +167,6 @@ function mergedStations(
   const fromMetro = agent.accounts
     .map((a) => ({ ...a, allowlist: a.allowlist ?? ['*'] }))
     .filter((m) => mode === 'overwrite' || !here(m.station, m.id));
-  if (fromMetro.some((m) => m.station === 'gmail' && before.some((s) => s.station === 'gmail' && s.id === m.id && s.config.managed === true))) throw new AgentAdminError('Managed Gmail cannot be overwritten by an import. Delete the connection first.', 400);
   const kept = before.filter((s) => !fromMetro.some((m) => m.station === s.station && m.id === s.id));
   return [...fromMetro, ...kept];
 }
@@ -197,16 +195,6 @@ function fileFor(
   }
 }
 
-export function localRenewGmail(agentId: string, accountId: string, previous: string, config: Record<string, unknown>, dir = agentsDir()): AccountRef {
-  const stored = agentOrThrow(agentId, dir);
-  const account = stored.file.stations.find((s) => s.station === 'gmail' && s.id === accountId);
-  if (account === undefined || (account.config.authorizationId ?? account.config.refreshToken) !== previous) throw new AgentAdminError('This Gmail connection changed. Start again.', 409);
-  if (account.config.accountEmail !== config.accountEmail) throw new AgentAdminError('The Gmail mailbox did not match. Nothing was changed.', 400);
-  account.config = { ...account.config, ...config };
-  save(stored);
-  return { agentId, station: 'gmail', accountId };
-}
-
 const sameIdentity = (a: unknown, b: unknown): boolean =>
   typeof a === 'string' && typeof b === 'string' && a.replace(/[\s()+-]/g, '').toLowerCase() === b.replace(/[\s()+-]/g, '').toLowerCase();
 
@@ -230,7 +218,6 @@ export function readLocalAgentFile(agentId: string, dir = agentsDir()): AgentFil
 
 const UNIQUE_CREDENTIALS: Record<string, string> = {
   token: 'that bot token is already attached to an agent on this machine',
-  accountEmail: 'that mailbox is already connected to an agent on this machine',
 };
 
 function assertCredentialFree(all: Stored[], station: StationName, config: Record<string, unknown>): void {
@@ -257,7 +244,7 @@ export async function localAttachAccount(
   assertCredentialFree(storedAgents(dir), station, config);
   const taken = new Set(stored.file.stations.map((a) => a.id));
   const accountId = freshId(taken);
-  stored.file.stations.push({ station, id: accountId, allowlist: ['*'], enabled: true, ...(station === 'gmail' && config.sendEnabled === false ? { policy: { write: 'deny' as const } } : {}), config });
+  stored.file.stations.push({ station, id: accountId, allowlist: ['*'], enabled: true, config });
   save(stored);
   return Promise.resolve({ agentId, station, accountId });
 }

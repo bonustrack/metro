@@ -121,7 +121,7 @@ describe('shared call speech capability', () => {
       expect((await send({ speech })).isError).toBe(true);
     expect((await send({ speech: SPEECH }, 'another-agent')).isError).toBe(true);
     expect((await send({ speech: SPEECH, line: `${LINE}-other` })).isError).toBe(true);
-    for (const key of ['attachments', 'frame', 'wallet', 'reply_to', 'subject', 'account'])
+    for (const key of ['attachments', 'frame', 'wallet', 'reply_to', 'account'])
       expect((await send({ speech: SPEECH, [key]: 'wrong' })).isError).toBe(true);
     expect(actions).toHaveLength(0);
     expect(posts).toHaveLength(0);

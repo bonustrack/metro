@@ -31,10 +31,10 @@ describe('the names shown next to listed senders', () => {
   });
 
   test('never look up a domain entry, and ask nothing of a station with no profiles', async () => {
-    setAllowlistMap({ 'outlook/ol1': ['@anderra.ch', 'andy@anderra.ch'] });
+    setAllowlistMap({ 'threema/th1': ['@anderra.ch', 'ECHOECHO'] });
     let asked = 0;
-    const cards = await senderCards({ recentSenders: () => [], accountCall: () => { asked += 1; return Promise.resolve({}); } }, 'outlook', 'ol1');
-    expect(cards).toEqual([{ id: 'andy@anderra.ch' }]);
+    const cards = await senderCards({ recentSenders: () => [], accountCall: () => { asked += 1; return Promise.resolve({}); } }, 'threema', 'th1');
+    expect(cards).toEqual([{ id: 'ECHOECHO' }]);
     expect(asked).toBe(0);
   });
 });

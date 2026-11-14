@@ -96,7 +96,7 @@ export interface GroupResult {
   inviteLink?: string;
 }
 
-export type ReadFilter = 'account' | 'query' | 'from' | 'until' | 'unread_only' | 'message_id';
+export type ReadFilter = 'message_id';
 
 type AttachmentMode = 'canonical' | 'native' | 'none';
 
@@ -112,7 +112,6 @@ export interface Station {
   readsProfiles?: boolean;
   discoversChannels?: boolean;
   readFilters?: ReadonlySet<ReadFilter>;
-  approvals?: boolean;
   sendsFrames?: boolean;
   reportsStatus?: boolean;
   pairAgain?: { identity: string };
