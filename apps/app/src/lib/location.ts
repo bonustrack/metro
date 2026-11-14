@@ -18,6 +18,8 @@ export function takeInitialOpenRouterReturn(): OpenRouterReturn | null {
   return back;
 }
 
+export const initialOrgConnectorReturnWaiting = (): boolean => returnedOrgConnector !== null;
+
 export function takeInitialOrgConnectorReturn(): OrgConnectorReturn | null {
   const back = returnedOrgConnector;
   returnedOrgConnector = null;

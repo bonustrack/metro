@@ -10,7 +10,7 @@ import { refreshOrgConnectors, useOrgConnectorToolsQuery } from '../../lib/org-c
 
 export function ConnectorMenu({ connector, admin }: { connector: OrgConnector; admin: boolean }): ReactNode {
   const client = useQueryClient();
-  const tools = useOrgConnectorToolsQuery(connector.id);
+  const tools = useOrgConnectorToolsQuery(connector);
   const removing = useConfirm(async () => {
     await deleteOrgConnector(connector.id);
     await refreshOrgConnectors(client);

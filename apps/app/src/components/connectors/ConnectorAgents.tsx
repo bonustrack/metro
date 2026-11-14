@@ -108,7 +108,7 @@ function OtherRows({ connector, others, admin }: { connector: OrgConnector; othe
 
 function Lists({ connector, admin, servers }: { connector: OrgConnector; admin: boolean; servers: Server[] }): ReactNode {
   const { held, others } = useSplit(connector, servers);
-  const listed = useOrgConnectorToolsQuery(connector.id).data;
+  const listed = useOrgConnectorToolsQuery(connector).data;
   const tools = listed === undefined ? null : explorerTools(listed, [connector.policy]);
   return (
     <Groups>
