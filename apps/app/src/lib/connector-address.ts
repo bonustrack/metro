@@ -1,16 +1,11 @@
-const GENERIC = new Set(['mcp', 'api', 'www', 'app', 'server', 'servers', 'remote', 'connect', 'gateway']);
+import { connectorNameGuess } from '@metro-labs/core/connector-name';
 
-export function nameFromAddress(address: string): string {
-  let host: string;
-  try {
-    host = new URL(address.trim()).hostname;
-  } catch {
-    return '';
-  }
-  const labels = host.split('.').filter((label) => label !== '');
-  const named = labels.slice(0, labels.length > 1 ? -1 : undefined).filter((label) => !GENERIC.has(label.toLowerCase()));
-  const pick = named.at(-1) ?? labels[0] ?? '';
-  return pick === '' ? '' : `${pick.slice(0, 1).toUpperCase()}${pick.slice(1)}`;
+export const nameFromAddress = (address: string): string => connectorNameGuess(address);
+
+export function connectorNaming(address: string, typed: string): { name: string; autoName: boolean } {
+  const guess = nameFromAddress(address);
+  const name = typed.trim();
+  return name === '' || name === guess ? { name: guess, autoName: true } : { name, autoName: false };
 }
 
 export function addressProblem(address: string): string | null {
