@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { CallNotice, CallRoute, SpeechTarget } from '@metro-labs/core/call';
-import { setAgentMap, setAllowlistMap, setApproversMap } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap } from '../src/agents/map.ts';
 import { setPolicies } from '../src/policy/policy.ts';
 import { sharedCalls, type SharedSpeechAction } from '../src/voice/shared.ts';
 import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
@@ -13,7 +13,7 @@ import { answerPrompt, cancelPrompt, forgetAllPrompts, holdPrompt, pendingPrompt
 import { forgetChannelAsks, revokeCallAsks } from '../src/mcp/channel-asks.ts';
 import { approvalIdOf } from './approval-id.ts';
 import { permissionCall } from '../src/mcp/call-permission.ts';
-import { promptBody } from '../src/mcp/permission-prompt.ts';
+import { promptNotice } from '../src/mcp/permission-prompt.ts';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -52,7 +52,6 @@ beforeEach(() => {
   process.env.METRO_AGENTS_DIR = mkdtempSync(join(tmpdir(), 'shared-call-security-'));
   setAgentMap({ 'xmtp/test-account': AGENT }, { [AGENT]: 'Same display name' });
   setAllowlistMap({ 'xmtp/test-account': ['caller', 'other'] });
-  setApproversMap({ 'xmtp/test-account': ['caller', 'other'] });
   setPolicies('channel', []);
   forgetAllPrompts();
   forgetChannelAsks();
@@ -80,7 +79,6 @@ afterAll(() => {
   forgetChannelAsks();
   setPolicies('channel', []);
   setAgentMap({}, {});
-  setApproversMap({});
   setAllowlistMap({});
   if (previousDir === undefined) delete process.env.METRO_AGENTS_DIR;
   else process.env.METRO_AGENTS_DIR = previousDir;
@@ -160,14 +158,17 @@ describe('shared call speech capability', () => {
     expect(cancelled).toBe(1);
   });
 
-  test('delivery rechecks scope, approver and policy after acceptance', async () => {
+  test('delivery rechecks scope, the caller on the allowlist and policy after acceptance', async () => {
     open();
     await send({ speech: SPEECH });
     const valid = actions[0]?.isValid;
     expect(valid?.()).toBe(true);
-    setApproversMap({});
+    setAllowlistMap({ 'xmtp/test-account': ['other'] });
     expect(valid?.()).toBe(false);
-    setApproversMap({ 'xmtp/test-account': ['caller'] });
+    setAllowlistMap({ 'xmtp/test-account': ['*'] });
+    expect(valid?.()).toBe(false);
+    setAllowlistMap({ 'xmtp/test-account': ['caller'] });
+    expect(valid?.()).toBe(true);
     setPolicies('channel', [[TARGET, { write: 'ask' }]]);
     expect(valid?.()).toBe(false);
     setPolicies('channel', []);
@@ -184,8 +185,8 @@ describe('shared call speech capability', () => {
     expect(asked.content[0]?.text).toStartWith("Needs the owner's approval for xmtp (send).");
     const id = approvalIdOf(asked);
     expect(pendingPrompts()).toEqual([expect.objectContaining({ requestId: id, tool: 'mcp__metro__send', preview: JSON.stringify({ line: LINE, text: 'Once upon a time.', speech: SPEECH }) })]);
-    expect((await send({ speech: SPEECH, approval: id })).content[0]?.text).toContain('has not answered yet');
-    await answerPrompt(id, 'allow', 'chat');
+    expect((await send({ speech: SPEECH, approval: id })).content[0]?.text).toContain('nobody has answered yet');
+    await answerPrompt(id, 'allow', 'page');
     expect((await send({ speech: SPEECH, text: 'Changed.', approval: id })).content[0]?.text).toContain('was given for another call');
     expect(actions).toHaveLength(0);
     expect((await send({ speech: SPEECH, approval: id })).isError).not.toBe(true);
@@ -314,13 +315,13 @@ describe('shared call speech capability', () => {
     expect(sharedCalls.speak(LINE, { ...SPEECH, sourceId: 'invite-1' }, 'A story.', SCOPE)).toEqual({ ...receipt, duplicate: true });
   });
 
-  test('call approval parsing fails closed and the prompt distinguishes voice from a post', () => {
+  test('call approval parsing fails closed, and the chat link names the tool and channel, never the words to speak', () => {
     open();
     const params = { request_id: 'abcde', tool_name: 'mcp__metro__send', description: '', input_preview: JSON.stringify({ line: LINE, text: 'A story.', speech: SPEECH }) };
     expect(permissionCall(params, () => true)).toEqual({ route: ROUTE, sourceId: SPEECH.sourceId });
     expect(permissionCall(params, () => false)).toBeNull();
     expect(permissionCall({ ...params, call: { route: ROUTE, sourceId: 'spoofed' } }, () => true)).toBeNull();
-    expect(promptBody(params)).toContain('Delivery: voice call only, no chat post');
+    expect(promptNotice(params)).toBe('Approval needed: Same display name wants to run send on xmtp.\nApprove or deny it on metro.box: https://metro.box');
     sharedCalls.end(ROUTE);
     expect(permissionCall(params, () => true)).toBeNull();
   });

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sameCall, type CallNotice, type CallRoute, type CallSource, type SpeechStatus, type SpeechTarget } from '@metro-labs/core/call';
 import { str } from '@metro-labs/core/str';
 import { log } from '@metro-labs/core/log';
-import { agentIdForLine, allowlistForLine, lineReceives, mayApprove, senderPermitted, accountFromLine } from '../agents/map.js';
+import { agentIdForLine, lineReceives, mayCall, accountFromLine } from '../agents/map.js';
 import { eventInScope } from '../agents/scope.js';
 import { policyFor, type Access } from '../policy/policy.js';
 
@@ -49,7 +49,7 @@ const sourceValid = (sourceId: string): boolean => sourceId.length > 0 && source
 
 const authorized = (route: CallRoute): boolean =>
   agentIdForLine(route.line) === route.agentId && eventInScope(new Set([route.agentId]), route.line) && lineReceives(route.line) &&
-  mayApprove(route.line, route.from) && senderPermitted(allowlistForLine(route.line), route.from);
+  mayCall(route.line, route.from);
 
 function access(route: CallRoute): Access {
   const account = accountFromLine(route.line);

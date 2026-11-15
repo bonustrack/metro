@@ -44,12 +44,6 @@ function allowlistOf(raw: unknown, path: string, where: string): string[] | null
   return list;
 }
 
-export function approversOf(raw: unknown): { approvers?: string[] } {
-  if (!Array.isArray(raw)) return {};
-  const list = raw.filter((entry): entry is string => typeof entry === 'string' && entry !== '*' && entry.trim() !== '');
-  return list.length === 0 ? {} : { approvers: list };
-}
-
 function stationOf(raw: unknown, path: string, index: number): LoadedAccount {
   const where = `stations[${String(index)}]`;
   if (!isRecord(raw)) fail(path, `${where} is not an object`);
@@ -63,7 +57,6 @@ function stationOf(raw: unknown, path: string, index: number): LoadedAccount {
     station,
     id,
     allowlist: allowlistOf(raw.allowlist, path, where),
-    ...approversOf(raw.approvers),
     enabled: raw.enabled !== false,
     ...(policy === undefined ? {} : { policy }),
     config,

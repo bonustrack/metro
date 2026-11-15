@@ -918,16 +918,22 @@ describe('the allowlist of a station account', () => {
     expect(rows.find((r) => r.accountId === created.accountId)?.allowlist).toEqual(['4242', 'Ada']);
     expect(reloaded).toBe(1);
     expect(synced).toEqual([]);
-    const approving = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers: ['ada', 'nobody', '*'] });
-    expect(await approving.json()).toMatchObject({ allowlist: ['4242', 'Ada'], approvers: ['ada'] });
-    expect((await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242'], approvers: 'ada' })).status).toBe(400);
-    const stranger = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers: ['ada', '4242'] });
-    expect(stranger.status).toBe(400);
-    expect(await stranger.text()).toContain('does not know 4242');
-    const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'], approvers: ['4242'] });
-    expect(await widened.json()).toMatchObject({ allowlist: ['*'], approvers: [] });
+    const widened = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', '*'] });
+    expect(await widened.json()).toMatchObject({ allowlist: ['*'] });
     const emptied = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: [] });
     expect(await emptied.json()).toMatchObject({ allowlist: ['*'] });
+  });
+
+  test('approvers from an older page are accepted and ignored, whatever their shape', async () => {
+    const created = (await (await start('ada@lovelace.dev', 'agent000001', { station: 'telegram-bot', token: 'allowlist-bot-token-3' })).json()) as AttachBody;
+    for (const approvers of [['ada', 'nobody', '*'], 'ada', [42], ['4242']]) {
+      const saved = await put('agent000001', 'telegram-bot', created.accountId, { allowlist: ['4242', 'Ada'], approvers });
+      expect(saved.status).toBe(200);
+      const body = (await saved.json()) as Record<string, unknown>;
+      expect(body).toMatchObject({ allowlist: ['4242', 'Ada'] });
+      expect(body.approvers).toBeUndefined();
+    }
+    expect(rows.find((r) => r.accountId === created.accountId)?.allowlist).toEqual(['4242', 'Ada']);
   });
 
   test('a bad list, an unknown account and an unknown agent are each refused', async () => {

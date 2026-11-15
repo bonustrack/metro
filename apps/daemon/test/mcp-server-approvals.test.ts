@@ -9,10 +9,10 @@ import { asLine } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { forgetServerApprovals, holdServerApproval } from '../src/mcp/server-approvals.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { setAgentMap, setAllowlistMap, setApproversMap } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
-import { forgetOwnerLine } from '../src/approvals/owner-line.ts';
+import { setApprovalAgent } from '../src/approvals/link.ts';
 import { announcedLine, forgetAnnounced, setAnnouncedFile } from '../src/mcp-server/announced.ts';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { makeEmit } from '../src/routes/http.ts';
@@ -28,6 +28,11 @@ const TG = 'tb000000001';
 const LINE = `metro://telegram-bot/${TG}/-100777`;
 const OWNER_SENDER = `metro://telegram-bot/${TG}/user/111`;
 const MEMBER = `metro://telegram-bot/${TG}/user/222`;
+const ORG = 'org_01MCPOWNER0000000';
+const ROW = 'row00000001';
+const linkOf = (id: string): string => `https://metro.box/#/${ORG}/${ROW}/approvals/${id}`;
+const noticeOf = (id: string, who = 'Andy'): string => `Approval needed: ${who} wants to run update_page on notion.\nApprove or deny it on metro.box: ${linkOf(id)}`;
+const pointerOf = (id: string): string => `Approval ${id} is answered on metro.box, not in chat: ${linkOf(id)}`;
 
 let calls: { action: string; args: Record<string, unknown> }[] = [];
 let mcpServer: Server | undefined;
@@ -37,6 +42,7 @@ let stream: GetStream | undefined;
 let fake: FakeMcpServer;
 let dir = '';
 let link: McpServerLink | undefined;
+let mcpLive: ((on: boolean) => void) | undefined;
 
 const chat = (line: string, from: string, text: string): void => {
   publishEvent({
@@ -81,8 +87,9 @@ beforeAll(async () => {
   setKeyMap([{ key: KEY, agentId: AGENT }]);
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
   setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
-  setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+  setApprovalAgent(() => ({ owner: ORG, agent: ROW }));
   const handler = await createMetroMcp({ publish: makeEmit() });
+  mcpLive = handler.setLiveEvents;
   handler.startInbound();
   mcpServer = createServer((req, res) => {
     handler.httpHandler(req, res).catch(() => undefined);
@@ -105,9 +112,8 @@ afterAll(async () => {
   setKeyMap([]);
   setAgentMap({}, {});
   setAllowlistMap({});
-  setApproversMap({});
+  setApprovalAgent(() => ({ owner: null, agent: null }));
   forgetAllPrompts();
-  forgetOwnerLine();
   forgetAnnounced();
 });
 
@@ -139,38 +145,41 @@ afterEach(async () => {
 });
 
 describe('an approval asked by mcp.metro.box', () => {
-  test('is posted to the chat, listed on the page, answered by an approver in chat, sent back, and told to the agent', async () => {
+  test('is posted to the chat as a link, listed on the page, answered there, sent back, and told to the agent', async () => {
     await arrives('abcde');
     const polls = approvalsSeen();
     await waitFor(() => approvalsSeen() >= polls + 3);
     expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
-    expect(sends()).toEqual([
-      [LINE, 'Approval needed: notion.update_page\npage_id: p1\ntitle: Weekly notes\n\nReply "yes abcde" or "no abcde"'],
-    ]);
+    expect(sends()).toEqual([[LINE, noticeOf('abcde')]]);
+    expect(String(sends()[0]?.[1])).not.toContain('Weekly notes');
     const listed = await pageCall('GET', '');
-    expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE })]);
-
-    chat(LINE, MEMBER, 'yes abcde');
-    await waitFor(() => raw().includes('yes abcde'));
-    expect(fake.answers).toEqual([]);
+    expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE, preview: JSON.stringify({ page_id: 'p1', title: 'Weekly notes' }) })]);
 
     chat(LINE, OWNER_SENDER, 'yes abcde');
+    chat(LINE, MEMBER, 'no abcde');
+    await waitFor(() => raw().includes('no abcde'));
+    await waitFor(() => sends().length === 3);
+    expect(sends().slice(1)).toEqual([[LINE, pointerOf('abcde')], [LINE, pointerOf('abcde')]]);
+    expect(raw()).toContain('yes abcde');
+    expect(fake.answers).toEqual([]);
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
+
+    expect((await pageCall('POST', '/abcde', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => raw().includes('Approved: notion.update_page (abcde)'));
     expect(fake.answers).toEqual([{ id: 'abcde', decision: 'allow' }]);
     expect(raw()).toContain('Approved: notion.update_page (abcde). Call tool_call again with the same arguments and approval: \\"abcde\\".');
     expect(raw()).toContain('"from":"metro://metro"');
     expect(pendingPrompts()).toEqual([]);
-    expect(sends()).toHaveLength(1);
+    await waitFor(() => sends().length === 4);
+    expect(sends()[3]).toEqual([LINE, 'Approved on the page.']);
   });
 
   test('asked with an access key: posted with the key label and answered as usual, but the agent is not told', async () => {
     await arrives('pqrst', { origin: 'key', keyLabel: 'Laptop' });
     await waitFor(() => sends().length === 1);
-    expect(sends()).toEqual([
-      [LINE, 'Approval needed: notion.update_page (from an access key: Laptop)\npage_id: p1\ntitle: Weekly notes\n\nReply "yes pqrst" or "no pqrst"'],
-    ]);
+    expect(sends()).toEqual([[LINE, noticeOf('pqrst', 'the access key "Laptop"')]]);
     expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: LINE })]);
-    chat(LINE, OWNER_SENDER, 'yes pqrst');
+    expect((await pageCall('POST', '/pqrst', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 1);
     expect(fake.answers).toEqual([{ id: 'pqrst', decision: 'allow' }]);
     chat(LINE, OWNER_SENDER, 'after the key approval');
@@ -179,22 +188,26 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(raw()).not.toContain('(pqrst)');
     expect(pendingPrompts()).toEqual([]);
 
-    await arrives('qrstv', { origin: 'key' });
-    await waitFor(() => sends().length === 2);
-    expect(sends()[1]).toEqual([LINE, expect.stringMatching(/^Approval needed: notion\.update_page \(from an access key\)\n/)]);
+    await arrives('qrstv', { origin: 'key', keyLabel: 'Lap\ntop "x"' });
+    await waitFor(() => sends().length === 3);
+    expect(sends()[2]).toEqual([LINE, noticeOf('qrstv', 'the access key "Laptop "x""')]);
     expect((await pageCall('POST', '/qrstv', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 2);
-    await waitFor(() => sends().length === 3);
-    expect(sends()[2]).toEqual([LINE, 'Denied on the page.']);
+    await waitFor(() => sends().length === 4);
+    expect(sends()[3]).toEqual([LINE, 'Denied on the page.']);
     await settle(100);
     expect(raw()).not.toContain('(qrstv)');
+
+    await arrives('rstvx', { origin: 'key' });
+    await waitFor(() => sends().length === 5);
+    expect(sends()[4]).toEqual([LINE, noticeOf('rstvx', 'an access key')]);
   });
 
   test('asked by this agent\'s own session (origin box) is told to the agent as before', async () => {
     await arrives('rstvw', { origin: 'box' });
     await waitFor(() => sends().length === 1);
-    expect(sends()[0]).toEqual([LINE, expect.stringMatching(/^Approval needed: notion\.update_page\n/)]);
-    chat(LINE, OWNER_SENDER, 'no rstvw');
+    expect(sends()[0]).toEqual([LINE, noticeOf('rstvw')]);
+    expect((await pageCall('POST', '/rstvw', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => raw().includes('Denied: notion.update_page (rstvw).'));
     expect(fake.answers).toEqual([{ id: 'rstvw', decision: 'deny' }]);
   });
@@ -220,13 +233,14 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()).toEqual([]);
     expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'kmnpq', line: LINE })]);
 
-    chat(LINE, OWNER_SENDER, 'yes kmnpq');
+    expect((await pageCall('POST', '/kmnpq', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => raw().includes('Approved: notion.update_page (kmnpq)'));
     expect(fake.answers).toEqual([{ id: 'kmnpq', decision: 'allow' }]);
-    expect(sends()).toEqual([]);
+    await waitFor(() => sends().length === 1);
+    expect(sends()).toEqual([[LINE, 'Approved on the page.']]);
   });
 
-  test('held again on the chat it was announced in, where the answer still counts, even when the last chat moved', async () => {
+  test('held again on the chat it was announced in, where the confirmation goes, even when the last chat moved', async () => {
     const other = `metro://telegram-bot/${TG}/-100888`;
     const file = join(dir, 'mcp-approvals.json');
     writeFileSync(file, JSON.stringify({ version: 1, announced: { mnpqr: { line: other, at: Date.now() - 60_000 } } }));
@@ -235,17 +249,11 @@ describe('an approval asked by mcp.metro.box', () => {
     await arrives('mnpqr');
     expect(sends()).toEqual([]);
     expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'mnpqr', line: other })]);
-    chat(LINE, OWNER_SENDER, 'yes mnpqr');
-    await waitFor(() => raw().includes('yes mnpqr'));
-    expect(fake.answers).toEqual([]);
-    try {
-      chat(other, OWNER_SENDER, 'yes mnpqr');
-      await waitFor(() => fake.answers.length === 1);
-      expect(fake.answers).toEqual([{ id: 'mnpqr', decision: 'allow' }]);
-    } finally {
-      chat(LINE, OWNER_SENDER, 'back on the first chat');
-      await waitFor(() => raw().includes('back on the first chat'));
-    }
+    expect((await pageCall('POST', '/mnpqr', { decision: 'allow' })).status).toBe(200);
+    await waitFor(() => fake.answers.length === 1);
+    expect(fake.answers).toEqual([{ id: 'mnpqr', decision: 'allow' }]);
+    await waitFor(() => sends().length === 1);
+    expect(sends()).toEqual([[other, 'Approved on the page.']]);
   });
 
   test('an announcement older than a day is forgotten, so the approval is posted again', async () => {
@@ -255,7 +263,7 @@ describe('an approval asked by mcp.metro.box', () => {
     setAnnouncedFile(file);
     expect(announcedLine('npqrs')).toBeUndefined();
     await arrives('npqrs');
-    expect(sends()).toEqual([[LINE, expect.stringContaining('Reply "yes npqrs" or "no npqrs"')]]);
+    expect(sends()).toEqual([[LINE, noticeOf('npqrs')]]);
   });
 
   test('answered on the page is sent back, confirmed in the chat, and told to the agent', async () => {
@@ -264,7 +272,7 @@ describe('an approval asked by mcp.metro.box', () => {
     await waitFor(() => raw().includes('Denied: notion.update_page (bcdef).'));
     expect(fake.answers).toEqual([{ id: 'bcdef', decision: 'deny' }]);
     expect(sends()).toEqual([
-      [LINE, expect.stringContaining('Approval needed: notion.update_page')],
+      [LINE, noticeOf('bcdef')],
       [LINE, 'Denied on the page.'],
     ]);
     expect((await pageCall('POST', '/bcdef', { decision: 'allow' })).status).toBe(404);
@@ -300,18 +308,19 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(raw().split('Approved: notion.update_page (efghk)')).toHaveLength(2);
   });
 
-  test('stays on the page only when nobody on the chat may approve, and the agent is still told on its last chat', async () => {
-    setApproversMap({});
+  test('stays on metro.box only while live messages are off, and the agent is still told on its last chat once they are back', async () => {
+    const live = mcpLive;
+    live?.(false);
     try {
       await arrives('fghkm');
       expect(sends()).toEqual([]);
       expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'fghkm', line: null })]);
-      expect((await pageCall('POST', '/fghkm', { decision: 'allow' })).status).toBe(200);
-      await waitFor(() => raw().includes('Approved: notion.update_page (fghkm)'));
-      expect(sends()).toEqual([]);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+      live?.(true);
     }
+    expect((await pageCall('POST', '/fghkm', { decision: 'allow' })).status).toBe(200);
+    await waitFor(() => raw().includes('Approved: notion.update_page (fghkm)'));
+    expect(sends()).toEqual([]);
   });
 
   test('a poll that fails is tried again with a growing pause, then the relay goes on', async () => {
@@ -326,7 +335,7 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(gaps[1]).toBeGreaterThanOrEqual(35);
     expect(gaps[2]).toBeGreaterThanOrEqual(75);
     await arrives('ghkmn');
-    expect(sends()).toEqual([[LINE, expect.stringContaining('Approval needed: notion.update_page')]]);
+    expect(sends()).toEqual([[LINE, noticeOf('ghkmn')]]);
   });
 
   test('only a metro notice skips the sender allowlist; a lookalike event from the same sender is dropped', async () => {
@@ -345,10 +354,9 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(raw()).not.toContain('forged.tool');
   });
 
-  test('a long preview is shortened so the chat prompt stays under 1,000 characters', async () => {
+  test('a long preview never reaches the chat, which gets the same short link', async () => {
     await arrives('hkmnp', { preview: JSON.stringify(Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`field${String(i)}`, 'x'.repeat(400)]))) });
-    const text = String(sends()[0]?.[1]);
-    expect(text.length).toBeLessThanOrEqual(1000);
-    expect(text.endsWith('Reply "yes hkmnp" or "no hkmnp"')).toBe(true);
+    await waitFor(() => sends().length === 1);
+    expect(sends()).toEqual([[LINE, noticeOf('hkmnp')]]);
   });
 });

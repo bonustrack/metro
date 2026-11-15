@@ -25,7 +25,7 @@ process.env.METRO_LOG_LEVEL ??= 'warn';
 const { publishEvent } = await import('../../packages/core/src/events.ts');
 const { createMetroMcp } = await import('../../apps/daemon/src/mcp/index.ts');
 const { setKeyMap } = await import('../../apps/daemon/src/agents/keys.ts');
-const { setAgentMap, setAllowlistMap, setApproversMap } = await import('../../apps/daemon/src/agents/map.ts');
+const { setAgentMap, setAllowlistMap } = await import('../../apps/daemon/src/agents/map.ts');
 const { setTrainCallBackend } = await import('../../apps/daemon/src/stations/train-call.ts');
 const { setPolicies } = await import('../../apps/daemon/src/policy/policy.ts');
 const { handleGatewayRequest } = await import('../../packages/inference/src/gateway.ts');
@@ -56,7 +56,6 @@ const NAMES: Record<string, string> = { [LESS]: 'Less', [ALICE]: 'Alice', [BOB]:
 setKeyMap([{ key: KEY, agentId: AGENT }]);
 setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`telegram-bot/${TG2}`]: AGENT }, { [AGENT]: 'Emma' });
 setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222', '333'], [`telegram-bot/${TG2}`]: ['111'] });
-setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
 setPolicies('channel', [[{ kind: 'channel', station: 'telegram-bot', account: TG2 }, { tools: { send: 'ask' } }]]);
 
 export interface Call {

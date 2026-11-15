@@ -5,10 +5,10 @@ import { asLine, Line } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap, setDisabledAccounts } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { forgetAllPrompts } from '../src/approvals/pending.ts';
-import { forgetOwnerLine } from '../src/approvals/owner-line.ts';
+import { setApprovalAgent } from '../src/approvals/link.ts';
 import { setPolicies } from '../src/policy/policy.ts';
 import { makeEmit } from '../src/routes/http.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
@@ -25,6 +25,8 @@ export const OTHER_LINE = `metro://telegram-bot/${TG}/-100888`;
 export const OWNER = `metro://telegram-bot/${TG}/user/111`;
 export const MEMBER = `metro://telegram-bot/${TG}/user/222`;
 export const STRANGER = `metro://telegram-bot/${TG}/user/999`;
+export const ORG = 'org_01ASKSOWNER000000';
+export const ROW = 'row00000001';
 export const TARGET = { kind: 'channel', station: 'telegram-bot', account: TG } as const;
 export const OTHER_TARGET = { kind: 'channel', station: 'whatsapp', account: WA } as const;
 
@@ -60,6 +62,11 @@ interface ChatOptions {
 
 export const idIn = (answer: ToolAnswer): string => approvalIdIn(answer.text);
 
+export const linkOf = (id: string): string => `https://metro.box/#/${ORG}/${ROW}/approvals/${id}`;
+
+export const noticeOf = (id: string, tool = 'send', station = 'telegram-bot'): string =>
+  `Approval needed: Andy wants to run ${tool} on ${station}.\nApprove or deny it on metro.box: ${linkOf(id)}`;
+
 export class AsksHarness {
   calls: TrainCall[] = [];
   private server: Server | undefined;
@@ -74,11 +81,10 @@ export class AsksHarness {
   async start(): Promise<void> {
     forgetAllPrompts();
     forgetChannelAsks();
-    forgetOwnerLine();
+    setApprovalAgent(() => ({ owner: ORG, agent: ROW }));
     setKeyMap([{ key: this.token, agentId: AGENT }]);
     setAgentMap({ [`telegram-bot/${TG}`]: AGENT, [`whatsapp/${WA}`]: AGENT }, { [AGENT]: 'Andy' });
     setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
-    setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     const handler = await createMetroMcp({ publish: makeEmit() });
     this.handler = handler;
     handler.startInbound();
@@ -131,12 +137,11 @@ export class AsksHarness {
     setKeyMap([]);
     setAgentMap({}, {});
     setAllowlistMap({});
-    setApproversMap({});
     setDisabledAccounts(new Set());
     setPolicies('channel', []);
     forgetAllPrompts();
     forgetChannelAsks();
-    forgetOwnerLine();
+    setApprovalAgent(() => ({ owner: null, agent: null }));
   }
 
   raw(): string {

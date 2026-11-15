@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { approvalId } from '@metro-labs/core/ids';
 import { argsDigest, canonicalJson } from '../src/args-digest.ts';
-import { APPROVAL_ID_RE, APPROVAL_PROPERTY } from '../src/approval-rules.ts';
+import { APP_ORIGIN, APPROVAL_ID_RE, APPROVAL_PROPERTY, appOriginOf, approvalLink } from '../src/approval-rules.ts';
 import { decideTool, strictest, type ConnectorDecision, type ConnectorPolicy } from '../src/connector-policy.ts';
 import { mcpServerTools } from '../src/mcp-server-tools.ts';
 
@@ -11,6 +11,22 @@ describe('the approval rules channels and connectors share', () => {
     for (const bad of ['abcdl', 'ABCDE', 'abcd', 'abcdef', 'abc e', '']) expect(bad).not.toMatch(APPROVAL_ID_RE);
     expect(new RegExp(APPROVAL_PROPERTY.pattern)).toEqual(APPROVAL_ID_RE);
     expect(JSON.stringify(mcpServerTools(null))).toContain(JSON.stringify(APPROVAL_PROPERTY));
+  });
+
+  test('the approval link names the organization, the metro.box row and the id, and falls back to the list, then to metro.box', () => {
+    const where = { owner: 'org_01TESTOWNER000000', agent: 'row00000001' };
+    expect(approvalLink(APP_ORIGIN, where, 'jkmnp')).toBe('https://metro.box/#/org_01TESTOWNER000000/row00000001/approvals/jkmnp');
+    expect(approvalLink('http://localhost:8081', where, 'jkmnp')).toBe('http://localhost:8081/#/org_01TESTOWNER000000/row00000001/approvals/jkmnp');
+    expect(approvalLink(APP_ORIGIN, { ...where, agent: null }, 'jkmnp')).toBe('https://metro.box/#/org_01TESTOWNER000000');
+    expect(approvalLink(APP_ORIGIN, { owner: null, agent: 'row00000001' }, 'jkmnp')).toBe('https://metro.box');
+    expect(approvalLink(APP_ORIGIN, { owner: 'org/x', agent: 'a b' }, 'c#d')).toBe('https://metro.box/#/org%2Fx/a%20b/approvals/c%23d');
+  });
+
+  test('the app origin is metro.box unless METRO_APP_URL names another origin, and anything else is refused', () => {
+    expect(appOriginOf(undefined)).toBe(APP_ORIGIN);
+    expect(appOriginOf('  ')).toBe(APP_ORIGIN);
+    expect(appOriginOf('https://staging.metro.box/')).toBe('https://staging.metro.box');
+    for (const bad of ['metro.box', 'https://metro.box/path', 'https://metro.box?x=1', 'ftp://metro.box']) expect(appOriginOf(bad)).toBeNull();
   });
 
   test('the digest of a call is over canonical JSON, so key order does not matter and every value does', () => {

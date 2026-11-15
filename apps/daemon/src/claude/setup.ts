@@ -148,6 +148,7 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   '8b8f21cb1b7608540d8b5ed9557e1644b03ce4809a7f320ba134f28129f08ddb',
   '45c1748f0304d93bf2de505f4a0508b373ea476e34bd46ba90276002aa4e1c3d',
   '331fb985ea18a9071b90ce0099961f9bbaa83e2fa5faeb3a30cff03773275b9c',
+  '174086a49888143b95312bcad34f17b52b3a35e1481efc804f86e4f939def9fb',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43',

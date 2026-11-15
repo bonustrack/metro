@@ -40,13 +40,15 @@ describe('the two connector tools every agent sees', () => {
     expect(TOOL_CALL_DESCRIPTION).toContain('"approval": "<id>"');
   });
 
-  test('the approval line follows where the owner answers: the box session, the page of an agent without a server, or a key of a box', () => {
+  test('every approval line says it waits on metro.box at the link the answer gives, and only the box session waits for a channel message', () => {
     const page = mcpServerTools(named('notion'), 'page')[1]?.description ?? '';
-    expect(page).toContain('- needs_approval: the owner must approve it on this agent\'s page on metro.box.');
+    expect(page).toContain('- needs_approval: a member of the organization must approve it on metro.box. Tell the person what is waiting and give them the link the answer gives,');
     expect(page).not.toContain('channel message');
     const owner = mcpServerTools(named('notion'), 'owner')[1]?.description ?? '';
-    expect(owner).toContain('- needs_approval: the agent\'s owner was asked in chat and on its page on metro.box.');
+    expect(owner).toContain('- needs_approval: a member of the organization must approve it on metro.box, and Metro posts the link in the agent\'s chat too.');
     expect(owner).not.toContain('channel message');
+    expect(TOOL_CALL_DESCRIPTION).toContain('- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat.');
+    for (const text of [page, owner, TOOL_CALL_DESCRIPTION]) expect(text).not.toContain('asked in chat');
     for (const text of [page, owner]) expect(text.length).toBeLessThan(1800);
     expect(mcpServerTools(named('notion'))[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
   });

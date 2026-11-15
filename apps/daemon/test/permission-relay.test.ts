@@ -2,24 +2,25 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
-import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap, setDisabledAccounts } from '../src/agents/map.ts';
+import { localCreateAgent, localOwner, setLocalOwner } from '../src/agents/file-admin.ts';
+import { newAgentKey, readAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
-import { forgetOwnerLine, ownerLine, setOwnerLineFile } from '../src/approvals/owner-line.ts';
-import { promptBody, serverPromptBody } from '../src/mcp/permission-prompt.ts';
+import { approvalAgentOf, approvalLinkOf, setApprovalAgent } from '../src/approvals/link.ts';
+import { promptNotice } from '../src/mcp/permission-prompt.ts';
 import { MCP_INSTRUCTIONS } from '../src/mcp/instructions.ts';
-import { elsewhereText } from '../src/mcp/approval-elsewhere.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
 import { initSession, openGet, type GetStream } from './mcp-probe.ts';
-import { waitFor } from './wait.ts';
+import { settle, waitFor } from './wait.ts';
 
 const AGENT = 'agent000001';
 const TOKEN = 'mk_permission_relay';
@@ -30,9 +31,13 @@ const OWNER_SENDER = `metro://telegram-bot/${TG}/user/111`;
 const STRANGER = `metro://telegram-bot/${TG}/user/999`;
 const MEMBER = `metro://telegram-bot/${TG}/user/222`;
 const OWNER_DM = `metro://telegram-bot/${TG}/111`;
-const MEMBER_DM = `metro://telegram-bot/${TG}/222`;
-const OWNER_DIR = mkdtempSync(join(tmpdir(), 'metro-owner-line-'));
-const OWNER_FILE = join(OWNER_DIR, 'approval-line.json');
+const ORG = 'org_01RELAYOWNER00000';
+const ROW = 'row00000001';
+
+const linkOf = (id: string): string => `https://metro.box/#/${ORG}/${ROW}/approvals/${id}`;
+const noticeOf = (id: string, tool = 'send', place = ' on telegram-bot'): string =>
+  `Approval needed: Andy wants to run ${tool}${place}.\nApprove or deny it on metro.box: ${linkOf(id)}`;
+const pointerOf = (id: string): string => `Approval ${id} is answered on metro.box, not in chat: ${linkOf(id)}`;
 
 interface TrainCall {
   action: string;
@@ -70,27 +75,25 @@ const chat = (line: string, from: string, text: string, verified?: boolean, isPr
   } as unknown as MetroEvent);
 };
 
-const direct = (line: string, from: string, text: string): void => {
-  chat(line, from, text, undefined, true);
+const raw = (): string => stream?.raw() ?? '';
+
+const said = async (line: string, from: string, text: string, isPrivate?: boolean): Promise<void> => {
+  chat(line, from, text, undefined, isPrivate);
+  await waitFor(() => raw().includes(text));
 };
 
-const preview = (input: Record<string, unknown>): string => JSON.stringify(input, null, 1).replace(/\n\s*/g, ' ');
+const preview = (input: Record<string, unknown>): string => JSON.stringify(input);
 
 const LONG = Array.from({ length: 900 }, (_, i) => `word${String(i).padStart(5, '0')}`).join('');
 
-async function ask(requestId: string, input: Record<string, unknown>): Promise<void> {
+async function ask(requestId: string, input: Record<string, unknown>, tool = 'mcp__metro__send'): Promise<void> {
   const res = await fetch(mcpUrl, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({
       jsonrpc: '2.0',
       method: 'notifications/claude/channel/permission_request',
-      params: {
-        request_id: requestId,
-        tool_name: 'mcp__metro__send',
-        description: 'Send a message'.repeat(300),
-        input_preview: preview(input),
-      },
+      params: { request_id: requestId, tool_name: tool, description: 'Send a message'.repeat(300), input_preview: preview(input) },
     }),
   });
   await res.body?.cancel();
@@ -107,7 +110,9 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<vo
 }
 
 const answered = (requestId: string, behavior: string): boolean =>
-  (stream?.raw() ?? '').includes(`"method":"notifications/claude/channel/permission","params":{"request_id":"${requestId}","behavior":"${behavior}"}`);
+  raw().includes(`"method":"notifications/claude/channel/permission","params":{"request_id":"${requestId}","behavior":"${behavior}"}`);
+
+const sends = (): Record<string, unknown>[] => calls.filter((c) => c.action === 'send').map((c) => c.args);
 
 async function pageCall(method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
   if (page === undefined) throw new Error('no page daemon');
@@ -121,11 +126,10 @@ async function pageCall(method: string, path: string, body?: unknown): Promise<{
 
 beforeAll(async () => {
   forgetAllPrompts();
-  setOwnerLineFile(OWNER_FILE);
+  setApprovalAgent(() => ({ owner: ORG, agent: ROW }));
   setKeyMap([{ key: TOKEN, agentId: AGENT }]);
   setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
   setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'] });
-  setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
   const handler = await createMetroMcp();
   mcp = handler;
   handler.startInbound();
@@ -137,8 +141,7 @@ beforeAll(async () => {
   sessionId = await initSession(mcpUrl);
   stream = await openGet(mcpUrl, sessionId);
   page = await bootDaemon({});
-  chat(LINE, OWNER_SENDER, 'hello agent');
-  await waitFor(() => (stream?.raw() ?? '').includes('hello agent'));
+  await said(LINE, OWNER_SENDER, 'hello agent');
 });
 
 afterAll(async () => {
@@ -148,10 +151,8 @@ afterAll(async () => {
   setKeyMap([]);
   setAgentMap({}, {});
   setAllowlistMap({});
-  setApproversMap({});
+  setApprovalAgent(() => ({ owner: null, agent: null }));
   forgetAllPrompts();
-  forgetOwnerLine();
-  rmSync(OWNER_DIR, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -163,61 +164,64 @@ beforeEach(() => {
 });
 
 describe('a Claude Code permission prompt relayed by metro', () => {
-  test('goes to the chat it came from in plain words, and a yes from an allowed sender there answers it', async () => {
+  test('posts one link to the chat it came from, never its arguments, and only metro.box answers it', async () => {
     await ask('abcde', { line: LINE, text: 'hello there' });
-    const prompt = calls.find((c) => c.action === 'send');
-    expect(prompt?.args.line).toBe(LINE);
-    expect(prompt?.args.text).toBe(
-      'Approval needed: send\nChannel: telegram-bot · -100777\nText: "hello there"\n\nReply "yes abcde" or "no abcde"',
-    );
+    expect(sends()).toEqual([{ line: LINE, text: noticeOf('abcde') }]);
+    expect(String(sends()[0]?.text)).not.toContain('hello there');
+    expect(String(sends()[0]?.text)).not.toContain('Send a message');
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'mcp__metro__send', line: LINE, preview: preview({ line: LINE, text: 'hello there' }) })]);
 
-    chat(OTHER_LINE, OWNER_SENDER, 'yes abcde');
-    chat(LINE, STRANGER, 'yes abcde');
-    chat(LINE, MEMBER, 'yes abcde');
-    chat(LINE, OWNER_SENDER, 'yes abcde', false);
-    await waitFor(() => (stream?.raw() ?? '').includes('-100888'));
-    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['abcde']);
-
-    chat(LINE, OWNER_SENDER, 'yes abcde');
+    expect((await pageCall('POST', '/abcde', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => answered('abcde', 'allow'));
     expect(answered('abcde', 'allow')).toBe(true);
     expect(pendingPrompts()).toEqual([]);
   });
 
-  test('stays on the page only when nobody on that chat may approve', async () => {
-    setApproversMap({});
-    try {
-      await ask('bcdeh', { line: LINE, text: 'nobody' });
-      expect(calls.some((c) => c.action === 'send')).toBe(false);
-      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdeh', line: null })]);
-      chat(LINE, OWNER_SENDER, 'yes bcdeh');
-      await waitFor(() => (stream?.raw() ?? '').includes('yes bcdeh'));
-      expect(pendingPrompts().map((p) => p.requestId)).toEqual(['bcdeh']);
-      expect((await pageCall('POST', '/bcdeh', { decision: 'deny' })).status).toBe(200);
-    } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
-    }
+  test('a yes or no in chat never answers it: Metro replies with the link, and the message still reaches the agent', async () => {
+    await ask('bcdea', { line: LINE, text: 'chat answers' });
+    chat(LINE, OWNER_SENDER, 'yes bcdea');
+    chat(OTHER_LINE, MEMBER, 'NO BCDEA');
+    chat(LINE, STRANGER, 'yes bcdea');
+    chat(LINE, OWNER_SENDER, 'yes bcdea', false);
+    chat(LINE, OWNER_SENDER, 'yes zzzzz');
+    await said(LINE, OWNER_SENDER, 'after the chat answers');
+    await waitFor(() => sends().length === 3);
+    await settle(50);
+    expect(sends().slice(1).map((args) => [args.line, args.text]).sort()).toEqual([[LINE, pointerOf('bcdea')], [OTHER_LINE, pointerOf('bcdea')]].sort());
+    expect(raw()).toContain('yes bcdea');
+    expect(raw()).toContain('NO BCDEA');
+    expect(raw()).not.toContain('999');
+    expect(answered('bcdea', 'allow')).toBe(false);
+    expect(answered('bcdea', 'deny')).toBe(false);
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['bcdea']);
+    expect((await pageCall('POST', '/bcdea', { decision: 'deny' })).status).toBe(200);
+    await waitFor(() => answered('bcdea', 'deny'));
+    chat(LINE, OWNER_SENDER, 'yes bcdea');
+    await said(LINE, OWNER_SENDER, 'after the page answer');
+    await settle(50);
+    expect(sends().filter((args) => args.text === pointerOf('bcdea'))).toHaveLength(2);
   });
 
-  test('stays on the page only while live messages are off, since no answer from the chat could arrive', async () => {
+  test('stays on metro.box only, with no post, while live messages are off', async () => {
     mcp?.setLiveEvents(false);
     try {
       await ask('bcdek', { line: LINE, text: 'quiet' });
-      expect(calls.some((c) => c.action === 'send')).toBe(false);
+      expect(sends()).toEqual([]);
       expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdek', line: null })]);
       expect((await pageCall('POST', '/bcdek', { decision: 'allow' })).status).toBe(200);
       await waitFor(() => answered('bcdek', 'allow'));
       expect(answered('bcdek', 'allow')).toBe(true);
+      expect(sends()).toEqual([]);
     } finally {
       mcp?.setLiveEvents(true);
     }
   });
 
-  test('stays on the page only when the chat it came from no longer receives messages, since no answer could arrive', async () => {
+  test('stays on metro.box only when the chat it came from no longer receives messages', async () => {
     setDisabledAccounts(new Set([`telegram-bot/${TG}`]));
     try {
       await ask('bcdem', { line: LINE, text: 'switched off' });
-      expect(calls.some((c) => c.action === 'send')).toBe(false);
+      expect(sends()).toEqual([]);
       expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdem', line: null })]);
       expect((await pageCall('POST', '/bcdem', { decision: 'deny' })).status).toBe(200);
     } finally {
@@ -225,22 +229,32 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     }
   });
 
-  test('is listed on the page and answered from it, once', async () => {
+  test('never posts to a chat that left the session scope', async () => {
+    setAgentMap({ [`telegram-bot/${TG}`]: 'agent000002' }, { [AGENT]: 'Andy', agent000002: 'Other' });
+    try {
+      await ask('bcden', { line: LINE, text: 'out of scope' });
+      expect(sends()).toEqual([]);
+      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcden', line: null })]);
+      expect((await pageCall('POST', '/bcden', { decision: 'deny' })).status).toBe(200);
+      await settle(50);
+      expect(sends()).toEqual([]);
+    } finally {
+      setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
+    }
+  });
+
+  test('is listed on the page and answered from it, once, and the chat is told', async () => {
     await ask('bcdef', { line: OTHER_LINE, text: 'second' });
     const list = await pageCall('GET', '');
     expect(list.status).toBe(200);
-    expect(list.body.approvals).toEqual([
-      expect.objectContaining({ id: 'bcdef', tool: 'mcp__metro__send', line: LINE }),
-    ]);
+    expect(list.body.approvals).toEqual([expect.objectContaining({ id: 'bcdef', tool: 'mcp__metro__send', line: LINE })]);
     expect((await pageCall('POST', '/bcdef', { decision: 'maybe' })).status).toBe(400);
-    const done = await pageCall('POST', '/bcdef', { decision: 'deny' });
-    expect(done.status).toBe(200);
+    expect((await pageCall('POST', '/bcdef', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => answered('bcdef', 'deny'));
-    expect(answered('bcdef', 'deny')).toBe(true);
     expect((await pageCall('POST', '/bcdef', { decision: 'allow' })).status).toBe(404);
-    await waitFor(() => calls.some((c) => c.args.text === 'Denied on the page.'));
-    expect(calls.filter((c) => c.action === 'send').map((c) => [c.args.line, c.args.text])).toEqual([
-      [LINE, expect.stringContaining('Approval needed: send')],
+    await waitFor(() => sends().some((args) => args.text === 'Denied on the page.'));
+    expect(sends().map((args) => [args.line, args.text])).toEqual([
+      [LINE, noticeOf('bcdef')],
       [LINE, 'Denied on the page.'],
     ]);
   });
@@ -248,8 +262,8 @@ describe('a Claude Code permission prompt relayed by metro', () => {
   test('tells the chat when the page approves it', async () => {
     await ask('bcdeg', { line: LINE, text: 'third' });
     expect((await pageCall('POST', '/bcdeg', { decision: 'allow' })).status).toBe(200);
-    await waitFor(() => calls.some((c) => c.args.text === 'Approved on the page.'));
-    expect(calls.at(-1)?.args).toEqual({ line: LINE, text: 'Approved on the page.' });
+    await waitFor(() => sends().some((args) => args.text === 'Approved on the page.'));
+    expect(sends().at(-1)).toEqual({ line: LINE, text: 'Approved on the page.' });
   });
 
   test('is refused after the time to live, with a deny Claude Code understands', async () => {
@@ -259,195 +273,98 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     await waitFor(() => answered('cdefg', 'deny'));
     expect(answered('cdefg', 'deny')).toBe(true);
     expect(pendingPrompts()).toEqual([]);
-    expect(calls.at(-1)?.args).toEqual({ line: LINE, text: 'Expired, denied.' });
+    expect(sends().at(-1)).toEqual({ line: LINE, text: 'Expired, denied.' });
   });
 
-  test('is dropped once the call it asked about reaches the daemon, answered in the terminal', async () => {
-    await ask('defgh', { line: LINE, text: 'from the terminal' });
-    await callTool('send', { line: LINE, text: 'from the terminal' });
-    expect(pendingPrompts()).toEqual([]);
-  });
-
-  test('a long text makes a short chat message that keeps both of its ends, and only the real call settles it', async () => {
-    await ask('efghi', { line: LINE, text: LONG });
-    const text = String(calls.find((c) => c.action === 'send')?.args.text);
-    expect(text.length).toBeLessThanOrEqual(1000);
-    expect(text).toStartWith('Approval needed: send\nChannel: telegram-bot · -100777\nText: "word00000');
-    expect(text).toContain('…');
-    expect(text).toEndWith('word00899"\n\nReply "yes efghi" or "no efghi"');
-    expect(text).not.toContain('Send a message');
-
+  test('is dropped once the call it asked about reaches the daemon, and only the real call settles it', async () => {
+    await ask('defgh', { line: LINE, text: LONG });
+    expect(String(sends()[0]?.text)).toBe(noticeOf('defgh'));
     await callTool('send', { line: LINE, text: `${LONG}x` });
     await callTool('send', { line: LINE, text: LONG, reply_to: 'm-1' });
-    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['efghi']);
+    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['defgh']);
     await callTool('send', { text: LONG, line: LINE });
     expect(pendingPrompts()).toEqual([]);
   });
 
-  test("goes to the owner's direct chat once the owner wrote there, remembers it, and is answered only there", async () => {
-    direct(OWNER_DM, OWNER_SENDER, 'hi in private');
-    direct(MEMBER_DM, MEMBER, 'hi from a member');
-    chat(LINE, OWNER_SENDER, 'back in the group');
-    await waitFor(() => (stream?.raw() ?? '').includes('back in the group'));
-    await ask('ghijk', { line: LINE, text: 'to the owner' });
-    await waitFor(() => calls.some((c) => c.action === 'send'));
-    expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([OWNER_DM]);
-    expect(JSON.parse(readFileSync(OWNER_FILE, 'utf8'))).toEqual({ line: OWNER_DM, from: OWNER_SENDER });
-    setOwnerLineFile(OWNER_FILE);
-    expect(ownerLine()).toEqual({ line: OWNER_DM, from: OWNER_SENDER });
+  test('goes to the last chat the agent heard from, private or not', async () => {
+    await said(OWNER_DM, OWNER_SENDER, 'hi in private', true);
+    await said(LINE, MEMBER, 'back in the group');
+    await ask('ghijk', { line: OTHER_LINE, text: 'to the last chat' });
+    expect(sends().map((args) => args.line)).toEqual([LINE]);
+    await said(OWNER_DM, OWNER_SENDER, 'private again', true);
+    await ask('hijkm', { line: LINE, text: 'to the private chat' });
+    expect(sends().map((args) => args.line)).toEqual([LINE, OWNER_DM]);
+    for (const id of ['ghijk', 'hijkm']) expect((await pageCall('POST', `/${id}`, { decision: 'deny' })).status).toBe(200);
+    await said(LINE, OWNER_SENDER, 'back on the first chat');
+  });
+});
 
-    chat(LINE, OWNER_SENDER, 'yes ghijk');
-    await waitFor(() => (stream?.raw() ?? '').includes('yes ghijk'));
-    expect(pendingPrompts().map((p) => p.requestId)).toEqual(['ghijk']);
-    direct(OWNER_DM, OWNER_SENDER, 'yes ghijk');
-    await waitFor(() => answered('ghijk', 'allow'));
-    expect(answered('ghijk', 'allow')).toBe(true);
+describe('the words in chat and for the agent', () => {
+  test('the server instructions fit the 2048 characters Claude Code keeps, and say approvals happen only on metro.box', () => {
+    expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
+    expect(MCP_INSTRUCTIONS).toContain('Approvals happen only on metro.box, and metro posts the link in the chat');
+    expect(MCP_INSTRUCTIONS).toContain('a reply in chat never approves');
+    expect(MCP_INSTRUCTIONS).not.toContain('yes <id>');
   });
 
-  test('a yes in another chat answers nothing there, that chat is told where the question is, and the message still reaches the agent', async () => {
-    publishEvent({ id: `ev-${randomUUID()}`, ts: new Date().toISOString(), station: 'telegram-bot', line: asLine(OWNER_DM), from: asLine(OWNER_SENDER), to: asLine(OWNER_DM), text: 'private again', lineName: 'Fabien\nAdmin', messageId: `mm-${randomUUID()}`, event: { type: 'msg' }, isPrivate: true } as unknown as MetroEvent);
-    await waitFor(() => (stream?.raw() ?? '').includes('private again'));
-    await ask('jkmnp', { line: LINE, text: 'asked in private' });
-    await waitFor(() => calls.some((c) => c.action === 'send'));
-    expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([OWNER_DM]);
-    calls = [];
-    chat(LINE, MEMBER, 'yes jkmnp');
-    await waitFor(() => (stream?.raw() ?? '').split('yes jkmnp').length === 2);
-    chat(LINE, OWNER_SENDER, 'yes jkmnp', false);
-    chat(LINE, OWNER_SENDER, 'Yes JKMNP');
-    await waitFor(() => calls.some((c) => c.action === 'send'));
-    expect(calls.filter((c) => c.action === 'send').map((c) => c.args)).toEqual([{ line: LINE, text: 'Approval jkmnp is answered in your private chat with me ("Fabien Admin") or on metro.box, not in this chat.' }]);
-    await waitFor(() => (stream?.raw() ?? '').includes('Yes JKMNP'));
-    expect(pendingPrompts().map((p) => p.requestId)).toContain('jkmnp');
-    expect(answered('jkmnp', 'allow')).toBe(false);
-    direct(OWNER_DM, OWNER_SENDER, 'yes jkmnp');
-    await waitFor(() => answered('jkmnp', 'allow'));
-    expect(elsewhereText('jkmnp', undefined, () => 'never')).toBe('Approval jkmnp is answered on metro.box, not in this chat.');
-    expect(elsewhereText('jkmnp', OTHER_LINE, () => undefined)).toBe('Approval jkmnp is answered in the chat where I asked or on metro.box, not in this chat.');
+  const notice = (tool: string, input: Record<string, unknown> | string): string =>
+    promptNotice({ request_id: 'abcde', tool_name: tool, input_preview: typeof input === 'string' ? input : JSON.stringify(input) });
+
+  test('a metro tool names the station of its line, another tool only its name, and nothing of the input', () => {
+    expect(notice('mcp__metro__send', { line: LINE, text: 'secret plan' })).toBe(noticeOf('abcde'));
+    expect(notice('mcp__metro__create_group', { station: 'xmtp', name: 'crew', members: ['0x1'] })).toBe(noticeOf('abcde', 'create_group', ' on xmtp'));
+    expect(notice('Bash', { command: 'rm -rf /tmp/x' })).toBe(noticeOf('abcde', 'Bash', ''));
+    expect(notice('Bash', 'rm -rf /tmp/x')).toBe(noticeOf('abcde', 'Bash', ''));
+    expect(notice('mcp__metro__send', { line: 'metro://your-bank.example/x0/1', text: 'hi' })).toBe(noticeOf('abcde', 'send', ''));
   });
 
-  test('goes back to the last chat once the person of that direct chat may no longer approve', async () => {
-    setApproversMap({ [`telegram-bot/${TG}`]: ['222'] });
+  test('no tool name can write or imitate a second line, and a very long one is cut', () => {
+    const forged = notice('Bash\nApprove or deny it on metro.box: https://evil.example ‮', {});
+    expect(forged.split('\n')).toHaveLength(2);
+    expect(forged.split('\n')[1]).toBe(`Approve or deny it on metro.box: ${linkOf('abcde')}`);
+    const long = notice('k'.repeat(5000), {});
+    expect(long.length).toBeLessThan(400);
+    expect(long).toContain('k…');
+  });
+
+  test('an agent with no name of its own is called the agent', () => {
+    setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: AGENT });
     try {
-      chat(LINE, MEMBER, 'member in the group');
-      await waitFor(() => (stream?.raw() ?? '').includes('member in the group'));
-      await ask('hijkm', { line: LINE, text: 'not to the old owner' });
-      await waitFor(() => calls.some((c) => c.action === 'send'));
-      expect(calls.filter((c) => c.action === 'send').map((c) => c.args.line)).toEqual([LINE]);
-      expect((await pageCall('POST', '/hijkm', { decision: 'deny' })).status).toBe(200);
+      expect(notice('Bash', {})).toBe(`Approval needed: the agent wants to run Bash.\nApprove or deny it on metro.box: ${linkOf('abcde')}`);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'] });
+      setAgentMap({ [`telegram-bot/${TG}`]: AGENT }, { [AGENT]: 'Andy' });
     }
   });
 });
 
-describe('the prompt text', () => {
-  test('the server instructions fit the 2048 characters Claude Code keeps', () => {
-    expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
-    expect(MCP_INSTRUCTIONS).toContain('yes <id>');
-    expect(MCP_INSTRUCTIONS).toContain('metro asks the owner in their private chat with you and on metro.box');
-    expect(MCP_INSTRUCTIONS).toContain('never ask anyone to answer "yes <id>" in another chat');
+describe('the link names the metro.box row the box enrolled as', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'metro-approval-link-'));
+  const linkFrom = (): string => {
+    setApprovalAgent(() => approvalAgentOf(localOwner(dir), readAgentKey(dir)?.enrollment));
+    return approvalLinkOf('jkmnp');
+  };
+
+  afterAll(() => {
+    setApprovalAgent(() => ({ owner: ORG, agent: ROW }));
+    rmSync(dir, { recursive: true, force: true });
   });
 
-  const metro = (tool: string, input: Record<string, unknown>): string =>
-    promptBody({ request_id: 'abcde', tool_name: `mcp__metro__${tool}`, description: 'never shown', input_preview: JSON.stringify(input) });
-
-  const ANSWER = '\n\nReply "yes abcde" or "no abcde"';
-
-  test('a tool that is not metro shows its description and every argument, or the raw preview when it is not JSON', () => {
-    expect(promptBody({ request_id: 'abcde', tool_name: 'Bash', description: 'Run a command', input_preview: '{ "command": "ls", "timeout": 5 }' })).toBe(
-      `Claude wants to run Bash: Run a command\ncommand: ls\ntimeout: 5${ANSWER}`,
-    );
-    expect(promptBody({ request_id: 'abcde', tool_name: 'Bash', description: '', input_preview: 'rm -rf /tmp/x' })).toBe(`Claude wants to run Bash: \narguments: rm -rf /tmp/x${ANSWER}`);
-    expect(serverPromptBody({ requestId: 'abcde', tool: 'notion.update_page', preview: '{"page":"p1","title":"New"}' })).toBe(`Approval needed: notion.update_page\npage: p1\ntitle: New${ANSWER}`);
+  test('with no organization yet it is metro.box itself', () => {
+    expect(linkFrom()).toBe('https://metro.box');
   });
 
-  test('names the station of a call with no line, writes out a list of plain values and leaves out what is empty', () => {
-    expect(metro('create_group', { station: 'xmtp', name: 'crew', members: ['0x1', '0x2'] })).toBe(`Approval needed: create_group\nChannel: xmtp\nmembers: 0x1, 0x2\nname: crew${ANSWER}`);
-    expect(metro('remove_members', { line: 'metro://xmtp/x0/g1', inboxIds: ['a1', 'b2'], notes: [{ a: 1 }], none: [], nothing: {}, blank: '', missing: null, off: false, zero: 0 })).toBe(
-      `Approval needed: remove_members\nChannel: xmtp · g1\ninboxIds: a1, b2\nnotes: [{"a":1}]\noff: false\nzero: 0${ANSWER}`,
-    );
-    expect(metro('send', { line: LINE, text: '{}' })).toBe(`Approval needed: send\nChannel: telegram-bot · -100777\nText: "{}"${ANSWER}`);
+  test('before enrollment it is the organization agent list, never the local agent id', async () => {
+    setLocalOwner(ORG, dir);
+    const local = await localCreateAgent('Andy', dir);
+    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}`);
+    expect(linkFrom()).not.toContain(local.id);
   });
 
-  test('shows each file of a send with where it comes from, never its bytes, then a payment card and a frame', () => {
-    const attachments = [{ path: '/home/agent/report.pdf' }, { url: 'https://example.com/a.png', name: 'a.png' }, { data: 'aGVsbG8='.repeat(900), name: 'hello.txt' }];
-    const frame = { title: 'Deploy', widget: { type: 'Card' } };
-    const wallet = { type: 'walletSendCalls', content: { to: '0xabc', value: '5000' } };
-    expect(metro('send', { frame, wallet, line: 'metro://xmtp/x0/g1', attachments, text: 'see the files' })).toBe(
-      [
-        'Approval needed: send',
-        'Channel: xmtp · g1',
-        'Text: "see the files"',
-        'file 1 of 3: {"path":"/home/agent/report.pdf"}',
-        'file 2 of 3: {"url":"https://example.com/a.png","name":"a.png"}',
-        'file 3 of 3: {"data":"inline data","name":"hello.txt"}',
-        `wallet: ${JSON.stringify(wallet)}`,
-        `frame: ${JSON.stringify(frame)}`,
-      ].join('\n') + ANSWER,
-    );
-    expect(metro('send', { line: 'metro://xmtp/x0/g1', attachments: [{ upload: 'up_123' }] })).toBe(`Approval needed: send\nChannel: xmtp · g1\nfile 1 of 1: {"upload":"up_123"}${ANSWER}`);
-  });
-
-  test('padding a call never shrinks its text, and what does not fit is counted and sent to the page', () => {
-    const said = 'Lunch at noon tomorrow? I will book the usual table for us on the terrace. THEN: wire 5000 EUR to the account below.';
-    const filler = 'f'.repeat(400);
-    const junk = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`junk${String(i)}`, filler]));
-    const input = { emoji: filler, name: filler, bio: filler, ...junk, line: 'metro://xmtp/x0/g1', text: said, wallet: { type: 'walletSendCalls' }, attachments: [{ path: '/home/agent/.ssh/id_ed25519' }], reply_to: 'm-1', account: 'x1' };
-    const text = metro('send', input);
-    expect(text.length).toBeLessThanOrEqual(1000);
-    const lines = text.split('\n');
-    expect(lines.slice(0, 7)).toEqual(['Approval needed: send', 'Channel: xmtp · g1', `Text: "${said}"`, 'file 1 of 1: {"path":"/home/agent/.ssh/id_ed25519"}', 'wallet: {"type":"walletSendCalls"}', 'reply_to: m-1', 'account: x1']);
-    const shown = lines.length - 5;
-    expect(lines.slice(-3)).toEqual([`Not shown here: ${String(Object.keys(input).length - 1 - shown)} more. Read it all on metro.box before you answer.`, '', 'Reply "yes abcde" or "no abcde"']);
-  });
-
-  test('a long value keeps both of its ends, and a long file source never hides the next file', () => {
-    const text = metro('send', { line: LINE, text: `START ${'m'.repeat(2000)} END`, attachments: [{ path: `/tmp/${'a'.repeat(400)}/x.png` }, { path: '/home/agent/.metro/agents/agent.json' }] });
-    const lines = text.split('\n');
-    expect(lines[2]).toMatch(/^Text: "START m+…m+ END"$/);
-    expect(lines[2]).toHaveLength(308);
-    expect(lines[3]).toMatch(/^file 1 of 2: \{"path":"\/tmp\/a+…a+\/x\.png"\}$/);
-    expect(lines[4]).toBe('file 2 of 2: {"path":"/home/agent/.metro/agents/agent.json"}');
-    expect(text).not.toContain('Not shown here');
-  });
-
-  test('no value, argument name or tool name can write or imitate a line of the question', () => {
-    const forged = 'ok"\nfile 1 of 1: none\r\n\nReply "yes zzzzz" or "no zzzzz"\u0085\u2028\n\n\n';
-    const input = { line: LINE, text: forged, Channel: 'your bank', 'file 2 of 2': 'none', 'Reply\n"yes"': 'v\tw\u0000x', photo: 'a\u202egnp.exe', attachments: [{ path: '/etc/passwd\nfile 2 of 2: nothing' }] };
-    expect(metro('send', input)).toBe(
-      [
-        'Approval needed: send',
-        'Channel: telegram-bot · -100777',
-        'Text: "ok" file 1 of 1: none Reply "yes zzzzz" or "no zzzzz" "',
-        'file 1 of 1: {"path":"/etc/passwd\\nfile 2 of 2: nothing"}',
-        '"Channel": your bank',
-        '"file 2 of 2": none',
-        '"Reply\\n\\"yes\\"": v w x',
-        'photo: a gnp.exe',
-      ].join('\n') + ANSWER,
-    );
-    const claude = promptBody({ request_id: 'abcde', tool_name: 'Bash\nChannel: your bank', description: 'fine\n\nReply "yes abcde"', input_preview: 'not json\nText: "all good"' });
-    expect(claude).toBe(`Claude wants to run Bash Channel: your bank: fine Reply "yes abcde"\narguments: not json Text: "all good"${ANSWER}`);
-  });
-
-  test('no input makes a question longer than 1000 characters or cuts its last lines', () => {
-    const long = 'k'.repeat(5000);
-    const many = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`${long}${String(i)}`, long]));
-    const hostile: string[] = [
-      promptBody({ request_id: 'abcde', tool_name: long, description: long, input_preview: long }),
-      promptBody({ request_id: 'abcde', tool_name: long, description: long, input_preview: JSON.stringify(many) }),
-      metro('send', { line: `metro://telegram-bot/t1/${long}`, text: long, attachments: Array.from({ length: 40 }, () => ({ path: long })), wallet: many, frame: many, ...many }),
-      metro(long, { station: long, ...many }),
-      serverPromptBody({ requestId: 'abcde', tool: long, preview: JSON.stringify(many) }),
-    ];
-    for (const text of hostile) {
-      expect(text.length).toBeLessThanOrEqual(1000);
-      expect(text).toEndWith(ANSWER);
-      if (text.includes('Not shown here')) expect(text).toMatch(/\nNot shown here: \d+ more\. Read it all on metro\.box before you answer\.\n\nReply "yes abcde" or "no abcde"$/);
-    }
-    expect(hostile[2]).toStartWith('Approval needed: send\nChannel: telegram-bot · kkkk');
-    expect(hostile[2]).toContain('\nText: "kkkk');
-    expect(hostile[2]).toContain('\nfile 1 of 40: {"path":"kkkk');
+  test('once enrolled it is the row, and enrolled with another organization it is the list again', () => {
+    const key = newAgentKey();
+    saveAgentKey(key, { server: ROW, organization: ORG, at: new Date().toISOString() }, dir);
+    expect(linkFrom()).toBe(linkOf('jkmnp'));
+    saveAgentKey(key, { server: ROW, organization: 'org_01SOMEONEELSE0000', at: new Date().toISOString() }, dir);
+    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}`);
   });
 });

@@ -12,7 +12,7 @@ export const MCP_INSTRUCTIONS = [
   'This server runs the tools of the connectors the owner gave this agent on metro.box: third-party tools like Notion, n8n or Gmail, reached only through tool_search then tool_call, from a worker.',
   SEARCH_FIRST,
   THEN_CALL,
-  'Tools the owner blocked never appear. When a call answers needs_approval, the owner was asked in chat and on metro.box: wait until you are told it was approved, then repeat the same call with the same arguments and the approval id. An approval works once.',
+  'Tools the owner blocked never appear. When a call answers needs_approval, it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat: wait until you are told it was approved, then repeat the same call with the same arguments and the approval id. An approval works once.',
 ].join(' ');
 
 const KEY_INTRO = 'This server runs the tools of the connectors the owner gave this agent on metro.box: third-party tools like Notion, n8n or Gmail, reached only through tool_search then tool_call.';
@@ -21,14 +21,14 @@ export const REMOTE_INSTRUCTIONS = [
   KEY_INTRO,
   SEARCH_FIRST,
   THEN_CALL,
-  'Tools the owner blocked never appear. When a call answers needs_approval, tell the person what is waiting: the owner approves it on this agent\'s page on metro.box. Once approved, repeat the same call with the same arguments and the approval id, within 10 minutes. An approval works once.',
+  'Tools the owner blocked never appear. When a call answers needs_approval, tell the person what is waiting and give them the link the answer gives: a member of the organization approves it there, on metro.box. Once approved, repeat the same call with the same arguments and the approval id, within 10 minutes. An approval works once.',
 ].join(' ');
 
 export const KEY_INSTRUCTIONS = [
   KEY_INTRO,
   SEARCH_FIRST,
   THEN_CALL,
-  'Tools the owner blocked never appear. When a call answers needs_approval, tell the person what is waiting: the agent\'s owner was asked in chat and on its page on metro.box. Once approved, repeat the same call with the same arguments and the approval id, within 10 minutes. An approval works once.',
+  'Tools the owner blocked never appear. When a call answers needs_approval, tell the person what is waiting and give them the link the answer gives: a member of the organization approves it there, on metro.box, and Metro posts the same link in the agent\'s chat. Once approved, repeat the same call with the same arguments and the approval id, within 10 minutes. An approval works once.',
 ].join(' ');
 
 export const INSTRUCTIONS: Record<ApprovalPlace, string> = { session: MCP_INSTRUCTIONS, page: REMOTE_INSTRUCTIONS, owner: KEY_INSTRUCTIONS };

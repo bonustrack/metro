@@ -10,7 +10,6 @@ const mapKey = (station: string, accountId: string): string =>
 let agentMap: AgentMap = {};
 let agentNames: AgentNameMap = {};
 let allowlistMap: AllowlistMap = {};
-let approversMap: AllowlistMap = {};
 let disabledAccounts = new Set<string>();
 
 export function setAgentMap(map: AgentMap, names: AgentNameMap): void {
@@ -29,20 +28,9 @@ export function setAllowlistMap(map: AllowlistMap): void {
   allowlistMap = map;
 }
 
-export function setApproversMap(map: AllowlistMap): void {
-  approversMap = map;
-}
-
-export const approversForAccount = (station: string, accountId: string): string[] => approversMap[mapKey(station, accountId)] ?? [];
-
-export function approversForLine(line: string): string[] {
-  const a = accountFromLine(line);
-  return a ? approversForAccount(a.station, a.accountId) : [];
-}
-
-export const mayApprove = (line: string, from: string): boolean => {
-  const approvers = approversForLine(line);
-  return approvers.length > 0 && senderMatchesAllowlist(approvers, from);
+export const mayCall = (line: string, from: string): boolean => {
+  const allowlist = allowlistForLine(line) ?? [];
+  return allowlist.length > 0 && !allowlist.includes('*') && senderMatchesAllowlist(allowlist, from);
 };
 
 export function setDisabledAccounts(ids: Set<string>): void {

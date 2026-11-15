@@ -8,7 +8,7 @@ import { asLine } from '../../packages/core/src/lines.js';
 import type { CallRoute, SpeechTarget } from '../../packages/core/src/call.js';
 import { publishEvent } from '../../packages/core/src/events.js';
 import { setKeyMap } from '../../apps/daemon/src/agents/keys.js';
-import { setAgentMap, setAllowlistMap, setApproversMap } from '../../apps/daemon/src/agents/map.js';
+import { setAgentMap, setAllowlistMap } from '../../apps/daemon/src/agents/map.js';
 import { pendingPrompts } from '../../apps/daemon/src/approvals/pending.js';
 import { createMetroMcp } from '../../apps/daemon/src/mcp/index.js';
 import { setPolicies, type Access } from '../../apps/daemon/src/policy/policy.js';
@@ -51,7 +51,6 @@ mkdirSync(join(home, '.metro'), { recursive: true });
 setKeyMap([{ key: KEY, agentId: AGENT }, { key: OTHER_KEY, agentId: 'other000001' }]);
 setAgentMap({ [`telegram-bot/${ACCOUNT}`]: AGENT, [`telegram-bot/${OTHER_ACCOUNT}`]: 'other000001' }, { [AGENT]: 'Fixture owner', other000001: 'Other fixture owner' });
 setAllowlistMap({ [`telegram-bot/${ACCOUNT}`]: ['111', '222'], [`telegram-bot/${OTHER_ACCOUNT}`]: ['333'] });
-setApproversMap({ [`telegram-bot/${ACCOUNT}`]: ['111'], [`telegram-bot/${OTHER_ACCOUNT}`]: ['333'] });
 export const policy = (send: Access): void => {
   setPolicies('channel', [[{ kind: 'channel', station: 'telegram-bot', account: ACCOUNT }, { tools: { send } }]]);
 };

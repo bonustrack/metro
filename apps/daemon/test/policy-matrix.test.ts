@@ -192,7 +192,7 @@ describe('list_members policies follow the line, not an undeclared account argum
     expect(trainCalls).toEqual([]);
     const id = approvalIdOf(await run());
     expect(id).not.toBe(otherId);
-    expect((await run({ ...args, approval: id })).content[0]?.text).toContain('has not answered yet');
+    expect((await run({ ...args, approval: id })).content[0]?.text).toContain('nobody has answered yet');
     await answerPrompt(id, 'allow', 'page');
     expect((await run({ ...args, approval: id })).isError).not.toBe(true);
     expect(trainCalls).toEqual(['whatsapp:listMembers']);
@@ -297,11 +297,11 @@ describe('a call that needs approval runs only once the owner approved that exac
     setPolicies('channel', [[TARGET, WRITE_ASK]]);
     const args = { line: LINE, text: 'hello' };
     const first = await run(args);
-    expect(first).toStartWith("Needs the owner's approval for telegram (send). The owner was asked on the agent's page on metro.box, approval id");
+    expect(first).toStartWith("Needs the owner's approval for telegram (send). It waits on metro.box, approval id");
     const id = approvalIdIn(first);
     expect(approvalIdIn(await run(args))).toBe(id);
     expect(await run({ ...args, approval: id })).toStartWith("Needs the owner's approval");
-    await answerPrompt(id, 'allow', 'chat');
+    await answerPrompt(id, 'allow', 'page');
     expect(approvalIdIn(await run({ line: LINE, text: 'something else', approval: id }))).not.toBe(id);
     expect(await run({ ...args, approval: id })).toStartWith('sent');
     expect(trainCalls).toEqual(['telegram:send']);
@@ -318,7 +318,7 @@ describe('a call that needs approval runs only once the owner approved that exac
     setPolicies('channel', [[TARGET, WRITE_ASK]]);
     const args = { line: LINE, text: 'hello' };
     promptedInClaudeCode('ccccc', args);
-    await answerPrompt('ccccc', 'allow', 'chat');
+    await answerPrompt('ccccc', 'allow', 'page');
     expect(await run(args)).toStartWith("Needs the owner's approval");
     expect(await run({ ...args, approval: 'ccccc' })).toContain('Approval "ccccc" is not known here');
     promptedInClaudeCode('ddddd', args);

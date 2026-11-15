@@ -29,16 +29,16 @@ describe('the prompts metro holds for the owner', () => {
     expect(answers).toEqual(['daemon allow']);
   });
 
-  test('each answer says how it came: chat, page, expiry, or a cancel that nobody answered', async () => {
+  test('each answer says how it came: page, expiry, or a cancel that nobody answered', async () => {
     const owner = {};
     const seen: string[] = [];
     const record = (id: string) => (behavior: string, via: string): Promise<void> => { seen.push(`${id} ${behavior} ${via}`); return Promise.resolve(); };
     for (const id of ['aaaaa', 'bbbbb', 'ccccc', 'ddddd']) holdPrompt(prompt(id), owner, record(id));
-    await answerPrompt('aaaaa', 'allow', 'chat');
+    await answerPrompt('aaaaa', 'allow', 'page');
     await answerPrompt('bbbbb', 'deny', 'page');
     cancelPrompt('ccccc', owner);
     expect(await expirePrompts(Date.now() + 25 * 3_600_000)).toBe(1);
-    expect(seen).toEqual(['aaaaa allow chat', 'bbbbb deny page', 'ccccc deny cancel', 'ddddd deny expiry']);
+    expect(seen).toEqual(['aaaaa allow page', 'bbbbb deny page', 'ccccc deny cancel', 'ddddd deny expiry']);
   });
 
   test('a session that ends takes its own prompts with it, never the approvals the daemon holds', () => {

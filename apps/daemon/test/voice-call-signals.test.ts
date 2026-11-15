@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
-import { setAgentMap, setAllowlistMap, setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
+import { setAgentMap, setAllowlistMap, setDisabledAccounts } from '../src/agents/map.ts';
 import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import type { CallStart } from '../src/voice/call.ts';
 import { leaveCallsForShutdown, onCallEvent } from '../src/voice/calls.ts';
@@ -26,7 +26,6 @@ afterAll(() => {
 beforeEach(() => {
   made = [];
   setAgentMap({ 'xmtp/account': 'agent-a' }, {});
-  setApproversMap({ 'xmtp/account': ['owner'] });
   setAllowlistMap({ 'xmtp/account': ['owner'] });
   setDisabledAccounts(new Set());
   writeVoice(voiceConfig);
@@ -35,7 +34,6 @@ beforeEach(() => {
 afterEach(async () => {
   await leaveCallsForShutdown();
   setAgentMap({}, {});
-  setApproversMap({});
   setAllowlistMap({});
   setDisabledAccounts(new Set());
 });
@@ -114,14 +112,27 @@ test('duplicate invites are idempotent and replaced call callbacks do not clear 
   expect(made).toHaveLength(2);
 });
 
-test('off, unscoped or removed approver accounts never open a shared call', () => {
+test('off or unscoped accounts, and a caller the channel does not list, never open a shared call', () => {
   setDisabledAccounts(new Set(['xmtp/account']));
   onCallEvent(invite(), 'xmtp', create);
   setDisabledAccounts(new Set());
   setAgentMap({}, {});
   onCallEvent(invite(), 'xmtp', create);
   setAgentMap({ 'xmtp/account': 'agent-a' }, {});
-  setApproversMap({});
+  setAllowlistMap({ 'xmtp/account': ['someone-else'] });
   onCallEvent(invite(), 'xmtp', create);
   expect(made).toEqual([]);
+});
+
+test('a channel open to anyone takes no call, even from someone who writes there', () => {
+  for (const allowlist of [['*'], ['owner', '*'], []]) {
+    setAllowlistMap({ 'xmtp/account': allowlist });
+    onCallEvent(invite(), 'xmtp', create);
+  }
+  setAllowlistMap({});
+  onCallEvent(invite(), 'xmtp', create);
+  expect(made).toEqual([]);
+  setAllowlistMap({ 'xmtp/account': ['@example.com', 'OWNER'] });
+  onCallEvent(invite(), 'xmtp', create);
+  expect(made).toHaveLength(1);
 });

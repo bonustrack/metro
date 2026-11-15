@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { answerPrompt } from '../../apps/daemon/src/approvals/pending.js';
 import { hearSharedCall } from '../../apps/daemon/src/voice/shared.js';
 import { isRecord } from '../../packages/core/src/is-record.js';
 import * as h from './shared-call-harness.js';
@@ -115,7 +116,7 @@ async function approval(): Promise<void> {
   assert.equal(h.sent('STAGING_APPROVED_WRITE'), 0);
   assert.notEqual(held.state, 'cancelled');
   const approvedAt = Date.now();
-  h.chat(`yes ${prompt.requestId}`);
+  await answerPrompt(prompt.requestId, 'allow', 'page');
   await h.until('approved exact call and ordinary chat complete', () => h.train.some((row) => row.args.text === 'STAGING_APPROVED_WRITE' && row.completedAt !== null)
     && answeredChat() && h.activity.snapshot().workers === 0, 60_000);
   await h.idle();

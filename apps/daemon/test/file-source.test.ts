@@ -87,6 +87,11 @@ describe('agents kept as files', () => {
     expect(loaded?.accounts.map((a) => [a.id, a.enabled])).toEqual([['stn00000001', true], ['stn00000002', false]]);
   });
 
+  test('an approvers list an older version wrote is read past and dropped, whatever its shape', () => {
+    for (const approvers of [['111'], 'x', [42], null])
+      expect(parseAgentFile(JSON.stringify(agent({ stations: [{ station: 'telegram-bot', id: 'stn00000001', allowlist: ['111'], approvers, config: {} }] })), 'x').stations[0]).not.toHaveProperty('approvers');
+  });
+
   test('a station in a file runs on this machine', async () => {
     write(agent());
     await materializeFrom(fileSource);

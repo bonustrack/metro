@@ -2,11 +2,10 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { z } from 'zod';
 import type { InboundRelay } from '../channels/inbound.js';
 import { cancelPrompt, holdPrompt, type Behavior } from '../approvals/pending.js';
-import { ownerLine, type OwnerLine } from '../approvals/owner-line.js';
-import { approversForLine, lineReceives, mayApprove } from '../agents/map.js';
+import { lineReceives } from '../agents/map.js';
 import { sharedCalls } from '../voice/shared.js';
 import { metroCall } from './ctx.js';
-import { promptBody } from './permission-prompt.js';
+import { promptNotice } from './permission-prompt.js';
 import { permissionCall } from './call-permission.js';
 
 const PermissionRequestSchema = z.object({
@@ -46,29 +45,22 @@ const callChat = (deps: PromptLineDeps): string | undefined => {
   return route !== null && deps.inScope(route.line) ? route.line : undefined;
 };
 
-const ownerChat = (deps: PromptLineDeps, owner: OwnerLine | undefined): string | undefined =>
-  owner !== undefined && mayApprove(owner.line, owner.from) && deps.inScope(owner.line) && lineReceives(owner.line) ? owner.line : undefined;
-
 export function relayLine(deps: PromptLineDeps, requestId: string, callLine?: string): string | undefined {
   if (!deps.live()) {
-    deps.log('permission_request: live events are off, so no chat answer can arrive; held for the page only', requestId);
+    deps.log('permission_request: live events are off, so no link is posted in chat; it waits on metro.box', requestId);
     return undefined;
   }
-  const line = callLine ?? callChat(deps) ?? ownerChat(deps, ownerLine()) ?? deps.relay.knownLine;
+  const line = callLine ?? callChat(deps) ?? deps.relay.knownLine;
   if (!line) {
-    deps.log('permission_request: no known line, held for the page only', requestId);
+    deps.log('permission_request: no known chat, so no link is posted; it waits on metro.box', requestId);
     return undefined;
   }
   if (!deps.inScope(line)) {
-    deps.log('permission_request: known line is outside the agent scope, held for the page only', requestId);
+    deps.log('permission_request: the known chat is outside the agent scope, so no link is posted; it waits on metro.box', requestId);
     return undefined;
   }
   if (!lineReceives(line)) {
-    deps.log('permission_request: the known chat does not receive messages now, so no answer can arrive; held for the page only', requestId);
-    return undefined;
-  }
-  if (approversForLine(line).length === 0) {
-    deps.log('permission_request: nobody on that chat may approve, held for the page only', requestId);
+    deps.log('permission_request: the known chat does not receive messages now, so no link is posted; it waits on metro.box', requestId);
     return undefined;
   }
   return line;
@@ -110,7 +102,7 @@ export function registerPermissionRelay(deps: PermissionRelayDeps): void {
     }
     if (line === undefined) return;
     try {
-      await metroSend(line, promptBody(params));
+      await metroSend(line, promptNotice(params));
     } catch (e) {
       log('relay send failed', e);
     }
