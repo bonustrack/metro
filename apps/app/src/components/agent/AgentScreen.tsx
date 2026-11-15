@@ -10,6 +10,7 @@ import { Notice } from '../Notice.js';
 import { OfflinePanel, worksOffline } from '../Offline.js';
 import { StoppedNotice } from '../StoppedNotice.js';
 import { TerminalPage } from '../Terminal.js';
+import { ApprovalFrame } from '../approval/ApprovalFrame.js';
 import { Tabbed } from '../tabbed.js';
 import { AgentHeader } from './AgentHeader.js';
 import { AgentSubPages, AgentTabs } from './AgentTabs.js';
@@ -79,6 +80,11 @@ function replacement(selection: Selection, error: Error | null, stopped: boolean
   return selection.kind === 'terminal' || !worksOffline(selection.kind) ? <OfflinePanel onRetry={retry} /> : null;
 }
 
+function focusPage(selection: Selection, replaced: ReactNode): ReactNode {
+  if (selection.kind === 'approval' && replaced !== null) return <ApprovalFrame project={selection.project}>{replaced}</ApprovalFrame>;
+  return replaced ?? <AgentPanel selection={selection} />;
+}
+
 export function AgentScreen({ server, selection, onLock }: AgentScreenProps): ReactNode {
   const { error, retry } = useBoxState();
   const stopped = useServerStatus(server.host).data?.state === 'stopped';
@@ -86,7 +92,7 @@ export function AgentScreen({ server, selection, onLock }: AgentScreenProps): Re
   useAutoEnroll(server);
   const replaced = replacement(selection, error, stopped, retry, onLock);
   if (selection.kind === 'terminal') return replaced ?? <TerminalPage />;
-  if (isFocusPage(selection)) return replaced ?? <AgentPanel selection={selection} />;
+  if (isFocusPage(selection)) return focusPage(selection, replaced);
   if (replaced === null && isDeepPage(selection)) return <AgentPanel selection={selection} />;
   return (
     <AgentDetail server={server} selection={selection}>

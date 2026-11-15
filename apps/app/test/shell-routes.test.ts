@@ -188,11 +188,12 @@ describe('the shell knows its section and what a phone shows', () => {
   });
 });
 
-describe('setup flows open full screen, like the launch', () => {
-  test('adding a chat, a connector, a model account or an AWS account is a focus page, and nothing else is', () => {
+describe('setup flows and an approval open full screen, like the launch', () => {
+  test('adding a chat, a connector, a model account or an AWS account, and an approval, are focus pages, and nothing else is', () => {
     const focus: Selection[] = [
       { kind: 'add-chat', project: AGENT },
       { kind: 'add-chat', project: AGENT, station: 'xmtp' },
+      { kind: 'approval', project: AGENT, id: 'abcde' },
       { kind: 'org-model-add' },
       { kind: 'org-model-add', provider: 'codex' },
       { kind: 'org-model-sign-in', id: AGENT },
@@ -200,7 +201,7 @@ describe('setup flows open full screen, like the launch', () => {
       { kind: 'org-connector-new' },
     ];
     for (const selection of focus) expect(isFocusPage(selection)).toBe(true);
-    const shell: Selection[] = [{ kind: 'chats', project: AGENT }, { kind: 'backup', project: AGENT }, { kind: 'run', project: AGENT, view: 'session' }, { kind: 'org-models' }, { kind: 'organization' }, { kind: 'launch' }];
+    const shell: Selection[] = [{ kind: 'home', project: AGENT }, { kind: 'chats', project: AGENT }, { kind: 'backup', project: AGENT }, { kind: 'run', project: AGENT, view: 'session' }, { kind: 'org-models' }, { kind: 'organization' }, { kind: 'launch' }];
     for (const selection of shell) expect(isFocusPage(selection)).toBe(false);
   });
 

@@ -17,7 +17,9 @@ import { Disclosure } from '../ui/Disclosure.js';
 import { Icon } from '../Icon.js';
 import { StationIcon } from '../StationIcon.js';
 import { TextLink } from '../TextLink.js';
-import { accountRow, approvalWhere, othersLine, ruleLine } from '../../lib/approval-note.js';
+import { SkeletonBlock } from '../ui/RowsSkeleton.js';
+import { useNamedConnector } from '../../lib/approval-connector.js';
+import { accountRow, approvalWhere, othersLine, ruleLine, type NamedConnector } from '../../lib/approval-note.js';
 import { DECIDE_FAILED } from '../../lib/approval-page.js';
 import { queryError, refresh, useBoxQuery } from '../../lib/queries.js';
 import { useIsNarrow } from '../../lib/media.js';
@@ -26,6 +28,10 @@ import { SHRINK } from '../../lib/style.js';
 const MARK = 24;
 const FILE_ICON = 20;
 const LABEL_WIDTH = 76;
+const MARK_RADIUS = Math.round(MARK / 4);
+const LINE_HEIGHT = 14;
+const WHERE_WIDTH = 140;
+const NOTE_WIDTH = 180;
 const CARDS_STALE_MS = 5 * 60_000;
 
 export interface ApprovalContext {
@@ -34,10 +40,11 @@ export interface ApprovalContext {
   tools: Record<string, GroupedTool[]>;
 }
 
-export function ApprovalMark({ card }: { card: Card }): ReactNode {
+export function ApprovalMark({ card, connector }: { card: Card; connector: NamedConnector | null | undefined }): ReactNode {
   const palette = useKitPalette();
   if (card.station !== null) return <StationIcon station={card.station} size={MARK} />;
-  if (card.connector !== null) return <ConnectorFavicon name={card.connector} url="" size={MARK} />;
+  if (card.connector !== null && connector === undefined) return <SkeletonBlock width={MARK} height={MARK} radius={MARK_RADIUS} />;
+  if (card.connector !== null) return <ConnectorFavicon name={connector?.name ?? card.connector} url={connector?.url ?? ''} size={MARK} />;
   return <Icon name="hand" size={MARK} color={palette.text} />;
 }
 
@@ -160,8 +167,7 @@ interface ApprovalCardProps {
   context: ApprovalContext;
   project: string;
   decide?: Decide;
-  where?: string;
-  mark?: ReactNode;
+  connector?: NamedConnector;
 }
 
 function Details({ project, id }: { project: string; id: string }): ReactNode {
@@ -173,28 +179,51 @@ function Details({ project, id }: { project: string; id: string }): ReactNode {
   );
 }
 
-export function ApprovalCardView({ approval, context, project, decide, where: named, mark }: ApprovalCardProps): ReactNode {
+function Where({ where }: { where: string | null | undefined }): ReactNode {
+  if (where === undefined) return <SkeletonBlock width={WHERE_WIDTH} height={LINE_HEIGHT} />;
+  if (where === null) return null;
+  return (
+    <Text size="xs" color="secondary" numberOfLines={1}>
+      {where}
+    </Text>
+  );
+}
+
+function Note({ note }: { note: string | undefined }): ReactNode {
+  if (note === '') return null;
+  return (
+    <Column margin={{ top: 20 }}>
+      {note === undefined ? (
+        <SkeletonBlock width={NOTE_WIDTH} height={LINE_HEIGHT} />
+      ) : (
+        <Text size="xs" color="secondary">
+          {note}
+        </Text>
+      )}
+    </Column>
+  );
+}
+
+export function ApprovalCardView({ approval, context, project, decide, connector }: ApprovalCardProps): ReactNode {
   const palette = useKitPalette();
   const narrow = useIsNarrow();
   const boxDecide = useBoxDecide(approval.id);
   const card = approvalCard(approval);
-  const where = named ?? approvalWhere(card, context.groups);
+  const named = useNamedConnector(card.connector, connector);
   const others = useOthers(approval, context);
-  const note = [ruleLine(card, approval.tool, context.groups, context.tools), others].filter((part) => part !== null).join(' ');
+  const naming = card.connector !== null && named === undefined;
+  const where = naming ? undefined : approvalWhere(card, context.groups, named);
+  const note = naming ? undefined : [ruleLine(card, approval.tool, context.groups, context.tools, named), others].filter((part) => part !== null).join(' ');
   const rows = approval.requestedBy === null ? card.fields : [{ label: 'Asked by', value: approval.requestedBy }, ...card.fields];
   return (
     <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
       <Row align="start" gap={12}>
-        {mark ?? <ApprovalMark card={card} />}
+        <ApprovalMark card={card} connector={named} />
         <Column weight={1} minWidth={0} gap={2}>
           <Text size="md" fontWeight="semibold" numberOfLines={2}>
             {card.title}
           </Text>
-          {where === null ? null : (
-            <Text size="xs" color="secondary" numberOfLines={1}>
-              {where}
-            </Text>
-          )}
+          <Where where={where} />
         </Column>
         <Text size="xs" color="secondary" numberOfLines={1}>
           {whenLabel(approval.requestedAt)}
@@ -210,13 +239,7 @@ export function ApprovalCardView({ approval, context, project, decide, where: na
       )}
       <Attachment card={card} />
       <Everything card={card} />
-      {note === '' ? null : (
-        <Column margin={{ top: 20 }}>
-          <Text size="xs" color="secondary">
-            {note}
-          </Text>
-        </Column>
-      )}
+      <Note note={note} />
       <Details project={project} id={approval.id} />
       <Answers decide={decide ?? boxDecide} />
     </Column>

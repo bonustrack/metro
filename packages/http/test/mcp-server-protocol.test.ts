@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { connectorKeys } from '@metro-labs/core/connector-keys';
 import { MCP_CALLS_MAX, MCP_FIND_MAX, MCP_TOKEN_RE, mcpAnswerOf, mcpApprovalsOf, mcpCallsOf, mcpFindRequestOf, mcpTokenHashOf, splitMcpTool } from '../src/mcp-server-protocol.ts';
 
 describe('the mcp.metro.box protocol', () => {
@@ -6,6 +7,11 @@ describe('the mcp.metro.box protocol', () => {
     expect(splitMcpTool('notion.search')).toEqual({ connector: 'notion', tool: 'search' });
     expect(splitMcpTool('n8n-anderra.get_workflow_details')).toEqual({ connector: 'n8n-anderra', tool: 'get_workflow_details' });
     for (const bad of ['notion', '.search', 'Notion.search', 'notion.', 'a b.c', `${'a'.repeat(64)}.x`]) expect(splitMcpTool(bad)).toBeNull();
+  });
+
+  test('every connector key makes a valid <connector>.<tool> name, even a long one with a suffix', () => {
+    const long = 'a'.repeat(70);
+    for (const key of connectorKeys([{ id: '1', name: long }, { id: '2', name: long }]).values()) expect(splitMcpTool(`${key}.search`)).toEqual({ connector: key, tool: 'search' });
   });
 
   test('find requests default to 5 results and cap at 20', () => {

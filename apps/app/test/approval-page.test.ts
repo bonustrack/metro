@@ -108,32 +108,36 @@ const NOW = Date.now();
 const TEXT = 'Wire 5000 EUR to the account below.\\nIBAN CH93 0076 2011 6238 5295 7, reference MARCH-OFFER, before Friday noon, and confirm by mail.';
 const asked = (id, ago) => approvalsApi.approvalOf({ id, tool: 'mcp__metro__send', preview: JSON.stringify({ line: 'metro://telegram-bot/t1/42', text: TEXT, attachments: [{ path: '/tmp/offer.pdf', name: 'offer.pdf' }] }), line: 'metro://telegram-bot/t1/42', requestedAt: new Date(NOW - ago).toISOString() });
 const remote = (id) => ({ approval: approvalsApi.approvalOf({ id, tool: 'notion.create_page', preview: '{"title":"Plan for March"}', line: '', requestedAt: new Date(NOW - 60_000).toISOString() }), connector: 'conn0000001', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com' });
-const reads = { approvals: { data: undefined, error: null }, stations: { data: undefined, error: null }, remote: { data: undefined, error: null } };
-let pages = [], items = [], groups = [], buttons = [], states = [], errors = [], skeletons = [], logs = [];
+const reads = { approvals: { data: undefined, error: null }, stations: { data: undefined, error: null }, remote: { data: undefined, error: null }, connectors: { data: undefined, error: null } };
+let headers = [], items = [], groups = [], buttons = [], states = [], errors = [], skeletons = [], blocks = [], logs = [], closes = [], avatars = [];
 const decided = [], remoteDecided = [], fetched = [], refreshed = [], boxReads = [], went = [];
 let technical = false;
 const wrap = ({ children }) => createElement('div', null, children);
+const flat = (children) => (Array.isArray(children) ? children.join('') : String(children ?? ''));
 globalThis.fetch = (url, init) => { fetched.push([String(url), init?.method ?? 'GET']); return Promise.reject(new Error('no network in this test')); };
 mock.module('@tanstack/react-query', () => ({ useQueryClient: () => ({}) }));
 mock.module('@stage-labs/kit/react-native/column', () => ({ Column: wrap }));
 mock.module('@stage-labs/kit/react-native/row', () => ({ Row: wrap }));
-mock.module('@stage-labs/kit/react-native/text', () => ({ Text: wrap }));
+mock.module('@stage-labs/kit/react-native/text', () => ({ Text: (props) => { if (props.accessibilityRole === 'header') headers.push(flat(props.children)); return wrap(props); } }));
+mock.module('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 mock.module('@stage-labs/kit/react-native/button', () => ({ Button: (props) => { buttons.push(props); return null; } }));
 mock.module('@stage-labs/kit/react-native/theme-context', () => ({ useKitPalette: () => ({ text: '#ffffff', border: '#333333' }) }));
 mock.module('@metro-labs/client/api/approvals', () => ({ ...approvalsApi, decideApproval: (...args) => { decided.push(args); return Promise.resolve(); } }));
 mock.module('@metro-labs/client/api/agent-keys', () => ({ ...keysApi, decideRemoteApproval: (...args) => { remoteDecided.push(args); return Promise.resolve(); } }));
-mock.module('./src/components/AgentAvatar.js', () => ({ AgentAvatar: () => null }));
+mock.module('./src/components/AgentAvatar.js', () => ({ AgentAvatar: (props) => { avatars.push(props); return null; } }));
 mock.module('./src/components/Icon.js', () => ({ Icon: () => null }));
-mock.module('./src/components/agent/AgentDeepPage.js', () => ({ AgentDeepPage: (props) => { pages.push(props); return wrap(props); } }));
+mock.module('./src/components/PageScroll.js', () => ({ PageScroll: wrap }));
+mock.module('./src/components/ui/RoundButton.js', () => ({ RoundButton: (props) => { closes.push(props); return null; } }));
+mock.module('./src/lib/media.js', () => ({ useIsNarrow: () => false }));
 mock.module('./src/components/ui/ErrorState.js', () => ({ ErrorState: (props) => { errors.push(props); return null; } }));
 mock.module('./src/components/ui/Group.js', () => ({ Group: (props) => { groups.push(props.label); return wrap(props); } }));
 mock.module('./src/components/ui/Item.js', () => ({ Item: (props) => { items.push(props); return null; } }));
 mock.module('./src/components/ui/LogBlock.js', () => ({ LogBlock: (props) => { logs.push(props); return null; } }));
 mock.module('./src/components/ui/Layout.js', () => ({ Readable: wrap }));
-mock.module('./src/components/ui/RowsSkeleton.js', () => ({ RowsSkeleton: (props) => { skeletons.push(props); return null; } }));
+mock.module('./src/components/ui/RowsSkeleton.js', () => ({ RowsSkeleton: (props) => { skeletons.push(props); return null; }, SkeletonBlock: (props) => { blocks.push(props); return null; } }));
 mock.module('./src/components/ui/StateBlock.js', () => ({ StateBlock: (props) => { states.push(props); return null; } }));
 mock.module('./src/components/home/ApprovalCard.js', () => ({ ApprovalMark: () => null }));
-mock.module('./src/components/remote/RemoteApprovals.js', () => ({ RemoteMark: () => null }));
+mock.module('./src/lib/org-connector-queries.js', () => ({ useOrgConnectorsQuery: () => { boxReads.push('connectors'); return reads.connectors; } }));
 mock.module('./src/lib/log.js', () => ({ logError: () => () => undefined }));
 mock.module('./src/lib/nav.js', () => ({ go: (target) => { went.push(target); } }));
 mock.module('./src/lib/technical.js', () => ({ useTechnicalDetails: () => technical }));
@@ -149,19 +153,25 @@ mock.module('./src/lib/remote-agents.js', () => ({ useRemoteApprovals: () => ({ 
 const { BoxApprovalPage } = await import('./src/components/approval/BoxApprovalPage.tsx');
 const { RemoteApprovalPage } = await import('./src/components/remote/RemoteApprovalPage.tsx');
 const render = (component, props) => {
-  pages = []; items = []; groups = []; buttons = []; states = []; errors = []; skeletons = []; logs = [];
+  headers = []; items = []; groups = []; buttons = []; states = []; errors = []; skeletons = []; blocks = []; logs = []; closes = []; avatars = [];
   return renderToStaticMarkup(createElement(component, props));
 };
 const box = (id = 'abcde') => render(BoxApprovalPage, { project: 'emma', id });
 const laptop = (id = 'abcde') => render(RemoteApprovalPage, { agent: LAPTOP, id });
 const facts = () => items.map((item) => [item.subtitle, item.title]);
+const marks = () => items.filter((item) => item.subtitle === 'Connector').map((item) => item.leading.props.connector);
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 `;
 
 const boxCheck = `${fixture}
 setCurrentServer({ id: EMMA, host: 'metro-emma.ts.net' });
-box();
-assert.deepEqual([skeletons.length, pages[0].title, pages[0].tab, pages[0].trail, buttons.length], [1, undefined, 'home', [{ label: 'Approval' }], 0]);
+let html = box();
+assert.deepEqual([skeletons.length, blocks.length, headers, buttons.length], [1, 1, [], 0]);
+assert.ok(html.includes('Emma') && html.includes('Approval request'));
+assert.deepEqual(avatars.map((one) => [one.size, one.square]), [[48, true]]);
+assert.deepEqual(closes.map((one) => [one.label, one.icon]), [['Close, back to Emma', 'close']]);
+closes[0].onPress();
+assert.deepEqual(went.splice(0), [{ kind: 'home', project: 'emma' }]);
 
 reads.approvals = { data: undefined, error: new Error('Failed to reach Metro.') };
 box();
@@ -169,25 +179,26 @@ assert.deepEqual(errors.map((one) => [one.title, one.text]), [['Could not load t
 assert.equal(buttons.length, 0);
 
 reads.approvals = { data: [asked('fghij', 30_000), asked('abcde', 120_000)], error: null };
-let html = box();
-assert.equal(pages[0].title, 'Send a message');
-assert.deepEqual(facts(), [['Agent', 'Emma'], ['Asked', '2 min ago']]);
+html = box();
+assert.deepEqual(headers, ['Send a message']);
+assert.equal(closes.length, 1);
+assert.deepEqual(facts(), [['Asked', '2 min ago']]);
 assert.equal(skeletons.length, 1);
-assert.deepEqual(groups, ['Request', 'Everything in this call']);
+assert.deepEqual(groups, [undefined, 'Everything in this call']);
 assert.ok(html.includes('Wire 5000 EUR to the account below. IBAN CH93 0076 2011 6238 5295 7, reference MARCH-OFFER, before Friday noon, and confirm by mail.'));
 assert.ok(html.includes('/tmp/offer.pdf'));
 assert.deepEqual(buttons.map((one) => [one.label, one.disabled, one.size]), [['Deny', false, 'lg'], ['Approve', false, 'lg']]);
 
 reads.stations = { data: { groups: [] }, error: null };
 box();
-assert.deepEqual(facts(), [['Agent', 'Emma'], ['Channel', 'Telegram bot · t1'], ['Asked', '2 min ago']]);
+assert.deepEqual(facts(), [['Channel', 'Telegram bot · t1'], ['Asked', '2 min ago']]);
 assert.equal(skeletons.length, 0);
 assert.deepEqual(logs, []);
 
 technical = true;
 box();
-assert.deepEqual(facts().map(([label]) => label), ['Agent', 'Channel', 'Asked', 'Tool']);
-assert.equal(items[3].title, 'mcp__metro__send');
+assert.deepEqual(facts().map(([label]) => label), ['Channel', 'Asked', 'Tool']);
+assert.equal(items[2].title, 'mcp__metro__send');
 assert.equal(logs.length, 1);
 assert.ok(logs[0].text.includes('MARCH-OFFER'));
 technical = false;
@@ -202,7 +213,7 @@ assert.deepEqual(refreshed, ['approvals']);
 for (const id of ['abcde', 'zzzzz']) {
   reads.approvals = { data: [asked('fghij', 30_000)], error: null };
   box(id);
-  assert.equal(pages[0].title, undefined);
+  assert.deepEqual([headers, closes.length], [[], 1]);
   assert.equal(buttons.length, 0);
   assert.deepEqual(states.map((one) => [one.title, one.text, one.action.label]), [['This request is no longer waiting', 'It was already answered, it expired, or the link is not right.', 'Back to Emma']]);
   states[0].action.onPress();
@@ -211,14 +222,32 @@ assert.deepEqual(went, [{ kind: 'home', project: 'emma' }, { kind: 'home', proje
 
 reads.approvals = { data: [approvalsApi.approvalOf({ id: 'abcde', tool: 'Bash', preview: 'rm -rf /tmp/build && ls', line: null, requestedAt: '' })], error: null };
 box();
-assert.equal(pages[0].title, 'Bash');
-assert.deepEqual(facts(), [['Agent', 'Emma']]);
-assert.deepEqual([groups, logs.map((one) => [one.text, one.maxHeight])], [['Request', 'Details'], [['rm -rf /tmp/build && ls', null]]]);
+assert.deepEqual(headers, ['Bash']);
+assert.deepEqual(facts(), []);
+assert.deepEqual([groups, logs.map((one) => [one.text, one.maxHeight])], [[undefined, 'Details'], [['rm -rf /tmp/build && ls', null]]]);
 
-reads.approvals = { data: [approvalsApi.approvalOf({ id: 'abcde', tool: 'notion.update_page', preview: '{"page_id":"p1"}', line: null, requestedAt: '', requestedBy: 'access key "Claude Code"' })], error: null };
+const drafted = (extra) => approvalsApi.approvalOf({ id: 'abcde', tool: 'gmail-fabien-bonustrack-co.create_draft', preview: '{"to":"wan@mcigroup.ch"}', line: null, requestedAt: new Date(NOW - 60_000).toISOString(), ...extra });
+reads.approvals = { data: [drafted({ requestedBy: 'access key "Claude Code"' })], error: null };
+html = box();
+assert.deepEqual(headers, ['Create draft']);
+assert.deepEqual([facts(), skeletons.length], [[['Asked', '1 min ago'], ['Asked by', 'access key "Claude Code"']], 1]);
+assert.ok(!html.includes('gmail-fabien-bonustrack-co'), 'never the key while the connectors load');
+
+const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: EMMA }] };
+reads.connectors = { data: { connectors: [gmail, { id: 'conn0000001', name: 'Gmail', url: 'https://other.example.com', agents: [{ id: LAPTOP }] }], admin: true }, error: null };
+html = box();
+assert.deepEqual([facts(), skeletons.length], [[['Connector', 'Gmail fabien@bonustrack.co'], ['Asked', '1 min ago'], ['Asked by', 'access key "Claude Code"']], 0]);
+assert.deepEqual(marks(), [{ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/' }]);
+assert.ok(!html.includes('gmail-fabien-bonustrack-co'));
+
+reads.connectors = { data: { connectors: [{ ...gmail, agents: [{ id: LAPTOP }] }], admin: true }, error: null };
 box();
-assert.deepEqual(facts().slice(0, 2), [['Agent', 'Emma'], ['Asked by', 'access key "Claude Code"']]);
-reads.approvals = { data: [approvalsApi.approvalOf({ id: 'abcde', tool: 'notion.update_page', preview: '{"page_id":"p1"}', line: null, requestedAt: '', requestedBy: 7 })], error: null };
+assert.deepEqual([facts()[0], marks()], [['Connector', 'gmail-fabien-bonustrack-co'], [null]]);
+reads.connectors = { data: undefined, error: new Error('Failed to reach Metro.') };
+box();
+assert.deepEqual([facts()[0], marks()], [['Connector', 'gmail-fabien-bonustrack-co'], [null]]);
+
+reads.approvals = { data: [drafted({ requestedBy: 7 })], error: null };
 box();
 assert.ok(!facts().some(([label]) => label === 'Asked by'));
 assert.deepEqual(fetched, []);
@@ -227,12 +256,16 @@ assert.deepEqual(fetched, []);
 const remoteCheck = `${fixture}
 setCurrentServer({ id: LAPTOP, host: null });
 laptop();
-assert.deepEqual([skeletons.length, pages[0].title, buttons.length], [1, undefined, 0]);
+assert.deepEqual([skeletons.length, blocks.length, headers, buttons.length], [1, 1, [], 0]);
+assert.deepEqual(closes.map((one) => one.label), ['Close, back to Laptop']);
 
 reads.remote = { data: [remote('fghij'), remote('abcde')], error: null };
 const html = laptop();
-assert.equal(pages[0].title, 'Create page');
-assert.deepEqual(facts(), [['Agent', 'Laptop'], ['Connector', 'Notion'], ['Asked', '1 min ago']]);
+assert.deepEqual(headers, ['Create page']);
+assert.deepEqual(facts(), [['Connector', 'Notion'], ['Asked', '1 min ago']]);
+assert.deepEqual(marks(), [{ name: 'Notion', url: 'https://mcp.notion.com' }]);
+closes[0].onPress();
+assert.deepEqual(went.splice(0), [{ kind: 'home', project: LAPTOP }]);
 assert.ok(html.includes('Plan for March'));
 assert.deepEqual(remoteDecided, []);
 buttons.find((one) => one.label === 'Deny').onPress();

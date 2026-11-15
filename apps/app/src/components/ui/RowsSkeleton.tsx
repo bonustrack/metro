@@ -46,6 +46,10 @@ function SkeletonRow({ leading, trailing, pane, fill }: Required<Omit<RowsSkelet
   );
 }
 
+export function SkeletonBlock({ width, height, radius = BAR_RADIUS }: { width: number; height: number; radius?: number }): ReactNode {
+  return <Column width={width} maxWidth="100%" height={height} radius={radius} background={shapeColor(useKitPalette())} accessibilityLabel="Loading" />;
+}
+
 export function RowsSkeleton({ rows = 3, leading = true, trailing = true, pane = false }: RowsSkeletonProps): ReactNode {
   const fill = shapeColor(useKitPalette());
   const shapes = Array.from({ length: rows }, (_, index) => <SkeletonRow key={index} leading={leading} trailing={trailing} pane={pane} fill={fill} />);

@@ -33,7 +33,6 @@
     "./db/mcp-approvals": "./src/db/mcp-approvals.ts",
     "./db/agent-tokens": "./src/db/agent-tokens.ts",
     "./db/bearers": "./src/db/bearers.ts",
-    "./connector-keys": "./src/connector-keys.ts",
     "./model-secret": "./src/model-secret.ts",
     "./model-route": "./src/model-route.ts",
     "./model-refresh": "./src/model-refresh.ts",
