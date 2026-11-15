@@ -15,6 +15,7 @@ let other: TestAgent;
 const T0 = Date.parse('2026-10-14T10:00:00.000Z');
 
 const call = (args: Record<string, unknown>, tool = 'update_page', connector = 'conn0000001'): ApprovalRequest => ({ connector, tool, digest: argsDigest(args), preview: previewOf(args) });
+const ask = async (who: Parameters<ApprovalStore['request']>[0], request: ApprovalRequest, at: number): Promise<string> => (await store.request(who, request, at)).id;
 const stateOf = async (id: string): Promise<string | undefined> => (await held.db.select().from(mcpApprovals).where(eq(mcpApprovals.id, id)))[0]?.state;
 
 beforeAll(async () => { held = await testDb(); store = approvalStore(() => held.db); }, PGLITE_START_MS);
@@ -41,16 +42,25 @@ describe('argument digests and previews', () => {
 
 describe('the approval state machine', () => {
   test('an Ask call makes one pending row, and the same call reuses its id', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     expect(id).toMatch(APPROVAL_ID_RE);
-    expect(await store.request(agent.row, call({ page: 1 }), T0 + 1000)).toBe(id);
-    expect(await store.request(agent.row, call({ page: 2 }), T0)).not.toBe(id);
-    expect(await store.request(other.row, call({ page: 1 }), T0)).not.toBe(id);
+    expect(await ask(agent.row, call({ page: 1 }), T0 + 1000)).toBe(id);
+    expect(await ask(agent.row, call({ page: 2 }), T0)).not.toBe(id);
+    expect(await ask(other.row, call({ page: 1 }), T0)).not.toBe(id);
     expect(await held.db.$count(mcpApprovals)).toBe(3);
   });
 
+  test('only the request that made the row says it created it, so one notification goes per approval id', async () => {
+    const first = await store.request(agent.row, call({ page: 1 }), T0);
+    expect(first.created).toBe(true);
+    expect(await store.request(agent.row, call({ page: 1 }), T0 + 1000)).toEqual({ id: first.id, created: false });
+    const [a, b] = await Promise.all([store.request(agent.row, call({ page: 3 }), T0), store.request(agent.row, call({ page: 3 }), T0)]);
+    expect(a?.id).toBe(b?.id ?? '');
+    expect([a?.created, b?.created].filter(Boolean)).toHaveLength(1);
+  });
+
   test('an allowed approval runs once, for exactly that call', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     expect(await store.redeem(agent.row, id, call({ page: 1 }), T0)).toBe('invalid');
     expect(await store.answer(agent.row, id, 'allow', T0 + 1000)).toBe(true);
     expect(await store.redeem(agent.row, id, call({ page: 2 }), T0 + 2000)).toBe('invalid');
@@ -63,21 +73,21 @@ describe('the approval state machine', () => {
   });
 
   test('an approval works only within 10 minutes of the answer', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     await store.answer(agent.row, id, 'allow', T0);
     expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + APPROVAL_USE_MS + 1)).toBe('invalid');
     expect(await store.redeem(agent.row, id, call({ page: 1 }), T0 + APPROVAL_USE_MS)).toBe('used');
   });
 
   test('a denied approval says so for the same call', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     expect(await store.answer(agent.row, id, 'deny', T0)).toBe(true);
     expect(await store.redeem(agent.row, id, call({ page: 1 }), T0)).toBe('denied');
     expect(await store.redeem(agent.row, id, call({ page: 2 }), T0)).toBe('invalid');
   });
 
   test('only the agent\'s own pending row can be answered, once', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     expect(await store.answer(other.row, id, 'allow', T0)).toBe(false);
     expect(await store.answer(agent.row, 'zzzzz', 'allow', T0)).toBe(false);
     expect(await store.answer(agent.row, id, 'allow', T0)).toBe(true);
@@ -85,17 +95,17 @@ describe('the approval state machine', () => {
   });
 
   test('a request unanswered for 24 hours expires and cannot be answered', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     expect(await store.answer(agent.row, id, 'allow', T0 + APPROVAL_TTL_MS + 1)).toBe(false);
     expect(await stateOf(id)).toBe('expired');
-    const fresh = await store.request(agent.row, call({ page: 1 }), T0 + APPROVAL_TTL_MS + 2);
+    const fresh = await ask(agent.row, call({ page: 1 }), T0 + APPROVAL_TTL_MS + 2);
     expect(fresh).not.toBe(id);
   });
 
   test('pending rows are delivered once, then again after a minute while still pending', async () => {
-    const first = await store.request(agent.row, call({ page: 1 }), T0);
-    const second = await store.request(agent.row, call({ page: 2 }), T0 + 1);
-    await store.request(other.row, call({ page: 1 }), T0);
+    const first = await ask(agent.row, call({ page: 1 }), T0);
+    const second = await ask(agent.row, call({ page: 2 }), T0 + 1);
+    await ask(other.row, call({ page: 1 }), T0);
     expect((await store.deliver(agent.row, T0 + 10)).map((row) => row.id)).toEqual([first, second]);
     expect(await store.deliver(agent.row, T0 + 20)).toEqual([]);
     await store.answer(agent.row, first, 'allow', T0 + 30);
@@ -103,12 +113,12 @@ describe('the approval state machine', () => {
   });
 
   test('an agent cannot pile up more than the pending limit', async () => {
-    for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) await store.request(agent.row, call({ i }), T0);
-    await expect(store.request(agent.row, call({ i: 'one more' }), T0)).rejects.toThrow('already waiting');
+    for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) await ask(agent.row, call({ i }), T0);
+    await expect(ask(agent.row, call({ i: 'one more' }), T0)).rejects.toThrow('already waiting');
   });
 
   test('approvals go with their agent', async () => {
-    await store.request(agent.row, call({ page: 1 }), T0);
+    await ask(agent.row, call({ page: 1 }), T0);
     await held.db.delete(agents).where(eq(agents.id, agent.row.agent));
     expect(await held.db.$count(mcpApprovals)).toBe(0);
   });
@@ -116,12 +126,12 @@ describe('the approval state machine', () => {
   test('the agent\'s session and each access key get their own request for the same call, and delivery names the key', async () => {
     const laptop = await createAgentToken(held.db, { owner: agent.row.owner, agent: agent.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now: T0 });
     const phone = await createAgentToken(held.db, { owner: agent.row.owner, agent: agent.row.agent, label: 'Phone', createdBy: 'user_01TEST', now: T0 });
-    const own = await store.request(agent.row, call({ page: 1 }), T0);
-    const byLaptop = await store.request(agent.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 1);
-    const byPhone = await store.request(agent.row, { ...call({ page: 1 }), token: phone.row.id }, T0 + 2);
+    const own = await ask(agent.row, call({ page: 1 }), T0);
+    const byLaptop = await ask(agent.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 1);
+    const byPhone = await ask(agent.row, { ...call({ page: 1 }), token: phone.row.id }, T0 + 2);
     expect(new Set([own, byLaptop, byPhone]).size).toBe(3);
-    expect(await store.request(agent.row, call({ page: 1 }), T0 + 3)).toBe(own);
-    expect(await store.request(agent.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 3)).toBe(byLaptop);
+    expect(await ask(agent.row, call({ page: 1 }), T0 + 3)).toBe(own);
+    expect(await ask(agent.row, { ...call({ page: 1 }), token: laptop.row.id }, T0 + 3)).toBe(byLaptop);
     const delivered = await store.deliver(agent.row, T0 + 10);
     expect(delivered.map((row) => [row.id, row.origin, row.token, row.keyLabel])).toEqual([[own, 'box', null, null], [byLaptop, 'key', laptop.row.id, 'Laptop'], [byPhone, 'key', phone.row.id, 'Phone']]);
     await store.answer(agent.row, byLaptop, 'allow', T0 + 20);
@@ -129,7 +139,7 @@ describe('the approval state machine', () => {
   });
 
   test('the database refuses an origin it does not know, a key without its id, and a box with one', async () => {
-    const id = await store.request(agent.row, call({ page: 1 }), T0);
+    const id = await ask(agent.row, call({ page: 1 }), T0);
     for (const bad of [{ origin: 'remote', token: null }, { origin: 'key', token: null }, { origin: 'box', token: 'tok00000001' }, { origin: null, token: 'tok00000001' }])
       await expect(held.db.update(mcpApprovals).set(bad).where(eq(mcpApprovals.id, id)).execute()).rejects.toThrow();
   });

@@ -54,7 +54,7 @@ describe('pruning answered approvals', () => {
   test('an expired request is kept 7 days after it expired, then goes', async () => {
     const store = approvalStore(() => held.db);
     const call = { connector: 'conn0000001', tool: 'update_page', digest: argsDigest({ page: 1 }), preview: previewOf({ page: 1 }) };
-    const id = await store.request(agent.row, call, NOW);
+    const { id } = await store.request(agent.row, call, NOW);
     expect(await store.deliver(agent.row, NOW + DAY + 1)).toEqual([]);
     expect(await pruneApprovals(held.db, NOW + DAY + 1 + APPROVAL_KEEP_MS)).toBe(0);
     expect(await ids()).toEqual([id]);

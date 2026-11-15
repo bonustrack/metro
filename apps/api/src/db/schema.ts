@@ -1,4 +1,4 @@
-import { pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export * from '@metro-labs/connectors/db/schema';
 
@@ -43,3 +43,16 @@ export const awsExternalIds = pgTable('aws_external_ids', {
   externalId: text('external_id').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const pushDevices = pgTable(
+  'push_devices',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    token: text('token').notNull(),
+    platform: text('platform').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    lastSeenAt: bigint('last_seen_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [uniqueIndex('push_devices_token_idx').on(t.token), index('push_devices_user_idx').on(t.userId, t.lastSeenAt)],
+);

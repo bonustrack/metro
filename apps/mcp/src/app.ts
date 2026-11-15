@@ -15,6 +15,7 @@ import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { createAgentToken } from '@metro-labs/connectors/db/agent-tokens';
 import { openGrant, redeemGrant, type ApprovedGrant } from '@metro-labs/connectors/db/oauth-grants';
 import { log } from '@metro-labs/core/log';
+import { approvalPush } from './approval-push.js';
 import { callRecorder } from './call-log.js';
 import { handleDaemonRequest } from './daemon-api.js';
 import type { McpDeps } from './deps.js';
@@ -73,6 +74,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     auth: new AgentAuth(setup.publicHost, now),
     store: connectorDeliveryStore(setup.db),
     approvals: approvalStore(setup.db),
+    push: approvalPush({ db: setup.db, appUrl: setup.appUrl, now }),
     subscriptions,
     events: eventStore(setup.db),
     receivers: new Receivers(setup.key, subscriptions, now),

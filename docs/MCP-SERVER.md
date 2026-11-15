@@ -115,6 +115,20 @@ The daemon applies no station policy to the two tools.
   the answer. Unanswered requests expire after 24 hours (denied). Answered, used and
   expired requests are deleted 7 days after their last change (the answer, else the
   request); a pending one is never deleted before it expired.
+- **A phone notification on each new Ask** (2026-11-15): when the call creates a new
+  pending request, mcp.metro.box writes one row in the `push_outbox` table (Postgres, shared
+  with api.metro.box; one row per agent and approval id, `queuePush` in
+  `@metro-labs/connectors/db/push-outbox`): "Emma needs your approval", "Update page on
+  Notion", and the same link the agent is given (`approvalLink`), where any member answers. api.metro.box sends it to every member's phone within a few seconds (see
+  `docs/rules/HTTP-API.md`). The same call asked again reuses its pending id and writes
+  nothing; the row never holds the arguments or the preview. The write happens after the
+  answer is decided and is never waited for, so the agent gets `needs_approval` at the same
+  speed, and a failed write is one warning. **mcp.metro.box holds no WorkOS key and never
+  calls Expo**: it is the service every agent and access key reaches, so it must not hold a
+  key that can list and change every user and organization. Agents with and without a
+  server get it. The Claude Code prompts and channel approvals a box asks itself do not
+  notify yet; the box will queue them through a signed api.metro.box route into the same
+  outbox.
 - The agent can never approve its own call: answers come only from the daemon's signed
   requests (the enrollment signing key lives in Metro's folder, which the agent user cannot
   read) after a member of the organization answered on the page.
@@ -259,7 +273,8 @@ url (https, or http on this machine only); an empty value turns the client off.
 - Reads connectors, assignments, policies, agent keys and access keys from api.metro.box's
   Postgres (the same database; migrations still run from `apps/api` only). Its own tables:
   the token hash on the agent key row, `mcp_approvals` and `mcp_calls`; it writes only
-  `last_used_at` of `agent_tokens`, which api.metro.box owns.
+  `last_used_at` of `agent_tokens`, which api.metro.box owns, and inserts `push_outbox` rows,
+  which api.metro.box sends and deletes.
 - Opens a connector's credential with `METRO_CONNECTORS_KEY`, refreshes OAuth tokens (single
   flight, the same rules and uncertainty records as api.metro.box), and calls the vendor
   through the same safe egress (HTTPS only, no redirects, no private addresses, pinned DNS).
@@ -289,7 +304,8 @@ to the agent's box through `POST /v1/inbox`. The whole design is in `docs/CONNEC
 ## Deploy
 
 - Fly app `metro-mcp`, region `iad`, two machines, `mcp.metro.box`.
-- Secrets: `DATABASE_URL`, `METRO_CONNECTORS_KEY` (the same values as api.metro.box).
+- Secrets: `DATABASE_URL`, `METRO_CONNECTORS_KEY` (the same values as api.metro.box). Never
+  the WorkOS key, also not for phone notifications (`docs/PHONE-NOTIFICATIONS.md`).
 - Deployed by `.github/workflows/mcp.yml` on pushes to `main` that touch `apps/mcp/**`,
   `packages/connectors/**`, `packages/http/**`, `packages/core/**`, `bun.lock` or the
   workflow itself.

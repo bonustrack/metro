@@ -12,3 +12,4 @@ expo-env.d.ts
 
 dist-update/
 eas-update.json
+google-services*.json

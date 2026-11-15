@@ -300,3 +300,25 @@ export const oauthGrants = pgTable(
   },
   (t) => [uniqueIndex('oauth_grants_code_hash_idx').on(t.codeHash), index('oauth_grants_expires_idx').on(t.expiresAt)],
 );
+
+export const pushOutbox = pgTable(
+  'push_outbox',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    agent: text('agent').notNull(),
+    approval: text('approval').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    url: text('url').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    nextAt: bigint('next_at', { mode: 'number' }).notNull(),
+    sentAt: bigint('sent_at', { mode: 'number' }),
+    attempts: integer('attempts').notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex('push_outbox_approval_idx').on(t.agent, t.approval),
+    index('push_outbox_due_idx').on(t.nextAt).where(sql`${t.sentAt} IS NULL`),
+    index('push_outbox_created_idx').on(t.createdAt),
+  ],
+);

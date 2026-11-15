@@ -54,12 +54,12 @@ test('after 0020 old rows keep no origin, an old machine still inserts, and each
     const old = await client.query<{ origin: string | null; token: string | null }>("SELECT origin, token FROM mcp_approvals WHERE id = 'abcde'");
     expect(old.rows).toEqual([{ origin: null, token: null }]);
 
-    expect(await store.request({ agent: AGENT, owner: TEST_OWNER }, callOf(), NOW + 1)).toBe('abcde');
+    expect(await store.request({ agent: AGENT, owner: TEST_OWNER }, callOf(), NOW + 1)).toEqual({ id: 'abcde', created: false });
     await expect(client.query(OLD_INSERT, ['bcdef', TEST_OWNER, AGENT, 'conn0000001', 'update_page', DIGEST, '{}', 'pending', NOW + 2])).rejects.toThrow('mcp_approvals_pending_idx');
     await expect(client.query("INSERT INTO mcp_approvals (id, owner, agent, connector, tool, args_digest, preview, state, requested_at, origin) VALUES ('cdefg', $1, $2, 'conn0000001', 'update_page', $3, '{}', 'pending', $4, 'box')", [TEST_OWNER, AGENT, DIGEST, NOW + 3])).rejects.toThrow('mcp_approvals_pending_idx');
 
     const key = await createAgentToken(db, { owner: TEST_OWNER, agent: AGENT, label: 'Laptop', createdBy: 'user_01TEST', now: NOW });
-    const keyed = await store.request({ agent: AGENT, owner: TEST_OWNER }, callOf(key.row.id), NOW + 4);
+    const { id: keyed } = await store.request({ agent: AGENT, owner: TEST_OWNER }, callOf(key.row.id), NOW + 4);
     expect(keyed).not.toBe('abcde');
     await client.query(OLD_INSERT, ['defgh', TEST_OWNER, AGENT, 'conn0000001', 'delete_page', DIGEST, '{}', 'pending', NOW + 5]);
     const rows = await client.query<{ id: string; origin: string | null; token: string | null }>('SELECT id, origin, token FROM mcp_approvals ORDER BY requested_at');

@@ -8,7 +8,10 @@ name: App dev client APK
 # A push to main, or to a pull request, resolves the runtime. When no APK on
 # the `app-dev-client` release was built for it, EAS builds one; a push that
 # changes only JS builds nothing. Pushes to main also point the rolling
-# metro-dev-client.apk at main's runtime.
+# metro-dev-client.apk at main's runtime. A manual run with `rebuild` builds
+# the runtime's APK again, for a change the runtime does not see: the Firebase
+# file (GOOGLE_SERVICES_JSON on EAS) is left out of the fingerprint, so adding
+# it needs this (docs/PHONE-NOTIFICATIONS.md).
 #
 # APKs are published as direct downloads on the `app-dev-client` release:
 #   releases/download/app-dev-client/metro-dev-client-<sha7>.apk
@@ -26,6 +29,10 @@ on:
     inputs:
       publish_rolling:
         description: Also point the rolling metro-dev-client.apk at this runtime's APK
+        type: boolean
+        default: false
+      rebuild:
+        description: Build this runtime's APK again even when one exists (after the Firebase file was added on EAS)
         type: boolean
         default: false
 
@@ -47,6 +54,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       PACKAGE: box.metro.dev
       ROLLING: ${{ github.event_name == 'push' || inputs.publish_rolling }}
+      REBUILD: ${{ inputs.rebuild == true }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Check the Expo token
@@ -125,7 +133,7 @@ jobs:
             if [ "$DIGEST" != none ] && [ "$DIGEST" = "$ROLLING_DIGEST" ]; then ROLLING_CURRENT=true; fi
           done
           BUILD=false
-          if [ -z "$APK" ]; then BUILD=true; APK="metro-dev-client-${SHA::7}.apk"; fi
+          if [ -z "$APK" ] || [ "$REBUILD" = true ]; then BUILD=true; APK="metro-dev-client-${SHA::7}.apk"; ROLLING_CURRENT=false; fi
           PUBLISH_ROLLING=false
           if [ "$ROLLING" = true ] && [ "$ROLLING_CURRENT" = false ]; then PUBLISH_ROLLING=true; fi
           URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$APK"
@@ -180,7 +188,7 @@ jobs:
           RUNTIME: ${{ steps.asset.outputs.runtime }}
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" "$APK" --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
           curl -fsSIL -o /dev/null "$APK_URL"
           {
             echo "## Dev-client APK - \`${SHA::7}\`"
