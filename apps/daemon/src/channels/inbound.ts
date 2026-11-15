@@ -42,6 +42,7 @@ interface InboundDeps {
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
   callMeta?: (event: Record<string, unknown>) => () => Record<string, string>;
   pointToApproval?: (id: string, line: string) => Promise<void>;
+  lastChat?: { line: string | undefined; note: (line: string) => void };
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -61,6 +62,7 @@ export class InboundRelay {
 
   constructor(deps: InboundDeps) {
     this.deps = deps;
+    this.lastLine = deps.lastChat?.line;
   }
 
   get knownLine(): string | undefined {
@@ -274,7 +276,10 @@ export class InboundRelay {
   }
 
   private noteLine(base: EventBase): void {
-    if (base.evType !== 'system') this.lastLine = base.line;
+    if (base.evType !== 'system') {
+      this.lastLine = base.line;
+      if (base.line) this.deps.lastChat?.note(base.line);
+    }
     if (!base.line) return;
     this.allowedLines.add(base.line);
     capSize(this.allowedLines, ALLOWED_LINES_MAX);

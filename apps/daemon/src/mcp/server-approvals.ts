@@ -69,16 +69,17 @@ function announce(id: string, line: string, text: string): void {
 export function holdServerApproval(approval: McpApproval, answer: Held['answer']): boolean {
   if (isPromptHeld(approval.id) || answeredRecently(approval.id)) return false;
   const tool = `${approval.connector}.${approval.tool}`;
-  const announced = announcedLine(approval.id);
-  const line = announced ?? ownerPromptLine(approval.id);
-  const held: Held = { id: approval.id, tool, line, tellAgent: approval.origin !== 'key', answer };
+  const fromKey = approval.origin === 'key';
+  const announced = fromKey ? undefined : announcedLine(approval.id);
+  const line = fromKey ? undefined : (announced ?? ownerPromptLine(approval.id));
+  const held: Held = { id: approval.id, tool, line, tellAgent: !fromKey, answer };
   holdPrompt(
     { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server' },
     owner,
     sender(held),
     chatTeller(line),
   );
-  log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
+  log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, fromKey ? 'mcp-server: an access key asked for an approval; it waits on metro.box only, never in a chat' : 'mcp-server: an approval is waiting for the owner');
   if (line !== undefined && announced === undefined) announce(approval.id, line, serverNotice(approval));
   return true;
 }

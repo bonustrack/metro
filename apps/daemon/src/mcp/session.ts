@@ -1,6 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
+import { lastChat, noteLastChat } from '../channels/last-chat.js';
 import { forgetPromptsOf, isPromptHeld } from '../approvals/pending.js';
 import { approvalLinkOf } from '../approvals/link.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
@@ -111,6 +112,7 @@ export class McpSession {
       getStations,
       senderAllowed,
       pointToApproval,
+      lastChat: { line: lastChat(), note: noteLastChat },
       callMeta: (event) => sharedCalls.bindChat(event, this.scope),
     });
     registerPermissionRelay({

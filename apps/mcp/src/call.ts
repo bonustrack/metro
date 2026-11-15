@@ -42,8 +42,7 @@ const AGAIN = (id: string): string => `call tool_call again with the same tool a
 
 function needsApprovalText(name: string, id: string, place: ApprovalPlace, link: string): string {
   const waits = `The owner must approve ${name} with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: ${link}`;
-  if (place === 'page') return `${waits} Tell the person what is waiting and give them that link. Once it is approved, ${AGAIN(id)}`;
-  if (place === 'owner') return `${waits} Metro also posts that link in the agent's chat. Tell the person what is waiting and give them the link. Once it is approved, ${AGAIN(id)}`;
+  if (place !== 'session') return `${waits} Tell the person what is waiting and give them that link. Once it is approved, ${AGAIN(id)}`;
   return `${waits} Metro also posts that link in the chat. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
 }
 
