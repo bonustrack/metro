@@ -17,6 +17,7 @@ import { freshness, sessionView, type Activity, type Freshness } from './session
 import { FRESHNESS_WORD, TASK_WORD } from './words.js';
 import type { NowDot } from '../../lib/right-now.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
+import { useChatApprovals } from '../../lib/chat-approvals.js';
 
 const STATE_ICON = 20;
 
@@ -65,16 +66,17 @@ function countsNote({ activity, state, observed }: NotesInput): string | null {
   return `${state === 'Fresh' ? '' : 'At last report: '}${String(activity.pending)} queued · ${String(activity.workers)} workers · ${String(activity.approvals)} approvals`;
 }
 
-function notesOf(input: NotesInput, technical: boolean): (string | null)[] {
-  const answer = (input.activity?.approvals ?? 0) > 0 ? 'Answer on Home or in the chat.' : null;
+function notesOf(input: NotesInput, technical: boolean, chat: boolean): (string | null)[] {
+  const answer = (input.activity?.approvals ?? 0) > 0 ? (chat ? 'Answer on Home or in the chat.' : 'Answer on Home.') : null;
   if (!technical) return [answer];
   return [countsNote(input), input.view === null || input.disconnected ? null : input.view.note, answer];
 }
 
 function MainNotes(input: NotesInput): ReactNode {
   const technical = useTechnicalDetails();
+  const chat = useChatApprovals();
   const { view } = input;
-  const notes = notesOf(input, technical);
+  const notes = notesOf(input, technical, chat);
   return (
     <>
       {notes.map((note) => (note === null ? null : <Text key={note} size="xs" color="secondary">{note}</Text>))}

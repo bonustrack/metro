@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   allowsEveryone,
+  chatApprovals,
   groupAccounts,
   stationFields,
   type AccountRow,
@@ -107,5 +108,17 @@ describe('a station switched off', () => {
     expect(rows[0]?.enabled).toBe(false);
     expect(rows[0]?.fields.some((f) => f.label === 'enabled')).toBe(false);
     expect(rows[1]?.enabled).toBe(true);
+  });
+});
+
+describe('which boxes still take approvals in chat', () => {
+  test('only a daemon known to be older than beta.333 has approvers; an unknown or newer one does not', () => {
+    expect(chatApprovals('0.1.0-beta.332')).toBe(true);
+    expect(chatApprovals('0.1.0-beta.333')).toBe(false);
+    expect(chatApprovals('0.1.0-beta.340')).toBe(false);
+    expect(chatApprovals('0.1.0')).toBe(false);
+    expect(chatApprovals(null)).toBe(false);
+    expect(chatApprovals(undefined)).toBe(false);
+    expect(chatApprovals('not a version')).toBe(false);
   });
 });

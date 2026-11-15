@@ -11,6 +11,7 @@ import {
   approverNames, entriesOf, keptApprovers, peopleOf, questionsGoTo, withApprover, withoutPerson, withPerson, writersOf, type Person,
 } from '../../lib/channel-people.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
+import { useChatApprovals } from '../../lib/chat-approvals.js';
 import { queryError } from '../../lib/queries.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 
@@ -26,7 +27,8 @@ interface ChannelPeopleProps {
   onSaved: () => Promise<unknown>;
 }
 
-const anyoneNote = (name: string): string => `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.`;
+const anyoneNote = (name: string, chat: boolean): string =>
+  chat ? `Anyone who writes here reaches ${name}. Nobody can approve in this chat, so questions show on Home.` : `Anyone who writes here reaches ${name}.`;
 
 function Questions({ people, handle }: { people: Person[]; handle: string }): ReactNode {
   const goes = questionsGoTo(approverNames(people), handle);
@@ -37,14 +39,15 @@ function Questions({ people, handle }: { people: Person[]; handle: string }): Re
   );
 }
 
-function whoNote(editing: boolean, empty: boolean, name: string): string | undefined {
-  if (!editing) return anyoneNote(name);
+function whoNote(editing: boolean, empty: boolean, name: string, chat: boolean): string | undefined {
+  if (!editing) return anyoneNote(name, chat);
   return empty ? NOBODY : undefined;
 }
 
 export function ChannelPeople({ agentId, station, accountId, handle, allowlist, approvers, onSaved }: ChannelPeopleProps): ReactNode {
   const technical = useTechnicalDetails();
   const name = useAgentName();
+  const chat = useChatApprovals();
   const entries = entriesOf(allowlist);
   const cards = useSenderCards(agentId, station, accountId, entries);
   const [restricting, setRestricting] = useState(false);
@@ -54,7 +57,7 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
   const [addError, setAddError] = useState<string | null>(null);
   const restricted = writersOf(allowlist) === 'some';
   const editing = restricted || restricting;
-  const people = peopleOf({ station, entries, approvers, cards, seen: [], technical });
+  const people = peopleOf({ station, entries, approvers: chat ? approvers : null, cards, seen: [], technical });
 
   const save = (next: string[], nextApprovers: string[], report: Report, after?: () => void): void => {
     setBusy(true);
@@ -94,19 +97,19 @@ export function ChannelPeople({ agentId, station, accountId, handle, allowlist, 
     <>
       <WhoCanWrite
         editing={editing}
-        note={whoNote(editing, entries.length === 0, name)}
+        note={whoNote(editing, entries.length === 0, name, chat)}
         error={error}
         people={people}
         busy={busy}
-        approving
-        peopleNote={`People who can approve say yes or no when ${name} asks first.`}
+        approving={chat}
+        {...(chat ? { peopleNote: `People who can approve say yes or no when ${name} asks first.` } : {})}
         onRestrict={() => { setError(null); setRestricting(true); }}
         onAnyone={anyone}
         onApprove={(id, yes) => { save(entries, withApprover(approvers, id, yes), setError); }}
         onRemove={remove}
         onAdd={() => { setAddError(null); setAdding(true); }}
       />
-      {editing ? <Questions people={people} handle={handle} /> : null}
+      {editing && chat ? <Questions people={people} handle={handle} /> : null}
       {adding ? (
         <AddPerson agentId={agentId} station={station} accountId={accountId} entries={entries} busy={busy} error={addError} onAdd={add} onError={setAddError} onClose={() => { setAdding(false); }} />
       ) : null}

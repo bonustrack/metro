@@ -7,11 +7,13 @@ import { type ChannelProps } from './channel-props.js';
 import { useSaveRule } from './use-save-rule.js';
 import { askNote, changedCount, exceptionSummary, ruleRows } from '../../lib/channel-rules.js';
 import { useAgentName } from '../../lib/agent-hooks.js';
+import { useChatApprovals } from '../../lib/chat-approvals.js';
 
 export function ChannelRules(props: ChannelProps): ReactNode {
   const { project, found, view } = props;
   const { station, row } = found;
   const name = useAgentName();
+  const chat = useChatApprovals();
   const saving = useSaveRule(props);
   const tools = view.tools[station] ?? [];
   const verbs = view.capabilities[station] ?? [];
@@ -32,7 +34,7 @@ export function ChannelRules(props: ChannelProps): ReactNode {
           key={rule.target}
           title={rule.label}
           subtitle={rule.note}
-          detail={rule.value === 'ask' ? askNote(rule.target, row.approvers.length) : undefined}
+          detail={rule.value === 'ask' ? askNote(rule.target, chat ? row.approvers.length : null) : undefined}
           trailing={<PermissionControl label={rule.label} value={rule.value} disabled={saving.busy} onChange={(choice) => { saving.pick(rule.target, choice); }} />}
           chevron={false}
         />

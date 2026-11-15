@@ -1,6 +1,7 @@
 import { accountStatusOf, type AccountStatus } from '@metro-labs/core/stations/account-status';
 import { isRecord } from '../read.js';
 import { policyOf, type ToolPolicy } from './policy.js';
+import { olderThan } from './version.js';
 interface AccountField {
   label: string;
   value: string;
@@ -17,6 +18,10 @@ export interface AccountRow {
 }
 
 export const EVERYONE = '*';
+
+const CHAT_APPROVALS_UNTIL = '0.1.0-beta.333';
+
+export const chatApprovals = (version: string | null | undefined): boolean => version !== undefined && olderThan(version, CHAT_APPROVALS_UNTIL);
 
 export const allowsEveryone = (allowlist: string[] | null): boolean =>
   allowlist === null || allowlist.length === 0 || allowlist.includes(EVERYONE);

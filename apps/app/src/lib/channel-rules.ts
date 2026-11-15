@@ -105,7 +105,8 @@ export function withChoice(policy: ToolPolicy, tools: GroupedTool[], target: Rul
   return deleteTools(policy, tools).reduce((next, tool) => withTool(next, tool.name, access), policy);
 }
 
-export function askNote(target: RowTarget, approvers: number): string {
+export function askNote(target: RowTarget, approvers: number | null): string {
+  if (approvers === null) return 'Questions show on Home, and Metro posts a link to them in the chat.';
   if (approvers === 0) return 'Questions show on Home: nobody here can approve yet.';
   return `They get: "Approval needed: ${PREVIEW_TOOL[target]}. Reply yes ${SAMPLE_ID} or no ${SAMPLE_ID}"`;
 }
