@@ -168,7 +168,7 @@ setCurrentServer({ id: EMMA, host: 'metro-emma.ts.net' });
 let html = box();
 assert.deepEqual([skeletons.length, blocks.length, headers, buttons.length], [1, 1, [], 0]);
 assert.ok(html.includes('Emma') && html.includes('Approval request'));
-assert.deepEqual(avatars.map((one) => [one.size, one.square]), [[48, true]]);
+assert.deepEqual(avatars.map((one) => one.size), [48]);
 assert.deepEqual(closes.map((one) => [one.label, one.icon]), [['Close, back to Emma', 'close']]);
 closes[0].onPress();
 assert.deepEqual(went.splice(0), [{ kind: 'home', project: 'emma' }]);

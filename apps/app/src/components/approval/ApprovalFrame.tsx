@@ -28,7 +28,7 @@ function AgentLine({ project }: { project: string }): ReactNode {
   const { name, server } = useApprovalAgent();
   return (
     <Row align="center" gap={14}>
-      <AgentAvatar seed={server?.id ?? name} src={server?.avatar ?? null} size={AVATAR_SIZE.focus} square />
+      <AgentAvatar seed={server?.id ?? name} src={server?.avatar ?? null} size={AVATAR_SIZE.focus} />
       <Column weight={1} minWidth={0} gap={2}>
         <Text size="md" fontWeight="semibold" numberOfLines={1}>
           {name}

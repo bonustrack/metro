@@ -5,10 +5,12 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
+import { SkeletonLine } from './RowsSkeleton.js';
 import type { Tone } from '../../lib/tone.js';
 import { SHRINK } from '../../lib/style.js';
 
 const CHEVRON = 20;
+const SUBTITLE_PENDING = 160;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, minHeight: 60, borderBottomWidth: 1 },
@@ -19,6 +21,7 @@ interface ItemProps {
   title: string;
   subtitle?: ReactNode;
   subtitleTone?: Tone;
+  subtitlePending?: boolean;
   detail?: string;
   detailTone?: Tone;
   detailLines?: number;
@@ -33,19 +36,25 @@ interface ItemProps {
   label?: string;
 }
 
-type LinesProps = Pick<ItemProps, 'title' | 'subtitle' | 'subtitleTone' | 'detail' | 'detailTone' | 'detailLines' | 'danger'>;
+type LinesProps = Pick<ItemProps, 'title' | 'subtitle' | 'subtitleTone' | 'subtitlePending' | 'detail' | 'detailTone' | 'detailLines' | 'danger'>;
 
-function Lines({ title, subtitle, subtitleTone = 'secondary', detail, detailTone = 'secondary', detailLines = 1, danger = false }: LinesProps): ReactNode {
+function Subtitle({ subtitle, tone, pending }: { subtitle: ReactNode; tone: Tone; pending: boolean }): ReactNode {
+  if (pending) return <SkeletonLine width={SUBTITLE_PENDING} />;
+  if (subtitle === undefined) return null;
+  return (
+    <Text size="xs" color={tone} numberOfLines={2}>
+      {subtitle}
+    </Text>
+  );
+}
+
+function Lines({ title, subtitle, subtitleTone = 'secondary', subtitlePending = false, detail, detailTone = 'secondary', detailLines = 1, danger = false }: LinesProps): ReactNode {
   return (
     <Column weight={1} minWidth={0} gap={2}>
       <Text size="md" color={danger ? 'danger' : undefined} numberOfLines={2}>
         {title}
       </Text>
-      {subtitle === undefined ? null : (
-        <Text size="xs" color={subtitleTone} numberOfLines={2}>
-          {subtitle}
-        </Text>
-      )}
+      <Subtitle subtitle={subtitle} tone={subtitleTone} pending={subtitlePending} />
       {detail === undefined ? null : (
         <Text size="xs" color={detailTone} numberOfLines={detailLines}>
           {detail}

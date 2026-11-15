@@ -51,6 +51,13 @@ describe('the one line under an agent in the list', () => {
     expect(agentLine(facts({ waiting: 3 })).text).toBe('Waiting for you: 3 approvals');
   });
 
+  test('an approval whose connector is still being named waits as a placeholder, never as its key', () => {
+    const naming = agentLine(facts({ waiting: 2, ask: undefined }));
+    expect(naming).toEqual({ text: 'Waiting for you: 2 approvals', tone: 'link', dot: 'success', busy: false, needsYou: true, pending: true });
+    expect(agentLine(facts({ waiting: 2, ask: 'use Create draft on Gmail' })).pending).toBeUndefined();
+    expect(remoteLine(1, 'approve Create page on Notion', 3).pending).toBeUndefined();
+  });
+
   test('a stopped session and an unfinished setup need you too', () => {
     expect(agentLine(facts({ session: session({ running: false }) }))).toMatchObject({ text: 'Not running', tone: 'danger', needsYou: true });
     expect(agentLine(facts({ setup: setup(2, 5) }))).toMatchObject({ text: 'Setting up: 2 of 5', tone: 'link', dot: null, needsYou: true });

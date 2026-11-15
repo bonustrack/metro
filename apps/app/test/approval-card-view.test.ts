@@ -24,7 +24,7 @@ mock.module('@stage-labs/kit/react-native/button', () => ({ Button: () => null }
 mock.module('@stage-labs/kit/react-native/theme-context', () => ({ useKitPalette: () => ({ text: '#ffffff', border: '#333333' }) }));
 mock.module('./src/components/ConnectorFavicon.js', () => ({ ConnectorFavicon: (props) => { favicons.push([props.name, props.url]); return null; } }));
 mock.module('./src/components/ui/Disclosure.js', () => ({ Disclosure: () => null }));
-mock.module('./src/components/ui/RowsSkeleton.js', () => ({ SkeletonBlock: (props) => { blocks.push(props); return null; } }));
+mock.module('./src/components/ui/RowsSkeleton.js', () => ({ SkeletonBlock: (props) => { blocks.push(props); return null; }, SkeletonLine: (props) => { blocks.push(props); return null; } }));
 mock.module('./src/components/Icon.js', () => ({ Icon: () => null }));
 mock.module('./src/components/StationIcon.js', () => ({ StationIcon: () => null }));
 mock.module('./src/components/TextLink.js', () => ({ TextLink: () => null }));

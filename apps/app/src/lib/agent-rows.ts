@@ -3,6 +3,7 @@ import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } fro
 import { chatApprovals } from '@metro-labs/client/api/accounts';
 import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import { approvalCard } from '@metro-labs/client/api/approval-card';
+import type { Approval } from '@metro-labs/client/api/approvals';
 import type { StationsView } from '@metro-labs/client/api/client';
 import type { ClaudeProject } from '@metro-labs/client/api/claude';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
@@ -13,6 +14,8 @@ import { boxesOf, isRemote, serverLabel, type BoxServer, type RemoteServer, type
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { agentLine, orderAgents, remoteLine, type AgentLine } from './agent-line.js';
 import { useApprovalLists, waitingCount } from './agent-status.js';
+import { approvalAsk } from './approval-note.js';
+import { useOrgConnectorsQuery } from './org-connector-queries.js';
 import { useServerStatuses } from './queries.js';
 import { useConnectorCounts, useRemoteApprovalLists } from './remote-agents.js';
 import { setupOf, type Setup } from './setup-steps.js';
@@ -74,6 +77,8 @@ function remoteAsk(found: RemoteApproval): string {
   return `approve ${card.title} on ${found.connectorName ?? card.connector ?? 'a connector'}`;
 }
 
+const keyedApproval = (approval: Approval | undefined): boolean => approval !== undefined && approvalCard(approval).connector !== null;
+
 function useRemoteRows(remotes: RemoteServer[]): AgentRow[] {
   const ids = remotes.map((server) => server.id);
   const approvals = useRemoteApprovalLists(ids);
@@ -105,14 +110,17 @@ function useBoxRows(servers: BoxServer[]): AgentRow[] {
   const models = cached<ModelSettings>(client, 'model', servers);
   const stations = cached<StationsView>(client, 'stations', servers);
   const projects = cached<ClaudeProject[]>(client, 'claude-projects', servers);
+  const counts = servers.map((_, i) => waitingCount(approvals[i], live[i] === true) ?? 0);
+  const firsts = servers.map((_, i) => ((counts[i] ?? 0) > 0 ? approvals[i]?.data?.[0] : undefined));
+  const connectors = useOrgConnectorsQuery(undefined, firsts.some(keyedApproval));
   const rows = servers.map((server, i): AgentRow => {
     const name = serverLabel(server);
-    const count = waitingCount(approvals[i], live[i] === true) ?? 0;
-    const first = count > 0 ? approvals[i]?.data?.[0] : undefined;
+    const count = counts[i] ?? 0;
+    const first = firsts[i];
     const status = statuses[i]?.data;
     const setup = knownSetup(name, models[i], stations[i], projects[i], status);
     const trouble = channelTrouble(stations[i]?.groups)[0] ?? null;
-    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, trouble, session: sessions[i], now });
+    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalAsk(approvalCard(first), server.id, connectors), setup, trouble, session: sessions[i], now });
     return { server, name, line, waiting: count, status, trouble };
   });
   return rows;

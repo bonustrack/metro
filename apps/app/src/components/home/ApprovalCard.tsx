@@ -17,7 +17,7 @@ import { Disclosure } from '../ui/Disclosure.js';
 import { Icon } from '../Icon.js';
 import { StationIcon } from '../StationIcon.js';
 import { TextLink } from '../TextLink.js';
-import { SkeletonBlock } from '../ui/RowsSkeleton.js';
+import { SkeletonBlock, SkeletonLine } from '../ui/RowsSkeleton.js';
 import { useNamedConnector } from '../../lib/approval-connector.js';
 import { accountRow, approvalWhere, othersLine, ruleLine, type NamedConnector } from '../../lib/approval-note.js';
 import { DECIDE_FAILED } from '../../lib/approval-page.js';
@@ -29,7 +29,6 @@ const MARK = 24;
 const FILE_ICON = 20;
 const LABEL_WIDTH = 76;
 const MARK_RADIUS = Math.round(MARK / 4);
-const LINE_HEIGHT = 14;
 const WHERE_WIDTH = 140;
 const NOTE_WIDTH = 180;
 const CARDS_STALE_MS = 5 * 60_000;
@@ -180,7 +179,7 @@ function Details({ project, id }: { project: string; id: string }): ReactNode {
 }
 
 function Where({ where }: { where: string | null | undefined }): ReactNode {
-  if (where === undefined) return <SkeletonBlock width={WHERE_WIDTH} height={LINE_HEIGHT} />;
+  if (where === undefined) return <SkeletonLine width={WHERE_WIDTH} />;
   if (where === null) return null;
   return (
     <Text size="xs" color="secondary" numberOfLines={1}>
@@ -194,7 +193,7 @@ function Note({ note }: { note: string | undefined }): ReactNode {
   return (
     <Column margin={{ top: 20 }}>
       {note === undefined ? (
-        <SkeletonBlock width={NOTE_WIDTH} height={LINE_HEIGHT} />
+        <SkeletonLine width={NOTE_WIDTH} />
       ) : (
         <Text size="xs" color="secondary">
           {note}

@@ -51,11 +51,11 @@ function AgentRowView({ row, pane, selected }: { row: AgentRow; pane: boolean; s
   const mark = server.kind === 'remote' ? REMOTE_MARK : undefined;
   if (pane)
     return (
-      <ListPaneRow title={row.name} line={line.text} lineTone={line.tone} detail={detail} dot={line.dot} mark={mark} trailing={trailing} selected={selected} href={href}
+      <ListPaneRow title={row.name} line={line.text} lineTone={line.tone} linePending={line.pending} detail={detail} dot={line.dot} mark={mark} trailing={trailing} selected={selected} href={href}
         avatar={<AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.list} />} />
     );
   return (
-    <Item title={row.name} subtitle={line.text} subtitleTone={line.tone} detail={detail} href={href} trailing={trailing} chevron={false}
+    <Item title={row.name} subtitle={line.text} subtitleTone={line.tone} subtitlePending={line.pending} detail={detail} href={href} trailing={trailing} chevron={false}
       leading={<AvatarDot dot={line.dot} mark={mark}><AgentAvatar seed={agentSeed(server)} src={server.avatar} size={AVATAR_SIZE.list} /></AvatarDot>} />
   );
 }

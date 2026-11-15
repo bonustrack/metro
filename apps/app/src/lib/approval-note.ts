@@ -1,5 +1,5 @@
 import { flattenAccounts, type AccountGroup, type AccountRow } from '@metro-labs/client/api/accounts';
-import type { ApprovalCard } from '@metro-labs/client/api/approval-card';
+import { connectorAsk, type ApprovalCard } from '@metro-labs/client/api/approval-card';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { connectorOfKey } from '@metro-labs/client/api/connector-key';
 import { effectiveAccess, type GroupedTool } from '@metro-labs/client/api/policy';
@@ -32,6 +32,12 @@ export function namedConnector(key: string, agent: string | null, read: Connecto
   if (read.data === undefined) return read.error === null || read.error === undefined ? undefined : null;
   const found = agent === null ? undefined : connectorOfKey(read.data.connectors, agent, key);
   return found === undefined ? null : { name: found.name, url: found.url };
+}
+
+export function approvalAsk(card: ApprovalCard, agent: string, read: ConnectorsRead): string | undefined {
+  if (card.connector === null) return card.ask;
+  const named = namedConnector(card.connector, agent, read);
+  return named === undefined ? undefined : connectorAsk(card.title, named?.name ?? card.connector);
 }
 
 export function approvalWhere(card: ApprovalCard, groups: AccountGroup[], connector?: NamedConnector | null): string | null {
