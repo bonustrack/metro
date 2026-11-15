@@ -37,6 +37,7 @@ import {
   plannedEffort,
   requestKind,
   thinkingOff,
+  unaskedEffort,
   withBlockBinding,
   withEffort,
   withThinkingFor,
@@ -248,9 +249,13 @@ function noteRefusal(connection: string, model: string, upstream: Response): voi
   if (!upstream.ok) log.warn({ connection, model, status: upstream.status }, 'gateway: the provider refused the request');
 }
 
-async function toCodex(req: IncomingMessage, res: ServerResponse, path: string, body: Record<string, unknown>, route: Route, deps: ModelDeps): Promise<void> {
-  if (path === COUNT) countTokens(res, body);
-  else await codexMessages(req, res, body, route.model, route.connection, { refresh: noRefresh, ...deps.codex }, watchUpstream(res));
+async function toCodex(req: IncomingMessage, res: ServerResponse, ask: Request, route: Route, deps: ModelDeps): Promise<void> {
+  if (ask.path === COUNT) {
+    countTokens(res, ask.body);
+    return;
+  }
+  const codexAsk = { body: ask.body, model: route.model, unaskedEffort: unaskedEffort(ask.sent, ask.setup.effort ?? {}, ask.kind) };
+  await codexMessages(req, res, codexAsk, route.connection, { refresh: noRefresh, ...deps.codex }, watchUpstream(res));
 }
 
 function shapedFor(req: IncomingMessage, sent: Record<string, unknown>, setup: ModelSetup, kind: RequestKind): Record<string, unknown> {
@@ -296,7 +301,7 @@ async function attempt(req: IncomingMessage, res: ServerResponse, ask: Request, 
     return;
   }
   if (conn.provider === 'codex') {
-    await toCodex(req, res, path, body, route, deps);
+    await toCodex(req, res, ask, route, deps);
     return;
   }
   const shaped: Shaped = { raw: bytesOf(ask.raw, ask.parsed, ask.sent), sent: ask.sent, shaped: body, bind: true };

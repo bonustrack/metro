@@ -7,6 +7,7 @@ import {
   helperRequest,
   plannedEffort,
   requestKind,
+  unaskedEffort,
   withBlockBinding,
   withEffort,
   withThinkingFor,
@@ -137,6 +138,26 @@ describe('the effort metro asks for', () => {
     expect(effortToApply(turn({ output_config: { effort: 'max' } }))).toBe('max');
     expect(effortToApply(turn({ thinking: { type: 'disabled' } }))).toBeNull();
     expect(effortToApply(turn({ output_config: undefined }))).toBeNull();
+  });
+
+  test('a request that asks nothing at all is given the route level of its thread, for the Codex translation only', () => {
+    const plain = turn({ output_config: undefined, thinking: undefined });
+    expect(unaskedEffort(plain, {}, 'main')).toBe('low');
+    expect(unaskedEffort(plain, {}, 'subagent')).toBe('max');
+    expect(unaskedEffort(turn({ output_config: undefined }), { main: 'high', helpers: 'medium' }, 'main')).toBe('high');
+    expect(unaskedEffort(plain, { main: 'high', helpers: 'medium' }, 'subagent')).toBe('medium');
+    expect(unaskedEffort(plain, { main: 'max', helpers: 'max' }, 'compact')).toBe('low');
+    expect(unaskedEffort(plain, { main: 'asked', helpers: 'asked' }, 'main')).toBeNull();
+    expect(unaskedEffort(plain, { main: 'asked', helpers: 'asked' }, 'subagent')).toBeNull();
+    expect(unaskedEffort(plain, { main: 'max' }, 'other')).toBeNull();
+  });
+
+  test('an effort anywhere, a thinking budget or thinking switched off counts as asking', () => {
+    const perTurn = { role: 'system', output_config: { effort: 'high' }, content: 'context' };
+    expect(unaskedEffort(turn(), {}, 'main')).toBeNull();
+    expect(unaskedEffort(turn({ output_config: undefined, messages: [{ role: 'user', content: 'hi' }, perTurn] }), {}, 'main')).toBeNull();
+    expect(unaskedEffort(turn({ output_config: undefined, thinking: { type: 'enabled', budget_tokens: 8_000 } }), {}, 'main')).toBeNull();
+    expect(unaskedEffort(turn({ output_config: undefined, thinking: { type: 'disabled' } }), {}, 'compact')).toBeNull();
   });
 });
 

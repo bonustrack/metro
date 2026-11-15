@@ -100,6 +100,16 @@ const thinkingAlwaysOn = new Set<string>();
 
 export const thinkingOff = (body: Body): boolean => record(body.thinking).type === 'disabled';
 
+function thinkingBudget(body: Body): number {
+  const budget = record(body.thinking).budget_tokens;
+  return typeof budget === 'number' ? budget : 0;
+}
+
+export function unaskedEffort(body: Body, setting: RouteEffort, kind: RequestKind): string | null {
+  if (askedEfforts(body).length > 0 || thinkingOff(body) || thinkingBudget(body) > 0) return null;
+  return wantedEffort(kind, setting);
+}
+
 const alwaysThinks = (model: string): boolean => THINKING_ALWAYS_ON.test(model) || thinkingAlwaysOn.has(model);
 
 export function withThinkingFor(body: Body, model: string): Body {

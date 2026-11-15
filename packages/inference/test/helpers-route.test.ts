@@ -6,7 +6,7 @@ import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metr
 import { holdOf } from '@metro-labs/inference/fallback';
 import { runnerModel, type Chain, type ModelSetup, type Provider } from '@metro-labs/inference/model-config';
 import { codexAccess, connectionId, makeConnection } from './model-fixture.ts';
-import { HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
+import { COMPACTION_HINTS, HELPER_HEADERS, helperCompaction, helperTurn, mainCompaction } from './compaction-fixture.ts';
 
 interface Seen {
   model: string;
@@ -18,6 +18,7 @@ interface Upstream {
   server: Server;
   base: string;
   seen: Seen[];
+  bodies: string[];
 }
 
 const LIMITED = new Set(['busy-model']);
@@ -67,13 +68,15 @@ async function listen(server: Server): Promise<string> {
 }
 
 async function upstream(): Promise<Upstream> {
-  const held: Upstream = { server: createServer(), base: '', seen: [] };
+  const held: Upstream = { server: createServer(), base: '', seen: [], bodies: [] };
   held.server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
-      const seen = seenOf(req.url ?? '', Buffer.concat(chunks).toString('utf8'));
+      const text = Buffer.concat(chunks).toString('utf8');
+      const seen = seenOf(req.url ?? '', text);
       held.seen.push(seen);
+      held.bodies.push(text);
       answer(req.url ?? '', seen, res);
     });
   });
@@ -84,7 +87,9 @@ async function upstream(): Promise<Upstream> {
 const PROVIDERS: Provider[] = ['anthropic', 'bedrock', 'openrouter', 'codex', 'routeway'];
 const upstreams = new Map<Provider, Upstream>();
 let gateway: Server;
+let named: Server;
 let base = '';
+let namedBase = '';
 let cfg: ModelSetup;
 
 const connections = [
@@ -104,14 +109,21 @@ const seenBy = (provider: Provider): Seen[] => upstreams.get(provider)?.seen ?? 
 
 const turn = (model: string, effort = 'high'): Record<string, unknown> => ({ model, max_tokens: 8, stream: true, output_config: { effort }, messages: [{ role: 'user', content: 'hi' }] });
 
-const ask = (body: Record<string, unknown>, headers: Record<string, string> = {}): Promise<Response> =>
-  fetch(`${base}/gateway/v1/messages`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-metro-key': 'mk_ok', ...headers }, body: JSON.stringify(body) });
+const ask = (body: Record<string, unknown>, headers: Record<string, string> = {}, at = base): Promise<Response> =>
+  fetch(`${at}/gateway/v1/messages`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-metro-key': 'mk_ok', ...headers }, body: JSON.stringify(body) });
 
-async function served(body: Record<string, unknown>, headers: Record<string, string> = {}): Promise<void> {
-  const res = await ask(body, headers);
+async function served(body: Record<string, unknown>, headers: Record<string, string> = {}, at = base): Promise<void> {
+  const res = await ask(body, headers, at);
   expect(res.status).toBe(200);
   await res.text();
 }
+
+const clearSeen = (): void => {
+  for (const held of upstreams.values()) {
+    held.seen.length = 0;
+    held.bodies.length = 0;
+  }
+};
 
 beforeAll(async () => {
   for (const provider of PROVIDERS) upstreams.set(provider, await upstream());
@@ -129,16 +141,22 @@ beforeAll(async () => {
     if (!handleGatewayRequest(req, res, deps)) res.writeHead(404).end();
   });
   base = await listen(gateway);
+  const namedDeps: GatewayDeps = { ...deps, named: true };
+  named = createServer((req, res) => {
+    if (!handleGatewayRequest(req, res, namedDeps)) res.writeHead(404).end();
+  });
+  namedBase = await listen(named);
 });
 
 afterAll(() => {
   for (const held of upstreams.values()) held.server.close();
   gateway.close();
+  named.close();
 });
 
 beforeEach(() => {
   resetGatewayState();
-  for (const held of upstreams.values()) held.seen.length = 0;
+  clearSeen();
 });
 
 describe('helpers on their own models', () => {
@@ -240,5 +258,96 @@ describe('a compaction', () => {
     await served(mainCompaction());
     await served(helperCompaction('claude-opus-5-5'), HELPER_HEADERS);
     expect(seenBy('anthropic').map((s) => s.effort)).toEqual(['low', 'low']);
+  });
+});
+
+describe('a Codex request that asks no effort', () => {
+  const CODEX = step('codex', 'gpt-6.1-sol');
+  const unasked = (model: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({ model, max_tokens: 8, stream: true, messages: [{ role: 'user', content: 'hi' }], ...extra });
+  const reasoning = (): (string | null)[] => seenBy('codex').map((s) => s.reasoning);
+  const withoutEffort = (body: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'output_config'));
+
+  test("a box's main thread and its workers get the route's level for their thread, not medium", async () => {
+    cfg = setup(CODEX, null);
+    await served(unasked(runnerModel(cfg) ?? ''));
+    await served(unasked(runnerModel(cfg) ?? ''), HELPER);
+    cfg = setup(CODEX, null, { main: 'high', helpers: 'medium' });
+    await served(unasked(runnerModel(cfg) ?? ''));
+    await served(unasked(runnerModel(cfg) ?? ''), HELPER);
+    expect(reasoning()).toEqual(['low', 'xhigh', 'high', 'medium']);
+  });
+
+  test('an access key gets the main level on metro and the worker level on metro-workers, with or without worker models', async () => {
+    cfg = setup(CODEX, { primary: step('codex', 'gpt-6.2'), fallbacks: [] });
+    await served(unasked('metro'), {}, namedBase);
+    await served(unasked('metro-workers'), {}, namedBase);
+    cfg = setup(CODEX, null, { main: 'medium', helpers: 'high' });
+    await served(unasked('metro'), {}, namedBase);
+    await served(unasked('metro-workers'), {}, namedBase);
+    expect(seenBy('codex')).toEqual([
+      { model: 'gpt-6.1-sol', effort: null, reasoning: 'low' },
+      { model: 'gpt-6.2', effort: null, reasoning: 'xhigh' },
+      { model: 'gpt-6.1-sol', effort: null, reasoning: 'medium' },
+      { model: 'gpt-6.1-sol', effort: null, reasoning: 'high' },
+    ]);
+  });
+
+  test('As the agent asks keeps medium on every thread, and so does a chore', async () => {
+    cfg = setup(CODEX, null, { main: 'asked', helpers: 'asked' });
+    await served(unasked(runnerModel(cfg) ?? ''));
+    await served(unasked(runnerModel(cfg) ?? ''), HELPER);
+    await served(unasked('metro'), {}, namedBase);
+    await served(unasked('metro-workers'), {}, namedBase);
+    cfg = setup(CODEX, null, { main: 'max', helpers: 'max' });
+    await served(unasked(runnerModel(cfg) ?? '', { output_config: { format: { type: 'json_schema', schema: {} } } }));
+    expect(reasoning()).toEqual(['medium', 'medium', 'medium', 'medium', 'medium']);
+  });
+
+  test('a request that asks an effort, a thinking budget or no thinking is answered as before', async () => {
+    cfg = setup(CODEX, null, { main: 'max', helpers: 'low' });
+    const model = runnerModel(cfg) ?? '';
+    await served(unasked(model, { output_config: { effort: 'medium' } }));
+    await served(unasked(model, { output_config: { effort: 'high' } }), HELPER);
+    await served(unasked(model, { thinking: { type: 'enabled', budget_tokens: 2_000 } }));
+    await served(unasked(model, { thinking: { type: 'enabled', budget_tokens: 8_000 } }));
+    await served(unasked(model, { thinking: { type: 'enabled', budget_tokens: 32_000 } }), HELPER);
+    await served(unasked(model, { thinking: { type: 'disabled' } }));
+    await served(unasked(model, { messages: [{ role: 'user', content: 'hi' }, { role: 'system', output_config: { effort: 'high' }, content: 'context' }] }));
+    expect(reasoning()).toEqual(['xhigh', 'low', 'low', 'medium', 'high', 'low', 'medium']);
+  });
+
+  test('a compaction that asks no effort runs at low, even when the route asks for more', async () => {
+    cfg = setup(CODEX, null, { main: 'max', helpers: 'max' });
+    const model = runnerModel(cfg) ?? '';
+    await served(withoutEffort(mainCompaction(model)));
+    await served(withoutEffort(helperCompaction(model)), HELPER_HEADERS);
+    await served(unasked(model), COMPACTION_HINTS);
+    expect(reasoning()).toEqual(['low', 'low', 'low']);
+  });
+
+  test('every other route gets an unasked request exactly as before: nothing added, the same bytes whatever the route sets', async () => {
+    const others: [Provider, string][] = [['anthropic', 'claude-opus-5-5'], ['bedrock', 'us.anthropic.claude-opus-5-5'], ['openrouter', 'openai/gpt-5.2'], ['routeway', 'deepseek/deepseek-v4']];
+    const settings: ModelSetup['effort'][] = [{}, { main: 'max', helpers: 'low' }, { main: 'asked', helpers: 'asked' }];
+    for (const [provider, model] of others) {
+      const sent: string[][] = [];
+      for (const effort of settings) {
+        cfg = setup(step(provider, model), null, effort);
+        const body = unasked(runnerModel(cfg) ?? '');
+        await served(body);
+        await served(body, HELPER);
+        await served(unasked('metro'), {}, namedBase);
+        await served(unasked('metro-workers'), {}, namedBase);
+        const bodies = upstreams.get(provider)?.bodies ?? [];
+        sent.push([...bodies]);
+        if (provider === 'anthropic') expect(bodies.slice(0, 2)).toEqual([JSON.stringify(body), JSON.stringify(body)]);
+        for (const text of bodies) expect(Object.keys(JSON.parse(text) as Record<string, unknown>)).not.toContain('output_config');
+        if (provider !== 'openrouter') for (const text of bodies) expect(Object.keys(JSON.parse(text) as Record<string, unknown>)).not.toContain('reasoning');
+        clearSeen();
+      }
+      expect(sent[0]).toHaveLength(4);
+      expect(sent[1]).toEqual(sent[0]);
+      expect(sent[2]).toEqual(sent[0]);
+      expect(seenBy('codex')).toHaveLength(0);
+    }
   });
 });

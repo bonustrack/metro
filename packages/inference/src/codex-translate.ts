@@ -16,6 +16,7 @@ type Item = Record<string, unknown>;
 interface TranslateOptions {
   promptCacheKey: string;
   names?: ToolNames;
+  unaskedEffort?: string | null;
 }
 
 interface ResponsesRequest {
@@ -173,21 +174,25 @@ export function toolChoiceOf(choice: unknown, names = new ToolNames()): unknown 
   return 'auto';
 }
 
-function configuredEffort(body: Item): string | null {
-  const config = isRecord(body.output_config) ? body.output_config : {};
-  const effort = typeof config.effort === 'string' ? (EFFORT_ALIAS[config.effort] ?? config.effort) : '';
-  return EFFORTS.has(effort) ? effort : null;
+function codexEffort(effort: unknown): string | null {
+  const named = typeof effort === 'string' ? (EFFORT_ALIAS[effort] ?? effort) : '';
+  return EFFORTS.has(named) ? named : null;
 }
 
-export function effortOf(body: Item): string {
+const configuredEffort = (body: Item): string | null => codexEffort(isRecord(body.output_config) ? body.output_config.effort : undefined);
+
+function budgetEffort(budget: number, unasked: string | null): string {
+  if (budget > 0 && budget <= 4_000) return 'low';
+  if (budget > 16_000) return 'high';
+  return budget > 0 ? DEFAULT_EFFORT : (codexEffort(unasked) ?? DEFAULT_EFFORT);
+}
+
+export function effortOf(body: Item, unasked: string | null = null): string {
   const configured = configuredEffort(body);
   if (configured !== null) return configured;
   const thinking = isRecord(body.thinking) ? body.thinking : {};
   if (thinking.type === 'disabled') return 'low';
-  const budget = typeof thinking.budget_tokens === 'number' ? thinking.budget_tokens : 0;
-  if (budget > 0 && budget <= 4_000) return 'low';
-  if (budget > 16_000) return 'high';
-  return DEFAULT_EFFORT;
+  return budgetEffort(typeof thinking.budget_tokens === 'number' ? thinking.budget_tokens : 0, unasked);
 }
 
 export function toResponsesRequest(body: Item, model: string, opts: TranslateOptions): ResponsesRequest {
@@ -200,7 +205,7 @@ export function toResponsesRequest(body: Item, model: string, opts: TranslateOpt
     tools: toolItems(body.tools, names),
     tool_choice: toolChoiceOf(body.tool_choice, names),
     parallel_tool_calls: true,
-    reasoning: { effort: effortOf(body), summary: 'auto' },
+    reasoning: { effort: effortOf(body, opts.unaskedEffort ?? null), summary: 'auto' },
     store: false,
     stream: true,
     include: ['reasoning.encrypted_content'],

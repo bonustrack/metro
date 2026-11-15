@@ -57,6 +57,20 @@ describe('what Claude Code sends becomes a Responses request', () => {
   });
 });
 
+describe("the route's level for a request that asks no effort", () => {
+  test('it replaces medium, max becomes xhigh, and anything the request asked still wins', () => {
+    expect(effortOf({}, 'low')).toBe('low');
+    expect(effortOf({}, 'max')).toBe('xhigh');
+    expect(effortOf({}, null)).toBe('medium');
+    expect(effortOf({ output_config: { effort: 'high' } }, 'low')).toBe('high');
+    expect(effortOf({ thinking: { type: 'enabled', budget_tokens: 8_000 } }, 'low')).toBe('medium');
+    expect(effortOf({ thinking: { type: 'enabled', budget_tokens: 32_000 } }, 'low')).toBe('high');
+    expect(effortOf({ thinking: { type: 'disabled' } }, 'max')).toBe('low');
+    expect(toResponsesRequest({ model: 'x', messages: [] }, 'gpt-5.4', { promptCacheKey: 'k', unaskedEffort: 'max' }).reasoning).toEqual({ effort: 'xhigh', summary: 'auto' });
+    expect(toResponsesRequest({ model: 'x', messages: [] }, 'gpt-5.4', { promptCacheKey: 'k' }).reasoning).toEqual({ effort: 'medium', summary: 'auto' });
+  });
+});
+
 describe('tool names Codex would refuse', () => {
   const long = 'mcp__claude_ai_Better_Stack__available_incident_escalation_policies';
 
@@ -102,6 +116,7 @@ describe('what the translator smooths over', () => {
     expect(effortOf({ output_config: { effort: 'max' } })).toBe('xhigh');
     expect(effortOf({ output_config: { effort: 'xhigh' } })).toBe('xhigh');
     expect(effortOf({ output_config: { effort: 'silly' } })).toBe('medium');
+    expect(effortOf({ output_config: { effort: 'silly' } }, 'low')).toBe('low');
     const items = inputItems(
       [
         {
