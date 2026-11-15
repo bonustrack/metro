@@ -48,6 +48,7 @@ function headersFor(access: CodexAccess, sessionId: string): Record<string, stri
 interface Call {
   body: Record<string, unknown>;
   model: string;
+  unaskedEffort: string | null;
   threadKey: string;
   watch: Watch;
   deps: CodexDeps;
@@ -61,7 +62,7 @@ function threadKey(req: IncomingMessage): string {
 }
 
 function send(call: Call, access: CodexAccess): Promise<Response> {
-  const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names });
+  const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names, unaskedEffort: call.unaskedEffort });
   return (call.deps.fetchImpl ?? fetch)(`${baseFor(access, call.deps)}/responses`, {
     method: 'POST',
     headers: headersFor(access, call.threadKey),
@@ -106,8 +107,11 @@ async function reach(call: Call, conn: Connection): Promise<Response> {
   return send(call, fresh.codex);
 }
 
-export async function codexMessages(req: IncomingMessage, res: ServerResponse, body: Record<string, unknown>, model: string, conn: Connection, deps: CodexDeps, watch: Watch): Promise<void> {
-  const call: Call = { body, model, threadKey: threadKey(req), watch, deps, names: new ToolNames() };
+type CodexAsk = Pick<Call, 'body' | 'model' | 'unaskedEffort'>;
+
+export async function codexMessages(req: IncomingMessage, res: ServerResponse, ask: CodexAsk, conn: Connection, deps: CodexDeps, watch: Watch): Promise<void> {
+  const { body, model } = ask;
+  const call: Call = { ...ask, threadKey: threadKey(req), watch, deps, names: new ToolNames() };
   const site: FailureSite = { connection: conn.label, model };
   const upstream = await reach(call, conn);
   noteUsageHeaders('codex', conn.id, upstream.headers);

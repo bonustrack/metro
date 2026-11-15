@@ -13,6 +13,7 @@ const REMOTE = 'remote00001';
 const LONELY = 'remote00002';
 const CONN = 'conn0000001';
 const CONN_KEY = 'sk-ant-api-test-0001';
+const CODEX = 'conn0000002';
 
 interface Seen {
   model: string;
@@ -29,6 +30,11 @@ function answer(req: IncomingMessage, res: ServerResponse): void {
     const body = Buffer.concat(chunks).toString('utf8');
     const model = String((JSON.parse(body) as { model?: unknown }).model);
     seen.push({ model, headers: req.headers, body });
+    if (req.url === '/responses') {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(['{"type":"response.created","response":{"id":"resp_1"}}', '{"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":5,"output_tokens":1}}}'].map((data) => `data: ${data}\n\n`).join(''));
+      return;
+    }
     if (model === 'claude-broken') {
       res.writeHead(400, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: `prompt contains ${CANARY}` } }));
@@ -79,7 +85,7 @@ beforeEach(async () => {
   await addConnection(held.db, CONN, 'anthropic', { kind: 'key', apiKey: CONN_KEY });
   await setRoute(held.db, { primary: { connection: CONN, model: 'claude-sonnet-5-5' }, fallbacks: [] });
   await setRoute(held.db, { primary: { connection: CONN, model: 'claude-broken' }, fallbacks: [] }, LONELY);
-  app = await startApp(held.db, { anthropicBase: upstream.base });
+  app = await startApp(held.db, { anthropicBase: upstream.base, codex: { base: upstream.base } });
 });
 
 afterEach(async () => {
@@ -201,5 +207,25 @@ describe('usage, never content', () => {
   test('counting tokens is not recorded', async () => {
     await (await ask({ authorization: `Bearer ${boxToken}` }, 'claude-sonnet-5-5', '/v1/messages/count_tokens')).text();
     expect(await rows()).toEqual([]);
+  });
+});
+
+describe('a Codex call that asks no effort', () => {
+  test("gets the route's level for the model its key names, and a box's main thread gets the main level", async () => {
+    await addConnection(held.db, CODEX, 'codex', { kind: 'codex', method: 'chatgpt', accessToken: 'codex-at-1', refreshToken: 'codex-rt-1', expiresAt: Date.now() + 7 * 86_400_000, clientId: 'app_test' }, 'gpt-6.1-sol');
+    await held.client.exec('DELETE FROM "model_routes"');
+    await setRoute(held.db, { primary: { connection: CODEX, model: 'gpt-6.1-sol' }, fallbacks: [] });
+    for (const model of ['metro', 'metro-workers']) expect((await (await ask({ 'x-api-key': gatewayKey.key }, model)).text()).length).toBeGreaterThan(0);
+    await (await ask({ authorization: `Bearer ${boxToken}` }, 'codex:gpt-6.1-sol')).text();
+    expect(seen.map((s) => [s.model, (JSON.parse(s.body) as { reasoning?: { effort?: string } }).reasoning?.effort])).toEqual([
+      ['gpt-6.1-sol', 'low'],
+      ['gpt-6.1-sol', 'xhigh'],
+      ['gpt-6.1-sol', 'low'],
+    ]);
+    expect((await rows()).map((r) => [r.provider, r.kind, r.outcome]).sort()).toEqual([
+      ['codex', 'external', 'ok'],
+      ['codex', 'external', 'ok'],
+      ['codex', 'main', 'ok'],
+    ]);
   });
 });
