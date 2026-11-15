@@ -13,7 +13,7 @@ import { runnerConfig } from '../src/config.ts';
 import { allowedOnly, compactDue, Runner, runnerEnv, runnerOptions, type OpenSession } from '../src/runner.ts';
 import type { MetroTools } from '../src/tool-proxy.ts';
 
-const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
+const APPROVAL_ID_RE = /^[a-km-z]{5}$/;
 
 describe('a chat message reaches the front as the same <channel> block Claude Code shows', () => {
   test('meta becomes attributes, keys that are not identifiers are dropped, quotes are escaped', () => {
@@ -98,8 +98,8 @@ describe('the session watch', () => {
 });
 
 describe('approvals', () => {
-  test('ids match the daemon chat reply rule, and every ask goes to metro with its input', async () => {
-    for (let i = 0; i < 200; i += 1) expect(PERMISSION_REPLY_RE.test(`yes ${approvalId()}`)).toBe(true);
+  test('ids are the 5-letter approval ids the daemon and the metro.box link use, and every ask goes to metro with its input', async () => {
+    for (let i = 0; i < 200; i += 1) expect(APPROVAL_ID_RE.test(approvalId())).toBe(true);
     const asks: PermissionAsk[] = [];
     let answer: 'allow' | 'deny' = 'allow';
     const canUse = approvalsThrough({

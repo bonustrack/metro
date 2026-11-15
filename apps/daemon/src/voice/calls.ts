@@ -3,7 +3,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { stringOf } from '@metro-labs/http/api-http';
 import type { TrainEvent } from '@metro-labs/core/trains/protocol';
-import { agentIdForLine, allowlistForLine, lineReceives, mayApprove, senderPermitted } from '../agents/map.js';
+import { agentIdForLine, lineReceives, mayCall } from '../agents/map.js';
 import { Call, trainCall, type CallStart } from './call.js';
 import { readVoice, voiceReady, type VoiceConfig } from './store.js';
 
@@ -34,7 +34,7 @@ const sameCaller = (call: CallHandle, line: string, from: string): boolean => ca
 function refusal(line: string, from: string): string | null {
   if (current !== null && !sameCaller(current, line, from)) return 'already in a call';
   if (!voiceReady(readVoice())) return 'voice is off or has no API key on the Voice page';
-  if (!lineReceives(line) || !mayApprove(line, from) || !senderPermitted(allowlistForLine(line), from)) return 'the caller is not someone who can approve for this channel';
+  if (!lineReceives(line) || !mayCall(line, from)) return 'the caller is not on the list of who can write on this channel (a channel open to anyone takes no calls)';
   if (agentIdForLine(line) === undefined) return 'the channel does not belong to this agent';
   return null;
 }

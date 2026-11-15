@@ -72,6 +72,7 @@ export interface ConnectorFacts {
   connector: OrgConnector;
   tools: readonly ConnectorTool[] | null;
   remote: boolean;
+  chatApprovals?: boolean;
 }
 
 const CONNECTOR_WORDS: Record<PermissionGroup, GroupWords> = {
@@ -103,8 +104,10 @@ function availability({ agent, connector, tools }: ConnectorFacts): Segment[] | 
 
 const policyAsks = (policies: readonly ToolPolicy[]): boolean => policies.some((policy) => Object.values(policy.tools ?? {}).includes('ask'));
 
-const approvalsLine = (agent: string, remote: boolean): Segment[] =>
-  remote ? [txt('approvals only on '), val(`${agent}'s page`), txt(' on '), val('metro.box')] : [txt('approvals in a '), val('private chat'), txt(' and on '), val('metro.box')];
+function approvalsLine(agent: string, remote: boolean, chat: boolean): Segment[] {
+  if (remote) return [txt('approvals only on '), val(`${agent}'s page`), txt(' on '), val('metro.box')];
+  return chat ? [txt('approvals in a '), val('private chat'), txt(' and on '), val('metro.box')] : [txt('approvals on '), val('metro.box'), txt(', with a link in the chat')];
+}
 
 const countedRules = (count: number): Segment[] | null => (count === 0 ? null : [val(countWords(count, 'tool', 'tools')), txt(count === 1 ? ' has its own rule' : ' have their own rule')]);
 
@@ -123,7 +126,7 @@ export function connectorSummary(facts: ConnectorFacts): Segment[] {
     availability(facts),
     clause === null ? null : [val(agent), txt(' '), ...clause],
     tools === null ? countedRules(effectiveRule(organization, own).tools) : ownRulesSentence(ruled),
-    asks ? approvalsLine(agent, remote) : null,
+    asks ? approvalsLine(agent, remote, facts.chatApprovals === true) : null,
     ...eventSentences(agent, eventRows(connector, agentId), held.senders),
   ]);
 }

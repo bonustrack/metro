@@ -49,10 +49,11 @@ await step('approval', async () => {
   const prompt = calls.find((c) => c.t >= at && c.action === 'send' && String(c.args.text).startsWith('Approval needed'));
   numbers.approval_prompt_ms = (prompt?.t ?? 0) - at;
   numbers.approval_prompt_line_ok = prompt?.args.line === LINE;
-  const pid = /yes ([a-km-z]{5})/.exec(String(prompt?.args.text))?.[1] ?? '';
+  const { answerPrompt, pendingPrompts } = await import('../../apps/daemon/src/approvals/pending.ts');
+  const pid = pendingPrompts()[0]?.requestId ?? '';
   await sleep(1500);
   const yesAt = now();
-  chat(LESS, `yes ${pid}`);
+  await answerPrompt(pid, 'allow', 'page');
   await until('approved send', () => sendsOn(OTHER, yesAt).length > 0, 120_000);
   numbers.approval_send_after_yes_ms = (sendsOn(OTHER, yesAt)[0]?.t ?? 0) - yesAt;
   numbers.approval_sent_text = sendsOn(OTHER, yesAt)[0]?.args.text;

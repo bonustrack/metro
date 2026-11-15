@@ -6,6 +6,7 @@ import { routeHash } from '@metro-labs/client/route';
 import { queryError, refresh, useClaudeSetupQuery } from '../lib/queries.js';
 import { modeName } from '../lib/settings-values.js';
 import { useTechnicalDetails } from '../lib/technical.js';
+import { useChatApprovals } from '../lib/chat-approvals.js';
 import { SystemPromptEditor } from './SystemPrompt.js';
 import { Choice } from './Choice.js';
 import { Group } from './ui/Group.js';
@@ -13,7 +14,8 @@ import { Item } from './ui/Item.js';
 import { Block, Control, NoteRow } from './settings/rows.js';
 
 const PRIVACY = 'No usage reports leave the server, and conversations are deleted after a week. Messages still reach the model.';
-const MODE_NOTE = 'Ask first checks with you in chat before risky actions. Never ask lets it act alone.';
+const modeNote = (chat: boolean): string =>
+  chat ? 'Ask first checks with you in chat before risky actions. Never ask lets it act alone.' : 'Ask first checks with you on metro.box before risky actions, with a link in the chat. Never ask lets it act alone.';
 const BEHAVIOUR_NOTE = 'A change to approvals applies after the next Stop and Start.';
 
 interface Flip {
@@ -55,9 +57,10 @@ function Toggle({ title, note, on, flip, onChange }: { title: string; note: stri
 
 function Approvals({ setup }: { setup: Setup }): ReactNode {
   const technical = useTechnicalDetails();
+  const note = modeNote(useChatApprovals());
   const mode = useFlip('Could not change how approvals work.');
   return (
-    <Control title="Approvals" note={technical ? `${MODE_NOTE} Now: ${modeName(setup.permissionMode)}.` : MODE_NOTE} error={mode.error}>
+    <Control title="Approvals" note={technical ? `${note} Now: ${modeName(setup.permissionMode)}.` : note} error={mode.error}>
       <Choice
         label="Approvals"
         value={setup.permissionMode === 'auto' ? 'auto' : 'bypass'}

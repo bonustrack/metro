@@ -101,12 +101,13 @@ The daemon applies no station policy to the two tools.
 
 - **Block**: hidden from `tool_search`; `tool_call` answers
   `Blocked by the owner's policy for <connector> (<tool>).`
-- **Ask**: the first call answers `needs_approval` with a 5-letter id and a sentence for the
-  agent. mcp.metro.box records the request (tool, a digest of the arguments, a short
-  preview) and hands it to the agent's daemon, which asks the owner exactly as today: a
-  chat message (`Approval needed: notion.update_page`, the arguments, then
-  `Reply "yes <id>" or "no <id>"`) on the agent's last chat line, and the page's
-  approvals list. The owner's answer goes back to mcp.metro.box, and when the agent's own
+- **Ask**: the first call answers `needs_approval` with a 5-letter id, the link
+  `https://metro.box/#/<owner>/<agent>/approvals/<id>` and a sentence for the agent.
+  mcp.metro.box records the request (tool, a digest of the arguments, a short preview)
+  and hands it to the agent's daemon, which posts the same link on the agent's last chat
+  line (`Approval needed: Lisa wants to run update_page on notion.` then the link, never
+  the arguments) and lists it on the page. Since 2026-11-15 only metro.box answers it, by
+  any member of the organization. The answer goes back to mcp.metro.box, and when the agent's own
   session made the call (not an access key) the daemon tells the agent in its channel
   (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent
   then calls `tool_call` again with the same tool and arguments and `approval: "abcde"`.
@@ -116,7 +117,7 @@ The daemon applies no station policy to the two tools.
   request); a pending one is never deleted before it expired.
 - The agent can never approve its own call: answers come only from the daemon's signed
   requests (the enrollment signing key lives in Metro's folder, which the agent user cannot
-  read) after an allowlisted approver answered in chat, or from the page.
+  read) after a member of the organization answered on the page.
 - `tool_call` is a worker tool: the orchestrator guard denies it on the main thread, as it
   denied every connector tool before. `tool_search` is allowed everywhere.
 

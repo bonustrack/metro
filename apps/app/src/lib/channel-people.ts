@@ -40,7 +40,7 @@ export interface Person {
 interface PeopleInput {
   station: string;
   entries: string[];
-  approvers: string[];
+  approvers: string[] | null;
   cards: SenderCard[];
   seen: RecentSender[];
   technical: boolean;
@@ -61,7 +61,7 @@ function personOf({ station, approvers, cards, seen, technical }: PeopleInput, i
   const handle = card.handle ?? '';
   const seenName = seen.find((s) => sameId(s.id, id))?.name ?? '';
   const title = firstFilled(card.name ?? '', seenName, handle, id);
-  return { id, title, subtitle: subtitleOf(id, title, handle, technical), avatar: card.avatar ?? null, approves: listed(approvers, id), link: linkOf(station, id, handle) };
+  return { id, title, subtitle: subtitleOf(id, title, handle, technical), avatar: card.avatar ?? null, approves: approvers === null ? null : listed(approvers, id), link: linkOf(station, id, handle) };
 }
 
 export const peopleOf = (input: PeopleInput): Person[] => input.entries.map((id) => personOf(input, id));

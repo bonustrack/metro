@@ -50,12 +50,12 @@ const summary = (organization: ToolPolicy, own: ToolPolicy | null, more: Partial
 describe('the connector summary', () => {
   test('organization rules only', () => {
     expect(summary({}, {})).toBe('6 tools. Lisa looks things up, makes changes and deletes freely.');
-    expect(summary({ write: 'ask' }, {})).toBe('6 tools. Lisa looks things up freely, asks before changes or deletions. Approvals in a private chat and on metro.box.');
+    expect(summary({ write: 'ask' }, {})).toBe('6 tools. Lisa looks things up freely, asks before changes or deletions. Approvals on metro.box, with a link in the chat.');
   });
 
   test("the agent's stricter layer wins", () => {
     expect(summary({ write: 'ask' }, { tools: { 'delete-page': 'deny' } })).toBe(
-      '6 tools. Lisa looks things up freely, asks before changes, cannot delete. Approvals in a private chat and on metro.box.',
+      '6 tools. Lisa looks things up freely, asks before changes, cannot delete. Approvals on metro.box, with a link in the chat.',
     );
     expect(summary({}, { write: 'deny' })).toBe('6 tools. Lisa looks things up freely, cannot make changes or delete.');
     expect(summary({ write: 'deny' }, { write: 'allow' })).toBe('6 tools. Lisa looks things up freely, cannot make changes or delete.');
@@ -89,11 +89,16 @@ describe('the connector summary', () => {
 
   test('before the tool list loads, only the saved rules are read', () => {
     expect(summary({ write: 'ask', tools: { 'delete-page': 'deny' } }, {}, { tools: null })).toBe(
-      'Lisa looks things up freely, asks before changes. 1 tool has its own rule. Approvals in a private chat and on metro.box.',
+      'Lisa looks things up freely, asks before changes. 1 tool has its own rule. Approvals on metro.box, with a link in the chat.',
     );
     expect(summary({}, { tools: { fetch: 'ask', search: 'deny' } }, { tools: null })).toBe(
-      'Lisa looks things up and makes changes freely. 2 tools have their own rule. Approvals in a private chat and on metro.box.',
+      'Lisa looks things up and makes changes freely. 2 tools have their own rule. Approvals on metro.box, with a link in the chat.',
     );
+  });
+
+  test('an older box still names its private chat, and an agent without a server its page', () => {
+    expect(summary({ write: 'ask' }, {}, { chatApprovals: true })).toEndWith('Approvals in a private chat and on metro.box.');
+    expect(summary({ write: 'ask' }, {}, { remote: true })).toEndWith("Approvals only on Lisa's page on metro.box.");
   });
 
   test('a service with no tools yet', () => {
@@ -102,7 +107,7 @@ describe('the connector summary', () => {
 
   test('the counts, names, rules and places are values', () => {
     const values = segmentsOf({ write: 'ask' }, { tools: { 'delete-page': 'deny', 'move-pages': 'deny' } }).filter((segment) => segment.value).map((segment) => segment.text);
-    expect(values).toEqual(['6 tools', 'Lisa', 'looks things up', 'changes', 'delete', 'Move pages', 'private chat', 'metro.box']);
+    expect(values).toEqual(['6 tools', 'Lisa', 'looks things up', 'changes', 'delete', 'Move pages', 'metro.box']);
     expect(segmentsOf({}, {}, {}, { signIn: 'disconnected' }).filter((segment) => segment.value).map((segment) => segment.text).slice(0, 3)).toEqual(['Signed out', 'Lisa', 'Notion']);
   });
 });

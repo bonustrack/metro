@@ -76,7 +76,7 @@ describe('an agent without a server, signed in with an access key', () => {
     const list = (await (await rpc(app, key, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json()) as { result: { tools: { name: string; description: string }[] } };
     expect(list.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call', 'list_connectors']);
     expect(list.result.tools[0]?.description).toContain('This agent\'s connectors: notion.');
-    expect(list.result.tools[1]?.description).toContain('approve it on this agent\'s page on metro.box');
+    expect(list.result.tools[1]?.description).toContain('a member of the organization must approve it on metro.box');
   });
 
   test('tool_search and tool_call reach its connectors, and each call is recorded for it', async () => {
@@ -94,8 +94,8 @@ describe('an agent without a server, signed in with an access key', () => {
     const asked = texts(await callTool(app, key, 'tool_call', { calls: [call] }))[1] ?? '';
     const id = /approval ([a-km-z]{5})/.exec(asked)?.[1] ?? '';
     expect(asked).toStartWith('needs_approval: The owner must approve notion.update_page with these arguments first');
-    expect(asked).toContain('on this agent\'s page on metro.box');
-    expect(asked).not.toContain('in chat');
+    expect(asked).toContain(`It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${OWNER}/${REMOTE}/approvals/${id} Tell the person what is waiting and give them that link.`);
+    expect(asked).not.toContain('chat');
     expect(vendor.calls).toEqual([]);
     expect((await held.db.select().from(mcpApprovals))[0]).toMatchObject({ id, agent: REMOTE, owner: OWNER, state: 'pending', origin: 'key', token: tokenId });
     expect(await approvalStore(() => held.db).answer({ agent: REMOTE, owner: OWNER }, id, 'allow', now)).toBe(true);
@@ -141,7 +141,7 @@ describe('an agent without a server, signed in with an access key', () => {
     const call = { tool: 'linear.update_page', arguments: { page_id: 'p9' } };
     const asked = texts(await callTool(app, made.token, 'tool_call', { calls: [call] }))[1] ?? '';
     const id = /approval ([a-km-z]{5})/.exec(asked)?.[1] ?? '';
-    expect(asked).toContain('The agent\'s owner was asked in chat and on its page on metro.box.');
+    expect(asked).toContain(`It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${OWNER}/${box.row.agent}/approvals/${id} Metro also posts that link in the agent's chat.`);
     now += 1;
     const own = texts(await callTool(app, box.token, 'tool_call', { calls: [call] }))[1] ?? '';
     const ownId = /approval ([a-km-z]{5})/.exec(own)?.[1] ?? '';

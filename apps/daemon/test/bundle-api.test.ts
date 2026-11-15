@@ -170,6 +170,19 @@ describe('an agent bundle on a local daemon', () => {
     expect(JSON.stringify(read())).not.toContain('refresh-secret');
   });
 
+  test('an old bundle with approvers restores its channel without them', async () => {
+    const read = (): { stations: Record<string, unknown>[] } => JSON.parse(readFileSync(join(dir, 'agent.json'), 'utf8')) as { stations: Record<string, unknown>[] };
+    const old = [{ station: 'telegram-bot', id: 'tgold000001', config: { botToken: 'old-bot-token' }, allowlist: ['111'], approvers: ['111'] }];
+    const res = await call('POST', '/api/agents/restore', { version: 1, mode: 'append', agent: { id: tony.id, name: 'Tony', stations: old }, connectors: [] });
+    expect(res.status).toBe(201);
+    const restored = read().stations.find((station) => station.id === 'tgold000001');
+    expect(restored).toMatchObject({ allowlist: ['111'] });
+    expect(restored).not.toHaveProperty('approvers');
+    const bundle = await call('GET', `/api/agents/${tony.id}/bundle`);
+    expect(bundle.status).toBe(200);
+    expect(JSON.stringify(await bundle.json())).not.toContain('approvers');
+  });
+
   test('an old bundle with connectors still restores, and its connectors are ignored', async () => {
     const legacy = { id: 'conn0000002', name: 'linear', url: 'https://mcp.linear.app/mcp', config: { auth: { kind: 'header', name: 'Authorization', value: 'twin-fixture' } } };
     for (const connectors of [[legacy], [{ id: 'conn0000003' }], 'not a list']) {

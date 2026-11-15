@@ -14,7 +14,6 @@ import { trainsDir } from '../boot/paths.js';
 import {
   setAgentMap,
   setAllowlistMap,
-  setApproversMap,
   setDisabledAccounts,
   type AgentMap,
   type AgentNameMap,
@@ -28,7 +27,6 @@ export interface LoadedAccount {
   station: StationName;
   id: string;
   allowlist: string[] | null;
-  approvers?: string[];
   enabled?: boolean;
   policy?: ToolPolicy;
   config: Record<string, unknown>;
@@ -88,11 +86,6 @@ const channelPolicies = (list: LoadedAgent[]): [PolicyTarget, ToolPolicy][] =>
     ),
   );
 
-const approversOf = (list: LoadedAgent[]): Record<string, string[]> =>
-  Object.fromEntries(
-    list.flatMap((agent) => agent.accounts.flatMap((a) => (a.approvers === undefined ? [] : [[`${a.station}/${a.id}`, a.approvers]]))),
-  );
-
 function writeStations(list: LoadedAgent[]): WrittenStations {
   mkdirSync(METRO_DIR, { recursive: true });
   mkdirSync(trainsDir(), { recursive: true });
@@ -122,7 +115,6 @@ function writeStations(list: LoadedAgent[]): WrittenStations {
   }
   setAgentMap(map, names);
   setAllowlistMap(allow);
-  setApproversMap(approversOf(list));
   setDisabledAccounts(disabled);
   setPolicies('channel', channelPolicies(list));
 

@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
-import { normalizeAllowlist, normalizeApprovers } from './allowlist.js';
-import { approversForAccount } from './map.js';
-import { isRecord } from '@metro-labs/core/is-record';
+import { normalizeAllowlist } from './allowlist.js';
 import type { RecentSender } from './senders.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, bodyField, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
@@ -10,7 +8,6 @@ import { type AccountRef } from './account-attach.js';
 import { type AccountRoute } from './account-routes.js';
 import { handlePolicy, type SetPolicy } from './policy-route.js';
 import { LOOKUPS } from './account-lookups.js';
-import { unconfirmedSenders } from './sender-cards.js';
 import { stationByName } from '../stations/registry.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import {
@@ -68,7 +65,6 @@ export interface AccountApiDeps {
     station: StationName,
     accountId: string,
     allowlist: string[],
-    approvers?: string[],
   ) => Promise<string[]>;
   setPolicy: SetPolicy;
   recentSenders: (station: StationName, accountId: string) => RecentSender[];
@@ -244,19 +240,13 @@ async function handleAllowlist(
 ): Promise<void> {
   const body = await readJsonBody(req);
   const wanted = normalizeAllowlist(bodyField(body, 'allowlist'));
-  const asked = isRecord(body) && 'approvers' in body ? body.approvers : approversForAccount(target.station, target.accountId);
-  const approvers = normalizeApprovers(asked, wanted);
-  const before = new Set(approversForAccount(target.station, target.accountId).map((a) => a.toLowerCase()));
-  const unknown = await unconfirmedSenders(deps, target.station, target.accountId, approvers.filter((a) => !before.has(a.toLowerCase())));
-  if (unknown.length > 0) throw new ApiError(`${target.station} does not know ${unknown.join(', ')}. Check the id, or have them write to the agent once, then try again.`, 400);
-  const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted, approvers);
+  const allowlist = await deps.setAllowlist(agentId, target.station, target.accountId, wanted);
   log.info({ agentId, station: target.station, account: target.accountId, senders: allowlist.length }, 'account-api: allowlist set');
   sendJson(req, res, 200, {
     agentId,
     station: target.station,
     accountId: target.accountId,
     allowlist,
-    approvers,
     activated: await applied(deps),
   });
 }

@@ -8,6 +8,7 @@ import { agentConnectors, connectorsSentence, visibleConnectors, type AgentConne
 import { withCredential } from './credential.js';
 import type { McpDeps } from './deps.js';
 import { argsDigest } from '@metro-labs/http/args-digest';
+import { approvalLink } from '@metro-labs/http/approval-rules';
 import { CallError } from './errors.js';
 import { connectorListing, failureOf, groupsOf } from './listing.js';
 import { previewOf } from './preview.js';
@@ -38,12 +39,11 @@ interface CallContext {
 
 const AGAIN = (id: string): string => `call tool_call again with the same tool and arguments and "approval": "${id}". An approval works once, within 10 minutes of the answer.`;
 
-function needsApprovalText(name: string, id: string, place: ApprovalPlace = 'session'): string {
-  if (place === 'page')
-    return `The owner must approve ${name} with these arguments first (approval ${id}), on this agent's page on metro.box. Tell the person what is waiting and ask them to approve it there. Once it is approved, ${AGAIN(id)}`;
-  if (place === 'owner')
-    return `The owner must approve ${name} with these arguments first (approval ${id}). The agent's owner was asked in chat and on its page on metro.box. Tell the person what is waiting. Once it is approved, ${AGAIN(id)}`;
-  return `The owner must approve ${name} with these arguments first (approval ${id}). They were asked in chat and on metro.box. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
+function needsApprovalText(name: string, id: string, place: ApprovalPlace, link: string): string {
+  const waits = `The owner must approve ${name} with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: ${link}`;
+  if (place === 'page') return `${waits} Tell the person what is waiting and give them that link. Once it is approved, ${AGAIN(id)}`;
+  if (place === 'owner') return `${waits} Metro also posts that link in the agent's chat. Tell the person what is waiting and give them the link. Once it is approved, ${AGAIN(id)}`;
+  return `${waits} Metro also posts that link in the chat. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
 }
 
 const SUGGESTIONS = 3;
@@ -99,7 +99,8 @@ async function approved(ctx: CallContext, target: Target, call: McpCall): Promis
   }
   const id = await deps.approvals.request(identity, request, now);
   deps.waiters.notify(identity.agent);
-  throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity)));
+  const link = approvalLink(deps.oauth.appUrl, { owner: identity.owner, agent: identity.agent }, id);
+  throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity), link));
 }
 
 async function gate(ctx: CallContext, target: Target, call: McpCall): Promise<void> {

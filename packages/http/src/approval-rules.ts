@@ -11,3 +11,22 @@ export const APPROVAL_PROPERTY = {
 } as const;
 
 export const TOO_MANY_PENDING = `${String(APPROVAL_PENDING_MAX)} approval requests are already waiting for the owner. Wait for answers before asking again.`;
+
+export const APP_ORIGIN = 'https://metro.box';
+
+export function appOriginOf(text: string | undefined): string | null {
+  const value = (text ?? '').trim().replace(/\/+$/, '');
+  if (value === '') return APP_ORIGIN;
+  return /^https?:\/\/[^/?#\s]+$/.test(value) ? value : null;
+}
+
+export interface ApprovalAgent {
+  owner: string | null;
+  agent: string | null;
+}
+
+export function approvalLink(origin: string, where: ApprovalAgent, id: string): string {
+  if (where.owner === null) return origin;
+  const organization = `${origin}/#/${encodeURIComponent(where.owner)}`;
+  return where.agent === null ? organization : `${organization}/${encodeURIComponent(where.agent)}/approvals/${encodeURIComponent(id)}`;
+}

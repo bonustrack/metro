@@ -6,7 +6,7 @@ import { capSize } from '../channels/pending.js';
 import { announcedLine, noteAnnounced } from '../mcp-server/announced.js';
 import type { AnswerOutcome } from '../mcp-server/link.js';
 import { ownerPromptLine, tellAgent } from './owner-route.js';
-import { serverPromptBody } from './permission-prompt.js';
+import { serverNotice } from './permission-prompt.js';
 import { chatTeller, metroSend } from './permission-relay.js';
 
 const RECENT_MAX = 1_000;
@@ -26,11 +26,6 @@ const noticeText = (tool: string, id: string, behavior: Behavior): string =>
   behavior === 'allow' ? `Approved: ${tool} (${id}). Call tool_call again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
 
 const requestedAt = (at: number, now = Date.now()): number => (Number.isFinite(at) && at > 0 ? Math.min(at, now) : now);
-
-const askedBy = (approval: McpApproval): string => {
-  if (approval.origin !== 'key') return '';
-  return approval.keyLabel === undefined ? ' (from an access key)' : ` (from an access key: ${approval.keyLabel})`;
-};
 
 interface Held {
   id: string;
@@ -84,7 +79,7 @@ export function holdServerApproval(approval: McpApproval, answer: Held['answer']
     chatTeller(line),
   );
   log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
-  if (line !== undefined && announced === undefined) announce(approval.id, line, serverPromptBody({ requestId: approval.id, tool: `${tool}${askedBy(approval)}`, preview: approval.preview }));
+  if (line !== undefined && announced === undefined) announce(approval.id, line, serverNotice(approval));
   return true;
 }
 

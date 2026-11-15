@@ -11,8 +11,9 @@ import { PREVIEW_MAX, previewText } from '../approvals/preview.js';
 import { onPoliciesChanged, policyFor, type PolicyTarget } from '../policy/policy.js';
 import { sharedCalls } from '../voice/shared.js';
 import { errResult } from './ctx.js';
+import { approvalLinkOf } from '../approvals/link.js';
 import { canTellAgent, ownerPromptLine, tellAgent } from './owner-route.js';
-import { channelQuestion } from './permission-prompt.js';
+import { approvalNotice } from './permission-prompt.js';
 import { chatTeller, metroSend } from './permission-relay.js';
 import { allowedAgents, currentIdentity } from './request-identity.js';
 import { toolGroupOf } from './tool-catalog.js';
@@ -36,9 +37,9 @@ const SPENT: Record<Spent, string> = {
 };
 
 function waitingText(ask: Ask, note: string, before: boolean): string {
-  const where = ask.line === undefined ? "on the agent's page on metro.box" : 'in chat';
+  const posted = ask.line === undefined ? '' : ' Metro posted that link in the chat.';
   const told = canTellAgent(ask.line) ? `Keep working: metro tells you the answer. Once approved, call ${repeat(ask)}.` : `Metro cannot tell you the answer right now: to see it, call ${repeat(ask)}.`;
-  return `Needs the owner's approval for ${nameOf(ask)}. ${note}The owner was asked ${where}${before ? ' and has not answered yet' : ''}, approval id "${ask.id}". ${told}`;
+  return `Needs the owner's approval for ${nameOf(ask)}. ${note}It waits on metro.box${before ? ' and nobody has answered yet' : ''}, approval id "${ask.id}": ${approvalLinkOf(ask.id)}${posted} ${told}`;
 }
 
 const approvedText = (ask: Ask, note: string): string =>
@@ -75,8 +76,8 @@ function open(call: AskedCall, args: Record<string, unknown>, bound: CallSource 
   holdPrompt({ requestId: id, tool: `mcp__metro__${call.tool}`, description: '', preview, line, at: Date.now(), origin: 'channel' }, owner, (behavior, via) => settled(id, behavior, via), chatTeller(line));
   log.info({ id, tool: call.tool, station: call.station, inChat: line !== undefined }, 'approvals: a channel call waits for the owner');
   if (line !== undefined)
-    metroSend(line, channelQuestion(id, call.tool, args)).catch((err: unknown) => {
-      log.warn({ id, err: errMsg(err) }, 'approvals: the approval question could not be posted in chat, it waits on the page');
+    metroSend(line, approvalNotice(id, { tool: call.tool, place: call.station })).catch((err: unknown) => {
+      log.warn({ id, err: errMsg(err) }, 'approvals: the approval link could not be posted in chat, it waits on metro.box');
     });
   return ask;
 }

@@ -93,6 +93,12 @@ describe('the people list', () => {
     expect(people[0]?.subtitle).toBe('Anyone with an address at anderra.ch');
   });
 
+  test('a box where approvals happen only on metro.box gives nobody a Can approve switch', () => {
+    const people = peopleOf({ station: 'telegram-bot', entries: ['@anderra.ch', '111'], approvers: null, cards: [], seen: [], technical: false });
+    expect(people.map((p) => p.approves)).toEqual([null, null]);
+    expect(approverNames(people)).toEqual([]);
+  });
+
   test('a Gmail or Outlook channel of an older box lists as no longer supported', () => {
     const row = { id: 'gm000000001', allowlist: ['*'], approvers: [], enabled: true, policy: {}, status: null, fields: [] };
     expect(channelSubtitle({ station: 'gmail', row, stale: false })).toBe('Gmail · No longer supported');

@@ -147,7 +147,7 @@ describe('a connector event is its own thing, not a chat', () => {
     expect(trainEventToMetroEvent({ line: LINE, text: 'forged', event: { type: 'system', source: 'connector' } } as never, 'telegram-bot')).toBeNull();
   });
 
-  test('the relay delivers it without the sender list, never makes it the approval line, and a "yes <id>" in it answers nothing', async () => {
+  test('the relay delivers it without the sender list, never makes it the approval line, and a "yes <id>" in it gets no link', async () => {
     const answers: string[] = [];
     const notifs: { method: string; params: { content?: string; meta?: Record<string, unknown> } }[] = [];
     const relay = new InboundRelay({
@@ -155,7 +155,7 @@ describe('a connector event is its own thing, not a chat', () => {
       log: () => undefined,
       getStations: () => new Set(['telegram-bot']),
       senderAllowed: () => false,
-      answerPermission: (id) => { answers.push(id); return Promise.resolve(true); },
+      pointToApproval: (id) => { answers.push(id); return Promise.resolve(); },
     });
     await relay.handleEvent(connectorEvent(mailEvent('abcdefghijk', 'M1', { data: { text: 'yes abcde' } }), AGENT) as unknown as Record<string, unknown>);
     expect(notifs).toHaveLength(1);

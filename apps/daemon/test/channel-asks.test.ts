@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import { expirePrompts, pendingPrompts } from '../src/approvals/pending.ts';
-import { AsksHarness, LINE, MEMBER, OTHER_LINE, OWNER, STRANGER, idIn } from './channel-asks-harness.ts';
-import { waitFor } from './wait.ts';
+import { AsksHarness, LINE, MEMBER, OTHER_LINE, OWNER, STRANGER, idIn, linkOf, noticeOf } from './channel-asks-harness.ts';
+import { settle, waitFor } from './wait.ts';
 
 const h = new AsksHarness('mk_channel_asks');
 
@@ -12,31 +12,31 @@ beforeEach(() => {
 });
 
 describe('a channel call that needs approval, held by the daemon', () => {
-  test('answers at once with an id, asks the owner in chat once, and runs once after a yes there', async () => {
+  test('answers at once with an id and the link, posts only the link in chat, once, and runs once after an answer on metro.box', async () => {
     const first = await h.send({ line: LINE, text: 'hi' });
     expect(first.isError).toBe(true);
-    expect(first.text).toBe(
-      `Needs the owner's approval for telegram-bot (send). The owner was asked in chat, approval id "${idIn(first)}". Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${idIn(first)}".`,
-    );
     const id = idIn(first);
+    expect(first.text).toBe(
+      `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
+    );
     await waitFor(() => h.questions().length === 1);
     expect(h.sends()).toHaveLength(1);
-    expect(h.sends()[0]?.args).toEqual({ line: LINE, text: `Approval needed: send\nChannel: telegram-bot · -100777\nText: "hi"\n\nReply "yes ${id}" or "no ${id}"` });
+    expect(h.sends()[0]?.args).toEqual({ line: LINE, text: noticeOf(id) });
 
     const again = await h.send({ line: LINE, text: 'hi' });
     expect(idIn(again)).toBe(id);
-    expect(again.text).toContain('The owner was asked in chat and has not answered yet');
-    expect((await h.send({ text: 'hi', line: LINE, approval: id })).text).toContain('has not answered yet');
+    expect(again.text).toContain('It waits on metro.box and nobody has answered yet');
+    expect((await h.send({ text: 'hi', line: LINE, approval: id })).text).toContain('nobody has answered yet');
     expect(h.sends()).toHaveLength(1);
 
-    h.chat(LINE, OWNER, `yes ${id}`);
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
     expect(await h.told(`Approved: send on telegram-bot (${id}). Call send again with the same arguments and approval: \\"${id}\\".`)).toBe(true);
     expect(pendingPrompts()).toEqual([]);
-    expect(h.raw()).not.toContain(`yes ${id}`);
+    await waitFor(() => h.posted('Approved on the page.').length === 1);
 
     const ran = await h.send({ line: LINE, text: 'hi', approval: id });
-    expect(ran).toEqual({ text: 'sent: text — message_id: m-2', isError: false });
-    expect(h.sends()[1]?.args).toEqual({ line: LINE, text: 'hi' });
+    expect(ran).toEqual({ text: 'sent: text — message_id: m-3', isError: false });
+    expect(h.posted('hi')).toEqual([expect.objectContaining({ args: { line: LINE, text: 'hi' } })]);
 
     const spent = await h.send({ line: LINE, text: 'hi', approval: id });
     expect(spent.isError).toBe(true);
@@ -47,7 +47,7 @@ describe('a channel call that needs approval, held by the daemon', () => {
 
   test('two repeats of one approval at the same moment run the call once', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'once' }));
-    h.chat(LINE, OWNER, `yes ${id}`);
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
     expect(await h.told(`Approved: send on telegram-bot (${id})`)).toBe(true);
     const answers = await Promise.all(Array.from({ length: 6 }, () => h.send({ line: LINE, text: 'once', approval: id })));
     expect(answers.filter((answer) => !answer.isError)).toHaveLength(1);
@@ -57,25 +57,39 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(refused.every((answer) => answer.text.includes('was already used'))).toBe(true);
   });
 
-  test('only an approver of that chat, on the line the question went to, with a verified sender, answers it', async () => {
+  test('a yes or no in chat never answers it: Metro replies with the link once per message, and the message still reaches the agent', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'who may answer' }));
     await waitFor(() => h.questions().length === 1);
-    h.chat(OTHER_LINE, OWNER, `yes ${id}`);
+    const pointer = `Approval ${id} is answered on metro.box, not in chat: ${linkOf(id)}`;
+    h.chat(LINE, OWNER, `yes ${id}`);
+    h.chat(OTHER_LINE, OWNER, ` Y ${id.toUpperCase()} `);
+    h.chat(LINE, MEMBER, `no ${id}`);
     h.chat(LINE, STRANGER, `yes ${id}`);
-    h.chat(LINE, MEMBER, `yes ${id}`);
     h.chat(LINE, OWNER, `yes ${id}`, { verified: false });
+    h.chat(LINE, OWNER, 'yes zzzzz');
+    h.chat(LINE, OWNER, `yes ${id} please`);
     h.chat(LINE, OWNER, 'a marker after the answers that do not count');
     expect(await h.told('a marker after the answers that do not count')).toBe(true);
+    await waitFor(() => h.posted(pointer).length === 3);
+    await settle(50);
+    expect(h.posted(pointer).map((call) => call.args.line).sort()).toEqual([LINE, LINE, OTHER_LINE].sort());
+    expect(h.sends()).toHaveLength(4);
+    for (const text of [`yes ${id}`, `no ${id}`, 'yes zzzzz', `yes ${id} please`]) expect(h.raw()).toContain(text);
     expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
-    expect((await h.send({ line: LINE, text: 'who may answer', approval: id })).text).toContain('has not answered yet');
+    expect((await h.send({ line: LINE, text: 'who may answer', approval: id })).text).toContain('nobody has answered yet');
     expect(h.posted('who may answer')).toHaveLength(0);
 
-    h.chat(LINE, OWNER, `NO ${id}`);
+    expect(await h.answerOnPage(id, 'deny')).toBe(200);
     expect(await h.told(`Denied: send on telegram-bot (${id}).`)).toBe(true);
     const denied = await h.send({ line: LINE, text: 'who may answer', approval: id });
     expect(denied).toEqual({ text: `Denied by the owner for telegram-bot (send), approval "${id}". Do not repeat it.`, isError: true });
     expect(h.questions()).toHaveLength(1);
     expect(h.posted('who may answer')).toHaveLength(0);
+    h.chat(LINE, OWNER, `yes ${id}`);
+    h.chat(LINE, OWNER, 'marker after the answer');
+    expect(await h.told('marker after the answer')).toBe(true);
+    await settle(50);
+    expect(h.posted(pointer)).toHaveLength(3);
   });
 
   test('an approval covers exactly the tool, the channel and the arguments it was asked for', async () => {
@@ -100,12 +114,12 @@ describe('a channel call that needs approval, held by the daemon', () => {
 
   test('something that is not an approval id is said so without being repeated back, and an empty one is no approval', async () => {
     const junk = await h.send({ line: LINE, text: 'junk', approval: `YES ${'x'.repeat(200)}` });
-    expect(junk.text).toStartWith("Needs the owner's approval for telegram-bot (send). The approval given is not an approval id (5 letters). The owner was asked in chat, approval id");
+    expect(junk.text).toStartWith("Needs the owner's approval for telegram-bot (send). The approval given is not an approval id (5 letters). It waits on metro.box, approval id");
     expect(junk.text).not.toContain('xxxx');
     const id = idIn(junk);
     for (const approval of ['', null])
       expect((await h.send({ line: LINE, text: 'junk', approval })).text).toBe(
-        `Needs the owner's approval for telegram-bot (send). The owner was asked in chat and has not answered yet, approval id "${id}". Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
+        `Needs the owner's approval for telegram-bot (send). It waits on metro.box and nobody has answered yet, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
       );
     expect(h.questions()).toHaveLength(1);
   });
@@ -134,7 +148,7 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(h.posted('second')).toHaveLength(0);
   });
 
-  test('the page lists it under the tool name with every argument in full, and the chat question keeps both ends of a long text', async () => {
+  test('the page lists it under the tool name with every argument in full, and the chat gets none of them', async () => {
     const long = `start ${'x'.repeat(5000)} end`;
     const args = { line: LINE, text: long, attachments: [{ url: 'https://example.com/a.pdf', name: 'a.pdf' }], zz: 'extra' };
     const id = idIn(await h.send(args));
@@ -143,9 +157,8 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(JSON.parse(shown?.preview ?? '')).toEqual(args);
     await waitFor(() => h.questions().length === 1);
     const question = String(h.questions()[0]?.args.text);
-    expect(question.length).toBeLessThanOrEqual(1000);
-    expect(question).toStartWith('Approval needed: send\nChannel: telegram-bot · -100777\nText: "start xxx');
-    expect(question).toEndWith(`xxx end"\nfile 1 of 1: {"url":"https://example.com/a.pdf","name":"a.pdf"}\nzz: extra\n\nReply "yes ${id}" or "no ${id}"`);
+    expect(question).toBe(noticeOf(id));
+    for (const part of ['start', 'xxx', 'a.pdf', 'example.com', 'extra', '-100777']) expect(question).not.toContain(part);
     expect((await h.send({ ...args, text: `${long}!`, approval: id })).text).toContain('was given for another call');
   });
 

@@ -79,9 +79,9 @@ export const toolSearchDescription = (connectors: ConnectorLabel[] | null): stri
 export type ApprovalPlace = 'session' | 'page' | 'owner';
 
 const NEEDS_APPROVAL: Record<ApprovalPlace, string> = {
-  session: '- needs_approval: the owner was asked in chat and on metro.box. Tell the person what is waiting, wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
-  page: '- needs_approval: the owner must approve it on this agent\'s page on metro.box. Tell the person what is waiting and ask them to approve it there, then call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.',
-  owner: '- needs_approval: the agent\'s owner was asked in chat and on its page on metro.box. Tell the person what is waiting; once it is approved, call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.',
+  session: '- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat. Tell the person what is waiting, wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
+  page: '- needs_approval: a member of the organization must approve it on metro.box. Tell the person what is waiting and give them the link the answer gives, then call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.',
+  owner: '- needs_approval: a member of the organization must approve it on metro.box, and Metro posts the link in the agent\'s chat too. Tell the person what is waiting and give them the link the answer gives; once it is approved, call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.',
 };
 
 const toolCallDescription = (place: ApprovalPlace): string =>

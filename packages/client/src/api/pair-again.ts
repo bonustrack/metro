@@ -66,7 +66,7 @@ export function troubleLine(trouble: ChannelTrouble): string {
 
 export function pairAgainLines(label: string, handle: string | undefined, replaces: boolean): string[] {
   const phone = handle === undefined ? 'the same phone' : `the phone of ${handle}`;
-  const kept = 'People, approvers and rules stay as they are.';
+  const kept = 'People and rules stay as they are.';
   if (!replaces) return [`${label} logged Metro out. Pair ${phone} again to get messages. ${kept}`];
   return [`The current link is replaced. Pair ${phone} again. ${kept}`, 'Then remove the old Metro entry from Linked Devices on that phone.'];
 }

@@ -21,6 +21,7 @@ export interface SetupInput {
   groups: AccountGroup[] | undefined;
   conversations: number | undefined;
   link?: string | null;
+  chatApprovals?: boolean;
 }
 
 export interface Setup {
@@ -84,7 +85,7 @@ export function setupOf(input: SetupInput): Setup {
   if (input.model !== undefined) steps.push(modelStep(input, input.model));
   if (input.groups !== undefined) {
     const accounts = chats(input.groups);
-    steps.push(chatStep(input, accounts), writeStep(input, accounts), approveStep(input, accounts));
+    steps.push(chatStep(input, accounts), writeStep(input, accounts), ...(input.chatApprovals === true ? [approveStep(input, accounts)] : []));
   }
   if (input.conversations !== undefined) steps.push(helloStep(input, input.conversations));
   return { steps, done: steps.filter((step) => step.done).length, open: steps.find((step) => !step.done) ?? null };

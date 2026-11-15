@@ -172,7 +172,7 @@ describe('tool_call against a real connector', () => {
     const call = { tool: 'notion.update_page', arguments: { page_id: 'p1', title: 'Q4' } };
     const first = texts(await run([call]));
     const id = /approval ([a-km-z]{5})/.exec(first[1] ?? '')?.[1] ?? '';
-    expect(first[1]).toStartWith(`needs_approval: The owner must approve notion.update_page with these arguments first (approval ${id}).`);
+    expect(first[1]).toStartWith(`needs_approval: The owner must approve notion.update_page with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${agent.row.owner}/${agent.row.agent}/approvals/${id} Metro also posts that link in the chat.`);
     expect(texts(await run([call]))[1]).toContain(`(approval ${id})`);
     const request = signed(agent, MCP_PATHS.approvals, {});
     const delivered = mcpApprovalsOf(await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: request.body, headers: request.headers })).json());

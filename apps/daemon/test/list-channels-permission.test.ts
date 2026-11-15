@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { setAgentMap } from '../src/agents/map.ts';
 import { answerPrompt, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
-import { promptBody } from '../src/mcp/permission-prompt.ts';
+import { promptNotice } from '../src/mcp/permission-prompt.ts';
 import { runWithIdentity } from '../src/mcp/request-identity.ts';
 import { callToolHandler } from '../src/mcp/tool-dispatch.ts';
 import { setPolicies } from '../src/policy/policy.ts';
@@ -18,6 +18,7 @@ const params = (args: Record<string, unknown>) => ({
   description: 'Discover channels',
   input_preview: JSON.stringify(args),
 });
+const LINK = '\nApprove or deny it on metro.box: https://metro.box';
 
 let calls: { train: string; action: string; args: unknown }[];
 
@@ -51,8 +52,8 @@ for (const surplus of [false, true])
     expect(calls).toEqual([]);
     const held = pendingPrompts().find((prompt) => prompt.requestId === id);
     expect(held).toMatchObject({ tool: 'mcp__metro__list_channels', preview: JSON.stringify(args), line: undefined });
-    expect(promptBody({ request_id: id, tool_name: held?.tool ?? '', description: '', input_preview: held?.preview ?? '' })).toBe(
-      `Approval needed: list_channels\nChannel: threema · ${ACCOUNT}\nquery: WoRk \n\nReply "yes ${id}" or "no ${id}"`,
+    expect(promptNotice({ request_id: id, tool_name: held?.tool ?? '', input_preview: held?.preview ?? '' })).toBe(
+      'Approval needed: Friendly fixture name wants to run list_channels on threema.\nApprove or deny it on metro.box: https://metro.box',
     );
     await answerPrompt(id, 'allow', 'page');
     expect((await call({ ...args, query: 'work', approval: id })).isError).toBe(true);
@@ -64,23 +65,20 @@ for (const surplus of [false, true])
   });
 
 test('a missing discovery account never falls back to surplus line or station', () => {
-  expect(promptBody(params(SURPLUS))).toBe(
-    'Approval needed: list_channels\nChannel: unknown account\n\nReply "yes abcde" or "no abcde"',
-  );
+  expect(promptNotice(params(SURPLUS))).toBe(`Approval needed: Friendly fixture name wants to run list_channels.${LINK}`);
 });
 
 for (const station of ['unknown', 'ambiguous', 'unregistered'])
-  test(`an ${station} discovery target keeps its account id without trusting surplus targeting`, () => {
+  test(`an ${station} discovery target names no channel rather than trusting surplus targeting`, () => {
     if (station === 'unknown') setAgentMap({}, {});
     else if (station === 'ambiguous') setAgentMap({ [`threema/${ACCOUNT}`]: AGENT, [`xmtp/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Fixture' });
     else setAgentMap({ [`not-a-station/${ACCOUNT}`]: AGENT }, { [AGENT]: 'Fixture' });
-    expect(promptBody(params({ account: ACCOUNT, ...SURPLUS }))).toBe(
-      `Approval needed: list_channels\nChannel: unknown station · ${ACCOUNT}\n\nReply "yes abcde" or "no abcde"`,
-    );
+    const who = station === 'unknown' ? 'the agent' : 'Fixture';
+    expect(promptNotice(params({ account: ACCOUNT, ...SURPLUS }))).toBe(`Approval needed: ${who} wants to run list_channels.${LINK}`);
   });
 
-test('other metro tools keep their line-based channel, and show an account the call names', () => {
-  expect(promptBody({ ...params({ ...SURPLUS, account: ACCOUNT, text: 'hello' }), tool_name: 'mcp__metro__send' })).toBe(
-    'Approval needed: send\nChannel: xmtp · public-room\nText: "hello"\naccount: privateChats\n\nReply "yes abcde" or "no abcde"',
+test('other metro tools name the station of their line, and never an argument', () => {
+  expect(promptNotice({ ...params({ ...SURPLUS, account: ACCOUNT, text: 'hello' }), tool_name: 'mcp__metro__send' })).toBe(
+    `Approval needed: Friendly fixture name wants to run send on xmtp.${LINK}`,
   );
 });

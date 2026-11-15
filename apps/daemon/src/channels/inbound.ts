@@ -10,7 +10,6 @@ import { buildWebhookNote } from './webhook-note.js';
 import { isMetroNotice } from './notice.js';
 import { connectorEventMeta, isConnectorEvent } from './connector-event.js';
 import { replyMeta } from './addressed.js';
-import { LineNames } from './line-names.js';
 import { reactContent, reactionEmoji } from './react-note.js';
 import {
   capSize,
@@ -25,7 +24,7 @@ import {
 } from './pending.js';
 import { agentUser } from '../agent-user/user.js';
 
-const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
+const ANSWER_LIKE_RE = /^\s*(?:y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
 
 const accountStrippedLine = (line: string): string => {
   const parts = line.split('/');
@@ -41,9 +40,8 @@ interface InboundDeps {
   log: (...a: unknown[]) => void;
   getStations: () => Set<string>;
   senderAllowed: (from: string, line: string, verified?: boolean) => boolean;
-  noteDirect?: (line: string, from: string) => void;
   callMeta?: (event: Record<string, unknown>) => () => Record<string, string>;
-  answerPermission?: (requestId: string, behavior: 'allow' | 'deny', line: string, from: string) => Promise<boolean>;
+  pointToApproval?: (id: string, line: string) => Promise<void>;
 }
 
 const ATTACH_TIMEOUT_MS = 15_000;
@@ -59,7 +57,6 @@ export class InboundRelay {
   private readonly seenEvents = new Map<string, number>();
   private readonly allowedLines = new Set<string>();
   private readonly sentIds = new Set<string>();
-  readonly lineNames = new LineNames();
   private lastLine: string | undefined;
 
   constructor(deps: InboundDeps) {
@@ -266,19 +263,18 @@ export class InboundRelay {
     });
   }
 
-  private async handlePermissionReply(ev: Record<string, unknown>, base: EventBase): Promise<boolean> {
-    const answer = this.deps.answerPermission;
-    if (answer === undefined || base.evType !== 'msg' || ev.senderVerified === false) return false;
-    const m = PERMISSION_REPLY_RE.exec(base.text);
-    if (m?.[1] === undefined || m[2] === undefined) return false;
-    return answer(m[2].toLowerCase(), m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny', base.line, base.from);
+  private pointAnswerToPage(ev: Record<string, unknown>, base: EventBase, replay: boolean): void {
+    const point = this.deps.pointToApproval;
+    if (point === undefined || replay || base.evType !== 'msg' || ev.senderVerified === false) return;
+    const id = ANSWER_LIKE_RE.exec(base.text)?.[1];
+    if (id === undefined) return;
+    point(id.toLowerCase(), base.line).catch((err: unknown) => {
+      this.deps.log('inbound: the approval link could not be posted', 'line', base.line, err);
+    });
   }
 
-  private noteLine(base: EventBase, direct: boolean): void {
-    if (base.evType !== 'system') {
-      this.lastLine = base.line;
-      if (direct) this.deps.noteDirect?.(base.line, base.from);
-    }
+  private noteLine(base: EventBase): void {
+    if (base.evType !== 'system') this.lastLine = base.line;
     if (!base.line) return;
     this.allowedLines.add(base.line);
     capSize(this.allowedLines, ALLOWED_LINES_MAX);
@@ -330,7 +326,7 @@ export class InboundRelay {
       this.deps.log('drop: empty message', base.station, base.line, str(ev.messageId));
       return;
     }
-    if (await this.handlePermissionReply(ev, base)) return;
+    this.pointAnswerToPage(ev, base, replay);
     await this.notify('notifications/claude/channel', {
       content:
         base.evType === 'system' && !isMetroNotice(ev)
@@ -363,8 +359,7 @@ export class InboundRelay {
 
     const base = this.routable(ev, replay);
     if (!base) return;
-    this.noteLine(base, ev.isPrivate === true);
-    this.lineNames.note(base.line, str(ev.lineName));
+    this.noteLine(base);
 
     const atts = (ev.payload as { attachments?: PendingAtt[] } | undefined)
       ?.attachments;

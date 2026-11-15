@@ -48,12 +48,13 @@ afterEach(() => {
 });
 
 describe('pairing a WhatsApp channel again', () => {
-  test('only the credentials change: the id, people, approvers, policy and the Receive switch stay', () => {
+  test('only the credentials change: the id, people, policy and the Receive switch stay, and an old approvers list is dropped', () => {
     const ref = localPairAgain(AGENT, 'whatsapp', account.id, 'phone', { phone: PHONE, credentials: { creds: 'new-device' } }, dir);
     expect(ref).toEqual({ agentId: AGENT, station: 'whatsapp', accountId: account.id });
     const after = stored();
     expect(after.stations).toHaveLength(2);
-    expect(after.stations[0]).toEqual({ ...account, config: { phone: PHONE, credentials: { creds: 'new-device' } } });
+    const { approvers: _approvers, ...kept } = account;
+    expect(after.stations[0]).toEqual({ ...kept, config: { phone: PHONE, credentials: { creds: 'new-device' } } });
     expect(after.stations[1]).toEqual(agentFile.stations[1]);
   });
 

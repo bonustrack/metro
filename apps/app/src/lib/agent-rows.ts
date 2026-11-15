@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { chatApprovals } from '@metro-labs/client/api/accounts';
 import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import { approvalCard } from '@metro-labs/client/api/approval-card';
 import type { StationsView } from '@metro-labs/client/api/client';
@@ -62,10 +63,10 @@ function useBooting(servers: BoxServer[], statuses: UseQueryResult<ServerStatus>
   return views.map((view, i) => (booting[i] === true ? view.data?.state ?? 'starting' : null));
 }
 
-function knownSetup(name: string, model: ModelSettings | undefined, stations: StationsView | undefined, projects: ClaudeProject[] | undefined): Setup | null {
+function knownSetup(name: string, model: ModelSettings | undefined, stations: StationsView | undefined, projects: ClaudeProject[] | undefined, status: ServerStatus | undefined): Setup | null {
   if (model === undefined || stations === undefined || projects === undefined) return null;
   const conversations = projects.reduce((sum, project) => sum + project.sessions, 0);
-  return setupOf({ name, project: '', model, groups: stations.groups, conversations });
+  return setupOf({ name, project: '', model, groups: stations.groups, conversations, chatApprovals: chatApprovals(status?.version) });
 }
 
 function remoteAsk(found: RemoteApproval): string {
@@ -109,7 +110,7 @@ function useBoxRows(servers: BoxServer[]): AgentRow[] {
     const count = waitingCount(approvals[i], live[i] === true) ?? 0;
     const first = count > 0 ? approvals[i]?.data?.[0] : undefined;
     const status = statuses[i]?.data;
-    const setup = knownSetup(name, models[i], stations[i], projects[i]);
+    const setup = knownSetup(name, models[i], stations[i], projects[i], status);
     const trouble = channelTrouble(stations[i]?.groups)[0] ?? null;
     const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalCard(first).ask, setup, trouble, session: sessions[i], now });
     return { server, name, line, waiting: count, status, trouble };

@@ -6,7 +6,6 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { isRecord } from '@metro-labs/core/is-record';
 import { parseId } from '@metro-labs/core/ids';
 import type { LoadedAccount, LoadedAgent } from '../stations/materialize.js';
-import { approversOf } from './files.js';
 import { isStationName } from './account-attach.js';
 import { isRetiredStation } from '@metro-labs/core/station-names';
 
@@ -61,7 +60,6 @@ function stationOf(raw: unknown): LoadedAccount {
     station: raw.station,
     id: raw.id,
     allowlist,
-    ...approversOf(raw.approvers),
     enabled: raw.enabled !== false,
     ...(policy === undefined ? {} : { policy }),
     config: raw.config,

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { APPROVAL_PENDING_MAX } from '@metro-labs/http/approval-rules';
-import { setApproversMap, setDisabledAccounts } from '../src/agents/map.ts';
+import { setAllowlistMap, setDisabledAccounts } from '../src/agents/map.ts';
 import { forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { PREVIEW_MAX } from '../src/approvals/preview.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { setPolicies } from '../src/policy/policy.ts';
 import { endSharedCall, hearSharedCall, openSharedCall } from '../src/voice/shared.ts';
-import { AGENT, AsksHarness, LINE, OTHER_TARGET, OWNER, TARGET, TG, WA, idIn } from './channel-asks-harness.ts';
+import { AGENT, AsksHarness, LINE, OTHER_TARGET, OWNER, STRANGER, TARGET, TG, WA, idIn, linkOf, noticeOf } from './channel-asks-harness.ts';
 import { settle, waitFor } from './wait.ts';
 
 const h = new AsksHarness('mk_channel_asks_rules');
@@ -97,7 +97,7 @@ describe('the owner changes the rule while a call waits or after approving it', 
 
 describe('what the daemon keeps, and what it says when it forgot', () => {
   test('at most 50 calls wait for the owner: the next one is refused and asks nobody', async () => {
-    setApproversMap({});
+    h.setLive(false);
     try {
       for (let i = 0; i < APPROVAL_PENDING_MAX; i += 1) idIn(await h.send({ line: LINE, text: `flood ${String(i)}` }));
       expect(pendingPrompts()).toHaveLength(APPROVAL_PENDING_MAX);
@@ -112,7 +112,7 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
       idIn(await h.send({ line: LINE, text: 'one too many' }));
       expect(h.sends()).toEqual([]);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
+      h.setLive(true);
     }
   });
 
@@ -126,10 +126,11 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
     expect(h.calls).toEqual([]);
   });
 
-  test('a list the owner must see is written out in the chat question', async () => {
+  test('the chat question names the tool and the channel, never who would be added', async () => {
     const id = idIn(await h.tool('add_members', { line: LINE, members: ['@anna', '@bob'] }));
     await waitFor(() => h.questions().length === 1);
-    expect(h.questions()[0]?.args.text).toBe(`Approval needed: add_members\nChannel: telegram-bot · -100777\nmembers: @anna, @bob\n\nReply "yes ${id}" or "no ${id}"`);
+    expect(h.questions()[0]?.args).toEqual({ line: LINE, text: noticeOf(id, 'add_members') });
+    expect(JSON.parse((await h.listed())[0]?.preview ?? '{}')).toEqual({ line: LINE, members: ['@anna', '@bob'] });
   });
 
   test('after a Metro restart an old approval id is not known, and the agent is told so and asked again', async () => {
@@ -138,7 +139,7 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
     forgetChannelAsks();
     const after = await h.send({ line: LINE, text: 'across a restart', approval: id });
     expect(after.isError).toBe(true);
-    expect(after.text).toStartWith(`Needs the owner's approval for telegram-bot (send). Approval "${id}" is not known here, perhaps because Metro restarted since it was asked. The owner was asked in chat, approval id "`);
+    expect(after.text).toStartWith(`Needs the owner's approval for telegram-bot (send). Approval "${id}" is not known here, perhaps because Metro restarted since it was asked. It waits on metro.box, approval id "`);
     expect(idIn(after)).not.toBe(id);
     expect(h.posted('across a restart')).toHaveLength(0);
   });
@@ -147,7 +148,7 @@ describe('what the daemon keeps, and what it says when it forgot', () => {
     const id = idIn(await h.send({ line: LINE, text: 'across sessions' }));
     await h.initialize();
     expect((await h.listed()).map((approval) => approval.id)).toEqual([id]);
-    h.chat(LINE, OWNER, `yes ${id}`);
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
     expect(await h.told(`Approved: send on telegram-bot (${id})`)).toBe(true);
     expect((await h.send({ line: LINE, text: 'across sessions', approval: id })).isError).toBe(false);
   });
@@ -161,7 +162,7 @@ describe('where the question and the answer go', () => {
       const asked = await h.send({ line: LINE, text: 'paused' });
       const id = idIn(asked);
       expect(asked.text).toBe(
-        `Needs the owner's approval for telegram-bot (send). The owner was asked on the agent's page on metro.box, approval id "${id}". Metro cannot tell you the answer right now: to see it, call send again with the same arguments and approval: "${id}".`,
+        `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} Metro cannot tell you the answer right now: to see it, call send again with the same arguments and approval: "${id}".`,
       );
       expect(h.sends()).toEqual([]);
       expect(await h.listed()).toEqual([expect.objectContaining({ id, line: null })]);
@@ -175,25 +176,28 @@ describe('where the question and the answer go', () => {
     }
   });
 
-  test('with nobody allowed to approve in chat, the question waits on the page only', async () => {
-    setApproversMap({});
+  test('a chat open to anyone gets the link like any other, and a yes there from anyone answers nothing', async () => {
+    setAllowlistMap({ [`telegram-bot/${TG}`]: ['*'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     try {
-      const asked = await h.send({ line: LINE, text: 'nobody' });
-      const id = idIn(asked);
-      expect(asked.text).toContain("The owner was asked on the agent's page on metro.box");
-      h.chat(LINE, OWNER, `yes ${id}`);
+      const id = idIn(await h.send({ line: LINE, text: 'open chat' }));
+      await waitFor(() => h.questions().length === 1);
+      expect(h.questions()[0]?.args).toEqual({ line: LINE, text: noticeOf(id) });
+      h.chat(LINE, STRANGER, `yes ${id}`);
       expect(await h.told(`yes ${id}`)).toBe(true);
-      expect(h.sends()).toEqual([]);
+      await waitFor(() => h.sends().length === 2);
+      expect(h.sends()[1]?.args).toEqual({ line: LINE, text: `Approval ${id} is answered on metro.box, not in chat: ${linkOf(id)}` });
       expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
     } finally {
-      setApproversMap({ [`telegram-bot/${TG}`]: ['111'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
+      setAllowlistMap({ [`telegram-bot/${TG}`]: ['111', '222'], [`whatsapp/${WA}`]: ['41790000000@s.whatsapp.net'] });
     }
   });
 
   test('when the chat that was asked stopped receiving, no answer can be delivered there, and repeating the call still finds it', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'switched off' }));
     setDisabledAccounts(new Set([`telegram-bot/${TG}`]));
-    expect((await h.send({ line: LINE, text: 'switched off' })).text).toContain(`has not answered yet, approval id "${id}". Metro cannot tell you the answer right now`);
+    const repeated = (await h.send({ line: LINE, text: 'switched off' })).text;
+    expect(repeated).toContain(`nobody has answered yet, approval id "${id}"`);
+    expect(repeated).toContain('Metro cannot tell you the answer right now');
     expect(await h.answerOnPage(id, 'allow')).toBe(200);
     await settle(100);
     expect(h.raw()).not.toContain(`Approved: send on telegram-bot (${id})`);
@@ -219,7 +223,7 @@ describe('a speech send that asks, on a live call wired as the daemon wires it',
       const said = { line: LINE, text: 'Spoken once.', speech: SPEECH };
       const first = idIn(await h.send(said));
       await waitFor(() => h.questions().length === 1);
-      expect(String(h.questions()[0]?.args.text)).toContain('Delivery: voice call only, no chat post');
+      expect(h.questions()[0]?.args).toEqual({ line: LINE, text: noticeOf(first) });
       expect(await h.answerOnPage(first, 'allow')).toBe(200);
       expect((await h.send({ ...said, approval: first })).isError).toBe(false);
       expect(spoken).toEqual(['Spoken once.']);
@@ -261,7 +265,7 @@ describe('what cannot answer or replace a channel approval', () => {
     expect(pendingPrompts().map((prompt) => prompt.requestId)).toEqual([id]);
   });
 
-  test("a Claude Code prompt's yes never runs a channel call that asks", async () => {
+  test('a Claude Code prompt approved on metro.box never runs a channel call that asks', async () => {
     await h.notify('notifications/claude/channel/permission_request', {
       request_id: 'abcde',
       tool_name: 'mcp__metro__send',
@@ -269,7 +273,7 @@ describe('what cannot answer or replace a channel approval', () => {
       input_preview: JSON.stringify({ line: LINE, text: 'approved in Claude Code' }),
     });
     await waitFor(() => pendingPrompts().some((prompt) => prompt.requestId === 'abcde'));
-    h.chat(LINE, OWNER, 'yes abcde');
+    expect(await h.answerOnPage('abcde', 'allow')).toBe(200);
     expect(await h.told('"request_id":"abcde","behavior":"allow"')).toBe(true);
     const asked = await h.send({ line: LINE, text: 'approved in Claude Code' });
     expect(asked.isError).toBe(true);

@@ -51,10 +51,10 @@ describe('the live state of a channel on the page', () => {
 
   test('pairing again says what stays and what to do on the phone', () => {
     expect(pairAgainLines('WhatsApp', '+447700900123', false)).toEqual([
-      'WhatsApp logged Metro out. Pair the phone of +447700900123 again to get messages. People, approvers and rules stay as they are.',
+      'WhatsApp logged Metro out. Pair the phone of +447700900123 again to get messages. People and rules stay as they are.',
     ]);
     expect(pairAgainLines('WhatsApp', undefined, true)).toEqual([
-      'The current link is replaced. Pair the same phone again. People, approvers and rules stay as they are.',
+      'The current link is replaced. Pair the same phone again. People and rules stay as they are.',
       'Then remove the old Metro entry from Linked Devices on that phone.',
     ]);
   });

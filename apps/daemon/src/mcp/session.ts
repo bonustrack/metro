@@ -1,17 +1,16 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { InboundRelay } from '../channels/inbound.js';
-import { answerPrompt, forgetPromptsOf, isPromptHeld, promptLine } from '../approvals/pending.js';
-import { pointToPrompt } from './approval-elsewhere.js';
-import { noteOwnerLine } from '../approvals/owner-line.js';
+import { forgetPromptsOf, isPromptHeld } from '../approvals/pending.js';
+import { approvalLinkOf } from '../approvals/link.js';
 import { ChannelRelay, type ReplayLedger } from '../channels/relay.js';
 import { errMsg } from '@metro-labs/core/log';
-import { allowlistForLine, mayApprove, senderPermitted } from '../agents/map.js';
+import { allowlistForLine, senderPermitted } from '../agents/map.js';
 import { accountStationNames } from '../stations/registry.js';
 import { eventInScope } from '../agents/scope.js';
 import { MCP_INSTRUCTIONS } from './instructions.js';
 import { BoundedEventStore } from './event-store.js';
-import { registerPermissionRelay } from './permission-relay.js';
+import { metroSend, registerPermissionRelay } from './permission-relay.js';
 import { registerToolHandlers, toolSchemaSignature } from './tool-dispatch.js';
 import { web, type RawGetSink } from './raw-get-stream.js';
 import { sharedCalls } from '../voice/shared.js';
@@ -27,16 +26,9 @@ const getStations = (): Set<string> => new Set(accountStationNames());
 const senderAllowed = (from: string, line: string, verified?: boolean): boolean =>
   senderPermitted(allowlistForLine(line), from, verified);
 
-const noteDirect = (line: string, from: string): void => {
-  if (mayApprove(line, from)) noteOwnerLine(line, from);
-};
-
-async function answerPermission(requestId: string, behavior: 'allow' | 'deny', line: string, from: string, nameOf: (line: string) => string | undefined): Promise<boolean> {
-  if (!isPromptHeld(requestId) || !mayApprove(line, from)) return false;
-  const asked = promptLine(requestId);
-  if (asked === line) return (await answerPrompt(requestId, behavior, 'chat', line)) !== undefined;
-  await pointToPrompt(requestId, asked, line, nameOf);
-  return false;
+async function pointToApproval(id: string, line: string): Promise<void> {
+  if (!isPromptHeld(id)) return;
+  await metroSend(line, `Approval ${id} is answered on metro.box, not in chat: ${approvalLinkOf(id)}`);
 }
 
 function makeTransport(
@@ -118,8 +110,7 @@ export class McpSession {
       log: channelLog,
       getStations,
       senderAllowed,
-      noteDirect,
-      answerPermission: (requestId, behavior, line, from) => answerPermission(requestId, behavior, line, from, (asked) => this.relay.lineNames.of(asked)),
+      pointToApproval,
       callMeta: (event) => sharedCalls.bindChat(event, this.scope),
     });
     registerPermissionRelay({

@@ -99,6 +99,11 @@ describe('the approval note under Ask', () => {
   test('says the questions show on Home when nobody can answer in the chat', () => {
     expect(askNote('write', 0)).toBe('Questions show on Home: nobody here can approve yet.');
   });
+
+  test('a box where approvals happen only on metro.box says the chat gets a link, never who answers there', () => {
+    expect(askNote('write', null)).toBe('Questions show on Home, and Metro posts a link to them in the chat.');
+    expect(askNote('delete', null)).not.toContain('yes');
+  });
 });
 
 describe('tool by tool', () => {

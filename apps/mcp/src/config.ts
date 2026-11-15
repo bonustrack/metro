@@ -1,8 +1,8 @@
 import { readConnectorsSetup } from '@metro-labs/connectors/setup';
+import { appOriginOf } from '@metro-labs/http/approval-rules';
 
 export const DEFAULT_PORT = 8430;
 export const DEFAULT_PUBLIC_HOST = 'mcp.metro.box';
-export const DEFAULT_APP_URL = 'https://metro.box';
 
 export interface McpConfig {
   databaseUrl: string;
@@ -22,10 +22,9 @@ function portOf(text: string | undefined): number {
 }
 
 function appUrlOf(text: string | undefined): string {
-  const value = (text ?? '').trim().replace(/\/+$/, '');
-  if (value === '') return DEFAULT_APP_URL;
-  if (!/^https?:\/\/[^/?#\s]+$/.test(value)) throw new Error('METRO_APP_URL must be an origin such as https://metro.box.');
-  return value;
+  const origin = appOriginOf(text);
+  if (origin === null) throw new Error('METRO_APP_URL must be an origin such as https://metro.box.');
+  return origin;
 }
 
 export function readMcpConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {

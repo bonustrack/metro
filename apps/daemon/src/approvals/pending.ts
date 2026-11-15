@@ -5,7 +5,7 @@ import { previewMatches } from './preview.js';
 
 export type Behavior = 'allow' | 'deny';
 
-export type AnsweredVia = 'chat' | 'page' | 'expiry';
+export type AnsweredVia = 'page' | 'expiry';
 
 export type SettledVia = AnsweredVia | 'cancel';
 
@@ -75,19 +75,16 @@ export function holdPrompt(
 
 export const pendingPrompts = (): PendingPrompt[] => [...held.values()].map(shown).sort((a, b) => b.at - a.at);
 
-export const promptLine = (requestId: string): string | undefined => held.get(requestId)?.line;
-
 export const isPromptHeld = (requestId: string): boolean => held.has(requestId);
 
-function chatNotice(via: AnsweredVia, behavior: Behavior): string | undefined {
+const chatNotice = (via: AnsweredVia, behavior: Behavior): string => {
   if (via === 'expiry') return 'Expired, denied.';
-  if (via === 'page') return behavior === 'allow' ? 'Approved on the page.' : 'Denied on the page.';
-  return undefined;
-}
+  return behavior === 'allow' ? 'Approved on the page.' : 'Denied on the page.';
+};
 
 async function tellChat(entry: Held, via: AnsweredVia, behavior: Behavior): Promise<void> {
   const text = chatNotice(via, behavior);
-  if (text === undefined || entry.tell === undefined) return;
+  if (entry.tell === undefined) return;
   await entry.tell(text).catch((err: unknown) => {
     log.warn({ requestId: entry.requestId, err: errMsg(err) }, 'approvals: the chat could not be told the answer');
   });

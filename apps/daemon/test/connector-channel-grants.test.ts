@@ -25,7 +25,7 @@ afterEach(() => {
 
 async function approveClaudePrompt(tool: string): Promise<void> {
   holdPrompt({ requestId: 'grant000001', tool, description: '', preview: JSON.stringify(args), line: undefined, at: Date.now() }, args, () => Promise.resolve());
-  await answerPrompt('grant000001', 'allow', 'chat');
+  await answerPrompt('grant000001', 'allow', 'page');
 }
 
 for (const tool of ['mcp__metro_box_Same__send', 'mcp__plugin_metro_removed__send', 'mcp__plugin_metro_mcp__call_tool', 'mcp__metro__tool_call', 'mcp__metro__send']) {

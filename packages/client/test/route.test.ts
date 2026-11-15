@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { isApprovalId, routeHash, routeSelection } from '../src/route.js';
-import { APPROVAL_ID_RE } from '../../http/src/approval-rules.ts';
+import { APP_ORIGIN, APPROVAL_ID_RE, approvalLink } from '../../http/src/approval-rules.ts';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import type { Selection } from '../src/selection.js';
 import { noteRoutedOrganization, routedOrganization, splitOrganization } from '../src/auth/org-route.js';
@@ -380,6 +380,16 @@ describe('the agent tabs have their own addresses, and the old ones lead to them
 
 describe('an approval link opens that approval on its agent', () => {
   const agent = 'aB3-_xYz9Qw';
+
+  test('the link the box and mcp.metro.box post opens the approval page, and the fallbacks open the agent list or nothing in particular', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const link = approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent }, 'jkmnp');
+    expect(link).toStartWith('https://metro.box/#/');
+    expect(routeSelection(new URL(link).hash)).toEqual({ kind: 'approval', project: agent, id: 'jkmnp' });
+    expect(splitOrganization(new URL(link).hash)?.organization).toBe(TEST_ORGANIZATION);
+    expect(new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent: null }, 'jkmnp')).hash).toBe(`#/${TEST_ORGANIZATION}`);
+    expect(approvalLink(APP_ORIGIN, { owner: null, agent: null }, 'jkmnp')).toBe('https://metro.box');
+  });
 
   test('the link posted in chat parses with an organization id or slug and an agent id or slug, and round-trips', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });

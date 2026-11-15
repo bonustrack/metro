@@ -7,7 +7,7 @@ const routed = toModelSettings({ route: 'c1', model: '', ready: true, reason: nu
 const none = toModelSettings({ route: '', model: '', ready: false, reason: 'Choose a model first.', connections: [] });
 const oldDaemon = toModelSettings({ route: 'c1', model: '', connections: [{ id: 'c1', provider: 'codex', label: '' }] });
 
-const input = (over: Partial<SetupInput>): SetupInput => ({ name: 'Chen', project: 'chen', model: routed, groups: [], conversations: 0, ...over });
+const input = (over: Partial<SetupInput>): SetupInput => ({ name: 'Chen', project: 'chen', model: routed, groups: [], conversations: 0, chatApprovals: true, ...over });
 
 const ids = (setup: ReturnType<typeof setupOf>): string[] => setup.steps.map((step) => `${step.id}:${step.done ? 'done' : 'open'}`);
 
@@ -40,6 +40,12 @@ describe('the setup checklist on Home', () => {
   test('a Gmail or Outlook channel of an older box does not count as a channel', () => {
     const groups = groupAccounts({ outlook: [{ id: 'o1', handle: 'andy@anderra.ch', allowlist: ['@anderra.ch'] }], gmail: [{ id: 'g1', allowlist: ['*'] }] });
     expect(ids(setupOf(input({ groups, conversations: 2 })))).toEqual(['model:done', 'chat:open', 'write:open', 'approve:open', 'hello:done']);
+  });
+
+  test('a box where approvals happen only on metro.box has no Who can approve step', () => {
+    const unsettled = groupAccounts({ whatsapp: [{ id: 'w1', allowlist: ['+41'] }] });
+    expect(ids(setupOf(input({ groups: unsettled, conversations: 1, chatApprovals: false })))).toEqual(['model:done', 'chat:done', 'write:done', 'hello:done']);
+    expect(setupOf(input({ groups: unsettled, conversations: 1, chatApprovals: undefined })).open).toBeNull();
   });
 
   test('a step whose facts are unknown is left out, never guessed', () => {

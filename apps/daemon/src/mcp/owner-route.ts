@@ -1,7 +1,6 @@
 import type { MetroEvent } from '@metro-labs/core/events';
 import { log } from '@metro-labs/core/log';
 import { agentIdForLine, lineReceives } from '../agents/map.js';
-import { ownerLine } from '../approvals/owner-line.js';
 import { metroNotice } from '../channels/notice.js';
 
 export interface OwnerRoute {
@@ -21,7 +20,7 @@ export const ownerPromptLine = (requestId: string, callLine?: string): string | 
 
 const reachable = (line: string | undefined): line is string => line !== undefined && agentIdForLine(line) !== undefined && lineReceives(line);
 
-const noticeLine = (preferred: string | undefined): string | undefined => [preferred, route?.knownLine(), ownerLine()?.line].find(reachable);
+const noticeLine = (preferred: string | undefined): string | undefined => [preferred, route?.knownLine()].find(reachable);
 
 export const canTellAgent = (preferred: string | undefined): boolean => route?.live() === true && noticeLine(preferred) !== undefined;
 
