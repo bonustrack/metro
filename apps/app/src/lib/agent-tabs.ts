@@ -25,7 +25,10 @@ const tools = (project: string): Selection => ({ kind: 'tools', project });
 const scheduled = (project: string): Selection => ({ kind: 'scheduled', project });
 const settings = (project: string): Selection => ({ kind: 'agent-settings', project });
 
-const HOME_PAGES: AgentPage[] = [{ label: 'Right now', kinds: ['run'], target: (project) => ({ kind: 'run', project }), deep: true }];
+const HOME_PAGES: AgentPage[] = [
+  { label: 'Right now', kinds: ['run'], target: (project) => ({ kind: 'run', project }), deep: true },
+  { label: 'Approval', kinds: ['approval'], target: (project) => ({ kind: 'home', project }), deep: true },
+];
 
 const CHATS: AgentPage[] = [
   { label: 'Channels', kinds: ['chats'], target: chats },

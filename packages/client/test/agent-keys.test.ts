@@ -115,7 +115,7 @@ describe('approvals answered on metro.box', () => {
     const [found] = await fetchRemoteApprovals(AGENT);
     expect(found?.connectorName).toBe('Notion');
     expect(found?.approval).toMatchObject({ id: 'abcde', name: 'notion.create_page', line: '', requestedAt: new Date(NOW).toISOString(), inChat: false });
-    const card = approvalCard(found?.approval ?? { id: '', name: '', tool: '', preview: '', input: null, line: '', requestedAt: '', inChat: false, fileBytes: [] });
+    const card = approvalCard(found?.approval ?? { id: '', name: '', tool: '', preview: '', request: '', input: null, line: '', requestedAt: '', inChat: false, fileBytes: [] });
     expect(card).toMatchObject({ connector: 'notion', title: 'Create page', fields: [{ label: 'Title', value: 'Plan' }] });
   });
 

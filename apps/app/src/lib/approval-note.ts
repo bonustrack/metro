@@ -3,12 +3,21 @@ import type { ApprovalCard } from '@metro-labs/client/api/approval-card';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { effectiveAccess, type GroupedTool } from '@metro-labs/client/api/policy';
 import type { SenderCard } from '@metro-labs/client/api/senders';
+import { accountName } from './setup-steps.js';
 
 const NAMES_MAX = 3;
 
 export function accountRow(groups: AccountGroup[], station: string | null, account: string | null): AccountRow | undefined {
   if (station === null || account === null) return undefined;
   return flattenAccounts(groups).find((a) => a.station === station && a.row.id === account)?.row;
+}
+
+export function approvalWhere(card: ApprovalCard, groups: AccountGroup[]): string | null {
+  if (card.connector !== null) return card.connector;
+  const account = flattenAccounts(groups).find((a) => a.station === card.station && a.row.id === card.account);
+  if (account !== undefined) return accountName(account);
+  if (card.station === null) return null;
+  return [stationLabel(card.station), card.account ?? ''].filter((part) => part !== '').join(' · ');
 }
 
 const capitalized = (name: string): string => `${name.charAt(0).toUpperCase()}${name.slice(1)}`;

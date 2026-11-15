@@ -5,19 +5,20 @@ import { Row } from '@stage-labs/kit/react-native/row';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { flattenAccounts, type AccountGroup } from '@metro-labs/client/api/accounts';
+import type { AccountGroup } from '@metro-labs/client/api/accounts';
 import { approvalCard, lineTarget, type ApprovalCard as Card } from '@metro-labs/client/api/approval-card';
 import { decideApproval, type Approval, type Decision } from '@metro-labs/client/api/approvals';
-import { stationLabel } from '@metro-labs/client/api/attach';
 import type { GroupedTool } from '@metro-labs/client/api/policy';
 import { fetchSenderCards } from '@metro-labs/client/api/senders';
 import { whenLabel } from '@metro-labs/client/api/when';
+import { isApprovalId, routeHash } from '@metro-labs/client/route';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { Disclosure } from '../ui/Disclosure.js';
 import { Icon } from '../Icon.js';
 import { StationIcon } from '../StationIcon.js';
-import { accountRow, othersLine, ruleLine } from '../../lib/approval-note.js';
-import { accountName } from '../../lib/setup-steps.js';
+import { TextLink } from '../TextLink.js';
+import { accountRow, approvalWhere, othersLine, ruleLine } from '../../lib/approval-note.js';
+import { DECIDE_FAILED } from '../../lib/approval-page.js';
 import { queryError, refresh, useBoxQuery } from '../../lib/queries.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { SHRINK } from '../../lib/style.js';
@@ -26,7 +27,6 @@ const MARK = 24;
 const FILE_ICON = 20;
 const LABEL_WIDTH = 76;
 const CARDS_STALE_MS = 5 * 60_000;
-const DECIDE_FAILED = 'Could not send your answer.';
 
 export interface ApprovalContext {
   agentId: string;
@@ -34,19 +34,11 @@ export interface ApprovalContext {
   tools: Record<string, GroupedTool[]>;
 }
 
-function Mark({ card }: { card: Card }): ReactNode {
+export function ApprovalMark({ card }: { card: Card }): ReactNode {
   const palette = useKitPalette();
   if (card.station !== null) return <StationIcon station={card.station} size={MARK} />;
   if (card.connector !== null) return <ConnectorFavicon name={card.connector} url="" size={MARK} />;
   return <Icon name="hand" size={MARK} color={palette.text} />;
-}
-
-function whereOf(card: Card, groups: AccountGroup[]): string | null {
-  if (card.connector !== null) return card.connector;
-  const account = flattenAccounts(groups).find((a) => a.station === card.station && a.row.id === card.account);
-  if (account !== undefined) return accountName(account);
-  if (card.station === null) return null;
-  return [stationLabel(card.station), card.account ?? ''].filter((part) => part !== '').join(' · ');
 }
 
 function promptAccount(approval: Approval): { station: string; account: string } {
@@ -166,23 +158,33 @@ function Answers({ decide }: { decide: Decide }): ReactNode {
 interface ApprovalCardProps {
   approval: Approval;
   context: ApprovalContext;
+  project: string;
   decide?: Decide;
   where?: string;
   mark?: ReactNode;
 }
 
-export function ApprovalCardView({ approval, context, decide, where: named, mark }: ApprovalCardProps): ReactNode {
+function Details({ project, id }: { project: string; id: string }): ReactNode {
+  if (!isApprovalId(id)) return null;
+  return (
+    <Column margin={{ top: 16 }}>
+      <TextLink to={routeHash({ kind: 'approval', project, id })}>See all details</TextLink>
+    </Column>
+  );
+}
+
+export function ApprovalCardView({ approval, context, project, decide, where: named, mark }: ApprovalCardProps): ReactNode {
   const palette = useKitPalette();
   const narrow = useIsNarrow();
   const boxDecide = useBoxDecide(approval.id);
   const card = approvalCard(approval);
-  const where = named ?? whereOf(card, context.groups);
+  const where = named ?? approvalWhere(card, context.groups);
   const others = useOthers(approval, context);
   const note = [ruleLine(card, approval.tool, context.groups, context.tools), others].filter((part) => part !== null).join(' ');
   return (
     <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
       <Row align="start" gap={12}>
-        {mark ?? <Mark card={card} />}
+        {mark ?? <ApprovalMark card={card} />}
         <Column weight={1} minWidth={0} gap={2}>
           <Text size="md" fontWeight="semibold" numberOfLines={2}>
             {card.title}
@@ -214,6 +216,7 @@ export function ApprovalCardView({ approval, context, decide, where: named, mark
           </Text>
         </Column>
       )}
+      <Details project={project} id={approval.id} />
       <Answers decide={decide ?? boxDecide} />
     </Column>
   );

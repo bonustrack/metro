@@ -12,6 +12,10 @@ import { refreshRemoteApprovals, useRemoteApprovals } from '../../lib/remote-age
 const CARD_GAP = 16;
 const MARK = 24;
 
+export function RemoteMark({ found }: { found: RemoteApproval }): ReactNode {
+  return <ConnectorFavicon name={found.connectorName ?? found.connector} url={found.connectorUrl ?? ''} size={MARK} />;
+}
+
 function Card({ agent, found }: { agent: string; found: RemoteApproval }): ReactNode {
   const client = useQueryClient();
   const context: ApprovalContext = { agentId: agent, groups: [], tools: {} };
@@ -20,8 +24,8 @@ function Card({ agent, found }: { agent: string; found: RemoteApproval }): React
     await refreshRemoteApprovals(client, agent);
   };
   const name = found.connectorName ?? undefined;
-  const mark = name === undefined ? undefined : <ConnectorFavicon name={name} url={found.connectorUrl ?? ''} size={MARK} />;
-  return <ApprovalCardView approval={found.approval} context={context} decide={decide} where={name} mark={mark} />;
+  const mark = name === undefined ? undefined : <RemoteMark found={found} />;
+  return <ApprovalCardView approval={found.approval} context={context} project={agent} decide={decide} where={name} mark={mark} />;
 }
 
 export function RemoteApprovals({ agent }: { agent: string }): ReactNode {

@@ -9,6 +9,7 @@ export interface Approval {
   name: string;
   tool: string;
   preview: string;
+  request: string;
   input: Record<string, unknown> | null;
   line: string;
   requestedAt: string;
@@ -66,7 +67,8 @@ function previewOf(preview: string, input: Record<string, unknown> | null): stri
 
 export function approvalOf(raw: unknown): Approval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string') return null;
-  const parsed = previewInput(str(raw.preview));
+  const request = str(raw.preview);
+  const parsed = previewInput(request);
   const shown = visible(parsed);
   const input = isRecord(shown) ? shown : null;
   const line = str(raw.line);
@@ -74,7 +76,8 @@ export function approvalOf(raw: unknown): Approval | null {
     id: raw.id,
     name: raw.tool,
     tool: toolLabel(raw.tool),
-    preview: previewOf(str(raw.preview), input),
+    preview: previewOf(request, input),
+    request,
     input,
     line,
     requestedAt: str(raw.requestedAt),

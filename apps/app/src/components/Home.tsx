@@ -42,7 +42,7 @@ function useConversations(): number | undefined {
   return projects.data?.reduce((sum, project) => sum + project.sessions, 0);
 }
 
-function Approvals({ context }: { context: ApprovalContext }): ReactNode {
+function Approvals({ project, context }: { project: string; context: ApprovalContext }): ReactNode {
   const { data, error, refetch } = useBoxApprovals();
   const approvals = data ?? [];
   if (approvals.length === 0 && error === null) return null;
@@ -50,7 +50,7 @@ function Approvals({ context }: { context: ApprovalContext }): ReactNode {
     <Column gap={CARD_GAP}>
       {error === null ? null : <ErrorState title="Could not check for new approvals" text={queryError(error, 'The agent did not answer.')} onRetry={refetch} />}
       {approvals.map((approval) => (
-        <ApprovalCardView key={approval.id} approval={approval} context={context} />
+        <ApprovalCardView key={approval.id} approval={approval} context={context} project={project} />
       ))}
     </Column>
   );
@@ -107,7 +107,7 @@ export function Home({ project }: { project: string }): ReactNode {
   return (
     <WithRail rail={<GlanceRail project={project} name={name} serverId={serverId} />}>
       <Groups>
-        <Approvals context={context} />
+        <Approvals project={project} context={context} />
         <HomeState project={project} name={name} serverId={serverId} />
       </Groups>
     </WithRail>

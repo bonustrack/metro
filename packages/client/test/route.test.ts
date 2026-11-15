@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { routeHash, routeSelection } from '../src/route.js';
+import { isApprovalId, routeHash, routeSelection } from '../src/route.js';
+import { APPROVAL_ID_RE } from '../../http/src/approval-rules.ts';
 import { configurePlatform, memoryKeyValue } from '../src/platform.js';
 import type { Selection } from '../src/selection.js';
 import { noteRoutedOrganization, routedOrganization, splitOrganization } from '../src/auth/org-route.js';
@@ -374,6 +375,49 @@ describe('the agent tabs have their own addresses, and the old ones lead to them
     expect(rewritten('#/stage-labs/tony/channel/a1')).toBe('#/stage-labs/tony/channel/a1');
     expect(rewritten('#/stage-labs/tony/settings')).toBe('#/stage-labs/tony/settings');
     routeSelection('#/settings');
+  });
+});
+
+describe('an approval link opens that approval on its agent', () => {
+  const agent = 'aB3-_xYz9Qw';
+
+  test('the link posted in chat parses with an organization id or slug and an agent id or slug, and round-trips', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const cases: [string, Selection][] = [
+      ['#/stage-labs/emma/approvals/abcde', { kind: 'approval', project: 'emma', id: 'abcde' }],
+      [`#/stage-labs/${agent}/approvals/xyzkm`, { kind: 'approval', project: agent, id: 'xyzkm' }],
+      [`#/${TEST_ORGANIZATION}/emma/approvals/abcde`, { kind: 'approval', project: 'emma', id: 'abcde' }],
+      ['#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/emma/approvals/mnopq', { kind: 'approval', project: 'emma', id: 'mnopq' }],
+      ['#/other-org/emma/approvals/abcde', { kind: 'approval', project: 'emma', id: 'abcde' }],
+      ['#/emma/approvals/abcde', { kind: 'approval', project: 'emma', id: 'abcde' }],
+    ];
+    for (const [hash, selection] of cases) expect(routeSelection(hash)).toEqual(selection);
+    expect(routedOrganization()).toBeNull();
+    expect(routeHash({ kind: 'approval', project: 'emma', id: 'abcde' })).toBe('#/stage-labs/emma/approvals/abcde');
+    rememberAgents([{ id: agent, slug: 'emma' }]);
+    expect(routeHash({ kind: 'approval', project: agent, id: 'abcde' })).toBe('#/stage-labs/emma/approvals/abcde');
+    forgetAgents();
+    expect(routeHash({ kind: 'approval', project: agent, id: 'abcde' })).toBe(`#/stage-labs/${agent}/approvals/abcde`);
+    const trips: Selection[] = [{ kind: 'approval', project: 'emma', id: 'qrstu' }, { kind: 'approval', project: agent, id: 'abcde' }];
+    for (const selection of trips) expect(routeSelection(routeHash(selection))).toEqual(selection);
+    routeSelection('#/other-org/emma/approvals/abcde');
+    expect(routedOrganization()).toBe('other-org');
+    expect(routeHash({ kind: 'approval', project: 'emma', id: 'abcde' })).toBe('#/other-org/emma/approvals/abcde');
+    routeSelection('#/settings');
+  });
+
+  test('only a 5-letter approval id from the approval alphabet makes an approval address', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    for (const bad of ['abcdl', 'ABCDE', 'abcd', 'abcdef', 'abc1e', 'abcde/', 'abcde?x=1', '', 'ab%20de'])
+      expect(routeSelection(`#/stage-labs/emma/approvals/${bad}`)).toEqual({ kind: 'none' });
+    expect(routeSelection('#/stage-labs/emma/approvals')).toEqual({ kind: 'none' });
+    expect(routeSelection('#/stage-labs/emma/approval/abcde')).toEqual({ kind: 'none' });
+    routeSelection('#/settings');
+  });
+
+  test('the alphabet is the one the daemon and mcp.metro.box give approval ids', () => {
+    for (const id of ['abcde', 'zzzzz', 'kkkkm', 'abcdl', 'ABCDE', 'abcd', 'abcdef', 'a1cde', 'lllll'])
+      expect(isApprovalId(id)).toBe(APPROVAL_ID_RE.test(id));
   });
 });
 
