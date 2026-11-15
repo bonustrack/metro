@@ -25,6 +25,7 @@ import { stopConnectorEvents, watchConnectorEvents } from '../mcp-server/event-l
 import { connectorEventTaker } from '../channels/connector-event.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
+import { LAST_CHAT_FILE, removeOldOwnerChat, setLastChatFile } from '../channels/last-chat.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeConnectorLeftovers } from '../connectors/leftovers.js';
 import { removeMailLeftovers } from './mail-leftovers.js';
@@ -69,6 +70,7 @@ import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } f
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 setAnnouncedFile(join(agentsDir(), 'mcp-approvals.json'));
+setLastChatFile(join(agentsDir(), LAST_CHAT_FILE));
 setApprovalAgent(() => approvalAgentOf(localOwner(), readAgentKey()?.enrollment));
 
 log.info({ self: userSelf() }, 'user identity');
@@ -144,6 +146,7 @@ async function main(): Promise<void> {
   removeConnectorLeftovers();
   removeModelLeftovers();
   removeMailLeftovers();
+  removeOldOwnerChat(STATE_DIR);
   applyLocalOwner();
 installBearerSessions(agentsDir(), localOwner);
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');

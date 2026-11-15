@@ -86,9 +86,11 @@ function Facts({ shown, card }: { shown: ApprovalShown; card: ApprovalCard }): R
   const technical = useTechnicalDetails();
   const { name, server } = useAgent();
   const asked = shown.approval.requestedAt;
+  const by = shown.approval.requestedBy;
   return (
     <Group label="Request">
       <Item title={name} subtitle="Agent" leading={<AgentAvatar seed={server?.id ?? name} src={server?.avatar ?? null} size={AVATAR_SIZE.row} />} />
+      {by === null ? null : <Item title={by} subtitle="Asked by" leading={<Icon name="key" size={ICON_SIZE.lg} color={palette.text} />} />}
       <Place shown={shown} card={card} />
       {asked === '' ? null : <Item title={timeOf(asked, technical)} subtitle="Asked" leading={<Icon name="clock" size={ICON_SIZE.lg} color={palette.text} />} />}
       {technical ? <Item title={shown.approval.name} subtitle="Tool" leading={<Icon name="processor" size={ICON_SIZE.lg} color={palette.text} />} /> : null}

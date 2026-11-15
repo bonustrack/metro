@@ -106,7 +106,9 @@ The daemon applies no station policy to the two tools.
   mcp.metro.box records the request (tool, a digest of the arguments, a short preview)
   and hands it to the agent's daemon, which posts the same link on the agent's last chat
   line (`Approval needed: Lisa wants to run update_page on notion.` then the link, never
-  the arguments) and lists it on the page. Since 2026-11-15 only metro.box answers it, by
+  the arguments) and lists it on the page. A call made with an access key is posted in no
+  chat (it belongs to whoever holds the key, not to the agent's conversations): it waits on
+  the page only, and its `needs_approval` tells the caller to give the person the link. Since 2026-11-15 only metro.box answers it, by
   any member of the organization. The answer goes back to mcp.metro.box, and when the agent's own
   session made the call (not an access key) the daemon tells the agent in its channel
   (`Approved: notion.update_page (abcde)` or `Denied: …`). The agent

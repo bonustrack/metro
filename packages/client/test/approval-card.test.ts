@@ -99,3 +99,25 @@ describe('an approval reads as a card in words', () => {
     expect(lineTarget('https://example.com')).toBeNull();
   });
 });
+
+describe('who asked for an approval', () => {
+  const of = (requestedBy: unknown): string | null => approvalOf({ id: 'abcde', tool: 'notion.create_page', preview: '{}', line: '', requestedBy })?.requestedBy ?? null;
+
+  test('is read as plain text when the box sends it, and absent from an older box', () => {
+    expect(of('access key "Claude Code"')).toBe('access key "Claude Code"');
+    expect(of('an access key')).toBe('an access key');
+    expect(approvalOf({ id: 'abcde', tool: 'Bash', preview: '' })?.requestedBy).toBeNull();
+  });
+
+  test('a value that is not text, or only blanks, is ignored; control and direction marks go; a long one is cut', () => {
+    for (const bad of [42, null, {}, ['x'], true, '', '   ', '\n\t​']) expect(of(bad)).toBeNull();
+    expect(of('access key "Lap\ntop‮"')).toBe('access key "Lap top "');
+    expect(of('\u{1F469}‍\u{1F4BB} laptop')).toBe('\u{1F469}‍\u{1F4BB} laptop');
+    const long = of(`access key "${'k'.repeat(500)}"`) ?? '';
+    expect(long).toHaveLength(100);
+    const emoji = of('\u{1F600}'.repeat(80)) ?? '';
+    expect(emoji.length).toBeLessThanOrEqual(100);
+    expect(emoji.endsWith('\u{1F600}…')).toBe(true);
+    expect(long.endsWith('k…')).toBe(true);
+  });
+});

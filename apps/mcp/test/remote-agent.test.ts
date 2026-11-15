@@ -5,7 +5,7 @@ import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore } from '@metro-labs/connectors/db/mcp-approvals';
 import { agentKeys, agents, agentTokens, connectors, mcpApprovals, mcpCalls } from '@metro-labs/connectors/db/schema';
 import { MCP_PATHS, mcpApprovalsOf } from '@metro-labs/http/mcp-server-protocol';
-import { KEY_INSTRUCTIONS, REMOTE_INSTRUCTIONS } from '../src/tools.ts';
+import { KEY_INSTRUCTIONS } from '../src/tools.ts';
 import { TOUCH_EVERY_MS } from '@metro-labs/connectors/db/bearers';
 import { addConnector, assign, callTool, enrollAgent, headerSecret, newToken, OWNER, signed, PGLITE_START_MS, rewrite, rpc, startApp, STRANGER, testDb, texts, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
@@ -71,12 +71,13 @@ describe('an agent without a server, signed in with an access key', () => {
     const res = await rpc(app, key, initialize);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { instructions: string } };
-    expect(body.result.instructions).toBe(REMOTE_INSTRUCTIONS);
+    expect(body.result.instructions).toBe(KEY_INSTRUCTIONS);
     expect(body.result.instructions).not.toContain('from a worker');
+    expect(body.result.instructions).not.toContain('chat');
     const list = (await (await rpc(app, key, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).json()) as { result: { tools: { name: string; description: string }[] } };
     expect(list.result.tools.map((tool) => tool.name)).toEqual(['tool_search', 'tool_call', 'list_connectors']);
     expect(list.result.tools[0]?.description).toContain('This agent\'s connectors: notion.');
-    expect(list.result.tools[1]?.description).toContain('a member of the organization must approve it on metro.box');
+    expect(list.result.tools[1]?.description).toContain('it waits on metro.box, at the link the answer gives, where a member of the organization approves it');
   });
 
   test('tool_search and tool_call reach its connectors, and each call is recorded for it', async () => {
@@ -130,18 +131,20 @@ describe('an agent without a server, signed in with an access key', () => {
     expect(texts(await callTool(app, other.key, 'tool_search', { query: 'notion' }))[0]).toBe('No tool matched "notion". This agent has no connectors it may use.');
   });
 
-  test('a key of an agent with a server works as that agent, and its Ask goes through the daemon relay as today', async () => {
+  test('a key of an agent with a server works as that agent, its Ask goes through the daemon relay, and no answer promises a chat post', async () => {
     const box = await enrollAgent(held.db, 'agent000001');
     await addConnector(held.db, 'conn0000002', 'Linear', headerSecret('/mcp'), { policy: JSON.stringify({ write: 'ask' }) });
     await assign(held.db, 'conn0000002', box.row.agent);
     const made = await createAgentToken(held.db, { owner: OWNER, agent: box.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now });
     const init = (await (await rpc(app, made.token, initialize)).json()) as { result: { instructions: string } };
     expect(init.result.instructions).toBe(KEY_INSTRUCTIONS);
+    expect(init.result.instructions).not.toContain('chat');
     expect(texts(await callTool(app, made.token, 'tool_search', { query: 'select:linear.search' }))[0]).toContain('"name":"linear.search"');
     const call = { tool: 'linear.update_page', arguments: { page_id: 'p9' } };
     const asked = texts(await callTool(app, made.token, 'tool_call', { calls: [call] }))[1] ?? '';
     const id = /approval ([a-km-z]{5})/.exec(asked)?.[1] ?? '';
-    expect(asked).toContain(`It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${OWNER}/${box.row.agent}/approvals/${id} Metro also posts that link in the agent's chat.`);
+    expect(asked).toContain(`It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${OWNER}/${box.row.agent}/approvals/${id} Tell the person what is waiting and give them that link.`);
+    expect(asked).not.toContain('chat');
     now += 1;
     const own = texts(await callTool(app, box.token, 'tool_call', { calls: [call] }))[1] ?? '';
     const ownId = /approval ([a-km-z]{5})/.exec(own)?.[1] ?? '';

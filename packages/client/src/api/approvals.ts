@@ -15,12 +15,15 @@ export interface Approval {
   requestedAt: string;
   inChat: boolean;
   fileBytes: (number | null)[];
+  requestedBy: string | null;
 }
 
 const METRO_TOOL = /^mcp__metro__(.+)$/;
 const PREVIEW_MAX = 300;
 const CODE_POINTS = /(?:\\n|\n)⋯ (\d+) code points elided ⋯(?:\\n|\n)/g;
 const HIDDEN = /\uE000(\d+)\uE001/g;
+const REQUESTED_BY_MAX = 100;
+const UNSEEN = /[\p{Cc}\u200b\u200e\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/gu;
 
 
 const toolLabel = (tool: string): string => METRO_TOOL.exec(tool)?.[1] ?? tool;
@@ -65,6 +68,13 @@ function previewOf(preview: string, input: Record<string, unknown> | null): stri
   return shown.length > PREVIEW_MAX ? `${shown.slice(0, PREVIEW_MAX)}…` : shown;
 }
 
+function requestedByOf(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const flat = raw.replace(UNSEEN, ' ').replace(/\s+/g, ' ').trim();
+  if (flat === '') return null;
+  return flat.length > REQUESTED_BY_MAX ? `${flat.slice(0, REQUESTED_BY_MAX - 1).replace(/[\uD800-\uDBFF]$/, '').trimEnd()}…` : flat;
+}
+
 export function approvalOf(raw: unknown): Approval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string') return null;
   const request = str(raw.preview);
@@ -83,6 +93,7 @@ export function approvalOf(raw: unknown): Approval | null {
     requestedAt: str(raw.requestedAt),
     inChat: line !== '',
     fileBytes: fileBytes(parsed),
+    requestedBy: requestedByOf(raw.requestedBy),
   };
 }
 

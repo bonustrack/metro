@@ -154,6 +154,7 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(String(sends()[0]?.[1])).not.toContain('Weekly notes');
     const listed = await pageCall('GET', '');
     expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE, preview: JSON.stringify({ page_id: 'p1', title: 'Weekly notes' }) })]);
+    expect(listed.body.approvals).toEqual([expect.not.objectContaining({ requestedBy: expect.anything() })]);
 
     chat(LINE, OWNER_SENDER, 'yes abcde');
     chat(LINE, MEMBER, 'no abcde');
@@ -174,11 +175,13 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()[3]).toEqual([LINE, 'Approved on the page.']);
   });
 
-  test('asked with an access key: posted with the key label and answered as usual, but the agent is not told', async () => {
+  test('asked with an access key: posted in no chat, listed on the page with the key as the asker, answered there and sent back, and the agent is not told', async () => {
     await arrives('pqrst', { origin: 'key', keyLabel: 'Laptop' });
-    await waitFor(() => sends().length === 1);
-    expect(sends()).toEqual([[LINE, noticeOf('pqrst', 'the access key "Laptop"')]]);
-    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: LINE })]);
+    const polls = approvalsSeen();
+    await waitFor(() => approvalsSeen() >= polls + 2);
+    expect(sends()).toEqual([]);
+    expect(announcedLine('pqrst')).toBeUndefined();
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: null, requestedBy: 'access key "Laptop"' })]);
     expect((await pageCall('POST', '/pqrst', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 1);
     expect(fake.answers).toEqual([{ id: 'pqrst', decision: 'allow' }]);
@@ -188,25 +191,39 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(raw()).not.toContain('(pqrst)');
     expect(pendingPrompts()).toEqual([]);
 
-    await arrives('qrstv', { origin: 'key', keyLabel: 'Lap\ntop "x"' });
-    await waitFor(() => sends().length === 3);
-    expect(sends()[2]).toEqual([LINE, noticeOf('qrstv', 'the access key "Laptop "x""')]);
+    await arrives('qrstv', { origin: 'key' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'qrstv', requestedBy: 'an access key' })]);
     expect((await pageCall('POST', '/qrstv', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 2);
-    await waitFor(() => sends().length === 4);
-    expect(sends()[3]).toEqual([LINE, 'Denied on the page.']);
+    await arrives('rstvx', { origin: 'key', keyLabel: 'Lap\ntop "x"' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'rstvx', requestedBy: 'access key "Laptop "x""' })]);
+    expect(await expirePrompts(Date.now() + 25 * 3_600_000)).toBe(1);
+    await waitFor(() => fake.answers.length === 3);
+    expect(fake.answers.slice(1)).toEqual([{ id: 'qrstv', decision: 'deny' }, { id: 'rstvx', decision: 'deny' }]);
     await settle(100);
+    expect(sends()).toEqual([]);
     expect(raw()).not.toContain('(qrstv)');
+    expect(raw()).not.toContain('(rstvx)');
+  });
 
-    await arrives('rstvx', { origin: 'key' });
-    await waitFor(() => sends().length === 5);
-    expect(sends()[4]).toEqual([LINE, noticeOf('rstvx', 'an access key')]);
+  test('asked with an access key and already posted in a chat by an older version: held on no chat, so no confirmation goes there', async () => {
+    const file = join(dir, 'mcp-approvals.json');
+    writeFileSync(file, JSON.stringify({ version: 1, announced: { stvwx: { line: LINE, at: Date.now() - 60_000 } } }));
+    forgetAnnounced();
+    setAnnouncedFile(file);
+    await arrives('stvwx', { origin: 'key' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'stvwx', line: null })]);
+    expect((await pageCall('POST', '/stvwx', { decision: 'allow' })).status).toBe(200);
+    await waitFor(() => fake.answers.length === 1);
+    await settle(100);
+    expect(sends()).toEqual([]);
   });
 
   test('asked by this agent\'s own session (origin box) is told to the agent as before', async () => {
     await arrives('rstvw', { origin: 'box' });
     await waitFor(() => sends().length === 1);
     expect(sends()[0]).toEqual([LINE, noticeOf('rstvw')]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.not.objectContaining({ requestedBy: expect.anything() })]);
     expect((await pageCall('POST', '/rstvw', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => raw().includes('Denied: notion.update_page (rstvw).'));
     expect(fake.answers).toEqual([{ id: 'rstvw', decision: 'deny' }]);

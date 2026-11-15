@@ -214,6 +214,13 @@ box();
 assert.equal(pages[0].title, 'Bash');
 assert.deepEqual(facts(), [['Agent', 'Emma']]);
 assert.deepEqual([groups, logs.map((one) => [one.text, one.maxHeight])], [['Request', 'Details'], [['rm -rf /tmp/build && ls', null]]]);
+
+reads.approvals = { data: [approvalsApi.approvalOf({ id: 'abcde', tool: 'notion.update_page', preview: '{"page_id":"p1"}', line: null, requestedAt: '', requestedBy: 'access key "Claude Code"' })], error: null };
+box();
+assert.deepEqual(facts().slice(0, 2), [['Agent', 'Emma'], ['Asked by', 'access key "Claude Code"']]);
+reads.approvals = { data: [approvalsApi.approvalOf({ id: 'abcde', tool: 'notion.update_page', preview: '{"page_id":"p1"}', line: null, requestedAt: '', requestedBy: 7 })], error: null };
+box();
+assert.ok(!facts().some(([label]) => label === 'Asked by'));
 assert.deepEqual(fetched, []);
 `;
 

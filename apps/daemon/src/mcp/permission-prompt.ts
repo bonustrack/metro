@@ -14,7 +14,6 @@ export interface PermissionParams {
 }
 
 interface Asked {
-  who?: string;
   tool: string;
   place?: string | undefined;
 }
@@ -44,7 +43,7 @@ function stationOf(tool: string, input: Record<string, unknown>): string | undef
 
 export function approvalNotice(id: string, asked: Asked): string {
   const on = asked.place === undefined ? '' : ` on ${clip(asked.place, NAME_MAX)}`;
-  return `Approval needed: ${asked.who ?? agentWho()} wants to run ${clip(asked.tool, TOOL_MAX)}${on}.\nApprove or deny it on metro.box: ${approvalLinkOf(id)}`;
+  return `Approval needed: ${agentWho()} wants to run ${clip(asked.tool, TOOL_MAX)}${on}.\nApprove or deny it on metro.box: ${approvalLinkOf(id)}`;
 }
 
 export function promptNotice(params: PermissionParams): string {
@@ -53,12 +52,4 @@ export function promptNotice(params: PermissionParams): string {
   return approvalNotice(params.request_id, { tool: metro, place: stationOf(metro, previewInput(params.input_preview) ?? {}) });
 }
 
-const keyWho = (approval: McpApproval): string | undefined => {
-  if (approval.origin !== 'key') return undefined;
-  return approval.keyLabel === undefined ? 'an access key' : `the access key "${clip(approval.keyLabel, NAME_MAX)}"`;
-};
-
-export const serverNotice = (approval: McpApproval): string => {
-  const who = keyWho(approval);
-  return approvalNotice(approval.id, { ...(who === undefined ? {} : { who }), tool: approval.tool, place: approval.connector });
-};
+export const serverNotice = (approval: McpApproval): string => approvalNotice(approval.id, { tool: approval.tool, place: approval.connector });

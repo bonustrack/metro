@@ -65,6 +65,7 @@ describe('Claude Code permission prompts on the page', () => {
       requestedAt: '2026-09-24T10:00:00.000Z',
       inChat: true,
       fileBytes: [],
+      requestedBy: null,
     });
   });
 
@@ -80,6 +81,7 @@ describe('Claude Code permission prompts on the page', () => {
       requestedAt: '',
       inChat: false,
       fileBytes: [],
+      requestedBy: null,
     });
     expect(approvalOf({ id: 'broken' })).toBeNull();
   });

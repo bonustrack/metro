@@ -18,6 +18,7 @@ export interface PendingPrompt {
   at: number;
   call?: CallSource;
   origin?: 'mcp-server' | 'channel';
+  requestedBy?: string;
 }
 
 export type SendAnswer = (behavior: Behavior, via: SettledVia) => Promise<void>;
@@ -39,13 +40,14 @@ const SWEEP_MS = 60_000;
 
 const held = new Map<string, Held>();
 
-const shown = ({ requestId, tool, description, preview, line, at }: Held): PendingPrompt => ({
+const shown = ({ requestId, tool, description, preview, line, at, requestedBy }: Held): PendingPrompt => ({
   requestId,
   tool,
   description,
   preview,
   line,
   at,
+  ...(requestedBy === undefined ? {} : { requestedBy }),
 });
 
 function makeRoom(): void {

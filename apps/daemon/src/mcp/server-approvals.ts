@@ -1,4 +1,5 @@
 import { errMsg, log } from '@metro-labs/core/log';
+import { oneLine } from '@metro-labs/core/approval-fields';
 import type { McpApproval, McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { APPROVAL_USE_MS } from '@metro-labs/http/approval-rules';
 import { holdPrompt, isPromptHeld, type Behavior } from '../approvals/pending.js';
@@ -24,6 +25,22 @@ const answeredRecently = (id: string, now = Date.now()): boolean => now - (recen
 
 const noticeText = (tool: string, id: string, behavior: Behavior): string =>
   behavior === 'allow' ? `Approved: ${tool} (${id}). Call tool_call again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
+
+const askerOf = (approval: McpApproval): { requestedBy?: string } => {
+  if (approval.origin !== 'key') return {};
+  return { requestedBy: approval.keyLabel === undefined ? 'an access key' : `access key "${oneLine(approval.keyLabel)}"` };
+};
+
+interface Place {
+  line: string | undefined;
+  announced: string | undefined;
+}
+
+function placeOf(approval: McpApproval): Place {
+  if (approval.origin === 'key') return { line: undefined, announced: undefined };
+  const announced = announcedLine(approval.id);
+  return { line: announced ?? ownerPromptLine(approval.id), announced };
+}
 
 const requestedAt = (at: number, now = Date.now()): number => (Number.isFinite(at) && at > 0 ? Math.min(at, now) : now);
 
@@ -69,16 +86,16 @@ function announce(id: string, line: string, text: string): void {
 export function holdServerApproval(approval: McpApproval, answer: Held['answer']): boolean {
   if (isPromptHeld(approval.id) || answeredRecently(approval.id)) return false;
   const tool = `${approval.connector}.${approval.tool}`;
-  const announced = announcedLine(approval.id);
-  const line = announced ?? ownerPromptLine(approval.id);
-  const held: Held = { id: approval.id, tool, line, tellAgent: approval.origin !== 'key', answer };
+  const fromKey = approval.origin === 'key';
+  const { line, announced } = placeOf(approval);
+  const held: Held = { id: approval.id, tool, line, tellAgent: !fromKey, answer };
   holdPrompt(
-    { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server' },
+    { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server', ...askerOf(approval) },
     owner,
     sender(held),
     chatTeller(line),
   );
-  log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, 'mcp-server: an approval is waiting for the owner');
+  log.info({ id: approval.id, tool, origin: approval.origin ?? null, inChat: line !== undefined, announced: announced !== undefined }, fromKey ? 'mcp-server: an access key asked for an approval; it waits on metro.box only, never in a chat' : 'mcp-server: an approval is waiting for the owner');
   if (line !== undefined && announced === undefined) announce(approval.id, line, serverNotice(approval));
   return true;
 }
