@@ -13,6 +13,8 @@ const OWN_CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
 const CACHE_TTLS = ['CLAUDE_CODE_PROMPT_CACHE_TTL', 'CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL'];
 const LONG_CACHE = '1h';
 const HINT_HEADERS = 'CLAUDE_CODE_GATEWAY_HINT_HEADERS';
+const COMPACT_WINDOW = 'CLAUDE_CODE_AUTO_COMPACT_WINDOW';
+const WORKER_WINDOW = '200k';
 
 export const AGENT_VIEW_OFF = 'CLAUDE_CODE_DISABLE_AGENT_VIEW';
 export const NO_UPDATES = { DISABLE_AUTOUPDATER: '1' } as const;
@@ -47,6 +49,9 @@ export function cacheTtlEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 export const rmPromptEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, RM_PROMPT_OFF) ? env : { ...env, [RM_PROMPT_OFF]: '1' };
+
+export const compactWindowEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  set(env, COMPACT_WINDOW) ? env : { ...env, [COMPACT_WINDOW]: WORKER_WINDOW };
 
 export const keepInSession = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
   set(env, AGENT_VIEW_OFF) ? env : { ...env, [AGENT_VIEW_OFF]: '1' };
@@ -117,5 +122,5 @@ export async function headlessEnv(claude: string, command: string): Promise<Node
   const decision = await verdict();
   if ('skip' in decision) say(decision.skip);
   const env = 'key' in decision ? gatewayLaunchEnv(decision.key, localPort(), claude, say) : process.env;
-  return { ...keepInSession(rmPromptEnv(env)), ...NO_UPDATES };
+  return { ...keepInSession(compactWindowEnv(rmPromptEnv(env))), ...NO_UPDATES };
 }

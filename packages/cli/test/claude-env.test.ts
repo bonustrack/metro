@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AGENT_VIEW_OFF, agentKey, cacheTtlEnv, claudeSignedIn, credentialEnv, gatewayEnv, keepInSession, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude-env.ts';
+import { AGENT_VIEW_OFF, agentKey, cacheTtlEnv, claudeSignedIn, compactWindowEnv, credentialEnv, gatewayEnv, keepInSession, pinnedBy, rmPromptEnv, servingDaemon, toolSearchEnv } from '../src/claude-env.ts';
 
 describe('inference goes through the daemon gateway', () => {
   const base = { PATH: '/usr/bin', HOME: '/home/less' };
@@ -95,6 +95,14 @@ describe("Claude Code's prompt for a shell -c script that runs rm", () => {
     expect(rmPromptEnv({ HOME: '/h' })).toEqual({ HOME: '/h', CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '1' });
     const chosen = { CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT: '0' };
     expect(rmPromptEnv(chosen)).toBe(chosen);
+  });
+});
+
+describe("Claude Code's auto-compact window", () => {
+  test('is 200k, so a worker on a 1M-token model compacts by then instead of growing to 400k, unless the user chose a value', () => {
+    expect(compactWindowEnv({ HOME: '/h' })).toEqual({ HOME: '/h', CLAUDE_CODE_AUTO_COMPACT_WINDOW: '200k' });
+    const chosen = { CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'auto' };
+    expect(compactWindowEnv(chosen)).toBe(chosen);
   });
 });
 
