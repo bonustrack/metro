@@ -19,6 +19,7 @@ import { ScheduledPage } from './tools/ScheduledPage.js';
 import { ToolsPage } from './tools/ToolsPage.js';
 import { AgentConnectorPage } from './connectors/AgentConnectorPage.js';
 import { AgentDeepPage } from './agent/AgentDeepPage.js';
+import { BoxApprovalPage } from './approval/BoxApprovalPage.js';
 import { AddChatPage } from './AddChatPage.js';
 import { GitHubSourcePage } from './GitHubSourcePage.js';
 import { LaunchLogPage } from './LaunchLogPage.js';
@@ -67,6 +68,12 @@ function replacedDialog(project: string, selection: Selection): ReactNode {
   return null;
 }
 
+function homePage(project: string, selection: Selection): ReactNode {
+  if (selection.kind === 'run') return <RunPage key={project} project={project} view={selection.view} id={selection.id} />;
+  if (selection.kind === 'approval') return <BoxApprovalPage project={project} id={selection.id} />;
+  return null;
+}
+
 function ScopedPanel({ project, selection }: { project: string; selection: Selection }): ReactNode {
   const tools = toolsPage(project, selection);
   if (tools !== null) return tools;
@@ -76,7 +83,8 @@ function ScopedPanel({ project, selection }: { project: string; selection: Selec
   if (settings !== null) return <SettingsPage project={project} selection={selection}>{settings}</SettingsPage>;
   const replaced = replacedDialog(project, selection);
   if (replaced !== null) return replaced;
-  if (selection.kind === 'run') return <RunPage key={project} project={project} view={selection.view} id={selection.id} />;
+  const home = homePage(project, selection);
+  if (home !== null) return home;
   if (selection.kind === 'agent-settings') return <AgentSettings project={project} />;
   if (selection.kind === 'voice') return <VoicePage project={project} />;
   if (selection.kind === 'chats') return <ChatsPage project={project} />;

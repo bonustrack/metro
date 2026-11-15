@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth/account';
 import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
-import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin } from '@metro-labs/client/auth/login-route';
+import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin, takeLoginReturn } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
 import { location } from '@metro-labs/client/platform';
 import { type Selection } from '@metro-labs/client/selection';
@@ -28,7 +28,7 @@ const styles = StyleSheet.create({ root: { flex: 1 } });
 async function boot(): Promise<Phase> {
   const handoff = handoffCode(location().hash());
   if (handoff !== null) {
-    location().replace('#/');
+    location().replace(takeLoginReturn());
     await exchangeHandoff(handoff);
   } else loadAccount();
   if (handoff === null && pendingInvitation() !== null) return 'login';

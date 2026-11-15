@@ -10,6 +10,10 @@ const ACCOUNT = '[A-Za-z0-9_-]{1,64}';
 const CLAUDE = '[A-Za-z0-9._-]+';
 const SKILL = '[A-Za-z0-9._:%-]+';
 const RULE = '(?:read|write|delete|exceptions(?:/[A-Za-z0-9._~!*\'()%:-]{1,192})?)';
+const APPROVAL = '[a-km-z]{5}';
+const APPROVAL_ID = new RegExp(`^${APPROVAL}$`);
+
+export const isApprovalId = (id: string): boolean => APPROVAL_ID.test(id);
 
 const SERVERS_PATH = /^#?\/?$/;
 const SETTINGS_PATH = /^#?\/settings$/;
@@ -32,6 +36,7 @@ const ORG_ROUTE_PATH = /^#?\/organization\/models\/default$/;
 const ORG_USAGE_PATH = /^#?\/organization\/models\/usage$/;
 const ORG_MODEL_PATH = new RegExp(`^#?/organization/models/(${ID})$`);
 const HOME_PATH = new RegExp(`^#?/(${HOST})/?$`);
+const APPROVAL_PATH = new RegExp(`^#?/(${HOST})/approvals/(${APPROVAL})$`);
 const SERVER_PATH = new RegExp(`^#?/(${HOST})/server$`);
 const RUN_PATH = new RegExp(`^#?/(${HOST})/run(?:/(session|about|worker|helper|event)(?:/([A-Za-z0-9_-]{1,64}))?)?$`);
 const AGENT_SETTINGS_PATH = new RegExp(`^#?/(${HOST})/settings$`);
@@ -137,6 +142,7 @@ function orgModelSelection(path: string): Selection | null {
 
 const SCOPED: [RegExp, (project: string, a: string, b: string) => Selection][] = [
   [HOME_PATH, (project) => ({ kind: 'home', project })],
+  [APPROVAL_PATH, (project, id) => ({ kind: 'approval', project, id })],
   [SERVER_PATH, (project) => ({ kind: 'server', project })],
   [RUN_PATH, (project, view, id) => runSelection(project, view, id)],
   [AGENT_SETTINGS_PATH, (project) => ({ kind: 'agent-settings', project })],
@@ -262,6 +268,7 @@ function plainSelection(bare: string): Selection {
 
 const SUFFIX: Record<string, (s: Selection) => string> = {
   home: () => '',
+  approval: (s) => (s.kind === 'approval' ? `/approvals/${s.id}` : ''),
   run: runSuffix,
   server: () => '/server',
   'agent-settings': () => '/settings',

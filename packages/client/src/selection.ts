@@ -28,6 +28,7 @@ export type Selection =
   | { kind: 'org-aws' }
   | { kind: 'app-connect'; grant: string }
   | { kind: 'home'; project: string }
+  | { kind: 'approval'; project: string; id: string }
   | { kind: 'run'; project: string; view?: RunView; id?: string }
   | { kind: 'agent-settings'; project: string }
   | { kind: 'server'; project: string }

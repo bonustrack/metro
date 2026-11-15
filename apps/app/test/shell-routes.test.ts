@@ -31,6 +31,7 @@ const AGENT_PAGES: [string, AgentTabId, string | null][] = [
   ['/terminal', 'settings', 'Terminal'],
   ['/run', 'home', 'Right now'],
   ['/run/event/e04bd134128bfb68', 'home', 'Right now'],
+  ['/approvals/abcde', 'home', 'Approval'],
   ['/chats/add', 'chats', 'Add channel'],
   ['/chats/add/telegram-bot', 'chats', 'Add channel'],
   ['/skills/github', 'memory', 'GitHub skills'],
@@ -79,6 +80,7 @@ describe('every page of an agent has a place under one of its six tabs', () => {
     expect(isPageRoot({ kind: 'skill', project: AGENT, id: 'user:x' })).toBe(false);
     expect(isPageRoot({ kind: 'home', project: AGENT })).toBe(false);
     expect(isPageRoot({ kind: 'run', project: AGENT })).toBe(false);
+    expect(isPageRoot({ kind: 'approval', project: AGENT, id: 'abcde' })).toBe(false);
     expect(isPageRoot({ kind: 'servers' })).toBe(false);
   });
 
@@ -100,6 +102,7 @@ describe('every page of an agent has a place under one of its six tabs', () => {
       { kind: 'server', project: AGENT },
       { kind: 'run', project: AGENT },
       { kind: 'run', project: AGENT, view: 'worker', id: 'task-1' },
+      { kind: 'approval', project: AGENT, id: 'abcde' },
       { kind: 'backup', project: AGENT },
       { kind: 'agent-profile', project: AGENT },
       { kind: 'launch-log', project: AGENT },

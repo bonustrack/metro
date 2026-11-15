@@ -80,6 +80,12 @@ export function goToLogin(): void {
   replaceHash(`${LOGIN_HASH}${query}`);
 }
 
+export function takeLoginReturn(): string {
+  const target = readStored();
+  writeStored(null);
+  return `#${target ?? '/'}`;
+}
+
 export function leaveLogin(): void {
   const here = atLogin();
   const target = (here ? safeRedirect(hashParts().query.get('redirect')) : null) ?? readStored();

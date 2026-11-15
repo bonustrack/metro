@@ -3,6 +3,7 @@ import { configurePlatform, memoryKeyValue } from '../../packages/client/src/pla
 import { dashboardSource, DASHBOARD_SINCE } from '../../packages/client/src/api/dashboard-source.ts';
 import { dashboardKey, emptyReading, type DashboardRow } from '../../packages/client/src/api/dashboard.ts';
 import { baseFromSegment, setCurrentServer } from '../../packages/client/src/auth/daemon.ts';
+import * as approvals from '../../packages/client/src/api/approvals.ts';
 import * as attach from '../../packages/client/src/api/attach.ts';
 import * as session from '../../packages/client/src/api/attach-session.ts';
 import * as pairAgain from '../../packages/client/src/api/pair-again.ts';
@@ -155,6 +156,9 @@ await ok('fetchSessionFile', () => claude.fetchSessionFile(project, sid));
 await ok('saveMemoryFile', () => claude.saveMemoryFile(project, 'compat.md', '# compat\n', '2026-09-01T00:00:00.000Z'));
 await ok('fetchMemory', () => claude.fetchMemory(project));
 await ok('fetchMemoryFile', () => claude.fetchMemoryFile(project, 'compat.md'));
+
+await ok('fetchApprovals', () => approvals.fetchApprovals());
+await refused('decideApproval on an id nobody asked', /no such approval/, () => approvals.decideApproval('zzzzz', 'deny'));
 
 await ok('fetchModel', () => model.fetchModel());
 await ok('syncModel', () => model.syncModel());

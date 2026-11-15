@@ -10,6 +10,7 @@ import { ProfilePage } from '../settings/ProfilePage.js';
 import { Tabbed } from '../tabbed.js';
 import { Wide } from '../ui/Layout.js';
 import { AccessKeys } from '../tools/AccessKeys.js';
+import { RemoteApprovalPage } from './RemoteApprovalPage.js';
 import { RemoteApprovals } from './RemoteApprovals.js';
 import { RemoteConnectors } from './RemoteConnectors.js';
 import { RemoteGateway } from './RemoteGateway.js';
@@ -44,6 +45,7 @@ export function RemoteAgentScreen({ server, selection }: { server: RemoteServer;
   }, [server.id]);
   if (selection.kind === 'tools' && selection.connector !== undefined) return <AgentConnectorPage project={server.id} id={selection.connector} remote />;
   if (selection.kind === 'agent-profile') return <ProfilePage project={server.id} remote />;
+  if (selection.kind === 'approval') return <RemoteApprovalPage agent={server.id} id={selection.id} />;
   const top = narrow ? null : { backgroundColor: palette.bg };
   return (
     <Column gap={24}>
