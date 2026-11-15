@@ -33,8 +33,13 @@ export interface ApprovalRequest {
 
 type Redeemed = 'used' | 'denied' | 'invalid';
 
+export interface RequestedApproval {
+  id: string;
+  created: boolean;
+}
+
 export interface ApprovalStore {
-  request: (identity: ApprovalAgent, request: ApprovalRequest, now: number) => Promise<string>;
+  request: (identity: ApprovalAgent, request: ApprovalRequest, now: number) => Promise<RequestedApproval>;
   redeem: (identity: ApprovalAgent, id: string, request: ApprovalRequest, now: number) => Promise<Redeemed>;
   deliver: (identity: ApprovalAgent, now: number) => Promise<DeliveredApproval[]>;
   answer: (identity: ApprovalAgent, id: string, decision: McpDecision, now: number) => Promise<boolean>;
@@ -60,22 +65,22 @@ async function pendingId(db: Database, identity: ApprovalAgent, request: Approva
   return rows[0]?.id ?? null;
 }
 
-async function insertPending(db: Database, identity: ApprovalAgent, request: ApprovalRequest, now: number): Promise<string> {
+async function insertPending(db: Database, identity: ApprovalAgent, request: ApprovalRequest, now: number): Promise<RequestedApproval> {
   const caller = request.token === undefined ? { origin: 'box', token: null } : { origin: 'key', token: request.token };
   for (let attempt = 0; attempt < ID_TRIES; attempt += 1) {
     const row = { id: approvalId(), owner: identity.owner, agent: identity.agent, connector: request.connector, tool: request.tool, argsDigest: request.digest, preview: request.preview, state: 'pending', requestedAt: now, answeredAt: null, deliveredAt: null, ...caller };
     const inserted = (await db.insert(mcpApprovals).values(row).onConflictDoNothing().returning({ id: mcpApprovals.id }))[0]?.id;
-    if (inserted !== undefined) return inserted;
+    if (inserted !== undefined) return { id: inserted, created: true };
     const held = await pendingId(db, identity, request);
-    if (held !== null) return held;
+    if (held !== null) return { id: held, created: false };
   }
   throw new ApiError('Metro could not record the approval request. Try again.', 503);
 }
 
-async function request(db: Database, identity: ApprovalAgent, call: ApprovalRequest, now: number): Promise<string> {
+async function request(db: Database, identity: ApprovalAgent, call: ApprovalRequest, now: number): Promise<RequestedApproval> {
   await expire(db, identity, now);
   const held = await pendingId(db, identity, call);
-  if (held !== null) return held;
+  if (held !== null) return { id: held, created: false };
   const waiting = await db.$count(mcpApprovals, and(mine(identity), eq(mcpApprovals.state, 'pending')));
   if (waiting >= APPROVAL_PENDING_MAX) throw new ApiError(TOO_MANY_PENDING, 429);
   return insertPending(db, identity, call, now);

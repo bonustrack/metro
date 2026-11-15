@@ -4,6 +4,7 @@ import { Groups } from './ui/Group.js';
 import { PageHeader } from './ui/PageHeader.js';
 import { useDocumentTitle } from '../lib/title.js';
 import { AccountSettings } from './AccountSettings.js';
+import { PhoneNotifications } from './PhoneNotifications.js';
 
 export function Settings(): ReactNode {
   useDocumentTitle('Settings');
@@ -11,6 +12,7 @@ export function Settings(): ReactNode {
     <Groups>
       <PageHeader title="Settings" subtitle={activeAccount()?.user.email ?? undefined} />
       <AccountSettings />
+      <PhoneNotifications />
     </Groups>
   );
 }

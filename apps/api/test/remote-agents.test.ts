@@ -50,7 +50,7 @@ async function refused(query: SQL): Promise<boolean> {
 }
 
 async function pendingApproval(agent = REMOTE, owner = TEST_OWNER, args = '{"title":"Plan"}'): Promise<string> {
-  return approvalStore(() => held.db).request({ agent, owner }, { connector: CONN, tool: 'create_page', digest: `digest-${args.length}`.padEnd(43, 'x'), preview: args }, now);
+  return (await approvalStore(() => held.db).request({ agent, owner }, { connector: CONN, tool: 'create_page', digest: `digest-${args.length}`.padEnd(43, 'x'), preview: args }, now)).id;
 }
 
 beforeAll(async () => {

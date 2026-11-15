@@ -90,7 +90,9 @@ test('after 0026 old rows read with the defaults, and a writer that names only t
 
     const applied = await one(client, 'SELECT * FROM drizzle.__drizzle_migrations ORDER BY id');
     expect(applied.slice(0, receipts.length)).toEqual(receipts);
-    expect(applied).toHaveLength(receipts.length + 1);
+    const journal = JSON.parse(readFileSync(join(DIR, 'meta', '_journal.json'), 'utf8')) as { entries: unknown[] };
+    expect(applied).toHaveLength(journal.entries.length);
+    expect(applied.length).toBeGreaterThan(receipts.length);
     await migrate(db, { migrationsFolder: DIR });
     expect(await one(client, 'SELECT * FROM drizzle.__drizzle_migrations ORDER BY id')).toEqual(applied);
     expect(await one(client, 'SELECT count(*)::int AS n FROM connector_agents')).toEqual([{ n: 2 }]);

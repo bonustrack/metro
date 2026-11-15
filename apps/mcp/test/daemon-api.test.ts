@@ -20,7 +20,7 @@ const post = (who: TestAgent, path: string, input: unknown, headers: Record<stri
 };
 
 async function pending(who: TestAgent, tool = 'update_page', args: Record<string, unknown> = { page: 1 }, at = clock): Promise<string> {
-  return app.deps.approvals.request(who.row, { connector: 'conn0000001', tool, digest: argsDigest(args), preview: JSON.stringify(args) }, at);
+  return (await app.deps.approvals.request(who.row, { connector: 'conn0000001', tool, digest: argsDigest(args), preview: JSON.stringify(args) }, at)).id;
 }
 
 beforeAll(async () => { held = await testDb(); }, PGLITE_START_MS);
@@ -95,7 +95,7 @@ describe('POST /v1/approvals', () => {
   test('a request made with an access key says so, with the key label, and never the key', async () => {
     const made = await createAgentToken(held.db, { owner: agent.row.owner, agent: agent.row.agent, label: 'Laptop', createdBy: 'user_01TEST', now: clock });
     const args = { page: 2 };
-    const id = await app.deps.approvals.request(agent.row, { connector: 'conn0000001', tool: 'update_page', digest: argsDigest(args), preview: JSON.stringify(args), token: made.row.id }, clock);
+    const { id } = await app.deps.approvals.request(agent.row, { connector: 'conn0000001', tool: 'update_page', digest: argsDigest(args), preview: JSON.stringify(args), token: made.row.id }, clock);
     const res = await post(agent, MCP_PATHS.approvals, {});
     const text = await res.text();
     expect(mcpApprovalsOf(JSON.parse(text))).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":2}', requestedAt: clock, origin: 'key', keyLabel: 'Laptop' }]);

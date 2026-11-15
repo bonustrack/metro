@@ -19,6 +19,7 @@ import { dropStaleQueries, makeQueryClient } from '../lib/queries.js';
 import { noteTitle } from '../lib/title.js';
 import { onRelaunch } from '../lib/land.js';
 import { useSelection } from '../lib/route-hash.js';
+import { forgetPhonePush } from '../lib/phone-push.js';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
@@ -72,7 +73,10 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
     setPhase('login');
   };
   const signOut = (): void => {
-    logoutAccount().catch(() => undefined);
+    const leave = (): void => {
+      logoutAccount().catch(() => undefined);
+    };
+    forgetPhonePush().then(leave, leave);
     goToFreshLogin();
     setPhase('login');
   };

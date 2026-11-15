@@ -7,6 +7,7 @@ import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
 import type { EventStore } from '@metro-labs/connectors/db/connector-events';
 import type { SubscriptionStore } from '@metro-labs/connectors/db/connector-subscriptions';
 import type { ApprovalStore } from '@metro-labs/connectors/db/mcp-approvals';
+import type { ApprovalPush } from './approval-push.js';
 import type { CallRecorder } from './call-log.js';
 import type { Flights } from './flights.js';
 import type { Favicons } from '@metro-labs/connectors/favicons';
@@ -26,6 +27,7 @@ export interface McpDeps {
   auth: AgentAuth;
   store: Pick<ConnectorDeliveryStore, 'assigned' | 'refresh'>;
   approvals: ApprovalStore;
+  push: ApprovalPush;
   subscriptions: SubscriptionStore;
   events: EventStore;
   receivers: Receivers;

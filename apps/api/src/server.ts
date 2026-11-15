@@ -2,11 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { errMsg, log } from '@metro-labs/core/log';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
-import { clientId, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
+import { clientId, filled, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest } from './auth/routes.js';
 import { handleMembersApiRequest } from './auth/members.js';
 import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
-import { readWorkosConfig } from './auth/workos.js';
+import { listMembers, readWorkosConfig } from './auth/workos.js';
 import {
   addLaunchedServer,
   addRemoteAgentForOwner,
@@ -52,6 +52,10 @@ import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
 import { handleRemoteAgentsRequest, type RemoteAgentsApiDeps } from './agents/remote-api.js';
 import { handleOauthGrantsRequest } from './agents/oauth-grants-api.js';
+import { handlePushDevicesRequest, type PushDevicesDeps } from './push-devices.js';
+import { dropPushTokens, pushTokensOf } from './db/push-devices.js';
+import { PushSender } from './push/sender.js';
+import { startPushOutbox } from './push/outbox.js';
 import { EnrollTickets, OwnerTickets } from './agents/tickets.js';
 import { announceConnectorsSetup, readConnectorsSetup } from '@metro-labs/connectors/setup';
 import { handleConnectorsApiRequest, type ConnectorsApiDeps } from './connectors/api.js';
@@ -193,6 +197,8 @@ const agentModelsApi: AgentModelsDeps = {
 
 const remoteAgentsApi: RemoteAgentsApiDeps = { keys, db: getDb, now: () => Date.now() };
 
+const pushDevicesApi: PushDevicesDeps = { keys, db: getDb, now: () => Date.now() };
+
 const linkApi: ServerLinkDeps = {
   config: () => readLaunchConfig(),
   lookup: deletionRowForOwner,
@@ -231,6 +237,7 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleAgentModelsRequest(req, res, agentModelsApi),
   (req, res) => handleRemoteAgentsRequest(req, res, remoteAgentsApi),
   (req, res) => handleOauthGrantsRequest(req, res, remoteAgentsApi),
+  (req, res) => handlePushDevicesRequest(req, res, pushDevicesApi),
   (req, res) => handleConnectorsApiRequest(req, res, connectorsApi),
   (req, res) => handleModelsApiRequest(req, res, modelsApi),
   (req, res) => handleServersApiRequest(req, res, serversApi),
@@ -251,9 +258,28 @@ const server = createServer((req, res) => {
   }
 });
 
+function startPhonePush(): void {
+  const workos = readWorkosConfig();
+  if (workos === null) {
+    log.warn('api: phone notifications are off: sign-in is not configured, so the members of an organization cannot be read');
+    return;
+  }
+  const accessToken = filled(process.env.EXPO_ACCESS_TOKEN);
+  const sender = new PushSender({
+    fetch: (url, init) => fetch(url, init),
+    accessToken,
+    members: async (owner) => (await listMembers(workos, owner)).map((member) => member.userId),
+    devices: { tokensOf: (users) => pushTokensOf(getDb(), users), drop: (tokens) => dropPushTokens(getDb(), tokens) },
+    now: () => Date.now(),
+  });
+  startPushOutbox({ db: getDb, sender, now: () => Date.now() });
+  log.info({ expoAccessToken: accessToken !== null }, 'api: phone notifications are on');
+}
+
 server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
   announceConnectorsSetup(connectorsSetup);
   log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: sign-in');
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
+  startPhonePush();
 });

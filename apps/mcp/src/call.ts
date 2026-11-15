@@ -1,7 +1,8 @@
 import { log } from '@metro-labs/core/log';
+import { failureText } from '@metro-labs/connectors/db/errors';
 import { validConnectorToolName } from '@metro-labs/http/connector-policy';
 import { splitMcpTool, type McpCall } from '@metro-labs/http/mcp-server-protocol';
-import type { RemoteTool } from '@metro-labs/http/connector-tools';
+import { toolTitleOf, type RemoteTool } from '@metro-labs/http/connector-tools';
 import { isTokenIdentity } from '@metro-labs/connectors/db/agent-tokens';
 import type { DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import { agentConnectors, connectorsSentence, visibleConnectors, type AgentConnector } from './catalog.js';
@@ -88,6 +89,18 @@ async function groupsFor(ctx: CallContext, target: Target): Promise<Record<strin
   return groupsOf(tools);
 }
 
+function announce(ctx: CallContext, target: Target, id: string): void {
+  const tell = async (): Promise<void> => {
+    const { tools } = await connectorListing(ctx.deps, ctx.identity, target.connector, { waitMs: 0 });
+    const known = tools.find((tool) => tool.name === target.tool);
+    const title = known === undefined || known.title === '' ? toolTitleOf(target.tool) : known.title;
+    await ctx.deps.push.asked({ id, owner: ctx.identity.owner, agent: ctx.identity.agent, tool: title, connector: target.connector.name });
+  };
+  tell().catch((err: unknown) => {
+    log.warn({ agent: ctx.identity.agent, approval: id, err: failureText(err) }, 'push: approval notification not queued');
+  });
+}
+
 async function approved(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
   const { deps, identity } = ctx;
   const request = { connector: target.connector.id, tool: target.tool, digest: argsDigest(call.arguments), preview: previewOf(call.arguments), ...(isTokenIdentity(identity) ? { token: identity.tokenId } : {}) };
@@ -97,8 +110,9 @@ async function approved(ctx: CallContext, target: Target, call: McpCall): Promis
     if (redeemed === 'used') return;
     if (redeemed === 'denied') throw new CallError('denied', `The owner denied this call (approval ${call.approval}). Do not repeat it.`);
   }
-  const id = await deps.approvals.request(identity, request, now);
+  const { id, created } = await deps.approvals.request(identity, request, now);
   deps.waiters.notify(identity.agent);
+  if (created) announce(ctx, target, id);
   const link = approvalLink(deps.oauth.appUrl, { owner: identity.owner, agent: identity.agent }, id);
   throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity), link));
 }

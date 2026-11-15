@@ -29,3 +29,6 @@ cd apps/app && bun run start      # Metro bundler for the dev client on a phone
   branch's channel; open its `metro://expo-development-client/?url=...` link on the phone.
   Both need the `EXPO_TOKEN` secret and the EAS project id in `app.config.js`.
 - App ids: `box.metro.dev` for the dev build, `box.metro` with `APP_VARIANT=prod`.
+- Phone notifications need Firebase's `google-services.json` as the EAS file variable
+  `GOOGLE_SERVICES_JSON` (never committed; the app builds without it) and a dev client
+  rebuilt with the workflow's `rebuild` input. Setup: `docs/PHONE-NOTIFICATIONS.md`.

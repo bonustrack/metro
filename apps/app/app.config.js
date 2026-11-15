@@ -28,6 +28,8 @@ const variant = IS_PROD
 
 const BACKGROUND = '#0e0f10';
 
+const GOOGLE_SERVICES_JSON = (process.env.GOOGLE_SERVICES_JSON || '').trim();
+
 const config = {
   name: variant.name,
   slug: 'metro-app',
@@ -54,6 +56,7 @@ const config = {
   },
   android: {
     package: variant.id,
+    ...(GOOGLE_SERVICES_JSON === '' ? {} : { googleServicesFile: GOOGLE_SERVICES_JSON }),
     versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -80,6 +83,7 @@ const config = {
     'expo-secure-store',
     'expo-font',
     'expo-web-browser',
+    ['expo-notifications', { icon: './assets/splash-icon-dark.png', defaultChannel: 'approvals' }],
     [
       'expo-splash-screen',
       {

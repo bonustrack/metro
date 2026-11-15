@@ -27,6 +27,7 @@ import { isAdminSelection, shellSectionOf } from '../lib/shell-sections.js';
 import { isFocusPage } from '../lib/focus-pages.js';
 import { useIsNarrow } from '../lib/media.js';
 import { OrgUsagePage } from './models/OrgUsagePage.js';
+import { usePhoneNotifications } from '../lib/phone-push.js';
 
 interface PageProps {
   selection: Selection;
@@ -98,6 +99,7 @@ function FocusPage({ selection, onLock }: { selection: Selection; onLock: () => 
 
 export function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
   const narrow = useIsNarrow();
+  usePhoneNotifications();
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
   if (selection.kind === 'launch') return <LaunchFlow />;
   if (selection.kind === 'terminal') return <ServerGate selection={selection} onLock={onLock} />;
