@@ -65,13 +65,14 @@ import { watchModelChanges } from '../gateway/effective.js';
 import { removeModelLeftovers } from '../gateway/model-leftovers.js';
 import { readAgentKey } from '../connectors/agent-key.js';
 import { METRO_API } from '../connectors/metro-api.js';
+import { rowNames, stopRowNames, watchRowNames } from '../connectors/row-names.js';
 import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } from '../voice/calls.js';
 
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 setAnnouncedFile(join(agentsDir(), 'mcp-approvals.json'));
 setLastChatFile(join(agentsDir(), LAST_CHAT_FILE));
-setApprovalAgent(() => approvalAgentOf(localOwner(), readAgentKey()?.enrollment));
+setApprovalAgent(() => approvalAgentOf(localOwner(), readAgentKey()?.enrollment, rowNames()));
 
 log.info({ self: userSelf() }, 'user identity');
 
@@ -156,6 +157,7 @@ installBearerSessions(agentsDir(), localOwner);
   supervisor.start();
   sweepLeftoverCalls();
   const models = startOrgModels({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });
+  watchRowNames({ owner: localOwner, key: () => readAgentKey(), api: METRO_API });
   const metroMcp = await createMetroMcp({ liveEvents: liveEvents(), publish: emit });
   watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(
@@ -228,6 +230,7 @@ async function shutdown(): Promise<void> {
   });
   const leaving = leaveCallsForShutdown();
   stopOrgModels();
+  stopRowNames();
   unwatchSession();
   tunnel?.stop();
   if (webhookServer) {

@@ -17,7 +17,7 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(first.isError).toBe(true);
     const id = idIn(first);
     expect(first.text).toBe(
-      `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
+      `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat ${LINE}: do not post it there again, and send no message only to say it waits. Give it only to someone outside that chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
     );
     await waitFor(() => h.questions().length === 1);
     expect(h.sends()).toHaveLength(1);
@@ -119,7 +119,7 @@ describe('a channel call that needs approval, held by the daemon', () => {
     const id = idIn(junk);
     for (const approval of ['', null])
       expect((await h.send({ line: LINE, text: 'junk', approval })).text).toBe(
-        `Needs the owner's approval for telegram-bot (send). It waits on metro.box and nobody has answered yet, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
+        `Needs the owner's approval for telegram-bot (send). It waits on metro.box and nobody has answered yet, approval id "${id}": ${linkOf(id)} Metro posted that link in the chat ${LINE}: do not post it there again, and send no message only to say it waits. Give it only to someone outside that chat. Keep working: metro tells you the answer. Once approved, call send again with the same arguments and approval: "${id}".`,
       );
     expect(h.questions()).toHaveLength(1);
   });

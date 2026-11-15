@@ -1,3 +1,5 @@
+import { AGENT_PAGES, isSlugSegment } from '@metro-labs/core/route-segments';
+
 const APPROVAL_ID_PATTERN = '^[a-km-z]{5}$';
 export const APPROVAL_ID_RE = new RegExp(APPROVAL_ID_PATTERN);
 export const APPROVAL_TTL_MS = 24 * 60 * 60_000;
@@ -23,10 +25,16 @@ export function appOriginOf(text: string | undefined): string | null {
 export interface ApprovalAgent {
   owner: string | null;
   agent: string | null;
+  ownerSlug?: string | null;
+  agentSlug?: string | null;
 }
+
+const usable = (slug: string | null | undefined): slug is string => typeof slug === 'string' && isSlugSegment(slug);
+
+const agentSegment = (agent: string, slug: string | null | undefined): string => (usable(slug) && !AGENT_PAGES.has(slug) ? slug : agent);
 
 export function approvalLink(origin: string, where: ApprovalAgent, id: string): string {
   if (where.owner === null) return origin;
-  const organization = `${origin}/#/${encodeURIComponent(where.owner)}`;
-  return where.agent === null ? organization : `${organization}/${encodeURIComponent(where.agent)}/approvals/${encodeURIComponent(id)}`;
+  const organization = `${origin}/#/${encodeURIComponent(usable(where.ownerSlug) ? where.ownerSlug : where.owner)}`;
+  return where.agent === null ? organization : `${organization}/${encodeURIComponent(agentSegment(where.agent, where.agentSlug))}/approvals/${encodeURIComponent(id)}`;
 }

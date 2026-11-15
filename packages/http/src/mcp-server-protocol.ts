@@ -36,10 +36,12 @@ export interface McpCall {
 type McpApprovalOrigin = 'box' | 'key';
 
 const KEY_LABEL_MAX = 64;
+const CONNECTOR_NAME_MAX = 256;
 
 export interface McpApproval {
   id: string;
   connector: string;
+  connectorName?: string;
   tool: string;
   preview: string;
   requestedAt: number;
@@ -89,9 +91,14 @@ function originOf(raw: Record<string, unknown>): Pick<McpApproval, 'origin' | 'k
   return label === '' || label.length > KEY_LABEL_MAX ? { origin: 'key' } : { origin: 'key', keyLabel: label };
 }
 
+function connectorNameOf(raw: unknown): Pick<McpApproval, 'connectorName'> {
+  const name = typeof raw === 'string' ? raw.replace(/\p{Cc}/gu, ' ').trim().slice(0, CONNECTOR_NAME_MAX) : '';
+  return name === '' ? {} : { connectorName: name };
+}
+
 function approvalOf(raw: unknown): McpApproval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !APPROVAL_ID_RE.test(raw.id) || typeof raw.connector !== 'string' || typeof raw.tool !== 'string' || typeof raw.preview !== 'string' || typeof raw.requestedAt !== 'number') return null;
-  return { id: raw.id, connector: raw.connector, tool: raw.tool, preview: raw.preview, requestedAt: raw.requestedAt, ...originOf(raw) };
+  return { id: raw.id, connector: raw.connector, ...connectorNameOf(raw.connectorName), tool: raw.tool, preview: raw.preview, requestedAt: raw.requestedAt, ...originOf(raw) };
 }
 
 export function mcpApprovalsOf(raw: unknown): McpApproval[] {
@@ -129,7 +136,6 @@ export interface McpConnectorEvent {
 }
 
 const CONNECTOR_KEY_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
-const CONNECTOR_NAME_MAX = 256;
 
 function settledOf(raw: unknown): McpSettled {
   const id = isRecord(raw) ? parseId(raw.id) : null;

@@ -175,6 +175,22 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()[3]).toEqual([LINE, 'Approved on the page.']);
   });
 
+  test('the chat names the agent and the connector as metro.box does, links with the slugs, and falls back to the key', async () => {
+    setApprovalAgent(() => ({ owner: ORG, agent: ROW, ownerSlug: 'stage-labs', agentSlug: 'emma', name: 'Emma' }));
+    try {
+      await arrives('bcdef', { connector: 'gmail-fabien-bonustrack-co', connectorName: 'Gmail (fabien@bonustrack.co)', tool: 'draft' });
+      await waitFor(() => sends().length === 1);
+      expect(sends()).toEqual([[LINE, 'Approval needed: Emma wants to run draft on Gmail (fabien@bonustrack.co).\nApprove or deny it on metro.box: https://metro.box/#/stage-labs/emma/approvals/bcdef']]);
+      expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'bcdef', tool: 'gmail-fabien-bonustrack-co.draft', description: 'Gmail (fabien@bonustrack.co)' })]);
+      await arrives('cdefg', { connector: 'gmail-fabien-bonustrack-co', tool: 'send' });
+      await waitFor(() => sends().length === 2);
+      expect(sends()[1]).toEqual([LINE, 'Approval needed: Emma wants to run send on gmail-fabien-bonustrack-co.\nApprove or deny it on metro.box: https://metro.box/#/stage-labs/emma/approvals/cdefg']);
+      expect(pendingPrompts().find((p) => p.requestId === 'cdefg')?.description).toBe('gmail-fabien-bonustrack-co');
+    } finally {
+      setApprovalAgent(() => ({ owner: ORG, agent: ROW }));
+    }
+  });
+
   test('asked with an access key: posted in no chat, listed on the page with the key as the asker, answered there and sent back, and the agent is not told', async () => {
     await arrives('pqrst', { origin: 'key', keyLabel: 'Laptop' });
     const polls = approvalsSeen();

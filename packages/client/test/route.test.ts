@@ -391,6 +391,22 @@ describe('an approval link opens that approval on its agent', () => {
     expect(approvalLink(APP_ORIGIN, { owner: null, agent: null }, 'jkmnp')).toBe('https://metro.box');
   });
 
+  test('a link with the slugs opens the approval from the same organization, another one, or signed out, and a slug the page could misread is an id', () => {
+    const named = (agentSlug: string): string => new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent, ownerSlug: 'emma-labs', agentSlug }, 'jkmnp')).hash;
+    expect(named('emma')).toBe('#/emma-labs/emma/approvals/jkmnp');
+    for (const slug of ['emma-labs', 'stage-labs']) {
+      storeAccount({ ...installTestAccount(), organizationSlug: slug });
+      expect(splitOrganization(named('emma')).organization).toBe('emma-labs');
+      expect(routeSelection(named('emma'))).toEqual({ kind: 'approval', project: 'emma', id: 'jkmnp' });
+      expect(named('server')).toBe(`#/emma-labs/${agent}/approvals/jkmnp`);
+      expect(splitOrganization(named('server')).organization).toBe('emma-labs');
+      expect(routeSelection(named('server'))).toEqual({ kind: 'approval', project: agent, id: 'jkmnp' });
+    }
+    clearAccount();
+    expect(splitOrganization(named('emma')).organization).toBe('emma-labs');
+    routeSelection('#/settings');
+  });
+
   test('the link posted in chat parses with an organization id or slug and an agent id or slug, and round-trips', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
     const cases: [string, Selection][] = [

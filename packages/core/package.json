@@ -27,6 +27,7 @@
     "./tickets": "./src/tickets.ts",
     "./station-names": "./src/station-names.ts",
     "./str": "./src/str.ts",
+    "./route-segments": "./src/route-segments.ts",
     "./lines": "./src/lines.ts",
     "./endpoints": "./src/endpoints.ts",
     "./stations/types": "./src/stations/types.ts",

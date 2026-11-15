@@ -47,9 +47,11 @@ describe('the two connector tools every agent sees', () => {
     const owner = mcpServerTools(named('notion'), 'owner')[1]?.description ?? '';
     expect(owner).toBe(page);
     expect(owner).not.toContain('chat');
-    expect(TOOL_CALL_DESCRIPTION).toContain('- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat.');
+    expect(TOOL_CALL_DESCRIPTION).toContain('- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat the request came from. Do not post it there again, and send no message only to say it waits;');
+    expect(TOOL_CALL_DESCRIPTION).toContain('give the link only to someone outside that chat, or when no chat asked for the work.');
+    expect(TOOL_CALL_DESCRIPTION).not.toContain('Tell the person');
     for (const text of [page, owner, TOOL_CALL_DESCRIPTION]) expect(text).not.toContain('asked in chat');
-    for (const text of [page, owner]) expect(text.length).toBeLessThan(1800);
+    for (const text of [page, owner, TOOL_CALL_DESCRIPTION]) expect(text.length).toBeLessThan(1800);
     expect(mcpServerTools(named('notion'))[1]?.description).toBe(TOOL_CALL_DESCRIPTION);
   });
 

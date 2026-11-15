@@ -89,7 +89,7 @@ describe('POST /v1/approvals', () => {
     const res = await post(agent, MCP_PATHS.approvals, {});
     expect(res.status).toBe(200);
     const list = mcpApprovalsOf(await res.json());
-    expect(list).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":1}', requestedAt: clock, origin: 'box' }]);
+    expect(list).toEqual([{ id, connector: 'notion', connectorName: 'Notion', tool: 'update_page', preview: '{"page":1}', requestedAt: clock, origin: 'box' }]);
   });
 
   test('a request made with an access key says so, with the key label, and never the key', async () => {
@@ -98,7 +98,7 @@ describe('POST /v1/approvals', () => {
     const { id } = await app.deps.approvals.request(agent.row, { connector: 'conn0000001', tool: 'update_page', digest: argsDigest(args), preview: JSON.stringify(args), token: made.row.id }, clock);
     const res = await post(agent, MCP_PATHS.approvals, {});
     const text = await res.text();
-    expect(mcpApprovalsOf(JSON.parse(text))).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page":2}', requestedAt: clock, origin: 'key', keyLabel: 'Laptop' }]);
+    expect(mcpApprovalsOf(JSON.parse(text))).toEqual([{ id, connector: 'notion', connectorName: 'Notion', tool: 'update_page', preview: '{"page":2}', requestedAt: clock, origin: 'key', keyLabel: 'Laptop' }]);
     expect(text).not.toContain(made.token);
     expect(text).not.toContain(made.row.id);
   });

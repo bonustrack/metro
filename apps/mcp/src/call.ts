@@ -43,7 +43,7 @@ const AGAIN = (id: string): string => `call tool_call again with the same tool a
 function needsApprovalText(name: string, id: string, place: ApprovalPlace, link: string): string {
   const waits = `The owner must approve ${name} with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: ${link}`;
   if (place !== 'session') return `${waits} Tell the person what is waiting and give them that link. Once it is approved, ${AGAIN(id)}`;
-  return `${waits} Metro also posts that link in the chat. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
+  return `${waits} Metro posts that link in the chat the request came from: do not post it there again, and send no message only to say it waits. Give the link only to someone outside that chat, or when no chat asked for the work. When you are told "Approved: ${name} (${id})", ${AGAIN(id)} Do not ask the owner to approve it in the terminal.`;
 }
 
 const SUGGESTIONS = 3;
@@ -100,6 +100,14 @@ function announce(ctx: CallContext, target: Target, id: string): void {
   });
 }
 
+async function linkFor(deps: McpDeps, identity: DeliveryIdentity, id: string): Promise<string> {
+  const names = await deps.names(identity.owner, identity.agent).catch((err: unknown) => {
+    log.warn({ agent: identity.agent, err: failureText(err) }, 'mcp: the slugs could not be read, so the approval link names the ids');
+    return null;
+  });
+  return approvalLink(deps.oauth.appUrl, { owner: identity.owner, agent: identity.agent, ownerSlug: names?.organizationSlug, agentSlug: names?.agentSlug }, id);
+}
+
 async function approved(ctx: CallContext, target: Target, call: McpCall): Promise<void> {
   const { deps, identity } = ctx;
   const request = { connector: target.connector.id, tool: target.tool, digest: argsDigest(call.arguments), preview: previewOf(call.arguments), ...(isTokenIdentity(identity) ? { token: identity.tokenId } : {}) };
@@ -112,8 +120,7 @@ async function approved(ctx: CallContext, target: Target, call: McpCall): Promis
   const { id, created } = await deps.approvals.request(identity, request, now);
   deps.waiters.notify(identity.agent);
   if (created) announce(ctx, target, id);
-  const link = approvalLink(deps.oauth.appUrl, { owner: identity.owner, agent: identity.agent }, id);
-  throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity), link));
+  throw new CallError('needs_approval', needsApprovalText(target.name, id, approvalPlace(identity), await linkFor(deps, identity, id)));
 }
 
 async function gate(ctx: CallContext, target: Target, call: McpCall): Promise<void> {

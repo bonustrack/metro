@@ -14,18 +14,6 @@ export const users = pgTable('users', {
   status: text('status'),
 });
 
-export const organizations = pgTable(
-  'organizations',
-  {
-    id: text('id').primaryKey(),
-    slug: text('slug').notNull(),
-    avatar: text('avatar'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [uniqueIndex('organizations_slug_idx').on(t.slug)],
-);
-
 export const awsConnections = pgTable(
   'aws_connections',
   {

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { eq } from 'drizzle-orm';
 import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
-import { agents, connectors, pushOutbox } from '@metro-labs/connectors/db/schema';
+import { agents, connectors, organizations, pushOutbox } from '@metro-labs/connectors/db/schema';
 import { approvalNote } from '../src/approval-push.ts';
 import { addConnector, APP_URL, assign, callTool, enrollAgent, headerSecret, OWNER, PGLITE_START_MS, rewrite, startApp, testDb, texts, type TestAgent, type TestApp, type TestDb } from './helpers.ts';
 import { startVendor, type FakeVendor } from './vendor.ts';
@@ -78,6 +78,20 @@ describe('a new approval request is queued for the phones once', () => {
     await until(async () => (await queued()).length > 0);
     expect(reached.every((url) => url.startsWith('https://vendor.example.com'))).toBe(true);
     expect(reached.some((url) => url.includes('workos') || url.includes('exp.host'))).toBe(false);
+  });
+
+  test('the agent is given a link with the organization and agent slugs, the phone keeps the ids its check reads, and a failed read gives ids', async () => {
+    const at = new Date().toISOString();
+    await held.db.insert(organizations).values({ id: OWNER, slug: 'stage-labs', createdAt: at, updatedAt: at });
+    await held.db.update(agents).set({ slug: 'emma' }).where(eq(agents.id, 'agent000001'));
+    const text = texts(await ask({ page_id: 'five' })).join('\n');
+    const id = approvalOf(text);
+    expect(text).toContain(`answers it: https://metro.box/#/stage-labs/emma/approvals/${id} Metro posts that link`);
+    await until(async () => (await queued()).length > 0);
+    expect((await queued())[0]?.url).toBe(`https://metro.box/#/${OWNER}/agent000001/approvals/${id}`);
+    app.deps.names = () => Promise.reject(new Error('the database is away'));
+    const other = texts(await ask({ page_id: 'six' })).join('\n');
+    expect(other).toContain(`answers it: https://metro.box/#/${OWNER}/agent000001/approvals/${approvalOf(other)} Metro posts that link`);
   });
 
   test('a write that fails never changes the answer to the agent', async () => {

@@ -172,11 +172,11 @@ describe('tool_call against a real connector', () => {
     const call = { tool: 'notion.update_page', arguments: { page_id: 'p1', title: 'Q4' } };
     const first = texts(await run([call]));
     const id = /approval ([a-km-z]{5})/.exec(first[1] ?? '')?.[1] ?? '';
-    expect(first[1]).toStartWith(`needs_approval: The owner must approve notion.update_page with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${agent.row.owner}/${agent.row.agent}/approvals/${id} Metro also posts that link in the chat.`);
+    expect(first[1]).toStartWith(`needs_approval: The owner must approve notion.update_page with these arguments first (approval ${id}). It waits on metro.box, where a member of the organization answers it: https://metro.box/#/${agent.row.owner}/${agent.row.agent}/approvals/${id} Metro posts that link in the chat the request came from: do not post it there again, and send no message only to say it waits. Give the link only to someone outside that chat, or when no chat asked for the work.`);
     expect(texts(await run([call]))[1]).toContain(`(approval ${id})`);
     const request = signed(agent, MCP_PATHS.approvals, {});
     const delivered = mcpApprovalsOf(await (await fetch(`${app.base}${MCP_PATHS.approvals}`, { method: 'POST', body: request.body, headers: request.headers })).json());
-    expect(delivered).toEqual([{ id, connector: 'notion', tool: 'update_page', preview: '{"page_id":"p1","title":"Q4"}', requestedAt: expect.any(Number) as unknown as number, origin: 'box' }]);
+    expect(delivered).toEqual([{ id, connector: 'notion', connectorName: 'Notion', tool: 'update_page', preview: '{"page_id":"p1","title":"Q4"}', requestedAt: expect.any(Number) as unknown as number, origin: 'box' }]);
     expect(texts(await run([{ ...call, approval: id }]))[1]).toContain('needs_approval');
     expect(await answerAs(agent, id, 'allow')).toBe(200);
     expect(texts(await run([{ ...call, arguments: { page_id: 'p2', title: 'Q4' }, approval: id }]))[1]).toContain('needs_approval');

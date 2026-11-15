@@ -90,7 +90,7 @@ export function holdServerApproval(approval: McpApproval, answer: Held['answer']
   const { line, announced } = placeOf(approval);
   const held: Held = { id: approval.id, tool, line, tellAgent: !fromKey, answer };
   holdPrompt(
-    { requestId: approval.id, tool, description: approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server', ...askerOf(approval) },
+    { requestId: approval.id, tool, description: approval.connectorName ?? approval.connector, preview: approval.preview, line, at: requestedAt(approval.requestedAt), origin: 'mcp-server', ...askerOf(approval) },
     owner,
     sender(held),
     chatTeller(line),

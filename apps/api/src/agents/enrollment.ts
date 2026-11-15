@@ -7,6 +7,7 @@ import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-
 import { signingKeyOf } from '@metro-labs/http/agent-signature';
 import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
 import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import type { AgentNames } from '@metro-labs/connectors/db/agent-names';
 import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
 import type { EnrollTickets } from './tickets.js';
 
@@ -21,6 +22,7 @@ export interface EnrollmentDeps {
   keys: SigningKeys;
   tickets: EnrollTickets;
   store: AgentKeyStore;
+  names: (owner: string, agent: string) => Promise<AgentNames>;
   auth: AgentAuth;
   now: () => number;
 }
@@ -99,7 +101,7 @@ async function session(req: IncomingMessage, deps: EnrollmentDeps): Promise<unkn
   const row = await deps.store.find(proof.keyId);
   if (row === null) throw new AgentKeyMissing();
   deps.auth.accept(req, bytes, proof, row.signingKey, row.owner);
-  return { server: row.agent, organization: row.owner, keyId: row.keyId, enrolledAt: row.enrolledAt };
+  return { server: row.agent, organization: row.owner, keyId: row.keyId, enrolledAt: row.enrolledAt, ...(await deps.names(row.owner, row.agent)) };
 }
 
 function answer(req: IncomingMessage, deps: EnrollmentDeps, path: string, minted: string | null): Promise<unknown> {
