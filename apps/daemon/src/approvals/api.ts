@@ -13,6 +13,7 @@ const approvalView = (p: PendingPrompt): Record<string, unknown> => ({
   preview: p.preview,
   line: p.line ?? null,
   requestedAt: new Date(p.at).toISOString(),
+  ...(p.requestedBy === undefined ? {} : { requestedBy: p.requestedBy }),
 });
 
 function decisionOf(body: unknown): Behavior {

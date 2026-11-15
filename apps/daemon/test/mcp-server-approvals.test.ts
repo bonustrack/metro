@@ -154,6 +154,7 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(String(sends()[0]?.[1])).not.toContain('Weekly notes');
     const listed = await pageCall('GET', '');
     expect(listed.body.approvals).toEqual([expect.objectContaining({ id: 'abcde', tool: 'notion.update_page', line: LINE, preview: JSON.stringify({ page_id: 'p1', title: 'Weekly notes' }) })]);
+    expect(listed.body.approvals).toEqual([expect.not.objectContaining({ requestedBy: expect.anything() })]);
 
     chat(LINE, OWNER_SENDER, 'yes abcde');
     chat(LINE, MEMBER, 'no abcde');
@@ -174,13 +175,13 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()[3]).toEqual([LINE, 'Approved on the page.']);
   });
 
-  test('asked with an access key: posted in no chat, listed on the page, answered there and sent back, and the agent is not told', async () => {
+  test('asked with an access key: posted in no chat, listed on the page with the key as the asker, answered there and sent back, and the agent is not told', async () => {
     await arrives('pqrst', { origin: 'key', keyLabel: 'Laptop' });
     const polls = approvalsSeen();
     await waitFor(() => approvalsSeen() >= polls + 2);
     expect(sends()).toEqual([]);
     expect(announcedLine('pqrst')).toBeUndefined();
-    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: null })]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'pqrst', tool: 'notion.update_page', line: null, requestedBy: 'access key "Laptop"' })]);
     expect((await pageCall('POST', '/pqrst', { decision: 'allow' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 1);
     expect(fake.answers).toEqual([{ id: 'pqrst', decision: 'allow' }]);
@@ -191,9 +192,11 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(pendingPrompts()).toEqual([]);
 
     await arrives('qrstv', { origin: 'key' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'qrstv', requestedBy: 'an access key' })]);
     expect((await pageCall('POST', '/qrstv', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => fake.answers.length === 2);
-    await arrives('rstvx', { origin: 'key' });
+    await arrives('rstvx', { origin: 'key', keyLabel: 'Lap\ntop "x"' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'rstvx', requestedBy: 'access key "Laptop "x""' })]);
     expect(await expirePrompts(Date.now() + 25 * 3_600_000)).toBe(1);
     await waitFor(() => fake.answers.length === 3);
     expect(fake.answers.slice(1)).toEqual([{ id: 'qrstv', decision: 'deny' }, { id: 'rstvx', decision: 'deny' }]);
@@ -220,6 +223,7 @@ describe('an approval asked by mcp.metro.box', () => {
     await arrives('rstvw', { origin: 'box' });
     await waitFor(() => sends().length === 1);
     expect(sends()[0]).toEqual([LINE, noticeOf('rstvw')]);
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.not.objectContaining({ requestedBy: expect.anything() })]);
     expect((await pageCall('POST', '/rstvw', { decision: 'deny' })).status).toBe(200);
     await waitFor(() => raw().includes('Denied: notion.update_page (rstvw).'));
     expect(fake.answers).toEqual([{ id: 'rstvw', decision: 'deny' }]);

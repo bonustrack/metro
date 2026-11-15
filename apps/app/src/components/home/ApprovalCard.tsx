@@ -59,11 +59,11 @@ function useOthers(approval: Approval, context: ApprovalContext): string | null 
   return othersLine(approvers, cards.data ?? []);
 }
 
-function Fields({ card }: { card: Card }): ReactNode {
-  if (card.fields.length === 0) return null;
+function Fields({ rows }: { rows: Card['fields'] }): ReactNode {
+  if (rows.length === 0) return null;
   return (
     <Column gap={6} margin={{ top: 20 }}>
-      {card.fields.map((field) => (
+      {rows.map((field) => (
         <Row key={field.label} gap={12} align="start">
           <Column width={LABEL_WIDTH}>
             <Text size="md" color="secondary" numberOfLines={1}>
@@ -181,6 +181,7 @@ export function ApprovalCardView({ approval, context, project, decide, where: na
   const where = named ?? approvalWhere(card, context.groups);
   const others = useOthers(approval, context);
   const note = [ruleLine(card, approval.tool, context.groups, context.tools), others].filter((part) => part !== null).join(' ');
+  const rows = approval.requestedBy === null ? card.fields : [{ label: 'Asked by', value: approval.requestedBy }, ...card.fields];
   return (
     <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
       <Row align="start" gap={12}>
@@ -199,7 +200,7 @@ export function ApprovalCardView({ approval, context, project, decide, where: na
           {whenLabel(approval.requestedAt)}
         </Text>
       </Row>
-      <Fields card={card} />
+      <Fields rows={rows} />
       {card.body === null ? null : (
         <Column margin={{ top: 16 }}>
           <Text size="md" color={palette.text} numberOfLines={3}>
