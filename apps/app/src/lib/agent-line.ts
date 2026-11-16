@@ -11,13 +11,14 @@ export interface AgentLine {
   dot: DotTone | null;
   busy: boolean;
   needsYou: boolean;
+  pending?: boolean;
 }
 
 export interface LineFacts {
   status: ServerStatus | undefined;
   booting: string | null;
   waiting: number;
-  ask: string | null;
+  ask: string | null | undefined;
   setup: Setup | null;
   trouble: ChannelTrouble | null;
   session: ClaudeSessionStatus | undefined;
@@ -46,9 +47,14 @@ function waitingText(waiting: number, ask: string | null): string {
   return waiting === 1 ? 'Waiting for you: 1 approval' : `Waiting for you: ${String(waiting)} approvals`;
 }
 
+function waitingLine(waiting: number, ask: string | null | undefined, dot: DotTone | null): AgentLine {
+  const line: AgentLine = { text: waitingText(waiting, ask ?? null), tone: 'link', dot, busy: false, needsYou: true };
+  return ask === undefined ? { ...line, pending: true } : line;
+}
+
 function liveLine(facts: LineFacts): AgentLine {
   const { session, setup } = facts;
-  if (facts.waiting > 0) return { text: waitingText(facts.waiting, facts.ask), tone: 'link', dot: 'success', busy: false, needsYou: true };
+  if (facts.waiting > 0) return waitingLine(facts.waiting, facts.ask, 'success');
   if (session !== undefined && !session.running) return { text: 'Not running', tone: 'danger', dot: 'danger', busy: false, needsYou: true };
   if (facts.trouble !== null) return { text: troubleLine(facts.trouble), tone: 'danger', dot: 'danger', busy: false, needsYou: true };
   if (setup !== null && setup.open !== null)
@@ -63,7 +69,7 @@ export function connectorsWords(count: number | null): string {
 }
 
 export function remoteLine(waiting: number, ask: string | null, connectors: number | null): AgentLine {
-  if (waiting > 0) return { text: waitingText(waiting, ask), tone: 'link', dot: null, busy: false, needsYou: true };
+  if (waiting > 0) return waitingLine(waiting, ask, null);
   return quiet(connectorsWords(connectors));
 }
 

@@ -4,7 +4,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 import type { Session } from '@metro-labs/http/workos-token';
-import { connectorKeys } from '@metro-labs/connectors/connector-keys';
+import { connectorKeys } from '@metro-labs/core/connector-keys';
 import { createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore, type ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';

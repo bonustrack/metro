@@ -11,9 +11,11 @@ import { Icon } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AvatarDot } from '../ui/AvatarDot.js';
 import { PageHeader } from '../ui/PageHeader.js';
+import { SkeletonLine } from '../ui/RowsSkeleton.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import { AgentMenu } from './AgentMenu.js';
 import { healthFix } from '../../lib/agent-health.js';
+import type { AgentLine } from '../../lib/agent-line.js';
 import { useAgentRows } from '../../lib/agent-rows.js';
 import { useClaudeSessionQuery, useServerStatus } from '../../lib/queries.js';
 import { useIsNarrow } from '../../lib/media.js';
@@ -21,8 +23,11 @@ import { SHRINK } from '../../lib/style.js';
 
 const BACK = ICON_SIZE.lg;
 const SELF = { alignSelf: 'flex-start', maxWidth: '100%' } as const;
+const STATUS_PENDING = 200;
 
-function Status({ text, fix }: { text: string; fix: Selection | undefined }): ReactNode {
+function Status({ agentLine, fix }: { agentLine: AgentLine | undefined; fix: Selection | undefined }): ReactNode {
+  if (agentLine?.pending === true) return <SkeletonLine width={STATUS_PENDING} />;
+  const text = agentLine?.text ?? 'Checking…';
   const line = (
     <Text size="xs" color="secondary" numberOfLines={1}>
       {text}
@@ -68,7 +73,7 @@ export function AgentHeader({ server, project, tabs }: { server: BoxServer; proj
       <AgentAvatar seed={server.host} src={server.avatar} size={narrow ? AVATAR_SIZE.list : AVATAR_SIZE.header} />
     </AvatarDot>
   );
-  const line = <Status text={row?.line.text ?? 'Checking…'} fix={healthFix(status.data?.state, session.data, project, row?.trouble ?? null)} />;
+  const line = <Status agentLine={row?.line} fix={healthFix(status.data?.state, session.data, project, row?.trouble ?? null)} />;
   if (narrow) return <CompactHeader server={server} avatar={avatar} status={line} tabs={tabs} />;
   return <PageHeader title={serverLabel(server)} subtitle={line} leading={avatar} action={<AgentMenu server={server} />} tabs={tabs} />;
 }

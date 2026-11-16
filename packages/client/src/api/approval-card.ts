@@ -151,6 +151,8 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): C
   };
 }
 
+export const connectorAsk = (title: string, connector: string): string => `use ${title} on ${connector}`;
+
 function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null, bytes: (number | null)[]): CardSummary {
   const title = humanize(tool);
   return {
@@ -158,7 +160,7 @@ function connectorCard(connector: string, tool: string, input: Record<string, un
     account: null,
     connector,
     title,
-    ask: `use ${title} on ${connector}`,
+    ask: connectorAsk(title, connector),
     fields: argFields(input),
     body: bodyOf('', input),
     ...filesOf(input, bytes),

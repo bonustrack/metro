@@ -5,7 +5,7 @@ import { approvalOf } from '@metro-labs/client/api/approvals';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { toMachine } from '@metro-labs/client/api/machine';
 import { toModelSettings } from '@metro-labs/client/api/model';
-import { othersLine, ruleLine } from '../src/lib/approval-note.ts';
+import { approvalAsk, approvalWhere, namedConnector, othersLine, ruleLine } from '../src/lib/approval-note.ts';
 import { chatsGlance, modelGlance, serverGlance, uptimeGlance, uptimeWords, versionGlance } from '../src/lib/glance.ts';
 import { rightNow, runSummary, sinceLabel } from '../src/lib/right-now.ts';
 
@@ -121,6 +121,35 @@ describe('the note under an approval card', () => {
     expect(ruleLine(approvalCard(group), group.tool, [], tools)).toBeNull();
     expect(ruleLine(approvalCard(server), server.tool, groups, tools)).toBe('Granola asks first.');
     expect(ruleLine(approvalCard(plugin), plugin.tool, groups, tools)).toBe('Notion asks first.');
+  });
+
+  test('a connector approval names the connector of that key, never the key once it is known', () => {
+    const draft = approvalOf({ id: 'fghij', tool: 'gmail-fabien-bonustrack-co.create_draft', preview: '{"to":"wan@mcigroup.ch"}', line: '' });
+    if (draft === null) throw new Error('not an approval');
+    const card = approvalCard(draft);
+    const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: 'agntEmma001' }] };
+    const list = (connectors: (typeof gmail)[]) => ({ data: { connectors }, error: null });
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', { data: undefined, error: null })).toBeUndefined();
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBeNull();
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', list([gmail]))).toEqual({ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/' });
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntLisa001', list([gmail]))).toBeNull();
+    expect(namedConnector('gmail-fabien-bonustrack-co', null, list([gmail]))).toBeNull();
+    const named = { name: 'Gmail fabien@bonustrack.co', url: '' };
+    expect([approvalWhere(card, [], named), ruleLine(card, draft.tool, [], {}, named)]).toEqual(['Gmail fabien@bonustrack.co', 'Gmail fabien@bonustrack.co asks first.']);
+    expect([approvalWhere(card, [], null), ruleLine(card, draft.tool, [], {}, null)]).toEqual(['gmail-fabien-bonustrack-co', 'Gmail-fabien-bonustrack-co asks first.']);
+  });
+
+  test('the agents list names the connector of a waiting approval, and waits for the name rather than show the key', () => {
+    const draft = approvalOf({ id: 'fghij', tool: 'gmail-fabien-bonustrack-co.create_draft', preview: '{"to":"wan@mcigroup.ch"}', line: '' });
+    const send = approvalOf({ id: 'ghijk', tool: 'mcp__metro__send', preview: '{"line":"metro://threema/o1/ECHOECHO","text":"Hi"}', line: '' });
+    if (draft === null || send === null) throw new Error('not an approval');
+    const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: 'agntEmma001' }] };
+    const loaded = { data: { connectors: [gmail] }, error: null };
+    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: null })).toBeUndefined();
+    expect(approvalAsk(approvalCard(draft), 'agntEmma001', loaded)).toBe('use Create draft on Gmail fabien@bonustrack.co');
+    expect(approvalAsk(approvalCard(draft), 'agntLisa001', loaded)).toBe('use Create draft on gmail-fabien-bonustrack-co');
+    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBe('use Create draft on gmail-fabien-bonustrack-co');
+    expect(approvalAsk(approvalCard(send), 'agntEmma001', { data: undefined, error: null })).toBe('send a message');
   });
 
   test('says who else can answer in the chat, by name when every name is known', () => {

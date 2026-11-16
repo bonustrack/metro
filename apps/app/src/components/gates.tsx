@@ -18,6 +18,7 @@ import { refreshServers, useServersQuery } from '../lib/queries.js';
 import { go } from '../lib/nav.js';
 import { useRoutedOrganization } from '../lib/routed-organization.js';
 import { gateFailureText } from '../lib/approval-page.js';
+import { isFocusPage } from '../lib/focus-pages.js';
 
 async function openHost(host: string, client: QueryClient): Promise<string> {
   const [organizations, status] = await Promise.all([fetchOrganizations(), probeServer(host)]);
@@ -108,6 +109,6 @@ export function OrganizationGate({ selection, onLock, children }: { selection: S
   }, [selection, mismatch]);
   if (failure !== null)
     return <Notice text={gateFailureText(selection.kind, failure)} onRetry={failure.refused ? onLock : retry} retryLabel={failure.refused ? 'Log in with another account' : 'Try again'} />;
-  if (mismatch) return <AppShell selection={selection} onLock={onLock}><Loading /></AppShell>;
+  if (mismatch) return isFocusPage(selection) ? <Loading /> : <AppShell selection={selection} onLock={onLock}><Loading /></AppShell>;
   return children;
 }

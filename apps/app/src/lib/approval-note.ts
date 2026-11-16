@@ -1,6 +1,7 @@
 import { flattenAccounts, type AccountGroup, type AccountRow } from '@metro-labs/client/api/accounts';
-import type { ApprovalCard } from '@metro-labs/client/api/approval-card';
+import { connectorAsk, type ApprovalCard } from '@metro-labs/client/api/approval-card';
 import { stationLabel } from '@metro-labs/client/api/attach';
+import { connectorOfKey } from '@metro-labs/client/api/connector-key';
 import { effectiveAccess, type GroupedTool } from '@metro-labs/client/api/policy';
 import type { SenderCard } from '@metro-labs/client/api/senders';
 import { accountName } from './setup-steps.js';
@@ -12,8 +13,35 @@ export function accountRow(groups: AccountGroup[], station: string | null, accou
   return flattenAccounts(groups).find((a) => a.station === station && a.row.id === account)?.row;
 }
 
-export function approvalWhere(card: ApprovalCard, groups: AccountGroup[]): string | null {
-  if (card.connector !== null) return card.connector;
+export interface NamedConnector {
+  name: string;
+  url: string;
+}
+
+interface ListedConnector extends NamedConnector {
+  id: string;
+  agents: { id: string }[];
+}
+
+interface ConnectorsRead {
+  data?: { connectors: ListedConnector[] } | undefined;
+  error: unknown;
+}
+
+export function namedConnector(key: string, agent: string | null, read: ConnectorsRead): NamedConnector | null | undefined {
+  if (read.data === undefined) return read.error === null || read.error === undefined ? undefined : null;
+  const found = agent === null ? undefined : connectorOfKey(read.data.connectors, agent, key);
+  return found === undefined ? null : { name: found.name, url: found.url };
+}
+
+export function approvalAsk(card: ApprovalCard, agent: string, read: ConnectorsRead): string | undefined {
+  if (card.connector === null) return card.ask;
+  const named = namedConnector(card.connector, agent, read);
+  return named === undefined ? undefined : connectorAsk(card.title, named?.name ?? card.connector);
+}
+
+export function approvalWhere(card: ApprovalCard, groups: AccountGroup[], connector?: NamedConnector | null): string | null {
+  if (card.connector !== null) return connector?.name ?? card.connector;
   const account = flattenAccounts(groups).find((a) => a.station === card.station && a.row.id === card.account);
   if (account !== undefined) return accountName(account);
   if (card.station === null) return null;
@@ -27,8 +55,8 @@ function ruleRows(groups: AccountGroup[], station: string, account: string | nul
   return flattenAccounts(groups).filter((a) => a.station === station).map((a) => a.row);
 }
 
-export function ruleLine(card: ApprovalCard, tool: string, groups: AccountGroup[], tools: Record<string, GroupedTool[]>): string | null {
-  if (card.connector !== null) return `${capitalized(card.connector)} asks first.`;
+export function ruleLine(card: ApprovalCard, tool: string, groups: AccountGroup[], tools: Record<string, GroupedTool[]>, connector?: NamedConnector | null): string | null {
+  if (card.connector !== null) return `${connector?.name ?? capitalized(card.connector)} asks first.`;
   if (card.station === null) return null;
   const group = tools[card.station]?.find((t) => t.name === tool)?.group ?? 'write';
   const asks = ruleRows(groups, card.station, card.account).some((row) => effectiveAccess(row.policy, { name: tool, group }) === 'ask');

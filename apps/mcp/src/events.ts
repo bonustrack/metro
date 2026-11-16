@@ -8,7 +8,7 @@ import type { AgentKeyRow } from '@metro-labs/connectors/db/agent-keys';
 import { EVENTS_WAITING_MAX, type EventRow } from '@metro-labs/connectors/db/connector-events';
 import type { Receiver } from '@metro-labs/connectors/db/connector-subscriptions';
 import { failureText } from '@metro-labs/connectors/db/errors';
-import { connectorKeys } from '@metro-labs/connectors/connector-keys';
+import { connectorKeys } from '@metro-labs/core/connector-keys';
 import { openSecret, sealSecret } from '@metro-labs/connectors/secrets';
 import { agentConnectors } from './catalog.js';
 import type { McpDeps } from './deps.js';

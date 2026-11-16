@@ -59,7 +59,7 @@ function AddModal({ connector, others, onClose }: { connector: OrgConnector; oth
         ) : (
           <Rows>
             {others.map((row) => (
-              <Item key={row.server.id} title={row.name} subtitle={row.line.text} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
+              <Item key={row.server.id} title={row.name} subtitle={row.line.text} subtitlePending={row.line.pending} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
                 onPress={assign.busy === null ? () => { assign.add(connector, row.server); } : undefined} />
             ))}
           </Rows>
@@ -99,7 +99,7 @@ function OtherRows({ connector, others, admin }: { connector: OrgConnector; othe
   return (
     <Group label={`Without ${connector.name}`} error={assign.error} wide>
       {others.map((row) => (
-        <Item key={row.server.id} title={row.name} subtitle={row.line.text} subtitleTone={row.line.tone} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
+        <Item key={row.server.id} title={row.name} subtitle={row.line.text} subtitleTone={row.line.tone} subtitlePending={row.line.pending} leading={<AgentFace server={row.server} dot={row.line.dot} />} chevron={false}
           trailing={admin ? <Button color="secondary" label="Add" loading={assign.busy === row.server.id} disabled={assign.busy !== null} onPress={() => { assign.add(connector, row.server); }} /> : undefined} />
       ))}
     </Group>

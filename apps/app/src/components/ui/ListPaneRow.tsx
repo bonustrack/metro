@@ -7,9 +7,12 @@ import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import type { IconName } from '../Icon.js';
 import { RouteLink } from '../RouteLink.js';
 import { AvatarDot } from './AvatarDot.js';
+import { SkeletonLine } from './RowsSkeleton.js';
 import { hoverColor, selectedColor } from '../../lib/theme.js';
 import type { DotTone, Tone } from '../../lib/tone.js';
 import { SHRINK } from '../../lib/style.js';
+
+const LINE_PENDING = 160;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, minHeight: 62 },
@@ -19,6 +22,7 @@ interface ListPaneRowProps {
   title: string;
   line: string;
   lineTone?: Tone;
+  linePending?: boolean;
   detail?: string;
   avatar: ReactNode;
   dot?: DotTone | null;
@@ -28,7 +32,16 @@ interface ListPaneRowProps {
   href: string;
 }
 
-export function ListPaneRow({ title, line, lineTone = 'secondary', detail, avatar, dot = null, mark, trailing, selected = false, href }: ListPaneRowProps): ReactNode {
+function PaneLine({ text, tone, pending }: { text: string; tone: Tone; pending: boolean }): ReactNode {
+  if (pending) return <SkeletonLine width={LINE_PENDING} />;
+  return (
+    <Text size="xs" color={tone} numberOfLines={1}>
+      {text}
+    </Text>
+  );
+}
+
+export function ListPaneRow({ title, line, lineTone = 'secondary', linePending = false, detail, avatar, dot = null, mark, trailing, selected = false, href }: ListPaneRowProps): ReactNode {
   const palette = useKitPalette();
   const fill = selected ? selectedColor(palette) : palette.bg;
   const frame = StyleSheet.flatten([styles.row, selected ? { backgroundColor: fill } : null]);
@@ -45,9 +58,7 @@ export function ListPaneRow({ title, line, lineTone = 'secondary', detail, avata
           </Text>
           {trailing}
         </Row>
-        <Text size="xs" color={lineTone} numberOfLines={1}>
-          {line}
-        </Text>
+        <PaneLine text={line} tone={lineTone} pending={linePending} />
         {detail === undefined || detail === '' ? null : (
           <Text size="xs" color="secondary" numberOfLines={1}>
             {detail}

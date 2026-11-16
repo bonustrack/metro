@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { splitMcpTool } from '@metro-labs/http/mcp-server-protocol';
 import { connectorKeys, slugOf } from '../src/connector-keys.ts';
 
 describe('connector keys', () => {
@@ -24,10 +23,5 @@ describe('connector keys', () => {
   test('keys are stable for the same assignments, whatever the input order', () => {
     const rows = [{ id: 'conn0000002', name: 'Linear' }, { id: 'conn0000001', name: 'Linear' }, { id: 'conn0000009', name: 'Slack' }];
     expect(connectorKeys(rows)).toEqual(connectorKeys([...rows].reverse()));
-  });
-
-  test('every key makes a valid <connector>.<tool> name, even a long one with a suffix', () => {
-    const long = 'a'.repeat(70);
-    for (const key of connectorKeys([{ id: '1', name: long }, { id: '2', name: long }]).values()) expect(splitMcpTool(`${key}.search`)).toEqual({ connector: key, tool: 'search' });
   });
 });

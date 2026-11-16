@@ -12,6 +12,7 @@ const TITLE = { width: 160, height: 14 } as const;
 const LINE = { width: 260, height: 12 } as const;
 const VALUE = { width: 60, height: 28 } as const;
 const BAR_RADIUS = 7;
+const TEXT_LINE = 20;
 
 const styles = StyleSheet.create({
   dot: { width: AVATAR_SIZE.row, height: AVATAR_SIZE.row, borderRadius: AVATAR_SIZE.row / 2 },
@@ -43,6 +44,18 @@ function SkeletonRow({ leading, trailing, pane, fill }: Required<Omit<RowsSkelet
       </Column>
       {trailing && !pane ? <Shape style={styles.value} fill={fill} /> : null}
     </Row>
+  );
+}
+
+export function SkeletonBlock({ width, height, radius = BAR_RADIUS }: { width: number; height: number; radius?: number }): ReactNode {
+  return <Column width={width} maxWidth="100%" height={height} radius={radius} background={shapeColor(useKitPalette())} accessibilityLabel="Loading" />;
+}
+
+export function SkeletonLine({ width }: { width: number }): ReactNode {
+  return (
+    <Column height={TEXT_LINE} justify="center">
+      <SkeletonBlock width={width} height={LINE.height} />
+    </Column>
   );
 }
 

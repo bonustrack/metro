@@ -8,8 +8,8 @@ import { useSharedPoll } from './shared-poll.js';
 
 const connectorsKey = (): string[] => orgKey('org-connectors', String(accountScopeIdentity()));
 
-export const useOrgConnectorsQuery = (pollMs?: number): UseQueryResult<OrgConnectors> =>
-  useQuery({ queryKey: connectorsKey(), queryFn: fetchOrgConnectors, staleTime: 30_000, retry: false, refetchInterval: pollMs ?? false });
+export const useOrgConnectorsQuery = (pollMs?: number, enabled = true): UseQueryResult<OrgConnectors> =>
+  useQuery({ queryKey: connectorsKey(), queryFn: fetchOrgConnectors, staleTime: 30_000, retry: false, refetchInterval: pollMs ?? false, enabled });
 
 export function useOrgConnectorsPoll(every: number | null): void {
   useSharedPoll(every === null ? [] : [connectorsKey()], every ?? 0);

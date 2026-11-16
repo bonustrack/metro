@@ -1,5 +1,5 @@
 import { connectorLabel, type ConnectorLabel } from '@metro-labs/http/mcp-server-tools';
-import { connectorKeys } from '@metro-labs/connectors/connector-keys';
+import { connectorKeys } from '@metro-labs/core/connector-keys';
 import type { AssignedConnector, DeliveryIdentity } from '@metro-labs/connectors/db/connector-delivery';
 import type { McpDeps } from './deps.js';
 import { connectorAccess, type ConnectorAccess } from './policy.js';

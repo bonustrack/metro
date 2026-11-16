@@ -1,4 +1,4 @@
-export const AVATAR_SIZE = { row: 24, list: 40, header: 56 } as const;
+export const AVATAR_SIZE = { row: 24, list: 40, focus: 48, header: 56 } as const;
 
 export const ICON_SIZE = { sm: 16, md: 20, lg: 24 } as const;
 

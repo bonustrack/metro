@@ -3,18 +3,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Column } from '@stage-labs/kit/react-native/column';
 import { decideRemoteApproval, type RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import type { Decision } from '@metro-labs/client/api/approvals';
-import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { ApprovalCardView, type ApprovalContext } from '../home/ApprovalCard.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { queryError } from '../../lib/queries.js';
 import { refreshRemoteApprovals, useRemoteApprovals } from '../../lib/remote-agents.js';
 
 const CARD_GAP = 16;
-const MARK = 24;
-
-export function RemoteMark({ found }: { found: RemoteApproval }): ReactNode {
-  return <ConnectorFavicon name={found.connectorName ?? found.connector} url={found.connectorUrl ?? ''} size={MARK} />;
-}
 
 function Card({ agent, found }: { agent: string; found: RemoteApproval }): ReactNode {
   const client = useQueryClient();
@@ -23,9 +17,8 @@ function Card({ agent, found }: { agent: string; found: RemoteApproval }): React
     await decideRemoteApproval(agent, found.approval.id, decision);
     await refreshRemoteApprovals(client, agent);
   };
-  const name = found.connectorName ?? undefined;
-  const mark = name === undefined ? undefined : <RemoteMark found={found} />;
-  return <ApprovalCardView approval={found.approval} context={context} project={agent} decide={decide} where={name} mark={mark} />;
+  const connector = found.connectorName === null ? undefined : { name: found.connectorName, url: found.connectorUrl ?? '' };
+  return <ApprovalCardView approval={found.approval} context={context} project={agent} decide={decide} connector={connector} />;
 }
 
 export function RemoteApprovals({ agent }: { agent: string }): ReactNode {

@@ -11,6 +11,7 @@
     "./favicon": "./src/favicon.ts",
     "./brands": "./src/brands.ts",
     "./connector-name": "./src/connector-name.ts",
+    "./connector-keys": "./src/connector-keys.ts",
     "./runner-activity": "./src/runner-activity.ts",
     "./automation-store": "./src/automation-store.ts",
     "./automation-types": "./src/automation-types.ts",
