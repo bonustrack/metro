@@ -92,7 +92,7 @@ describe('attachment initiating account boundary', () => {
     expect(seen).toEqual([]);
   });
 
-  test('an identity missing its WorkOS session never starts', async () => {
+  test('an identity missing its sign-in session never starts', async () => {
     installTestAccount({ sid: undefined });
     await expect(new AttachLifetime('agent', BASE).start('whatsapp', {})).rejects.toThrow('account changed');
     expect(seen).toEqual([]);

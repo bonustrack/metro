@@ -9,16 +9,13 @@ import { Title } from '@stage-labs/kit/react-native/title';
 import { fontName } from '@stage-labs/kit/tokens';
 import { daemonHost, routedDaemon } from '@metro-labs/client/auth/daemon';
 import { atWaitlist, clearOutcome, readOutcome, type Outcome } from '@metro-labs/client/auth/login-route';
-import { pendingInvitation } from '@metro-labs/client/auth/invitation';
 import { loginUrl, type Intent, type Provider } from '@metro-labs/client/api/auth';
 import { startWebProof } from '@metro-labs/client/auth/sign-in-proof';
-import type { Accounts, SignInOptions } from '@metro-labs/client/api/sign-in-options';
+import type { SignInOptions } from '@metro-labs/client/api/sign-in-options';
 import microsoft from '../../assets/microsoft.png';
 import { MetroLogo } from './MetroLogo.js';
 import { LegalLinks } from './LegalLinks.js';
-import { EmailLogin } from './EmailLogin.js';
 import { GoogleMark } from './GoogleMark.js';
-import { GitHubMark } from './GitHubMark.js';
 import { RouteLink } from './RouteLink.js';
 import { PageScroll } from './PageScroll.js';
 import { SkeletonBlock } from './ui/RowsSkeleton.js';
@@ -30,14 +27,12 @@ import { CENTER_TEXT, FULL_WIDTH, webOnly } from '../lib/style.js';
 const CONTENT_WIDTH = 340;
 const CARD_PAD = 24;
 const CARD_WIDTH = CONTENT_WIDTH + 2 * CARD_PAD;
-const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft', github: 'Continue with GitHub' };
-const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20, github: 22 };
+const PROVIDER_LABEL: Record<Provider, string> = { google: 'Continue with Google', microsoft: 'Continue with Microsoft' };
+const PROVIDER_ICON: Record<Provider, number> = { google: 22, microsoft: 20 };
 const HEADING = { fontSize: 36, fontFamily: fontName.sans } as const;
 const ABOUT = 'Your agents, on your machines, in every chat you use. Your keys stay yours.';
 const WAITLIST_TITLE = 'Join the waitlist';
 const JOINED = 'You are on the waitlist. Once we let you in, log in with the same account.';
-const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
-const INVITATION = 'You are invited to an organization. Log in with the email the invitation went to.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
 const NOT_SET_UP = 'Sign-in is not set up yet. Try again later.';
 const TOP_LOGO = 24;
@@ -48,16 +43,10 @@ const REFUSALS: Record<string, string> = {
   'no-account': 'No Metro account for this email yet. Join the waitlist first.',
   waiting: 'You are on the waitlist already. We will let you in soon.',
   'not-open': 'Metro is not open to this account.',
-  unverified: 'That account has no verified email. Log in with an email code instead.',
+  unverified: 'Google or Microsoft did not confirm the email address of that account. Log in with another account.',
   'other-account': 'That email address already signs in with another Google or Microsoft account. Log in with that one.',
-  link: 'This login link does not work any more. Ask for a new one.',
-  'too-many': 'Too many tries. Wait a minute, then try again.',
   cancelled: 'The sign-in was cancelled.',
   failed: 'The sign-in failed. Try again.',
-};
-
-const METRO_REFUSALS: Record<string, string> = {
-  unverified: 'Google or Microsoft did not confirm the email address of that account. Log in with another account.',
 };
 
 const styles = StyleSheet.create({
@@ -67,19 +56,17 @@ const styles = StyleSheet.create({
 
 const TOP = webOnly({ position: 'fixed' });
 
-function refusalText(refused: string | null, accounts: Accounts): string | null {
+function refusalText(refused: string | null): string | null {
   if (refused === null) return null;
-  return (accounts === 'metro' ? METRO_REFUSALS[refused] : undefined) ?? REFUSALS[refused] ?? REFUSALS.failed ?? null;
+  return REFUSALS[refused] ?? REFUSALS.failed ?? null;
 }
 
-function providerMark(provider: Provider, onButton: string): ReactNode {
-  const mark =
-    provider === 'google' ? <GoogleMark size={PROVIDER_ICON.google} /> : provider === 'github' ? <GitHubMark size={PROVIDER_ICON.github} color={onButton} /> : <Image source={microsoft} style={styles.microsoft} />;
+function providerMark(provider: Provider): ReactNode {
+  const mark = provider === 'google' ? <GoogleMark size={PROVIDER_ICON.google} /> : <Image source={microsoft} style={styles.microsoft} />;
   return <Row padding={{ right: 4 }}>{mark}</Row>;
 }
 
 function ProviderButtons({ intent, providers }: { intent: Intent; providers: Provider[] }): ReactNode {
-  const onButton = useKitPalette().link;
   const [failed, setFailed] = useState<string | null>(null);
   return (
     <Column gap={10}>
@@ -90,7 +77,7 @@ function ProviderButtons({ intent, providers }: { intent: Intent; providers: Pro
           color="secondary"
           variant="outline"
           label={PROVIDER_LABEL[provider]}
-          icon={providerMark(provider, onButton)}
+          icon={providerMark(provider)}
           style={FULL_WIDTH}
           onPress={() => {
             if (WEB) goExternal(loginUrl(provider, intent, { challenge: startWebProof() }));
@@ -171,7 +158,7 @@ function DaemonHint(): ReactNode {
   );
 }
 
-function Notes({ failed, invited, invitation }: { failed: string | null; invited: boolean; invitation: boolean }): ReactNode {
+function Notes({ failed }: { failed: string | null }): ReactNode {
   return (
     <>
       <DaemonHint />
@@ -180,16 +167,6 @@ function Notes({ failed, invited, invitation }: { failed: string | null; invited
           {failed}
         </Text>
       )}
-      {invitation && !invited ? (
-        <Text size="md" style={CENTER_TEXT}>
-          {INVITATION}
-        </Text>
-      ) : null}
-      {invited ? (
-        <Text size="md" style={CENTER_TEXT}>
-          {INVITED}
-        </Text>
-      ) : null}
     </>
   );
 }
@@ -204,7 +181,7 @@ function ChoicesSkeleton(): ReactNode {
 }
 
 function Choices({ intent, options }: { intent: Intent; options: SignInOptions }): ReactNode {
-  if (!options.emailCode && options.providers.length === 0)
+  if (options.providers.length === 0)
     return (
       <Text size="md" style={CENTER_TEXT}>
         {NOT_SET_UP}
@@ -212,14 +189,6 @@ function Choices({ intent, options }: { intent: Intent; options: SignInOptions }
     );
   return (
     <Column padding={{ top: 8 }} gap={16}>
-      {options.emailCode ? (
-        <>
-          <EmailLogin intent={intent} />
-          <Text size="md" color="secondary" style={CENTER_TEXT}>
-            or
-          </Text>
-        </>
-      ) : null}
       <ProviderButtons intent={intent} providers={options.providers} />
     </Column>
   );
@@ -228,10 +197,9 @@ function Choices({ intent, options }: { intent: Intent; options: SignInOptions }
 function SignIn({ intent, outcome }: { intent: Intent; outcome: Outcome }): ReactNode {
   const options = useSignInOptions();
   if (options === null) return <ChoicesSkeleton />;
-  const workos = options.accounts === 'workos';
   return (
     <>
-      <Notes failed={refusalText(outcome.refused, options.accounts)} invited={workos && outcome.invited} invitation={workos && pendingInvitation() !== null} />
+      <Notes failed={refusalText(outcome.refused)} />
       <Choices intent={intent} options={options} />
     </>
   );

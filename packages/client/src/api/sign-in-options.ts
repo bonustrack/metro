@@ -2,22 +2,17 @@ import { builtInDaemon } from '../auth/daemon.js';
 import { isRecord } from '../read.js';
 import { PROVIDERS, type Provider } from './auth.js';
 
-export type Accounts = 'workos' | 'metro';
-
 export interface SignInOptions {
-  accounts: Accounts;
   providers: Provider[];
-  emailCode: boolean;
 }
 
-export const WORKOS_SIGN_IN: SignInOptions = { accounts: 'workos', providers: PROVIDERS, emailCode: true };
+export const DEFAULT_SIGN_IN: SignInOptions = { providers: PROVIDERS };
 
-const isMetroProvider = (value: unknown): value is Provider => value === 'google' || value === 'microsoft';
+const isProvider = (value: unknown): value is Provider => (PROVIDERS as unknown[]).includes(value);
 
 export function toSignInOptions(body: unknown): SignInOptions {
-  if (!isRecord(body) || body.accounts !== 'metro') return WORKOS_SIGN_IN;
-  const listed = Array.isArray(body.providers) ? body.providers.filter(isMetroProvider) : [];
-  return { accounts: 'metro', providers: [...new Set(listed)], emailCode: false };
+  const listed = isRecord(body) && Array.isArray(body.providers) ? body.providers.filter(isProvider) : [];
+  return { providers: [...new Set(listed)] };
 }
 
 export async function fetchSignInOptions(): Promise<SignInOptions> {

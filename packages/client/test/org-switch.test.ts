@@ -189,11 +189,11 @@ describe('switching organizations on the page', () => {
     expect(seen.filter((request) => request.path === '/api/auth/organizations')).toHaveLength(1);
   });
 
-  test('not being a member, or WorkOS being down, is reported and keeps the session', async () => {
+  test('not being a member, or sign-in being down, is reported and keeps the session', async () => {
     expect(await openOrganization('elsewhere')).toEqual({ kind: 'refused', message: 'you are not a member of that organization' });
     expect(await openOrganization('org_01NOTMEMBER0')).toEqual({ kind: 'refused', message: 'you are not a member of that organization' });
-    refuse = (path) => (path === '/api/auth/switch' ? Response.json({ error: 'WorkOS is not answering' }, { status: 503 }) : null);
-    expect(await openOrganization('snapshot')).toEqual({ kind: 'failed', message: 'WorkOS is not answering' });
+    refuse = (path) => (path === '/api/auth/switch' ? Response.json({ error: 'sign-in is not answering' }, { status: 503 }) : null);
+    expect(await openOrganization('snapshot')).toEqual({ kind: 'failed', message: 'sign-in is not answering' });
     expect(activeAccount()).toMatchObject({ organization: STAGE, refreshToken: 'rt_0' });
     expect(signedOut()).toEqual([]);
   });

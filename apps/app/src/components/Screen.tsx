@@ -3,10 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth/account';
 import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
-import { loginLinkCode, redeemLoginLink } from '@metro-labs/client/api/login-link';
 import { takeWebVerifier } from '@metro-labs/client/auth/sign-in-proof';
 import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin, takeLoginReturn } from '@metro-labs/client/auth/login-route';
-import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
 import { location } from '@metro-labs/client/platform';
 import { type Selection } from '@metro-labs/client/selection';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
@@ -27,23 +25,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type Phase = 'loading' | 'login' | 'organization' | 'unlocked';
 
 const styles = StyleSheet.create({ root: { flex: 1 } });
-const LINK_FAILED = '#/login?refused=failed';
-
-async function redeemLink(): Promise<void> {
-  const code = loginLinkCode(location().hash());
-  if (code === null) return;
-  location().replace('#/');
-  location().replace(await redeemLoginLink(code).catch(() => LINK_FAILED));
-}
-
 async function boot(): Promise<Phase> {
-  await redeemLink();
   const handoff = handoffCode(location().hash());
   if (handoff !== null) {
     location().replace(takeLoginReturn());
     await exchangeHandoff(handoff, takeWebVerifier());
   } else loadAccount();
-  if (handoff === null && pendingInvitation() !== null) return 'login';
   const stored = activeAccount();
   if (stored !== null && stored.organization !== null && stored.organizationName === null) {
     await refreshAccount().catch((err: unknown) => { if (!(err instanceof AuthUnavailableError)) throw err; });
@@ -77,7 +64,6 @@ function usePhase(): [Phase, (next: Phase) => void] {
 }
 
 function MetroApp({ selection }: { selection: Selection }): ReactNode {
-  useState(takeInvitationFromUrl);
   const [phase, setPhase] = usePhase();
   const lock = (): void => {
     logoutAccount().catch(() => undefined);

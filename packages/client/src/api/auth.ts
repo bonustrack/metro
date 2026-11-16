@@ -19,10 +19,9 @@ import {
   type Account,
 } from '../auth/account.js';
 import { filled, isRecord, pngAvatar } from '../read.js';
-import { clearInvitation, pendingInvitation } from '../auth/invitation.js';
 
-export type Provider = 'google' | 'microsoft' | 'github';
-export const PROVIDERS: Provider[] = ['google', 'microsoft', 'github'];
+export type Provider = 'google' | 'microsoft';
+export const PROVIDERS: Provider[] = ['google', 'microsoft'];
 
 const authUrl = (path: string): string => `${builtInDaemon()}/api/auth${path}`;
 const unexpected = (): Error => new Error('Metro returned an unexpected response.');
@@ -69,21 +68,8 @@ interface SignInProof {
 }
 
 export function loginUrl(provider: Provider, intent: Intent, proof: SignInProof): string {
-  const invitation = pendingInvitation();
-  const extra = `${intent === 'waitlist' ? '&intent=waitlist' : ''}${invitation === null ? '' : `&invitation_token=${encodeURIComponent(invitation)}`}`;
+  const extra = intent === 'waitlist' ? '&intent=waitlist' : '';
   return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(proof.returnTo ?? returnTo())}${extra}&code_challenge=${encodeURIComponent(proof.challenge)}`);
-}
-
-export async function sendEmailCode(email: string, intent: Intent): Promise<void> {
-  const invitation = pendingInvitation();
-  await post('/email/start', { email, intent, ...(invitation === null ? {} : { invitation }) });
-}
-
-export async function verifyEmailCode(email: string, code: string, intent: Intent): Promise<string> {
-  const invitation = pendingInvitation();
-  const answer = await post('/email/verify', { email, code, intent, ...(invitation === null ? {} : { invitation }) });
-  if (!isRecord(answer) || typeof answer.hash !== 'string' || !answer.hash.startsWith('#/')) throw unexpected();
-  return answer.hash;
 }
 
 export async function exchangeHandoff(code: string, verifier?: string): Promise<Account> {
@@ -92,7 +78,6 @@ export async function exchangeHandoff(code: string, verifier?: string): Promise<
   return withAccountLock(() => {
     if (accountScopeIdentity() !== scope) throw new AccountChangedError();
     storeAccount(account);
-    clearInvitation();
     return Promise.resolve(account);
   });
 }

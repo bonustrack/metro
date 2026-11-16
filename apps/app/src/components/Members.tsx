@@ -4,14 +4,12 @@ import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { activeAccount } from '@metro-labs/client/auth/account';
-import { fetchOrganization, inviteMember, removeMember, revokeInvitation, setMemberRole, type Invitation, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
+import { fetchOrganization, inviteMember, removeMember, setMemberRole, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Choice } from './Choice.js';
 import type { MenuItem } from './Dropdown.js';
 import { FormField } from './FormField.js';
 import { Icon } from './Icon.js';
-import { KebabMenu } from './KebabMenu.js';
 import { Modal, ModalText } from './Modal.js';
 import { Actions } from './ui/Actions.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -23,7 +21,6 @@ import { orgKey, queryError } from '../lib/queries.js';
 import { providerWords, useSignInOptions } from '../lib/sign-in-options.js';
 import { AVATAR_SIZE, ICON_SIZE } from './ui/sizes.js';
 
-const ROLES_NOTE = 'Admins launch agents, add connectors, change models and invite. Members check on agents and approve.';
 const ADD_ROLES_NOTE = 'Admins launch agents, add connectors, change models and add members. Members check on agents and approve.';
 const BUTTON_HEIGHT = 40;
 const BUTTON_WIDTH = { full: 150, compact: 120 } as const;
@@ -62,36 +59,19 @@ function MemberRow({ member, org, onError }: { member: Member; org: Organization
   );
 }
 
-function InvitationRow({ invitation, org, onError }: { invitation: Invitation; org: Organization; onError: (text: string) => void }): ReactNode {
-  const run = useRun(onError, 'Could not revoke that invitation.');
-  const role = invitation.role === null ? 'Invited' : ROLE_WORD[invitation.role];
-  return (
-    <Item title={invitation.email} subtitle={`${role} · not accepted yet`} leading={<AgentAvatar seed={invitation.email} size={AVATAR_SIZE.row} />}
-      trailing={org.role === 'admin' ? <KebabMenu ghost label={`Actions for the invitation of ${invitation.email}`} items={[{ label: 'Revoke the invitation', danger: true, onSelect: () => { run(revokeInvitation(invitation.id)); } }]} /> : undefined} />
-  );
-}
-
 export function MembersGroups(): ReactNode {
   const { data, error, refetch } = useOrganizationQuery();
-  const options = useSignInOptions();
   const [failed, setFailed] = useState<string | null>(null);
-  if (data === undefined || options === null)
+  if (data === undefined)
     return (
       <Group label="Members">
-        {error === null || data !== undefined ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the members" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
+        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the members" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
       </Group>
     );
   return (
-    <>
-      <Group label="Members" note={options.accounts === 'metro' ? ADD_ROLES_NOTE : ROLES_NOTE} error={failed}>
-        {data.members.map((m) => <MemberRow key={m.membershipId} member={m} org={data} onError={setFailed} />)}
-      </Group>
-      {data.invitations.length === 0 ? null : (
-        <Group label="Invites">
-          {data.invitations.map((inv) => <InvitationRow key={inv.id} invitation={inv} org={data} onError={setFailed} />)}
-        </Group>
-      )}
-    </>
+    <Group label="Members" note={ADD_ROLES_NOTE} error={failed}>
+      {data.members.map((m) => <MemberRow key={m.membershipId} member={m} org={data} onError={setFailed} />)}
+    </Group>
   );
 }
 
@@ -105,26 +85,15 @@ interface InviteWords {
   failure: string;
 }
 
-function inviteWords(direct: boolean, providers: string): InviteWords {
-  const organization = activeAccount()?.organizationName ?? null;
-  if (direct)
-    return {
-      title: 'Add member',
-      note: `Metro sends no email, so ask them to sign in at https://metro.box with ${providers} using this email address.`,
-      roles: ADD_ROLES_NOTE,
-      done: (email) => `${email} is a member now. Ask them to sign in at https://metro.box with ${providers} using ${email}.`,
-      send: 'Add member',
-      sending: 'Adding…',
-      failure: 'Could not add that person.',
-    };
+function inviteWords(providers: string): InviteWords {
   return {
-    title: 'Invite someone',
-    note: organization === null ? 'They get an email with a link to join.' : `They get an email with a link to join ${organization}.`,
-    roles: ROLES_NOTE,
-    done: (email) => `An invitation went to ${email}.`,
-    send: 'Send invite',
-    sending: 'Sending…',
-    failure: 'Could not send the invitation.',
+    title: 'Add member',
+    note: `Metro sends no email, so ask them to sign in at https://metro.box with ${providers} using this email address.`,
+    roles: ADD_ROLES_NOTE,
+    done: (email) => `${email} is a member now. Ask them to sign in at https://metro.box with ${providers} using ${email}.`,
+    send: 'Add member',
+    sending: 'Adding…',
+    failure: 'Could not add that person.',
   };
 }
 
@@ -170,12 +139,10 @@ export function InviteButton({ compact = false }: { compact?: boolean }): ReactN
   const options = useSignInOptions();
   const [open, setOpen] = useState(false);
   if (options === null) return <SkeletonBlock width={compact ? BUTTON_WIDTH.compact : BUTTON_WIDTH.full} height={BUTTON_HEIGHT} radius={BUTTON_HEIGHT / 2} />;
-  const direct = options.accounts === 'metro';
-  const label = direct ? 'Add member' : compact ? 'Invite' : 'Invite someone';
   return (
     <>
-      <Button size="md" color="secondary" label={label} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
-      {open ? <InviteModal words={inviteWords(direct, providerWords(options.providers))} onClose={() => { setOpen(false); }} /> : null}
+      <Button size="md" color="secondary" label="Add member" iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
+      {open ? <InviteModal words={inviteWords(providerWords(options.providers))} onClose={() => { setOpen(false); }} /> : null}
     </>
   );
 }

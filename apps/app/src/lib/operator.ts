@@ -6,7 +6,7 @@ export function useOperator(): boolean | null {
   const account = activeAccount();
   const { data, isError } = useQuery({
     queryKey: ['operator', account?.user.id ?? null],
-    queryFn: () => (account === null ? Promise.resolve(false) : fetchOperator(account)),
+    queryFn: () => (account === null ? Promise.resolve(false) : fetchOperator()),
     staleTime: 5 * 60_000,
     retry: 2,
   });

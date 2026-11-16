@@ -1,6 +1,6 @@
 export const PRIVACY = `# Privacy policy
 
-Updated 6 October 2026. Metro is operated by Stage Labs.
+Updated 17 November 2026. Metro is operated by Stage Labs.
 
 ## What this policy covers
 
@@ -8,9 +8,9 @@ This policy describes the Metro website, account management services and softwar
 
 ## Website and account information
 
-Metro uses WorkOS for sign-in and organization membership. Account management stores information such as your user identifier, email, profile name and avatar, account status, organization identifiers and slugs, and agent names, addresses and launch details. This information supports sign-in, access control, the agent list and server management.
+You sign in to Metro with your Google or Microsoft account. Metro receives from that provider the account identifier, email address, whether the provider confirmed the address, profile name and, from Google, a profile picture. Metro keeps the users, organizations and organization memberships itself. Account management stores information such as your user identifier, email, profile name and avatar, the Google or Microsoft account you sign in with, sign-in sessions, account status, organization identifiers, names and slugs, memberships and roles, and agent names, addresses and launch details. This information supports sign-in, access control, the agent list and server management.
 
-The browser stores sign-in tokens, preferences, cached agent lists and pending Gmail or Outlook connection state in local storage. Pending connection state can remain there after the browser closes, until a later connection operation removes or replaces it. It uses session storage for sign-in redirects and invitation state. Metro's application does not use cookies for its own sign-in. Identity providers may use cookies on their own sites.
+The browser stores sign-in tokens, preferences, cached agent lists and pending Gmail or Outlook connection state in local storage. Pending connection state can remain there after the browser closes, until a later connection operation removes or replaces it. It uses session storage for sign-in redirects. Metro's application does not use cookies for its own sign-in. Identity providers may use cookies on their own sites.
 
 Hosting, identity and infrastructure services process information needed to serve the website, authenticate users and run machines. Operational logs and server metrics may include errors, service activity and resource usage. On the agent's machine, service logs can also contain message content and sender or recipient details.
 
