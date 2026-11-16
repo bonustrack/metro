@@ -117,6 +117,14 @@ describe('approvals answered on metro.box', () => {
     expect(found?.approval).toMatchObject({ id: 'abcde', name: 'notion.create_page', line: '', requestedAt: new Date(NOW).toISOString(), inChat: false });
     const card = approvalCard(found?.approval ?? { id: '', name: '', tool: '', preview: '', request: '', input: null, line: '', requestedAt: '', inChat: false, fileBytes: [] });
     expect(card).toMatchObject({ connector: 'notion', title: 'Create page', fields: [{ label: 'Title', value: 'Plan' }] });
+    expect(found?.approval.requestedBy).toBeNull();
+  });
+
+  test('who asked is read when the api says it, and is null when it is missing or not text', async () => {
+    const asked = (requestedBy: unknown): Record<string, unknown> => ({ id: 'abcde', connector: 'conn0000001', connectorKey: 'notion', tool: 'create_page', preview: '{}', requestedAt: NOW, requestedBy });
+    serve({ approvals: [asked('access key "Claude Code"'), { ...asked(7), id: 'bcdef' }, { ...asked('  \n '), id: 'cdefg' }, { ...asked('an access key'), id: 'defgh' }] });
+    const found = await fetchRemoteApprovals(AGENT);
+    expect(found.map((one) => [one.approval.id, one.approval.requestedBy])).toEqual([['abcde', 'access key "Claude Code"'], ['bcdef', null], ['cdefg', null], ['defgh', 'an access key']]);
   });
 
   test('an answer posts the decision for that request', async () => {

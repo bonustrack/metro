@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { chatApprovals } from '@metro-labs/client/api/accounts';
 import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
-import { approvalCard } from '@metro-labs/client/api/approval-card';
+import { approvalCard, connectorAsk } from '@metro-labs/client/api/approval-card';
 import type { Approval } from '@metro-labs/client/api/approvals';
 import type { StationsView } from '@metro-labs/client/api/client';
 import type { ClaudeProject } from '@metro-labs/client/api/claude';
@@ -74,7 +74,7 @@ function knownSetup(name: string, model: ModelSettings | undefined, stations: St
 
 function remoteAsk(found: RemoteApproval): string {
   const card = approvalCard(found.approval);
-  return `approve ${card.title} on ${found.connectorName ?? card.connector ?? 'a connector'}`;
+  return connectorAsk(card.title, found.connectorName ?? card.connector ?? 'a connector');
 }
 
 const keyedApproval = (approval: Approval | undefined): boolean => approval !== undefined && approvalCard(approval).connector !== null;

@@ -4,8 +4,9 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
 import type { Session } from '@metro-labs/http/workos-token';
+import { keyAsker } from '@metro-labs/core/approval-fields';
 import { connectorKeys } from '@metro-labs/core/connector-keys';
-import { createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';
+import { agentTokenLabels, createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approvalStore, type ApprovalRow } from '@metro-labs/connectors/db/mcp-approvals';
 import { agents, connectorAgents, connectors } from '../db/schema.js';
@@ -33,6 +34,7 @@ interface ApprovalView {
   tool: string;
   preview: string;
   requestedAt: number;
+  requestedBy?: string;
 }
 
 const tokenView = (row: AgentTokenRow): TokenView => ({ id: row.id, label: row.label, createdAt: row.createdAt, lastUsedAt: row.lastUsedAt, revokedAt: row.revokedAt, scopes: TOKEN_SCOPES.filter((scope) => row.scopes.includes(scope)) });
@@ -103,9 +105,12 @@ async function assignedKeys(db: Database, owner: string, agent: string): Promise
   return new Map(rows.map((row) => [row.id, { key: keys.get(row.id) ?? row.id, name: row.name, url: row.url }]));
 }
 
-function approvalView(row: ApprovalRow, known: Map<string, { key: string; name: string; url: string }>): ApprovalView {
+const askerOf = (row: ApprovalRow, labels: Map<string, string>): { requestedBy?: string } =>
+  row.origin === 'key' ? { requestedBy: keyAsker(row.token === null ? null : labels.get(row.token)) } : {};
+
+function approvalView(row: ApprovalRow, known: Map<string, { key: string; name: string; url: string }>, labels: Map<string, string>): ApprovalView {
   const connector = known.get(row.connector);
-  return { id: row.id, connector: row.connector, connectorKey: connector?.key ?? row.connector, connectorName: connector?.name ?? null, connectorUrl: connector?.url ?? null, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt };
+  return { id: row.id, connector: row.connector, connectorKey: connector?.key ?? row.connector, connectorName: connector?.name ?? null, connectorUrl: connector?.url ?? null, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt, ...askerOf(row, labels) };
 }
 
 export async function agentApprovals(deps: RemoteDeps, owner: string, agent: string): Promise<{ approvals: ApprovalView[] }> {
@@ -114,7 +119,8 @@ export async function agentApprovals(deps: RemoteDeps, owner: string, agent: str
   const rows = await approvalStore(() => db).pending({ agent, owner }, deps.now());
   if (rows.length === 0) return { approvals: [] };
   const known = await assignedKeys(db, owner, agent);
-  return { approvals: rows.map((row) => approvalView(row, known)) };
+  const labels = await agentTokenLabels(db, { agent, owner }, rows.flatMap((row) => (row.origin === 'key' && row.token !== null ? [row.token] : [])));
+  return { approvals: rows.map((row) => approvalView(row, known, labels)) };
 }
 
 function decisionOf(body: unknown): 'allow' | 'deny' {

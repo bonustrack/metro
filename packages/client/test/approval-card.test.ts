@@ -43,7 +43,7 @@ describe('an approval reads as a card in words', () => {
 
   test('a connector tool names the connector, from the plugin or from mcp.metro.box', () => {
     expect(approvalCard(approval('mcp__plugin_metro_notion__notion-search', { query: 'March offer' }))).toMatchObject({
-      connector: 'notion', title: 'Notion search', ask: 'use Notion search on notion', fields: [{ label: 'Query', value: 'March offer' }],
+      connector: 'notion', title: 'Notion search', ask: 'approve Notion search on notion', fields: [{ label: 'Query', value: 'March offer' }],
     });
     expect(approvalCard(approval('granola.list_meetings', { limit: 5 }))).toMatchObject({ connector: 'granola', title: 'List meetings', fields: [{ label: 'Limit', value: '5' }] });
     expect(approvalCard(approval('Google_Drive.search', { q: 'offer' }))).toMatchObject({ connector: 'Google_Drive', title: 'Search' });

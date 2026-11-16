@@ -49,9 +49,13 @@ async function refused(query: SQL): Promise<boolean> {
   }
 }
 
-async function pendingApproval(agent = REMOTE, owner = TEST_OWNER, args = '{"title":"Plan"}'): Promise<string> {
-  return (await approvalStore(() => held.db).request({ agent, owner }, { connector: CONN, tool: 'create_page', digest: `digest-${args.length}`.padEnd(43, 'x'), preview: args }, now)).id;
+async function pendingApproval(agent = REMOTE, owner = TEST_OWNER, args = '{"title":"Plan"}', token?: string): Promise<string> {
+  const request = { connector: CONN, tool: 'create_page', digest: `digest-${args.length}`.padEnd(43, 'x'), preview: args, ...(token === undefined ? {} : { token }) };
+  return (await approvalStore(() => held.db).request({ agent, owner }, request, now)).id;
 }
+
+const askers = async (): Promise<[string, unknown][]> =>
+  ((await (await call(`/api/agents/${REMOTE}/approvals`, { role: 'member' })).json()) as { approvals: { id: string; requestedBy?: unknown }[] }).approvals.map((one) => [one.id, one.requestedBy]);
 
 beforeAll(async () => {
   held = await testDb();
@@ -216,6 +220,31 @@ describe('approvals answered on metro.box', () => {
     const res = await call(`/api/agents/${REMOTE}/approvals`, { role: 'member' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ approvals: [{ id, connector: CONN, connectorKey: 'notion', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com', tool: 'create_page', preview: '{"title":"Plan"}', requestedAt: NOW }] });
+  });
+
+  test('an approval an access key asked names that key, in the words a box uses, and only its own key', async () => {
+    const laptop = await created(REMOTE, 'Claude Code');
+    const odd = await created(REMOTE, 'Lap top');
+    await held.db.update(agentTokens).set({ label: 'Lap\ntop\u202e' }).where(eq(agentTokens.id, odd.token.id));
+    const byLaptop = await pendingApproval(REMOTE, TEST_OWNER, '{"a":1}', laptop.token.id);
+    now += 1;
+    const byOdd = await pendingApproval(REMOTE, TEST_OWNER, '{"bb":2}', odd.token.id);
+    now += 1;
+    const gone = await pendingApproval(REMOTE, TEST_OWNER, '{"ccc":3}', 'tokenGone01');
+    now += 1;
+    const before = await pendingApproval(REMOTE, TEST_OWNER, '{"dddd":4}');
+    await held.db.update(mcpApprovals).set({ origin: null }).where(eq(mcpApprovals.id, before));
+    const theirs = await created(BOX, 'Box key');
+    now += 1;
+    const borrowed = await pendingApproval(REMOTE, TEST_OWNER, '{"eeeee":5}', theirs.token.id);
+    await call(`/api/agents/${REMOTE}/tokens/${laptop.token.id}`, { method: 'DELETE' });
+    expect(await askers()).toEqual([
+      [byLaptop, 'access key "Claude Code"'],
+      [byOdd, 'access key "Lap top"'],
+      [gone, 'an access key'],
+      [before, undefined],
+      [borrowed, 'an access key'],
+    ]);
   });
 
   test('a member answers once, as on a box page, which moves the row as the daemon relay does', async () => {

@@ -146,9 +146,9 @@ describe('the note under an approval card', () => {
     const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: 'agntEmma001' }] };
     const loaded = { data: { connectors: [gmail] }, error: null };
     expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: null })).toBeUndefined();
-    expect(approvalAsk(approvalCard(draft), 'agntEmma001', loaded)).toBe('use Create draft on Gmail fabien@bonustrack.co');
-    expect(approvalAsk(approvalCard(draft), 'agntLisa001', loaded)).toBe('use Create draft on gmail-fabien-bonustrack-co');
-    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBe('use Create draft on gmail-fabien-bonustrack-co');
+    expect(approvalAsk(approvalCard(draft), 'agntEmma001', loaded)).toBe('approve Create draft on Gmail fabien@bonustrack.co');
+    expect(approvalAsk(approvalCard(draft), 'agntLisa001', loaded)).toBe('approve Create draft on gmail-fabien-bonustrack-co');
+    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBe('approve Create draft on gmail-fabien-bonustrack-co');
     expect(approvalAsk(approvalCard(send), 'agntEmma001', { data: undefined, error: null })).toBe('send a message');
   });
 
