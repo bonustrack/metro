@@ -2,11 +2,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { errMsg, log } from '@metro-labs/core/log';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
-import { clientId, filled, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
+import { clientId, filled, JwksKeys, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
 import { handleAuthApiRequest } from './auth/routes.js';
 import { handleMembersApiRequest } from './auth/members.js';
 import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
 import { listMembers, readWorkosConfig } from './auth/workos.js';
+import { announceSigningKeys, handleJwksRequest, readSigningKeys } from './auth/signing-keys.js';
 import {
   addLaunchedServer,
   addRemoteAgentForOwner,
@@ -83,7 +84,8 @@ const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
 const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
-const keys = new SigningKeys(jwksUrl(clientId(), workosBase()));
+const authKeys = readSigningKeys();
+const keys = new SigningKeys(new JwksKeys(jwksUrl(clientId(), workosBase())), authKeys);
 const authApi = { config: () => readWorkosConfig(), keys, slugs: dbOrganizations, orgAvatars: dbOrganizations, users: dbUsers, agentsOf: listServersForOwner };
 const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
 const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
@@ -223,6 +225,7 @@ const icons = { favicons: new Favicons(egressFetch(), () => Date.now()), declare
 
 const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   handleHealth,
+  (req, res) => handleJwksRequest(req, res, authKeys),
   (req, res) => handleIconRequest(req, res, icons),
   (req, res) => handleModeRequest(req, res, mode),
   (req, res) => handleAuthApiRequest(req, res, authApi),
@@ -281,6 +284,7 @@ function startPhonePush(): void {
 server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
   announceConnectorsSetup(connectorsSetup);
+  announceSigningKeys(authKeys);
   log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: sign-in');
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
   startPhonePush();
