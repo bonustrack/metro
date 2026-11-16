@@ -25,6 +25,7 @@ describe('the orchestrator guard the CLI ships', () => {
   test('the main thread may delegate, talk over metro, schedule, and look at images; nothing else', () => {
     expect(guard({ tool_name: 'Agent', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'Workflow', tool_input: {} })).toBe('allow');
+    expect(guard({ tool_name: 'SendMessage', tool_input: { to: 'a1b2c3', message: 'the client also wants the plans' } })).toBe('allow');
     expect(guard({ tool_name: 'mcp__metro__send', tool_input: {} })).toBe('allow');
     expect(guard({ tool_name: 'mcp__zapier__run', tool_input: {} })).toContain('connector');
     expect(guard({ tool_name: 'mcp__zapier__run', tool_input: {}, agent_id: 'sub' })).toBe('allow');

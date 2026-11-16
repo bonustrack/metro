@@ -1,5 +1,17 @@
 # Metro history
 
+## 2026-11-16: The main thread talks to its workers and sends their files itself
+
+On Lisa at MCI, 61 of 164 workers started from the main thread between 2 and 16 November (37%) were couriers: "Relay…", "Upload…", "…weitergeben", "…beim Owner", median 38 s and 4 model requests each, plus a main-thread turn before and after. Two rules caused them. The guard did not count `SendMessage` as orchestration, so all 8 of the main thread's attempts to pass a follow-up to the worker that owned a task were denied, and it started a new worker to relay the message instead. And the `metro` skill, the MCP instructions and the `send` schema said a file goes out through `create_upload` plus a curl that only a worker can run, and that `path` is read "on the daemon host, which is almost never your machine", words from the hosted daemon era. Every daemon is local now and a `path` attachment is read on the box with the agent's own rights (`fromPathAs`).
+
+At the same time Lisa's workers sent 168 progress messages to the main thread and 358 to each other in those two weeks. Each wakes a full model turn: worker messages were 27% of the main thread's input tokens, and most of those turns sent nothing. Several workers on one request coordinated with each other, which is overlapping work. Nothing in Metro asked for it; it is the model's habit (GPT-6.1 through Codex).
+
+- The guard counts `SendMessage` as orchestration.
+- The `metro` skill: one worker per request, split only into parts that need nothing from each other, and a follow-up goes to the worker doing the work with `SendMessage`. A file a worker made goes out with `send` and a `path` attachment from the main thread, or from the worker itself.
+- The worker definition: no progress messages and no coordination with other workers; `SendMessage` only for a decision it cannot make or a hand-over that cannot wait; a file for a chat is sent by the worker itself.
+- `MCP_INSTRUCTIONS`, the attachment schema and `create_upload` describe `path` as the route for a file on this machine and `upload` for a file pushed over HTTP. The instructions got shorter (1,953 characters).
+- The previous skill and worker texts are in `PRIOR_METRO` and `PRIOR_WORKER`, so boxes get the new copies.
+
 ## 2026-11-16: An update restarts the agent's session only when it is idle
 
 Each MCI box restarted its session 5 times between 14 and 16 November, once per release, without looking at running work: the session watcher stops a session an older metro started as soon as it sees it (`ensureSession`). Rosa's 24-hour worker ended at 11:17:40 on 14 November, the second the beta.330 restart ran. Most of those releases landed on a weekend, so the damage was small.
