@@ -31,6 +31,9 @@ const STRIKE_WINDOW_MS = 60_000;
 const MAX_STRIKES = 5;
 const PAUSE_MS = 30 * 60_000;
 const PREPARE_MS = 16 * 60_000;
+export const UPDATE_WAIT_MS = 6 * 60 * 60_000;
+const BUSY_PHASES: ReadonlySet<string> = new Set(['working', 'compacting', 'approval']);
+const LIVE_CALL: ReadonlySet<string> = new Set(['started', 'accepted', 'queued', 'speaking']);
 
 export interface SessionDeps {
   tmux?: string;
@@ -63,9 +66,12 @@ interface Memory {
   lastError: string | null;
   strikes: number;
   pausedUntil: number;
+  staleVersion: string | null;
+  staleSince: number;
+  waitTold: boolean;
 }
 
-const memory: Memory = { lastStartedAt: null, lastError: null, strikes: 0, pausedUntil: 0 };
+const memory: Memory = { lastStartedAt: null, lastError: null, strikes: 0, pausedUntil: 0, staleVersion: null, staleSince: 0, waitTold: false };
 
 const statePath = (agents: string): string => join(agents, STATE_FILE);
 
@@ -229,7 +235,29 @@ function strike(now: number): boolean {
   return true;
 }
 
-export type Ensured = 'started' | 'restarted' | 'running' | 'blocked' | 'off' | 'paused';
+export type Ensured = 'started' | 'restarted' | 'running' | 'waiting' | 'blocked' | 'off' | 'paused';
+
+export function agentBusy(activity: RunnerActivity | null): boolean {
+  if (!sdkAlive(activity)) return false;
+  if (activity.workers > 0 || activity.pending > 0 || activity.approvals > 0) return true;
+  if (BUSY_PHASES.has(activity.mainPhase)) return true;
+  return activity.callState !== undefined && LIVE_CALL.has(activity.callState);
+}
+
+function waitsForWork(deps: SessionDeps, r: Resolved): boolean {
+  if (memory.staleVersion !== r.version) {
+    memory.staleVersion = r.version;
+    memory.staleSince = r.now;
+    memory.waitTold = false;
+  }
+  if (r.now - memory.staleSince >= UPDATE_WAIT_MS) return false;
+  if (!agentBusy(readAgentActivity(sessionHome(deps)))) return false;
+  if (!memory.waitTold) {
+    memory.waitTold = true;
+    log.info({ was: startedVersion(r.agents), now: r.version, waitHoursAtMost: UPDATE_WAIT_MS / 3_600_000 }, 'claude-session: the agent is working; the session restarts for the update once it is idle');
+  }
+  return true;
+}
 
 function holdsBack(deps: SessionDeps, now: number): Ensured | null {
   if (now < memory.pausedUntil) return 'paused';
@@ -256,11 +284,18 @@ function situation(r: Resolved): 'running' | 'stale' | 'absent' {
   return startedVersion(r.agents) === r.version ? 'running' : 'stale';
 }
 
+function leftAlone(deps: SessionDeps, r: Resolved, found: ReturnType<typeof situation>): Ensured | null {
+  if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
+  if (found === 'stale' && waitsForWork(deps, r)) return 'waiting';
+  return null;
+}
+
 export function ensureSession(deps: SessionDeps = {}): Ensured {
   const r = resolved(deps);
   if (!autostartEnabled(r.agents)) return 'off';
   const found = situation(r);
-  if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
+  const alone = leftAlone(deps, r, found);
+  if (alone !== null) return alone;
   const held = holdsBack(deps, r.now);
   if (held !== null) return held;
   if (found === 'stale') {
