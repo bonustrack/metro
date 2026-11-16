@@ -130,7 +130,7 @@ function refusedRequest(answer: unknown, status: number, path: string): WorkosEr
   return new WorkosError(message ?? `WorkOS answered ${String(status)} on ${path}`, str(said.code) ?? str(said.error), status === 422 || status === 400 ? 400 : 503);
 }
 
-async function request(cfg: WorkosConfig, method: string, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function send(cfg: WorkosConfig, method: string, path: string, body?: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${cfg.base}${path}`, {
     method,
     headers: { authorization: `Bearer ${cfg.apiKey}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
@@ -139,6 +139,11 @@ async function request(cfg: WorkosConfig, method: string, path: string, body?: R
   });
   const answer: unknown = await res.json().catch(() => null);
   if (!res.ok) throw refusedRequest(answer, res.status, path);
+  return answer;
+}
+
+async function request(cfg: WorkosConfig, method: string, path: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const answer = await send(cfg, method, path, body);
   return isRecord(answer) ? answer : {};
 }
 
@@ -169,39 +174,88 @@ export interface Invitation {
 export type Role = 'admin' | 'member';
 export const isRole = (value: unknown): value is Role => value === 'admin' || value === 'member';
 
-const LIST = 'limit=100';
+const PAGE = 100;
+const PAGES_MAX = 500;
+
+async function listAll(cfg: WorkosConfig, path: string): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < PAGES_MAX; page += 1) {
+    const cursor: string = after === null ? '' : `&after=${encodeURIComponent(after)}`;
+    const answer = await request(cfg, 'GET', `${path}${path.includes('?') ? '&' : '?'}limit=${String(PAGE)}${cursor}`);
+    out.push(...rows(answer));
+    after = isRecord(answer.list_metadata) ? str(answer.list_metadata.after) : null;
+    if (after === null) return out;
+  }
+  throw new WorkosError(`WorkOS kept answering more pages on ${path}`, null, 503);
+}
 
 export async function listMembers(cfg: WorkosConfig, organization: string): Promise<Member[]> {
   const [users, memberships] = await Promise.all([
-    request(cfg, 'GET', `/user_management/users?organization_id=${organization}&${LIST}`),
-    request(cfg, 'GET', `/user_management/organization_memberships?organization_id=${organization}&statuses=active&${LIST}`),
+    listAll(cfg, `/user_management/users?organization_id=${organization}`),
+    listAll(cfg, `/user_management/organization_memberships?organization_id=${organization}&statuses=active`),
   ]);
-  const people = new Map(rows(users).map((u) => [str(u.id) ?? '', u]));
-  return rows(memberships).flatMap((m) => {
+  const people = new Map(users.map((u) => [str(u.id) ?? '', u]));
+  return memberships.flatMap((m) => {
     const member = memberOf(m, people);
     return member === null ? [] : [member];
   });
 }
+
+function personName(person: Record<string, unknown>): string | null {
+  const name = [str(person.first_name), str(person.last_name)].filter((p) => p !== null).join(' ');
+  return name === '' ? null : name;
+}
+
+const roleSlug = (m: Record<string, unknown>): string => (isRecord(m.role) ? str(m.role.slug) : null) ?? 'member';
 
 function memberOf(m: Record<string, unknown>, people: Map<string, Record<string, unknown>>): Member | null {
   const membershipId = str(m.id);
   const userId = str(m.user_id);
   if (membershipId === null || userId === null) return null;
   const person = people.get(userId) ?? {};
-  const name = [str(person.first_name), str(person.last_name)].filter((p) => p !== null).join(' ');
-  return {
-    membershipId,
-    userId,
-    email: str(person.email),
-    name: name === '' ? null : name,
-    picture: str(person.profile_picture_url),
-    role: (isRecord(m.role) ? str(m.role.slug) : null) ?? 'member',
-  };
+  return { membershipId, userId, email: str(person.email), name: personName(person), picture: str(person.profile_picture_url), role: roleSlug(m) };
+}
+
+export interface WorkosUser {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+  createdAt: string | null;
+}
+
+export async function listUsers(cfg: WorkosConfig): Promise<WorkosUser[]> {
+  return (await listAll(cfg, '/user_management/users')).flatMap((u) => {
+    const id = str(u.id);
+    return id === null ? [] : [{ id, email: str(u.email), name: personName(u), picture: str(u.profile_picture_url), createdAt: str(u.created_at) }];
+  });
+}
+
+export async function organizationMemberships(cfg: WorkosConfig, organization: string): Promise<{ userId: string; role: string }[]> {
+  return (await listAll(cfg, `/user_management/organization_memberships?organization_id=${organization}&statuses=active`)).flatMap((m) => {
+    const userId = str(m.user_id);
+    return userId === null || m.status !== 'active' ? [] : [{ userId, role: roleSlug(m) }];
+  });
+}
+
+export interface WorkosIdentity {
+  provider: string;
+  idpId: string;
+}
+
+export async function userIdentities(cfg: WorkosConfig, userId: string): Promise<WorkosIdentity[]> {
+  const answer = await send(cfg, 'GET', `/user_management/users/${encodeURIComponent(userId)}/identities`);
+  const listed: unknown[] = Array.isArray(answer) ? answer : isRecord(answer) && Array.isArray(answer.data) ? answer.data : [];
+  return listed.filter(isRecord).flatMap((i) => {
+    const provider = str(i.provider);
+    const idpId = str(i.idp_id);
+    return provider === null || idpId === null ? [] : [{ provider, idpId }];
+  });
 }
 
 export async function listInvitations(cfg: WorkosConfig, organization: string): Promise<Invitation[]> {
-  const answer = await request(cfg, 'GET', `/user_management/invitations?organization_id=${organization}&${LIST}`);
-  return rows(answer)
+  return (await listAll(cfg, `/user_management/invitations?organization_id=${organization}`))
     .filter((i) => i.state === 'pending')
     .flatMap((i) => {
       const id = str(i.id);
@@ -211,8 +265,8 @@ export async function listInvitations(cfg: WorkosConfig, organization: string): 
 }
 
 export async function acceptInvitationsFor(cfg: WorkosConfig, email: string): Promise<string | null> {
-  const answer = await request(cfg, 'GET', `/user_management/invitations?email=${encodeURIComponent(email)}&${LIST}`);
-  const pending = rows(answer).filter((i) => i.state === 'pending' && str(i.email)?.toLowerCase() === email.toLowerCase());
+  const answer = await listAll(cfg, `/user_management/invitations?email=${encodeURIComponent(email)}`);
+  const pending = answer.filter((i) => i.state === 'pending' && str(i.email)?.toLowerCase() === email.toLowerCase());
   let joined: string | null = null;
   for (const invitation of pending) {
     const id = str(invitation.id);
@@ -261,8 +315,8 @@ export interface UserOrganization {
 }
 
 export async function userMemberships(cfg: WorkosConfig, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
-  const answer = await request(cfg, 'GET', `/user_management/organization_memberships?user_id=${encodeURIComponent(userId)}&statuses=active&${LIST}`);
-  return rows(answer).flatMap((membership) => {
+  const answer = await listAll(cfg, `/user_management/organization_memberships?user_id=${encodeURIComponent(userId)}&statuses=active`);
+  return answer.flatMap((membership) => {
     const id = str(membership.organization_id);
     if (id === null || membership.status !== 'active') return [];
     const role = isRecord(membership.role) ? str(membership.role.slug) : null;
@@ -283,8 +337,7 @@ export interface OrganizationSummary {
 }
 
 export async function listOrganizations(cfg: WorkosConfig): Promise<OrganizationSummary[]> {
-  const answer = await request(cfg, 'GET', `/organizations?${LIST}`);
-  return rows(answer).flatMap((o) => {
+  return (await listAll(cfg, '/organizations')).flatMap((o) => {
     const id = str(o.id);
     if (id === null) return [];
     const name = str(o.name);
