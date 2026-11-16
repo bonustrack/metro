@@ -23,6 +23,18 @@ afterEach(() => {
 });
 
 describe('whatsapp baileys logger', () => {
+  test('an error inside the logged object keeps its name and message, as Baileys logs a failed decryption', () => {
+    delete process.env[ENV];
+    class SessionError extends Error {
+      override name = 'SessionError';
+    }
+    const out = captureStderr(() => {
+      baileysLogger('w0').error({ key: { id: 'M1' }, err: new SessionError('No matching sessions found for message'), messageType: 'skmsg' }, 'failed to decrypt message');
+    });
+    expect(out).toContain('"err":{"name":"SessionError","message":"No matching sessions found for message"}');
+    expect(out).toContain('"messageType":"skmsg"');
+  });
+
   test('defaults to warn when the env var is unset', () => {
     delete process.env[ENV];
     const logger = baileysLogger('w0');
