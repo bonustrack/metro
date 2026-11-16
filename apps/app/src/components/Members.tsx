@@ -17,12 +17,16 @@ import { Actions } from './ui/Actions.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
-import { RowsSkeleton } from './ui/RowsSkeleton.js';
+import { RowsSkeleton, SkeletonBlock } from './ui/RowsSkeleton.js';
 import { ValueMenu } from './ValueMenu.js';
 import { orgKey, queryError } from '../lib/queries.js';
+import { providerWords, useSignInOptions } from '../lib/sign-in-options.js';
 import { AVATAR_SIZE, ICON_SIZE } from './ui/sizes.js';
 
 const ROLES_NOTE = 'Admins launch agents, add connectors, change models and invite. Members check on agents and approve.';
+const ADD_ROLES_NOTE = 'Admins launch agents, add connectors, change models and add members. Members check on agents and approve.';
+const BUTTON_HEIGHT = 40;
+const BUTTON_WIDTH = { full: 150, compact: 120 } as const;
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const ROLE_WORD: Record<Role, string> = { admin: 'Admin', member: 'Member' };
 
@@ -69,16 +73,17 @@ function InvitationRow({ invitation, org, onError }: { invitation: Invitation; o
 
 export function MembersGroups(): ReactNode {
   const { data, error, refetch } = useOrganizationQuery();
+  const options = useSignInOptions();
   const [failed, setFailed] = useState<string | null>(null);
-  if (data === undefined)
+  if (data === undefined || options === null)
     return (
       <Group label="Members">
-        {error === null ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the members" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
+        {error === null || data !== undefined ? <RowsSkeleton rows={3} /> : <ErrorState title="Could not read the members" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} />}
       </Group>
     );
   return (
     <>
-      <Group label="Members" note={ROLES_NOTE} error={failed}>
+      <Group label="Members" note={options.accounts === 'metro' ? ADD_ROLES_NOTE : ROLES_NOTE} error={failed}>
         {data.members.map((m) => <MemberRow key={m.membershipId} member={m} org={data} onError={setFailed} />)}
       </Group>
       {data.invitations.length === 0 ? null : (
@@ -90,7 +95,40 @@ export function MembersGroups(): ReactNode {
   );
 }
 
-function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
+interface InviteWords {
+  title: string;
+  note: string;
+  roles: string;
+  done: (email: string) => string;
+  send: string;
+  sending: string;
+  failure: string;
+}
+
+function inviteWords(direct: boolean, providers: string): InviteWords {
+  const organization = activeAccount()?.organizationName ?? null;
+  if (direct)
+    return {
+      title: 'Add member',
+      note: `Metro sends no email, so ask them to sign in at https://metro.box with ${providers} using this email address.`,
+      roles: ADD_ROLES_NOTE,
+      done: (email) => `${email} is a member now. Ask them to sign in at https://metro.box with ${providers} using ${email}.`,
+      send: 'Add member',
+      sending: 'Adding…',
+      failure: 'Could not add that person.',
+    };
+  return {
+    title: 'Invite someone',
+    note: organization === null ? 'They get an email with a link to join.' : `They get an email with a link to join ${organization}.`,
+    roles: ROLES_NOTE,
+    done: (email) => `An invitation went to ${email}.`,
+    send: 'Send invite',
+    sending: 'Sending…',
+    failure: 'Could not send the invitation.',
+  };
+}
+
+function InviteModal({ words, onClose }: { words: InviteWords; onClose: () => void }): ReactNode {
   const client = useQueryClient();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('member');
@@ -108,21 +146,20 @@ function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
         setEmail('');
         await client.invalidateQueries({ queryKey: organizationKey() });
       })
-      .catch((err: unknown) => { setError(queryError(err, 'Could not send the invitation.')); })
+      .catch((err: unknown) => { setError(queryError(err, words.failure)); })
       .finally(() => { setBusy(false); });
   };
-  const organization = activeAccount()?.organizationName ?? null;
   return (
-    <Modal title="Invite someone" open onClose={onClose}>
+    <Modal title={words.title} open onClose={onClose}>
       <Column gap={20}>
-        <ModalText>{organization === null ? 'They get an email with a link to join.' : `They get an email with a link to join ${organization}.`}</ModalText>
+        <ModalText>{words.note}</ModalText>
         <FormField label="Email address" name="email" value={email} placeholder="name@company.com" disabled={busy} onChangeText={setEmail} onSubmit={send} inputProps={NO_ASSIST} />
         <Column gap={8}>
           <Choice<Role> label="Role" value={role} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} onChange={setRole} />
-          <Text size="xs" color="secondary">{ROLES_NOTE}</Text>
+          <Text size="xs" color="secondary">{words.roles}</Text>
         </Column>
-        {sent === null ? null : <Text size="md" color="success">{`An invitation went to ${sent}.`}</Text>}
-        <Actions error={error} cancel={{ label: sent === null ? 'Cancel' : 'Done', onPress: onClose, disabled: busy }} main={{ label: busy ? 'Sending…' : 'Send invite', busy, disabled: email.trim() === '', onPress: send }} />
+        {sent === null ? null : <Text size="md" color="success">{words.done(sent)}</Text>}
+        <Actions error={error} cancel={{ label: sent === null ? 'Cancel' : 'Done', onPress: onClose, disabled: busy }} main={{ label: busy ? words.sending : words.send, busy, disabled: email.trim() === '', onPress: send }} />
       </Column>
     </Modal>
   );
@@ -130,11 +167,15 @@ function InviteModal({ onClose }: { onClose: () => void }): ReactNode {
 
 export function InviteButton({ compact = false }: { compact?: boolean }): ReactNode {
   const palette = useKitPalette();
+  const options = useSignInOptions();
   const [open, setOpen] = useState(false);
+  if (options === null) return <SkeletonBlock width={compact ? BUTTON_WIDTH.compact : BUTTON_WIDTH.full} height={BUTTON_HEIGHT} radius={BUTTON_HEIGHT / 2} />;
+  const direct = options.accounts === 'metro';
+  const label = direct ? 'Add member' : compact ? 'Invite' : 'Invite someone';
   return (
     <>
-      <Button size="md" color="secondary" label={compact ? 'Invite' : 'Invite someone'} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
-      {open ? <InviteModal onClose={() => { setOpen(false); }} /> : null}
+      <Button size="md" color="secondary" label={label} iconStart={<Icon name="userAdd" size={ICON_SIZE.md} color={palette.link} />} onPress={() => { setOpen(true); }} />
+      {open ? <InviteModal words={inviteWords(direct, providerWords(options.providers))} onClose={() => { setOpen(false); }} /> : null}
     </>
   );
 }

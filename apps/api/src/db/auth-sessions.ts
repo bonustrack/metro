@@ -1,7 +1,7 @@
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { accountId, newSecret, secretHashOf } from './account-ids.js';
 import type { Database } from './client.js';
-import { authSessions } from './schema.js';
+import { authSessions, authSpentTokens } from './schema.js';
 
 const DAY_MS = 24 * 60 * 60_000;
 
@@ -9,9 +9,12 @@ export const SESSION_IDLE_MS = 30 * DAY_MS;
 export const SESSION_MAX_MS = 90 * DAY_MS;
 export const ROTATION_GRACE_MS = 60_000;
 
-const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+export const REFRESH_PREFIX = 'mrt_';
+const TOKEN_RE = /^mrt_[A-Za-z0-9_-]{43}$/;
 
-export type SessionMethod = 'google' | 'microsoft' | 'link';
+export const isMetroRefreshToken = (token: string): boolean => token.startsWith(REFRESH_PREFIX);
+
+export type SessionMethod = 'google' | 'microsoft' | 'link' | 'workos';
 
 export interface AuthSession {
   id: string;
@@ -34,9 +37,11 @@ const deadline = (createdAt: number, now: number): number => Math.min(now + SESS
 
 const sessionOf = (row: Pick<SessionRow, 'id' | 'userId' | 'method' | 'createdAt' | 'expiresAt'>): AuthSession => ({ id: row.id, user: row.userId, method: row.method, createdAt: row.createdAt, expiresAt: row.expiresAt });
 
-export async function createSession(db: Database, input: { user: string; method: SessionMethod; now: number }): Promise<IssuedSession> {
-  const refreshToken = newSecret();
-  const row = { id: accountId('session', input.now), userId: input.user, method: input.method, refreshHash: secretHashOf(refreshToken), createdAt: input.now, lastUsedAt: input.now, expiresAt: deadline(input.now, input.now) };
+const newRefreshToken = (): string => `${REFRESH_PREFIX}${newSecret()}`;
+
+export async function createSession(db: Database, input: { user: string; method: SessionMethod; now: number; link?: string }): Promise<IssuedSession> {
+  const refreshToken = newRefreshToken();
+  const row = { id: accountId('session', input.now), userId: input.user, method: input.method, refreshHash: secretHashOf(refreshToken), createdAt: input.now, lastUsedAt: input.now, expiresAt: deadline(input.now, input.now), link: input.link ?? null };
   await db.insert(authSessions).values(row);
   return { session: sessionOf(row), refreshToken };
 }
@@ -44,21 +49,32 @@ export async function createSession(db: Database, input: { user: string; method:
 const refused = (reason: Extract<Rotation, { kind: 'refused' }>['reason']): Rotation => ({ kind: 'refused', reason });
 
 async function rotate(tx: Database, row: SessionRow, now: number): Promise<Rotation> {
-  const refreshToken = newSecret();
+  const refreshToken = newRefreshToken();
   const expiresAt = deadline(row.createdAt, now);
+  await tx.insert(authSpentTokens).values({ hash: row.refreshHash, session: row.id, spentAt: now }).onConflictDoNothing();
   await tx.update(authSessions).set({ refreshHash: secretHashOf(refreshToken), previousHash: row.refreshHash, rotatedAt: now, lastUsedAt: now, expiresAt }).where(eq(authSessions.id, row.id));
   return { kind: 'rotated', session: sessionOf({ ...row, expiresAt }), refreshToken };
+}
+
+async function reused(tx: Database, session: string, now: number): Promise<Rotation> {
+  await tx.update(authSessions).set({ revokedAt: now }).where(and(eq(authSessions.id, session), isNull(authSessions.revokedAt)));
+  return refused('reused');
+}
+
+async function spentBy(tx: Database, hash: string, now: number): Promise<Rotation> {
+  const rows = await tx.select({ session: authSpentTokens.session }).from(authSpentTokens).where(eq(authSpentTokens.hash, hash)).limit(1);
+  const session = rows[0]?.session;
+  return session === undefined ? refused('unknown') : reused(tx, session, now);
 }
 
 async function rotateIn(tx: Database, hash: string, now: number): Promise<Rotation> {
   const rows = await tx.select().from(authSessions).where(or(eq(authSessions.refreshHash, hash), eq(authSessions.previousHash, hash))).limit(1).for('update');
   const row = rows[0];
-  if (row === undefined) return refused('unknown');
+  if (row === undefined) return spentBy(tx, hash, now);
   if (row.revokedAt !== null) return refused('revoked');
   if (row.expiresAt <= now) return refused('expired');
   if (row.refreshHash === hash || (row.rotatedAt !== null && now - row.rotatedAt <= ROTATION_GRACE_MS)) return rotate(tx, row, now);
-  await tx.update(authSessions).set({ revokedAt: now }).where(eq(authSessions.id, row.id));
-  return refused('reused');
+  return reused(tx, row.id, now);
 }
 
 export async function rotateSession(db: Database, refreshToken: string, now: number): Promise<Rotation> {
@@ -75,6 +91,12 @@ export async function liveSession(db: Database, id: string, now: number): Promis
 export async function revokeSession(db: Database, id: string, now: number): Promise<boolean> {
   const rows = await db.update(authSessions).set({ revokedAt: now }).where(and(eq(authSessions.id, id), isNull(authSessions.revokedAt))).returning({ id: authSessions.id });
   return rows.length > 0;
+}
+
+export async function revokeLinkSessions(db: Database, links: string[], now: number): Promise<number> {
+  if (links.length === 0) return 0;
+  const rows = await db.update(authSessions).set({ revokedAt: now }).where(and(inArray(authSessions.link, links), isNull(authSessions.revokedAt))).returning({ id: authSessions.id });
+  return rows.length;
 }
 
 export async function pruneSessions(db: Database, now: number): Promise<number> {

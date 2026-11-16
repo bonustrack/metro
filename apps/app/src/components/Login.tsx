@@ -8,9 +8,11 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { Title } from '@stage-labs/kit/react-native/title';
 import { fontName } from '@stage-labs/kit/tokens';
 import { daemonHost, routedDaemon } from '@metro-labs/client/auth/daemon';
-import { atWaitlist, clearOutcome, readOutcome } from '@metro-labs/client/auth/login-route';
+import { atWaitlist, clearOutcome, readOutcome, type Outcome } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation } from '@metro-labs/client/auth/invitation';
-import { loginUrl, PROVIDERS, type Intent, type Provider } from '@metro-labs/client/api/auth';
+import { loginUrl, type Intent, type Provider } from '@metro-labs/client/api/auth';
+import { startWebProof } from '@metro-labs/client/auth/sign-in-proof';
+import type { Accounts, SignInOptions } from '@metro-labs/client/api/sign-in-options';
 import microsoft from '../../assets/microsoft.png';
 import { MetroLogo } from './MetroLogo.js';
 import { LegalLinks } from './LegalLinks.js';
@@ -19,8 +21,10 @@ import { GoogleMark } from './GoogleMark.js';
 import { GitHubMark } from './GitHubMark.js';
 import { RouteLink } from './RouteLink.js';
 import { PageScroll } from './PageScroll.js';
+import { SkeletonBlock } from './ui/RowsSkeleton.js';
 import { goExternal } from '../lib/open.js';
 import { appLogin } from '../lib/app-login.js';
+import { useSignInOptions } from '../lib/sign-in-options.js';
 import { CENTER_TEXT, FULL_WIDTH, webOnly } from '../lib/style.js';
 
 const CONTENT_WIDTH = 340;
@@ -35,7 +39,9 @@ const JOINED = 'You are on the waitlist. Once we let you in, log in with the sam
 const INVITED = 'Your invitation is accepted. Log in with the same account to open Metro.';
 const INVITATION = 'You are invited to an organization. Log in with the email the invitation went to.';
 const COPYRIGHT = `© ${String(new Date().getFullYear())} Metro`;
+const NOT_SET_UP = 'Sign-in is not set up yet. Try again later.';
 const TOP_LOGO = 24;
+const PILL = 48;
 const WEB = Platform.OS === 'web';
 
 const REFUSALS: Record<string, string> = {
@@ -43,8 +49,15 @@ const REFUSALS: Record<string, string> = {
   waiting: 'You are on the waitlist already. We will let you in soon.',
   'not-open': 'Metro is not open to this account.',
   unverified: 'That account has no verified email. Log in with an email code instead.',
+  'other-account': 'That email address already signs in with another Google or Microsoft account. Log in with that one.',
+  link: 'This login link does not work any more. Ask for a new one.',
+  'too-many': 'Too many tries. Wait a minute, then try again.',
   cancelled: 'The sign-in was cancelled.',
   failed: 'The sign-in failed. Try again.',
+};
+
+const METRO_REFUSALS: Record<string, string> = {
+  unverified: 'Google or Microsoft did not confirm the email address of that account. Log in with another account.',
 };
 
 const styles = StyleSheet.create({
@@ -54,9 +67,9 @@ const styles = StyleSheet.create({
 
 const TOP = webOnly({ position: 'fixed' });
 
-function refusalText(refused: string | null): string | null {
+function refusalText(refused: string | null, accounts: Accounts): string | null {
   if (refused === null) return null;
-  return REFUSALS[refused] ?? REFUSALS.failed ?? null;
+  return (accounts === 'metro' ? METRO_REFUSALS[refused] : undefined) ?? REFUSALS[refused] ?? REFUSALS.failed ?? null;
 }
 
 function providerMark(provider: Provider, onButton: string): ReactNode {
@@ -65,12 +78,12 @@ function providerMark(provider: Provider, onButton: string): ReactNode {
   return <Row padding={{ right: 4 }}>{mark}</Row>;
 }
 
-function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
+function ProviderButtons({ intent, providers }: { intent: Intent; providers: Provider[] }): ReactNode {
   const onButton = useKitPalette().link;
   const [failed, setFailed] = useState<string | null>(null);
   return (
     <Column gap={10}>
-      {PROVIDERS.map((provider) => (
+      {providers.map((provider) => (
         <Button
           key={provider}
           size="lg"
@@ -80,7 +93,7 @@ function ProviderButtons({ intent }: { intent: Intent }): ReactNode {
           icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
           onPress={() => {
-            if (WEB) goExternal(loginUrl(provider, intent));
+            if (WEB) goExternal(loginUrl(provider, intent, { challenge: startWebProof() }));
             else {
               setFailed(null);
               appLogin(provider, intent).catch((err: unknown) => {
@@ -158,7 +171,7 @@ function DaemonHint(): ReactNode {
   );
 }
 
-function Notes({ failed, invited }: { failed: string | null; invited: boolean }): ReactNode {
+function Notes({ failed, invited, invitation }: { failed: string | null; invited: boolean; invitation: boolean }): ReactNode {
   return (
     <>
       <DaemonHint />
@@ -167,7 +180,7 @@ function Notes({ failed, invited }: { failed: string | null; invited: boolean })
           {failed}
         </Text>
       )}
-      {pendingInvitation() !== null && !invited ? (
+      {invitation && !invited ? (
         <Text size="md" style={CENTER_TEXT}>
           {INVITATION}
         </Text>
@@ -177,6 +190,49 @@ function Notes({ failed, invited }: { failed: string | null; invited: boolean })
           {INVITED}
         </Text>
       ) : null}
+    </>
+  );
+}
+
+function ChoicesSkeleton(): ReactNode {
+  return (
+    <Column padding={{ top: 8 }} gap={10}>
+      <SkeletonBlock width={CONTENT_WIDTH} height={PILL} radius={PILL / 2} />
+      <SkeletonBlock width={CONTENT_WIDTH} height={PILL} radius={PILL / 2} />
+    </Column>
+  );
+}
+
+function Choices({ intent, options }: { intent: Intent; options: SignInOptions }): ReactNode {
+  if (!options.emailCode && options.providers.length === 0)
+    return (
+      <Text size="md" style={CENTER_TEXT}>
+        {NOT_SET_UP}
+      </Text>
+    );
+  return (
+    <Column padding={{ top: 8 }} gap={16}>
+      {options.emailCode ? (
+        <>
+          <EmailLogin intent={intent} />
+          <Text size="md" color="secondary" style={CENTER_TEXT}>
+            or
+          </Text>
+        </>
+      ) : null}
+      <ProviderButtons intent={intent} providers={options.providers} />
+    </Column>
+  );
+}
+
+function SignIn({ intent, outcome }: { intent: Intent; outcome: Outcome }): ReactNode {
+  const options = useSignInOptions();
+  if (options === null) return <ChoicesSkeleton />;
+  const workos = options.accounts === 'workos';
+  return (
+    <>
+      <Notes failed={refusalText(outcome.refused, options.accounts)} invited={workos && outcome.invited} invitation={workos && pendingInvitation() !== null} />
+      <Choices intent={intent} options={options} />
     </>
   );
 }
@@ -196,14 +252,7 @@ export function Login(): ReactNode {
     );
   return (
     <Frame title={waitlist ? WAITLIST_TITLE : 'Log in'}>
-      <Notes failed={refusalText(outcome.refused)} invited={outcome.invited} />
-      <Column padding={{ top: 8 }} gap={16}>
-        <EmailLogin intent={intent} />
-        <Text size="md" color="secondary" style={CENTER_TEXT}>
-          or
-        </Text>
-        <ProviderButtons intent={intent} />
-      </Column>
+      <SignIn intent={intent} outcome={outcome} />
     </Frame>
   );
 }

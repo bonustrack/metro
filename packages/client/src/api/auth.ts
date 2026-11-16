@@ -63,16 +63,15 @@ export const returnTo = (): string => signInReturnUrl();
 
 export type Intent = 'login' | 'waitlist';
 
-interface AppReturn {
-  returnTo: string;
+interface SignInProof {
+  returnTo?: string;
   challenge: string;
 }
 
-export function loginUrl(provider: Provider, intent: Intent, app?: AppReturn): string {
+export function loginUrl(provider: Provider, intent: Intent, proof: SignInProof): string {
   const invitation = pendingInvitation();
   const extra = `${intent === 'waitlist' ? '&intent=waitlist' : ''}${invitation === null ? '' : `&invitation_token=${encodeURIComponent(invitation)}`}`;
-  const back = app === undefined ? '' : `&code_challenge=${encodeURIComponent(app.challenge)}`;
-  return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(app?.returnTo ?? returnTo())}${extra}${back}`);
+  return authUrl(`/login?provider=${provider}&return_to=${encodeURIComponent(proof.returnTo ?? returnTo())}${extra}&code_challenge=${encodeURIComponent(proof.challenge)}`);
 }
 
 export async function sendEmailCode(email: string, intent: Intent): Promise<void> {

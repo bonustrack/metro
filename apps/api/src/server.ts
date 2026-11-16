@@ -6,7 +6,11 @@ import { clientId, filled, JwksKeys, jwksUrl, SigningKeys, workosBase } from '@m
 import { handleAuthApiRequest } from './auth/routes.js';
 import { handleMembersApiRequest } from './auth/members.js';
 import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
-import { listMembers, readWorkosConfig } from './auth/workos.js';
+import { readWorkosConfig } from './auth/workos.js';
+import { announceAccounts, readAccountsMode, signInChoices } from './auth/accounts-mode.js';
+import { announceStateKey, stateKeyFrom } from './auth/state-seal.js';
+import { directoryFor } from './auth/directory.js';
+import { configuredProviders, readProviders } from './auth/providers.js';
 import { announceSigningKeys, handleJwksRequest, readSigningKeys } from './auth/signing-keys.js';
 import {
   addLaunchedServer,
@@ -83,10 +87,30 @@ import { randomBytes } from 'node:crypto';
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
-const mode = (): ModeInfo => ({ mode: 'hosted', owner: null, version: METRO_VERSION });
+const accounts = readAccountsMode();
+const providers = readProviders();
+const choices = signInChoices(accounts, configuredProviders(providers));
+const mode = (): ModeInfo & typeof choices => ({ mode: 'hosted', owner: null, version: METRO_VERSION, ...choices });
 const authKeys = readSigningKeys();
 const keys = new SigningKeys(new JwksKeys(jwksUrl(clientId(), workosBase())), authKeys);
-const authApi = { config: () => readWorkosConfig(), keys, slugs: dbOrganizations, orgAvatars: dbOrganizations, users: dbUsers, agentsOf: listServersForOwner };
+const workosConfig = (): ReturnType<typeof readWorkosConfig> => readWorkosConfig();
+const directory = directoryFor(accounts, workosConfig, getDb);
+const connectorsSetup = readConnectorsSetup();
+const stateKey = stateKeyFrom(authKeys.signer?.privateKey ?? null, connectorsSetup.key);
+const authApi = {
+  accounts,
+  config: workosConfig,
+  directory,
+  db: getDb,
+  signing: authKeys,
+  providers,
+  stateKey,
+  keys,
+  slugs: dbOrganizations,
+  orgAvatars: dbOrganizations,
+  users: dbUsers,
+  agentsOf: listServersForOwner,
+};
 const changing = (region: string, instanceId: string): boolean => resizing(region, instanceId) || growing(region, instanceId);
 const deletionCore = { config: () => readLaunchConfig(), resizing: changing, aws: LIVE_DELETION };
 const metricsCore: MetricsCore = { config: () => readLaunchConfig(), aws: LIVE_METRICS, now: () => Date.now() };
@@ -100,7 +124,7 @@ const serversApi: ServersApiDeps = {
   rename: renameServerForOwner,
   remove: deleteServerForOwner,
   avatar: setAvatarForOwner,
-  move: (session, id, body) => moveServerForOwner(session, id, body, readWorkosConfig()),
+  move: (session, id, body) => moveServerForOwner(session, id, body, directory),
   keys,
 };
 const launchApi: LaunchApiDeps = {
@@ -146,8 +170,6 @@ const awsApi: AwsConnectionsDeps = {
   keys,
 };
 
-const connectorsSetup = readConnectorsSetup();
-
 const enrollmentApi: EnrollmentDeps = {
   keys,
   tickets: new EnrollTickets(),
@@ -159,7 +181,7 @@ const enrollmentApi: EnrollmentDeps = {
 
 const connectorsApi: ConnectorsApiDeps = {
   key: () => connectorsSetup.key,
-  organizations: (userId) => copyOrganizations(readWorkosConfig(), userId),
+  organizations: (userId) => copyOrganizations(directory, userId),
   keys,
   store: orgConnectorStore(getDb),
   calls: mcpCallStore(getDb),
@@ -264,8 +286,7 @@ const server = createServer((req, res) => {
 });
 
 function startPhonePush(): void {
-  const workos = readWorkosConfig();
-  if (workos === null) {
+  if (!directory.configured()) {
     log.warn('api: phone notifications are off: sign-in is not configured, so the members of an organization cannot be read');
     return;
   }
@@ -273,7 +294,7 @@ function startPhonePush(): void {
   const sender = new PushSender({
     fetch: (url, init) => fetch(url, init),
     accessToken,
-    members: async (owner) => (await listMembers(workos, owner)).map((member) => member.userId),
+    members: async (owner) => (await directory.listMembers(owner)).map((member) => member.userId),
     devices: { tokensOf: (users) => pushTokensOf(getDb(), users), drop: (tokens) => dropPushTokens(getDb(), tokens) },
     now: () => Date.now(),
   });
@@ -285,7 +306,9 @@ server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
   announceConnectorsSetup(connectorsSetup);
   announceSigningKeys(authKeys);
-  log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: sign-in');
+  log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: WorkOS sign-in');
+  announceAccounts(accounts, configuredProviders(providers), authKeys.signer !== null);
+  announceStateKey(stateKey);
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
   startPhonePush();
 });

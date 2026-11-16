@@ -8,7 +8,8 @@ import { isOrganizationId } from '@metro-labs/http/workos-token';
 import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
-import { userMemberships, type UserOrganization, type WorkosConfig } from '../auth/workos.js';
+import type { Directory } from '../auth/directory.js';
+import type { UserOrganization } from '../auth/workos.js';
 import { at, CONNECTORS_MAX, type ActionDeps, type Caller } from './actions.js';
 import { connectorView, type ConnectorView } from './model.js';
 
@@ -16,10 +17,10 @@ export interface CopyDeps extends ActionDeps {
   organizations: (userId: string) => Promise<Pick<UserOrganization, 'id' | 'role'>[]>;
 }
 
-export async function copyOrganizations(config: WorkosConfig | null, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
-  if (config === null) throw new ApiError('sign-in is not configured on this server', 503);
+export async function copyOrganizations(directory: Directory, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
+  if (!directory.configured()) throw new ApiError('sign-in is not configured on this server', 503);
   try {
-    return await userMemberships(config, userId);
+    return await directory.userMemberships(userId);
   } catch {
     throw new ApiError('Metro could not verify organization admin memberships. Try again.', 503);
   }

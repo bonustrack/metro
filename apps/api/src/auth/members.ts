@@ -7,28 +7,19 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import {
-  configOf,
-  isRole,
-  listInvitations,
-  listMembers,
-  ORGANIZATION_NAME_RE,
-  organizationName,
-  removeMembership,
-  renameOrganization,
-  revokeInvitation,
-  sendInvitation,
-  setMembershipRole,
-  type Member,
-  type WorkosConfig,
-} from './workos.js';
+import type { AccountsMode } from './accounts-mode.js';
+import type { Directory } from './directory.js';
+import { directoryOf, modeOf } from './metro-tokens.js';
+import { configOf, isRole, ORGANIZATION_NAME_RE, type Member, type WorkosConfig } from './workos.js';
 
 const PREFIX = '/api/organization';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ID_RE = /^[A-Za-z0-9_]{6,80}$/;
 
 interface MembersApiDeps {
+  accounts?: AccountsMode;
   config: () => WorkosConfig | null;
+  directory?: Directory;
   keys: SigningKeys;
   slugs: SlugStore;
   users: UserStore;
@@ -78,42 +69,42 @@ function changes(body: unknown): { name: string | null; slug: string | null } {
   return { name, slug };
 }
 
-async function rename(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+async function rename(req: IncomingMessage, deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
   admin(session);
   const { name, slug } = changes(await readJsonBody(req));
-  const savedName = name === null ? await organizationName(cfg, organization) : await renameOrganization(cfg, organization, name);
+  const savedName = name === null ? await directory.organizationName(organization) : await directory.renameOrganization(organization, name);
   const savedSlug = slug === null ? await deps.slugs.ensure(organization, savedName) : await deps.slugs.set(organization, slug);
   log.info({ organization, name: savedName, slug: savedSlug, by: session.userId }, 'members: organization changed');
   return { id: organization, name: savedName, slug: savedSlug };
 }
 
-async function setAvatar(req: IncomingMessage, deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+async function setAvatar(req: IncomingMessage, deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
   admin(session);
   const body = await readJsonBody(req, AVATAR_BODY_MAX);
   const avatar = parseAvatar(isRecord(body) ? body.avatar : undefined);
-  await deps.slugs.ensure(organization, await organizationName(cfg, organization));
+  await deps.slugs.ensure(organization, await directory.organizationName(organization));
   await deps.orgAvatars.setAvatar(organization, avatar);
   log.info({ organization, avatar: avatar !== null, by: session.userId }, 'members: organization avatar changed');
   return { id: organization, avatar };
 }
 
-async function overview(deps: MembersApiDeps, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
-  const [name, members, invitations] = await Promise.all([organizationName(cfg, organization), listMembers(cfg, organization), listInvitations(cfg, organization)]);
+async function overview(deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
+  const [name, members, invitations] = await Promise.all([directory.organizationName(organization), directory.listMembers(organization), directory.listInvitations(organization)]);
   const slug = await deps.slugs.ensure(organization, name);
   const [pictures, avatars] = await Promise.all([deps.users.avatars(members.map((m) => m.userId)), deps.orgAvatars.avatars([organization])]);
-  const shown = members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
+  const shown = modeOf(deps) === 'metro' ? members : members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
   return { id: organization, name, slug, avatar: avatars.get(organization) ?? null, self: session.userId, role: session.role, members: shown, invitations };
 }
 
-async function invite(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string): Promise<unknown> {
+async function invite(req: IncomingMessage, deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
   admin(session);
   const body = await readJsonBody(req);
   const email = isRecord(body) && typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const role = isRecord(body) ? body.role : undefined;
   if (!EMAIL_RE.test(email)) throw new ApiError('email does not look like an address', 400);
   if (!isRole(role)) throw new ApiError('role must be admin or member', 400);
-  const sent = await sendInvitation(cfg, organization, email, role, session.userId);
-  log.info({ organization, email, role, by: session.userId }, 'members: invitation sent');
+  const sent = await directory.invite(organization, email, role, session.userId);
+  log.info({ organization, email, role, by: session.userId }, modeOf(deps) === 'metro' ? 'members: member added by email' : 'members: invitation sent');
   return sent;
 }
 
@@ -125,27 +116,27 @@ function memberOrThrow(members: Member[], id: string): Member {
 
 const lastAdmin = (members: Member[], target: Member): boolean => target.role === 'admin' && members.filter((m) => m.role === 'admin').length === 1;
 
-async function changeMember(req: IncomingMessage, cfg: WorkosConfig, session: Session, organization: string, id: string): Promise<unknown> {
+async function changeMember(req: IncomingMessage, directory: Directory, session: Session, organization: string, id: string): Promise<unknown> {
   admin(session);
-  const members = await listMembers(cfg, organization);
+  const members = await directory.listMembers(organization);
   const found = memberOrThrow(members, id);
   if (req.method === 'DELETE') {
     if (found.userId === session.userId) throw new ApiError('you cannot remove yourself', 400);
     if (lastAdmin(members, found)) throw new ApiError('the organization needs at least one admin', 400);
-    await removeMembership(cfg, id);
+    await directory.removeMembership({ organization, member: found, by: session.userId });
     log.info({ organization, removed: found.userId, by: session.userId }, 'members: member removed');
     return { removed: true };
   }
-  return roleChange(req, cfg, session, members, found);
+  return roleChange(req, directory, session, organization, members, found);
 }
 
-async function roleChange(req: IncomingMessage, cfg: WorkosConfig, session: Session, members: Member[], found: Member): Promise<unknown> {
+async function roleChange(req: IncomingMessage, directory: Directory, session: Session, organization: string, members: Member[], found: Member): Promise<unknown> {
   const body = await readJsonBody(req);
   const role = isRecord(body) ? body.role : undefined;
   if (!isRole(role)) throw new ApiError('role must be admin or member', 400);
   if (found.userId === session.userId && role !== 'admin') throw new ApiError('you cannot take your own admin role away', 400);
   if (role === 'member' && lastAdmin(members, found)) throw new ApiError('the organization needs at least one admin', 400);
-  await setMembershipRole(cfg, found.membershipId, role);
+  await directory.setMembershipRole({ organization, member: found, role, by: session.userId });
   log.info({ member: found.userId, role, by: session.userId }, 'members: role changed');
   return { ...found, role };
 }
@@ -154,16 +145,17 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   const session = await bearerSession(req, deps.keys);
   if (session === null) throw new ApiError('unauthorized', 401);
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
-  const cfg = configOf(deps);
-  if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, cfg, session, session.organization) : overview(deps, cfg, session, session.organization);
-  if (tgt.kind === 'avatar') return setAvatar(req, deps, cfg, session, session.organization);
-  if (tgt.kind === 'invitations') return invite(req, cfg, session, session.organization);
+  if (modeOf(deps) === 'workos') configOf(deps);
+  const directory = directoryOf(deps);
+  if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, directory, session, session.organization) : overview(deps, directory, session, session.organization);
+  if (tgt.kind === 'avatar') return setAvatar(req, deps, directory, session, session.organization);
+  if (tgt.kind === 'invitations') return invite(req, deps, directory, session, session.organization);
   if (tgt.kind === 'invitation') {
     admin(session);
-    await revokeInvitation(cfg, tgt.id);
+    await directory.revokeInvitation(session.organization, tgt.id);
     return { revoked: true };
   }
-  return changeMember(req, cfg, session, session.organization, tgt.id);
+  return changeMember(req, directory, session, session.organization, tgt.id);
 }
 
 export function handleMembersApiRequest(req: IncomingMessage, res: ServerResponse, deps: MembersApiDeps): boolean {

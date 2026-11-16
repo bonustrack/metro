@@ -224,6 +224,7 @@ function planOutsiders(snapshot: Snapshot, desired: Map<string, PlannedMember>, 
 export async function planSync(db: Database, snapshot: Snapshot): Promise<SyncPlan> {
   const current = await readCurrent(db);
   const plan = emptyPlan(snapshot);
+  for (const u of snapshot.unverified) plan.warnings.push(`the email ${u.email} of ${u.user} is not verified in WorkOS, so it is not copied`);
   planOrganizations(snapshot, current, plan);
   planUsers(snapshot, current, plan);
   const emails = new Map<string, string | null>([...current.users.map((r) => [r.id, r.email] as const), ...snapshot.users.map((u) => [u.id, u.email] as const)]);

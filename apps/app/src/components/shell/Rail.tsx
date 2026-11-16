@@ -4,7 +4,6 @@ import { Column } from '@stage-labs/kit/react-native/column';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { routeHash } from '@metro-labs/client/route';
 import { activeAccount } from '@metro-labs/client/auth/account';
-import { isOperator } from '@metro-labs/client/api/admin';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Dropdown } from '../Dropdown.js';
 import { Icon, type IconName } from '../Icon.js';
@@ -17,6 +16,7 @@ import { SHELL_SECTIONS, type ShellSectionId } from '../../lib/shell-sections.js
 import { setTechnicalDetails, useTechnicalDetails } from '../../lib/technical.js';
 import { hoverColor } from '../../lib/theme.js';
 import { openJump } from '../../lib/jump-store.js';
+import { useOperator } from '../../lib/operator.js';
 import { useHover } from '../ui/hover.js';
 import { side } from '../ui/edges.js';
 import { webOnly } from '../../lib/style.js';
@@ -45,7 +45,7 @@ function RailLink({ to, label, icon, active }: { to: string; label: string; icon
 }
 
 function RailAdmin({ active }: { active: boolean }): ReactNode {
-  if (!isOperator(activeAccount())) return null;
+  if (useOperator() !== true) return null;
   return <RailLink to={routeHash({ kind: 'admin' })} label="Admin" icon="shield" active={active} />;
 }
 

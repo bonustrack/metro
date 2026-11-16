@@ -4,12 +4,12 @@ import { accountId } from './account-ids.js';
 import type { Database } from './client.js';
 import { users } from './schema.js';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[!-?A-~]+@[!-?A-~]+\.[!-?A-~]+$/;
 const EMAIL_MAX = 254;
 
 export function cleanEmail(raw: unknown): string {
   const email = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  if (!EMAIL_RE.test(email) || email.length > EMAIL_MAX) throw new ApiError('email does not look like an address', 400);
+  if (!EMAIL_RE.test(email) || email.length > EMAIL_MAX) throw new ApiError('email does not look like a plain ASCII address', 400);
   return email;
 }
 

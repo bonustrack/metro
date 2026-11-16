@@ -58,6 +58,7 @@ export const memberships = pgTable(
     organization: text('organization').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: text('role').$type<'admin' | 'member'>().notNull(),
+    addedBy: text('added_by'),
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },
@@ -82,7 +83,7 @@ export const authSessions = pgTable(
   {
     id: text('id').primaryKey(),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    method: text('method').$type<'google' | 'microsoft' | 'link'>().notNull(),
+    method: text('method').$type<'google' | 'microsoft' | 'link' | 'workos'>().notNull(),
     refreshHash: text('refresh_hash').notNull(),
     previousHash: text('previous_hash'),
     rotatedAt: bigint('rotated_at', { mode: 'number' }),
@@ -90,9 +91,11 @@ export const authSessions = pgTable(
     lastUsedAt: bigint('last_used_at', { mode: 'number' }).notNull(),
     expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
     revokedAt: bigint('revoked_at', { mode: 'number' }),
+    link: text('link'),
   },
   (t) => [
     uniqueIndex('auth_sessions_refresh_hash_idx').on(t.refreshHash),
+    index('auth_sessions_link_idx').on(t.link).where(sql`${t.link} IS NOT NULL`),
     index('auth_sessions_previous_hash_idx').on(t.previousHash).where(sql`${t.previousHash} IS NOT NULL`),
     index('auth_sessions_user_idx').on(t.userId),
     index('auth_sessions_expires_idx').on(t.expiresAt),
@@ -109,10 +112,22 @@ export const loginLinks = pgTable(
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     lastUsedAt: bigint('last_used_at', { mode: 'number' }),
     revokedAt: bigint('revoked_at', { mode: 'number' }),
+    expiresAt: bigint('expires_at', { mode: 'number' }),
+    usedAt: bigint('used_at', { mode: 'number' }),
   },
   (t) => [
     uniqueIndex('login_links_code_hash_idx').on(t.codeHash),
-    uniqueIndex('login_links_live_idx').on(t.userId).where(sql`${t.revokedAt} IS NULL`),
+    uniqueIndex('login_links_open_idx').on(t.userId).where(sql`${t.revokedAt} IS NULL AND ${t.usedAt} IS NULL`),
     index('login_links_user_idx').on(t.userId),
   ],
+);
+
+export const authSpentTokens = pgTable(
+  'auth_spent_tokens',
+  {
+    hash: text('hash').primaryKey(),
+    session: text('session').notNull().references(() => authSessions.id, { onDelete: 'cascade' }),
+    spentAt: bigint('spent_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [index('auth_spent_tokens_session_idx').on(t.session)],
 );

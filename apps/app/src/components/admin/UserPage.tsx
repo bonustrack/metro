@@ -12,10 +12,12 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 import { USERS_CRUMB, detailCrumbs } from './crumbs.js';
 import { Dot, USER_DOT, UserMark } from './Marks.js';
 import { BlockDialog, blockLine, mayApprove, mayBlock, useUserActions, type UserActions } from './UserActions.js';
+import { LoginLinkGroup } from './LoginLinkGroup.js';
 import { userName, userState, type UserState } from '../../lib/admin-people.js';
 import { useAdminUsers } from '../../lib/admin-queries.js';
 import { agoWords, timeOf } from '../../lib/admin-table.js';
 import { queryError } from '../../lib/queries.js';
+import { useSignInOptions } from '../../lib/sign-in-options.js';
 import { useTechnicalDetails } from '../../lib/technical.js';
 import { useDocumentTitle } from '../../lib/title.js';
 import { useNow } from '../../lib/use-now.js';
@@ -41,7 +43,7 @@ function Approve({ user, actions }: { user: UserRow; actions: UserActions }): Re
   return <Button color="secondary" label="Approve" loading={actions.busy} disabled={actions.busy} onPress={() => { actions.approve(user); }} />;
 }
 
-function UserGroups({ user, actions, now }: { user: UserRow; actions: UserActions; now: number }): ReactNode {
+function UserGroups({ user, actions, now, links }: { user: UserRow; actions: UserActions; now: number; links: boolean }): ReactNode {
   const technical = useTechnicalDetails();
   const name = userName(user);
   return (
@@ -53,6 +55,7 @@ function UserGroups({ user, actions, now }: { user: UserRow; actions: UserAction
         <Item title="Last sign-in" subtitle={exactDate(user.lastLoginAt)} value={agoWords(timeOf(user.lastLoginAt), now)} />
         <Item title="Signed up" subtitle={exactDate(user.createdAt)} value={agoWords(timeOf(user.createdAt), now)} />
       </Group>
+      {links && !user.operator ? <LoginLinkGroup user={user} now={now} /> : null}
       {mayBlock(user) ? (
         <Group label="Danger">
           <Item title={`Block ${name}`} subtitle={blockLine(user)} danger chevron={false} onPress={() => { actions.askBlock(user); }} />
@@ -62,7 +65,7 @@ function UserGroups({ user, actions, now }: { user: UserRow; actions: UserAction
   );
 }
 
-function UserBody({ user }: { user: UserRow }): ReactNode {
+function UserBody({ user, links }: { user: UserRow; links: boolean }): ReactNode {
   const now = useNow(60_000);
   const actions = useUserActions();
   const name = userName(user);
@@ -71,23 +74,29 @@ function UserBody({ user }: { user: UserRow }): ReactNode {
     <Groups>
       <PageHeader title={name} subtitle={`${email} · signed up ${agoWords(timeOf(user.createdAt), now).toLowerCase()}`} crumbs={detailCrumbs(USERS_CRUMB, name)}
         leading={<UserMark name={name} picture={user.picture} size={AVATAR_SIZE.header} />} action={<Approve user={user} actions={actions} />} />
-      <UserGroups user={user} actions={actions} now={now} />
+      <UserGroups user={user} actions={actions} now={now} links={links} />
       <BlockDialog actions={actions} />
+    </Groups>
+  );
+}
+
+function NoUser({ error, missing, onRetry }: { error: Error | null; missing: boolean; onRetry: () => unknown }): ReactNode {
+  return (
+    <Groups>
+      <PageHeader title="User" crumbs={detailCrumbs(USERS_CRUMB, 'User')} />
+      {error !== null ? <ErrorState title="Could not read this person" text={queryError(error, 'Metro did not answer.')} onRetry={onRetry} /> : null}
+      {error === null && !missing ? <Column><RowsSkeleton rows={3} /></Column> : null}
+      {missing ? <StateBlock icon="user" title="Nobody with this id" text="This person is not on Metro, or the link is wrong." /> : null}
     </Groups>
   );
 }
 
 export function UserPage({ id }: { id: string }): ReactNode {
   const { data, error, refetch } = useAdminUsers();
+  const options = useSignInOptions();
   const user = data?.find((row) => row.id === id);
   useDocumentTitle(user === undefined ? 'User' : userName(user));
-  if (user !== undefined) return <UserBody user={user} />;
-  return (
-    <Groups>
-      <PageHeader title="User" crumbs={detailCrumbs(USERS_CRUMB, 'User')} />
-      {error !== null ? <ErrorState title="Could not read this person" text={queryError(error, 'Metro did not answer.')} onRetry={refetch} /> : null}
-      {error === null && data === undefined ? <Column><RowsSkeleton rows={3} /></Column> : null}
-      {data === undefined ? null : <StateBlock icon="user" title="Nobody with this id" text="This person is not on Metro, or the link is wrong." />}
-    </Groups>
-  );
+  if (user === undefined) return <NoUser error={error} missing={data !== undefined} onRetry={refetch} />;
+  if (options === null) return <NoUser error={null} missing={false} onRetry={refetch} />;
+  return <UserBody user={user} links={options.accounts === 'metro'} />;
 }

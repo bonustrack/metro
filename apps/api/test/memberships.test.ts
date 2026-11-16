@@ -127,11 +127,11 @@ describe('identities', () => {
     expect(rows).toEqual([{ provider: 'google', subject: GOOGLE_SUB, userId: first.user, email: 'ana@example.com', createdAt: NOW, lastUsedAt: NOW + 5 }]);
   });
 
-  test('a member added by email is linked at the first sign-in, from either provider', async () => {
+  test('a member added by email is linked at the first sign-in, and a person who already signs in gets no second sign-in by email', async () => {
     const ana = await add('ana@example.com');
     expect(await linkIdentity(held.db, signIn({ email: 'Ana@Example.com' }))).toEqual({ user: ana.user, kind: 'linked' });
-    expect(await linkIdentity(held.db, signIn({ provider: 'microsoft', subject: MSA }))).toEqual({ user: ana.user, kind: 'linked' });
-    expect((await held.db.select().from(identities)).length).toBe(2);
+    await expect(linkIdentity(held.db, signIn({ provider: 'microsoft', subject: MSA }))).rejects.toMatchObject({ status: 409 });
+    expect((await held.db.select().from(identities)).length).toBe(1);
   });
 
   test('an unproven email links nothing, and nothing is created', async () => {

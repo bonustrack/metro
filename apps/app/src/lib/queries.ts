@@ -45,6 +45,7 @@ import { readItem, writeItem } from '@metro-labs/client/platform';
 import { clearDeniedRunCache } from './run-cache.js';
 import { logError } from './log.js';
 import { useSharedPoll } from './shared-poll.js';
+import { SIGN_IN_OPTIONS } from './sign-in-options.js';
 
 const STALE_MS = 60_000;
 const STARTING_POLL_MS = 3_000;
@@ -127,8 +128,13 @@ const ORGANIZATIONS = 'organizations';
 
 export function dropStaleQueries(client: QueryClient): () => void {
   return subscribeAccountScope(() => {
-    client.cancelQueries({ predicate: (query) => query.queryKey[0] !== ORGANIZATIONS }).catch(logError('cancel stale queries'));
+    client.cancelQueries({ predicate: (query) => query.queryKey[0] !== ORGANIZATIONS && query.queryKey[0] !== SIGN_IN_OPTIONS }).catch(logError('cancel stale queries'));
   });
+}
+
+export function clearSignedIn(client: QueryClient): void {
+  client.removeQueries({ predicate: (query) => query.queryKey[0] !== SIGN_IN_OPTIONS });
+  client.getMutationCache().clear();
 }
 
 export function queryError(err: unknown, fallback: string): string {

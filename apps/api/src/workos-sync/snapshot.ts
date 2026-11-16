@@ -21,6 +21,7 @@ export interface Snapshot {
   identities: SnapshotIdentity[];
   otherSignIns: { user: string; provider: string }[];
   unmapped: { user: string; provider: string; idpId: string }[];
+  unverified: { user: string; email: string }[];
 }
 
 export function microsoftSubject(idpId: string): string | null {
@@ -57,8 +58,10 @@ async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promis
 }
 
 export async function readWorkos(cfg: WorkosConfig): Promise<Snapshot> {
-  const [organizations, users] = await Promise.all([listOrganizations(cfg), listUsers(cfg)]);
-  const snapshot: Snapshot = { organizations: organizations.map((o) => ({ id: o.id, name: o.name })), users, memberships: [], invitations: [], identities: [], otherSignIns: [], unmapped: [] };
+  const [organizations, listed] = await Promise.all([listOrganizations(cfg), listUsers(cfg)]);
+  const unverified = listed.flatMap((u) => (u.email === null || u.emailVerified ? [] : [{ user: u.id, email: u.email }]));
+  const users = listed.map((u) => (u.emailVerified ? u : { ...u, email: null }));
+  const snapshot: Snapshot = { organizations: organizations.map((o) => ({ id: o.id, name: o.name })), users, memberships: [], invitations: [], identities: [], otherSignIns: [], unmapped: [], unverified };
   const people = await inBatches(organizations, async (o) => ({ id: o.id, members: await organizationMemberships(cfg, o.id), invited: await listInvitations(cfg, o.id) }));
   for (const { id, members, invited } of people) {
     for (const m of members) snapshot.memberships.push({ organization: id, user: m.userId, role: m.role });

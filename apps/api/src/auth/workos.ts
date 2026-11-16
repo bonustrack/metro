@@ -18,6 +18,7 @@ export interface Tokens {
   refreshToken: string;
   organization: string | null;
   user: { id: string; email: string | null; name: string | null; picture: string | null; createdAt: string | null };
+  emailVerified?: boolean;
 }
 
 export class WorkosError extends Error {
@@ -73,6 +74,7 @@ function tokensOf(body: unknown): Tokens {
     refreshToken,
     organization: str(body.organization_id),
     user: { id, email: str(body.user.email), name: name === '' ? null : name, picture: str(body.user.profile_picture_url), createdAt: str(body.user.created_at) },
+    emailVerified: body.user.email_verified === true,
   };
 }
 
@@ -123,6 +125,13 @@ export const exchangeMagicCode = (cfg: WorkosConfig, email: string, code: string
 
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });
+
+const lasting = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+export function refreshRefusal(err: WorkosError): ApiError {
+  const ended = err.status === 401 || (err.upstream !== null && err.code !== null && lasting(err.upstream));
+  return ended ? new ApiError('the session has ended, sign in again', 401) : new ApiError(err.message, err.status);
+}
 
 function refusedRequest(answer: unknown, status: number, path: string): WorkosError {
   const said = isRecord(answer) ? answer : {};
@@ -220,6 +229,7 @@ function memberOf(m: Record<string, unknown>, people: Map<string, Record<string,
 export interface WorkosUser {
   id: string;
   email: string | null;
+  emailVerified: boolean;
   name: string | null;
   picture: string | null;
   createdAt: string | null;
@@ -228,7 +238,7 @@ export interface WorkosUser {
 export async function listUsers(cfg: WorkosConfig): Promise<WorkosUser[]> {
   return (await listAll(cfg, '/user_management/users')).flatMap((u) => {
     const id = str(u.id);
-    return id === null ? [] : [{ id, email: str(u.email), name: personName(u), picture: str(u.profile_picture_url), createdAt: str(u.created_at) }];
+    return id === null ? [] : [{ id, email: str(u.email), emailVerified: u.email_verified === true, name: personName(u), picture: str(u.profile_picture_url), createdAt: str(u.created_at) }];
   });
 }
 

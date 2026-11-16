@@ -2,9 +2,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import { randomInt } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { copyOrganizations } from '../src/connectors/copy.ts';
+import { copyOrganizations as copyFrom } from '../src/connectors/copy.ts';
+import { workosDirectory } from '../src/auth/directory.ts';
 import type { WorkosConfig } from '../src/auth/workos.ts';
 import { TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
+
+const copyOrganizations = (cfg: WorkosConfig | null, user: string): ReturnType<typeof copyFrom> => copyFrom(workosDirectory(() => cfg), user);
 
 let server: Server;
 let config: WorkosConfig;

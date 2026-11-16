@@ -3,49 +3,26 @@ import { createHash, randomBytes } from 'node:crypto';
 import { log, errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import { apiFailure, bodyField, cors, readJsonBody, sendJson, stringOf } from '@metro-labs/http/api-http';
+import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
-import type { SlugStore } from '../slug.js';
-import type { ServerEntry } from '../server-types.js';
-import { parseAccountName, type UserStore } from '../users.js';
-import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
+import { bearerSession, type Session } from '@metro-labs/http/workos-token';
+import { linkIdentity } from '../db/identities.js';
 import { invitationFrom, startEmailCode, verifyEmailCode } from './email.js';
-import { admit, stillIn, type Intent, type Refusal, mayCreateOrganization } from './operator.js';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import {
-  acceptInvitationsFor,
-  addMembership,
-  authorizationUrl,
-  configOf,
-  createOrganization,
-  exchangeCode,
-  isProvider,
-  ORGANIZATION_NAME_RE,
-  organizationName,
-  refreshTokens,
-  revokeSession,
-  updateUserName,
-  userOrganizations,
-  WorkosError,
-  type Tokens,
-  type WorkosConfig,
-} from './workos.js';
+import type { UserLogin } from '../users.js';
+import { admit, type Arrival, type Intent, type Refusal } from './operator.js';
+import { createOrg, logout, mePayload, organizationsOf, refresh, switchOrg, tokensPayload, updateAccount, type AuthApiDeps } from './account-routes.js';
+import { redeemLink } from './login-links.js';
+import { landingOrganization, modeOf, startSession, userLoginOf, type Placement } from './metro-tokens.js';
+import { openState, sealState, stateKeyOr } from './state-seal.js';
+import { authorizeUrl, newAttempt, providerOf, providerProof, type Attempt } from './oauth.js';
+import { isProviderId, SignInRefused, type Proof } from './providers.js';
+import { acceptInvitationsFor, authorizationUrl, configOf, exchangeCode, isProvider, refreshTokens, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
+
+export type { AuthApiDeps } from './account-routes.js';
 
 const PREFIX = '/api/auth';
-const STATE_TTL_MS = 10 * 60_000;
 const HANDOFF_TTL_MS = 60_000;
-const PENDING_MAX = 200;
-
-export interface AuthApiDeps {
-  config: () => WorkosConfig | null;
-  keys: SigningKeys;
-  slugs: SlugStore;
-  users: UserStore;
-  orgAvatars: OrganizationAvatars;
-  agentsOf?: (organization: string) => Promise<ServerEntry[]>;
-  publicBase?: (req: IncomingMessage) => string;
-  now?: () => number;
-}
+const HANDOFFS_MAX = 1000;
 
 interface Pending<T> {
   value: T;
@@ -57,6 +34,7 @@ interface Started {
   intent: Intent;
   invitation?: string;
   challenge?: string;
+  attempt?: Attempt;
 }
 
 interface Handoff {
@@ -68,14 +46,13 @@ const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
 
 const challengeOf = (verifier: string): string => createHash('sha256').update(verifier).digest('base64url');
 
-const states = new Map<string, Pending<Started>>();
 const handoffs = new Map<string, Pending<Handoff>>();
 
 const token = (): string => randomBytes(32).toString('base64url');
 
-function prune<T>(map: Map<string, Pending<T>>, ttl: number, now: number): void {
+function prune<T>(map: Map<string, Pending<T>>, ttl: number, now: number, max: number): void {
   for (const [key, entry] of map) if (now - entry.at > ttl) map.delete(key);
-  while (map.size > PENDING_MAX) {
+  while (map.size > max) {
     const first = map.keys().next().value;
     if (first === undefined) break;
     map.delete(first);
@@ -107,27 +84,58 @@ const withHash = (returnTo: string, hash: string): string => {
 
 const callbackUri = (req: IncomingMessage, deps: AuthApiDeps): string => `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`;
 
-function appChallenge(returnTo: string, challenge: string): { challenge?: string } {
-  if (!isAppReturn(returnTo)) {
-    if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
-    return {};
-  }
-  if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in from the app needs a code_challenge', 400);
+function signInChallenge(deps: AuthApiDeps, returnTo: string, challenge: string): { challenge?: string } {
+  const app = isAppReturn(returnTo);
+  if (!app && !validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
+  if (challenge === '' && !app && modeOf(deps) === 'workos') return {};
+  if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in needs a code_challenge (S256)', 400);
   return { challenge };
 }
 
-function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
-  const cfg = configOf(deps);
+const stateKey = (deps: AuthApiDeps): Buffer => stateKeyOr(deps.stateKey);
+
+const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
+
+function sealedStart(started: Started): Record<string, unknown> {
+  const { attempt } = started;
+  return { r: started.returnTo, i: started.intent, v: started.invitation, c: started.challenge, ...(attempt === undefined ? {} : { p: attempt.provider, n: attempt.nonce, k: attempt.verifier }) };
+}
+
+function attemptOf(value: Record<string, unknown>): { attempt?: Attempt } {
+  const nonce = text(value.n);
+  const verifier = text(value.k);
+  return isProviderId(value.p) && nonce !== undefined && verifier !== undefined ? { attempt: { provider: value.p, nonce, verifier } } : {};
+}
+
+function startedOf(value: Record<string, unknown> | null): Started | null {
+  const returnTo = value === null ? undefined : text(value.r);
+  if (value === null || returnTo === undefined) return null;
+  const invitation = text(value.v);
+  const challenge = text(value.c);
+  return { returnTo, intent: value.i === 'waitlist' ? 'waitlist' : 'login', ...(invitation === undefined ? {} : { invitation }), ...(challenge === undefined ? {} : { challenge }), ...attemptOf(value) };
+}
+
+function workosLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
   const provider = query.get('provider');
-  const returnTo = query.get('return_to') ?? '';
   if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
-  const app = appChallenge(returnTo, query.get('code_challenge') ?? '');
-  const now = (deps.now ?? Date.now)();
-  prune(states, STATE_TTL_MS, now);
-  const state = token();
-  const intent = query.get('intent') === 'waitlist' ? 'waitlist' : 'login';
-  states.set(state, { value: { returnTo, intent, ...invitationFrom(query.get('invitation_token') ?? ''), ...app }, at: now });
-  redirect(res, authorizationUrl(cfg, provider, callbackUri(req, deps), state));
+  const cfg = configOf(deps);
+  const state = sealState(stateKey(deps), sealedStart({ ...started, ...invitationFrom(query.get('invitation_token') ?? '') }), (deps.now ?? Date.now)());
+  return authorizationUrl(cfg, provider, callbackUri(req, deps), state);
+}
+
+function metroLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
+  const provider = query.get('provider');
+  if (!isProviderId(provider)) throw new ApiError('provider must be google or microsoft', 400);
+  const settings = providerOf(deps.providers, provider);
+  const attempt = newAttempt(provider);
+  const state = sealState(stateKey(deps), sealedStart({ ...started, attempt }), (deps.now ?? Date.now)());
+  return authorizeUrl(settings, callbackUri(req, deps), state, attempt);
+}
+
+function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
+  const returnTo = query.get('return_to') ?? '';
+  const started = { returnTo, intent: query.get('intent') === 'waitlist' ? ('waitlist' as const) : ('login' as const), ...signInChallenge(deps, returnTo, query.get('code_challenge') ?? '') };
+  redirect(res, modeOf(deps) === 'workos' ? workosLogin(req, deps, query, started) : metroLogin(req, deps, query, started));
 }
 
 const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
@@ -143,17 +151,24 @@ function refusal(query: URLSearchParams): Refusal | null {
 }
 
 function handoffFor(tokens: Tokens, now: number, challenge?: string): string {
-  prune(handoffs, HANDOFF_TTL_MS, now);
+  prune(handoffs, HANDOFF_TTL_MS, now, HANDOFFS_MAX);
   const handoff = token();
   handoffs.set(handoff, { value: { tokens, ...(challenge === undefined ? {} : { challenge }) }, at: now });
   log.info({ user: tokens.user.id, organization: tokens.organization }, 'auth: signed in');
   return handoff;
 }
 
-async function withInvitations(deps: AuthApiDeps, tokens: Tokens): Promise<Tokens> {
-  const cfg = deps.config();
+export async function admitted(deps: AuthApiDeps, arrival: Arrival, intent: Intent, now: number, issue: () => Promise<Tokens>, challenge?: string): Promise<string> {
+  const verdict = await admit(deps.users, arrival, intent, new Date(now).toISOString(), modeOf(deps));
+  if (verdict.kind === 'in') return `#/auth/${handoffFor(await issue(), now, challenge)}`;
+  log.info({ user: arrival.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
+  if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
+  return refusedHash(verdict.reason);
+}
+
+async function withInvitations(cfg: WorkosConfig, tokens: Tokens): Promise<Tokens> {
   const email = tokens.user.email;
-  if (cfg === null || tokens.organization !== null || email === null) return tokens;
+  if (tokens.organization !== null || email === null) return tokens;
   const joined = await acceptInvitationsFor(cfg, email).catch((err: unknown) => {
     log.warn({ err: errMsg(err), user: tokens.user.id }, 'auth: the pending invitations could not be accepted');
     return null;
@@ -163,27 +178,62 @@ async function withInvitations(deps: AuthApiDeps, tokens: Tokens): Promise<Token
   return refreshTokens(cfg, tokens.refreshToken, joined);
 }
 
-async function admitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number, challenge?: string): Promise<string> {
-  const tokens = await withInvitations(deps, signedIn);
-  const verdict = await admit(deps.users, tokens, intent, new Date(now).toISOString());
-  if (verdict.kind === 'in') return `#/auth/${handoffFor(tokens, now, challenge)}`;
-  log.info({ user: tokens.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
-  if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
-  return refusedHash(verdict.reason);
+async function workosAdmitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number, challenge?: string): Promise<string> {
+  const tokens = await withInvitations(configOf(deps), signedIn);
+  return admitted(deps, tokens, intent, now, () => Promise.resolve(tokens), challenge);
 }
 
-async function landing(cfg: WorkosConfig, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
-  return admitted(deps, await exchangeCode(cfg, code, started.invitation), started.intent, now, started.challenge);
+function arrivalOf(user: UserLogin, proof: Proof): UserLogin {
+  return { ...user, email: user.email ?? (proof.emailProven ? proof.email : null), name: user.name ?? proof.name, picture: proof.picture ?? user.picture };
+}
+
+interface MetroArrival {
+  user: string;
+  method: 'google' | 'microsoft' | 'link';
+  intent: Intent;
+  now: number;
+  proof?: Proof;
+  challenge?: string;
+  link?: string;
+}
+
+export async function metroAdmitted(deps: AuthApiDeps, arrival: MetroArrival): Promise<string> {
+  const record = await userLoginOf(deps.users, arrival.user);
+  if (record === null) throw new SignInRefused('failed', 'the user row is missing');
+  const user = arrival.proof === undefined ? record : arrivalOf(record, arrival.proof);
+  const place: Placement | null = await landingOrganization(deps, arrival.user);
+  return admitted(deps, { user, organization: place?.id ?? null }, arrival.intent, arrival.now, () => startSession(deps, user, arrival.method, place, arrival.link), arrival.challenge);
+}
+
+function linkRefusal(err: unknown): never {
+  if (err instanceof ApiError && err.status === 403) throw new SignInRefused('unverified', err.message);
+  if (err instanceof ApiError && err.status === 409) throw new SignInRefused('other-account', err.message);
+  throw err;
+}
+
+async function metroLanding(req: IncomingMessage, deps: AuthApiDeps, started: Started, attempt: Attempt, code: string, now: number): Promise<string> {
+  const provider = providerOf(deps.providers, attempt.provider);
+  const proof = await providerProof(provider, code, callbackUri(req, deps), attempt, now);
+  if (deps.db === undefined) throw new ApiError('Metro accounts are not set up on this server', 503);
+  const linked = await linkIdentity(deps.db(), { provider: attempt.provider, subject: proof.subject, email: proof.email, emailProven: proof.emailProven, now }).catch(linkRefusal);
+  log.info({ user: linked.user, provider: attempt.provider, kind: linked.kind }, 'auth: identity checked');
+  return metroAdmitted(deps, { user: linked.user, method: attempt.provider, intent: started.intent, now, proof, ...(started.challenge === undefined ? {} : { challenge: started.challenge }) });
+}
+
+async function landing(req: IncomingMessage, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
+  if (started.attempt !== undefined) return metroLanding(req, deps, started, started.attempt, code, now);
+  return workosAdmitted(deps, await exchangeCode(configOf(deps), code, started.invitation), started.intent, now, started.challenge);
 }
 
 function exchangeRefusal(err: unknown): Refusal {
+  if (err instanceof SignInRefused) return err.reason;
   return err instanceof WorkosError && err.code === 'email_verification_required' ? 'unverified' : 'failed';
 }
 
-async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
-  const cfg = configOf(deps);
+async function callback(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
+  if (modeOf(deps) === 'workos') configOf(deps);
   const now = (deps.now ?? Date.now)();
-  const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
+  const started = startedOf(openState(stateKey(deps), query.get('state') ?? '', now));
   if (started === null && query.get('code') !== null) {
     log.info('auth: a sign-in started outside metro.box (an invitation), sent to the login page');
     redirect(res, withHash(PAGE, INVITED_HASH));
@@ -197,39 +247,11 @@ async function callback(res: ServerResponse, deps: AuthApiDeps, query: URLSearch
     return;
   }
   try {
-    redirect(res, withHash(returnTo, await landing(cfg, deps, started, query.get('code') ?? '', now)));
+    redirect(res, withHash(returnTo, await landing(req, deps, started, query.get('code') ?? '', now)));
   } catch (err) {
-    log.warn({ err: errMsg(err) }, 'auth: the code exchange failed');
+    log.warn({ err: errMsg(err) }, 'auth: the sign-in failed');
     redirect(res, withHash(returnTo, refusedHash(exchangeRefusal(err))));
   }
-}
-
-async function tokensPayload(t: Tokens, cfg: WorkosConfig, deps: AuthApiDeps): Promise<Record<string, unknown>> {
-  const name = t.organization === null ? null : await organizationName(cfg, t.organization);
-  const picture = (await deps.users.avatar(t.user.id)) ?? t.user.picture;
-  return {
-    accessToken: t.accessToken,
-    refreshToken: t.refreshToken,
-    organization: t.organization,
-    organizationName: name,
-    organizationSlug: t.organization === null ? null : await deps.slugs.ensure(t.organization, name),
-    user: { ...t.user, picture },
-  };
-}
-
-async function updateAccount(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = configOf(deps);
-  const body = await readJsonBody(req, AVATAR_BODY_MAX);
-  const hasName = isRecord(body) && 'name' in body;
-  const hasAvatar = isRecord(body) && 'avatar' in body;
-  if (!hasName && !hasAvatar) throw new ApiError('send a name or an avatar', 400);
-  if (hasName) {
-    const parsed = parseAccountName(body.name);
-    await updateUserName(cfg, session.userId, parsed.first, parsed.last);
-  }
-  if (hasAvatar) await deps.users.setAvatar(session.userId, parseAvatar(body.avatar));
-  log.info({ user: session.userId, name: hasName, avatar: hasAvatar }, 'auth: account changed');
-  return { ok: true };
 }
 
 async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
@@ -238,88 +260,13 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   const verifier = isRecord(body) && typeof body.verifier === 'string' ? body.verifier : '';
   const handoff = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
   if (handoff === null || (handoff.challenge !== undefined && challengeOf(verifier) !== handoff.challenge)) throw new ApiError('that sign-in has already been used or has expired', 404);
-  return tokensPayload(handoff.tokens, configOf(deps), deps);
+  return tokensPayload(handoff.tokens, deps);
 }
 
-const lasting = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429;
-
-function refreshRefusal(err: WorkosError): ApiError {
-  const ended = err.status === 401 || (err.upstream !== null && err.code !== null && lasting(err.upstream));
-  return ended ? new ApiError('the session has ended, sign in again', 401) : new ApiError(err.message, err.status);
-}
-
-async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = configOf(deps);
-  const body = await readJsonBody(req);
-  const refreshToken = stringOf(bodyField(body, 'refreshToken'));
-  const organization = stringOf(bodyField(body, 'organization'));
-  if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
-  try {
-    const fresh = await refreshTokens(cfg, refreshToken, organization === '' ? undefined : organization);
-    if (!(await stillIn(deps.users, fresh))) throw new ApiError('this account is not on Metro any more', 401);
-    return await tokensPayload(fresh, cfg, deps);
-  } catch (err) {
-    if (err instanceof WorkosError) throw refreshRefusal(err);
-    throw err;
-  }
-}
-
-async function logout(session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = deps.config();
-  if (cfg !== null) await revokeSession(cfg, session.sessionId).catch((err: unknown) => {
-    log.warn({ err: errMsg(err) }, 'auth: the sign-out was not confirmed by WorkOS');
-  });
-  return { ok: true };
-}
-
-async function switchOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = configOf(deps);
-  const body = await readJsonBody(req);
-  const organization = isRecord(body) && typeof body.organization === 'string' ? body.organization : '';
-  const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
-  if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
-  const mine = await userOrganizations(cfg, session.userId);
-  if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
-  try {
-    const payload = await tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
-    log.info({ user: session.userId, organization }, 'auth: switched organization');
-    return payload;
-  } catch (err) {
-    log.warn({ user: session.userId, organization, err: errMsg(err) }, 'auth: the organization switch failed');
-    if (err instanceof WorkosError) throw refreshRefusal(err);
-    throw err;
-  }
-}
-
-async function agentsPayload(deps: AuthApiDeps, organization: string): Promise<{ agents?: Record<string, unknown>[] }> {
-  if (deps.agentsOf === undefined) return {};
-  const rows = await deps.agentsOf(organization);
-  return { agents: rows.map((a) => ({ id: a.id, host: a.host, name: a.name, slug: a.slug, avatar: a.avatar })) };
-}
-
-async function organizationsOf(deps: AuthApiDeps, session: Session): Promise<unknown> {
-  const cfg = configOf(deps);
-  const mine = await userOrganizations(cfg, session.userId);
-  const avatars = await deps.orgAvatars.avatars(mine.map((o) => o.id));
-  return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null, ...(await agentsPayload(deps, o.id)) }))) };
-}
-
-const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
-
-async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
-  const cfg = configOf(deps);
-  const body = await readJsonBody(req);
-  const name = isRecord(body) && typeof body.name === 'string' ? body.name.trim() : '';
-  const refreshToken = isRecord(body) && typeof body.refreshToken === 'string' ? body.refreshToken : '';
-  if (!ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
-  if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
-  if (!(await mayCreateOrganization(deps.users, session.userId)))
-    throw new ApiError('Creating an organization needs an approved account. Join the waitlist, and you can create one once you are let in.', 403);
-  const organization = await createOrganization(cfg, name);
-  await addMembership(cfg, session.userId, organization, 'admin');
-  log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await refreshTokens(cfg, refreshToken, organization), cfg, deps);
-}
+const workosOnly = <T>(run: (req: IncomingMessage, deps: AuthApiDeps) => Promise<T>) => (req: IncomingMessage, deps: AuthApiDeps): Promise<T> => {
+  if (modeOf(deps) === 'metro') throw new ApiError('not found', 404);
+  return run(req, deps);
+};
 
 interface PublicRoute {
   method: string;
@@ -334,12 +281,13 @@ interface PrivateRoute {
 const PUBLIC: Record<string, PublicRoute> = {
   '/exchange': { method: 'POST', run: exchange },
   '/refresh': { method: 'POST', run: refresh },
-  '/email/start': { method: 'POST', run: startEmailCode },
-  '/email/verify': { method: 'POST', run: (req, deps) => verifyEmailCode(req, deps, admitted) },
+  '/email/start': { method: 'POST', run: workosOnly(startEmailCode) },
+  '/email/verify': { method: 'POST', run: workosOnly((req, deps) => verifyEmailCode(req, deps, workosAdmitted)) },
+  '/link': { method: 'POST', run: (req, deps) => redeemLink(req, deps, (user, link, now) => metroAdmitted(deps, { user, method: 'link', intent: 'login', now, link })) },
 };
 
 const PRIVATE: Record<string, PrivateRoute> = {
-  '/me': { method: 'GET', run: (_req, _deps, session) => Promise.resolve(mePayload(session)) },
+  '/me': { method: 'GET', run: (_req, deps, session) => mePayload(session, deps) },
   '/logout': { method: 'POST', run: (_req, deps, session) => logout(session, deps) },
   '/organization': { method: 'POST', run: (req, deps, session) => createOrg(req, session, deps) },
   '/organizations': { method: 'GET', run: (_req, deps, session) => organizationsOf(deps, session) },
@@ -351,7 +299,7 @@ async function navigation(req: IncomingMessage, res: ServerResponse, deps: AuthA
   if (path !== '/login' && path !== '/callback') return false;
   if ((req.method ?? 'GET') !== 'GET') throw new ApiError('method not allowed', 405);
   if (path === '/login') login(req, res, deps, query);
-  else await callback(res, deps, query);
+  else await callback(req, res, deps, query);
   return true;
 }
 

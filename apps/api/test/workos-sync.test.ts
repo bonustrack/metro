@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import type { WorkosConfig } from '../src/auth/workos.ts';
 import { accountId } from '../src/db/account-ids.ts';
 import { identities, memberships, organizations, users } from '../src/db/schema.ts';
@@ -209,6 +209,16 @@ describe('the export', () => {
     await expect(syncWorkos(held.db, await readWorkos(cfg), { apply: false, now: NOW })).rejects.toThrow('WorkOS lists two users with the email');
   });
 
+  test('an email WorkOS has not verified is never copied: it is listed in the dry run and cleared from the user row', async () => {
+    const dan = fake.users.find((u) => u.id === 'user_04DAN');
+    if (dan === undefined) throw new Error('no Dan in the fake');
+    dan.email_verified = false;
+    await held.db.insert(users).values({ id: 'user_04DAN', email: 'dan@example.com', updatedAt: AT });
+    const plan = await syncWorkos(held.db, await readWorkos(cfg), { apply: true, now: NOW });
+    expect(reportLines(plan, true)).toContain('  the email dan@example.com of user_04DAN is not verified in WorkOS, so it is not copied');
+    expect((await held.db.select({ email: users.email }).from(users).where(eq(users.id, 'user_04DAN')))[0]?.email).toBeNull();
+  });
+
   test('the command refuses an unknown flag and missing settings before reading anything', async () => {
     const out: string[] = [];
     const write = (text: string): void => {
@@ -217,6 +227,12 @@ describe('the export', () => {
     expect(await runWorkosSync(['--dry-run'], {}, write)).toBe(2);
     expect(await runWorkosSync([], { DATABASE_URL: 'postgres://x' }, write)).toBe(1);
     expect(await runWorkosSync(['--apply'], { WORKOS_API_KEY: 'sk', WORKOS_CLIENT_ID: 'client' }, write)).toBe(1);
-    expect(out).toEqual(['usage: bun apps/api/scripts/workos-sync.ts [--apply]\n', 'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n', 'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n']);
+    expect(await runWorkosSync(['--apply'], { WORKOS_API_KEY: 'sk', WORKOS_CLIENT_ID: 'client', DATABASE_URL: 'postgres://x', METRO_ACCOUNTS: 'metro' }, write)).toBe(1);
+    expect(out).toEqual([
+      'usage: bun apps/api/scripts/workos-sync.ts [--apply]\n',
+      'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n',
+      'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n',
+      'METRO_ACCOUNTS is metro: Metro keeps its own accounts now, so --apply would undo what changed since. Only the dry run works.\n',
+    ]);
   });
 });
