@@ -1,5 +1,5 @@
 import { errMsg, log } from '@metro-labs/core/log';
-import { oneLine } from '@metro-labs/core/approval-fields';
+import { keyAsker } from '@metro-labs/core/approval-fields';
 import type { McpApproval, McpDecision } from '@metro-labs/http/mcp-server-protocol';
 import { APPROVAL_USE_MS } from '@metro-labs/http/approval-rules';
 import { holdPrompt, isPromptHeld, type Behavior } from '../approvals/pending.js';
@@ -26,10 +26,7 @@ const answeredRecently = (id: string, now = Date.now()): boolean => now - (recen
 const noticeText = (tool: string, id: string, behavior: Behavior): string =>
   behavior === 'allow' ? `Approved: ${tool} (${id}). Call tool_call again with the same arguments and approval: "${id}".` : `Denied: ${tool} (${id}).`;
 
-const askerOf = (approval: McpApproval): { requestedBy?: string } => {
-  if (approval.origin !== 'key') return {};
-  return { requestedBy: approval.keyLabel === undefined ? 'an access key' : `access key "${oneLine(approval.keyLabel)}"` };
-};
+const askerOf = (approval: McpApproval): { requestedBy?: string } => (approval.origin === 'key' ? { requestedBy: keyAsker(approval.keyLabel) } : {});
 
 interface Place {
   line: string | undefined;

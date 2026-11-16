@@ -13,6 +13,11 @@ const PLAIN_NAME = /^[a-z]\w*$/;
 
 export const oneLine = (text: string): string => text.replace(/[\s\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]+/g, ' ');
 
+export function keyAsker(label: string | null | undefined): string {
+  const shown = label === null || label === undefined ? '' : oneLine(label).trim();
+  return shown === '' ? 'an access key' : `access key "${shown}"`;
+}
+
 const plain = (value: unknown): value is string | number | boolean => typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 
 const empty = (value: unknown): boolean => value === null || value === undefined || value === '' || (typeof value === 'object' && Object.keys(value).length === 0);

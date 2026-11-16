@@ -1,4 +1,5 @@
 import { flattenAccounts, type AccountGroup, type AccountRow } from '@metro-labs/client/api/accounts';
+import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import { connectorAsk, type ApprovalCard } from '@metro-labs/client/api/approval-card';
 import { stationLabel } from '@metro-labs/client/api/attach';
 import { connectorOfKey } from '@metro-labs/client/api/connector-key';
@@ -16,10 +17,15 @@ export function accountRow(groups: AccountGroup[], station: string | null, accou
 export interface NamedConnector {
   name: string;
   url: string;
+  id?: string;
+  verifiedAt?: string | null;
 }
 
-interface ListedConnector extends NamedConnector {
+interface ListedConnector {
   id: string;
+  name: string;
+  url: string;
+  verifiedAt?: string | null;
   agents: { id: string }[];
 }
 
@@ -28,16 +34,48 @@ interface ConnectorsRead {
   error: unknown;
 }
 
+export interface ToolsSource {
+  id: string;
+  verifiedAt: string | null;
+}
+
+interface ToolsRead {
+  data?: { name: string; title: string }[] | undefined;
+  error: unknown;
+}
+
 export function namedConnector(key: string, agent: string | null, read: ConnectorsRead): NamedConnector | null | undefined {
   if (read.data === undefined) return read.error === null || read.error === undefined ? undefined : null;
   const found = agent === null ? undefined : connectorOfKey(read.data.connectors, agent, key);
-  return found === undefined ? null : { name: found.name, url: found.url };
+  return found === undefined ? null : { name: found.name, url: found.url, id: found.id, verifiedAt: found.verifiedAt ?? null };
 }
 
-export function approvalAsk(card: ApprovalCard, agent: string, read: ConnectorsRead): string | undefined {
+export const remoteConnector = (found: RemoteApproval): NamedConnector | null =>
+  found.connectorName === null ? null : { name: found.connectorName, url: found.connectorUrl ?? '', id: found.connector, verifiedAt: null };
+
+export function toolsSource(card: ApprovalCard, connector: NamedConnector | null | undefined): ToolsSource | null | undefined {
+  if (card.connectorTool === null || connector === null) return null;
+  if (connector === undefined) return undefined;
+  return connector.id === undefined ? null : { id: connector.id, verifiedAt: connector.verifiedAt ?? null };
+}
+
+function listedTitle(tools: { name: string; title: string }[], name: string | null): string | null {
+  const found = tools.find((tool) => tool.name === name);
+  const title = found?.title.trim() ?? '';
+  return title === '' || title === name ? null : title;
+}
+
+export function approvalTitle(card: ApprovalCard, source: ToolsSource | null | undefined, read: ToolsRead | undefined): string | undefined {
+  if (source === undefined) return undefined;
+  if (source === null || read === undefined) return card.title;
+  if (read.data === undefined) return read.error === null || read.error === undefined ? undefined : card.title;
+  return listedTitle(read.data, card.connectorTool) ?? card.title;
+}
+
+export function approvalAsk(card: ApprovalCard, connector: NamedConnector | null | undefined, title: string | undefined): string | undefined {
   if (card.connector === null) return card.ask;
-  const named = namedConnector(card.connector, agent, read);
-  return named === undefined ? undefined : connectorAsk(card.title, named?.name ?? card.connector);
+  if (connector === undefined || title === undefined) return undefined;
+  return connectorAsk(title, connector?.name ?? card.connector);
 }
 
 export function approvalWhere(card: ApprovalCard, groups: AccountGroup[], connector?: NamedConnector | null): string | null {

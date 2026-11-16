@@ -18,7 +18,7 @@ import { Icon } from '../Icon.js';
 import { StationIcon } from '../StationIcon.js';
 import { TextLink } from '../TextLink.js';
 import { SkeletonBlock, SkeletonLine } from '../ui/RowsSkeleton.js';
-import { useNamedConnector } from '../../lib/approval-connector.js';
+import { useApprovalTitle, useNamedConnector } from '../../lib/approval-connector.js';
 import { accountRow, approvalWhere, othersLine, ruleLine, type NamedConnector } from '../../lib/approval-note.js';
 import { DECIDE_FAILED } from '../../lib/approval-page.js';
 import { queryError, refresh, useBoxQuery } from '../../lib/queries.js';
@@ -31,6 +31,7 @@ const LABEL_WIDTH = 76;
 const MARK_RADIUS = Math.round(MARK / 4);
 const WHERE_WIDTH = 140;
 const NOTE_WIDTH = 180;
+const TITLE_WIDTH = 160;
 const CARDS_STALE_MS = 5 * 60_000;
 
 export interface ApprovalContext {
@@ -178,6 +179,15 @@ function Details({ project, id }: { project: string; id: string }): ReactNode {
   );
 }
 
+function Title({ title }: { title: string | undefined }): ReactNode {
+  if (title === undefined) return <SkeletonLine width={TITLE_WIDTH} />;
+  return (
+    <Text size="md" fontWeight="semibold" numberOfLines={2}>
+      {title}
+    </Text>
+  );
+}
+
 function Where({ where }: { where: string | null | undefined }): ReactNode {
   if (where === undefined) return <SkeletonLine width={WHERE_WIDTH} />;
   if (where === null) return null;
@@ -209,19 +219,18 @@ export function ApprovalCardView({ approval, context, project, decide, connector
   const boxDecide = useBoxDecide(approval.id);
   const card = approvalCard(approval);
   const named = useNamedConnector(card.connector, connector);
+  const title = useApprovalTitle(approval, card, named);
   const others = useOthers(approval, context);
   const naming = card.connector !== null && named === undefined;
   const where = naming ? undefined : approvalWhere(card, context.groups, named);
   const note = naming ? undefined : [ruleLine(card, approval.tool, context.groups, context.tools, named), others].filter((part) => part !== null).join(' ');
   const rows = approval.requestedBy === null ? card.fields : [{ label: 'Asked by', value: approval.requestedBy }, ...card.fields];
   return (
-    <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={`Approval: ${card.title}`}>
+    <Column surface="raised" radius={16} padding={narrow ? 20 : 24} accessibilityLabel={title === undefined ? 'Approval' : `Approval: ${title}`}>
       <Row align="start" gap={12}>
         <ApprovalMark card={card} connector={named} />
         <Column weight={1} minWidth={0} gap={2}>
-          <Text size="md" fontWeight="semibold" numberOfLines={2}>
-            {card.title}
-          </Text>
+          <Title title={title} />
           <Where where={where} />
         </Column>
         <Text size="xs" color="secondary" numberOfLines={1}>

@@ -17,6 +17,7 @@ interface CardSummary {
   station: string | null;
   account: string | null;
   connector: string | null;
+  connectorTool: string | null;
   title: string;
   ask: string;
   fields: CardField[];
@@ -143,6 +144,7 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): C
     station: target?.station ?? null,
     account: target?.account ?? null,
     connector: null,
+    connectorTool: null,
     title,
     ask: lowerFirst(title),
     fields: messaging ? [] : argFields(input),
@@ -151,7 +153,7 @@ function metroCard(approval: Approval, input: Record<string, unknown> | null): C
   };
 }
 
-export const connectorAsk = (title: string, connector: string): string => `use ${title} on ${connector}`;
+export const connectorAsk = (title: string, connector: string): string => `approve ${title} on ${connector}`;
 
 function connectorCard(connector: string, tool: string, input: Record<string, unknown> | null, bytes: (number | null)[]): CardSummary {
   const title = humanize(tool);
@@ -159,6 +161,7 @@ function connectorCard(connector: string, tool: string, input: Record<string, un
     station: null,
     account: null,
     connector,
+    connectorTool: tool,
     title,
     ask: connectorAsk(title, connector),
     fields: argFields(input),
@@ -173,6 +176,7 @@ function otherCard(approval: Approval): CardSummary {
     station: null,
     account: null,
     connector: null,
+    connectorTool: null,
     title: approval.name,
     ask: `approve ${approval.name}`,
     fields,

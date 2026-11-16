@@ -54,8 +54,9 @@ describe('the one line under an agent in the list', () => {
   test('an approval whose connector is still being named waits as a placeholder, never as its key', () => {
     const naming = agentLine(facts({ waiting: 2, ask: undefined }));
     expect(naming).toEqual({ text: 'Waiting for you: 2 approvals', tone: 'link', dot: 'success', busy: false, needsYou: true, pending: true });
-    expect(agentLine(facts({ waiting: 2, ask: 'use Create draft on Gmail' })).pending).toBeUndefined();
+    expect(agentLine(facts({ waiting: 2, ask: 'approve Create draft on Gmail' })).pending).toBeUndefined();
     expect(remoteLine(1, 'approve Create page on Notion', 3).pending).toBeUndefined();
+    expect(remoteLine(1, undefined, 3)).toMatchObject({ text: 'Waiting for you: 1 approval', pending: true });
   });
 
   test('a stopped session and an unfinished setup need you too', () => {
@@ -110,7 +111,7 @@ describe('an agent without a server', () => {
     expect(connectorsWords(null)).toBe('No server');
     expect(connectorsWords(1)).toBe('No server · 1 connector');
     expect(remoteLine(0, null, 3)).toEqual({ text: 'No server · 3 connectors', tone: 'secondary', dot: null, busy: false, needsYou: false });
-    expect(remoteLine(1, 'use Create page on notion', 3)).toMatchObject({ text: 'Waiting for you: use Create page on notion', needsYou: true, dot: null });
+    expect(remoteLine(1, 'approve Create page on notion', 3)).toMatchObject({ text: 'Waiting for you: approve Create page on notion', needsYou: true, dot: null });
     expect(remoteLine(2, null, 0).text).toBe('Waiting for you: 2 approvals');
     const rows = orderAgents([{ name: 'Alpha', line: remoteLine(0, null, 1) }, { name: 'Zed', line: remoteLine(1, null, 1) }]);
     expect(rows.map((row) => row.name)).toEqual(['Zed', 'Alpha']);

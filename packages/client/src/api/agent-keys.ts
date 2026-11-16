@@ -85,7 +85,7 @@ function remoteApprovalOf(raw: unknown): RemoteApproval | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.tool !== 'string' || typeof raw.connector !== 'string') return null;
   const requestedAt = time(raw.requestedAt);
   const key = typeof raw.connectorKey === 'string' && raw.connectorKey !== '' ? raw.connectorKey : raw.connector;
-  const approval = approvalOf({ id: raw.id, tool: `${key}.${raw.tool}`, preview: raw.preview, line: '', requestedAt: requestedAt === null ? '' : new Date(requestedAt).toISOString() });
+  const approval = approvalOf({ id: raw.id, tool: `${key}.${raw.tool}`, preview: raw.preview, line: '', requestedAt: requestedAt === null ? '' : new Date(requestedAt).toISOString(), requestedBy: raw.requestedBy });
   return approval === null ? null : { approval, connector: raw.connector, connectorName: filled(raw.connectorName), connectorUrl: filled(raw.connectorUrl) };
 }
 

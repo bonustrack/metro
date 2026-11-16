@@ -84,11 +84,11 @@ function KindIcon({ name }: { name: 'server' | 'plug' }): ReactNode {
 export function KindStep({ kind, onKind, onNext }: KindProps): ReactNode {
   return (
     <>
-      <Heading title="Does your agent need a server?" text="With a server, it answers in your chats and works on its own. Without one, it gives you the organization's connectors in Claude Code or any MCP client." />
+      <Heading title="Does your agent need a server?" text="With a server, it answers in your chats and works on its own. Without one, it gives Claude Code or your own apps the organization's connectors and models." />
       <Rows>
         <Item title="With a server" subtitle="Metro starts a server for it on AWS. It answers in your chats and runs on its own." chevron={false}
           leading={<KindIcon name="server" />} trailing={<Check on={kind === 'box'} />} onPress={() => { onKind('box'); }} />
-        <Item title="Without a server" subtitle="Use its connectors from Claude Code on your computer, or any MCP client, with an access key." chevron={false}
+        <Item title="Without a server" subtitle="Use its connectors through mcp.metro.box from Claude Code or any MCP client, with an access key. It can also have its own models, reached through the Gateway." chevron={false}
           leading={<KindIcon name="plug" />} trailing={<Check on={kind === 'remote'} />} onPress={() => { onKind('remote'); }} />
       </Rows>
       <Buttons next="Continue" ready={kind !== null} onNext={onNext} />

@@ -5,6 +5,7 @@ import { decideRemoteApproval, type RemoteApproval } from '@metro-labs/client/ap
 import type { Decision } from '@metro-labs/client/api/approvals';
 import { ApprovalCardView, type ApprovalContext } from '../home/ApprovalCard.js';
 import { ErrorState } from '../ui/ErrorState.js';
+import { remoteConnector } from '../../lib/approval-note.js';
 import { queryError } from '../../lib/queries.js';
 import { refreshRemoteApprovals, useRemoteApprovals } from '../../lib/remote-agents.js';
 
@@ -17,8 +18,7 @@ function Card({ agent, found }: { agent: string; found: RemoteApproval }): React
     await decideRemoteApproval(agent, found.approval.id, decision);
     await refreshRemoteApprovals(client, agent);
   };
-  const connector = found.connectorName === null ? undefined : { name: found.connectorName, url: found.connectorUrl ?? '' };
-  return <ApprovalCardView approval={found.approval} context={context} project={agent} decide={decide} connector={connector} />;
+  return <ApprovalCardView approval={found.approval} context={context} project={agent} decide={decide} connector={remoteConnector(found) ?? undefined} />;
 }
 
 export function RemoteApprovals({ agent }: { agent: string }): ReactNode {

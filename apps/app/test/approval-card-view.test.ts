@@ -13,6 +13,7 @@ const { setCurrentServer } = await import('@metro-labs/client/auth/daemon');
 const EMMA = 'agntEmma001';
 let texts = [], favicons = [], blocks = [], asked = [];
 let connectors = { data: undefined, error: null };
+let tools = { data: undefined, error: null }, toolsAsked = [];
 const wrap = ({ children }) => createElement('div', null, children);
 const flat = (children) => (Array.isArray(children) ? children.join('') : String(children ?? ''));
 mock.module('react-native', () => ({ Platform: { OS: 'web', select: (choices) => choices.web ?? choices.default } }));
@@ -29,13 +30,16 @@ mock.module('./src/components/Icon.js', () => ({ Icon: () => null }));
 mock.module('./src/components/StationIcon.js', () => ({ StationIcon: () => null }));
 mock.module('./src/components/TextLink.js', () => ({ TextLink: () => null }));
 mock.module('./src/lib/queries.js', () => ({ useBoxQuery: () => ({ isPending: false, data: [] }), refresh: () => Promise.resolve(), queryError: (_err, fallback) => fallback }));
-mock.module('./src/lib/org-connector-queries.js', () => ({ useOrgConnectorsQuery: (_poll, enabled) => { asked.push(enabled); return connectors; } }));
+mock.module('./src/lib/org-connector-queries.js', () => ({
+  useOrgConnectorsQuery: (_poll, enabled) => { asked.push(enabled); return connectors; },
+  useOrgConnectorToolLists: (list) => { toolsAsked.push(list); return list.map((one) => (one === null ? { data: undefined, error: null } : tools)); },
+}));
 mock.module('./src/lib/media.js', () => ({ useIsNarrow: () => false }));
 const { ApprovalCardView } = await import('./src/components/home/ApprovalCard.tsx');
 setCurrentServer({ id: EMMA, host: 'metro-emma.ts.net' });
 const context = { agentId: 'agent000001', groups: [], tools: {} };
 const card = (extra, props = {}) => {
-  texts = []; favicons = []; blocks = []; asked = [];
+  texts = []; favicons = []; blocks = []; asked = []; toolsAsked = [];
   const approval = approvalsApi.approvalOf({ id: 'abcde', tool: 'notion.update_page', preview: '{"page_id":"p1"}', line: '', requestedAt: new Date().toISOString(), ...extra });
   renderToStaticMarkup(createElement(ApprovalCardView, { approval, context, project: 'emma', ...props }));
   return texts;
@@ -60,13 +64,19 @@ const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'htt
 const keyShown = (list) => list.some((text) => text.includes(KEY) || text.includes('Gmail-fabien'));
 
 let shown = card(draft);
-assert.deepEqual([asked, favicons, blocks.length], [[true], [], 3]);
+assert.deepEqual([asked, favicons, blocks.length, toolsAsked], [[true], [], 4, [[null]]]);
 assert.ok(!keyShown(shown), 'never the key while the connectors load');
-assert.ok(shown.includes('Create draft'));
+assert.ok(!shown.includes('Create draft'), 'no title made from the tool name before the connector answers');
 
 connectors = { data: { connectors: [gmail], admin: false }, error: null };
 shown = card(draft);
+assert.deepEqual([favicons, blocks, toolsAsked], [[['Gmail fabien@bonustrack.co', 'https://mcp.gmail.piston.box/']], [{ width: 160 }], [[{ id: 'conn0000002', verifiedAt: null }]]]);
+assert.ok(!shown.includes('Create draft'), 'a placeholder while its tools load');
+
+tools = { data: [{ name: 'create_draft', title: 'Write a draft' }], error: null };
+shown = card(draft);
 assert.deepEqual([favicons, blocks.length], [[['Gmail fabien@bonustrack.co', 'https://mcp.gmail.piston.box/']], 0]);
+assert.ok(shown.includes('Write a draft') && !shown.includes('Create draft'), 'the title the connector gives its tool');
 assert.ok(shown.includes('Gmail fabien@bonustrack.co'));
 assert.ok(shown.includes('Gmail fabien@bonustrack.co asks first.'));
 assert.ok(!keyShown(shown));
@@ -86,9 +96,34 @@ shown = card(draft, { connector: { name: 'Notion', url: 'https://mcp.notion.com'
 assert.deepEqual([asked, favicons, blocks.length], [[false], [['Notion', 'https://mcp.notion.com']], 0]);
 assert.ok(shown.includes('Notion asks first.'));
 
+shown = card(draft, { connector: { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null } });
+assert.deepEqual([asked, toolsAsked, blocks.length], [[false], [[{ id: 'conn0000001', verifiedAt: null }]], 0]);
+assert.ok(shown.includes('Write a draft'));
+tools = { data: undefined, error: new Error('Failed to reach Metro.') };
+shown = card(draft, { connector: { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null } });
+assert.ok(shown.includes('Write a draft') && !shown.includes('Create draft'), 'a title once shown stays for that approval');
+shown = card({ ...draft, id: 'bcdef' }, { connector: { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null } });
+assert.ok(shown.includes('Create draft') && blocks.length === 0, 'the title from the tool name when the tools cannot be read');
+
 shown = card({ tool: 'mcp__metro__send', preview: '{"line":"metro://telegram-bot/t1/42","text":"Hi"}', line: 'metro://telegram-bot/t1/42' });
 assert.deepEqual([asked, favicons, blocks.length], [[false], [], 0]);
 assert.ok(shown.includes('Telegram bot · t1'));
+
+const notion = { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null };
+tools = { data: undefined, error: null };
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(!shown.includes('Create draft') && blocks.length === 1, 'a placeholder while a slow tool list loads');
+const realNow = Date.now;
+Date.now = () => realNow() + 2_000;
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(!shown.includes('Create draft') && blocks.length === 1, 'still the placeholder before 3 seconds');
+Date.now = () => realNow() + 3_000;
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(shown.includes('Create draft') && blocks.length === 0, 'the title from the tool name after 3 seconds');
+tools = { data: [{ name: 'create_draft', title: 'Write a draft' }], error: null };
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(shown.includes('Create draft') && !shown.includes('Write a draft'), 'never switched once shown');
+Date.now = realNow;
 `;
 
 function verify(program: string): void {
@@ -102,7 +137,7 @@ describe('the approval card on Home', () => {
     verify(askedBy);
   });
 
-  test('names a connector by its name and logo, a placeholder while the connectors load, the key only when none matches', () => {
+  test('names a connector and its tool by their own names, a placeholder while they load, the key and the tool name only when none matches', () => {
     verify(named);
   });
 });

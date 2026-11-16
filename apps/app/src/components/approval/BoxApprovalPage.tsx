@@ -15,7 +15,7 @@ function shownOf(approval: Approval, groups: AccountGroup[] | undefined, connect
   const card = approvalCard(approval);
   const named = card.connector === null ? null : connector(card.connector);
   const waits = named === undefined || (card.station !== null && groups === undefined);
-  return { approval, where: waits ? undefined : approvalWhere(card, groups ?? [], named), mark: <ApprovalMark card={card} connector={named} /> };
+  return { approval, where: waits ? undefined : approvalWhere(card, groups ?? [], named), connector: named, mark: <ApprovalMark card={card} connector={named} /> };
 }
 
 export function BoxApprovalPage({ project, id }: { project: string; id: string }): ReactNode {

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { accountScopeIdentity, subscribeAccountScope } from '@metro-labs/client/auth/account';
-import { useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useQueries, useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { fetchOrgConnectorTools, fetchOrgConnectors, type OrgConnector, type OrgConnectors } from '@metro-labs/client/api/org-connectors';
 import type { ConnectorTool } from '@metro-labs/client/api/connectors';
 import { orgKey } from './queries.js';
@@ -18,8 +18,22 @@ export function useOrgConnectorsPoll(every: number | null): void {
 export const toolsKey = (connector: Pick<OrgConnector, 'id' | 'verifiedAt'>): string[] =>
   orgKey('org-connector-tools', String(accountScopeIdentity()), connector.id, connector.verifiedAt ?? '');
 
-export const useOrgConnectorToolsQuery = (connector: Pick<OrgConnector, 'id' | 'verifiedAt'>): UseQueryResult<ConnectorTool[]> =>
-  useQuery({ queryKey: toolsKey(connector), queryFn: ({ signal }) => fetchOrgConnectorTools(connector.id, signal), staleTime: 60_000, retry: false });
+type ToolsOf = Pick<OrgConnector, 'id' | 'verifiedAt'>;
+
+const NO_CONNECTOR: ToolsOf = { id: '', verifiedAt: null };
+
+const toolsQuery = (connector: ToolsOf, enabled = true) => ({
+  queryKey: toolsKey(connector),
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchOrgConnectorTools(connector.id, signal),
+  staleTime: 60_000,
+  retry: false,
+  enabled,
+});
+
+export const useOrgConnectorToolsQuery = (connector: ToolsOf): UseQueryResult<ConnectorTool[]> => useQuery(toolsQuery(connector));
+
+export const useOrgConnectorToolLists = (connectors: (ToolsOf | null)[]): UseQueryResult<ConnectorTool[]>[] =>
+  useQueries({ queries: connectors.map((connector) => toolsQuery(connector ?? NO_CONNECTOR, connector !== null)) });
 
 export async function refreshOrgConnectors(client: QueryClient): Promise<void> {
   await client.invalidateQueries({ queryKey: orgKey('org-connectors') });

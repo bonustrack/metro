@@ -68,7 +68,7 @@ export function connectorsWords(count: number | null): string {
   return `No server · ${count === 1 ? '1 connector' : `${String(count)} connectors`}`;
 }
 
-export function remoteLine(waiting: number, ask: string | null, connectors: number | null): AgentLine {
+export function remoteLine(waiting: number, ask: string | null | undefined, connectors: number | null): AgentLine {
   if (waiting > 0) return waitingLine(waiting, ask, null);
   return quiet(connectorsWords(connectors));
 }

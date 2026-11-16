@@ -4,12 +4,13 @@ import { approvalCard } from '@metro-labs/client/api/approval-card';
 import { decideRemoteApproval, type RemoteApproval } from '@metro-labs/client/api/agent-keys';
 import { ApprovalScreen, type ApprovalShown, type ApprovalSource } from '../approval/ApprovalPage.js';
 import { ApprovalMark } from '../home/ApprovalCard.js';
+import { remoteConnector } from '../../lib/approval-note.js';
 import { refreshRemoteApprovals, useRemoteApprovals } from '../../lib/remote-agents.js';
 
 function shownOf(found: RemoteApproval): ApprovalShown {
   const card = approvalCard(found.approval);
-  const named = found.connectorName === null ? null : { name: found.connectorName, url: found.connectorUrl ?? '' };
-  return { approval: found.approval, where: named?.name ?? card.connector, mark: <ApprovalMark card={card} connector={named} /> };
+  const named = remoteConnector(found);
+  return { approval: found.approval, where: named?.name ?? card.connector, connector: named, mark: <ApprovalMark card={card} connector={named} /> };
 }
 
 export function RemoteApprovalPage({ agent, id }: { agent: string; id: string }): ReactNode {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { chatApprovals } from '@metro-labs/client/api/accounts';
 import type { RemoteApproval } from '@metro-labs/client/api/agent-keys';
-import { approvalCard } from '@metro-labs/client/api/approval-card';
+import { approvalCard, type ApprovalCard } from '@metro-labs/client/api/approval-card';
 import type { Approval } from '@metro-labs/client/api/approvals';
 import type { StationsView } from '@metro-labs/client/api/client';
 import type { ClaudeProject } from '@metro-labs/client/api/claude';
@@ -14,7 +14,8 @@ import { boxesOf, isRemote, serverLabel, type BoxServer, type RemoteServer, type
 import { baseFromSegment } from '@metro-labs/client/auth/daemon';
 import { agentLine, orderAgents, remoteLine, type AgentLine } from './agent-line.js';
 import { useApprovalLists, waitingCount } from './agent-status.js';
-import { approvalAsk } from './approval-note.js';
+import { useApprovalTitles } from './approval-connector.js';
+import { approvalAsk, namedConnector, remoteConnector, type NamedConnector } from './approval-note.js';
 import { useOrgConnectorsQuery } from './org-connector-queries.js';
 import { useServerStatuses } from './queries.js';
 import { useConnectorCounts, useRemoteApprovalLists } from './remote-agents.js';
@@ -72,22 +73,27 @@ function knownSetup(name: string, model: ModelSettings | undefined, stations: St
   return setupOf({ name, project: '', model, groups: stations.groups, conversations, chatApprovals: chatApprovals(status?.version) });
 }
 
-function remoteAsk(found: RemoteApproval): string {
-  const card = approvalCard(found.approval);
-  return `approve ${card.title} on ${found.connectorName ?? card.connector ?? 'a connector'}`;
-}
-
 const keyedApproval = (approval: Approval | undefined): boolean => approval !== undefined && approvalCard(approval).connector !== null;
+
+const namedOf = (card: ApprovalCard | null, agent: string | null, read: Parameters<typeof namedConnector>[2]): NamedConnector | null | undefined =>
+  card === null || card.connector === null ? null : namedConnector(card.connector, agent, read);
 
 function useRemoteRows(remotes: RemoteServer[]): AgentRow[] {
   const ids = remotes.map((server) => server.id);
   const approvals = useRemoteApprovalLists(ids);
   const counts = useConnectorCounts(ids);
-  return remotes.map((server, i): AgentRow => {
+  const pendings = remotes.map((_, i): RemoteApproval[] => {
     const read = approvals[i];
-    const pending = read === undefined || read.error !== null ? [] : read.data ?? [];
-    const first = pending[0];
-    const line = remoteLine(pending.length, first === undefined ? null : remoteAsk(first), counts[i] ?? null);
+    return read === undefined || read.error !== null ? [] : read.data ?? [];
+  });
+  const firsts = pendings.map((pending) => pending[0]);
+  const items = firsts.map((first) => (first === undefined ? null : { approval: first.approval, card: approvalCard(first.approval) }));
+  const named = firsts.map((first) => (first === undefined ? null : remoteConnector(first)));
+  const titles = useApprovalTitles(items, named);
+  return remotes.map((server, i): AgentRow => {
+    const pending = pendings[i] ?? [];
+    const card = items[i]?.card ?? null;
+    const line = remoteLine(pending.length, card === null ? null : approvalAsk(card, named[i], titles[i]), counts[i] ?? null);
     return { server, name: serverLabel(server), line, waiting: pending.length, status: undefined, trouble: null };
   });
 }
@@ -113,14 +119,17 @@ function useBoxRows(servers: BoxServer[]): AgentRow[] {
   const counts = servers.map((_, i) => waitingCount(approvals[i], live[i] === true) ?? 0);
   const firsts = servers.map((_, i) => ((counts[i] ?? 0) > 0 ? approvals[i]?.data?.[0] : undefined));
   const connectors = useOrgConnectorsQuery(undefined, firsts.some(keyedApproval));
+  const items = firsts.map((first) => (first === undefined ? null : { approval: first, card: approvalCard(first) }));
+  const named = items.map((item, i) => namedOf(item?.card ?? null, servers[i]?.id ?? null, connectors));
+  const titles = useApprovalTitles(items, named);
   const rows = servers.map((server, i): AgentRow => {
     const name = serverLabel(server);
     const count = counts[i] ?? 0;
-    const first = firsts[i];
+    const card = items[i]?.card ?? null;
     const status = statuses[i]?.data;
     const setup = knownSetup(name, models[i], stations[i], projects[i], status);
     const trouble = channelTrouble(stations[i]?.groups)[0] ?? null;
-    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: first === undefined ? null : approvalAsk(approvalCard(first), server.id, connectors), setup, trouble, session: sessions[i], now });
+    const line = agentLine({ status, booting: booting[i] ?? null, waiting: count, ask: card === null ? null : approvalAsk(card, named[i], titles[i]), setup, trouble, session: sessions[i], now });
     return { server, name, line, waiting: count, status, trouble };
   });
   return rows;
