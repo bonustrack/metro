@@ -25,7 +25,7 @@ afterAll(async () => {
   await h.close();
 });
 
-const refresh = (refreshToken: string, organization?: string): Promise<Response> => h.json('POST', '/api/auth/refresh', { refreshToken, ...(organization === undefined ? {} : { organization }) });
+const refresh = (refreshToken: string, organization?: string, address = '192.0.2.50'): Promise<Response> => h.json('POST', '/api/auth/refresh', { refreshToken, ...(organization === undefined ? {} : { organization }) }, undefined, { 'fly-client-ip': address });
 
 const body = async (res: Response): Promise<TokenBody> => {
   expect(res.status).toBe(200);
@@ -57,6 +57,17 @@ describe('Metro refresh tokens', () => {
     h.clock.now += 61_000;
     expect((await refresh(third.refreshToken, ORG)).status).toBe(401);
     expect((await refresh(fourth.refreshToken, ORG)).status).toBe(401);
+    expect((await h.held.db.select().from(authSessions))[0]?.revokedAt).toBe(h.clock.now);
+  });
+
+  test('refresh reuse: a token replaced two rotations ago still ends the whole session when it comes back', async () => {
+    const first = await signedInAna();
+    const second = await body(await refresh(first.refreshToken, ORG));
+    h.clock.now += 61_000;
+    const third = await body(await refresh(second.refreshToken, ORG));
+    h.clock.now += 61_000;
+    await body(await refresh(third.refreshToken, ORG));
+    expect((await refresh(first.refreshToken, ORG)).status).toBe(401);
     expect((await h.held.db.select().from(authSessions))[0]?.revokedAt).toBe(h.clock.now);
   });
 
@@ -114,25 +125,46 @@ describe('organizations from Postgres', () => {
 
 describe('moving WorkOS sessions to Metro without a new sign-in', () => {
   test('an old WorkOS refresh token is exchanged once for a Metro session of the same person', async () => {
-    await workosCarla('rt_carla', [ORG]);
-    const moved = await body(await refresh('rt_carla', ORG));
+    await workosCarla('rt_carla_0000000001', [ORG]);
+    const moved = await body(await refresh('rt_carla_0000000001', ORG));
     expect(moved.refreshToken).toMatch(/^mrt_/);
     expect(moved.user).toMatchObject({ id: carla, email: 'carla@example.com', name: 'Carla Dias' });
     expect(claimsOfToken(moved.accessToken)).toMatchObject({ iss: 'https://api.metro.box', sub: carla, org_id: ORG, role: 'member' });
     expect((await h.held.db.select().from(authSessions)).map((s) => [s.userId, s.method])).toEqual([[carla, 'workos']]);
     expect((await refresh(moved.refreshToken, ORG)).status).toBe(200);
-    expect((await refresh('rt_dead', ORG)).status).toBe(401);
+    expect((await refresh('rt_dead_000000000001', ORG)).status).toBe(401);
+  });
+
+  test('only a WorkOS-shaped token goes to WorkOS, the exchange is rate limited per address, and an unverified WorkOS email is never kept', async () => {
+    const sent = (): number => h.workos.calls.filter((c) => c.path === '/user_management/authenticate').length;
+    const before = sent();
+    expect((await refresh('short', ORG)).status).toBe(401);
+    expect((await refresh('has spaces in it 0000', ORG)).status).toBe(401);
+    expect(sent()).toBe(before);
+    for (let i = 0; i < 20; i += 1) expect((await refresh(`rt_dead_${String(i).padStart(12, '0')}`, ORG, '198.51.100.40')).status).toBe(401);
+    expect((await refresh('rt_dead_999999999999', ORG, '198.51.100.40')).status).toBe(429);
+    expect(sent()).toBe(before + 20);
+    const eve = accountId('user', NOW + 3);
+    h.workos.users.push({ id: eve, email: 'ceo@anderra.ch', first_name: 'Eve', last_name: null, profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z', email_verified: false });
+    h.workos.holders.set('rt_eve_000000000001', eve);
+    expect((await refresh('rt_eve_000000000001')).status).toBe(401);
+    expect((await h.held.db.select().from(users).where(eq(users.id, eve)))[0]).toMatchObject({ email: null, name: 'Eve' });
+    const finn = accountId('user', NOW + 4);
+    h.workos.users.push({ id: finn, email: 'finn@example.com', first_name: 'Finn', last_name: null, profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z', email_verified: true });
+    h.workos.holders.set('rt_finn_00000000001', finn);
+    expect((await refresh('rt_finn_00000000001')).status).toBe(401);
+    expect((await h.held.db.select().from(users).where(eq(users.id, finn)))[0]?.email).toBe('finn@example.com');
   });
 
   test('switch and create also take a WorkOS refresh token with a WorkOS bearer', async () => {
-    await workosCarla('rt_carla_switch', [ORG, OTHER_ORG]);
+    await workosCarla('rt_carla_switch_0001', [ORG, OTHER_ORG]);
     const bearer = h.workos.issuer.mint(sessionClaims({ sub: carla, org_id: ORG, role: 'member' }));
-    const switched = await body(await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: 'rt_carla_switch' }, bearer));
+    const switched = await body(await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: 'rt_carla_switch_0001' }, bearer));
     expect(switched).toMatchObject({ organization: OTHER_ORG, user: { id: carla } });
     expect(switched.refreshToken).toMatch(/^mrt_/);
-    h.workos.holders.set('rt_carla_create', carla);
+    h.workos.holders.set('rt_carla_create_0001', carla);
     await h.deps.users.setStatus(carla, 'approved');
-    const made = await body(await h.json('POST', '/api/auth/organization', { name: 'Carla Co', refreshToken: 'rt_carla_create' }, bearer));
+    const made = await body(await h.json('POST', '/api/auth/organization', { name: 'Carla Co', refreshToken: 'rt_carla_create_0001' }, bearer));
     expect(made).toMatchObject({ organizationName: 'Carla Co', user: { id: carla } });
     expect(h.workos.calls.some((c) => c.path === '/organizations')).toBe(false);
   });
@@ -147,6 +179,18 @@ describe('the same routes in both modes', () => {
     const toWorkos = await h.start('github');
     expect(toWorkos.status).toBe(302);
     expect(new URL(toWorkos.headers.get('location') ?? '').searchParams.get('provider')).toBe('GitHubOAuth');
+  });
+
+  test('with WorkOS and no WorkOS settings, the callback still answers 503 as before', async () => {
+    h.setMode('workos');
+    const keep = h.deps.config;
+    try {
+      const state = new URL((await h.start('google')).headers.get('location') ?? '').searchParams.get('state') ?? '';
+      h.deps.config = () => null;
+      expect((await fetch(`${h.base}/api/auth/callback?code=x&state=${state}`, { redirect: 'manual' })).status).toBe(503);
+    } finally {
+      h.deps.config = keep;
+    }
   });
 
   test('with WorkOS, a WorkOS refresh stays with WorkOS and a Metro one still rotates, checked against WorkOS memberships', async () => {

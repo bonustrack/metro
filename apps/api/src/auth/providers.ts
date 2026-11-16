@@ -10,7 +10,12 @@ export const CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const GOOGLE_SUB_RE = /^[\x21-\x7e]{1,255}$/;
-const MICROSOFT_MAIL_RE = /^(?:(?:outlook|hotmail|live)\.(?:com|[a-z]{2}|(?:co|com)\.[a-z]{2})|msn\.com)$/;
+const MICROSOFT_MAIL_DOMAINS = new Set([
+  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'outlook.at', 'outlook.be', 'outlook.cl', 'outlook.co.id', 'outlook.co.il', 'outlook.co.th', 'outlook.com.ar', 'outlook.com.au', 'outlook.com.br', 'outlook.com.gr', 'outlook.com.tr', 'outlook.com.vn', 'outlook.cz', 'outlook.de', 'outlook.dk', 'outlook.es', 'outlook.fr', 'outlook.hu', 'outlook.ie', 'outlook.in', 'outlook.it', 'outlook.jp', 'outlook.kr', 'outlook.lv', 'outlook.my', 'outlook.ph', 'outlook.pt', 'outlook.sa', 'outlook.sg', 'outlook.sk',
+  'hotmail.be', 'hotmail.ca', 'hotmail.cl', 'hotmail.co.il', 'hotmail.co.jp', 'hotmail.co.kr', 'hotmail.co.th', 'hotmail.co.uk', 'hotmail.co.za', 'hotmail.com.ar', 'hotmail.com.au', 'hotmail.com.br', 'hotmail.com.hk', 'hotmail.com.tr', 'hotmail.com.tw', 'hotmail.com.vn', 'hotmail.cz', 'hotmail.de', 'hotmail.dk', 'hotmail.es', 'hotmail.fi', 'hotmail.fr', 'hotmail.gr', 'hotmail.hu', 'hotmail.it', 'hotmail.lt', 'hotmail.lv', 'hotmail.my', 'hotmail.nl', 'hotmail.no', 'hotmail.ph', 'hotmail.rs', 'hotmail.se', 'hotmail.sg', 'hotmail.sk',
+  'live.at', 'live.be', 'live.ca', 'live.cl', 'live.cn', 'live.co.kr', 'live.co.uk', 'live.co.za', 'live.com.ar', 'live.com.au', 'live.com.mx', 'live.com.my', 'live.com.ph', 'live.com.pt', 'live.com.sg', 'live.de', 'live.dk', 'live.fi', 'live.fr', 'live.hk', 'live.ie', 'live.in', 'live.it', 'live.jp', 'live.nl', 'live.no', 'live.ru', 'live.se',
+]);
 const GOOGLE_ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com']);
 const KEYS_MAX_AGE_MS = 60 * 60_000;
 const NAME_MAX = 80;
@@ -87,12 +92,20 @@ function httpsPicture(value: unknown): string | null {
   return url !== null && url.startsWith('https://') && url.length <= 2048 ? url : null;
 }
 
+const ASCII_EMAIL_RE = /^[!-?A-~]+@[!-?A-~]+\.[!-?A-~]+$/;
+
 const emailOf = (claims: Claims): string | null => {
   const email = text(claims.email)?.toLowerCase() ?? null;
-  return email !== null && email.includes('@') ? email : null;
+  return email !== null && ASCII_EMAIL_RE.test(email) ? email : null;
 };
 
-export const microsoftOwnDomain = (email: string): boolean => MICROSOFT_MAIL_RE.test(email.slice(email.lastIndexOf('@') + 1));
+const domainOf = (email: string): string => email.slice(email.lastIndexOf('@') + 1);
+
+const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
+
+export const googleOwnsEmail = (email: string, hd: unknown): boolean => GMAIL_DOMAINS.has(domainOf(email)) || (typeof hd === 'string' && hd.toLowerCase() === domainOf(email));
+
+export const microsoftOwnDomain = (email: string): boolean => MICROSOFT_MAIL_DOMAINS.has(domainOf(email));
 
 function googleProof(claims: Claims): Proof {
   if (typeof claims.iss !== 'string' || !GOOGLE_ISSUERS.has(claims.iss)) throw new SignInRefused('failed', `Google answered with the issuer ${String(claims.iss)}`);
@@ -100,7 +113,7 @@ function googleProof(claims: Claims): Proof {
   if (subject === null || !GOOGLE_SUB_RE.test(subject)) throw new SignInRefused('failed', 'Google answered without an account id');
   const email = emailOf(claims);
   if (email === null || !yes(claims.email_verified)) throw new SignInRefused('unverified', 'Google did not confirm the email address');
-  return { subject, email, emailProven: true, name: nameOf(claims), picture: httpsPicture(claims.picture) };
+  return { subject, email, emailProven: googleOwnsEmail(email, claims.hd), name: nameOf(claims), picture: httpsPicture(claims.picture) };
 }
 
 function guidOf(value: unknown, what: string): string {

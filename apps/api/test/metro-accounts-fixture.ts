@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
@@ -24,6 +24,8 @@ export const NOW = Date.now();
 export const ORG = 'org_01KSTAGELABS0000000000000';
 export const OTHER_ORG = 'org_01KELSEWHERE0000000000000';
 export const ADMIN = accountId('user', NOW);
+export const WEB_VERIFIER = 'w'.repeat(43);
+export const WEB_CHALLENGE = createHash('sha256').update(WEB_VERIFIER).digest('base64url');
 
 export interface TokenBody {
   accessToken: string;
@@ -47,7 +49,8 @@ export interface LandOptions {
   key?: 'right' | 'other';
   intent?: 'login' | 'waitlist';
   returnTo?: string;
-  appChallenge?: string;
+  challenge?: string | null;
+  address?: string;
 }
 
 export interface Harness {
@@ -120,8 +123,9 @@ export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   const start: Harness['start'] = (provider, options = {}) => {
-    const query = new URLSearchParams({ provider, return_to: options.returnTo ?? 'https://metro.box/', ...(options.intent === undefined ? {} : { intent: options.intent }), ...(options.appChallenge === undefined ? {} : { code_challenge: options.appChallenge }) });
-    return fetch(`${base}/api/auth/login?${query.toString()}`, { redirect: 'manual' });
+    const challenge = options.challenge === undefined ? WEB_CHALLENGE : options.challenge;
+    const query = new URLSearchParams({ provider, return_to: options.returnTo ?? 'https://metro.box/', ...(options.intent === undefined ? {} : { intent: options.intent }), ...(challenge === null ? {} : { code_challenge: challenge }) });
+    return fetch(`${base}/api/auth/login?${query.toString()}`, { redirect: 'manual', headers: { 'fly-client-ip': options.address ?? '192.0.2.1' } });
   };
   const land: Harness['land'] = async (provider, claims, options = {}) => {
     const started = startOf(await start(provider, options));
@@ -133,7 +137,7 @@ export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
     const hash = await land(provider, claims);
     const handoff = /^#\/auth\/(.+)$/.exec(hash)?.[1];
     if (handoff === undefined) throw new Error(`no handoff in ${hash}`);
-    const exchanged = await json('POST', '/api/auth/exchange', { code: handoff });
+    const exchanged = await json('POST', '/api/auth/exchange', { code: handoff, verifier: WEB_VERIFIER });
     if (exchanged.status !== 200) throw new Error(`exchange answered ${String(exchanged.status)}`);
     return (await exchanged.json()) as TokenBody;
   };

@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { CheckBox } from '@stage-labs/kit/react-native/check-box';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { activeAccount } from '@metro-labs/client/auth/account';
-import { isOperator } from '@metro-labs/client/api/admin';
 import { routeHash } from '@metro-labs/client/route';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Icon } from '../Icon.js';
@@ -10,10 +9,12 @@ import { Group } from '../ui/Group.js';
 import { Item } from '../ui/Item.js';
 import { AVATAR_SIZE, ICON_SIZE } from '../ui/sizes.js';
 import { setTechnicalDetails, useTechnicalDetails } from '../../lib/technical.js';
+import { useOperator } from '../../lib/operator.js';
 
 export function YourAccount({ onLock }: { onLock: () => void }): ReactNode {
   const palette = useKitPalette();
   const technical = useTechnicalDetails();
+  const operator = useOperator() === true;
   const account = activeAccount();
   if (account === null) return null;
   return (
@@ -29,7 +30,7 @@ export function YourAccount({ onLock }: { onLock: () => void }): ReactNode {
         subtitle="Hosts, versions and ids"
         trailing={<CheckBox displayStyle="switch" value={technical} name="Show technical details" onChange={setTechnicalDetails} />}
       />
-      {isOperator(account) ? <Item title="Admin" subtitle="Every agent, user and organization" leading={<Icon name="shield" size={ICON_SIZE.lg} color={palette.text} />} href={routeHash({ kind: 'admin' })} /> : null}
+      {operator ? <Item title="Admin" subtitle="Every agent, user and organization" leading={<Icon name="shield" size={ICON_SIZE.lg} color={palette.text} />} href={routeHash({ kind: 'admin' })} /> : null}
       <Item title="Sign out" onPress={onLock} chevron={false} />
     </Group>
   );

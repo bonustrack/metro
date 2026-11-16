@@ -104,7 +104,7 @@ export async function fakeProviders(redirectUri: () => string): Promise<FakeProv
 
 export function googleClaims(nonce: string, now: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const iat = Math.floor(now / 1000);
-  return { iss: 'https://accounts.google.com', aud: GOOGLE_CLIENT, sub: '104857600000000000001', email: 'ana@example.com', email_verified: true, name: 'Ana Lima', picture: 'https://lh3.example/ana.png', iat, exp: iat + 600, nonce, ...extra };
+  return { iss: 'https://accounts.google.com', aud: GOOGLE_CLIENT, sub: '104857600000000000001', email: 'ana@example.com', email_verified: true, hd: 'example.com', name: 'Ana Lima', picture: 'https://lh3.example/ana.png', iat, exp: iat + 600, nonce, ...extra };
 }
 
 export function microsoftClaims(nonce: string, now: number, extra: Record<string, unknown> = {}): Record<string, unknown> {

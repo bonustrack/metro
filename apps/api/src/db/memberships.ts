@@ -30,6 +30,8 @@ export interface OrganizationMember {
   name: string | null;
   picture: string | null;
   role: MemberRole;
+  addedBy: string | null;
+  lastLoginAt: string | null;
   createdAt: number;
 }
 
@@ -68,7 +70,7 @@ async function memberRole(tx: Database, organization: string, user: string): Pro
   return role;
 }
 
-export async function addMember(db: Database, input: NewMember): Promise<{ id: string; user: string; createdUser: boolean }> {
+export async function addMember(db: Database, input: NewMember): Promise<{ id: string; user: string; email: string; createdUser: boolean }> {
   const email = cleanEmail(input.email);
   return db.transaction(async (tx) => {
     await requireAdmin(tx, input.organization, input.by);
@@ -76,11 +78,11 @@ export async function addMember(db: Database, input: NewMember): Promise<{ id: s
     const id = accountId('om', input.now);
     const added = await tx
       .insert(memberships)
-      .values({ id, organization: input.organization, userId: user.id, role: input.role, createdAt: input.now, updatedAt: input.now })
+      .values({ id, organization: input.organization, userId: user.id, role: input.role, addedBy: input.by, createdAt: input.now, updatedAt: input.now })
       .onConflictDoNothing()
       .returning({ id: memberships.id });
     if (added[0] === undefined) throw new ApiError('that person is already a member', 409);
-    return { id, user: user.id, createdUser: user.created };
+    return { id, user: user.id, email, createdUser: user.created };
   });
 }
 
@@ -106,7 +108,17 @@ export async function removeMember(db: Database, change: MemberChange): Promise<
 
 export function membersOf(db: Database, organization: string): Promise<OrganizationMember[]> {
   return db
-    .select({ id: memberships.id, user: memberships.userId, email: users.email, name: users.name, picture: sql<string | null>`coalesce(${users.avatar}, ${users.picture})`, role: memberships.role, createdAt: memberships.createdAt })
+    .select({
+      id: memberships.id,
+      user: memberships.userId,
+      email: users.email,
+      name: users.name,
+      picture: sql<string | null>`coalesce(${users.avatar}, ${users.picture})`,
+      role: memberships.role,
+      addedBy: memberships.addedBy,
+      lastLoginAt: users.lastLoginAt,
+      createdAt: memberships.createdAt,
+    })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .where(eq(memberships.organization, organization))
@@ -120,4 +132,9 @@ export function organizationsOf(db: Database, user: string): Promise<MemberOrgan
     .innerJoin(organizations, eq(organizations.id, memberships.organization))
     .where(eq(memberships.userId, user))
     .orderBy(sql`lower(coalesce(${organizations.name}, ${organizations.slug}))`, asc(organizations.id));
+}
+
+export async function oldestMembership(db: Database, user: string): Promise<{ id: string; role: MemberRole } | null> {
+  const rows = await db.select({ id: memberships.organization, role: memberships.role }).from(memberships).where(eq(memberships.userId, user)).orderBy(asc(memberships.createdAt), asc(memberships.id)).limit(1);
+  return rows[0] ?? null;
 }

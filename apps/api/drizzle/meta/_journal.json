@@ -209,7 +209,7 @@
       "idx": 29,
       "version": "7",
       "when": 1793491200000,
-      "tag": "0029_workos_sessions",
+      "tag": "0029_session_hardening",
       "breakpoints": true
     }
   ]

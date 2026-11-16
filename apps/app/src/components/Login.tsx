@@ -11,6 +11,7 @@ import { daemonHost, routedDaemon } from '@metro-labs/client/auth/daemon';
 import { atWaitlist, clearOutcome, readOutcome, type Outcome } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation } from '@metro-labs/client/auth/invitation';
 import { loginUrl, type Intent, type Provider } from '@metro-labs/client/api/auth';
+import { startWebProof } from '@metro-labs/client/auth/sign-in-proof';
 import type { Accounts, SignInOptions } from '@metro-labs/client/api/sign-in-options';
 import microsoft from '../../assets/microsoft.png';
 import { MetroLogo } from './MetroLogo.js';
@@ -92,7 +93,7 @@ function ProviderButtons({ intent, providers }: { intent: Intent; providers: Pro
           icon={providerMark(provider, onButton)}
           style={FULL_WIDTH}
           onPress={() => {
-            if (WEB) goExternal(loginUrl(provider, intent));
+            if (WEB) goExternal(loginUrl(provider, intent, { challenge: startWebProof() }));
             else {
               setFailed(null);
               appLogin(provider, intent).catch((err: unknown) => {

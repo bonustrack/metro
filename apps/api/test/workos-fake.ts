@@ -36,6 +36,7 @@ export interface FakeUser {
   last_name: string | null;
   profile_picture_url: string | null;
   created_at: string;
+  email_verified?: boolean;
 }
 
 function page<T extends { id: string }>(items: T[], url: URL, size: number): { data: T[]; list_metadata: { before: null; after: string | null } } {
@@ -84,7 +85,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     const refresh = `rt_${String(++refreshCount)}`;
     holders.set(refresh, sub);
     return {
-      user: USERS.find((u) => u.id === sub) ?? { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' },
+      user: { email_verified: true, ...(USERS.find((u) => u.id === sub) ?? { id: sub, email: 'admin@stage.box', first_name: 'Stage', last_name: 'Labs', profile_picture_url: 'https://pic.example/a.png' }) },
       organization_id: organization,
       access_token: issuer.mint(sessionClaims({ sub, org_id: organization ?? undefined, role: organization === null ? undefined : 'admin' })),
       refresh_token: refresh,
@@ -116,7 +117,8 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     }
     if (req.method === 'GET' && url.pathname === '/user_management/users') {
       const organization = url.searchParams.get('organization_id');
-      send(200, page(organization === null ? USERS : USERS.filter((u) => members.some((m) => m.user_id === u.id && inOrganization(m, organization))), url, paging.size));
+      const listed = organization === null ? USERS : USERS.filter((u) => members.some((m) => m.user_id === u.id && inOrganization(m, organization)));
+      send(200, page(listed.map((u) => ({ email_verified: true, ...u })), url, paging.size));
       return;
     }
     if (req.method === 'GET' && url.pathname === '/user_management/organization_memberships') {
@@ -172,7 +174,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
             return send(200, tokens(organizations[0] ?? null, USERS.find((u) => u.email === parsed.email)?.id ?? 'user_01ABC'));
           }
           if (parsed.grant_type === 'refresh_token') {
-            if (String(parsed.refresh_token) === 'rt_dead') return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
+            if (String(parsed.refresh_token).startsWith('rt_dead')) return send(400, { code: 'invalid_grant', message: 'refresh token revoked' });
             if (String(parsed.refresh_token) === 'rt_busy') return send(429, { code: 'rate_limit_exceeded', message: 'Too many requests.' });
             if (String(parsed.refresh_token) === 'rt_edge') {
               res.writeHead(403, { 'content-type': 'text/html' }).end('<html><body>Forbidden</body></html>');

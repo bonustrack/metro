@@ -3,7 +3,7 @@ const PREVIEW = /^([a-z0-9-]+--)?metro-ui\.netlify\.app$/;
 function allowedWebHost(host: string): boolean {
   if (host === 'metro.box' || host === 'localhost' || host === '127.0.0.1')
     return true;
-  return PREVIEW.test(host);
+  return PREVIEW.test(host) && !host.startsWith('deploy-preview-');
 }
 
 const APP_RETURN = 'metro://auth';

@@ -6,6 +6,7 @@ import type { UserLogin, UserStore } from '../users.js';
 import type { AccountsMode } from './accounts-mode.js';
 import { workosDirectory, type Directory } from './directory.js';
 import type { OAuthProviders } from './providers.js';
+import { RateLimit } from './rate-limit.js';
 import { mintAccessToken, type AuthKeys } from './signing-keys.js';
 import { refreshRefusal, refreshTokens, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
 
@@ -39,6 +40,10 @@ export const usesMetroSessions = (deps: Pick<AccountDeps, 'accounts'>, refreshTo
 
 const nowOf = (deps: Pick<AccountDeps, 'now'>): number => (deps.now ?? Date.now)();
 
+const WORKOS_REFRESH_RE = /^[A-Za-z0-9._~-]{16,512}$/;
+
+const exchanges = new RateLimit(20, 60_000);
+
 const ended = (): ApiError => new ApiError('the session has ended, sign in again', 401);
 
 function dbOf(deps: AccountDeps): Database {
@@ -60,9 +65,7 @@ function mint(deps: AccountDeps, held: Held, place: Placement | null): Tokens {
   return { accessToken, refreshToken: held.refreshToken, organization: place?.id ?? null, user: held.user };
 }
 
-export async function firstOrganization(deps: AccountDeps, user: string): Promise<Placement | null> {
-  return (await directoryOf(deps).userOrganizations(user))[0] ?? null;
-}
+export const landingOrganization = (deps: AccountDeps, user: string): Promise<Placement | null> => directoryOf(deps).landingOrganization(user);
 
 async function placed(deps: AccountDeps, user: string, organization: string | undefined): Promise<Placement | null> {
   if (organization === undefined) return null;
@@ -77,10 +80,10 @@ export async function userLoginOf(users: UserStore, id: string): Promise<UserLog
   return record === null ? null : { id: record.id, email: record.email, name: record.name, picture: record.picture, createdAt: record.createdAt };
 }
 
-export async function startSession(deps: AccountDeps, user: UserLogin, method: SessionMethod, place: Placement | null): Promise<Tokens> {
+export async function startSession(deps: AccountDeps, user: UserLogin, method: SessionMethod, place: Placement | null, link?: string): Promise<Tokens> {
   signingOf(deps);
-  const made = await createSession(dbOf(deps), { user: user.id, method, now: nowOf(deps) });
-  log.info({ user: user.id, session: made.session.id, method }, 'auth: Metro session started');
+  const made = await createSession(dbOf(deps), { user: user.id, method, now: nowOf(deps), ...(link === undefined ? {} : { link }) });
+  log.info({ user: user.id, session: made.session.id, method, link }, 'auth: Metro session started');
   return mint(deps, { sessionId: made.session.id, refreshToken: made.refreshToken, user }, place);
 }
 
@@ -96,20 +99,22 @@ async function rotated(deps: AccountDeps, refreshToken: string): Promise<Held> {
   return { sessionId: rotation.session.id, refreshToken: rotation.refreshToken, user };
 }
 
-async function workosUser(deps: AccountDeps, workosToken: string): Promise<UserLogin> {
+async function workosUser(deps: AccountDeps, workosToken: string, address: string): Promise<UserLogin> {
   const cfg = deps.config();
-  if (cfg === null) throw ended();
+  if (cfg === null || !WORKOS_REFRESH_RE.test(workosToken)) throw ended();
+  if (!exchanges.spend(address, nowOf(deps))) throw new ApiError('Too many tries. Wait a minute, then try again.', 429);
   try {
-    return (await refreshTokens(cfg, workosToken)).user;
+    const t = await refreshTokens(cfg, workosToken);
+    return t.emailVerified === true ? t.user : { ...t.user, email: null };
   } catch (err) {
     if (err instanceof WorkosError) throw refreshRefusal(err);
     throw err;
   }
 }
 
-async function exchanged(deps: AccountDeps, workosToken: string): Promise<Held> {
+async function exchanged(deps: AccountDeps, workosToken: string, address: string): Promise<Held> {
   signingOf(deps);
-  const fromWorkos = await workosUser(deps, workosToken);
+  const fromWorkos = await workosUser(deps, workosToken, address);
   if ((await deps.users.find(fromWorkos.id)) === null) await deps.users.noteLogin(fromWorkos, new Date(nowOf(deps)).toISOString());
   const user = (await userLoginOf(deps.users, fromWorkos.id)) ?? fromWorkos;
   const made = await createSession(dbOf(deps), { user: user.id, method: 'workos', now: nowOf(deps) });
@@ -117,8 +122,15 @@ async function exchanged(deps: AccountDeps, workosToken: string): Promise<Held> 
   return { sessionId: made.session.id, refreshToken: made.refreshToken, user };
 }
 
-export async function renewSession(deps: AccountDeps, refreshToken: string, organization: string | undefined, expectUser?: string): Promise<Tokens> {
-  const held = isMetroRefreshToken(refreshToken) ? await rotated(deps, refreshToken) : await exchanged(deps, refreshToken);
+export interface RenewRequest {
+  refreshToken: string;
+  organization?: string;
+  expectUser?: string;
+  address: string;
+}
+
+export async function renewSession(deps: AccountDeps, { refreshToken, organization, expectUser, address }: RenewRequest): Promise<Tokens> {
+  const held = isMetroRefreshToken(refreshToken) ? await rotated(deps, refreshToken) : await exchanged(deps, refreshToken, address);
   if (expectUser !== undefined && held.user.id !== expectUser) {
     log.warn({ bearer: expectUser, session: held.sessionId }, 'auth: a refresh token of another user was sent with this sign-in');
     throw ended();

@@ -32,8 +32,8 @@ async function known(tx: Database, provider: IdentityProvider, subject: string, 
   return rows[0]?.user ?? null;
 }
 
-async function linkedElsewhere(tx: Database, provider: IdentityProvider, user: string): Promise<boolean> {
-  return (await tx.$count(identities, and(eq(identities.provider, provider), eq(identities.userId, user)))) > 0;
+async function hasIdentity(tx: Database, user: string): Promise<boolean> {
+  return (await tx.$count(identities, eq(identities.userId, user))) > 0;
 }
 
 function provenEmail(input: SignIn): string {
@@ -44,8 +44,7 @@ function provenEmail(input: SignIn): string {
 async function link(tx: Database, input: SignIn): Promise<LinkedUser> {
   const email = provenEmail(input);
   const user = await userForEmail(tx, email, input.now);
-  if (!user.created && (await linkedElsewhere(tx, input.provider, user.id)))
-    throw new ApiError(`${email} already signs in with another ${PROVIDER_NAMES[input.provider]} account`, 409);
+  if (!user.created && (await hasIdentity(tx, user.id))) throw new ApiError(`${email} already signs in with another account`, 409);
   const made = await tx
     .insert(identities)
     .values({ provider: input.provider, subject: input.subject, userId: user.id, email, createdAt: input.now, lastUsedAt: input.now })

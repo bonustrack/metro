@@ -12,7 +12,8 @@ import type { UserLogin } from '../users.js';
 import { admit, type Arrival, type Intent, type Refusal } from './operator.js';
 import { createOrg, logout, mePayload, organizationsOf, refresh, switchOrg, tokensPayload, updateAccount, type AuthApiDeps } from './account-routes.js';
 import { redeemLink } from './login-links.js';
-import { firstOrganization, modeOf, startSession, userLoginOf, type Placement } from './metro-tokens.js';
+import { landingOrganization, modeOf, startSession, userLoginOf, type Placement } from './metro-tokens.js';
+import { clientAddress } from './rate-limit.js';
 import { authorizeUrl, newAttempt, providerOf, providerProof, type Attempt } from './oauth.js';
 import { isProviderId, SignInRefused, type Proof } from './providers.js';
 import { acceptInvitationsFor, authorizationUrl, configOf, exchangeCode, isProvider, refreshTokens, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
@@ -22,7 +23,9 @@ export type { AuthApiDeps } from './account-routes.js';
 const PREFIX = '/api/auth';
 const STATE_TTL_MS = 10 * 60_000;
 const HANDOFF_TTL_MS = 60_000;
-const PENDING_MAX = 200;
+const STATES_MAX = 5000;
+const STATES_PER_ADDRESS = 10;
+const HANDOFFS_MAX = 1000;
 
 interface Pending<T> {
   value: T;
@@ -30,6 +33,7 @@ interface Pending<T> {
 }
 
 interface Started {
+  address: string;
   returnTo: string;
   intent: Intent;
   invitation?: string;
@@ -51,9 +55,9 @@ const handoffs = new Map<string, Pending<Handoff>>();
 
 const token = (): string => randomBytes(32).toString('base64url');
 
-function prune<T>(map: Map<string, Pending<T>>, ttl: number, now: number): void {
+function prune<T>(map: Map<string, Pending<T>>, ttl: number, now: number, max: number): void {
   for (const [key, entry] of map) if (now - entry.at > ttl) map.delete(key);
-  while (map.size > PENDING_MAX) {
+  while (map.size > max) {
     const first = map.keys().next().value;
     if (first === undefined) break;
     map.delete(first);
@@ -85,13 +89,19 @@ const withHash = (returnTo: string, hash: string): string => {
 
 const callbackUri = (req: IncomingMessage, deps: AuthApiDeps): string => `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`;
 
-function appChallenge(returnTo: string, challenge: string): { challenge?: string } {
-  if (!isAppReturn(returnTo)) {
-    if (!validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
-    return {};
-  }
-  if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in from the app needs a code_challenge', 400);
+function signInChallenge(deps: AuthApiDeps, returnTo: string, challenge: string): { challenge?: string } {
+  const app = isAppReturn(returnTo);
+  if (!app && !validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
+  if (challenge === '' && !app && modeOf(deps) === 'workos') return {};
+  if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in needs a code_challenge (S256)', 400);
   return { challenge };
+}
+
+function keepState(state: string, started: Started, now: number): void {
+  prune(states, STATE_TTL_MS, now, STATES_MAX);
+  const mine = [...states].filter(([, entry]) => entry.value.address === started.address);
+  for (const [key] of mine.slice(0, Math.max(0, mine.length - STATES_PER_ADDRESS + 1))) states.delete(key);
+  states.set(state, { value: started, at: now });
 }
 
 function providerUrl(req: IncomingMessage, deps: AuthApiDeps, provider: string | null, state: string): { url: string; attempt?: Attempt } {
@@ -108,12 +118,10 @@ function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, que
   const returnTo = query.get('return_to') ?? '';
   const state = token();
   const { url, attempt } = providerUrl(req, deps, query.get('provider'), state);
-  const app = appChallenge(returnTo, query.get('code_challenge') ?? '');
+  const proof = signInChallenge(deps, returnTo, query.get('code_challenge') ?? '');
   const invitation = modeOf(deps) === 'workos' ? invitationFrom(query.get('invitation_token') ?? '') : {};
-  const now = (deps.now ?? Date.now)();
-  prune(states, STATE_TTL_MS, now);
   const intent = query.get('intent') === 'waitlist' ? 'waitlist' : 'login';
-  states.set(state, { value: { returnTo, intent, ...invitation, ...app, ...(attempt === undefined ? {} : { attempt }) }, at: now });
+  keepState(state, { address: clientAddress(req), returnTo, intent, ...invitation, ...proof, ...(attempt === undefined ? {} : { attempt }) }, (deps.now ?? Date.now)());
   redirect(res, url);
 }
 
@@ -130,7 +138,7 @@ function refusal(query: URLSearchParams): Refusal | null {
 }
 
 function handoffFor(tokens: Tokens, now: number, challenge?: string): string {
-  prune(handoffs, HANDOFF_TTL_MS, now);
+  prune(handoffs, HANDOFF_TTL_MS, now, HANDOFFS_MAX);
   const handoff = token();
   handoffs.set(handoff, { value: { tokens, ...(challenge === undefined ? {} : { challenge }) }, at: now });
   log.info({ user: tokens.user.id, organization: tokens.organization }, 'auth: signed in');
@@ -138,7 +146,7 @@ function handoffFor(tokens: Tokens, now: number, challenge?: string): string {
 }
 
 export async function admitted(deps: AuthApiDeps, arrival: Arrival, intent: Intent, now: number, issue: () => Promise<Tokens>, challenge?: string): Promise<string> {
-  const verdict = await admit(deps.users, arrival, intent, new Date(now).toISOString());
+  const verdict = await admit(deps.users, arrival, intent, new Date(now).toISOString(), modeOf(deps));
   if (verdict.kind === 'in') return `#/auth/${handoffFor(await issue(), now, challenge)}`;
   log.info({ user: arrival.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
   if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
@@ -166,12 +174,22 @@ function arrivalOf(user: UserLogin, proof: Proof): UserLogin {
   return { ...user, email: user.email ?? (proof.emailProven ? proof.email : null), name: user.name ?? proof.name, picture: proof.picture ?? user.picture };
 }
 
-export async function metroAdmitted(deps: AuthApiDeps, userId: string, method: 'google' | 'microsoft' | 'link', intent: Intent, now: number, proof?: Proof, challenge?: string): Promise<string> {
-  const record = await userLoginOf(deps.users, userId);
+interface MetroArrival {
+  user: string;
+  method: 'google' | 'microsoft' | 'link';
+  intent: Intent;
+  now: number;
+  proof?: Proof;
+  challenge?: string;
+  link?: string;
+}
+
+export async function metroAdmitted(deps: AuthApiDeps, arrival: MetroArrival): Promise<string> {
+  const record = await userLoginOf(deps.users, arrival.user);
   if (record === null) throw new SignInRefused('failed', 'the user row is missing');
-  const user = proof === undefined ? record : arrivalOf(record, proof);
-  const place: Placement | null = await firstOrganization(deps, userId);
-  return admitted(deps, { user, organization: place?.id ?? null }, intent, now, () => startSession(deps, user, method, place), challenge);
+  const user = arrival.proof === undefined ? record : arrivalOf(record, arrival.proof);
+  const place: Placement | null = await landingOrganization(deps, arrival.user);
+  return admitted(deps, { user, organization: place?.id ?? null }, arrival.intent, arrival.now, () => startSession(deps, user, arrival.method, place, arrival.link), arrival.challenge);
 }
 
 function linkRefusal(err: unknown): never {
@@ -186,7 +204,7 @@ async function metroLanding(req: IncomingMessage, deps: AuthApiDeps, started: St
   if (deps.db === undefined) throw new ApiError('Metro accounts are not set up on this server', 503);
   const linked = await linkIdentity(deps.db(), { provider: attempt.provider, subject: proof.subject, email: proof.email, emailProven: proof.emailProven, now }).catch(linkRefusal);
   log.info({ user: linked.user, provider: attempt.provider, kind: linked.kind }, 'auth: identity checked');
-  return metroAdmitted(deps, linked.user, attempt.provider, started.intent, now, proof, started.challenge);
+  return metroAdmitted(deps, { user: linked.user, method: attempt.provider, intent: started.intent, now, proof, ...(started.challenge === undefined ? {} : { challenge: started.challenge }) });
 }
 
 async function landing(req: IncomingMessage, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
@@ -200,6 +218,7 @@ function exchangeRefusal(err: unknown): Refusal {
 }
 
 async function callback(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
+  if (modeOf(deps) === 'workos') configOf(deps);
   const now = (deps.now ?? Date.now)();
   const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
   if (started === null && query.get('code') !== null) {
@@ -251,11 +270,11 @@ const PUBLIC: Record<string, PublicRoute> = {
   '/refresh': { method: 'POST', run: refresh },
   '/email/start': { method: 'POST', run: workosOnly(startEmailCode) },
   '/email/verify': { method: 'POST', run: workosOnly((req, deps) => verifyEmailCode(req, deps, workosAdmitted)) },
-  '/link': { method: 'POST', run: (req, deps) => redeemLink(req, deps, (user, now) => metroAdmitted(deps, user, 'link', 'login', now)) },
+  '/link': { method: 'POST', run: (req, deps) => redeemLink(req, deps, (user, link, now) => metroAdmitted(deps, { user, method: 'link', intent: 'login', now, link })) },
 };
 
 const PRIVATE: Record<string, PrivateRoute> = {
-  '/me': { method: 'GET', run: (_req, _deps, session) => Promise.resolve(mePayload(session)) },
+  '/me': { method: 'GET', run: (_req, deps, session) => mePayload(session, deps) },
   '/logout': { method: 'POST', run: (_req, deps, session) => logout(session, deps) },
   '/organization': { method: 'POST', run: (req, deps, session) => createOrg(req, session, deps) },
   '/organizations': { method: 'GET', run: (_req, deps, session) => organizationsOf(deps, session) },

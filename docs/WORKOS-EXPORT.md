@@ -5,7 +5,7 @@ Metro is leaving WorkOS and will keep its organizations, users and members itsel
 ## What it copies
 
 - **Organizations**, with their names (`organizations.name`). An organization Metro has no row for gets one, with a free slug made from its name.
-- **Users**, with their WorkOS id (`user_…`), email, name and picture. The ids stay the WorkOS ones, so no owner, `.owner` file or link moves. When a row that WorkOS does not list holds the email of a WorkOS user, the email moves to the WorkOS user.
+- **Users**, with their WorkOS id (`user_…`), email, name and picture. An email WorkOS has not verified is not copied (it is listed among the warnings, and a user row holding it gets no email). The ids stay the WorkOS ones, so no owner, `.owner` file or link moves. When a row that WorkOS does not list holds the email of a WorkOS user, the email moves to the WorkOS user.
 - **Active memberships**, with their role (`admin`, anything else becomes `member` and is listed as a warning).
 - **Pending invitations**, as memberships for that email, role kept. A new email gets a user row (`user_` plus a ULID). No email is ever sent.
 - **Google and Microsoft sign-ins** (`GET /user_management/users/<id>/identities`). Google's id is the `sub`. WorkOS's Microsoft sign-in takes personal accounts only, so a Microsoft id becomes `<consumer tenant>:<oid>`: the tenant is always `9188040d-6c67-4c5b-b112-36a304b66dad`, and a 16-hex account id `xxxxyyyyyyyyyyyy` becomes the oid `00000000-0000-0000-xxxx-yyyyyyyyyyyy` (an id already in that shape is kept). Any other Microsoft id is left out and listed; that person is linked by email at their next sign-in. This mapping has not been checked against a real Microsoft token yet.

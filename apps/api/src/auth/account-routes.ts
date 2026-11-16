@@ -8,7 +8,8 @@ import type { SlugStore } from '../slug.js';
 import type { ServerEntry } from '../server-types.js';
 import { parseAccountName } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
-import { mayCreateOrganization, stillIn } from './operator.js';
+import { isOperator, mayCreateOrganization, stillIn } from './operator.js';
+import { clientAddress } from './rate-limit.js';
 import { directoryOf, endSession, modeOf, renewSession, usesMetroSessions, type AccountDeps } from './metro-tokens.js';
 import { configOf, ORGANIZATION_NAME_RE, refreshRefusal, refreshTokens, revokeSession, WorkosError, type Tokens } from './workos.js';
 
@@ -47,10 +48,21 @@ export async function updateAccount(req: IncomingMessage, session: Session, deps
   return { ok: true };
 }
 
-async function renewed(deps: AuthApiDeps, refreshToken: string, organization?: string, expectUser?: string): Promise<Tokens> {
-  if (usesMetroSessions(deps, refreshToken)) return renewSession(deps, refreshToken, organization, expectUser);
+interface Renewal {
+  req: IncomingMessage;
+  refreshToken: string;
+  organization?: string;
+  expectUser?: string;
+}
+
+function renewed(deps: AuthApiDeps, renewal: Renewal): Promise<Tokens> {
+  if (usesMetroSessions(deps, renewal.refreshToken)) return renewSession(deps, { ...renewal, address: clientAddress(renewal.req) });
+  return refreshTokens(configOf(deps), renewal.refreshToken, renewal.organization);
+}
+
+async function workosRefusals<T>(run: () => Promise<T>): Promise<T> {
   try {
-    return await refreshTokens(configOf(deps), refreshToken, organization);
+    return await run();
   } catch (err) {
     if (err instanceof WorkosError) throw refreshRefusal(err);
     throw err;
@@ -62,9 +74,11 @@ export async function refresh(req: IncomingMessage, deps: AuthApiDeps): Promise<
   const refreshToken = stringOf(bodyField(body, 'refreshToken'));
   const organization = stringOf(bodyField(body, 'organization'));
   if (refreshToken === '') throw new ApiError('refreshToken is required', 400);
-  const fresh = await renewed(deps, refreshToken, organization === '' ? undefined : organization);
-  if (!(await stillIn(deps.users, fresh))) throw new ApiError('this account is not on Metro any more', 401);
-  return tokensPayload(fresh, deps);
+  return workosRefusals(async () => {
+    const fresh = await renewed(deps, { req, refreshToken, ...(organization === '' ? {} : { organization }) });
+    if (!(await stillIn(deps.users, fresh, modeOf(deps)))) throw new ApiError('this account is not on Metro any more', 401);
+    return tokensPayload(fresh, deps);
+  });
 }
 
 export async function logout(session: Session, deps: AuthApiDeps): Promise<unknown> {
@@ -92,11 +106,12 @@ export async function switchOrg(req: IncomingMessage, session: Session, deps: Au
   const mine = await directoryOf(deps).userOrganizations(session.userId);
   if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
   try {
-    const payload = await tokensPayload(await renewed(deps, refreshToken, organization, session.userId), deps);
+    const payload = await tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId }), deps);
     log.info({ user: session.userId, organization }, 'auth: switched organization');
     return payload;
   } catch (err) {
     log.warn({ user: session.userId, organization, err: errMsg(err) }, 'auth: the organization switch failed');
+    if (err instanceof WorkosError) throw refreshRefusal(err);
     throw err;
   }
 }
@@ -113,7 +128,10 @@ export async function organizationsOf(deps: AuthApiDeps, session: Session): Prom
   return { organizations: await Promise.all(mine.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null, ...(await agentsPayload(deps, o.id)) }))) };
 }
 
-export const mePayload = (s: Session): Record<string, unknown> => ({ userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt });
+export async function mePayload(s: Session, deps: AuthApiDeps): Promise<Record<string, unknown>> {
+  const me = await deps.users.find(s.userId);
+  return { userId: s.userId, organization: s.organization, role: s.role, expiresAt: s.expiresAt, operator: isOperator(me ?? { id: s.userId, email: null }, modeOf(deps)) };
+}
 
 export async function createOrg(req: IncomingMessage, session: Session, deps: AuthApiDeps): Promise<unknown> {
   const body = await readJsonBody(req);
@@ -121,9 +139,9 @@ export async function createOrg(req: IncomingMessage, session: Session, deps: Au
   if (!ORGANIZATION_NAME_RE.test(name)) throw new ApiError('the organization name must be 2 to 64 characters', 400);
   const refreshToken = refreshOf(body);
   if (modeOf(deps) === 'workos') configOf(deps);
-  if (!(await mayCreateOrganization(deps.users, session.userId)))
+  if (!(await mayCreateOrganization(deps.users, session.userId, modeOf(deps))))
     throw new ApiError('Creating an organization needs an approved account. Join the waitlist, and you can create one once you are let in.', 403);
   const organization = await directoryOf(deps).createOrganization(name, session.userId);
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await renewed(deps, refreshToken, organization, session.userId), deps);
+  return tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId }), deps);
 }

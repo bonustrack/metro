@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { CONSUMER_TENANT, microsoftOwnDomain } from '../src/auth/providers.ts';
 import { addMember } from '../src/db/memberships.ts';
-import { authSessions, identities, users } from '../src/db/schema.ts';
+import { accountId } from '../src/db/account-ids.ts';
+import { authSessions, identities, memberships, organizations, users } from '../src/db/schema.ts';
 import { ADMIN, claimsOf, claimsOfToken, harness, NOW, ORG, type Harness } from './metro-accounts-fixture.ts';
 import { GOOGLE_CLIENT, MICROSOFT_CLIENT, WORK_TENANT } from './oauth-fake.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS } from './pglite-db.ts';
@@ -101,12 +102,68 @@ describe('signing in with Google, called by Metro itself', () => {
     await addByEmail('ana@example.com');
     const verifier = 'v'.repeat(43);
     const challenge = createHash('sha256').update(verifier).digest('base64url');
-    expect((await h.start('google', { returnTo: 'metro://auth' })).status).toBe(400);
-    const hash = await h.land('google', claimsOf('google'), { returnTo: 'metro://auth', appChallenge: challenge });
+    expect((await h.start('google', { returnTo: 'metro://auth', challenge: null })).status).toBe(400);
+    const hash = await h.land('google', claimsOf('google'), { returnTo: 'metro://auth', challenge });
     const handoff = /^#\/auth\/(.+)$/.exec(hash)?.[1] ?? '';
     expect((await h.json('POST', '/api/auth/exchange', { code: handoff })).status).toBe(404);
-    const again = /^#\/auth\/(.+)$/.exec(await h.land('google', claimsOf('google'), { returnTo: 'metro://auth', appChallenge: challenge }))?.[1] ?? '';
+    const again = /^#\/auth\/(.+)$/.exec(await h.land('google', claimsOf('google'), { returnTo: 'metro://auth', challenge }))?.[1] ?? '';
     expect((await h.json('POST', '/api/auth/exchange', { code: again, verifier })).status).toBe(200);
+  });
+
+  test('login CSRF: every sign-in needs a code challenge, and a leaked callback or handoff is useless without the verifier', async () => {
+    await addByEmail('ana@example.com');
+    expect((await h.start('google', { challenge: null })).status).toBe(400);
+    expect((await h.start('google', { challenge: 'short' })).status).toBe(400);
+    const handoff = /^#\/auth\/(.+)$/.exec(await h.land('google', claimsOf('google')))?.[1] ?? '';
+    expect((await h.json('POST', '/api/auth/exchange', { code: handoff, verifier: 'x'.repeat(43) })).status).toBe(404);
+    const other = /^#\/auth\/(.+)$/.exec(await h.land('google', claimsOf('google')))?.[1] ?? '';
+    expect((await h.json('POST', '/api/auth/exchange', { code: other })).status).toBe(404);
+    h.setMode('workos');
+    try {
+      expect((await h.start('google', { challenge: null })).status).toBe(302);
+      expect((await h.start('google')).status).toBe(302);
+    } finally {
+      h.setMode('metro');
+    }
+  });
+
+  test('a deploy preview never receives a sign-in, in both modes', async () => {
+    expect((await h.start('google', { returnTo: 'https://deploy-preview-452--metro-ui.netlify.app/' })).status).toBe(400);
+    expect((await h.start('google', { returnTo: 'https://main--metro-ui.netlify.app/' })).status).toBe(302);
+    h.setMode('workos');
+    try {
+      expect((await h.start('google', { returnTo: 'https://deploy-preview-452--metro-ui.netlify.app/' })).status).toBe(400);
+    } finally {
+      h.setMode('metro');
+    }
+  });
+
+  test('state flood: one address keeps 10 pending sign-ins at most, and cannot push out another address\'s', async () => {
+    await addByEmail('ana@example.com');
+    const victim = new URL((await h.start('google', { address: '198.51.100.20' })).headers.get('location') ?? '');
+    const first = new URL((await h.start('google', { address: '198.51.100.21' })).headers.get('location') ?? '');
+    for (let i = 0; i < 10; i += 1) await h.start('google', { address: '198.51.100.21' });
+    const stale = await fetch(`${h.base}/api/auth/callback?code=x&state=${first.searchParams.get('state') ?? ''}`, { redirect: 'manual' });
+    expect(new URL(stale.headers.get('location') ?? '').hash).toBe('#/login?invited=1');
+    const code = h.fake.issue({ provider: 'google', claims: claimsOf('google')(victim.searchParams.get('nonce') ?? '', h.clock.now), challenge: victim.searchParams.get('code_challenge') ?? '', key: 'right' });
+    const back = await fetch(`${h.base}/api/auth/callback?code=${code}&state=${victim.searchParams.get('state') ?? ''}`, { redirect: 'manual' });
+    expect(new URL(back.headers.get('location') ?? '').hash).toMatch(/^#\/auth\//);
+  });
+
+  test('Google proves an email only on gmail.com or googlemail.com, or for its own Workspace domain (hd)', async () => {
+    const it = await addByEmail('it@anderra.ch', 'admin');
+    expect(await h.land('google', claimsOf('google', { email: 'it@anderra.ch', hd: undefined, sub: '300000000000000000003' }))).toBe('#/login?refused=unverified');
+    expect(await h.land('google', claimsOf('google', { email: 'it@anderra.ch', hd: 'evil.example', sub: '300000000000000000003' }))).toBe('#/login?refused=unverified');
+    expect(await identitiesOf(it.user)).toEqual([]);
+    await addByEmail('ana@gmail.com');
+    expect(await h.land('google', claimsOf('google', { email: 'ana@gmail.com', hd: undefined, sub: '400000000000000000004' }))).toMatch(/^#\/auth\//);
+    expect(await h.land('google', claimsOf('google', { email: 'it@anderra.ch', hd: 'anderra.ch', sub: '500000000000000000005' }))).toMatch(/^#\/auth\//);
+  });
+
+  test('an address that is not plain ASCII proves nothing', async () => {
+    await addByEmail('ana@example.com');
+    expect(await h.land('google', claimsOf('google', { email: 'аna@example.com' }))).toBe('#/login?refused=unverified');
+    expect(await identitiesOf((await h.held.db.select().from(users).where(eq(users.email, 'ana@example.com')))[0]?.id ?? '')).toEqual([]);
   });
 });
 
@@ -145,8 +202,8 @@ describe('signing in with Microsoft, on the common authority', () => {
     const personal = { tid: CONSUMER_TENANT, oid: '00000000-0000-0000-66f3-3332eca7ea81', xms_edov: undefined };
     expect(await h.land('microsoft', claimsOf('microsoft', { ...personal, email: 'ana@outlook.com' }))).toMatch(/^#\/auth\//);
     expect(await h.land('microsoft', claimsOf('microsoft', { ...personal, oid: '00000000-0000-0000-1111-222233334444', email: 'ana@gmail.com' }))).toBe('#/login?refused=unverified');
-    expect(['outlook.com', 'hotmail.fr', 'live.co.uk', 'outlook.com.br', 'msn.com'].map((d) => microsoftOwnDomain(`a@${d}`))).toEqual([true, true, true, true, true]);
-    expect(['gmail.com', 'outlook.evil.com', 'msn.fr', 'hotmail.com.evil.io'].map((d) => microsoftOwnDomain(`a@${d}`))).toEqual([false, false, false, false]);
+    expect(['outlook.com', 'hotmail.fr', 'live.co.uk', 'outlook.com.br', 'msn.com', 'outlook.de', 'live.fr'].every((d) => microsoftOwnDomain(`a@${d}`))).toBe(true);
+    expect(['gmail.com', 'outlook.evil.com', 'msn.fr', 'hotmail.com.evil.io', 'outlook.zz', 'live.xx', 'hotmail.co.zz'].some((d) => microsoftOwnDomain(`a@${d}`))).toBe(false);
   });
 
   test('a known Microsoft account signs in by its id alone, even when its email is not proven any more', async () => {
@@ -158,12 +215,12 @@ describe('signing in with Microsoft, on the common authority', () => {
 });
 
 describe('linking sign-ins to people', () => {
-  test('a new sign-in is linked to an existing person by a proven email, so one person has both', async () => {
-    const added = await addByEmail('ana@example.com');
-    await h.tokens('google', claimsOf('google'));
-    const viaMicrosoft = await h.tokens('microsoft', claimsOf('microsoft', { email: 'ana@example.com' }));
-    expect(viaMicrosoft.user.id).toBe(added.user);
-    expect(await identitiesOf(added.user)).toEqual(['google:104857600000000000001', `microsoft:${WORK_TENANT}:3b5a7c1e-2d4f-4a6b-8c9d-0e1f2a3b4c5d`]);
+  test('a proven email links a new sign-in only to a person with no sign-in yet: a Google account can never take over a Microsoft admin', async () => {
+    const admin = await addByEmail('it@anderra.ch', 'admin');
+    await h.tokens('microsoft', claimsOf('microsoft', { email: 'it@anderra.ch' }));
+    expect(await h.land('google', claimsOf('google', { email: 'it@anderra.ch', hd: 'anderra.ch', sub: '600000000000000000006' }))).toBe('#/login?refused=other-account');
+    expect(await identitiesOf(admin.user)).toEqual([`microsoft:${WORK_TENANT}:3b5a7c1e-2d4f-4a6b-8c9d-0e1f2a3b4c5d`]);
+    expect(await h.held.db.select().from(authSessions)).toHaveLength(1);
   });
 
   test('two people are never merged: an identity stays with its person, and a second Google account for a taken email is refused', async () => {
@@ -175,9 +232,19 @@ describe('linking sign-ins to people', () => {
     const asBob = await h.tokens('microsoft', claimsOf('microsoft', { email: 'ana@example.com' }));
     expect(asBob.user.id).toBe(bob.user);
     expect(await h.land('google', claimsOf('google', { sub: '200000000000000000002' }))).toBe('#/login?refused=other-account');
+    expect(await h.land('microsoft', claimsOf('microsoft', { oid: '7b5a7c1e-2d4f-4a6b-8c9d-0e1f2a3b4c5d', email: 'ana@example.com' }))).toBe('#/login?refused=other-account');
     expect(await userCount()).toBe(people);
     expect(await identitiesOf(ana.user)).toEqual(['google:104857600000000000001']);
     expect(await identitiesOf(bob.user)).toEqual([`microsoft:${WORK_TENANT}:3b5a7c1e-2d4f-4a6b-8c9d-0e1f2a3b4c5d`]);
+  });
+
+  test('a person lands in their oldest organization, so one that adds them later cannot become where they land', async () => {
+    await addByEmail('ana@example.com');
+    await h.held.db.insert(organizations).values({ id: 'org_01KAARDVARK00000000000000', slug: 'aardvark', name: 'Aardvark', createdAt: 'x', updatedAt: 'x' });
+    await h.held.db.insert(memberships).values({ id: accountId('om', h.clock.now + 10), organization: 'org_01KAARDVARK00000000000000', userId: ADMIN, role: 'admin', createdAt: NOW, updatedAt: NOW });
+    await addMember(h.held.db, { organization: 'org_01KAARDVARK00000000000000', email: 'ana@example.com', role: 'admin', by: ADMIN, now: h.clock.now + 100 });
+    const tokens = await h.tokens('google', claimsOf('google'));
+    expect(tokens).toMatchObject({ organization: ORG, organizationName: 'Stage Labs' });
   });
 
   test('a name the person chose is kept over the provider\'s on later sign-ins', async () => {

@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { handoffCode, activeAccount, loadAccount } from '@metro-labs/client/auth/account';
 import { AuthUnavailableError, exchangeHandoff, logoutAccount, refreshAccount } from '@metro-labs/client/api/auth';
 import { loginLinkCode, redeemLoginLink } from '@metro-labs/client/api/login-link';
+import { takeWebVerifier } from '@metro-labs/client/auth/sign-in-proof';
 import { atLogin, atWaitlist, goToFreshLogin, goToLogin, leaveLogin, takeLoginReturn } from '@metro-labs/client/auth/login-route';
 import { pendingInvitation, takeInvitationFromUrl } from '@metro-labs/client/auth/invitation';
 import { location } from '@metro-labs/client/platform';
@@ -40,7 +41,7 @@ async function boot(): Promise<Phase> {
   const handoff = handoffCode(location().hash());
   if (handoff !== null) {
     location().replace(takeLoginReturn());
-    await exchangeHandoff(handoff);
+    await exchangeHandoff(handoff, takeWebVerifier());
   } else loadAccount();
   if (handoff === null && pendingInvitation() !== null) return 'login';
   const stored = activeAccount();

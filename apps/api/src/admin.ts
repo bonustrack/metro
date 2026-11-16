@@ -8,7 +8,7 @@ import { isOperator } from './auth/operator.js';
 import type { AccountsMode } from './auth/accounts-mode.js';
 import type { Directory } from './auth/directory.js';
 import { loginLinksOf, makeLoginLink, removeLoginLink } from './auth/login-links.js';
-import { directoryOf } from './auth/metro-tokens.js';
+import { directoryOf, modeOf } from './auth/metro-tokens.js';
 import { configOf, type WorkosConfig } from './auth/workos.js';
 import type { Database } from './db/client.js';
 import type { AgentSummary, DeletionRow } from './db/servers.js';
@@ -44,7 +44,7 @@ async function operator(req: IncomingMessage, deps: AdminApiDeps): Promise<Sessi
   const session = await bearerSession(req, deps.keys);
   if (session === null) throw new ApiError('unauthorized', 401);
   const me = await deps.users.find(session.userId);
-  if (!isOperator(me ?? { id: session.userId, email: null })) throw new ApiError('this page is for the Metro operator', 403);
+  if (!isOperator(me ?? { id: session.userId, email: null }, modeOf(deps))) throw new ApiError('this page is for the Metro operator', 403);
   return session;
 }
 
@@ -59,7 +59,7 @@ async function listUsers(deps: AdminApiDeps): Promise<unknown> {
       createdAt: r.createdAt,
       lastLoginAt: r.lastLoginAt,
       status: r.status,
-      operator: isOperator(r),
+      operator: isOperator(r, modeOf(deps)),
       loginLink: links.get(r.id) ?? null,
     })),
   };
@@ -71,7 +71,7 @@ async function setStatus(req: IncomingMessage, deps: AdminApiDeps, session: Sess
   if (!isUserStatus(status)) throw new ApiError('status must be approved, waitlist or rejected', 400);
   const target = await deps.users.find(user);
   if (target === null) throw new ApiError('no such user', 404);
-  if (isOperator(target)) throw new ApiError('the operator account cannot be changed', 400);
+  if (isOperator(target, modeOf(deps))) throw new ApiError('the operator account cannot be changed', 400);
   await deps.users.setStatus(user, status);
   log.info({ by: session.userId, user, status }, 'admin: user status changed');
   return { ok: true, status };

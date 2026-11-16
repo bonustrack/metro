@@ -1,7 +1,7 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from '../db/client.js';
 import { allOrganizations, createOrganizationRow, organizationNameOf, renameOrganizationRow, setUserName } from '../db/directory-rows.js';
-import { addMember, membersOf, organizationsOf, removeMember, setMemberRole } from '../db/memberships.js';
+import { addMember, membersOf, oldestMembership, organizationsOf, removeMember, setMemberRole, type OrganizationMember } from '../db/memberships.js';
 import type { AccountsMode } from './accounts-mode.js';
 import * as workos from './workos.js';
 import type { Invitation, Member, OrganizationSummary, Role, UserOrganization, WorkosConfig } from './workos.js';
@@ -17,6 +17,7 @@ export interface Directory {
   organizationName: (id: string) => Promise<string | null>;
   userOrganizations: (user: string) => Promise<UserOrganization[]>;
   userMemberships: (user: string) => Promise<Pick<UserOrganization, 'id' | 'role'>[]>;
+  landingOrganization: (user: string) => Promise<Pick<UserOrganization, 'id' | 'role'> | null>;
   listMembers: (organization: string) => Promise<Member[]>;
   listInvitations: (organization: string) => Promise<Invitation[]>;
   listOrganizations: () => Promise<OrganizationSummary[]>;
@@ -39,6 +40,7 @@ export function workosDirectory(config: () => WorkosConfig | null): Directory {
     },
     userOrganizations: (user) => workos.userOrganizations(cfg(), user),
     userMemberships: (user) => workos.userMemberships(cfg(), user),
+    landingOrganization: async (user) => (await workos.userMemberships(cfg(), user))[0] ?? null,
     listMembers: (organization) => workos.listMembers(cfg(), organization),
     listInvitations: (organization) => workos.listInvitations(cfg(), organization),
     listOrganizations: () => workos.listOrganizations(cfg()),
@@ -64,8 +66,13 @@ export function workosDirectory(config: () => WorkosConfig | null): Directory {
 
 const fullName = (first: string, last: string | null): string => (last === null ? first : `${first} ${last}`);
 
+const signedInSince = (m: OrganizationMember): boolean => m.addedBy === null || (m.lastLoginAt !== null && Date.parse(m.lastLoginAt) >= m.createdAt);
+
 async function members(db: Database, organization: string): Promise<Member[]> {
-  return (await membersOf(db, organization)).map((m) => ({ membershipId: m.id, userId: m.user, email: m.email, name: m.name, picture: m.picture, role: m.role }));
+  return (await membersOf(db, organization)).map((m) => {
+    const shown = signedInSince(m);
+    return { membershipId: m.id, userId: m.user, email: m.email, name: shown ? m.name : null, picture: shown ? m.picture : null, role: m.role };
+  });
 }
 
 export function metroDirectory(db: () => Database, now: () => number = Date.now): Directory {
@@ -74,6 +81,7 @@ export function metroDirectory(db: () => Database, now: () => number = Date.now)
     organizationName: (id) => organizationNameOf(db(), id),
     userOrganizations: async (user) => (await organizationsOf(db(), user)).map((o) => ({ id: o.id, name: o.name, role: o.role })),
     userMemberships: async (user) => (await organizationsOf(db(), user)).map((o) => ({ id: o.id, role: o.role })),
+    landingOrganization: (user) => oldestMembership(db(), user),
     listMembers: (organization) => members(db(), organization),
     listInvitations: () => Promise.resolve([]),
     listOrganizations: () => allOrganizations(db()),
@@ -81,8 +89,7 @@ export function metroDirectory(db: () => Database, now: () => number = Date.now)
     renameOrganization: (id, name) => renameOrganizationRow(db(), id, name, now()),
     invite: async (organization, email, role, by) => {
       const added = await addMember(db(), { organization, email, role, by, now: now() });
-      const member = (await members(db(), organization)).find((m) => m.membershipId === added.id);
-      return { added: true, member: member ?? { membershipId: added.id, userId: added.user, email, name: null, picture: null, role } };
+      return { added: true, member: { membershipId: added.id, email: added.email, role } };
     },
     revokeInvitation: () => Promise.reject(new ApiError('no such invitation', 404)),
     setMembershipRole: ({ organization, member, by, role }) => setMemberRole(db(), { organization, user: member.userId, by, role, now: now() }),
