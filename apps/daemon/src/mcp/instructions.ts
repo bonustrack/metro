@@ -4,10 +4,9 @@ export const MCP_INSTRUCTIONS =
   'media via `attachments`, optional `reply_to`), `reply` (quote a `message_id`), `react`/' +
   '`unreact`, `edit`/`delete` (a `message_id`), `read` (history). Support varies by station. ' +
   'An inbound file comes as a note with a ' +
-  '`Public URL`: fetch it. Its `local_path` is on the DAEMON host only. To send a file: ' +
-  '`create_upload`, run the curl line it returns, then `send` with ' +
-  'attachments:[{upload:"<upload_id>"}]. `data` is for tiny files, `url` for public files, ' +
-  '`path` is read on the DAEMON host. A message for you carries addressed="direct" (private ' +
+  '`Public URL`: fetch it. To send a file on this machine (say a worker\'s file in ~/work): ' +
+  '`send` with attachments:[{path:"<absolute path>"}]. `data` is for tiny files, `url` for ' +
+  'public ones. A message for you carries addressed="direct" (private ' +
   'chat), "mention" (you were named) or "reply" (to your message); without it, it is room ' +
   'context: answer only if the person plainly wants you. `from_name`/`from_display_name` name ' +
   'the sender when known; `get_profile` with the `from` gives more. A message with ' +

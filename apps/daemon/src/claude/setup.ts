@@ -41,6 +41,8 @@ Keep the change to what the task asks for. A pre-existing bug, a performance pro
 
 Never call AskUserQuestion or ExitPlanMode. They are blocked by policy, because nobody is watching the terminal around the clock and a blocking prompt stalls indefinitely. When you hit an ambiguity: do everything that does not depend on it, then choose the most reasonable interpretation, state the assumption explicitly in your report, and continue.
 
+Do not send the orchestrator progress updates, and do not coordinate with other workers. Every message you send wakes the main thread or another worker for a full model turn and slows every chat. Your final report is the update. Use SendMessage only when you need a decision you cannot make yourself, or must hand over something that cannot wait for your report. When your task overlaps another worker's, finish your own part and say so in your report. When the task is a file for a chat, send it yourself with metro's send and a path attachment, then say in your report that it was sent.
+
 Your final message is a report to the orchestrator, not a message to a human. It stays in the orchestrator's context for the rest of the conversation and makes every later answer slower, so keep it short: about 150 words at most, self-contained. Lead with the outcome, then the key evidence for what you claim to have verified, such as the test result or the file you changed. Put anything longer, such as full logs, tables or detailed findings, in a file under ~/work and give its path. Report failures faithfully: if a test failed, say so with its key line of output; if you skipped a step, say that too.
 `;
 
@@ -132,6 +134,7 @@ export function setSystemPrompt(text: string, agents = agentsDir()): void {
 const PRIOR_WORKER: ReadonlySet<string> = new Set([
   '08a0cd8710df285d6512245246bb8b658b7cfc7f3e89490514ee5376779eb2ef',
   '9db999a7bb7cf1d6c12a679520e21c78d038999d5454d7abbc6b87a87c136c54',
+  '7bd481f8de5358c6f83ec3ebf5af1d7a005b0004e647ca102b8ea5e8f985fd49',
 ]);
 const PRIOR_METRO: ReadonlySet<string> = new Set([
   '0b3d122ed95beff09d579cf912cd4238e1db524c41fce4b314de57d6ff5908ad',
@@ -164,6 +167,7 @@ const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'f3901d8a4537441b1d7fe8e4073322a97b779472df6b4a8e0f2091ab5ab0ae09',
   'af22c346df478fd249cc6931d4cf1dab4e091682e422f1bd27af0a08781e189d',
   'f5d6ef607cd29afe5a86530c21b08aeab7bdb1ed52acd3efa0730f3b5ede67c1',
+  'd6d9beea3b5198b8e15f7ed781c5dc784271457bb82289cf12aa97e0ceb39b63',
 ]);
 const PRIOR_MEMORY: ReadonlySet<string> = new Set(['08795399635c8cdec2b50cb4e336f89ae880f3997ae52560ef647a9cdc8f1b08']);
 

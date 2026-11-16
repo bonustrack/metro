@@ -6,6 +6,7 @@ if (process.env.METRO_SESSION === 'memory') process.exit(0);
 const BLOCKING = new Set(['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode']);
 const ORCHESTRATION = new Set([
   'Agent',
+  'SendMessage',
   'Workflow',
   'ToolSearch',
   'Skill',
