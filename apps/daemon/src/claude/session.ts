@@ -284,12 +284,18 @@ function situation(r: Resolved): 'running' | 'stale' | 'absent' {
   return startedVersion(r.agents) === r.version ? 'running' : 'stale';
 }
 
+function leftAlone(deps: SessionDeps, r: Resolved, found: ReturnType<typeof situation>): Ensured | null {
+  if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
+  if (found === 'stale' && waitsForWork(deps, r)) return 'waiting';
+  return null;
+}
+
 export function ensureSession(deps: SessionDeps = {}): Ensured {
   const r = resolved(deps);
   if (!autostartEnabled(r.agents)) return 'off';
   const found = situation(r);
-  if (found === 'running' || (found === 'absent' && sessionLive(deps))) return 'running';
-  if (found === 'stale' && waitsForWork(deps, r)) return 'waiting';
+  const alone = leftAlone(deps, r, found);
+  if (alone !== null) return alone;
   const held = holdsBack(deps, r.now);
   if (held !== null) return held;
   if (found === 'stale') {
