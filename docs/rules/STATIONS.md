@@ -2,6 +2,7 @@
 
 Moved out of `CLAUDE.md` on 2026-11-10 to keep that file short. These rules bind exactly like `CLAUDE.md`: read this file before changing anything in this area, and keep it up to date with the code.
 
+- **A train's stderr is logged at its real level** (`stations/train-stderr.ts`, read by the supervisor): a train's own pino JSON line keeps its level, message and fields (pino's own keys dropped); a text line is a warning only when it says something went wrong (error, failed, refused, disconnected, timeout, warn and the like), else info. Until 2026-11-16 every line was a warning, so Lisa's journal held 1,183 warnings in two weeks, mostly "connected" and "delivered".
 - **XMTP single writer:** only one process may write an MLS inbox. A second burns the 10-installation budget. So `metro serve` refuses a second instance, and two boxes must never run the same agent. The db3 path is home-relative.
 - XMTP accounts are ZeroDev Kernel smart accounts on Base (`smart: true`); older plain-key accounts cannot hold a name. A name claim is page-only and permanent.
 - **WhatsApp:**
