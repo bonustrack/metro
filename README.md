@@ -62,11 +62,11 @@ an otherwise permitted explicit lookup.
   same code on Android and iOS. It talks to each daemon directly, over the daemon's own
   public address.
 - **api.metro.box** (`apps/api`) runs no chat network and sees no message. It holds
-  sign-in (through WorkOS: Google, Microsoft or GitHub), organizations, the list of
+  sign-in (with Google or Microsoft), organizations and their members, the list of
   agents, and the launcher that can start a box on AWS. It is the only place with a
   database (Postgres).
 
-A box is one agent. It belongs to one WorkOS organization, and only members of that
+A box is one agent. It belongs to one organization, and only members of that
 organization can sign in to it.
 
 ## Install and run
@@ -304,7 +304,8 @@ Always commit `bun.lock`: CI and Docker install with `--frozen-lockfile`.
 - **apps/api** is the Fly app `metro`, served as api.metro.box. Merging to `main` deploys
   it. Fly runs the database migrations first (`bun --filter @metro-labs/api db:migrate`,
   the `release_command` in `fly.toml`); a failed migration aborts the deploy and the old
-  version keeps serving. Secrets: `DATABASE_URL`, `WORKOS_API_KEY` and `WORKOS_CLIENT_ID`, plus the four of
+  version keeps serving. Secrets: `DATABASE_URL`, `METRO_AUTH_SIGNING_KEY`, the Google
+  and Microsoft OAuth clients and `OPERATOR_USER_ID` (docs/OWN-ACCOUNTS.md), plus the four of
   [docs/ISSUING-SERVERS.md](docs/ISSUING-SERVERS.md) to launch boxes.
 - **apps/app** is deployed to https://metro.box on Netlify (the Expo web export, set by
   the root `netlify.toml`). Every pull request gets a deploy preview. The phone app runs

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { accountId, newSecret, secretHashOf } from './account-ids.js';
 import type { Database } from './client.js';
 import { authSessions, authSpentTokens } from './schema.js';
@@ -9,17 +9,17 @@ export const SESSION_IDLE_MS = 30 * DAY_MS;
 export const SESSION_MAX_MS = 90 * DAY_MS;
 export const ROTATION_GRACE_MS = 60_000;
 
-export const REFRESH_PREFIX = 'mrt_';
+const REFRESH_PREFIX = 'mrt_';
 const TOKEN_RE = /^mrt_[A-Za-z0-9_-]{43}$/;
 
-export const isMetroRefreshToken = (token: string): boolean => token.startsWith(REFRESH_PREFIX);
+type SessionRow = typeof authSessions.$inferSelect;
 
-export type SessionMethod = 'google' | 'microsoft' | 'link' | 'workos';
+export type NewSessionMethod = 'google' | 'microsoft';
 
 export interface AuthSession {
   id: string;
   user: string;
-  method: SessionMethod;
+  method: SessionRow['method'];
   createdAt: number;
   expiresAt: number;
 }
@@ -31,17 +31,15 @@ export interface IssuedSession {
 
 export type Rotation = ({ kind: 'rotated' } & IssuedSession) | { kind: 'refused'; reason: 'unknown' | 'revoked' | 'expired' | 'reused' };
 
-type SessionRow = typeof authSessions.$inferSelect;
-
 const deadline = (createdAt: number, now: number): number => Math.min(now + SESSION_IDLE_MS, createdAt + SESSION_MAX_MS);
 
 const sessionOf = (row: Pick<SessionRow, 'id' | 'userId' | 'method' | 'createdAt' | 'expiresAt'>): AuthSession => ({ id: row.id, user: row.userId, method: row.method, createdAt: row.createdAt, expiresAt: row.expiresAt });
 
 const newRefreshToken = (): string => `${REFRESH_PREFIX}${newSecret()}`;
 
-export async function createSession(db: Database, input: { user: string; method: SessionMethod; now: number; link?: string }): Promise<IssuedSession> {
+export async function createSession(db: Database, input: { user: string; method: NewSessionMethod; now: number }): Promise<IssuedSession> {
   const refreshToken = newRefreshToken();
-  const row = { id: accountId('session', input.now), userId: input.user, method: input.method, refreshHash: secretHashOf(refreshToken), createdAt: input.now, lastUsedAt: input.now, expiresAt: deadline(input.now, input.now), link: input.link ?? null };
+  const row = { id: accountId('session', input.now), userId: input.user, method: input.method, refreshHash: secretHashOf(refreshToken), createdAt: input.now, lastUsedAt: input.now, expiresAt: deadline(input.now, input.now) };
   await db.insert(authSessions).values(row);
   return { session: sessionOf(row), refreshToken };
 }
@@ -82,6 +80,16 @@ export async function rotateSession(db: Database, refreshToken: string, now: num
   return db.transaction((tx) => rotateIn(tx, secretHashOf(refreshToken), now));
 }
 
+export async function usableSession(db: Database, refreshToken: string, now: number): Promise<AuthSession | null> {
+  if (!TOKEN_RE.test(refreshToken)) return null;
+  const hash = secretHashOf(refreshToken);
+  const rows = await db.select().from(authSessions).where(or(eq(authSessions.refreshHash, hash), eq(authSessions.previousHash, hash))).limit(1);
+  const row = rows[0];
+  if (row === undefined || row.revokedAt !== null || row.expiresAt <= now) return null;
+  const current = row.refreshHash === hash || (row.rotatedAt !== null && now - row.rotatedAt <= ROTATION_GRACE_MS);
+  return current ? sessionOf(row) : null;
+}
+
 export async function liveSession(db: Database, id: string, now: number): Promise<AuthSession | null> {
   const rows = await db.select().from(authSessions).where(and(eq(authSessions.id, id), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, now))).limit(1);
   const row = rows[0];
@@ -91,12 +99,6 @@ export async function liveSession(db: Database, id: string, now: number): Promis
 export async function revokeSession(db: Database, id: string, now: number): Promise<boolean> {
   const rows = await db.update(authSessions).set({ revokedAt: now }).where(and(eq(authSessions.id, id), isNull(authSessions.revokedAt))).returning({ id: authSessions.id });
   return rows.length > 0;
-}
-
-export async function revokeLinkSessions(db: Database, links: string[], now: number): Promise<number> {
-  if (links.length === 0) return 0;
-  const rows = await db.update(authSessions).set({ revokedAt: now }).where(and(inArray(authSessions.link, links), isNull(authSessions.revokedAt))).returning({ id: authSessions.id });
-  return rows.length;
 }
 
 export async function pruneSessions(db: Database, now: number): Promise<number> {

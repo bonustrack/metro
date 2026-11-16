@@ -7,7 +7,7 @@ import { log } from '@metro-labs/core/log';
 import { ensureSecureDir } from '@metro-labs/core/secure-fs';
 import { agentKeyId, rawPublicKey } from '@metro-labs/http/agent-signature';
 import { ApiError } from '@metro-labs/http/api-error';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId } from '@metro-labs/http/user-token';
 import { agentsDir } from '../agents/files.js';
 
 const FILE = 'agent-key.json';

@@ -5,7 +5,7 @@ import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readBodyBytes, sendJson } from '@metro-labs/http/api-http';
 import { signingKeyOf } from '@metro-labs/http/agent-signature';
-import { bearerSession, isOrganizationId, type SigningKeys } from '@metro-labs/http/workos-token';
+import { bearerSession, isOrganizationId, type KeySource } from '@metro-labs/http/user-token';
 import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
 import type { AgentNames } from '@metro-labs/connectors/db/agent-names';
 import { AgentKeyMissing, refuseBrowser, type AgentAuth } from '@metro-labs/connectors/agent-auth';
@@ -19,7 +19,7 @@ const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 const FIELDS = ['ticket', 'organization', 'signingKey', 'sealingKey'];
 
 export interface EnrollmentDeps {
-  keys: SigningKeys;
+  keys: KeySource;
   tickets: EnrollTickets;
   store: AgentKeyStore;
   names: (owner: string, agent: string) => Promise<AgentNames>;

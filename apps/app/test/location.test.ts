@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { mock } from 'bun:test';
 
 const platform = process.env.TEST_PLATFORM;
-const address = new URL('https://metro.test/#/login?invited=1');
+const address = new URL('https://metro.test/#/login?joined=1');
 const pending = [];
 const router = {
   push: (path) => pending.push(path),
@@ -25,14 +25,12 @@ mock.module('expo-router', () => ({ router, usePathname: () => '/', useGlobalSea
 mock.module('expo/fetch', () => ({ fetch: globalThis.fetch }));
 
 const { prepareLocation, noteRouteHash, takeInitialOrgConnectorReturn } = await import('./src/lib/location.js');
-const { useSelection } = await import('./src/lib/route-hash.js');
 const { location, configurePlatform, memoryKeyValue } = await import('@metro-labs/client/platform');
 const { atLogin, atWaitlist, readOutcome, clearOutcome, goToLogin } = await import('@metro-labs/client/auth/login-route');
-const { takeInvitationFromUrl, pendingInvitation } = await import('@metro-labs/client/auth/invitation');
 const storage = memoryKeyValue();
 configurePlatform({ kv: storage, tabKv: storage });
 prepareLocation();
-assert.equal(location().hash(), platform === 'web' ? '#/login?invited=1' : '#/');
+assert.equal(location().hash(), platform === 'web' ? '#/login?joined=1' : '#/');
 
 if (platform === 'web') {
   address.href = 'https://metro.test/#/organization/connectors/conn0000001?org_connector=fixture-handoff';
@@ -41,15 +39,6 @@ if (platform === 'web') {
   assert.equal(address.hash, '#/organization/connectors/conn0000001');
   assert.deepEqual(takeInitialOrgConnectorReturn(), { kind: 'handoff', handoff: 'fixture-handoff' });
   assert.equal(takeInitialOrgConnectorReturn(), null);
-  address.hash = '';
-  address.search = '?invitation_token=synthetic_invitation';
-  prepareLocation();
-  useSelection();
-  assert.equal(location().hash(), '');
-  takeInvitationFromUrl();
-  assert.equal(location().hash(), '#/login');
-  assert.equal(pendingInvitation(), 'synthetic_invitation');
-  assert.equal(address.search, '');
 }
 
 noteRouteHash('#/');

@@ -9,13 +9,13 @@ notification on their phone. A tap opens the approval page on metro.box
 
 1. The app, signed in on Android, asks for permission once, gets an Expo push token and sends
    it to api.metro.box (`POST /api/push/devices`), which keeps it in `push_devices` with the
-   WorkOS user id.
+   user id.
 2. An agent calls a connector tool whose rule is Ask. mcp.metro.box records the request in
    `mcp_approvals`, answers `needs_approval` at once and, only when the request is new, writes
-   one row in `push_outbox` (Postgres, shared with api.metro.box). mcp.metro.box never holds
-   the WorkOS key and never calls Expo.
+   one row in `push_outbox` (Postgres, shared with api.metro.box). mcp.metro.box never reads
+   the members and never calls Expo.
 3. Within about 3 seconds, api.metro.box claims the row, reads the organization's members
-   from WorkOS, their tokens from `push_devices`, and posts the notification to Expo's push
+   from Postgres, their tokens from `push_devices`, and posts the notification to Expo's push
    service (`https://exp.host/--/api/v2/push/send`). A failure is tried again a few times.
 4. Expo hands it to Firebase Cloud Messaging (FCM), which delivers it to the phone.
 5. A tap opens `https://metro.box/#/<org id>/<agent id>/approvals/<id>` in the app, where any
@@ -67,7 +67,7 @@ The app ids, from `apps/app/app.config.js`:
    ```
 
    With that setting off, nothing is needed. Nothing is set on mcp.metro.box: it only writes
-   the outbox, and api.metro.box already has the WorkOS key it uses to read the members.
+   the outbox, and api.metro.box reads the members from its own database.
 6. **Rebuild the Android dev client.** The Firebase file is left out of the app's runtime
    fingerprint (so GitHub, which never has it, resolves the same runtime as EAS), so adding it
    does not start a build by itself. Run "App dev client APK" on `main` with **rebuild** (and

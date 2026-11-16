@@ -2,18 +2,18 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import { bearerSession, type Session, type KeySource } from '@metro-labs/http/user-token';
 
 interface ServerRoute {
   path: RegExp;
   label: string;
-  keys: SigningKeys;
+  keys: KeySource;
   read: (owner: string, id: string) => Promise<unknown>;
   write: (session: Session, owner: string, id: string, body: unknown) => Promise<unknown>;
   refused?: (id: string, err: unknown) => void;
 }
 
-export async function callerOf(req: IncomingMessage, keys: SigningKeys): Promise<{ session: Session; owner: string }> {
+export async function callerOf(req: IncomingMessage, keys: KeySource): Promise<{ session: Session; owner: string }> {
   const session = await bearerSession(req, keys);
   const owner = session?.organization ?? null;
   if (session === null || owner === null) throw new ApiError('unauthorized', 401);

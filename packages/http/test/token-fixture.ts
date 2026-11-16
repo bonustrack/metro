@@ -1,6 +1,7 @@
 import { createSign, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { METRO_ISSUER } from '../src/user-token.ts';
 
 export interface FakeIssuer {
   url: string;
@@ -16,7 +17,7 @@ export interface FakeIssuer {
 
 const b64url = (buf: Buffer | string): string => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-export async function fakeIssuer(issuer = 'https://api.workos.com'): Promise<FakeIssuer> {
+export async function fakeIssuer(issuer = METRO_ISSUER): Promise<FakeIssuer> {
   let pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
   let kid = 'key-1';
   let hits = 0;
@@ -40,7 +41,7 @@ export async function fakeIssuer(issuer = 'https://api.workos.com'): Promise<Fak
     return `${head}.${body}.${b64url(signer.sign(opts.key ?? pair.privateKey))}`;
   };
   return {
-    url: `${base}/sso/jwks/client_test`,
+    url: `${base}/.well-known/jwks.json`,
     base,
     get kid() {
       return kid;

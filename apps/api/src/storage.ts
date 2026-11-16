@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { AwsCredentials } from './aws/ec2.js';
@@ -38,7 +38,7 @@ export interface StorageApiDeps {
   aws: GrowAws;
   price: (credentials: AwsCredentials, region: string, volumeType: string) => Promise<number | null>;
   resizing: (region: string, instanceId: string) => boolean;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 interface Resolved {

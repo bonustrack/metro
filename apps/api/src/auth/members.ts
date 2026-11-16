@@ -1,42 +1,28 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SlugStore } from '../slug.js';
-import type { UserStore } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import type { AccountsMode } from './accounts-mode.js';
-import type { Directory } from './directory.js';
-import { directoryOf, modeOf } from './metro-tokens.js';
-import { configOf, isRole, ORGANIZATION_NAME_RE, type Member, type WorkosConfig } from './workos.js';
+import { bearerSession, type KeySource, type Session } from '@metro-labs/http/user-token';
+import { isRole, ORGANIZATION_NAME_RE, type Directory, type Member } from './directory.js';
 
 const PREFIX = '/api/organization';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ID_RE = /^[A-Za-z0-9_]{6,80}$/;
 
 interface MembersApiDeps {
-  accounts?: AccountsMode;
-  config: () => WorkosConfig | null;
-  directory?: Directory;
-  keys: SigningKeys;
+  directory: Directory;
+  keys: KeySource;
   slugs: SlugStore;
-  users: UserStore;
   orgAvatars: OrganizationAvatars;
 }
 
-type Target = { kind: 'organization' } | { kind: 'avatar' } | { kind: 'invitations' } | { kind: 'invitation'; id: string } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
-
-function invitationTarget(parts: string[]): Target {
-  const id = parts[1] ?? '';
-  if (parts.length === 1) return { kind: 'invitations' };
-  if (parts.length === 3 && parts[2] === 'revoke' && ID_RE.test(id)) return { kind: 'invitation', id };
-  return { kind: 'unknown' };
-}
+type Target = { kind: 'organization' } | { kind: 'avatar' } | { kind: 'add' } | { kind: 'member'; id: string } | { kind: 'unknown' } | null;
 
 function subTarget(parts: string[]): Target {
-  if (parts[0] === 'invitations') return invitationTarget(parts);
+  if (parts[0] === 'invitations' && parts.length === 1) return { kind: 'add' };
   if (parts[0] === 'avatar' && parts.length === 1) return { kind: 'avatar' };
   const id = parts[1] ?? '';
   if (parts[0] === 'members' && parts.length === 2 && ID_RE.test(id)) return { kind: 'member', id };
@@ -52,8 +38,7 @@ function target(path: string): Target {
 const METHODS: Record<Exclude<NonNullable<Target>, { kind: 'unknown' }>['kind'], string[]> = {
   organization: ['GET', 'PUT'],
   avatar: ['PUT'],
-  invitations: ['POST'],
-  invitation: ['POST'],
+  add: ['POST'],
   member: ['PUT', 'DELETE'],
 };
 
@@ -89,23 +74,22 @@ async function setAvatar(req: IncomingMessage, deps: MembersApiDeps, directory: 
 }
 
 async function overview(deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
-  const [name, members, invitations] = await Promise.all([directory.organizationName(organization), directory.listMembers(organization), directory.listInvitations(organization)]);
+  const [name, members] = await Promise.all([directory.organizationName(organization), directory.listMembers(organization)]);
   const slug = await deps.slugs.ensure(organization, name);
-  const [pictures, avatars] = await Promise.all([deps.users.avatars(members.map((m) => m.userId)), deps.orgAvatars.avatars([organization])]);
-  const shown = modeOf(deps) === 'metro' ? members : members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
-  return { id: organization, name, slug, avatar: avatars.get(organization) ?? null, self: session.userId, role: session.role, members: shown, invitations };
+  const avatars = await deps.orgAvatars.avatars([organization]);
+  return { id: organization, name, slug, avatar: avatars.get(organization) ?? null, self: session.userId, role: session.role, members };
 }
 
-async function invite(req: IncomingMessage, deps: MembersApiDeps, directory: Directory, session: Session, organization: string): Promise<unknown> {
+async function add(req: IncomingMessage, directory: Directory, session: Session, organization: string): Promise<unknown> {
   admin(session);
   const body = await readJsonBody(req);
   const email = isRecord(body) && typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const role = isRecord(body) ? body.role : undefined;
   if (!EMAIL_RE.test(email)) throw new ApiError('email does not look like an address', 400);
   if (!isRole(role)) throw new ApiError('role must be admin or member', 400);
-  const sent = await directory.invite(organization, email, role, session.userId);
-  log.info({ organization, email, role, by: session.userId }, modeOf(deps) === 'metro' ? 'members: member added by email' : 'members: invitation sent');
-  return sent;
+  const added = await directory.addMember(organization, email, role, session.userId);
+  log.info({ organization, email, role, by: session.userId }, 'members: member added by email');
+  return added;
 }
 
 function memberOrThrow(members: Member[], id: string): Member {
@@ -145,16 +129,10 @@ async function answer(req: IncomingMessage, deps: MembersApiDeps, tgt: Exclude<N
   const session = await bearerSession(req, deps.keys);
   if (session === null) throw new ApiError('unauthorized', 401);
   if (session.organization === null) throw new ApiError('you have no organization yet', 409);
-  if (modeOf(deps) === 'workos') configOf(deps);
-  const directory = directoryOf(deps);
+  const { directory } = deps;
   if (tgt.kind === 'organization') return req.method === 'PUT' ? rename(req, deps, directory, session, session.organization) : overview(deps, directory, session, session.organization);
   if (tgt.kind === 'avatar') return setAvatar(req, deps, directory, session, session.organization);
-  if (tgt.kind === 'invitations') return invite(req, deps, directory, session, session.organization);
-  if (tgt.kind === 'invitation') {
-    admin(session);
-    await directory.revokeInvitation(session.organization, tgt.id);
-    return { revoked: true };
-  }
+  if (tgt.kind === 'add') return add(req, directory, session, session.organization);
   return changeMember(req, directory, session, session.organization, tgt.id);
 }
 

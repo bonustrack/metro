@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { publishEvent, userSelf, type MetroEvent, type RunEventsPage } from '@metro-labs/core/events';
 import { asLine } from '@metro-labs/core/lines';
 import { setBearerSessions } from '@metro-labs/http/api-http';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { setAgentMap, setAllowlistMap, setDisabledAccounts } from '../src/agents/map.js';
 import { setKeyMap } from '../src/agents/keys.js';
 import { bearerSessionsFor } from '../src/routes/bearer.js';
-import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.js';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.js';
 import { bootDaemon, type Daemon } from './http-harness.js';
 
 const AGENT = 'agent000001';
@@ -38,7 +38,7 @@ const page = async (query = ''): Promise<RunEventsPage> => {
 
 beforeAll(async () => {
   issuer = await fakeIssuer();
-  setBearerSessions(bearerSessionsFor(() => owner, new SigningKeys(issuer.url)));
+  setBearerSessions(bearerSessionsFor(() => owner, new JwksKeys(issuer.url)));
   daemon = await bootDaemon({}, { monitor: true });
 });
 

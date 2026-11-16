@@ -2,7 +2,7 @@
   "name": "@metro-labs/app",
   "version": "0.1.0",
   "private": true,
-  "description": "Metro, one Expo app for the web (metro.box) and for Android and iOS: sign in through WorkOS, then manage the agent that runs on each of your organization's boxes. Built with @stage-labs/kit on React Native and react-native-web, like Stage.",
+  "description": "Metro, one Expo app for the web (metro.box) and for Android and iOS: sign in with Google or Microsoft, then manage the agent that runs on each of your organization's boxes. Built with @stage-labs/kit on React Native and react-native-web, like Stage.",
   "license": "MIT",
   "main": "expo-router/entry",
   "scripts": {

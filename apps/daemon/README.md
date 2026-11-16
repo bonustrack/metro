@@ -8,8 +8,8 @@ One Bun process that:
 - serves the MCP server Claude Code connects to, at `/` and `/mcp`,
 - runs one subprocess ("train") per chat network the agent uses, and passes events
   between them and Claude Code through an in-memory bus,
-- serves the APIs the page at https://metro.box uses, checked against a WorkOS token whose
-  organization must match the box's owner (`~/.metro/agents/.owner`),
+- serves the APIs the page at https://metro.box uses, checked against a Metro sign-in token
+  whose organization must match the box's owner (`~/.metro/agents/.owner`),
 - relays to the owner the approvals mcp.metro.box asks for the organization's connectors,
   and keeps the agent's token for it (connector credentials never reach the box),
 - serves the model gateway at `/gateway`, which sends Claude Code's inference to the

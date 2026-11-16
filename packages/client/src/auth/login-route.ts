@@ -27,14 +27,13 @@ export const atWaitlist = (): boolean => hashParts().route === WAITLIST_ROUTE;
 export interface Outcome {
   refused: string | null;
   joined: boolean;
-  invited: boolean;
 }
 
-const OUTCOME_KEYS = ['refused', 'joined', 'invited'];
+const OUTCOME_KEYS = ['refused', 'joined'];
 
 export function readOutcome(): Outcome {
   const { query } = hashParts();
-  return { refused: query.get('refused'), joined: query.get('joined') === '1', invited: query.get('invited') === '1' };
+  return { refused: query.get('refused'), joined: query.get('joined') === '1' };
 }
 
 export function clearOutcome(): void {

@@ -129,9 +129,9 @@ The daemon applies no station policy to the two tools.
   `docs/rules/HTTP-API.md`). The same call asked again reuses its pending id and writes
   nothing; the row never holds the arguments or the preview. The write happens after the
   answer is decided and is never waited for, so the agent gets `needs_approval` at the same
-  speed, and a failed write is one warning. **mcp.metro.box holds no WorkOS key and never
-  calls Expo**: it is the service every agent and access key reaches, so it must not hold a
-  key that can list and change every user and organization. Agents with and without a
+  speed, and a failed write is one warning. **mcp.metro.box never calls Expo and never reads
+  the members of an organization**: it is the service every agent and access key reaches, so
+  it holds nothing that lists every user and organization. Agents with and without a
   server get it. The Claude Code prompts and channel approvals a box asks itself do not
   notify yet; the box will queue them through a signed api.metro.box route into the same
   outbox.
@@ -310,8 +310,8 @@ to the agent's box through `POST /v1/inbox`. The whole design is in `docs/CONNEC
 ## Deploy
 
 - Fly app `metro-mcp`, region `iad`, two machines, `mcp.metro.box`.
-- Secrets: `DATABASE_URL`, `METRO_CONNECTORS_KEY` (the same values as api.metro.box). Never
-  the WorkOS key, also not for phone notifications (`docs/PHONE-NOTIFICATIONS.md`).
+- Secrets: `DATABASE_URL`, `METRO_CONNECTORS_KEY` (the same values as api.metro.box), and
+  nothing for phone notifications (`docs/PHONE-NOTIFICATIONS.md`).
 - Deployed by `.github/workflows/mcp.yml` on pushes to `main` that touch `apps/mcp/**`,
   `packages/connectors/**`, `packages/http/**`, `packages/core/**`, `bun.lock` or the
   workflow itself.

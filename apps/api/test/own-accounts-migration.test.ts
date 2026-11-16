@@ -61,12 +61,12 @@ test('a login whose email another row holds is still noted, without the email', 
   try {
     await migrate(db, { migrationsFolder: DIR });
     await client.query(OLD_USER, ['user_01INVITED', 'ana@example.com', 'x', null]);
-    await noteLoginIn(db, { id: 'user_02WORKOS', email: 'ana@example.com', name: 'Ana', picture: null, createdAt: null }, '2026-11-16T09:00:00.000Z');
+    await noteLoginIn(db, { id: 'user_02IMPORTED', email: 'ana@example.com', name: 'Ana', picture: null, createdAt: null }, '2026-11-16T09:00:00.000Z');
     await noteLoginIn(db, { id: 'user_03OTHER', email: 'bo@example.com', name: 'Bo', picture: null, createdAt: null }, '2026-11-16T09:00:00.000Z');
     const rows = (await client.query<{ id: string; email: string | null; name: string | null; last_login_at: string | null }>('SELECT id, email, name, last_login_at FROM users ORDER BY id')).rows;
     expect(rows).toEqual([
       { id: 'user_01INVITED', email: 'ana@example.com', name: null, last_login_at: null },
-      { id: 'user_02WORKOS', email: null, name: 'Ana', last_login_at: '2026-11-16T09:00:00.000Z' },
+      { id: 'user_02IMPORTED', email: null, name: 'Ana', last_login_at: '2026-11-16T09:00:00.000Z' },
       { id: 'user_03OTHER', email: 'bo@example.com', name: 'Bo', last_login_at: '2026-11-16T09:00:00.000Z' },
     ]);
   } finally {

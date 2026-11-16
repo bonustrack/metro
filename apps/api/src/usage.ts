@@ -3,7 +3,7 @@ import { errMsg, log } from '@metro-labs/core/log';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
-import type { SigningKeys } from '@metro-labs/http/workos-token';
+import type { KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult } from './launch-config.js';
 import type { MetricsLink, UsageRow } from './db/usage.js';
 import { associateProfile, AWS_REFUSED, AwsError, BOX_ROLE, NODE_TAG, type AwsCredentials } from './aws/ec2.js';
@@ -45,7 +45,7 @@ export interface MetricsCore {
 
 export interface UsageApiDeps extends MetricsCore {
   lookup: (owner: string, id: string) => Promise<UsageRow>;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 const roleNotes = new Map<string, { at: number; note: Promise<string> }>();

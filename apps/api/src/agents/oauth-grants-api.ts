@@ -4,7 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { Database } from '@metro-labs/connectors/db/database';
 import { approveGrant, denyGrant, pendingGrant, type OauthGrantRow } from '@metro-labs/connectors/db/oauth-grants';
 import { callerOf } from '../server-route.js';
@@ -12,7 +12,7 @@ import { callerOf } from '../server-route.js';
 const ROUTE = /^\/api\/oauth\/grants\/([^/]+)\/?$/;
 
 export interface OauthGrantsDeps {
-  keys: SigningKeys;
+  keys: KeySource;
   db: () => Database;
   now: () => number;
 }

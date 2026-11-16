@@ -163,7 +163,7 @@ describe('the operator agents table', () => {
   });
 });
 
-const user = (id: string, over: Partial<UserRow>): UserRow => ({ id, email: `${id}@example.invalid`, name: null, picture: null, createdAt: null, lastLoginAt: null, status: 'approved', operator: false, loginLink: null, ...over });
+const user = (id: string, over: Partial<UserRow>): UserRow => ({ id, email: `${id}@example.invalid`, name: null, picture: null, createdAt: null, lastLoginAt: null, status: 'approved', operator: false, ...over });
 
 const PEOPLE = [
   user('wan', { name: 'Wan', status: 'waitlist', createdAt: new Date(NOW - 3 * DAY).toISOString(), lastLoginAt: new Date(NOW - 2 * 60 * MINUTE).toISOString() }),

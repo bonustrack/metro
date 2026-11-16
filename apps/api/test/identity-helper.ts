@@ -1,5 +1,5 @@
-import { SigningKeys } from '@metro-labs/http/workos-token';
-import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
+import { JwksKeys } from '@metro-labs/http/user-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 
 export const TEST_OWNER = 'org_01TESTOWNER000000';
 export const TEST_STRANGER = 'org_01TESTSTRANGER00';
@@ -10,8 +10,8 @@ let issuer: Promise<FakeIssuer> | null = null;
 
 const ensureIssuer = (): Promise<FakeIssuer> => (issuer ??= fakeIssuer());
 
-export async function testKeys(): Promise<SigningKeys> {
-  return new SigningKeys((await ensureIssuer()).url);
+export async function testKeys(): Promise<JwksKeys> {
+  return new JwksKeys((await ensureIssuer()).url);
 }
 
 export async function bearer(claims: Record<string, unknown>): Promise<string> {

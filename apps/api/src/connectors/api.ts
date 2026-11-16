@@ -3,7 +3,7 @@ import { parseId } from '@metro-labs/core/ids';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { SigningKeys } from '@metro-labs/http/workos-token';
+import type { KeySource } from '@metro-labs/http/user-token';
 import { createConnector, startSignIn, viewOf, type Caller } from './actions.js';
 import { completeSignIn } from './complete.js';
 import type { McpCallStore } from '@metro-labs/connectors/db/mcp-calls';
@@ -21,7 +21,7 @@ const PREFIX = '/api/connectors';
 const BODY_MAX = 1024 * 1024;
 
 export interface ConnectorsApiDeps extends CopyDeps {
-  keys: SigningKeys;
+  keys: KeySource;
   calls: McpCallStore;
   saveListing?: CatalogueDeps['saveListing'];
 }

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { handleLatestApiRequest, resetLatestCache, type LatestApiDeps } from '../src/usage-latest.js';
 import { resetUsageState, type MetricsAws } from '../src/usage.js';
 import { AwsError } from '../src/aws/ec2.js';
@@ -58,7 +58,7 @@ const deps: LatestApiDeps = {
   aws,
   now: () => now,
   rows: (owner) => Promise.resolve(ROWS[owner] ?? []),
-  keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
+  keys: new JwksKeys('http://127.0.0.1:1/nowhere'),
 };
 
 let server: Server;

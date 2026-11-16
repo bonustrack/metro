@@ -3,17 +3,16 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { handleAdminApiRequest, type AdminApiDeps } from '../src/admin.ts';
-import { readWorkosConfig } from '../src/auth/workos.ts';
 import { resetDeletionState } from '../src/deletion.ts';
 import type { ConfigResult } from '../src/launch-config.ts';
 import type { DeletionRow } from '../src/db/servers.ts';
-import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
+import { namedOrganizations } from './directory-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
 import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
-import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 import { BOX, BOX_DISK, HOST, OTHER, OTHER_DISK, fakeAccount, fakeDeletionAws, instance, otherDisk, otherServer, volume, type FakeAccount } from './deletion-fake.ts';
 import { CHANGED_SINCE_DIALOG, ENTRY_ONLY, LONG_AGO, STILL_REFUSED, confirmOf } from './deletion-cases.ts';
 
@@ -35,7 +34,7 @@ const CONFIG: ConfigResult = {
 const launched = (): DeletionRow => ({ id: LAUNCHED, owner: CLIENT_ORG, host: HOST, name: 'throwaway-50', addedAt: LONG_AGO, instanceId: BOX, region: 'us-east-1', account: null });
 const handAdded = (): DeletionRow => ({ id: HAND_ADDED, owner: CLIENT_ORG, host: 'metro-6vfdky.tail17c4f8.ts.net', name: 'Tony', addedAt: LONG_AGO, instanceId: null, region: null, account: null });
 
-let workos: FakeWorkos;
+let issuer: FakeIssuer;
 let server: Server;
 let base = '';
 let deps: AdminApiDeps;
@@ -48,12 +47,11 @@ let busy = false;
 let hold: Promise<void> | null = null;
 
 beforeAll(async () => {
-  workos = await fakeWorkos();
-  workos.organizations.push(OPERATOR_ORG, CLIENT_ORG);
-  const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
+  issuer = await fakeIssuer();
+  process.env.OPERATOR_USER_ID = OPERATOR;
   deps = {
-    config: () => readWorkosConfig(env),
-    keys: new SigningKeys(workos.issuer.url),
+    directory: namedOrganizations([{ id: OPERATOR_ORG, name: 'Stage Labs', createdAt: null }, { id: CLIENT_ORG, name: 'Client Co', createdAt: null }]),
+    keys: new JwksKeys(issuer.url),
     slugs: memorySlugs(),
     orgAvatars: memoryOrgAvatars(),
     users: memoryUsers(),
@@ -88,7 +86,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   server.close();
-  await workos.close();
+  delete process.env.OPERATOR_USER_ID;
+  await issuer.close();
 });
 
 beforeEach(() => {
@@ -103,7 +102,7 @@ beforeEach(() => {
   resetDeletionState();
 });
 
-const token = (sub: string, org: string, role: 'admin' | 'member'): string => workos.issuer.mint(sessionClaims({ sub, org_id: org, role }));
+const token = (sub: string, org: string, role: 'admin' | 'member'): string => issuer.mint(sessionClaims({ sub, org_id: org, role }));
 const asOperator = (): string => token(OPERATOR, OPERATOR_ORG, 'member');
 
 const call = (method: string, id: string, bearer?: string, body?: unknown): Promise<Response> =>
@@ -166,7 +165,7 @@ describe('the platform admin', () => {
       type: 't4g.medium',
       volumes: [{ volumeId: BOX_DISK, sizeGib: 8 }],
       owner: CLIENT_ORG,
-      organizationName: 'Stage Labs',
+      organizationName: 'Client Co',
     });
     expect(account.calls).toEqual([`DescribeInstances us-east-1 ${BOX}`, `DescribeVolumes us-east-1 ${BOX_DISK}`]);
   });

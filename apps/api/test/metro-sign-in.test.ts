@@ -12,7 +12,7 @@ import { PGLITE_START_MS, PGLITE_STEP_MS } from './pglite-db.ts';
 let h: Harness;
 
 beforeAll(async () => {
-  h = await harness('metro');
+  h = await harness();
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
@@ -29,6 +29,13 @@ const addByEmail = (email: string, role: 'admin' | 'member' = 'member'): ReturnT
 const identitiesOf = async (user: string): Promise<string[]> => (await h.held.db.select().from(identities).where(eq(identities.userId, user))).map((i) => `${i.provider}:${i.subject}`).sort();
 
 const userCount = async (): Promise<number> => (await h.held.db.select().from(users)).length;
+
+const EXPIRED = 'https://metro.box/#/login?refused=expired';
+
+const landedAt = async (query: string): Promise<{ status: number; location: string | null }> => {
+  const res = await fetch(`${h.base}/api/auth/callback?${query}`, { redirect: 'manual' });
+  return { status: res.status, location: res.headers.get('location') };
+};
 
 describe('signing in with Google, called by Metro itself', () => {
   test('the login sends the browser to Google with PKCE S256, a nonce, the one callback path and select_account', async () => {
@@ -95,7 +102,31 @@ describe('signing in with Google, called by Metro itself', () => {
     const to = new URL((await h.start('google')).headers.get('location') ?? '');
     const back = await fetch(`${h.base}/api/auth/callback?error=access_denied&state=${to.searchParams.get('state') ?? ''}`, { redirect: 'manual' });
     expect(new URL(back.headers.get('location') ?? '').hash).toBe('#/login?refused=cancelled');
-    expect((await fetch(`${h.base}/api/auth/callback?state=nope`, { redirect: 'manual' })).status).toBe(400);
+    expect(await landedAt('state=nope')).toEqual({ status: 302, location: EXPIRED });
+    expect((await landedAt('')).status).toBe(400);
+  });
+
+  test('a stale, tampered or missing state lands on the login page as expired, at METRO_APP_URL\'s origin, and its code is never exchanged', async () => {
+    await addByEmail('ana@example.com');
+    const to = new URL((await h.start('google', { returnTo: 'http://localhost:8081/' })).headers.get('location') ?? '');
+    const state = to.searchParams.get('state') ?? '';
+    const code = h.fake.issue({ provider: 'google', claims: claimsOf('google')(to.searchParams.get('nonce') ?? '', h.clock.now), challenge: to.searchParams.get('code_challenge') ?? '', key: 'right' });
+    const exchanged = h.fake.exchanges.length;
+    const tampered = `${state.slice(0, -2)}${state.endsWith('A') ? 'B' : 'A'}A`;
+    expect(await landedAt(`code=${code}&state=${encodeURIComponent(tampered)}`)).toEqual({ status: 302, location: EXPIRED });
+    expect(await landedAt(`code=${code}`)).toEqual({ status: 302, location: EXPIRED });
+    expect(await landedAt(`error=access_denied&state=${encodeURIComponent(tampered)}`)).toEqual({ status: 302, location: EXPIRED });
+    h.clock.now += 10 * 60_000 + 1;
+    expect(await landedAt(`code=${code}&state=${encodeURIComponent(state)}`)).toEqual({ status: 302, location: EXPIRED });
+    expect(h.fake.exchanges).toHaveLength(exchanged);
+    expect(await h.held.db.select().from(authSessions)).toEqual([]);
+    expect((await landedAt('error=access_denied')).status).toBe(400);
+    process.env.METRO_APP_URL = 'https://preview.example';
+    try {
+      expect((await landedAt(`code=${code}`)).location).toBe('https://preview.example/#/login?refused=expired');
+    } finally {
+      delete process.env.METRO_APP_URL;
+    }
   });
 
   test('the phone sign-in returns to metro://auth and its handoff needs the verifier', async () => {
@@ -118,27 +149,17 @@ describe('signing in with Google, called by Metro itself', () => {
     expect((await h.json('POST', '/api/auth/exchange', { code: handoff, verifier: 'x'.repeat(43) })).status).toBe(404);
     const other = /^#\/auth\/(.+)$/.exec(await h.land('google', claimsOf('google')))?.[1] ?? '';
     expect((await h.json('POST', '/api/auth/exchange', { code: other })).status).toBe(404);
-    h.setMode('workos');
-    try {
-      expect((await h.start('google', { challenge: null })).status).toBe(302);
-      expect((await h.start('google')).status).toBe(302);
-    } finally {
-      h.setMode('metro');
-    }
   });
 
-  test('by default no Netlify host receives a sign-in, deploy permalinks included, in both modes; only a preview api opens them', async () => {
+  test('by default no Netlify host receives a sign-in, deploy permalinks included; only a preview api opens them', async () => {
     const netlify = ['https://deploy-preview-452--metro-ui.netlify.app/', 'https://6738a1b2c3d4e5f60718293a--metro-ui.netlify.app/', 'https://agent-6738a1b2--metro-ui.netlify.app/', 'https://main--metro-ui.netlify.app/'];
     for (const returnTo of netlify) expect((await h.start('google', { returnTo })).status).toBe(400);
-    h.setMode('workos');
     try {
-      for (const returnTo of netlify) expect((await h.start('google', { returnTo })).status).toBe(400);
       expect((await h.start('google', { returnTo: 'http://localhost:8081/' })).status).toBe(302);
       process.env.METRO_PREVIEW_RETURNS = '1';
       expect((await h.start('google', { returnTo: netlify[0] })).status).toBe(302);
     } finally {
       delete process.env.METRO_PREVIEW_RETURNS;
-      h.setMode('metro');
     }
   });
 
@@ -150,14 +171,14 @@ describe('signing in with Google, called by Metro itself', () => {
     expect(state).toMatch(/^v1\.[A-Za-z0-9_-]+$/);
     const callback = (s: string, code = 'x'): Promise<Response> => fetch(`${h.base}/api/auth/callback?code=${code}&state=${encodeURIComponent(s)}`, { redirect: 'manual' });
     const tampered = `${state.slice(0, -2)}${state.endsWith('A') ? 'B' : 'A'}A`;
-    expect(new URL((await callback(tampered)).headers.get('location') ?? '').hash).toBe('#/login?invited=1');
-    expect((await fetch(`${h.base}/api/auth/callback?error=access_denied&state=v1.forged`, { redirect: 'manual' })).status).toBe(400);
+    expect((await callback(tampered)).headers.get('location')).toBe(EXPIRED);
+    expect((await landedAt('error=access_denied&state=v1.forged')).location).toBe(EXPIRED);
     const code = h.fake.issue({ provider: 'google', claims: claimsOf('google')(victim.searchParams.get('nonce') ?? '', h.clock.now), challenge: victim.searchParams.get('code_challenge') ?? '', key: 'right' });
     expect(new URL((await callback(state, code)).headers.get('location') ?? '').hash).toMatch(/^#\/auth\//);
     const late = new URL((await h.start('google')).headers.get('location') ?? '');
     h.clock.now += 10 * 60_000 + 1;
     const lateCode = h.fake.issue({ provider: 'google', claims: claimsOf('google')(late.searchParams.get('nonce') ?? '', h.clock.now), challenge: late.searchParams.get('code_challenge') ?? '', key: 'right' });
-    expect(new URL((await callback(late.searchParams.get('state') ?? '', lateCode)).headers.get('location') ?? '').hash).toBe('#/login?invited=1');
+    expect((await callback(late.searchParams.get('state') ?? '', lateCode)).headers.get('location')).toBe(EXPIRED);
     expect(await h.held.db.select().from(authSessions)).toHaveLength(1);
   });
 

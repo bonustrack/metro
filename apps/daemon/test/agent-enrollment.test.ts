@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { log } from '@metro-labs/core/log';
 import { readBodyBytes, setBearerSessions } from '@metro-labs/http/api-http';
 import { agentKeyId, agentSignatureValid, rawPublicKey, readAgentProof } from '@metro-labs/http/agent-signature';
-import { SigningKeys } from '@metro-labs/http/workos-token';
-import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
+import { JwksKeys } from '@metro-labs/http/user-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
 import { newAgentKey, readAgentKey, readPendingAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
@@ -103,7 +103,7 @@ const storedEnrollment = (): unknown => (JSON.parse(readFileSync(join(dir, 'agen
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'metro-enrollment-'));
   issuer = await fakeIssuer();
-  const keys = new SigningKeys(issuer.url);
+  const keys = new JwksKeys(issuer.url);
   apiBase = await listen((req, res) => {
     fakeApi(req, res).catch(() => {
       send(res, 500, { error: 'fake api failed' });

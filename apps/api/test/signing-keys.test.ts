@@ -2,11 +2,11 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createPublicKey, generateKeyPairSync, randomInt } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { METRO_ISSUER, SigningKeys, verifyToken } from '@metro-labs/http/workos-token';
+import { METRO_ISSUER, verifyToken } from '@metro-labs/http/user-token';
 import { handleJwksRequest, mintAccessToken, readSigningKeys, thumbprint, type AuthKeys } from '../src/auth/signing-keys.ts';
 import { handleServersApiRequest, type ServersApiDeps } from '../src/servers.ts';
 import type { ServerEntry } from '../src/server-types.ts';
-import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
+import { TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 
 const pem = (bits = 2048): string => generateKeyPairSync('rsa', { modulusLength: bits }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const CURRENT = pem();
@@ -24,7 +24,6 @@ let authKeys: AuthKeys;
 
 beforeAll(async () => {
   authKeys = readSigningKeys({ METRO_AUTH_SIGNING_KEY: CURRENT, METRO_AUTH_NEXT_SIGNING_KEY: NEXT });
-  const workos = await testKeys();
   const deps: ServersApiDeps = {
     list: (owner) => Promise.resolve(owner === TEST_OWNER ? [ROW] : []),
     add: refuse,
@@ -33,7 +32,7 @@ beforeAll(async () => {
     remove: refuse,
     move: refuse,
     avatar: refuse,
-    keys: new SigningKeys(workos.workos, authKeys),
+    keys: authKeys,
   };
   server = createServer((req, res) => {
     if (handleJwksRequest(req, res, authKeys)) return;
@@ -94,7 +93,7 @@ describe('the signing keys of api.metro.box', () => {
     expect(headerOf(token)).toEqual({ alg: 'RS256', typ: 'JWT', kid: String(authKeys.signer?.kid) });
     const iat = Math.floor(now / 1000);
     expect(claimsOf(token)).toEqual({ iss: METRO_ISSUER, sub: USER, sid: 'session_01ABC', org_id: TEST_OWNER, role: 'member', iat, exp: iat + 600 });
-    expect(await verifyToken(token, new SigningKeys('http://127.0.0.1:1/nowhere', authKeys), now)).toMatchObject({ userId: USER, organization: TEST_OWNER, role: 'member' });
+    expect(await verifyToken(token, authKeys, now)).toMatchObject({ userId: USER, organization: TEST_OWNER, role: 'member' });
     const bare = mintAccessToken(authKeys, { sub: USER, sid: 'session_01ABC' }, now);
     expect(Object.keys(claimsOf(bare)).sort()).toEqual(['exp', 'iat', 'iss', 'sid', 'sub']);
   });
@@ -127,7 +126,7 @@ describe('GET /.well-known/jwks.json', () => {
 describe('a Metro token on an api route', () => {
   const list = (authorization: string): Promise<Response> => fetch(`${base}/api/servers`, { headers: { authorization } });
 
-  test('a Metro token signed by the current or the next key is accepted like a WorkOS one, scoped to its organization', async () => {
+  test('a Metro token signed by the current or the next key is accepted, scoped to its organization', async () => {
     const own = await list(`Bearer ${mintAccessToken(authKeys, { sub: USER, sid: 'session_01ABC', org_id: TEST_OWNER, role: 'admin' })}`);
     expect(own.status).toBe(200);
     expect(((await own.json()) as { servers: ServerEntry[] }).servers.map((row) => row.id)).toEqual([ROW.id]);
@@ -135,7 +134,6 @@ describe('a Metro token on an api route', () => {
     expect(((await stranger.json()) as { servers: ServerEntry[] }).servers).toEqual([]);
     const rotated = readSigningKeys({ METRO_AUTH_SIGNING_KEY: NEXT });
     expect((await list(`Bearer ${mintAccessToken(rotated, { sub: USER, sid: 'session_01ABC', org_id: TEST_OWNER, role: 'admin' })}`)).status).toBe(200);
-    expect((await list(await auth(TEST_OWNER))).status).toBe(200);
   });
 
   test('a Metro token from an unknown key, without an organization or living too long is 401', async () => {

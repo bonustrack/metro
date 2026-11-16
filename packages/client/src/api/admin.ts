@@ -1,15 +1,10 @@
 import { baseFromSegment, builtInDaemon } from '../auth/daemon.js';
-import { type Account } from '../auth/account.js';
 import { accessToken, scopedOrganizationAccessToken } from './auth.js';
 import { callBearer } from './client.js';
 import { toLatestUsage, type LatestUsage } from './latest-usage.js';
 import { isRecord, pngAvatar } from '../read.js';
 
-const OPERATOR_EMAIL = 'admin@stage.box';
-
-const isOperatorEmail = (account: Account | null): boolean => account?.user.email?.toLowerCase() === OPERATOR_EMAIL;
-
-export async function fetchOperator(account: Account): Promise<boolean> {
+export async function fetchOperator(): Promise<boolean> {
   const bearer = await accessToken();
   if (bearer === null) return false;
   let res: Response;
@@ -20,24 +15,10 @@ export async function fetchOperator(account: Account): Promise<boolean> {
   }
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok || !isRecord(body)) throw new Error(`Metro returned ${String(res.status)}.`);
-  return typeof body.operator === 'boolean' ? body.operator : isOperatorEmail(account);
+  return body.operator === true;
 }
 
 export type UserStatus = 'approved' | 'waitlist' | 'rejected';
-
-export interface LoginLink {
-  id: string;
-  createdAt: number;
-  expiresAt: number | null;
-  usedAt: number | null;
-}
-
-export interface NewLoginLink {
-  id: string;
-  url: string;
-  createdAt: number;
-  expiresAt: number | null;
-}
 
 export interface UserRow {
   id: string;
@@ -48,7 +29,6 @@ export interface UserRow {
   lastLoginAt: string | null;
   status: UserStatus | null;
   operator: boolean;
-  loginLink: LoginLink | null;
 }
 
 export interface OrganizationSummary {
@@ -75,13 +55,6 @@ export interface AgentRow {
 const adminUrl = (path: string): string => `${builtInDaemon()}/api/admin${path}`;
 const optional = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const status = (v: unknown): UserStatus | null => (v === 'approved' || v === 'waitlist' || v === 'rejected' ? v : null);
-const stamp = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-
-function loginLinkOf(v: unknown): LoginLink | null {
-  if (!isRecord(v) || typeof v.id !== 'string') return null;
-  const createdAt = stamp(v.createdAt);
-  return createdAt === null ? null : { id: v.id, createdAt, expiresAt: stamp(v.expiresAt), usedAt: stamp(v.usedAt) };
-}
 
 async function call(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {
   const bearer = await accessToken();
@@ -120,7 +93,6 @@ export async function fetchUsers(): Promise<UserRow[]> {
             lastLoginAt: optional(u.lastLoginAt),
             status: status(u.status),
             operator: u.operator === true,
-            loginLink: loginLinkOf(u.loginLink),
           },
         ]
       : [],
@@ -129,19 +101,6 @@ export async function fetchUsers(): Promise<UserRow[]> {
 
 export async function setUserStatus(id: string, next: UserStatus): Promise<void> {
   await call(`/users/${encodeURIComponent(id)}/status`, 'POST', { status: next });
-}
-
-const loginLinkPath = (userId: string): string => `/users/${encodeURIComponent(userId)}/login-link`;
-
-export async function createLoginLink(userId: string): Promise<NewLoginLink> {
-  const answer = await call(loginLinkPath(userId), 'POST');
-  const createdAt = stamp(answer.createdAt);
-  if (typeof answer.id !== 'string' || typeof answer.url !== 'string' || createdAt === null) throw new Error('Metro returned an unexpected response.');
-  return { id: answer.id, url: answer.url, createdAt, expiresAt: stamp(answer.expiresAt) };
-}
-
-export async function removeLoginLink(userId: string): Promise<void> {
-  await call(loginLinkPath(userId), 'DELETE');
 }
 
 export async function fetchAllOrganizations(): Promise<OrganizationSummary[]> {

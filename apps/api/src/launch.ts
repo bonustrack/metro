@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import { AGENT_NAME_RE, newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { type ConfigResult, type LaunchConfig } from './launch-config.js';
@@ -27,7 +27,7 @@ export interface LaunchApiDeps {
   record: (subject: string, launch: LaunchRecord) => Promise<ServerEntry>;
   lookup: (subject: string, id: string) => Promise<ServerLaunch>;
   now: () => number;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 type Target =

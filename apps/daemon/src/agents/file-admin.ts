@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiError } from '@metro-labs/http/api-error';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId } from '@metro-labs/http/user-token';
 import { ensureSecureDir, writeSecure } from '@metro-labs/core/secure-fs';
 import {
   newApiKey,

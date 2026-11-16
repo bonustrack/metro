@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { createSession, liveSession, pruneSessions, revokeSession, ROTATION_GRACE_MS, rotateSession, SESSION_IDLE_MS, SESSION_MAX_MS, type Rotation } from '../src/db/auth-sessions.ts';
-import { createLoginLink, LOGIN_LINK_TTL_MS, redeemLoginLink, revokeUserLoginLinks } from '../src/db/login-links.ts';
-import { authSessions, loginLinks, users } from '../src/db/schema.ts';
+import { authSessions, users } from '../src/db/schema.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 
 const NOW = Date.parse('2026-11-16T09:00:00.000Z');
@@ -78,30 +77,5 @@ describe('auth sessions', () => {
     expect(await rotateSession(held.db, `mrt_${'A'.repeat(43)}`, NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
     expect(await rotateSession(held.db, made.refreshToken.slice(4), NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
     expect(await rotateSession(held.db, 'short', NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
-  });
-});
-
-describe('login links', () => {
-  test('a link logs its person in once, within 7 days, and only its hash is kept', async () => {
-    const link = await createLoginLink(held.db, { user: ANA, by: OPERATOR, now: NOW });
-    expect(link.id).toMatch(/^link_[0-9A-HJKMNP-TV-Z]{26}$/);
-    expect(link.expiresAt).toBe(NOW + LOGIN_LINK_TTL_MS);
-    expect(JSON.stringify(await held.db.select().from(loginLinks))).not.toContain(link.code);
-    expect(await redeemLoginLink(held.db, link.code, NOW + 1)).toEqual({ id: link.id, user: ANA, createdBy: OPERATOR });
-    expect(await redeemLoginLink(held.db, link.code, NOW + 2)).toBeNull();
-    expect((await held.db.select().from(loginLinks))[0]).toMatchObject({ usedAt: NOW + 1, createdBy: OPERATOR, revokedAt: null });
-    const late = await createLoginLink(held.db, { user: ANA, by: OPERATOR, now: NOW });
-    expect(await redeemLoginLink(held.db, late.code, NOW + LOGIN_LINK_TTL_MS)).toBeNull();
-    expect(await revokeUserLoginLinks(held.db, ANA, NOW + DAY)).toHaveLength(2);
-    expect(await revokeUserLoginLinks(held.db, ANA, NOW + DAY)).toEqual([]);
-  });
-
-  test('a new link replaces the person\'s earlier one, and a bad code or an unknown person is refused', async () => {
-    const first = await createLoginLink(held.db, { user: ANA, by: OPERATOR, now: NOW });
-    const second = await createLoginLink(held.db, { user: ANA, by: OPERATOR, now: NOW + 1 });
-    expect(await redeemLoginLink(held.db, first.code, NOW + 2)).toBeNull();
-    expect(await redeemLoginLink(held.db, second.code, NOW + 2)).toEqual({ id: second.id, user: ANA, createdBy: OPERATOR });
-    expect(await redeemLoginLink(held.db, 'not a code', NOW)).toBeNull();
-    await expect(createLoginLink(held.db, { user: 'user_01NOBODY', by: OPERATOR, now: NOW })).rejects.toMatchObject({ status: 404 });
   });
 });

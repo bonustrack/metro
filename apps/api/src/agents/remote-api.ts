@@ -2,14 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import { callerOf } from '../server-route.js';
 import { agentApprovals, agentTokens, answerAgentApproval, changeAgentToken, dropAgentToken, newAgentToken, type RemoteDeps } from './remote.js';
 
 const ROUTE = /^\/api\/agents\/([^/]+)\/(tokens|approvals)(?:\/([^/]+))?\/?$/;
 
 export interface RemoteAgentsApiDeps extends RemoteDeps {
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 interface Target {
