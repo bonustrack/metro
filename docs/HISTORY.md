@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-11-17: WhatsApp decryption failures are recovered, and now say why
+
+Lisa and Rosa logged `baileys error: failed to decrypt message` 55 and 36 times since 20 October, mostly for group messages and often right after a train restart, which looked like lost messages. Read on both boxes: the failures name 20 and 13 distinct messages (some failed more than once), and 32 of those 33 later reached the agent as ordinary channel messages (their `message_id` is in the transcript); the one that did not was a WhatsApp status update, which Metro does not deliver. So nothing in chat was lost. The cause is by design: the train holds Signal sessions and sender keys in memory only and starts from the pairing state (only `tctoken` and `lid-mapping` are written back), so a message under a newer session fails once and WhatsApp's retry receipt brings it again. The log could not say any of this: the Baileys logger wrote the nested `err` with `JSON.stringify`, which drops an `Error`'s message, so every line read `"err":{"name":"SessionError"}` or `"err":{}`. It now writes the error's name and message.
+
 ## 2026-11-17: The official Codex route asks for the prompt cache, as a test
 
 Codex connects two ways. Continue with ChatGPT is OpenAI's documented Sign in with ChatGPT for open-source apps (`api.openai.com/v1/responses`, bearer only); Sign in with a code borrows the Codex app's own login (`chatgpt.com/backend-api/codex`, with `session-id` and the Codex headers), which OpenAI may block for other apps at any time. Metro sends both the same request body, yet Lisa's main thread and workers read 9 to 37% of their input from the cache every working day from 2 to 13 November on a Continue with ChatGPT connection, and 86 to 92% once she moved to a code sign-in connection on 16 November (Emma's code sign-in: 88 to 92%). Less: "The ideal would be to use the official way only, but we can only do that if we fix that cache issue."

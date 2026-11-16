@@ -22,12 +22,15 @@ function logLevel(): Level | typeof SILENT {
   return LEVELS.find((l) => l === raw) ?? DEFAULT_LEVEL;
 }
 
+const readableErrors = (_key: string, value: unknown): unknown =>
+  value instanceof Error ? { name: value.name, message: oneLine(value.message) } : value;
+
 function detail(obj: unknown): string {
   if (obj === undefined || obj === null) return '';
   if (obj instanceof Error) return ` ${oneLine(obj.message)}`;
   if (typeof obj === 'string') return ` ${oneLine(obj)}`;
   try {
-    return ` ${oneLine(JSON.stringify(obj) ?? '').slice(0, MAX_DETAIL)}`;
+    return ` ${oneLine(JSON.stringify(obj, readableErrors) ?? '').slice(0, MAX_DETAIL)}`;
   } catch {
     return '';
   }
