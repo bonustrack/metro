@@ -33,11 +33,13 @@ function usageOf(response: Item): Usage {
   const usage = isRecord(response.usage) ? response.usage : {};
   const details = isRecord(usage.input_tokens_details) ? usage.input_tokens_details : {};
   const cached = typeof details.cached_tokens === 'number' ? details.cached_tokens : 0;
+  const written = typeof details.cache_write_tokens === 'number' ? details.cache_write_tokens : 0;
   const input = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
   return {
-    input_tokens: Math.max(0, input - cached),
+    input_tokens: Math.max(0, input - cached - written),
     output_tokens: typeof usage.output_tokens === 'number' ? usage.output_tokens : 0,
     cache_read_input_tokens: cached,
+    ...(written > 0 ? { cache_creation_input_tokens: written } : {}),
   };
 }
 

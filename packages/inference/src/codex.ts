@@ -61,8 +61,17 @@ function threadKey(req: IncomingMessage): string {
   return agent === '' ? session : createHash('sha256').update(`${session}\n${agent}`).digest('base64url');
 }
 
-function send(call: Call, access: CodexAccess): Promise<Response> {
-  const request = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names, unaskedEffort: call.unaskedEffort });
+export const CACHE_OPTIONS = { mode: 'implicit', ttl: '12h' } as const;
+const CACHE_FIELD = 'prompt_cache_options';
+const cacheRefused = new Set<string>();
+
+export function forgetCacheRefusals(): void {
+  cacheRefused.clear();
+}
+
+function send(call: Call, access: CodexAccess, cacheOptions: boolean): Promise<Response> {
+  const translated = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names, unaskedEffort: call.unaskedEffort });
+  const request = cacheOptions ? { ...translated, [CACHE_FIELD]: CACHE_OPTIONS } : translated;
   return (call.deps.fetchImpl ?? fetch)(`${baseFor(access, call.deps)}/responses`, {
     method: 'POST',
     headers: headersFor(access, call.threadKey),
@@ -70,6 +79,17 @@ function send(call: Call, access: CodexAccess): Promise<Response> {
     signal: call.watch.signal,
     redirect: 'manual',
   });
+}
+
+async function sendWithCache(call: Call, conn: Connection, access: CodexAccess): Promise<Response> {
+  const cacheOptions = access.method === 'chatgpt' && !cacheRefused.has(conn.id);
+  const upstream = await send(call, access, cacheOptions);
+  if (!cacheOptions || upstream.status !== 400) return upstream;
+  const text = await upstream.text();
+  if (!text.includes(CACHE_FIELD)) return new Response(text, { status: upstream.status, headers: upstream.headers });
+  cacheRefused.add(conn.id);
+  log.warn({ connection: conn.label, message: upstreamMessage(text, 'OpenAI answered 400') }, `gateway: OpenAI refused ${CACHE_FIELD} on this connection; its requests go without it`);
+  return send(call, access, false);
 }
 
 function refusalOf(text: string, status: number): Failure {
@@ -99,12 +119,12 @@ function learnVersion(access: CodexAccess): void {
 async function reach(call: Call, conn: Connection): Promise<Response> {
   if (conn.codex === null) throw new GatewayError(400, 'invalid_request_error', CODEX_SIGN_IN);
   learnVersion(conn.codex);
-  const upstream = await send(call, conn.codex);
+  const upstream = await sendWithCache(call, conn, conn.codex);
   if (upstream.status !== 401) return upstream;
   await upstream.body?.cancel();
   const fresh = await call.deps.refresh(conn);
   if (fresh?.codex === null || fresh?.codex === undefined) throw new GatewayError(403, 'permission_error', RENEW_FAILED);
-  return send(call, fresh.codex);
+  return sendWithCache(call, fresh, fresh.codex);
 }
 
 type CodexAsk = Pick<Call, 'body' | 'model' | 'unaskedEffort'>;
