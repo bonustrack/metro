@@ -54,6 +54,7 @@ interface Renewal {
   refreshToken: string;
   organization?: string;
   expectUser?: string;
+  remember?: boolean;
 }
 
 function renewed(deps: AuthApiDeps, renewal: Renewal): Promise<Tokens> {
@@ -107,7 +108,8 @@ export async function switchOrg(req: IncomingMessage, session: Session, deps: Au
   const mine = await directoryOf(deps).userOrganizations(session.userId);
   if (!mine.some((o) => o.id === organization)) throw new ApiError('you are not a member of that organization', 404);
   try {
-    const payload = await tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId }), deps);
+    const remember = !(isRecord(body) && body.remember === false);
+    const payload = await tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId, remember }), deps);
     log.info({ user: session.userId, organization }, 'auth: switched organization');
     return payload;
   } catch (err) {
@@ -144,5 +146,5 @@ export async function createOrg(req: IncomingMessage, session: Session, deps: Au
     throw new ApiError('Creating an organization needs an approved account. Join the waitlist, and you can create one once you are let in.', 403);
   const organization = await directoryOf(deps).createOrganization(name, session.userId);
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
-  return tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId }), deps);
+  return tokensPayload(await renewed(deps, { req, refreshToken, organization, expectUser: session.userId, remember: true }), deps);
 }

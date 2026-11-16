@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, sql } from 'drizzle-orm';
 import { ApiError } from '@metro-labs/http/api-error';
 import { accountId } from './account-ids.js';
 import type { Database } from './client.js';
@@ -43,6 +43,8 @@ export interface MemberOrganization {
 }
 
 const ofMember = (organization: string, user: string) => and(eq(memberships.organization, organization), eq(memberships.userId, user));
+
+const BY_NAME = sql`lower(coalesce(${organizations.name}, ${organizations.slug}))`;
 
 async function lockOrganization(tx: Database, organization: string): Promise<void> {
   const rows = await tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, organization)).for('update');
@@ -103,6 +105,7 @@ export async function removeMember(db: Database, change: MemberChange): Promise<
     await requireAdmin(tx, change.organization, change.by);
     if ((await memberRole(tx, change.organization, change.user)) === 'admin') await keepsAnAdmin(tx, change.organization);
     await tx.delete(memberships).where(ofMember(change.organization, change.user));
+    await tx.update(users).set({ lastOrganization: null }).where(and(eq(users.id, change.user), eq(users.lastOrganization, change.organization)));
   });
 }
 
@@ -131,10 +134,25 @@ export function organizationsOf(db: Database, user: string): Promise<MemberOrgan
     .from(memberships)
     .innerJoin(organizations, eq(organizations.id, memberships.organization))
     .where(eq(memberships.userId, user))
-    .orderBy(sql`lower(coalesce(${organizations.name}, ${organizations.slug}))`, asc(organizations.id));
+    .orderBy(BY_NAME, asc(organizations.id));
 }
 
-export async function oldestMembership(db: Database, user: string): Promise<{ id: string; role: MemberRole } | null> {
-  const rows = await db.select({ id: memberships.organization, role: memberships.role }).from(memberships).where(eq(memberships.userId, user)).orderBy(asc(memberships.createdAt), asc(memberships.id)).limit(1);
+export async function landingMembership(db: Database, user: string): Promise<{ id: string; role: MemberRole } | null> {
+  const rows = await db
+    .select({ id: memberships.organization, role: memberships.role })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .innerJoin(organizations, eq(organizations.id, memberships.organization))
+    .where(eq(memberships.userId, user))
+    .orderBy(sql`(${memberships.organization} = ${users.lastOrganization}) is not true`, asc(memberships.createdAt), BY_NAME, asc(organizations.id))
+    .limit(1);
   return rows[0] ?? null;
+}
+
+export async function rememberOrganization(db: Database, user: string, organization: string): Promise<void> {
+  const member = db.select({ id: memberships.id }).from(memberships).where(ofMember(organization, user));
+  await db
+    .update(users)
+    .set({ lastOrganization: organization })
+    .where(and(eq(users.id, user), sql`${users.lastOrganization} is distinct from ${organization}`, exists(member)));
 }
