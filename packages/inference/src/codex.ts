@@ -24,6 +24,7 @@ export interface CodexDeps {
   base?: string;
   fetchImpl?: typeof fetch;
   refresh: (conn: Connection) => Promise<Connection | null>;
+  caller?: string;
 }
 
 const OS_NAMES: Record<string, string> = { darwin: 'Mac OS', linux: 'Linux', win32: 'Windows' };
@@ -55,10 +56,20 @@ interface Call {
   names: ToolNames;
 }
 
-function threadKey(req: IncomingMessage): string {
-  const session = sessionHeader(req) || randomUUID();
+const CALLER_THREAD = 'metro-codex-caller-thread/v1';
+
+const digest = (text: string): string => createHash('sha256').update(text).digest('base64url');
+
+function sessionOf(req: IncomingMessage, caller: string, model: string): string {
+  const header = sessionHeader(req);
+  if (header !== '') return header;
+  return caller === '' ? randomUUID() : digest(`${CALLER_THREAD}\n${caller}\n${model}`);
+}
+
+function threadKey(req: IncomingMessage, caller: string, model: string): string {
+  const session = sessionOf(req, caller, model);
   const agent = agentIdOf(req);
-  return agent === '' ? session : createHash('sha256').update(`${session}\n${agent}`).digest('base64url');
+  return agent === '' ? session : digest(`${session}\n${agent}`);
 }
 
 export const CACHE_OPTIONS = { mode: 'implicit', ttl: '12h' } as const;
@@ -131,7 +142,7 @@ type CodexAsk = Pick<Call, 'body' | 'model' | 'unaskedEffort'>;
 
 export async function codexMessages(req: IncomingMessage, res: ServerResponse, ask: CodexAsk, conn: Connection, deps: CodexDeps, watch: Watch): Promise<void> {
   const { body, model } = ask;
-  const call: Call = { ...ask, threadKey: threadKey(req), watch, deps, names: new ToolNames() };
+  const call: Call = { ...ask, threadKey: threadKey(req, deps.caller ?? '', stringOf(body.model)), watch, deps, names: new ToolNames() };
   const site: FailureSite = { connection: conn.label, model };
   const upstream = await reach(call, conn);
   noteUsageHeaders('codex', conn.id, upstream.headers);
