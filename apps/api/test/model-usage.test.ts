@@ -40,6 +40,7 @@ const call = (over: Partial<NewModelCall> = {}): NewModelCall => ({
   ms: 2000,
   firstTokenMs: 400,
   at: NOW - HOUR,
+  effort: null,
   ...over,
 });
 

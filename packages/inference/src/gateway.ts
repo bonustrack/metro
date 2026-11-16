@@ -36,6 +36,7 @@ import {
   learnAlwaysThinks,
   plannedEffort,
   requestKind,
+  sentEffort,
   thinkingOff,
   unaskedEffort,
   withBlockBinding,
@@ -129,6 +130,7 @@ interface Payloads {
   metro: Buffer;
   asSent: Buffer | null;
   bound: boolean;
+  efforts: [string | null, string | null];
 }
 
 interface Shaped {
@@ -144,18 +146,21 @@ function anthropicPayloads({ raw, sent, shaped, bind }: Shaped, model: string): 
   const asSent = rewrite ? Buffer.from(JSON.stringify({ ...runnable, model })) : raw;
   const fitted = withThinkingFor(shaped, model);
   const bound = bind ? withBlockBinding(fitted) : fitted;
-  if (bound === sent) return { metro: asSent, asSent: null, bound: false };
-  return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bind && bound !== shaped };
+  const efforts: Payloads['efforts'] = [sentEffort(bound), sentEffort(runnable)];
+  if (bound === sent) return { metro: asSent, asSent: null, bound: false, efforts };
+  return { metro: Buffer.from(JSON.stringify(rewrite ? { ...bound, model } : bound)), asSent, bound: bind && bound !== shaped, efforts };
 }
 
 type Send = (payload: Buffer, headers: Record<string, string>) => Promise<Response>;
 
 async function asAnthropicWants(send: Send, base: Record<string, string>, payloads: Payloads, connection: string, model: string): Promise<Response> {
-  const { metro, asSent, bound } = payloads;
+  const { metro, asSent, bound, efforts } = payloads;
+  currentAttempt()?.effortSent(efforts[0]);
   const upstream = await send(metro, bound ? addBeta(base, BINDING_BETA) : base);
   if (upstream.status !== 400 || asSent === null) return upstream;
   const reason = providerText(upstreamMessage(await upstream.text().catch(() => ''), ''));
   log.warn({ connection, model, reason }, 'gateway: the provider refused the request metro shaped, so it was sent again as Claude Code wrote it');
+  currentAttempt()?.effortSent(efforts[1]);
   return send(asSent, base);
 }
 
@@ -225,10 +230,12 @@ async function toOpenRouter(req: IncomingMessage, res: ServerResponse, body: Rec
   const beta = req.headers['anthropic-beta'];
   if (typeof beta === 'string' && beta !== '') headers['anthropic-beta'] = beta;
   const watch = watchUpstream(res);
+  const sent = openrouterBody(body, route.model, conn.zdr);
+  currentAttempt()?.effortSent(sentEffort(sent));
   const upstream = await fetch(`${deps.openrouterBase ?? OPENROUTER_BASE}${MESSAGES}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(openrouterBody(body, route.model, conn.zdr)),
+    body: JSON.stringify(sent),
     signal: watch.signal,
     redirect: 'manual',
   });

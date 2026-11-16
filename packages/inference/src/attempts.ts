@@ -29,6 +29,7 @@ export interface AttemptCall {
   ms: number;
   firstTokenMs: number | null;
   at: number;
+  effort: string | null;
 }
 
 export type OnCall = (call: AttemptCall) => void;
@@ -44,6 +45,7 @@ export class Attempt {
   private failedMidStream = false;
   private tokens: AttemptTokens = NO_TOKENS;
   private cost: number | null = null;
+  private effort: string | null = null;
 
   constructor(
     private readonly route: Route,
@@ -62,6 +64,10 @@ export class Attempt {
 
   failed(): void {
     this.failedMidStream = true;
+  }
+
+  effortSent(effort: string | null): void {
+    this.effort = effort;
   }
 
   counted(tokens: AttemptTokens, cost: number | null): void {
@@ -86,6 +92,7 @@ export class Attempt {
       ms: ended - this.started,
       firstTokenMs: this.firstAt === null ? null : this.firstAt - this.started,
       at: ended,
+      effort: this.effort,
     };
   }
 }

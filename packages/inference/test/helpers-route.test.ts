@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { randomInt } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { encodeFrame } from '@metro-labs/inference/eventstream';
+import type { AttemptCall } from '@metro-labs/inference/attempts';
 import { handleGatewayRequest, resetGatewayState, type GatewayDeps } from '@metro-labs/inference/gateway';
 import { holdOf } from '@metro-labs/inference/fallback';
 import { runnerModel, type Chain, type ModelSetup, type Provider } from '@metro-labs/inference/model-config';
@@ -44,6 +45,10 @@ function seenOf(url: string, text: string): Seen {
 function answer(url: string, seen: Seen, res: ServerResponse): void {
   if (LIMITED.has(seen.model)) {
     res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '120' }).end('{"type":"error","error":{"type":"rate_limit_error","message":"limit"}}');
+    return;
+  }
+  if (seen.model === 'picky-model' && seen.effort === 'low') {
+    res.writeHead(400, { 'content-type': 'application/json' }).end('{"type":"error","error":{"type":"invalid_request_error","message":"effort"}}');
     return;
   }
   if (url.startsWith('/model/')) {
@@ -91,6 +96,7 @@ let named: Server;
 let base = '';
 let namedBase = '';
 let cfg: ModelSetup;
+const calls: AttemptCall[] = [];
 
 const connections = [
   makeConnection('anthropic', { apiKey: 'sk-ant-key' }),
@@ -136,6 +142,7 @@ beforeAll(async () => {
     openrouterBase: at('openrouter'),
     routewayBase: at('routeway'),
     codex: { base: at('codex'), refresh: () => Promise.resolve(null) },
+    onCall: (call) => calls.push(call),
   };
   gateway = createServer((req, res) => {
     if (!handleGatewayRequest(req, res, deps)) res.writeHead(404).end();
@@ -157,6 +164,7 @@ afterAll(() => {
 beforeEach(() => {
   resetGatewayState();
   clearSeen();
+  calls.length = 0;
 });
 
 describe('helpers on their own models', () => {
@@ -349,5 +357,43 @@ describe('a Codex request that asks no effort', () => {
       expect(sent[2]).toEqual(sent[0]);
       expect(seenBy('codex')).toHaveLength(0);
     }
+  });
+});
+
+describe('the effort each attempt reports', () => {
+  const lanes: [Provider, string][] = [['anthropic', 'claude-opus-5-5'], ['bedrock', 'us.anthropic.claude-opus-5-5'], ['openrouter', 'openai/gpt-5.2'], ['codex', 'gpt-6.1-sol'], ['routeway', 'deepseek/deepseek-v4']];
+  const reported = (): (string | null)[] => calls.map((call) => call.effort);
+
+  test('is the level that reached the provider, on every provider', async () => {
+    for (const [provider, model] of lanes) {
+      for (const effort of [{}, { main: 'asked' }, { main: 'max' }] satisfies ModelSetup['effort'][]) {
+        cfg = setup(step(provider, model), null, effort);
+        await served(turn(runnerModel(cfg) ?? '', 'medium'));
+      }
+      const sent = seenBy(provider).map((seen) => seen.reasoning ?? seen.effort);
+      expect(reported()).toEqual(sent);
+      expect(sent).toEqual(['low', 'medium', provider === 'codex' ? 'xhigh' : provider === 'openrouter' ? 'high' : 'max']);
+      resetGatewayState();
+      clearSeen();
+      calls.length = 0;
+    }
+  });
+
+  test('a thinking budget reports its level, the last per-turn effort wins, and an unknown or missing effort reports none', async () => {
+    cfg = setup(step('anthropic', 'claude-opus-5-5'), null, { main: 'asked' });
+    const plain = { model: 'claude-opus-5-5', max_tokens: 8, stream: true, messages: [{ role: 'user', content: 'hi' }] };
+    await served({ ...plain, thinking: { type: 'enabled', budget_tokens: 2_000 } });
+    await served({ ...plain, thinking: { type: 'enabled', budget_tokens: 32_000 } });
+    await served({ ...turn('claude-opus-5-5', 'medium'), messages: [{ role: 'user', content: 'hi' }, { role: 'system', output_config: { effort: 'high' }, content: 'context' }] });
+    await served(turn('claude-opus-5-5', 'turbo'));
+    await served(plain);
+    expect(reported()).toEqual(['low', 'high', 'high', null, null]);
+  });
+
+  test('a request sent again as Claude Code wrote it reports the effort of that second send', async () => {
+    cfg = setup(step('anthropic', 'picky-model'), null);
+    await served(turn('picky-model', 'high'));
+    expect(seenBy('anthropic').map((seen) => seen.effort)).toEqual(['low', 'high']);
+    expect(reported()).toEqual(['high']);
   });
 });

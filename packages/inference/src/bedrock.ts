@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
+import { currentAttempt } from './attempts.js';
 import { withoutCacheTtl, withoutTtlBeta } from './cache-ttl.js';
+import { sentEffort } from './effort.js';
 import { EventStreamDecoder, type EventStreamMessage } from './eventstream.js';
 import { noteFailure, type FailureSite } from './failures.js';
 import { errorFrame, providerStatus, relayFrames, sendError, upstreamMessage, type Watch } from './forward.js';
@@ -166,7 +168,10 @@ function invoke(up: BedrockUpstream, req: Rewritten): Promise<Response> {
   const action = req.stream ? 'invoke-with-response-stream' : 'invoke';
   const accept = req.stream ? 'application/vnd.amazon.eventstream' : 'application/json';
   const url = invokeUrl(up, req.modelId, action);
-  return withRepairs(up, req, (attempt) => callBedrock(up, url, attempt.body, accept));
+  return withRepairs(up, req, (attempt) => {
+    currentAttempt()?.effortSent(sentEffort(attempt.body));
+    return callBedrock(up, url, attempt.body, accept);
+  });
 }
 
 function eventTypeOf(event: string): string {

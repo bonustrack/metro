@@ -64,6 +64,7 @@ function rowOf(caller: Caller, call: AttemptCall, setup: ModelSetup, deps: Gatew
     ms: call.ms,
     firstTokenMs: call.firstTokenMs,
     at: call.at,
+    effort: call.effort,
   };
 }
 
@@ -91,6 +92,7 @@ function noRouteRow(caller: Caller, at: number): NewModelCall {
     ms: 0,
     firstTokenMs: null,
     at,
+    effort: null,
   };
 }
 
@@ -99,8 +101,8 @@ const MACHINE = process.env.FLY_MACHINE_ID ?? '';
 const threadOf = (caller: Caller): string => (caller.token === null ? `agent ${caller.agent}` : `key ${caller.token}`);
 
 function noteCall(caller: Caller, call: AttemptCall): void {
-  const { connection, lane, kind, attempt, status, ms, firstTokenMs, tokens } = call;
-  log.info({ agent: caller.agent, machine: MACHINE, connection, lane, kind, attempt, status, ms, firstTokenMs, input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite5m + tokens.cacheWrite1h }, 'gateway: call');
+  const { connection, lane, kind, attempt, status, ms, firstTokenMs, tokens, effort } = call;
+  log.info({ agent: caller.agent, machine: MACHINE, connection, lane, kind, effort, attempt, status, ms, firstTokenMs, input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite5m + tokens.cacheWrite1h }, 'gateway: call');
 }
 
 async function serve(req: IncomingMessage, res: ServerResponse, path: string, deps: GatewayAppDeps): Promise<void> {
