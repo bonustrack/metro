@@ -4,39 +4,44 @@ import type { AddressInfo } from 'node:net';
 
 export interface FakeIssuer {
   url: string;
+  base: string;
   kid: string;
   issuer: string;
-  mint: (claims: Record<string, unknown>, opts?: { kid?: string; alg?: string; key?: KeyObject }) => string;
+  mint: (claims: Record<string, unknown>, opts?: { kid?: string | null; alg?: string; typ?: string | null; key?: KeyObject }) => string;
   rotate: () => void;
+  answer: (status: number, withKeys?: boolean) => void;
   hits: () => number;
   close: () => Promise<void>;
 }
 
 const b64url = (buf: Buffer | string): string => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-export async function fakeIssuer(): Promise<FakeIssuer> {
+export async function fakeIssuer(issuer = 'https://api.workos.com'): Promise<FakeIssuer> {
   let pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
   let kid = 'key-1';
   let hits = 0;
+  let status = 200;
+  let withKeys = true;
   const server: Server = createServer((_req, res) => {
     hits += 1;
     const jwk = pair.publicKey.export({ format: 'jwk' });
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ keys: [{ ...jwk, kid, alg: 'RS256', use: 'sig' }] }));
+    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ keys: withKeys ? [{ ...jwk, kid, alg: 'RS256', use: 'sig' }] : [] }));
   });
   await new Promise<void>((r) => {
     server.listen(0, '127.0.0.1', r);
   });
-  const url = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/sso/jwks/client_test`;
-  const issuer = 'https://api.workos.com';
+  const base = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
   const mint: FakeIssuer['mint'] = (claims, opts = {}) => {
-    const head = b64url(JSON.stringify({ alg: opts.alg ?? 'RS256', typ: 'JWT', kid: opts.kid ?? kid }));
+    const typ = opts.typ === null ? undefined : (opts.typ ?? 'JWT');
+    const head = b64url(JSON.stringify({ alg: opts.alg ?? 'RS256', typ, kid: opts.kid === null ? undefined : (opts.kid ?? kid) }));
     const body = b64url(JSON.stringify({ iss: issuer, ...claims }));
     const signer = createSign('RSA-SHA256');
     signer.update(`${head}.${body}`);
     return `${head}.${body}.${b64url(signer.sign(opts.key ?? pair.privateKey))}`;
   };
   return {
-    url,
+    url: `${base}/sso/jwks/client_test`,
+    base,
     get kid() {
       return kid;
     },
@@ -45,6 +50,10 @@ export async function fakeIssuer(): Promise<FakeIssuer> {
     rotate: () => {
       pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
       kid = `key-${String(Number(kid.slice(4)) + 1)}`;
+    },
+    answer: (code, keys = code === 200) => {
+      status = code;
+      withKeys = keys;
     },
     hits: () => hits,
     close: () =>
