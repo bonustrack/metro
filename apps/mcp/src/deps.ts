@@ -1,6 +1,7 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import type { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import type { AgentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import type { AgentNames } from '@metro-labs/connectors/db/agent-names';
 import type { AgentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import type { ConnectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import type { CatalogueDeps } from '@metro-labs/connectors/catalogue-auth';
@@ -23,6 +24,7 @@ export interface McpDeps {
   tokens: TokenStore;
   oauth: OauthDeps;
   keys: Pick<AgentKeyStore, 'find'>;
+  names: (owner: string, agent: string) => Promise<AgentNames>;
   nonces: AgentNonceStore;
   auth: AgentAuth;
   store: Pick<ConnectorDeliveryStore, 'assigned' | 'refresh'>;

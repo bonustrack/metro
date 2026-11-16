@@ -1,6 +1,18 @@
 import { sql } from 'drizzle-orm';
 import { bigint, bigserial, boolean, index, integer, pgTable, primaryKey, real, smallint, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: text('id').primaryKey(),
+    slug: text('slug').notNull(),
+    avatar: text('avatar'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('organizations_slug_idx').on(t.slug)],
+);
+
 export const agents = pgTable(
   'agents',
   {

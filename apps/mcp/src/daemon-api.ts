@@ -58,8 +58,11 @@ function originOf(row: DeliveredApproval): Pick<McpApproval, 'origin' | 'keyLabe
 
 async function wireOf(deps: McpDeps, identity: AgentKeyRow, rows: DeliveredApproval[]): Promise<McpApproval[]> {
   if (rows.length === 0) return [];
-  const keys = new Map((await agentConnectors(deps, identity)).map((connector) => [connector.id, connector.key]));
-  return rows.map((row) => ({ id: row.id, connector: keys.get(row.connector) ?? row.connector, tool: row.tool, preview: row.preview, requestedAt: row.requestedAt, ...originOf(row) }));
+  const known = new Map((await agentConnectors(deps, identity)).map((connector) => [connector.id, connector]));
+  return rows.map((row) => {
+    const connector = known.get(row.connector);
+    return { id: row.id, connector: connector?.key ?? row.connector, ...(connector === undefined ? {} : { connectorName: connector.name }), tool: row.tool, preview: row.preview, requestedAt: row.requestedAt, ...originOf(row) };
+  });
 }
 
 async function pendingFor(deps: McpDeps, identity: AgentKeyRow, signal: AbortSignal): Promise<McpApproval[]> {

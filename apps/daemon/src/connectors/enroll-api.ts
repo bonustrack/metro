@@ -9,6 +9,7 @@ import { readJsonBody, sessionRoute, type ApiSession } from '@metro-labs/http/ap
 import { agentsDir } from '../agents/files.js';
 import { clearPendingAgentKey, newAgentKey, readPendingAgentKey, saveAgentKey, savePendingAgentKey, type AgentKey } from './agent-key.js';
 import { agentCall, METRO_API, MetroApiRefusal, type MetroApi } from './metro-api.js';
+import { noteRowNames } from './row-names.js';
 
 const PATH = '/api/enrollment';
 const TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -34,13 +35,19 @@ function enrolledOf(value: Record<string, unknown>, key: AgentKey, owner: string
   return { server, organization: owner, keyId: key.keyId };
 }
 
+function sessionOf(value: Record<string, unknown>, key: AgentKey, owner: string): Enrolled {
+  const enrolled = enrolledOf(value, key, owner);
+  noteRowNames(value, enrolled);
+  return enrolled;
+}
+
 function sameOwner(deps: EnrollApiDeps, owner: string): void {
   if (deps.owner() !== owner) throw new ApiError('This agent changed organizations during enrollment. Enroll it again from its current organization.', 409);
 }
 
 async function recover(api: MetroApi, key: AgentKey, owner: string): Promise<Enrolled | null> {
   try {
-    return enrolledOf(await agentCall(api, key, '/api/agents/session'), key, owner);
+    return sessionOf(await agentCall(api, key, '/api/agents/session'), key, owner);
   } catch (err) {
     if (err instanceof MetroApiRefusal && err.upstreamStatus === 401 && err.code === 'agent_key_missing') return null;
     throw err;
@@ -69,7 +76,7 @@ async function exchange(ticket: string, owner: string, dir: string, deps: Enroll
   const enrolled = enrolledOf(await agentCall(api, key, '/api/agents/enroll', { ticket, organization: owner, signingKey: key.signingKey }), key, owner);
   sameOwner(deps, owner);
   savePendingAgentKey(key, owner, ticketHash, dir, enrolled.server);
-  const confirmed = enrolledOf(await agentCall(api, key, '/api/agents/session'), key, owner);
+  const confirmed = sessionOf(await agentCall(api, key, '/api/agents/session'), key, owner);
   sameOwner(deps, owner);
   if (confirmed.server !== enrolled.server) throw differently();
   saveAgentKey(key, { server: enrolled.server, organization: owner, at: new Date(api.now()).toISOString() }, dir);

@@ -5,6 +5,7 @@ import { MCP_APPROVAL_WAIT_MS, MCP_INBOX_WAIT_MS } from '@metro-labs/http/mcp-se
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { Favicons } from '@metro-labs/connectors/favicons';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import { agentNames } from '@metro-labs/connectors/db/agent-names';
 import { agentNonceStore } from '@metro-labs/connectors/db/agent-nonces';
 import { connectorDeliveryStore } from '@metro-labs/connectors/db/connector-delivery';
 import { eventStore } from '@metro-labs/connectors/db/connector-events';
@@ -70,6 +71,7 @@ export function mcpDeps(setup: AppSetup): McpDeps {
     tokens: tokenStore(setup.db, now),
     oauth: oauthDeps(setup, now),
     keys: agentKeyStore(setup.db),
+    names: (owner, agent) => agentNames(setup.db(), owner, agent),
     nonces: agentNonceStore(setup.db, now),
     auth: new AgentAuth(setup.publicHost, now),
     store: connectorDeliveryStore(setup.db),

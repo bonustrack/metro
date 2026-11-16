@@ -27,6 +27,7 @@
     "./db/connector-subscriptions": "./src/db/connector-subscriptions.ts",
     "./db/connector-events": "./src/db/connector-events.ts",
     "./db/agent-keys": "./src/db/agent-keys.ts",
+    "./db/agent-names": "./src/db/agent-names.ts",
     "./db/agent-nonces": "./src/db/agent-nonces.ts",
     "./db/mcp-calls": "./src/db/mcp-calls.ts",
     "./db/mcp-call-stats": "./src/db/mcp-call-stats.ts",

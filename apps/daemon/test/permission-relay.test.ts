@@ -302,8 +302,9 @@ describe('a Claude Code permission prompt relayed by metro', () => {
 describe('the words in chat and for the agent', () => {
   test('the server instructions fit the 2048 characters Claude Code keeps, and say approvals happen only on metro.box', () => {
     expect(MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2048);
-    expect(MCP_INSTRUCTIONS).toContain('Approvals happen only on metro.box, and metro posts the link in the chat');
-    expect(MCP_INSTRUCTIONS).toContain('a reply in chat never approves');
+    expect(MCP_INSTRUCTIONS).toContain('Approvals happen only on metro.box; a reply in chat never approves.');
+    expect(MCP_INSTRUCTIONS).toContain('Metro posts the link in the chat the request came from: never post it again or send a message only to say it waits; give it only to someone outside that chat, or if no chat asked.');
+    expect(MCP_INSTRUCTIONS).not.toContain('Tell the person');
     expect(MCP_INSTRUCTIONS).not.toContain('yes <id>');
   });
 

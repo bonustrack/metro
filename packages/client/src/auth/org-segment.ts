@@ -1,17 +1,16 @@
+import { AGENT_PAGES, isSlugSegment, RESERVED_SEGMENTS } from '@metro-labs/core/route-segments';
 import { activeAccount } from './account.js';
 
+export { RESERVED_SEGMENTS, SLUG_RE } from '@metro-labs/core/route-segments';
+
 const ORG_RE = /^org_[A-Za-z0-9]{10,64}$/;
-export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(['docs', 'settings', 'connect', 'launch', 'activity', 'login', 'signup', 'waitlist', 'auth', 'members', 'organization', 'api', 'admin', 'metro', 'new', 'connector', 'connectors', 'terms-of-use', 'privacy-policy']);
 
 export const namedSegment = (id: string, slug: string | null): string =>
   slug === null || RESERVED_SEGMENTS.has(slug) ? id : slug;
 
 export const isOrganizationId = (segment: string): boolean => ORG_RE.test(segment);
 
-export const isOrganizationSlug = (segment: string): boolean => SLUG_RE.test(segment) && !RESERVED_SEGMENTS.has(segment);
-
-const AGENT_PAGES = new Set(['approvals', 'run', 'server', 'settings', 'terminal', 'model', 'voice', 'harness', 'claude', 'skills', 'skill', 'scheduled', 'channels', 'channel', 'chats', 'tools', 'connectors', 'connector', 'sessions', 'memory', 'secrets', 'backup', 'profile', 'launch-log', 'keys']);
+export const isOrganizationSlug = isSlugSegment;
 
 function leadsWithOrganization(first: string, second: string): boolean {
   if (isOrganizationId(first)) return true;

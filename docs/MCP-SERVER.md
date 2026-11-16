@@ -102,11 +102,15 @@ The daemon applies no station policy to the two tools.
 - **Block**: hidden from `tool_search`; `tool_call` answers
   `Blocked by the owner's policy for <connector> (<tool>).`
 - **Ask**: the first call answers `needs_approval` with a 5-letter id, the link
-  `https://metro.box/#/<owner>/<agent>/approvals/<id>` and a sentence for the agent.
+  `https://metro.box/#/<org slug>/<agent slug>/approvals/<id>` (ids where a slug is unknown,
+  `agentNames` in `@metro-labs/connectors/db/agent-names`) and a sentence for the agent. For
+  the box's own session it says Metro posts the link in the chat the request came from: do not
+  post it there again or send a message only to say it waits, and give it only to someone outside
+  that chat, or when no chat asked.
   mcp.metro.box records the request (tool, a digest of the arguments, a short preview)
   and hands it to the agent's daemon, which posts the same link on the agent's last chat
-  line (`Approval needed: Lisa wants to run update_page on notion.` then the link, never
-  the arguments) and lists it on the page. A call made with an access key is posted in no
+  line (`Approval needed: Lisa wants to run update_page on Notion.` then the link, never
+  the arguments; the connector name comes as `connectorName` on `/v1/approvals`) and lists it on the page. A call made with an access key is posted in no
   chat (it belongs to whoever holds the key, not to the agent's conversations): it waits on
   the page only, and its `needs_approval` tells the caller to give the person the link. Since 2026-11-15 only metro.box answers it, by
   any member of the organization. The answer goes back to mcp.metro.box, and when the agent's own
@@ -121,7 +125,7 @@ The daemon applies no station policy to the two tools.
   pending request, mcp.metro.box writes one row in the `push_outbox` table (Postgres, shared
   with api.metro.box; one row per agent and approval id, `queuePush` in
   `@metro-labs/connectors/db/push-outbox`): "Emma needs your approval", "Update page on
-  Notion", and the same link the agent is given (`approvalLink`), where any member answers. api.metro.box sends it to every member's phone within a few seconds (see
+  Notion", and the approval page link (`approvalLink`, with ids, the shape the phone checks), where any member answers. api.metro.box sends it to every member's phone within a few seconds (see
   `docs/rules/HTTP-API.md`). The same call asked again reuses its pending id and writes
   nothing; the row never holds the arguments or the preview. The write happens after the
   answer is decided and is never waited for, so the agent gets `needs_approval` at the same
@@ -250,7 +254,7 @@ limits and validators live in `packages/http/src/mcp-server-protocol.ts`.
 | Request | Body | Answer |
 | --- | --- | --- |
 | `POST /v1/token` | `{ tokenHash }` | `{ ok: true }` |
-| `POST /v1/approvals` | `{}` | `{ approvals: [{ id, connector, tool, preview, requestedAt, origin?, keyLabel? }] }`, held up to 25 s while there is none. `origin` is `box` (the daemon's own session asked) or `key` (an access key asked, with its `keyLabel`, never the key); absent for a request recorded before `0020` |
+| `POST /v1/approvals` | `{}` | `{ approvals: [{ id, connector, connectorName?, tool, preview, requestedAt, origin?, keyLabel? }] }`, held up to 25 s while there is none. `origin` is `box` (the daemon's own session asked) or `key` (an access key asked, with its `keyLabel`, never the key); absent for a request recorded before `0020` |
 | `POST /v1/approvals/answer` | `{ id, decision: "allow" \| "deny" }` | `{ ok: true }`, 404 for an unknown or already answered id |
 
 The daemon keeps one `/v1/approvals` request open at a time, merges what it receives into

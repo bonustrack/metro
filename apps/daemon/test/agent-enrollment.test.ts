@@ -13,6 +13,7 @@ import { bearerSessionsFor } from '../src/routes/bearer.ts';
 import { handleSessionApis } from '../src/routes/session-apis.ts';
 import { newAgentKey, readAgentKey, readPendingAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { viewFiles } from '../src/agent-user/view.ts';
+import { rowNames } from '../src/connectors/row-names.ts';
 
 const OWNER = 'org_01AGENTOWNER00000';
 const SERVER = 'agent000001';
@@ -88,7 +89,7 @@ async function fakeApi(req: IncomingMessage, res: ServerResponse): Promise<void>
     enrolledServer = server;
     if (loseEnrollmentAnswer) throw new Error('answer lost after commit');
   }
-  send(res, 200, { server: enrolledServer, organization: OWNER, keyId: agentKeyId(signingKey), enrolledAt: '2026-10-09T00:00:00.000Z' });
+  send(res, 200, { server: enrolledServer, organization: OWNER, keyId: agentKeyId(signingKey), enrolledAt: '2026-10-09T00:00:00.000Z', organizationSlug: 'stage-labs', agentSlug: 'emma', agentName: 'Emma' });
 }
 
 const enroll = (body: unknown, role = 'admin'): Promise<Response> => fetch(`${agentBase}/api/enrollment`, {
@@ -220,6 +221,7 @@ describe('POST /api/enrollment', () => {
     expect(seen[0]?.body).toEqual({ ticket: TICKET, organization: OWNER, signingKey: key?.signingKey });
     expect(storedEnrollment()).toMatchObject({ server: SERVER, organization: OWNER });
     expect(readAgentKey(dir)?.enrollment?.server).toBe(SERVER);
+    expect(rowNames()).toEqual({ server: SERVER, organization: OWNER, organizationSlug: 'stage-labs', agentSlug: 'emma', agentName: 'Emma' });
   });
 
   test('enrolling again gives the agent a new key', async () => {

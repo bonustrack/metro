@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-11-16: One chat message per approval, named and linked by slugs
+
+Seen on Emma (beta.335): a chat asked for a Gmail draft, the connector policy asked for approval, and the person got two messages for one approval: Metro's `Approval needed: the agent wants to run draft on gmail-fabien-bonustrack-co.` with its link, then Emma's own reply repeating the same link. The fixes:
+
+- **The agent no longer repeats the link.** Every text the box's own session reads (`MCP_INSTRUCTIONS`, the daemon's Ask answer, the `session` `needs_approval` of mcp.metro.box, the `metro` skill) said to give the person the link. They now say Metro posted it in the chat the request came from: do not post it again, send no message only to say it waits, and give the link only to someone outside that chat, or when no chat asked. Access keys keep their wording: nobody posts for them.
+- **The post names the agent and the connector as people see them.** The box has no name of its own (`agent.json` `name` is optional), so it said "the agent". The signed `GET /api/agents/session` now answers the row's `agentName` with the slugs, and mcp.metro.box sends `connectorName` with each approval; both fields are optional, so older boxes and servers keep working.
+- **The link uses slugs**: `#/<org slug>/<agent slug>/approvals/<id>`, ids where a slug is unknown or the page could misread it. The phone notification keeps ids, the shape its check accepts. A slug renamed later breaks an older link; that was accepted.
+
 ## 2026-11-15: Approvals happen only on metro.box, and the chat gets a link
 
 Less, 2026-11-15: approvals are answered only on metro.box, by any member of the organization; no chat answer counts any more, and the approvers concept goes away. This is step 2 of the move; step 1 (#429) gave every approval its own page at `#/<org>/<agent>/approvals/<id>`.

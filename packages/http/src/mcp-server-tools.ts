@@ -81,7 +81,7 @@ export type ApprovalPlace = 'session' | 'page' | 'owner';
 const KEY_APPROVAL = '- needs_approval: it waits on metro.box, at the link the answer gives, where a member of the organization approves it. Tell the person what is waiting and give them that link; once it is approved, call again with the same tool and arguments plus "approval": "<id>". An approval works once, within 10 minutes of the answer.';
 
 const NEEDS_APPROVAL: Record<ApprovalPlace, string> = {
-  session: '- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat. Tell the person what is waiting, wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
+  session: '- needs_approval: it waits on metro.box, at the link the answer gives, and Metro posts that link in the chat the request came from. Do not post it there again, and send no message only to say it waits; give the link only to someone outside that chat, or when no chat asked for the work. Wait for the channel message "Approved: <tool> (<id>)", then call again with the same tool and arguments plus "approval": "<id>". An approval works once.',
   page: KEY_APPROVAL,
   owner: KEY_APPROVAL,
 };

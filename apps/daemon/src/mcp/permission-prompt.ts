@@ -2,7 +2,7 @@ import { oneLine } from '@metro-labs/core/approval-fields';
 import { str } from '@metro-labs/core/str';
 import type { McpApproval } from '@metro-labs/http/mcp-server-protocol';
 import { soleAgent } from '../agents/map.js';
-import { approvalLinkOf } from '../approvals/link.js';
+import { approvalAgentName, approvalLinkOf } from '../approvals/link.js';
 import { previewInput } from '../approvals/preview.js';
 import { stationByName } from '../stations/registry.js';
 import { stationOfAccount } from './read-tool.js';
@@ -30,6 +30,8 @@ function clip(text: string, max: number): string {
 const known = (name: string | undefined): string | undefined => (name === undefined ? undefined : stationByName(name)?.name);
 
 function agentWho(): string {
+  const enrolled = approvalAgentName();
+  if (enrolled !== null) return clip(enrolled, NAME_MAX);
   const agent = soleAgent();
   const name = agent?.name ?? '';
   return name === '' || name === agent?.id ? 'the agent' : clip(name, NAME_MAX);
@@ -52,4 +54,4 @@ export function promptNotice(params: PermissionParams): string {
   return approvalNotice(params.request_id, { tool: metro, place: stationOf(metro, previewInput(params.input_preview) ?? {}) });
 }
 
-export const serverNotice = (approval: McpApproval): string => approvalNotice(approval.id, { tool: approval.tool, place: approval.connector });
+export const serverNotice = (approval: McpApproval): string => approvalNotice(approval.id, { tool: approval.tool, place: approval.connectorName ?? approval.connector });

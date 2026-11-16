@@ -48,6 +48,7 @@ import { dbOrganizations } from './db/organizations.js';
 import { dbUsers } from './db/users.js';
 import { getDb } from './db/client.js';
 import { agentKeyStore } from '@metro-labs/connectors/db/agent-keys';
+import { agentNames } from '@metro-labs/connectors/db/agent-names';
 import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleEnrollmentRequest, type EnrollmentDeps } from './agents/enrollment.js';
 import { handleRemoteAgentsRequest, type RemoteAgentsApiDeps } from './agents/remote-api.js';
@@ -149,6 +150,7 @@ const enrollmentApi: EnrollmentDeps = {
   keys,
   tickets: new EnrollTickets(),
   store: agentKeyStore(getDb),
+  names: (owner, agent) => agentNames(getDb(), owner, agent),
   auth: new AgentAuth('api.metro.box', () => Date.now()),
   now: () => Date.now(),
 };

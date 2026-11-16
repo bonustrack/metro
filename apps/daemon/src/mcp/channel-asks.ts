@@ -36,8 +36,13 @@ const SPENT: Record<Spent, string> = {
   used: 'was already used, and an approval works once.',
 };
 
+const postedText = (line: string | undefined): string =>
+  line === undefined
+    ? ' No chat got that link: give it to the person who asked for this, if anyone did.'
+    : ` Metro posted that link in the chat ${line}: do not post it there again, and send no message only to say it waits. Give it only to someone outside that chat.`;
+
 function waitingText(ask: Ask, note: string, before: boolean): string {
-  const posted = ask.line === undefined ? '' : ' Metro posted that link in the chat.';
+  const posted = postedText(ask.line);
   const told = canTellAgent(ask.line) ? `Keep working: metro tells you the answer. Once approved, call ${repeat(ask)}.` : `Metro cannot tell you the answer right now: to see it, call ${repeat(ask)}.`;
   return `Needs the owner's approval for ${nameOf(ask)}. ${note}It waits on metro.box${before ? ' and nobody has answered yet' : ''}, approval id "${ask.id}": ${approvalLinkOf(ask.id)}${posted} ${told}`;
 }

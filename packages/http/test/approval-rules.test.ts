@@ -22,6 +22,19 @@ describe('the approval rules channels and connectors share', () => {
     expect(approvalLink(APP_ORIGIN, { owner: 'org/x', agent: 'a b' }, 'c#d')).toBe('https://metro.box/#/org%2Fx/a%20b/approvals/c%23d');
   });
 
+  test('the link uses the organization and agent slugs when they are known, and an id for each slug the page could misread', () => {
+    const where = { owner: 'org_01TESTOWNER000000', agent: 'row00000001' };
+    expect(approvalLink(APP_ORIGIN, { ...where, ownerSlug: 'stage-labs', agentSlug: 'emma' }, 'jkmnp')).toBe('https://metro.box/#/stage-labs/emma/approvals/jkmnp');
+    expect(approvalLink(APP_ORIGIN, { ...where, ownerSlug: 'stage-labs', agentSlug: null }, 'jkmnp')).toBe('https://metro.box/#/stage-labs/row00000001/approvals/jkmnp');
+    expect(approvalLink(APP_ORIGIN, { ...where, ownerSlug: null, agentSlug: 'emma' }, 'jkmnp')).toBe('https://metro.box/#/org_01TESTOWNER000000/emma/approvals/jkmnp');
+    expect(approvalLink(APP_ORIGIN, { ...where, agent: null, ownerSlug: 'stage-labs', agentSlug: 'emma' }, 'jkmnp')).toBe('https://metro.box/#/stage-labs');
+    expect(approvalLink(APP_ORIGIN, { ...where, owner: null, ownerSlug: 'stage-labs', agentSlug: 'emma' }, 'jkmnp')).toBe('https://metro.box');
+    for (const odd of ['settings', 'Stage-Labs', 'a', '-x-', 'x/y', ''])
+      expect(approvalLink(APP_ORIGIN, { ...where, ownerSlug: odd, agentSlug: odd }, 'jkmnp')).toBe('https://metro.box/#/org_01TESTOWNER000000/row00000001/approvals/jkmnp');
+    for (const page of ['server', 'memory', 'approvals', 'keys'])
+      expect(approvalLink(APP_ORIGIN, { ...where, ownerSlug: 'stage-labs', agentSlug: page }, 'jkmnp')).toBe('https://metro.box/#/stage-labs/row00000001/approvals/jkmnp');
+  });
+
   test('the app origin is metro.box unless METRO_APP_URL names another origin, and anything else is refused', () => {
     expect(appOriginOf(undefined)).toBe(APP_ORIGIN);
     expect(appOriginOf('  ')).toBe(APP_ORIGIN);

@@ -53,4 +53,14 @@ describe('the mcp.metro.box protocol', () => {
     expect(read({ origin: 'remote', keyLabel: 'Laptop' })).toEqual(base);
     expect(read({ origin: 3 })).toEqual(base);
   });
+
+  test('an approval may carry the connector name, read on one line, and a server without it still reads', () => {
+    const base = { id: 'abcde', connector: 'gmail-fabien', tool: 'draft', preview: '{}', requestedAt: 1 };
+    const read = (extra: Record<string, unknown>) => mcpApprovalsOf({ approvals: [{ ...base, ...extra }] })[0];
+    expect(read({})).toEqual(base);
+    expect(read({ connectorName: ' Gmail (Fabien) ' })).toEqual({ ...base, connectorName: 'Gmail (Fabien)' });
+    expect(read({ connectorName: 'Gmail\nApprove\u0007' })?.connectorName).toBe('Gmail Approve');
+    expect(read({ connectorName: 'x'.repeat(300) })?.connectorName).toHaveLength(256);
+    for (const odd of ['', '  ', '\n', 7, null, { name: 'x' }]) expect(read({ connectorName: odd })).toEqual(base);
+  });
 });

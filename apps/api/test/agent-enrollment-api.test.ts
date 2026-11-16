@@ -9,7 +9,8 @@ import { AgentAuth } from '@metro-labs/connectors/agent-auth';
 import { handleEnrollmentRequest, type EnrollmentDeps } from '../src/agents/enrollment.ts';
 import { EnrollTickets } from '../src/agents/tickets.ts';
 import { agentKeyStore, leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
-import { agents, agentKeys, connectorAgents, connectors } from '../src/db/schema.ts';
+import { agentNames } from '@metro-labs/connectors/db/agent-names';
+import { agents, agentKeys, connectorAgents, connectors, organizations } from '../src/db/schema.ts';
 import { auth, bearer, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
 import { addAgent, PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
 import { newAgentKey } from '../../daemon/src/connectors/agent-key.ts';
@@ -75,6 +76,7 @@ beforeAll(async () => {
     keys: await testKeys(),
     tickets: new EnrollTickets(),
     store: agentKeyStore(() => held.db),
+    names: (owner, agent) => agentNames(held.db, owner, agent),
     auth: new AgentAuth('', () => now),
     now: () => now,
   };
@@ -144,6 +146,18 @@ describe('an agent enrolling', () => {
     const who = await session(agent);
     expect(who.status).toBe(200);
     expect(await who.json()).toMatchObject({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId });
+  });
+
+  test('the session also names the organization slug, the agent slug and the agent name, and null for what is not set', async () => {
+    const agent = newAgent();
+    expect((await enroll(agent, enrollBody(agent, await ticketFor()))).status).toBe(200);
+    expect(await (await session(agent)).json()).toEqual({ server: OURS, organization: TEST_OWNER, keyId: agent.keyId, enrolledAt: new Date(now).toISOString(), organizationSlug: null, agentSlug: 'agent000001', agentName: null });
+    const at = new Date(now).toISOString();
+    await held.db.insert(organizations).values([{ id: TEST_OWNER, slug: 'stage-labs', createdAt: at, updatedAt: at }, { id: TEST_STRANGER, slug: 'elsewhere', createdAt: at, updatedAt: at }]);
+    await held.db.update(agents).set({ name: 'Emma', slug: 'emma' }).where(eq(agents.id, OURS));
+    expect(await (await session(agent)).json()).toMatchObject({ server: OURS, organizationSlug: 'stage-labs', agentSlug: 'emma', agentName: 'Emma' });
+    await held.db.update(agents).set({ owner: TEST_STRANGER }).where(eq(agents.id, OURS));
+    expect((await session(agent)).status).toBe(401);
   });
 
   test('an older daemon that still sends a sealing key enrolls, and the key is ignored', async () => {

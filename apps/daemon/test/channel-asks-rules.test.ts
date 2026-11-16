@@ -162,7 +162,7 @@ describe('where the question and the answer go', () => {
       const asked = await h.send({ line: LINE, text: 'paused' });
       const id = idIn(asked);
       expect(asked.text).toBe(
-        `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} Metro cannot tell you the answer right now: to see it, call send again with the same arguments and approval: "${id}".`,
+        `Needs the owner's approval for telegram-bot (send). It waits on metro.box, approval id "${id}": ${linkOf(id)} No chat got that link: give it to the person who asked for this, if anyone did. Metro cannot tell you the answer right now: to see it, call send again with the same arguments and approval: "${id}".`,
       );
       expect(h.sends()).toEqual([]);
       expect(await h.listed()).toEqual([expect.objectContaining({ id, line: null })]);
