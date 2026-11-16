@@ -133,10 +133,10 @@ describe('the export', () => {
     const lines = reportLines(plan, false);
     expect(lines.slice(0, 6)).toEqual([
       'WorkOS export: dry run, nothing written. Run again with --apply to write.',
-      'WorkOS: 2 organizations, 6 users, 5 active memberships, 4 pending invitations, 1 Google and 2 Microsoft sign-ins.',
+      'WorkOS: 2 organizations, 6 users, 5 active memberships, 4 pending invitations, 1 Google sign-in and 2 Microsoft sign-ins.',
       'Organizations: 1 added, 1 renamed, 1 only in Metro.',
-      'Users: 3 added, 2 changed, 1 emails moved, 2 invited people added.',
-      'Memberships: 6 added, 1 role changes, 2 removed.',
+      'Users: 3 added, 2 changed, 1 email moved, 2 invited people added.',
+      'Memberships: 6 added, 1 role change, 2 removed.',
       'Identities: 1 added, 1 moved.',
     ]);
     expect(lines).toContain(`+ organization ${FRESH} "Fresh Org" with slug fresh-org-2`);
@@ -155,7 +155,7 @@ describe('the export', () => {
     expect(lines).toContain(`+ microsoft sign-in ${MSA}:00000000-0000-0000-66f3-3332eca7ea81 for bob@stage.box (user_02BOB)`);
     expect(lines).toContain(`~ microsoft sign-in ${MSA}:00000000-0000-0000-1234-56789abcdef0 moves from user_09STALE to carol@example.com (user_03CAROL)`);
     expect(lines).toContain('Neither Google nor Microsoft (2: 1 GitHub, 1 email code only). They will need Google, Microsoft or a login link:');
-    expect(lines).toContain('  dan@example.com (user_04DAN): github, member of 1 organizations');
+    expect(lines).toContain('  dan@example.com (user_04DAN): github, member of 1 organization');
     expect(lines).toContain('  eve@example.com (user_05EVE): email code only, member of 0 organizations');
     expect(lines).toContain(`  organization ${GONE} is not in WorkOS: it keeps its row, and its memberships go`);
     expect(lines).toContain(`  dan@example.com in ${FRESH}: the WorkOS role "billing" becomes member`);

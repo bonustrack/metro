@@ -1,5 +1,7 @@
 import type { PlannedMember, SyncPlan } from './plan.js';
 
+const many = (n: number, one: string, more = `${one}s`): string => `${String(n)} ${n === 1 ? one : more}`;
+
 const shown = (value: string | null): string => (value === null ? '(none)' : `"${value}"`);
 
 const who = (m: { user: string; email: string | null }): string => `${m.email ?? '(no email)'} (${m.user})`;
@@ -10,10 +12,10 @@ function totals(plan: SyncPlan): string[] {
   const c = plan.counts;
   const { organizations: o, users: u, memberships: m, identities: i } = plan;
   return [
-    `WorkOS: ${String(c.organizations)} organizations, ${String(c.users)} users, ${String(c.memberships)} active memberships, ${String(c.invitations)} pending invitations, ${String(c.google)} Google and ${String(c.microsoft)} Microsoft sign-ins.`,
+    `WorkOS: ${many(c.organizations, 'organization')}, ${many(c.users, 'user')}, ${many(c.memberships, 'active membership')}, ${many(c.invitations, 'pending invitation')}, ${many(c.google, 'Google sign-in')} and ${many(c.microsoft, 'Microsoft sign-in')}.`,
     `Organizations: ${String(o.added.length)} added, ${String(o.renamed.length)} renamed, ${String(o.onlyInMetro.length)} only in Metro.`,
-    `Users: ${String(u.added.length)} added, ${String(u.changed.length)} changed, ${String(u.emailsMoved.length)} emails moved, ${String(u.invited.length)} invited people added.`,
-    `Memberships: ${String(m.added.length)} added, ${String(m.changed.length)} role changes, ${String(m.removed.length)} removed.`,
+    `Users: ${String(u.added.length)} added, ${String(u.changed.length)} changed, ${many(u.emailsMoved.length, 'email moved', 'emails moved')}, ${many(u.invited.length, 'invited person added', 'invited people added')}.`,
+    `Memberships: ${String(m.added.length)} added, ${many(m.changed.length, 'role change')}, ${String(m.removed.length)} removed.`,
     `Identities: ${String(i.added.length)} added, ${String(i.moved.length)} moved.`,
   ];
 }
@@ -41,7 +43,7 @@ function outsiders(plan: SyncPlan): string[] {
   const other = plan.outsiders.length - github - email;
   return [
     `Neither Google nor Microsoft (${String(plan.outsiders.length)}: ${String(github)} GitHub, ${String(email)} email code only${other > 0 ? `, ${String(other)} other` : ''}). They will need Google, Microsoft or a login link:`,
-    ...plan.outsiders.map((o) => `  ${who(o)}: ${o.signIn === 'email' ? 'email code only' : o.signIn}, member of ${String(o.organizations)} organizations`),
+    ...plan.outsiders.map((o) => `  ${who(o)}: ${o.signIn === 'email' ? 'email code only' : o.signIn}, member of ${many(o.organizations, 'organization')}`),
   ];
 }
 
