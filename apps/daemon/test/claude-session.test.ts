@@ -5,7 +5,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleClaudeRequest } from '../src/claude/api.js';
-import { autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, type SessionDeps } from '../src/claude/session.js';
+import type { RunnerActivity } from '@metro-labs/core/runner-activity';
+import { agentBusy, autostartEnabled, ensureSession, prepareRunnerStore, runnerAlive, sessionBlocked, sessionLive, setAutostart, startSession, stopSession, UPDATE_WAIT_MS, type SessionDeps } from '../src/claude/session.js';
+import { readAgentActivity } from '../src/claude/runner-activity.js';
 import { auth } from './identity-helper.ts';
 import { emptySetup } from '@metro-labs/inference/model-config';
 import { makeConnection, setupOf } from '../../../packages/inference/test/model-fixture.ts';
@@ -54,12 +56,15 @@ const deps = (over: Partial<SessionDeps> = {}): SessionDeps => ({
   ...over,
 });
 
-function activity(pid: number): void {
+function activity(pid: number, fields: Record<string, unknown> = {}): void {
   const stat = process.platform === 'linux' && existsSync(`/proc/${String(pid)}/stat`) ? readFileSync(`/proc/${String(pid)}/stat`, 'utf8') : '';
   const procStart = stat === '' ? undefined : stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
   mkdirSync(join(dir, 'home', '.metro'), { recursive: true });
-  writeFileSync(join(dir, 'home', '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, procStart, updatedAt: Date.now(), phase: 'working' }));
+  writeFileSync(join(dir, 'home', '.metro', 'agent-status.json'), JSON.stringify({ runner: 'sdk', pid, procStart, updatedAt: Date.now(), phase: 'working', ...fields }));
 }
+
+const IDLE = { phase: 'idle', mainPhase: 'idle', workers: 0, pending: 0, approvals: 0 };
+const DEAD_PID = 2 ** 22 + 7;
 
 const recorded = (): string[] => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : []);
 
@@ -141,6 +146,44 @@ describe('starting the session', () => {
     setAutostart(false, join(dir, 'agents'));
     setAutostart(true, join(dir, 'agents'));
     expect(ensureSession(deps({ version: '0.1.0-beta.107' }))).toBe('running');
+  });
+
+  test('an update waits while a worker runs, then restarts the session once the runner is done', () => {
+    agent();
+    const t = Date.now() - 50 * UPDATE_WAIT_MS;
+    expect(ensureSession(deps({ version: '0.1.0-beta.205', now: () => t }))).toBe('started');
+    activity(process.pid, { ...IDLE, phase: 'working', workers: 1 });
+    expect(ensureSession(deps({ version: '0.1.0-beta.206', now: () => t + 120_000 }))).toBe('waiting');
+    expect(ensureSession(deps({ version: '0.1.0-beta.206', now: () => t + 240_000 }))).toBe('waiting');
+    expect(recorded().filter((c) => c.startsWith('kill-session'))).toHaveLength(0);
+    activity(DEAD_PID, { ...IDLE, phase: 'stopped' });
+    expect(ensureSession(deps({ version: '0.1.0-beta.206', now: () => t + 360_000 }))).toBe('restarted');
+    expect(recorded().filter((c) => c.startsWith('kill-session'))).toHaveLength(1);
+  });
+
+  test('a worker, a turn, a compaction, a queued message, an approval or a live call keeps a live runner busy; an idle one is not', () => {
+    const live = (fields: Record<string, unknown>): RunnerActivity | null => {
+      activity(process.pid, { ...IDLE, ...fields });
+      return readAgentActivity(join(dir, 'home'));
+    };
+    for (const busy of [{ workers: 1 }, { mainPhase: 'working' }, { mainPhase: 'compacting' }, { mainPhase: 'approval' }, { pending: 2 }, { approvals: 1 }, { callState: 'speaking' }])
+      expect(agentBusy(live(busy))).toBe(true);
+    expect(agentBusy(live({}))).toBe(false);
+    expect(agentBusy(live({ callState: 'ended' }))).toBe(false);
+    activity(DEAD_PID, { ...IDLE, workers: 3 });
+    expect(agentBusy(readAgentActivity(join(dir, 'home')))).toBe(false);
+    expect(agentBusy(null)).toBe(false);
+  });
+
+  test('an update waits six hours at most, and a dead runner never holds it', () => {
+    agent();
+    const t = Date.now() - 40 * UPDATE_WAIT_MS;
+    expect(ensureSession(deps({ version: '0.1.0-beta.225', now: () => t }))).toBe('started');
+    activity(process.pid, { ...IDLE, workers: 3 });
+    expect(ensureSession(deps({ version: '0.1.0-beta.226', now: () => t + 120_000 }))).toBe('waiting');
+    expect(ensureSession(deps({ version: '0.1.0-beta.226', now: () => t + 120_000 + UPDATE_WAIT_MS - 1 }))).toBe('waiting');
+    activity(DEAD_PID, { ...IDLE, workers: 3 });
+    expect(ensureSession(deps({ version: '0.1.0-beta.227', now: () => t + 2 * UPDATE_WAIT_MS }))).toBe('restarted');
   });
 
   test('a box on a Claude login starts with no operator switch, and a model change never stops a running session', () => {

@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-11-16: An update restarts the agent's session only when it is idle
+
+Each MCI box restarted its session 5 times between 14 and 16 November, once per release, without looking at running work: the session watcher stops a session an older metro started as soon as it sees it (`ensureSession`). Rosa's 24-hour worker ended at 11:17:40 on 14 November, the second the beta.330 restart ran. Most of those releases landed on a weekend, so the damage was small.
+
+- The stale-version restart now waits while the agent works, read from the runner's own `agent-status.json`: a live runner with a running worker, a main thread working, compacting or waiting on an approval, a queued message, a pending approval, or a live call. The watcher answers `waiting` and logs once per version.
+- It waits 6 hours at most (`UPDATE_WAIT_MS`), so new hooks and flags still load on a box whose agent never stops, and a worker stuck for a day does not hold an update forever.
+- A runner that is not alive holds nothing: a crashed runner's last file can say three workers run.
+
 ## 2026-11-16: Signal session keys no longer reach the journal
 
 On Rosa the journal held 40 `train: bad JSON` warnings in two weeks, 9 of them with Signal session fields (`_chains`, `chainKey`, `messageKeys`, base64 keys). libsignal, inside Baileys, prints its session records with `console.info("Closing session:", session)`, `"Opening session:"` and `"Removing old closed session:"`, which Bun writes to stdout, the train's protocol channel; `console.warn("Session already closed", session)` goes to stderr. The daemon logged the first 200 characters of every stdout line it could not parse, and the JSON parser's own message quoted a token of that line.
