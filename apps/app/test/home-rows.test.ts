@@ -5,7 +5,7 @@ import { approvalOf } from '@metro-labs/client/api/approvals';
 import type { ClaudeSessionStatus } from '@metro-labs/client/api/claude-box';
 import { toMachine } from '@metro-labs/client/api/machine';
 import { toModelSettings } from '@metro-labs/client/api/model';
-import { approvalAsk, approvalWhere, namedConnector, othersLine, ruleLine } from '../src/lib/approval-note.ts';
+import { approvalAsk, approvalTitle, approvalWhere, namedConnector, othersLine, remoteConnector, ruleLine, toolsSource } from '../src/lib/approval-note.ts';
 import { chatsGlance, modelGlance, serverGlance, uptimeGlance, uptimeWords, versionGlance } from '../src/lib/glance.ts';
 import { rightNow, runSummary, sinceLabel } from '../src/lib/right-now.ts';
 
@@ -131,7 +131,8 @@ describe('the note under an approval card', () => {
     const list = (connectors: (typeof gmail)[]) => ({ data: { connectors }, error: null });
     expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', { data: undefined, error: null })).toBeUndefined();
     expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBeNull();
-    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', list([gmail]))).toEqual({ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/' });
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', list([gmail]))).toEqual({ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', id: 'conn0000002', verifiedAt: null });
+    expect(namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', list([{ ...gmail, verifiedAt: '2026-11-01T00:00:00.000Z' }]))?.verifiedAt).toBe('2026-11-01T00:00:00.000Z');
     expect(namedConnector('gmail-fabien-bonustrack-co', 'agntLisa001', list([gmail]))).toBeNull();
     expect(namedConnector('gmail-fabien-bonustrack-co', null, list([gmail]))).toBeNull();
     const named = { name: 'Gmail fabien@bonustrack.co', url: '' };
@@ -145,11 +146,47 @@ describe('the note under an approval card', () => {
     if (draft === null || send === null) throw new Error('not an approval');
     const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: 'agntEmma001' }] };
     const loaded = { data: { connectors: [gmail] }, error: null };
-    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: null })).toBeUndefined();
-    expect(approvalAsk(approvalCard(draft), 'agntEmma001', loaded)).toBe('approve Create draft on Gmail fabien@bonustrack.co');
-    expect(approvalAsk(approvalCard(draft), 'agntLisa001', loaded)).toBe('approve Create draft on gmail-fabien-bonustrack-co');
-    expect(approvalAsk(approvalCard(draft), 'agntEmma001', { data: undefined, error: new Error('Failed to reach Metro.') })).toBe('approve Create draft on gmail-fabien-bonustrack-co');
-    expect(approvalAsk(approvalCard(send), 'agntEmma001', { data: undefined, error: null })).toBe('send a message');
+    const card = approvalCard(draft);
+    const named = namedConnector('gmail-fabien-bonustrack-co', 'agntEmma001', loaded);
+    expect(approvalAsk(card, undefined, 'Create draft')).toBeUndefined();
+    expect(approvalAsk(card, named, undefined)).toBeUndefined();
+    expect(approvalAsk(card, named, 'Write a draft')).toBe('approve Write a draft on Gmail fabien@bonustrack.co');
+    expect(approvalAsk(card, null, 'Create draft')).toBe('approve Create draft on gmail-fabien-bonustrack-co');
+    expect(approvalAsk(approvalCard(send), undefined, undefined)).toBe('send a message');
+  });
+
+  test('a connector approval is titled by the tool title the connector gives, with a placeholder while the tools load', () => {
+    const draft = approvalOf({ id: 'fghij', tool: 'gmail-fabien-bonustrack-co.draft', preview: '{"to":"wan@mcigroup.ch"}', line: '' });
+    const send = approvalOf({ id: 'ghijk', tool: 'mcp__metro__send', preview: '{"line":"metro://threema/o1/ECHOECHO","text":"Hi"}', line: '' });
+    if (draft === null || send === null) throw new Error('not an approval');
+    const card = approvalCard(draft);
+    expect([card.title, card.connectorTool, approvalCard(send).connectorTool]).toEqual(['Draft', 'draft', null]);
+    const gmail = { name: 'Gmail', url: '', id: 'conn0000002', verifiedAt: '2026-11-01T00:00:00.000Z' };
+    expect(toolsSource(card, undefined)).toBeUndefined();
+    expect(toolsSource(card, null)).toBeNull();
+    expect(toolsSource(card, { name: 'Gmail', url: '' })).toBeNull();
+    expect(toolsSource(card, gmail)).toEqual({ id: 'conn0000002', verifiedAt: '2026-11-01T00:00:00.000Z' });
+    expect(toolsSource(approvalCard(send), gmail)).toBeNull();
+    const source = { id: 'conn0000002', verifiedAt: null };
+    const tools = (list: { name: string; title: string }[]) => ({ data: list, error: null });
+    expect(approvalTitle(card, undefined, tools([]))).toBeUndefined();
+    expect(approvalTitle(card, source, { data: undefined, error: null })).toBeUndefined();
+    expect(approvalTitle(card, source, tools([{ name: 'send', title: 'Send mail' }, { name: 'draft', title: 'Create draft' }]))).toBe('Create draft');
+    expect(approvalTitle(card, source, { data: undefined, error: new Error('Failed to reach Metro.') })).toBe('Draft');
+    expect(approvalTitle(card, source, tools([{ name: 'send', title: 'Send mail' }]))).toBe('Draft');
+    expect(approvalTitle(card, source, tools([{ name: 'draft', title: 'draft' }]))).toBe('Draft');
+    expect(approvalTitle(card, source, tools([{ name: 'draft', title: '  ' }]))).toBe('Draft');
+    expect(approvalTitle(card, null, undefined)).toBe('Draft');
+    expect(approvalTitle(approvalCard(send), null, undefined)).toBe('Send a message');
+  });
+
+  test('an approval of an agent without a server finds its connector by the id it carries', () => {
+    const approval = approvalOf({ id: 'fghij', tool: 'notion.create_page', preview: '{}', line: '' });
+    if (approval === null) throw new Error('not an approval');
+    const found = { approval, connector: 'conn0000001', connectorName: 'Notion', connectorUrl: null };
+    expect(remoteConnector(found)).toEqual({ name: 'Notion', url: '', id: 'conn0000001', verifiedAt: null });
+    expect(remoteConnector({ ...found, connectorName: null })).toBeNull();
+    expect(toolsSource(approvalCard(approval), remoteConnector(found))).toEqual({ id: 'conn0000001', verifiedAt: null });
   });
 
   test('says who else can answer in the chat, by name when every name is known', () => {

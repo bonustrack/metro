@@ -16,6 +16,8 @@ import { StateBlock } from '../ui/StateBlock.js';
 import { side } from '../ui/edges.js';
 import { ICON_SIZE } from '../ui/sizes.js';
 import { ApprovalFrame, useApprovalAgent } from './ApprovalFrame.js';
+import { useApprovalTitle } from '../../lib/approval-connector.js';
+import type { NamedConnector } from '../../lib/approval-note.js';
 import { ANSWER_IDLE, approvalPageState, DECIDE_FAILED, GONE_WORDS, resultWords, runAnswer, type AnswerState, type Answering, type ApprovalRead } from '../../lib/approval-page.js';
 import { logError } from '../../lib/log.js';
 import { go } from '../../lib/nav.js';
@@ -29,6 +31,7 @@ const TITLE_SKELETON = { width: 220, height: 28 } as const;
 export interface ApprovalShown {
   approval: Approval;
   where: string | null | undefined;
+  connector: NamedConnector | null | undefined;
   mark: ReactNode;
 }
 
@@ -71,7 +74,8 @@ function Place({ shown, card }: { shown: ApprovalShown; card: ApprovalCard }): R
   return <Item title={shown.where} subtitle={placeLabel(card)} leading={shown.mark} />;
 }
 
-function Title({ text }: { text: string }): ReactNode {
+function Title({ text }: { text: string | undefined }): ReactNode {
+  if (text === undefined) return <SkeletonBlock width={TITLE_SKELETON.width} height={TITLE_SKELETON.height} />;
   return (
     <Text accessibilityRole="header" size="2xl" fontWeight="semibold">
       {text}
@@ -185,10 +189,11 @@ interface ShownPageProps<T> {
 
 function ShownPage<T>({ project, item, shown, decision, answers }: ShownPageProps<T>): ReactNode {
   const card = approvalCard(shown.approval);
+  const title = useApprovalTitle(card, shown.connector);
   return (
     <ApprovalFrame project={project}>
       <Column gap={8}>
-        <Title text={card.title} />
+        <Title text={title} />
         <Facts shown={shown} card={card} />
       </Column>
       <Details approval={shown.approval} card={card} />

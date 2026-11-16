@@ -56,6 +56,7 @@ describe('the one line under an agent in the list', () => {
     expect(naming).toEqual({ text: 'Waiting for you: 2 approvals', tone: 'link', dot: 'success', busy: false, needsYou: true, pending: true });
     expect(agentLine(facts({ waiting: 2, ask: 'approve Create draft on Gmail' })).pending).toBeUndefined();
     expect(remoteLine(1, 'approve Create page on Notion', 3).pending).toBeUndefined();
+    expect(remoteLine(1, undefined, 3)).toMatchObject({ text: 'Waiting for you: 1 approval', pending: true });
   });
 
   test('a stopped session and an unfinished setup need you too', () => {

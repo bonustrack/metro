@@ -108,7 +108,8 @@ const NOW = Date.now();
 const TEXT = 'Wire 5000 EUR to the account below.\\nIBAN CH93 0076 2011 6238 5295 7, reference MARCH-OFFER, before Friday noon, and confirm by mail.';
 const asked = (id, ago) => approvalsApi.approvalOf({ id, tool: 'mcp__metro__send', preview: JSON.stringify({ line: 'metro://telegram-bot/t1/42', text: TEXT, attachments: [{ path: '/tmp/offer.pdf', name: 'offer.pdf' }] }), line: 'metro://telegram-bot/t1/42', requestedAt: new Date(NOW - ago).toISOString() });
 const remote = (id) => ({ approval: approvalsApi.approvalOf({ id, tool: 'notion.create_page', preview: '{"title":"Plan for March"}', line: '', requestedAt: new Date(NOW - 60_000).toISOString() }), connector: 'conn0000001', connectorName: 'Notion', connectorUrl: 'https://mcp.notion.com' });
-const reads = { approvals: { data: undefined, error: null }, stations: { data: undefined, error: null }, remote: { data: undefined, error: null }, connectors: { data: undefined, error: null } };
+const reads = { approvals: { data: undefined, error: null }, stations: { data: undefined, error: null }, remote: { data: undefined, error: null }, connectors: { data: undefined, error: null }, tools: { data: undefined, error: null } };
+let toolLists = [];
 let headers = [], items = [], groups = [], buttons = [], states = [], errors = [], skeletons = [], blocks = [], logs = [], closes = [], avatars = [];
 const decided = [], remoteDecided = [], fetched = [], refreshed = [], boxReads = [], went = [];
 let technical = false;
@@ -137,7 +138,10 @@ mock.module('./src/components/ui/Layout.js', () => ({ Readable: wrap }));
 mock.module('./src/components/ui/RowsSkeleton.js', () => ({ RowsSkeleton: (props) => { skeletons.push(props); return null; }, SkeletonBlock: (props) => { blocks.push(props); return null; } }));
 mock.module('./src/components/ui/StateBlock.js', () => ({ StateBlock: (props) => { states.push(props); return null; } }));
 mock.module('./src/components/home/ApprovalCard.js', () => ({ ApprovalMark: () => null }));
-mock.module('./src/lib/org-connector-queries.js', () => ({ useOrgConnectorsQuery: () => { boxReads.push('connectors'); return reads.connectors; } }));
+mock.module('./src/lib/org-connector-queries.js', () => ({
+  useOrgConnectorsQuery: () => { boxReads.push('connectors'); return reads.connectors; },
+  useOrgConnectorToolLists: (list) => { toolLists.push(...list); return list.map((one) => (one === null ? { data: undefined, error: null } : reads.tools)); },
+}));
 mock.module('./src/lib/log.js', () => ({ logError: () => () => undefined }));
 mock.module('./src/lib/nav.js', () => ({ go: (target) => { went.push(target); } }));
 mock.module('./src/lib/technical.js', () => ({ useTechnicalDetails: () => technical }));
@@ -153,7 +157,7 @@ mock.module('./src/lib/remote-agents.js', () => ({ useRemoteApprovals: () => ({ 
 const { BoxApprovalPage } = await import('./src/components/approval/BoxApprovalPage.tsx');
 const { RemoteApprovalPage } = await import('./src/components/remote/RemoteApprovalPage.tsx');
 const render = (component, props) => {
-  headers = []; items = []; groups = []; buttons = []; states = []; errors = []; skeletons = []; blocks = []; logs = []; closes = []; avatars = [];
+  headers = []; items = []; groups = []; buttons = []; states = []; errors = []; skeletons = []; blocks = []; logs = []; closes = []; avatars = []; toolLists = [];
   return renderToStaticMarkup(createElement(component, props));
 };
 const box = (id = 'abcde') => render(BoxApprovalPage, { project: 'emma', id });
@@ -229,20 +233,27 @@ assert.deepEqual([groups, logs.map((one) => [one.text, one.maxHeight])], [[undef
 const drafted = (extra) => approvalsApi.approvalOf({ id: 'abcde', tool: 'gmail-fabien-bonustrack-co.create_draft', preview: '{"to":"wan@mcigroup.ch"}', line: null, requestedAt: new Date(NOW - 60_000).toISOString(), ...extra });
 reads.approvals = { data: [drafted({ requestedBy: 'access key "Claude Code"' })], error: null };
 html = box();
-assert.deepEqual(headers, ['Create draft']);
+assert.deepEqual([headers, blocks.length, toolLists], [[], 1, [null]], 'a placeholder title, never one made from the tool name, while the connectors load');
 assert.deepEqual([facts(), skeletons.length], [[['Asked', '1 min ago'], ['Asked by', 'access key "Claude Code"']], 1]);
 assert.ok(!html.includes('gmail-fabien-bonustrack-co'), 'never the key while the connectors load');
 
 const gmail = { id: 'conn0000002', name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', agents: [{ id: EMMA }] };
 reads.connectors = { data: { connectors: [gmail, { id: 'conn0000001', name: 'Gmail', url: 'https://other.example.com', agents: [{ id: LAPTOP }] }], admin: true }, error: null };
 html = box();
+assert.deepEqual([headers, blocks.length, toolLists], [[], 1, [{ id: 'conn0000002', verifiedAt: null }]], 'a placeholder title while its tools load');
 assert.deepEqual([facts(), skeletons.length], [[['Connector', 'Gmail fabien@bonustrack.co'], ['Asked', '1 min ago'], ['Asked by', 'access key "Claude Code"']], 0]);
-assert.deepEqual(marks(), [{ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/' }]);
+assert.deepEqual(marks(), [{ name: 'Gmail fabien@bonustrack.co', url: 'https://mcp.gmail.piston.box/', id: 'conn0000002', verifiedAt: null }]);
 assert.ok(!html.includes('gmail-fabien-bonustrack-co'));
+reads.tools = { data: [{ name: 'send', title: 'Send mail' }, { name: 'create_draft', title: 'Write a draft' }], error: null };
+box();
+assert.deepEqual([headers, blocks.length], [['Write a draft'], 0], 'the title the connector gives its tool');
+reads.tools = { data: undefined, error: new Error('Failed to reach Metro.') };
+box();
+assert.deepEqual(headers, ['Create draft'], 'the title from the tool name when its tools cannot be read');
 
 reads.connectors = { data: { connectors: [{ ...gmail, agents: [{ id: LAPTOP }] }], admin: true }, error: null };
 box();
-assert.deepEqual([facts()[0], marks()], [['Connector', 'gmail-fabien-bonustrack-co'], [null]]);
+assert.deepEqual([facts()[0], marks(), headers], [['Connector', 'gmail-fabien-bonustrack-co'], [null], ['Create draft']]);
 reads.connectors = { data: undefined, error: new Error('Failed to reach Metro.') };
 box();
 assert.deepEqual([facts()[0], marks()], [['Connector', 'gmail-fabien-bonustrack-co'], [null]]);
@@ -260,10 +271,13 @@ assert.deepEqual([skeletons.length, blocks.length, headers, buttons.length], [1,
 assert.deepEqual(closes.map((one) => one.label), ['Close, back to Laptop']);
 
 reads.remote = { data: [remote('fghij'), remote('abcde')], error: null };
+laptop();
+assert.deepEqual([headers, blocks.length, toolLists], [[], 1, [{ id: 'conn0000001', verifiedAt: null }]], 'a placeholder title while the tools of its connector load');
+reads.tools = { data: [{ name: 'create_page', title: 'Add a page' }], error: null };
 const html = laptop();
-assert.deepEqual(headers, ['Create page']);
+assert.deepEqual(headers, ['Add a page']);
 assert.deepEqual(facts(), [['Connector', 'Notion'], ['Asked', '1 min ago']]);
-assert.deepEqual(marks(), [{ name: 'Notion', url: 'https://mcp.notion.com' }]);
+assert.deepEqual(marks(), [{ name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null }]);
 closes[0].onPress();
 assert.deepEqual(went.splice(0), [{ kind: 'home', project: LAPTOP }]);
 assert.ok(html.includes('Plan for March'));
