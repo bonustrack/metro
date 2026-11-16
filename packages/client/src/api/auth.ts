@@ -281,7 +281,7 @@ function organizationToken(session: number, organization: string, check: () => v
     if (current.organization === organization) return current.accessToken;
     if (current.organization === null) throw new Error('Select a source organization first.');
     check();
-    const next = rotated(await rotate('/switch', { organization, refreshToken: current.refreshToken }, current.accessToken), current, scope, organization);
+    const next = rotated(await rotate('/switch', { organization, refreshToken: current.refreshToken, remember: false }, current.accessToken), current, scope, organization);
     keepOrganizationAccount(next, scope);
     if (tokenExpiring(next.accessToken)) throw new Error('The organization access token has expired. Try again.');
     return next.accessToken;

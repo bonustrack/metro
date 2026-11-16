@@ -136,17 +136,18 @@ export interface RenewRequest {
   refreshToken: string;
   organization?: string;
   expectUser?: string;
+  remember?: boolean;
   address: string;
 }
 
-export async function renewSession(deps: AccountDeps, { refreshToken, organization, expectUser, address }: RenewRequest): Promise<Tokens> {
+export async function renewSession(deps: AccountDeps, { refreshToken, organization, expectUser, remember: chosen, address }: RenewRequest): Promise<Tokens> {
   const held = isMetroRefreshToken(refreshToken) ? await rotated(deps, refreshToken) : await exchanged(deps, refreshToken, address);
   if (expectUser !== undefined && held.user.id !== expectUser) {
     log.warn({ bearer: expectUser, session: held.sessionId }, 'auth: a refresh token of another user was sent with this sign-in');
     throw ended();
   }
   const place = await placed(deps, held.user.id, organization);
-  await remember(deps, held.user.id, place);
+  if (chosen === true) await remember(deps, held.user.id, place);
   return mint(deps, held, place);
 }
 

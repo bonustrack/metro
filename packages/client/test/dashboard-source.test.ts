@@ -194,20 +194,20 @@ describe('passive dashboard network source', () => {
     expect(await network.token('org-a', signal())).toBe(original.accessToken);
     expect(await network.token('org-b', signal())).toBe(destination);
     expect(await network.token('org-b', signal())).toBe(destination);
-    expect(bodies).toEqual([{ organization: 'org-b', refreshToken: 'rt_test' }]);
+    expect(bodies).toEqual([{ organization: 'org-b', refreshToken: 'rt_test', remember: false }]);
     expect(activeAccount()).toMatchObject({ organization: 'org-a', role: 'member', accessToken: original.accessToken, refreshToken: 'rt-destination-1' });
     expect(accountScopeIdentity()).toBe(scope);
     network.forgetToken('org-b');
     expect(await network.token('org-b', signal())).toBe(destination);
     expect(bodies).toHaveLength(2);
-    expect(bodies[1]).toEqual({ organization: 'org-b', refreshToken: 'rt-destination-1' });
+    expect(bodies[1]).toEqual({ organization: 'org-b', refreshToken: 'rt-destination-1', remember: false });
     expect(seen.every((request) => request.redirect === 'error')).toBe(true);
     const switches = answer;
     answer = (request) => new URL(request.url).pathname === '/api/auth/organizations' ? json({ organizations: [row().organization] }) : switches(request);
     await network.organizations(signal());
     expect(await network.token('org-b', signal())).toBe(destination);
     expect(bodies).toHaveLength(3);
-    expect(bodies[2]).toEqual({ organization: 'org-b', refreshToken: 'rt-destination-2' });
+    expect(bodies[2]).toEqual({ organization: 'org-b', refreshToken: 'rt-destination-2', remember: false });
     expect(activeAccount()).toMatchObject({ organization: 'org-a', accessToken: original.accessToken, refreshToken: 'rt-destination-3' });
   });
 

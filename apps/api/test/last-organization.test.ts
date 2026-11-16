@@ -70,15 +70,19 @@ describe('where a sign-in lands', () => {
     expect(claimsOfToken(again.accessToken)).toMatchObject({ org_id: ORG, role: 'member' });
   });
 
-  test('a refresh with an organization and a new organization are choices too, a refresh without one is not', async () => {
+  test('a refresh and a switch the page marks as not chosen (the dashboard reading every organization) change nothing, a new organization does', async () => {
     await join(OTHER_ORG, NOW + 5);
     const first = await signIn();
     expect(first.organization).toBe(ORG);
     const refreshed = await body(await refresh(first.refreshToken, OTHER_ORG));
-    expect(await lastOf()).toBe(OTHER_ORG);
-    expect((await signIn()).organization).toBe(OTHER_ORG);
+    expect(refreshed.organization).toBe(OTHER_ORG);
+    expect(await lastOf()).toBe(ORG);
+    const read = await body(await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: refreshed.refreshToken, remember: false }, first.accessToken));
+    expect(read.organization).toBe(OTHER_ORG);
+    expect(await lastOf()).toBe(ORG);
+    expect((await signIn()).organization).toBe(ORG);
     await h.deps.users.setStatus(ana, 'approved');
-    const made = await body(await h.json('POST', '/api/auth/organization', { name: 'Ana Co', refreshToken: refreshed.refreshToken }, refreshed.accessToken));
+    const made = await body(await h.json('POST', '/api/auth/organization', { name: 'Ana Co', refreshToken: read.refreshToken }, read.accessToken));
     expect(await lastOf()).toBe(made.organization);
     expect((await body(await refresh(made.refreshToken))).organization).toBeNull();
     expect(await lastOf()).toBe(made.organization);
