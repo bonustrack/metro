@@ -1,5 +1,13 @@
 # Metro history
 
+## 2026-11-16: Signal session keys no longer reach the journal
+
+On Rosa the journal held 40 `train: bad JSON` warnings in two weeks, 9 of them with Signal session fields (`_chains`, `chainKey`, `messageKeys`, base64 keys). libsignal, inside Baileys, prints its session records with `console.info("Closing session:", session)`, `"Opening session:"` and `"Removing old closed session:"`, which Bun writes to stdout, the train's protocol channel; `console.warn("Session already closed", session)` goes to stderr. The daemon logged the first 200 characters of every stdout line it could not parse, and the JSON parser's own message quoted a token of that line.
+
+- `readCalls`, which every train calls, installs `quietConsole`: each `console` method writes only its first text argument to stderr, on one line and at most 200 characters, and drops every other argument. So `Closing session:` and `Failed to decrypt message with any known session...` stay visible and no object is ever printed. Trains write their protocol with `process.stdout.write`, never `console`, so nothing of the protocol changes.
+- `parseTrainLine` logs a line that is not JSON by its length only.
+- What is already in a box's journal stays there until journald rotates it; `journalctl --vacuum-time` as root clears it sooner.
+
 ## 2026-11-16: A worker's script can no longer push the agent's session out
 
 Rosa at MCI (`metro-vfdrga`, beta.329) had a big job on 13 November: find every loan contract of one company across a whole Vault folder tree. A worker wrote its own MCP client in Python (`/tmp/mc.py`, then a 3 to 4 thread `crawl.py`) with `METRO_AGENT_KEY` and `METRO_RUNNER_MCP_URL`, which every shell of the session inherits from the runner (`runnerEnv` passes the runner's environment to Claude Code). Each call of the script sent an `initialize`, and an `initialize` closed the box's one session, so the runner lost its chat stream and the answers of calls still in flight (the MCP SDK's transport `close()` clears pending responses). The runner's next request carried its old id, which was adopted and closed the script's session in turn. That went on about every 4 seconds from 11:32 to 21:40: 320,540 `session: opened` lines that day (11 on Lisa in two weeks), 3,832 on 5 November when the helper was written, and one chat message reached the session 26 minutes late. The agent saved the method in its memory notes.
