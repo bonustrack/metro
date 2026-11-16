@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-11-16: Two metro skill hashes were in the stage skill's list
+
+After beta.338 reached the MCI boxes, Rosa's `metro` skill was still the copy written on 14 November (the text of `79fafa18`), though that copy was never edited and the daemon replaces a shipped copy at boot. Its sha256 was in `PRIOR_STAGE`, the list for `STAGE.md`, not in `PRIOR_METRO`, so it matched nothing; the hash of the beta.336 text, added by #449 the same day, had gone to the same wrong list. Any box holding either text kept it. Both hashes are now in `PRIOR_METRO`, and `claude-setup.test.ts` keeps both shipped texts as fixtures and checks each is replaced by the current rules (and left alone as a stage skill). Lisa's copy is different: it was edited on 5 November (a paragraph on voice attachments), so Metro rightly leaves it alone and she does not get the new `metro` rules this way.
+
 ## 2026-11-16: Train lines are logged at their real level
 
 Every line a train wrote to stderr was logged as a warning (`log.warn({ train }, line)` in the supervisor), so Lisa's journal held 1,183 warnings between 2 and 16 November, most of them "connected", "state connecting -> connected", "train ready" and "delivered", and a train's own pino line arrived as a JSON string inside a warning. Real problems (a WhatsApp logout, a failed decryption) looked like the rest. The supervisor now reads a train's pino line with its own level, message and fields, and a text line is a warning only when it says something went wrong; everything else is info. Nothing is dropped: info is logged by default.
