@@ -153,6 +153,8 @@ const PRIOR_METRO: ReadonlySet<string> = new Set([
   '331fb985ea18a9071b90ce0099961f9bbaa83e2fa5faeb3a30cff03773275b9c',
   '174086a49888143b95312bcad34f17b52b3a35e1481efc804f86e4f939def9fb',
   '34865476e8a1f21e444c9582a6dd71b1e43b01877e0c76c7c81a234c4d6b37bd',
+  'f5d6ef607cd29afe5a86530c21b08aeab7bdb1ed52acd3efa0730f3b5ede67c1',
+  'd6d9beea3b5198b8e15f7ed781c5dc784271457bb82289cf12aa97e0ceb39b63',
 ]);
 const PRIOR_STAGE: ReadonlySet<string> = new Set([
   'dd7d30474765de3865ddc87c1cf3220161ded09502027cdff18597e5df0aab43',
@@ -166,8 +168,6 @@ const PRIOR_STAGE: ReadonlySet<string> = new Set([
   '4c727aa110c9023371cfb364f3304ad9db22cdf2501208ef1e42e6ccc245b00f',
   'f3901d8a4537441b1d7fe8e4073322a97b779472df6b4a8e0f2091ab5ab0ae09',
   'af22c346df478fd249cc6931d4cf1dab4e091682e422f1bd27af0a08781e189d',
-  'f5d6ef607cd29afe5a86530c21b08aeab7bdb1ed52acd3efa0730f3b5ede67c1',
-  'd6d9beea3b5198b8e15f7ed781c5dc784271457bb82289cf12aa97e0ceb39b63',
 ]);
 const PRIOR_MEMORY: ReadonlySet<string> = new Set(['08795399635c8cdec2b50cb4e336f89ae880f3997ae52560ef647a9cdc8f1b08']);
 

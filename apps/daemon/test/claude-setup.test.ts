@@ -37,6 +37,19 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+describe('a metro skill a box still holds from an earlier release', () => {
+  for (const shipped of ['metro-skill-shipped-79fafa18.md', 'metro-skill-shipped-812097cb.md']) {
+    test(`is replaced by the current rules (${shipped})`, () => {
+      ensureClaudeSetup(deps());
+      placeSkill('metro', readFileSync(join(import.meta.dir, shipped), 'utf8'));
+      expect(ensureClaudeSetup(deps()).skill).toBe('updated');
+      expect(readFileSync(skill('metro'), 'utf8')).toBe(readFileSync(join(SKILLS, 'METRO.md'), 'utf8'));
+      placeSkill('stage', readFileSync(join(import.meta.dir, shipped), 'utf8'));
+      expect(ensureClaudeSetup(deps()).stage).toBe('present');
+    });
+  }
+});
+
 describe('the Claude Code setup a metro box gets', () => {
   test('writes the worker agent, the metro, stage and memory skills, the privacy settings and metro hooks once, and leaves them alone after', () => {
     const first = ensureClaudeSetup(deps());
