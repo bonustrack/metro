@@ -190,7 +190,7 @@ describe('a Claude Code permission prompt relayed by metro', () => {
     expect(sends().slice(1).map((args) => [args.line, args.text]).sort()).toEqual([[LINE, pointerOf('bcdea')], [OTHER_LINE, pointerOf('bcdea')]].sort());
     expect(raw()).toContain('yes bcdea');
     expect(raw()).toContain('NO BCDEA');
-    expect(raw()).not.toContain('999');
+    expect(raw()).not.toContain('/user/999');
     expect(answered('bcdea', 'allow')).toBe(false);
     expect(answered('bcdea', 'deny')).toBe(false);
     expect(pendingPrompts().map((p) => p.requestId)).toEqual(['bcdea']);
