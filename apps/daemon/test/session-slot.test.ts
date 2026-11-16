@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'bun:test';
-import { SessionSlot } from '../src/mcp/session-slot.ts';
+import { describe, expect, spyOn, test } from 'bun:test';
+import { log } from '@metro-labs/core/log';
+import { CHURN_MAX, SessionSlot } from '../src/mcp/session-slot.ts';
 import type { RawGetSink } from '../src/mcp/raw-get-stream.ts';
 
 const identity = { kind: 'agent', agentId: 'agent000001' } as const;
@@ -75,7 +76,7 @@ describe('the shared inbound session slot', () => {
     }
   });
 
-  test('a tool-only second client replaces the main stream even with live events enabled', async () => {
+  test('opening the slot again replaces the main stream even with live events enabled (routing keeps other clients out)', async () => {
     const slot = new SessionSlot();
     const main = await slot.open(identity);
     const stream = sink();
@@ -88,6 +89,26 @@ describe('the shared inbound session slot', () => {
       expect(worker.streamAttached).toBe(false);
     } finally {
       await main.close();
+      await slot.close();
+    }
+  });
+
+  test('a session replaced again and again within a minute warns once', async () => {
+    let at = 5_000_000;
+    const slot = new SessionSlot(true, () => at);
+    const warn = spyOn(log, 'warn');
+    try {
+      for (let i = 0; i < CHURN_MAX * 2; i++) {
+        await slot.open(identity);
+        at += 1_000;
+      }
+      const churn = warn.mock.calls.filter((call) => String(call[1]).includes('replaced again and again'));
+      expect(churn.length).toBe(1);
+      at += 120_000;
+      for (let i = 0; i < 2; i++) await slot.open(identity);
+      expect(warn.mock.calls.filter((call) => String(call[1]).includes('replaced again and again')).length).toBe(1);
+    } finally {
+      warn.mockRestore();
       await slot.close();
     }
   });

@@ -1,4 +1,6 @@
-export const postInitialize = (url: string): Promise<Response> =>
+export const RUNNER = 'metro-sdk-runner';
+
+export const postInitialize = (url: string, client = 'probe'): Promise<Response> =>
   fetch(url, {
     method: 'POST',
     headers: {
@@ -12,13 +14,13 @@ export const postInitialize = (url: string): Promise<Response> =>
       params: {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'probe', version: '0.0.0' },
+        clientInfo: { name: client, version: '0.0.0' },
       },
     }),
   });
 
-export async function initSession(url: string): Promise<string> {
-  const res = await postInitialize(url);
+export async function initSession(url: string, client?: string): Promise<string> {
+  const res = await postInitialize(url, client);
   const sessionId = res.headers.get('mcp-session-id');
   await res.body?.cancel();
   if (!sessionId) throw new Error('no session id from initialize');

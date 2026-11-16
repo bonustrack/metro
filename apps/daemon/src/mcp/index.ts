@@ -16,8 +16,10 @@ import {
 } from './raw-get-stream.js';
 import { errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
-import { channelLog, type McpSession } from './session.js';
+import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { channelLog, RUNNER_CLIENT, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
+import { SideSessions } from './side-sessions.js';
 import { connectCallBridge } from './call-bridge.js';
 import { connectOwnerRoute, type OwnerRoute } from './owner-route.js';
 import { relayLine } from './permission-relay.js';
@@ -26,6 +28,12 @@ import { handleIncomingDiagnostic } from './diagnostics.js';
 import { onConnectorToolsChanged } from '../mcp-server/connector-tools.js';
 
 const isInitialize = (b: unknown): boolean => isRecord(b) && b.method === 'initialize';
+
+const clientName = (b: unknown): string | undefined => {
+  if (!isRecord(b) || !isRecord(b.params) || !isRecord(b.params.clientInfo)) return undefined;
+  const name = b.params.clientInfo.name;
+  return typeof name === 'string' ? name : undefined;
+};
 
 const MCP_BODY_MAX = 32 * 1024 * 1024;
 
@@ -55,25 +63,39 @@ async function readOrReject(
 }
 
 const NO_SESSION_HEADER = 'Bad Request: Mcp-Session-Id header is required';
+const SIDE_NO_STREAM = 'Method Not Allowed: only the agent session receives channel messages; this session can list and call tools';
+
+type Routed = { main: McpSession } | { side: StreamableHTTPServerTransport };
 
 async function resolveSession(
   slot: SessionSlot,
+  sides: SideSessions,
   req: IncomingMessage,
   body: unknown,
   identity: RequestIdentity,
   res: ServerResponse,
-): Promise<McpSession | undefined> {
-  if (isInitialize(body)) return slot.open(identity);
-  const presented = headerValue(req, 'mcp-session-id');
+): Promise<Routed | undefined> {
   const current = slot.current;
-  if (presented === undefined) {
-    if (current) return current;
-    channelLog('session: refused, no Mcp-Session-Id and no session');
-    res.writeHead(400).end(NO_SESSION_HEADER);
-    return undefined;
+  const held = current?.heldByRunner === true;
+  if (isInitialize(body)) {
+    if (held && clientName(body) !== RUNNER_CLIENT) return { side: await sides.start() };
+    return { main: await slot.open(identity) };
   }
-  if (current?.id === presented) return current;
-  return slot.open(identity, presented);
+  const presented = headerValue(req, 'mcp-session-id');
+  if (presented !== undefined) return byId(slot, sides, presented, identity);
+  if (current) return { main: current };
+  channelLog('session: refused, no Mcp-Session-Id and no session');
+  res.writeHead(400).end(NO_SESSION_HEADER);
+  return undefined;
+}
+
+async function byId(slot: SessionSlot, sides: SideSessions, presented: string, identity: RequestIdentity): Promise<Routed> {
+  const current = slot.current;
+  if (current?.id === presented) return { main: current };
+  const side = sides.find(presented);
+  if (side !== undefined) return { side };
+  if (current?.heldByRunner === true) return { side: await sides.start(presented) };
+  return { main: await slot.open(identity, presented) };
 }
 
 async function serveGet(
@@ -97,6 +119,7 @@ async function serveGet(
 }
 
 let activeSlot: SessionSlot | undefined;
+let activeSides: SideSessions | undefined;
 let stopToolNotices: (() => void) | undefined;
 
 const MODEL_NOTICE = 'notifications/metro/model';
@@ -121,8 +144,13 @@ export async function createMetroMcp(options: { liveEvents?: boolean; publish?: 
   switchModel: (model: string | null) => boolean;
 }> {
   await activeSlot?.close();
+  await activeSides?.closeAll();
   const slot = new SessionSlot(options.liveEvents);
   activeSlot = slot;
+  const sides = new SideSessions((id) => {
+    slot.current?.relay.noteSent(id);
+  });
+  activeSides = sides;
   stopToolNotices?.();
   stopToolNotices = onConnectorToolsChanged(() => {
     slot.current?.toolsChanged();
@@ -148,13 +176,18 @@ export async function createMetroMcp(options: { liveEvents?: boolean; publish?: 
     const parsed = await readOrReject(req, res);
     if (!parsed.ok) return;
     await runWithIdentity(identity, async () => {
-      const session = await resolveSession(slot, req, parsed.body, identity, res);
-      if (!session) return;
-      if (isStandaloneGet(req)) {
-        await serveGet(session, req, res);
+      const routed = await resolveSession(slot, sides, req, parsed.body, identity, res);
+      if (!routed) return;
+      if ('side' in routed) {
+        if (isStandaloneGet(req)) res.writeHead(405).end(SIDE_NO_STREAM);
+        else await routed.side.handleRequest(req, res, parsed.body);
         return;
       }
-      await session.transport.handleRequest(req, res, parsed.body);
+      if (isStandaloneGet(req)) {
+        await serveGet(routed.main, req, res);
+        return;
+      }
+      await routed.main.transport.handleRequest(req, res, parsed.body);
     });
   };
 

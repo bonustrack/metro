@@ -1,9 +1,11 @@
 /**
  * A box runs one agent, so the daemon holds one MCP session at a time. These
  * pin what that single slot still has to do, over real HTTP against the real
- * `createMetroMcp`: a new initialize supersedes, an unknown id is adopted,
- * a message sent while the agent was away is replayed, and a line whose
- * account maps to no agent is never delivered.
+ * `createMetroMcp`: the runner initializing again supersedes, an unknown id is
+ * adopted, a message sent while the agent was away is replayed, a line whose
+ * account maps to no agent is never delivered, and another client on the box
+ * (a worker's script) gets a tools-only side session that never takes the
+ * agent's stream.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
@@ -14,7 +16,7 @@ import { setKeyMap } from '../src/agents/keys.ts';
 import { setAgentMap } from '../src/agents/map.ts';
 import { asLine } from '@metro-labs/core/lines';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
-import { initSession, openGet } from './mcp-probe.ts';
+import { initSession, openGet, RUNNER } from './mcp-probe.ts';
 import { settle, waitFor } from './wait.ts';
 
 const TOKEN = 'mk_one_tony';
@@ -75,10 +77,10 @@ const toolsList = (sessionId?: string): Promise<Response> =>
 
 describe('one session per box', () => {
   test('a second initialize supersedes the first and ends its stream', async () => {
-    const first = await initSession(url());
+    const first = await initSession(url(), RUNNER);
     const old = await openGet(url(), first);
     await settle(150);
-    const second = await initSession(url());
+    const second = await initSession(url(), RUNNER);
     expect(second).not.toBe(first);
     await waitFor(() => old.ended());
     expect(old.ended()).toBe(true);
@@ -103,7 +105,7 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a line whose account maps to no agent is never delivered', async () => {
-    const sessionId = await initSession(url());
+    const sessionId = await initSession(url(), RUNNER);
     const stream = await openGet(url(), sessionId);
     await settle(150);
     const stray = `stray-${randomUUID()}`;
@@ -119,7 +121,7 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a gap message arrives after reconnecting a dropped stream', async () => {
-    const sessionId = await initSession(url());
+    const sessionId = await initSession(url(), RUNNER);
     const first = await openGet(url(), sessionId);
     await settle(150);
     await first.stop();
@@ -137,7 +139,7 @@ describe('one session per box', () => {
   }, 30000);
 
   test('a gap message survives a full re-initialize', async () => {
-    const firstSession = await initSession(url());
+    const firstSession = await initSession(url(), RUNNER);
     const first = await openGet(url(), firstSession);
     await settle(150);
     await first.stop();
@@ -147,7 +149,7 @@ describe('one session per box', () => {
     publishEvent(msg(LINE, gap));
     await settle(150);
 
-    const secondSession = await initSession(url());
+    const secondSession = await initSession(url(), RUNNER);
     const second = await openGet(url(), secondSession);
     await waitFor(() => second.raw().includes(gap));
     const body = second.raw();
@@ -155,8 +157,75 @@ describe('one session per box', () => {
     expect(body).toContain(gap);
   }, 30000);
 
+  test('another client on the box gets a side session and the agent keeps its stream', async () => {
+    const agent = await initSession(url(), RUNNER);
+    const stream = await openGet(url(), agent);
+    await settle(150);
+    const script = await initSession(url());
+    expect(script).not.toBe(agent);
+    const listed = await toolsList(script);
+    expect(listed.status).toBe(200);
+    expect(await listed.text()).toContain('"tools"');
+    await settle(150);
+    expect(stream.ended()).toBe(false);
+    const text = `while-a-script-runs-${randomUUID()}`;
+    publishEvent(msg(LINE, text));
+    await waitFor(() => stream.raw().includes(text));
+    expect(stream.raw()).toContain(text);
+    await stream.stop();
+  }, 30000);
+
+  test('a side session cannot open a channel stream', async () => {
+    const agent = await initSession(url(), RUNNER);
+    const stream = await openGet(url(), agent);
+    await settle(150);
+    const script = await initSession(url());
+    const sideStream = await openGet(url(), script);
+    expect(sideStream.status).toBe(405);
+    await sideStream.stop();
+    await settle(150);
+    expect(stream.ended()).toBe(false);
+    await stream.stop();
+  }, 30000);
+
+  test('an unknown id becomes a side session while the agent holds the slot', async () => {
+    const agent = await initSession(url(), RUNNER);
+    const stream = await openGet(url(), agent);
+    await settle(150);
+    const stale = randomUUID();
+    const first = await toolsList(stale);
+    expect(first.status).toBe(200);
+    expect(first.headers.get('mcp-session-id')).toBe(stale);
+    await first.text();
+    const again = await toolsList(stale);
+    expect(again.status).toBe(200);
+    await again.text();
+    await settle(150);
+    expect(stream.ended()).toBe(false);
+    await stream.stop();
+  }, 30000);
+
+  test('many script sessions in a row never end the agent stream', async () => {
+    const agent = await initSession(url(), RUNNER);
+    const stream = await openGet(url(), agent);
+    await settle(150);
+    for (let i = 0; i < 12; i++) {
+      const script = await initSession(url());
+      const listed = await toolsList(script);
+      expect(listed.status).toBe(200);
+      await listed.text();
+    }
+    await settle(150);
+    expect(stream.ended()).toBe(false);
+    const text = `after-a-storm-${randomUUID()}`;
+    publishEvent(msg(LINE, text));
+    await waitFor(() => stream.raw().includes(text));
+    expect(stream.raw()).toContain(text);
+    await stream.stop();
+  }, 30000);
+
   test('a new model from the Gateway page reaches the session holding the slot, only while its stream is open', async () => {
-    const sessionId = await initSession(url());
+    const sessionId = await initSession(url(), RUNNER);
     expect(switchModel('openrouter:anthropic/claude-sonnet-5.5')).toBe(false);
     const stream = await openGet(url(), sessionId);
     await settle(150);

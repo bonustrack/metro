@@ -22,6 +22,8 @@ export const channelLog = (...a: unknown[]): void => {
   console.error('[metro-mcp]', ...a);
 };
 
+export const RUNNER_CLIENT = 'metro-sdk-runner';
+
 const getStations = (): Set<string> => new Set(accountStationNames());
 
 const senderAllowed = (from: string, line: string, verified?: boolean): boolean =>
@@ -32,14 +34,14 @@ async function pointToApproval(id: string, line: string): Promise<void> {
   await metroSend(line, `Approval ${id} is answered on metro.box, not in chat: ${approvalLinkOf(id)}`);
 }
 
-function makeTransport(
+export function sessionTransport(
   id: string,
-  eventStore: BoundedEventStore,
+  eventStore: BoundedEventStore | undefined,
   adopted: boolean,
 ): StreamableHTTPServerTransport {
   const t = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => id,
-    eventStore,
+    ...(eventStore === undefined ? {} : { eventStore }),
   });
   if (!adopted) return t;
   const inner = web(t);
@@ -62,6 +64,7 @@ export interface SessionInit {
 export class McpSession {
   readonly id: string;
   readonly scope: Set<string>;
+  readonly adopted: boolean;
   readonly eventStore: BoundedEventStore;
   readonly transport: StreamableHTTPServerTransport;
   readonly server: Server;
@@ -82,11 +85,12 @@ export class McpSession {
   private constructor(init: SessionInit) {
     this.id = init.id;
     this.scope = init.scope;
+    this.adopted = init.adopted;
     this.live = init.live;
     this.issuedSchema = init.adopted ? undefined : toolSchemaSignature();
     this.onClosed = init.onClosed;
     this.eventStore = new BoundedEventStore();
-    this.transport = makeTransport(init.id, this.eventStore, init.adopted);
+    this.transport = sessionTransport(init.id, this.eventStore, init.adopted);
     this.server = new Server(
       { name: 'metro', version: '0.1.0' },
       { capabilities: { tools: { listChanged: true } }, instructions: MCP_INSTRUCTIONS },
@@ -145,6 +149,11 @@ export class McpSession {
     return this.sink !== undefined && !this.sink.closed;
   }
 
+  get heldByRunner(): boolean {
+    if (this.closed) return false;
+    return this.server.getClientVersion()?.name === RUNNER_CLIENT || (this.adopted && this.streamAttached);
+  }
+
   get currentSink(): RawGetSink | undefined {
     return this.sink;
   }
@@ -196,7 +205,7 @@ export class McpSession {
   }
 
   private announceCallState(): void {
-    if (!this.streamAttached || this.server.getClientVersion()?.name !== 'metro-sdk-runner') return;
+    if (!this.streamAttached || this.server.getClientVersion()?.name !== RUNNER_CLIENT) return;
     const active = sharedCalls.snapshot();
     const route = active !== null && this.scope.has(active.agentId) && eventInScope(this.scope, active.line) ? active : null;
     this.server.notification({ method: CALL_STATE, params: { route, ...(route === null ? {} : { meta: { line: route.line } }) } }).catch((err: unknown) => {
