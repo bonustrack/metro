@@ -1,6 +1,6 @@
 # Copying WorkOS into Metro's own tables
 
-Metro is leaving WorkOS and will keep its organizations, users and members itself (decided 2026-11-16). Step 2 added the tables (`apps/api/drizzle/0028_own_accounts.sql`, see CLAUDE.md, Database) and a one-time export that fills them from WorkOS. Nothing reads these tables yet: sign-in, members and invitations still go through WorkOS until a later step switches them over.
+Metro is leaving WorkOS and will keep its organizations, users and members itself (decided 2026-11-16). Step 2 added the tables (`apps/api/drizzle/0028_own_accounts.sql`, see CLAUDE.md, Database) and a one-time export that fills them from WorkOS. They are read once api.metro.box runs with `METRO_ACCOUNTS=metro` (step 3 of `docs/OWN-ACCOUNTS.md`, which has the flip checklist); until then sign-in, members and invitations still go through WorkOS.
 
 ## What it copies
 
@@ -22,6 +22,6 @@ fly ssh console -a metro
 cd /app && bun apps/api/scripts/workos-sync.ts
 ```
 
-That is a dry run: it reads WorkOS and the database, writes nothing, and prints the WorkOS counts, the changes per table, every difference (`+` added, `~` changed, `-` removed), the people who need another sign-in and the warnings. Run it again with `--apply` to write everything in one transaction; any failure rolls the whole write back. A second run after `--apply` prints `Metro already matches WorkOS.`, so it can be run again right before the switch.
+That is a dry run: it reads WorkOS and the database, writes nothing, and prints the WorkOS counts, the changes per table, every difference (`+` added, `~` changed, `-` removed), the people who need another sign-in and the warnings. Run it again with `--apply` to write everything in one transaction; any failure rolls the whole write back. A second run after `--apply` prints `Metro already matches WorkOS.`, so it can be run again right before the switch. With `METRO_ACCOUNTS=metro` only the dry run works: `--apply` is refused, since Metro is the source then.
 
 The code is `apps/api/src/workos-sync/` (`snapshot.ts` reads WorkOS, `plan.ts` compares, `apply.ts` writes, `report.ts` prints) and `apps/api/test/workos-sync.test.ts` drives it against the fake WorkOS and PGlite.
