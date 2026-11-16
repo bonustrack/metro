@@ -87,12 +87,12 @@ function useRemoteRows(remotes: RemoteServer[]): AgentRow[] {
     return read === undefined || read.error !== null ? [] : read.data ?? [];
   });
   const firsts = pendings.map((pending) => pending[0]);
-  const cards = firsts.map((first) => (first === undefined ? null : approvalCard(first.approval)));
+  const items = firsts.map((first) => (first === undefined ? null : { approval: first.approval, card: approvalCard(first.approval) }));
   const named = firsts.map((first) => (first === undefined ? null : remoteConnector(first)));
-  const titles = useApprovalTitles(cards, named);
+  const titles = useApprovalTitles(items, named);
   return remotes.map((server, i): AgentRow => {
     const pending = pendings[i] ?? [];
-    const card = cards[i] ?? null;
+    const card = items[i]?.card ?? null;
     const line = remoteLine(pending.length, card === null ? null : approvalAsk(card, named[i], titles[i]), counts[i] ?? null);
     return { server, name: serverLabel(server), line, waiting: pending.length, status: undefined, trouble: null };
   });
@@ -119,13 +119,13 @@ function useBoxRows(servers: BoxServer[]): AgentRow[] {
   const counts = servers.map((_, i) => waitingCount(approvals[i], live[i] === true) ?? 0);
   const firsts = servers.map((_, i) => ((counts[i] ?? 0) > 0 ? approvals[i]?.data?.[0] : undefined));
   const connectors = useOrgConnectorsQuery(undefined, firsts.some(keyedApproval));
-  const cards = firsts.map((first) => (first === undefined ? null : approvalCard(first)));
-  const named = cards.map((card, i) => namedOf(card, servers[i]?.id ?? null, connectors));
-  const titles = useApprovalTitles(cards, named);
+  const items = firsts.map((first) => (first === undefined ? null : { approval: first, card: approvalCard(first) }));
+  const named = items.map((item, i) => namedOf(item?.card ?? null, servers[i]?.id ?? null, connectors));
+  const titles = useApprovalTitles(items, named);
   const rows = servers.map((server, i): AgentRow => {
     const name = serverLabel(server);
     const count = counts[i] ?? 0;
-    const card = cards[i] ?? null;
+    const card = items[i]?.card ?? null;
     const status = statuses[i]?.data;
     const setup = knownSetup(name, models[i], stations[i], projects[i], status);
     const trouble = channelTrouble(stations[i]?.groups)[0] ?? null;

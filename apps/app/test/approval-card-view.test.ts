@@ -101,11 +101,29 @@ assert.deepEqual([asked, toolsAsked, blocks.length], [[false], [[{ id: 'conn0000
 assert.ok(shown.includes('Write a draft'));
 tools = { data: undefined, error: new Error('Failed to reach Metro.') };
 shown = card(draft, { connector: { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null } });
+assert.ok(shown.includes('Write a draft') && !shown.includes('Create draft'), 'a title once shown stays for that approval');
+shown = card({ ...draft, id: 'bcdef' }, { connector: { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null } });
 assert.ok(shown.includes('Create draft') && blocks.length === 0, 'the title from the tool name when the tools cannot be read');
 
 shown = card({ tool: 'mcp__metro__send', preview: '{"line":"metro://telegram-bot/t1/42","text":"Hi"}', line: 'metro://telegram-bot/t1/42' });
 assert.deepEqual([asked, favicons, blocks.length], [[false], [], 0]);
 assert.ok(shown.includes('Telegram bot · t1'));
+
+const notion = { name: 'Notion', url: 'https://mcp.notion.com', id: 'conn0000001', verifiedAt: null };
+tools = { data: undefined, error: null };
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(!shown.includes('Create draft') && blocks.length === 1, 'a placeholder while a slow tool list loads');
+const realNow = Date.now;
+Date.now = () => realNow() + 2_000;
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(!shown.includes('Create draft') && blocks.length === 1, 'still the placeholder before 3 seconds');
+Date.now = () => realNow() + 3_000;
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(shown.includes('Create draft') && blocks.length === 0, 'the title from the tool name after 3 seconds');
+tools = { data: [{ name: 'create_draft', title: 'Write a draft' }], error: null };
+shown = card({ ...draft, id: 'cdefg' }, { connector: notion });
+assert.ok(shown.includes('Create draft') && !shown.includes('Write a draft'), 'never switched once shown');
+Date.now = realNow;
 `;
 
 function verify(program: string): void {

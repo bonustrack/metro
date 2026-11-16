@@ -189,7 +189,7 @@ interface ShownPageProps<T> {
 
 function ShownPage<T>({ project, item, shown, decision, answers }: ShownPageProps<T>): ReactNode {
   const card = approvalCard(shown.approval);
-  const title = useApprovalTitle(card, shown.connector);
+  const title = useApprovalTitle(shown.approval, card, shown.connector);
   return (
     <ApprovalFrame project={project}>
       <Column gap={8}>

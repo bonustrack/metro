@@ -249,13 +249,17 @@ box();
 assert.deepEqual([headers, blocks.length], [['Write a draft'], 0], 'the title the connector gives its tool');
 reads.tools = { data: undefined, error: new Error('Failed to reach Metro.') };
 box();
+assert.deepEqual(headers, ['Write a draft'], 'a title once shown stays for that approval');
+reads.approvals = { data: [drafted({ id: 'bcdef', requestedBy: 'access key "Claude Code"' })], error: null };
+box('bcdef');
 assert.deepEqual(headers, ['Create draft'], 'the title from the tool name when its tools cannot be read');
 
+reads.approvals = { data: [drafted({ id: 'cdefg', requestedBy: 'access key "Claude Code"' })], error: null };
 reads.connectors = { data: { connectors: [{ ...gmail, agents: [{ id: LAPTOP }] }], admin: true }, error: null };
-box();
+box('cdefg');
 assert.deepEqual([facts()[0], marks(), headers], [['Connector', 'gmail-fabien-bonustrack-co'], [null], ['Create draft']]);
 reads.connectors = { data: undefined, error: new Error('Failed to reach Metro.') };
-box();
+box('cdefg');
 assert.deepEqual([facts()[0], marks()], [['Connector', 'gmail-fabien-bonustrack-co'], [null]]);
 
 reads.approvals = { data: [drafted({ requestedBy: 7 })], error: null };

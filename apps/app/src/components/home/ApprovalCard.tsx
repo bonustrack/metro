@@ -219,7 +219,7 @@ export function ApprovalCardView({ approval, context, project, decide, connector
   const boxDecide = useBoxDecide(approval.id);
   const card = approvalCard(approval);
   const named = useNamedConnector(card.connector, connector);
-  const title = useApprovalTitle(card, named);
+  const title = useApprovalTitle(approval, card, named);
   const others = useOthers(approval, context);
   const naming = card.connector !== null && named === undefined;
   const where = naming ? undefined : approvalWhere(card, context.groups, named);
