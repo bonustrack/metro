@@ -1,7 +1,7 @@
 import { ApiError } from '@metro-labs/http/api-error';
 import type { Database } from '../db/client.js';
 import { allOrganizations, createOrganizationRow, organizationNameOf, renameOrganizationRow, setUserName } from '../db/directory-rows.js';
-import { addMember, membersOf, oldestMembership, organizationsOf, removeMember, setMemberRole, type OrganizationMember } from '../db/memberships.js';
+import { addMember, landingMembership, membersOf, organizationsOf, rememberOrganization, removeMember, setMemberRole, type OrganizationMember } from '../db/memberships.js';
 import type { AccountsMode } from './accounts-mode.js';
 import * as workos from './workos.js';
 import type { Invitation, Member, OrganizationSummary, Role, UserOrganization, WorkosConfig } from './workos.js';
@@ -18,6 +18,7 @@ export interface Directory {
   userOrganizations: (user: string) => Promise<UserOrganization[]>;
   userMemberships: (user: string) => Promise<Pick<UserOrganization, 'id' | 'role'>[]>;
   landingOrganization: (user: string) => Promise<Pick<UserOrganization, 'id' | 'role'> | null>;
+  rememberOrganization: (user: string, organization: string) => Promise<void>;
   listMembers: (organization: string) => Promise<Member[]>;
   listInvitations: (organization: string) => Promise<Invitation[]>;
   listOrganizations: () => Promise<OrganizationSummary[]>;
@@ -41,6 +42,7 @@ export function workosDirectory(config: () => WorkosConfig | null): Directory {
     userOrganizations: (user) => workos.userOrganizations(cfg(), user),
     userMemberships: (user) => workos.userMemberships(cfg(), user),
     landingOrganization: async (user) => (await workos.userMemberships(cfg(), user))[0] ?? null,
+    rememberOrganization: () => Promise.resolve(),
     listMembers: (organization) => workos.listMembers(cfg(), organization),
     listInvitations: (organization) => workos.listInvitations(cfg(), organization),
     listOrganizations: () => workos.listOrganizations(cfg()),
@@ -81,7 +83,8 @@ export function metroDirectory(db: () => Database, now: () => number = Date.now)
     organizationName: (id) => organizationNameOf(db(), id),
     userOrganizations: async (user) => (await organizationsOf(db(), user)).map((o) => ({ id: o.id, name: o.name, role: o.role })),
     userMemberships: async (user) => (await organizationsOf(db(), user)).map((o) => ({ id: o.id, role: o.role })),
-    landingOrganization: (user) => oldestMembership(db(), user),
+    landingOrganization: (user) => landingMembership(db(), user),
+    rememberOrganization: (user, organization) => rememberOrganization(db(), user, organization),
     listMembers: (organization) => members(db(), organization),
     listInvitations: () => Promise.resolve([]),
     listOrganizations: () => allOrganizations(db()),

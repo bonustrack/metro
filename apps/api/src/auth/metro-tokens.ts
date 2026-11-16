@@ -1,4 +1,4 @@
-import { log } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { createSession, isMetroRefreshToken, revokeSession, rotateSession, type SessionMethod } from '../db/auth-sessions.js';
 import type { Database } from '../db/client.js';
@@ -67,6 +67,15 @@ function mint(deps: AccountDeps, held: Held, place: Placement | null): Tokens {
 
 export const landingOrganization = (deps: AccountDeps, user: string): Promise<Placement | null> => directoryOf(deps).landingOrganization(user);
 
+async function remember(deps: AccountDeps, user: string, place: Placement | null): Promise<void> {
+  if (place === null) return;
+  await directoryOf(deps)
+    .rememberOrganization(user, place.id)
+    .catch((err: unknown) => {
+      log.warn({ user, organization: place.id, err: errMsg(err) }, 'auth: the organization the user is in was not kept for the next sign-in');
+    });
+}
+
 async function placed(deps: AccountDeps, user: string, organization: string | undefined): Promise<Placement | null> {
   if (organization === undefined) return null;
   const found = (await directoryOf(deps).userOrganizations(user)).find((o) => o.id === organization);
@@ -84,6 +93,7 @@ export async function startSession(deps: AccountDeps, user: UserLogin, method: S
   signingOf(deps);
   const made = await createSession(dbOf(deps), { user: user.id, method, now: nowOf(deps), ...(link === undefined ? {} : { link }) });
   log.info({ user: user.id, session: made.session.id, method, link }, 'auth: Metro session started');
+  await remember(deps, user.id, place);
   return mint(deps, { sessionId: made.session.id, refreshToken: made.refreshToken, user }, place);
 }
 
@@ -135,7 +145,9 @@ export async function renewSession(deps: AccountDeps, { refreshToken, organizati
     log.warn({ bearer: expectUser, session: held.sessionId }, 'auth: a refresh token of another user was sent with this sign-in');
     throw ended();
   }
-  return mint(deps, held, await placed(deps, held.user.id, organization));
+  const place = await placed(deps, held.user.id, organization);
+  await remember(deps, held.user.id, place);
+  return mint(deps, held, place);
 }
 
 export async function endSession(deps: AccountDeps, sessionId: string): Promise<boolean> {

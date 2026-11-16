@@ -16,6 +16,7 @@ export const users = pgTable(
     createdAt: text('created_at'),
     lastLoginAt: text('last_login_at'),
     status: text('status'),
+    lastOrganization: text('last_organization'),
   },
   (t) => [uniqueIndex('users_email_idx').on(sql`lower(${t.email})`)],
 );
