@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { isRecord } from '@metro-labs/core/is-record';
 import { inlineImage, partText, resultImages, resultParts, resultText, TOOL_ERROR, type InlineImage } from './text.js';
 import { stringOf } from '@metro-labs/http/api-http';
+import { budgetLevel } from './effort.js';
 
 const SIGNATURE_PREFIX = 'metro-codex:';
 const DEFAULT_EFFORT = 'medium';
@@ -181,11 +182,7 @@ function codexEffort(effort: unknown): string | null {
 
 const configuredEffort = (body: Item): string | null => codexEffort(isRecord(body.output_config) ? body.output_config.effort : undefined);
 
-function budgetEffort(budget: number, unasked: string | null): string {
-  if (budget > 0 && budget <= 4_000) return 'low';
-  if (budget > 16_000) return 'high';
-  return budget > 0 ? DEFAULT_EFFORT : (codexEffort(unasked) ?? DEFAULT_EFFORT);
-}
+const budgetEffort = (budget: number, unasked: string | null): string => budgetLevel(budget) ?? codexEffort(unasked) ?? DEFAULT_EFFORT;
 
 export function effortOf(body: Item, unasked: string | null = null): string {
   const configured = configuredEffort(body);

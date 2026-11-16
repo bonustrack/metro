@@ -11,6 +11,7 @@ const REQUEST_CLASS_HEADER = 'x-claude-code-request-class';
 const COMPACTION_CLASS = 'compaction';
 const COMPACT_PROMPT = 'CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.';
 const ABOVE_HIGH = new Set(['xhigh', 'max']);
+const SENT_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 export type RequestKind = 'main' | 'subagent' | 'compact' | 'other';
 
@@ -103,6 +104,23 @@ export const thinkingOff = (body: Body): boolean => record(body.thinking).type =
 function thinkingBudget(body: Body): number {
   const budget = record(body.thinking).budget_tokens;
   return typeof budget === 'number' ? budget : 0;
+}
+
+export function budgetLevel(budget: number): string | null {
+  if (budget > 16_000) return 'high';
+  if (budget > 4_000) return 'medium';
+  return budget > 0 ? 'low' : null;
+}
+
+function namedEffort(body: Body): string | null {
+  const reasoning = record(body.reasoning).effort;
+  if (typeof reasoning === 'string') return reasoning;
+  return askedEfforts(body).at(-1) ?? budgetLevel(thinkingBudget(body));
+}
+
+export function sentEffort(body: Body): string | null {
+  const effort = namedEffort(body);
+  return effort !== null && SENT_EFFORTS.has(effort) ? effort : null;
 }
 
 export function unaskedEffort(body: Body, setting: RouteEffort, kind: RequestKind): string | null {

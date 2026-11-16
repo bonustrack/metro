@@ -273,6 +273,7 @@ export const modelCalls = pgTable(
     ms: integer('ms').notNull(),
     firstTokenMs: integer('first_token_ms'),
     at: bigint('at', { mode: 'number' }).notNull(),
+    effort: text('effort'),
   },
   (t) => [
     index('model_calls_owner_at_idx').on(t.owner, t.at.desc(), t.id.desc()),

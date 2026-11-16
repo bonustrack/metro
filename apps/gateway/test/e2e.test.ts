@@ -168,6 +168,7 @@ describe('usage, never content', () => {
         cacheWrite5mTokens: 100,
         cacheWrite1hTokens: 200,
         costMicros: 2294,
+        effort: null,
       });
       expect(JSON.stringify(await held.db.select().from(modelCalls))).not.toContain(CANARY);
       expect(JSON.stringify(logged)).not.toContain(CANARY);
@@ -201,7 +202,7 @@ describe('usage, never content', () => {
     const res = await ask({ 'x-api-key': gatewayKey.key }, 'metro');
     expect(res.status).toBe(503);
     await res.text();
-    expect((await rows()).map((r) => [r.outcome, r.connection, r.status])).toEqual([['no_route', null, 503]]);
+    expect((await rows()).map((r) => [r.outcome, r.connection, r.status, r.effort])).toEqual([['no_route', null, 503, null]]);
   });
 
   test('counting tokens is not recorded', async () => {
@@ -222,10 +223,10 @@ describe('a Codex call that asks no effort', () => {
       ['gpt-6.1-sol', 'xhigh'],
       ['gpt-6.1-sol', 'low'],
     ]);
-    expect((await rows()).map((r) => [r.provider, r.kind, r.outcome]).sort()).toEqual([
-      ['codex', 'external', 'ok'],
-      ['codex', 'external', 'ok'],
-      ['codex', 'main', 'ok'],
+    expect((await rows()).map((r) => [r.provider, r.kind, r.outcome, r.effort]).sort()).toEqual([
+      ['codex', 'external', 'ok', 'low'],
+      ['codex', 'external', 'ok', 'xhigh'],
+      ['codex', 'main', 'ok', 'low'],
     ]);
   });
 });

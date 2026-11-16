@@ -4,6 +4,7 @@ import { arch, platform, release } from 'node:os';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { stringOf } from '@metro-labs/http/api-http';
+import { currentAttempt } from './attempts.js';
 import { codexVersion, learnCodexVersion } from './codex-version.js';
 import { CodexEventTranslator, withUsageLink } from './codex-stream.js';
 import { ToolNames, toResponsesRequest } from './codex-translate.js';
@@ -83,6 +84,7 @@ export function forgetCacheRefusals(): void {
 function send(call: Call, access: CodexAccess, cacheOptions: boolean): Promise<Response> {
   const translated = toResponsesRequest(call.body, call.model, { promptCacheKey: call.threadKey, names: call.names, unaskedEffort: call.unaskedEffort });
   const request = cacheOptions ? { ...translated, [CACHE_FIELD]: CACHE_OPTIONS } : translated;
+  currentAttempt()?.effortSent(translated.reasoning.effort);
   return (call.deps.fetchImpl ?? fetch)(`${baseFor(access, call.deps)}/responses`, {
     method: 'POST',
     headers: headersFor(access, call.threadKey),
