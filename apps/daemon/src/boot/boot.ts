@@ -31,6 +31,7 @@ import { removeConnectorLeftovers } from '../connectors/leftovers.js';
 import { removeMailLeftovers } from './mail-leftovers.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { prepareAgentRunner, provisionAgentUser } from '../agent-user/provision.js';
+import { tryPythonCommand } from '../agent-user/python-command.js';
 import { blockImds } from '../metro-user/imds.js';
 import { followRelease } from '../metro-user/root-follow.js';
 import { unwatchSession, watchSession } from '../claude/session.js';
@@ -205,6 +206,7 @@ async function startClaude(): Promise<void> {
   if (agentUser === 'ready') {
     blockImds();
     followRelease();
+    tryPythonCommand();
   }
   tryClaudeSetup();
   try { githubSkills().watch(); } catch { log.warn('github-skills: saved source could not be loaded'); }

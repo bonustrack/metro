@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-11-16: The agent has a python command
+
+On Lisa 36 shell calls failed with `python: command not found` between 2 and 16 November: Ubuntu ships only `python3`, and the model keeps typing `python`. Each failure cost a worker turn. The daemon now gives the agent a `python` in `~/.local/bin` (first on its path) that runs `/usr/bin/python3`, only when no `python` answers and nothing is at that place, written as the agent through `home-fs`. Installing `python-is-python3` would have needed a new root helper command, which every box would then have to follow.
+
 ## 2026-11-16: The main thread talks to its workers and sends their files itself
 
 On Lisa at MCI, 61 of 164 workers started from the main thread between 2 and 16 November (37%) were couriers: "Relay…", "Upload…", "…weitergeben", "…beim Owner", median 38 s and 4 model requests each, plus a main-thread turn before and after. Two rules caused them. The guard did not count `SendMessage` as orchestration, so all 8 of the main thread's attempts to pass a follow-up to the worker that owned a task were denied, and it started a new worker to relay the message instead. And the `metro` skill, the MCP instructions and the `send` schema said a file goes out through `create_upload` plus a curl that only a worker can run, and that `path` is read "on the daemon host, which is almost never your machine", words from the hosted daemon era. Every daemon is local now and a `path` attachment is read on the box with the agent's own rights (`fromPathAs`).
