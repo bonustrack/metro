@@ -14,7 +14,7 @@ import { makeEmit } from '../src/routes/http.ts';
 import { bootDaemon, type Daemon } from './http-harness.ts';
 import { approvalIdIn } from './approval-id.ts';
 import { auth, TEST_OWNER } from './identity-helper.ts';
-import { openGet, type GetStream } from './mcp-probe.ts';
+import { openGet, RUNNER, type GetStream } from './mcp-probe.ts';
 import { waitFor } from './wait.ts';
 
 export const AGENT = 'agent000001';
@@ -99,7 +99,7 @@ export class AsksHarness {
     await this.initialize();
   }
 
-  async initialize(client = 'probe'): Promise<void> {
+  async initialize(client = RUNNER): Promise<void> {
     await this.stream?.stop();
     const res = await fetch(this.url, {
       method: 'POST',

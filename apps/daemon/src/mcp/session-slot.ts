@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { currentBusSeq } from '@metro-labs/core/events';
-import { errMsg } from '@metro-labs/core/log';
+import { errMsg, log } from '@metro-labs/core/log';
 import { newReplayLedger } from '../channels/relay.js';
 import { McpSession, channelLog } from './session.js';
 import { allowedAgents, type RequestIdentity } from './request-identity.js';
@@ -17,6 +17,9 @@ interface SlotReplacement {
 
 const sharesScope = (left: Set<string>, right: Set<string>): boolean => [...left].some((id) => right.has(id));
 
+export const CHURN_WINDOW_MS = 60_000;
+export const CHURN_MAX = 5;
+
 export class SessionSlot {
   private session: McpSession | undefined;
   private readonly ledger = newReplayLedger();
@@ -24,8 +27,9 @@ export class SessionSlot {
   private live: boolean;
   private changing: Promise<void> = Promise.resolve();
   private readonly replacements: SlotReplacement[] = [];
+  private churnWarnedAt = -Infinity;
 
-  constructor(live = true) {
+  constructor(live = true, private readonly now: () => number = Date.now) {
     this.live = live;
   }
 
@@ -92,13 +96,22 @@ export class SessionSlot {
 
   private recordReplacement(session: McpSession, adoptId: string | undefined, previous: Pick<SlotReplacement, 'previous' | 'previousScope'>): void {
     this.replacements.push({
-      at: new Date().toISOString(),
+      at: new Date(this.now()).toISOString(),
       reason: adoptId === undefined ? 'initialize' : 'adopt',
       tag: diagnosticTag(session.id),
       scope: session.scope,
       ...previous,
     });
     if (this.replacements.length > 8) this.replacements.shift();
+    this.warnOnChurn();
+  }
+
+  private warnOnChurn(): void {
+    const now = this.now();
+    const recent = this.replacements.filter((replacement) => now - Date.parse(replacement.at) < CHURN_WINDOW_MS).length;
+    if (recent < CHURN_MAX || now - this.churnWarnedAt < CHURN_WINDOW_MS) return;
+    this.churnWarnedAt = now;
+    log.warn({ replacements: recent, windowSeconds: CHURN_WINDOW_MS / 1000 }, 'mcp: the agent session was replaced again and again; a client on this box keeps reconnecting');
   }
 
   private async replace(identity: RequestIdentity, adoptId?: string): Promise<McpSession> {
