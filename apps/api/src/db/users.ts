@@ -1,5 +1,7 @@
 import { desc, eq, inArray, sql } from 'drizzle-orm';
-import { getDb } from './client.js';
+import { log } from '@metro-labs/core/log';
+import { isUniqueViolation } from '@metro-labs/connectors/db/errors';
+import { getDb, type Database } from './client.js';
 import { users } from './schema.js';
 import { isUserStatus, type UserLogin, type UserRecord, type UserStatus, type UserStore } from '../users.js';
 
@@ -35,13 +37,25 @@ async function setAvatar(user: string, next: string | null): Promise<void> {
     .onConflictDoUpdate({ target: users.id, set: { avatar: next, updatedAt } });
 }
 
-async function noteLogin(user: UserLogin, at: string): Promise<void> {
-  const seen = { email: user.email, name: user.name, picture: user.picture, lastLoginAt: at, updatedAt: at };
-  await getDb()
+async function writeLogin(db: Database, user: UserLogin, at: string, withEmail: boolean): Promise<void> {
+  const seen = { name: user.name, picture: user.picture, lastLoginAt: at, updatedAt: at, ...(withEmail ? { email: user.email } : {}) };
+  await db
     .insert(users)
     .values({ id: user.id, createdAt: user.createdAt ?? at, ...seen })
     .onConflictDoUpdate({ target: users.id, set: { ...seen, createdAt: sql`coalesce(${users.createdAt}, excluded.created_at)` } });
 }
+
+export async function noteLoginIn(db: Database, user: UserLogin, at: string): Promise<void> {
+  try {
+    await writeLogin(db, user, at, true);
+  } catch (err) {
+    if (user.email === null || !isUniqueViolation(err)) throw err;
+    log.warn({ user: user.id }, 'users: another user row holds this email, the login is noted without it');
+    await writeLogin(db, user, at, false);
+  }
+}
+
+const noteLogin = (user: UserLogin, at: string): Promise<void> => noteLoginIn(getDb(), user, at);
 
 async function find(user: string): Promise<UserRecord | null> {
   const rows = await getDb().select(RECORD).from(users).where(eq(users.id, user)).limit(1);
