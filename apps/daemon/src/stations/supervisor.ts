@@ -22,6 +22,7 @@ import {
   type TrainState,
 } from './supervisor-io.js';
 import { trainsDir } from '../boot/paths.js';
+import { trainLogLine } from './train-stderr.js';
 
 const DYLD_FALLBACK_ENV: Record<string, string> =
   process.platform === 'darwin'
@@ -239,7 +240,8 @@ export class TrainSupervisor {
     return pumpStream(state.proc?.stderr, state.name, 'stderr', (chunk) => {
       state.errBuf += chunk;
       state.errBuf = drainLines(state.name, state.errBuf, (line) => {
-        log.warn({ train: state.name }, line);
+        const said = trainLogLine(line);
+        log[said.level]({ ...said.fields, train: state.name }, said.msg);
       });
     });
   }

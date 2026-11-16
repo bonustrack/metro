@@ -1,5 +1,9 @@
 # Metro history
 
+## 2026-11-16: Train lines are logged at their real level
+
+Every line a train wrote to stderr was logged as a warning (`log.warn({ train }, line)` in the supervisor), so Lisa's journal held 1,183 warnings between 2 and 16 November, most of them "connected", "state connecting -> connected", "train ready" and "delivered", and a train's own pino line arrived as a JSON string inside a warning. Real problems (a WhatsApp logout, a failed decryption) looked like the rest. The supervisor now reads a train's pino line with its own level, message and fields, and a text line is a warning only when it says something went wrong; everything else is info. Nothing is dropped: info is logged by default.
+
 ## 2026-11-16: The agent has a python command
 
 On Lisa 36 shell calls failed with `python: command not found` between 2 and 16 November: Ubuntu ships only `python3`, and the model keeps typing `python`. Each failure cost a worker turn. The daemon now gives the agent a `python` in `~/.local/bin` (first on its path) that runs `/usr/bin/python3`, only when no `python` answers and nothing is at that place, written as the agent through `home-fs`. Installing `python-is-python3` would have needed a new root helper command, which every box would then have to follow.
