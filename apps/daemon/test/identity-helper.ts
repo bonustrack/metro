@@ -1,18 +1,18 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { setBearerSessions, type ApiSession } from '@metro-labs/http/api-http';
-import { isOrganizationId, SigningKeys, verifyToken } from '@metro-labs/http/workos-token';
-import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
+import { isOrganizationId, JwksKeys, verifyToken } from '@metro-labs/http/user-token';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 
 export const TEST_OWNER = 'org_01TESTOWNER000000';
 
 export type Who = string;
 
-let issuer: Promise<{ started: FakeIssuer; keys: SigningKeys }> | null = null;
+let issuer: Promise<{ started: FakeIssuer; keys: JwksKeys }> | null = null;
 
-const ensureIssuer = (): Promise<{ started: FakeIssuer; keys: SigningKeys }> =>
-  (issuer ??= fakeIssuer().then((started) => ({ started, keys: new SigningKeys(started.url) })));
+const ensureIssuer = (): Promise<{ started: FakeIssuer; keys: JwksKeys }> =>
+  (issuer ??= fakeIssuer().then((started) => ({ started, keys: new JwksKeys(started.url) })));
 
-export function installTestSessions(keys: SigningKeys): void {
+export function installTestSessions(keys: JwksKeys): void {
   setBearerSessions(async (req): Promise<ApiSession | null> => {
     const header = req.headers.authorization ?? '';
     const [scheme, token] = header.split(/\s+/);

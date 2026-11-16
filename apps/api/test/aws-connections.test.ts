@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ApiError } from '@metro-labs/http/api-error';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { handleAwsConnectionsRequest, resetConnectionsState, type AwsConnectionsDeps } from '../src/aws-connections.ts';
 import { handleServerLinkRequest, type ServerLinkDeps } from '../src/server-link.ts';
 import { createAccess } from '../src/aws/access.ts';
@@ -69,7 +69,7 @@ const awsDeps: AwsConnectionsDeps = {
   },
   externalId: () => 'ext-generated-000000000000',
   now: () => 0,
-  keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
+  keys: new JwksKeys('http://127.0.0.1:1/nowhere'),
 };
 
 const rowOf = (owner: string, id: string): Promise<DeletionRow> => {

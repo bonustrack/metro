@@ -1,4 +1,5 @@
-import { filled, JwksKeys, type KeySource } from '@metro-labs/http/workos-token';
+import { log } from '@metro-labs/core/log';
+import { filled, JwksKeys, type KeySource } from '@metro-labs/http/user-token';
 
 export type ProviderId = 'google' | 'microsoft';
 
@@ -168,3 +169,14 @@ export function readProviders(env: NodeJS.ProcessEnv = process.env): OAuthProvid
 }
 
 export const configuredProviders = (providers: OAuthProviders): ProviderId[] => PROVIDER_IDS.filter((id) => providers[id] !== undefined);
+
+export const signInChoices = (providers: OAuthProviders): { accounts: 'metro'; providers: ProviderId[] } => ({ accounts: 'metro', providers: configuredProviders(providers) });
+
+const USER_ID_RE = /^user_[0-9A-Z]{26}$/;
+
+export function announceAccounts(providers: ProviderId[], signing: boolean, env: NodeJS.ProcessEnv = process.env): void {
+  log.info({ accounts: 'metro', providers, signing }, 'api: accounts: Metro keeps the users, organizations and members');
+  if (providers.length === 0) log.warn('api: no sign-in provider is set up: GOOGLE_OAUTH_CLIENT_ID and _SECRET, MICROSOFT_OAUTH_CLIENT_ID and _SECRET are unset');
+  if (!signing) log.warn('api: METRO_AUTH_SIGNING_KEY is unset, so nobody can sign in');
+  if (!USER_ID_RE.test(filled(env.OPERATOR_USER_ID) ?? '')) log.warn('api: OPERATOR_USER_ID is unset or not a user id (user_ and 26 characters), so nobody is the operator');
+}

@@ -73,11 +73,11 @@ describe('a new approval request is queued for the phones once', () => {
     expect((await queued()).map((row) => row.approval).sort()).toEqual([first, other].sort());
   });
 
-  test('mcp.metro.box itself never calls WorkOS or Expo: it only writes the row', async () => {
+  test('mcp.metro.box itself never calls Expo: it only writes the row', async () => {
     await ask({ page_id: 'three' });
     await until(async () => (await queued()).length > 0);
     expect(reached.every((url) => url.startsWith('https://vendor.example.com'))).toBe(true);
-    expect(reached.some((url) => url.includes('workos') || url.includes('exp.host'))).toBe(false);
+    expect(reached.some((url) => url.includes('exp.host'))).toBe(false);
   });
 
   test('the agent is given a link with the organization and agent slugs, the phone keeps the ids its check reads, and a failed read gives ids', async () => {

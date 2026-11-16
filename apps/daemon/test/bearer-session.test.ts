@@ -1,22 +1,22 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setBearerSessions } from '@metro-labs/http/api-http';
-import { METRO_ISSUER } from '@metro-labs/http/workos-token';
+import { METRO_ISSUER } from '@metro-labs/http/user-token';
 import { handleSessionApiRequest } from '../src/routes/session.ts';
 import { handleControlRequest } from '../src/server/control.ts';
 import { handleOwnerRequest } from '../src/server/owner.ts';
 import { handleClaudeRequest } from '../src/claude/api.ts';
-import { bearerSessionsFor, boxSigningKeys } from '../src/routes/bearer.ts';
+import { bearerSessionsFor, boxSigningKeys, installBearerSessions, removeOldKeyCache } from '../src/routes/bearer.ts';
 import { localOwner, setLocalOwner } from '../src/agents/file-admin.ts';
-import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/workos-fixture.ts';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 
 const ORG = 'org_01M2TNE064H99ECTG4X228Y6B6';
 let dir = '';
-let issuer: FakeIssuer;
+let workos: FakeIssuer;
 let metro: FakeIssuer;
 let server: Server;
 let base = '';
@@ -24,9 +24,10 @@ let stopped = 0;
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'metro-bearer-'));
-  issuer = await fakeIssuer();
-  metro = await fakeIssuer(METRO_ISSUER);
-  setBearerSessions(bearerSessionsFor(() => localOwner(dir), boxSigningKeys(dir, envOf())));
+  workos = await fakeIssuer('https://api.workos.com');
+  metro = await fakeIssuer();
+  writeFileSync(join(dir, '.jwks'), '{"keys":[]}');
+  installBearerSessions(dir, () => localOwner(dir), envOf());
   server = createServer((req, res) => {
     if (handleSessionApiRequest(req, res)) return;
     if (handleControlRequest(req, res, { authorize: () => undefined, restart: () => undefined, stop: () => { stopped += 1; }, served: () => true })) return;
@@ -43,14 +44,13 @@ beforeAll(async () => {
 afterAll(async () => {
   setBearerSessions(null);
   server.close();
-  await issuer.close();
+  await workos.close();
   await metro.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
-const envOf = (metroBase = metro.base): NodeJS.ProcessEnv => ({ WORKOS_API_BASE: issuer.base, WORKOS_CLIENT_ID: 'client_test', METRO_AUTH_BASE: metroBase });
-const bearer = (claims: Record<string, unknown>): Record<string, string> => ({ authorization: `Bearer ${issuer.mint(sessionClaims(claims))}` });
-const metroBearer = (claims: Record<string, unknown>): Record<string, string> => ({ authorization: `Bearer ${metro.mint(sessionClaims(claims))}` });
+const envOf = (metroBase = metro.base): NodeJS.ProcessEnv => ({ METRO_AUTH_BASE: metroBase });
+const bearer = (claims: Record<string, unknown>): Record<string, string> => ({ authorization: `Bearer ${metro.mint(sessionClaims(claims))}` });
 const get = (path: string, headers: Record<string, string>): Promise<Response> => fetch(`${base}${path}`, { headers });
 const post = (path: string, headers: Record<string, string>, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
@@ -72,11 +72,9 @@ describe('a box owned by an organization', () => {
     expect((await get('/api/session', bearer({ org_id: undefined, role: undefined }))).status).toBe(403);
     expect((await get('/api/session', { authorization: 'Bearer not.a.real.token' })).status).toBe(401);
     expect((await get('/api/session', {})).status).toBe(401);
-    expect(existsSync(join(dir, '.jwks'))).toBe(true);
-    expect(readFileSync(join(dir, '.jwks'), 'utf8')).toContain('"keys"');
   });
 
-  test('a session carries the WorkOS user, its session and the role, and no user id is singled out', async () => {
+  test('a session carries the user, its session and the role, and no user id is singled out', async () => {
     setLocalOwner(ORG, dir);
     const sessions = bearerSessionsFor(() => localOwner(dir), boxSigningKeys(dir, envOf()));
     const as = (claims: Record<string, unknown>): Promise<unknown> => sessions({ headers: bearer(claims) } as unknown as IncomingMessage);
@@ -124,7 +122,7 @@ describe('a box owned by an organization', () => {
   });
 });
 
-describe('a Metro sign-in token on a box', () => {
+describe('only a Metro sign-in token on a box', () => {
   const waitFor = async (path: string): Promise<boolean> => {
     for (let i = 0; i < 50 && !existsSync(path); i += 1) await new Promise((r) => setTimeout(r, 20));
     return existsSync(path);
@@ -136,44 +134,57 @@ describe('a Metro sign-in token on a box', () => {
     expect(statSync(join(dir, '.jwks-metro')).mode & 0o777).toBe(0o600);
   });
 
-  test('a Metro token of the owner organization opens the session with its role, like a WorkOS one', async () => {
+  test('a WorkOS token is 401, even one for the owner organization', async () => {
     setLocalOwner(ORG, dir);
-    const admin = await get('/api/session', metroBearer({ org_id: ORG, role: 'admin' }));
-    expect(admin.status).toBe(200);
-    expect(await admin.json()).toEqual({ subject: ORG, role: 'admin' });
-    const member = await get('/api/session', metroBearer({ org_id: ORG, role: 'member' }));
-    expect(await member.json()).toEqual({ subject: ORG, role: 'member' });
-    expect((await post('/api/stop', metroBearer({ org_id: ORG, role: 'member' }))).status).toBe(403);
-    expect((await get('/api/session', bearer({ org_id: ORG, role: 'admin' }))).status).toBe(200);
+    expect((await get('/api/session', { authorization: `Bearer ${workos.mint(sessionClaims({ org_id: ORG, role: 'admin' }))}` })).status).toBe(401);
+    expect((await post('/api/stop', { authorization: `Bearer ${workos.mint(sessionClaims({ org_id: ORG, role: 'admin' }))}` })).status).toBe(401);
   });
 
-  test('a Metro token of another organization, or of none, is 403 with the same sentence', async () => {
-    setLocalOwner(ORG, dir);
-    const other = await get('/api/session', metroBearer({ org_id: 'org_01SOMEONEELSE00', role: 'admin' }));
-    expect(other.status).toBe(403);
-    expect(((await other.json()) as { error: string }).error).toContain('another organization');
-    expect((await get('/api/session', metroBearer({ org_id: undefined, role: undefined }))).status).toBe(403);
-  });
-
-  test('a Metro token signed with a WorkOS key, or living over an hour, is 401', async () => {
+  test('a Metro token signed with another key, or living over an hour, is 401', async () => {
     setLocalOwner(ORG, dir);
     const now = Math.floor(Date.now() / 1000);
-    const crossed = { authorization: `Bearer ${issuer.mint(sessionClaims({ org_id: ORG, iss: METRO_ISSUER }), { kid: metro.kid })}` };
+    const crossed = { authorization: `Bearer ${workos.mint(sessionClaims({ org_id: ORG, iss: METRO_ISSUER }), { kid: metro.kid })}` };
     expect((await get('/api/session', crossed)).status).toBe(401);
-    expect((await get('/api/session', metroBearer({ org_id: ORG, iat: now, exp: now + 7200 }))).status).toBe(401);
+    expect((await get('/api/session', bearer({ org_id: ORG, iat: now, exp: now + 7200 }))).status).toBe(401);
   });
 
-  test('a box whose Metro key set cannot be reached at boot still starts and still takes WorkOS tokens', async () => {
+  test('a box whose Metro key set cannot be reached at boot still starts, and refuses tokens until it has the set', async () => {
     const quiet = mkdtempSync(join(tmpdir(), 'metro-bearer-down-'));
     try {
       setLocalOwner(ORG, quiet);
       const sessions = bearerSessionsFor(() => localOwner(quiet), boxSigningKeys(quiet, envOf('http://127.0.0.1:1')));
-      const as = (headers: Record<string, string>): Promise<unknown> => sessions({ headers } as unknown as IncomingMessage);
-      expect(await as(bearer({ org_id: ORG, role: 'admin' }))).toMatchObject({ subject: ORG, role: 'admin' });
-      expect(await as(metroBearer({ org_id: ORG, role: 'admin' }))).toBeNull();
+      expect(await sessions({ headers: bearer({ org_id: ORG, role: 'admin' }) } as unknown as IncomingMessage)).toBeNull();
       expect(existsSync(join(quiet, '.jwks-metro'))).toBe(false);
     } finally {
       rmSync(quiet, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the old WorkOS key cache', () => {
+  test('boot removed the old .jwks file', () => {
+    expect(existsSync(join(dir, '.jwks'))).toBe(false);
+  });
+
+  test('only a regular file is removed: a folder or a link of that name is left alone, and no file is fine', () => {
+    const other = mkdtempSync(join(tmpdir(), 'metro-bearer-old-'));
+    try {
+      expect(removeOldKeyCache(other)).toBe(false);
+      mkdirSync(join(other, '.jwks'));
+      expect(removeOldKeyCache(other)).toBe(false);
+      expect(statSync(join(other, '.jwks')).isDirectory()).toBe(true);
+      rmSync(join(other, '.jwks'), { recursive: true });
+      writeFileSync(join(other, 'kept'), 'kept');
+      symlinkSync(join(other, 'kept'), join(other, '.jwks'));
+      expect(removeOldKeyCache(other)).toBe(false);
+      expect(readFileSync(join(other, 'kept'), 'utf8')).toBe('kept');
+      rmSync(join(other, '.jwks'));
+      writeFileSync(join(other, '.jwks'), '{"keys":[]}');
+      expect(removeOldKeyCache(other)).toBe(true);
+      expect(existsSync(join(other, '.jwks'))).toBe(false);
+      expect(removeOldKeyCache(join(other, 'missing'))).toBe(false);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
     }
   });
 });

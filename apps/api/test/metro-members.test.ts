@@ -1,9 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { accountId } from '../src/db/account-ids.ts';
-import { authSessions, identities, loginLinks, memberships, organizations, users } from '../src/db/schema.ts';
-import { ADMIN, claimsOf, harness, NOW, ORG, type Harness, type TokenBody } from './metro-accounts-fixture.ts';
+import { memberships, organizations, users } from '../src/db/schema.ts';
+import { ADMIN, claimsOf, harness, NOW, ORG, type Harness } from './metro-accounts-fixture.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS } from './pglite-db.ts';
 
 let h: Harness;
@@ -11,13 +10,12 @@ const OPERATOR = accountId('user', NOW + 5);
 const DAY = 24 * 60 * 60_000;
 
 beforeAll(async () => {
-  h = await harness('metro');
+  h = await harness();
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
   await h.seed();
   h.clock.now = NOW;
-  h.setMode('metro');
   await h.held.db.insert(users).values({ id: OPERATOR, email: 'admin@stage.box', name: 'Operator', updatedAt: 'x' });
   process.env.OPERATOR_USER_ID = OPERATOR;
 }, PGLITE_STEP_MS);
@@ -30,12 +28,11 @@ afterAll(async () => {
   await h.close();
 });
 
-const bearer = (sub: string, role: 'admin' | 'member' = 'admin', organization = ORG): string => h.workos.issuer.mint(sessionClaims({ sub, org_id: organization, role }));
+const bearer = (sub: string, role: 'admin' | 'member' = 'admin', organization = ORG): string => h.bearer({ sub, org_id: organization, role });
 
 interface Overview {
   name: string;
   members: { membershipId: string; userId: string; email: string | null; name: string | null; picture: string | null; role: string }[];
-  invitations: unknown[];
 }
 
 interface Added {
@@ -58,9 +55,8 @@ describe('members kept by Metro', () => {
     const answer = await add(' Ana@Example.com ');
     expect(answer).toEqual({ added: true, member: { membershipId: answer.member.membershipId, email: 'ana@example.com', role: 'member' } });
     expect(answer.member.membershipId).toMatch(/^om_[0-9A-HJKMNP-TV-Z]{26}$/);
-    expect(h.workos.calls.filter((c) => c.path === '/user_management/invitations')).toEqual([]);
     const listed = await overview();
-    expect(listed.invitations).toEqual([]);
+    expect(listed).not.toHaveProperty('invitations');
     expect(listed.members.map((m) => [m.email, m.role])).toEqual([['admin@example.com', 'admin'], ['ana@example.com', 'member']]);
     expect((await h.json('POST', '/api/organization/invitations', { email: 'ana@example.com', role: 'member' }, bearer(ADMIN))).status).toBe(409);
     expect((await h.json('POST', '/api/organization/invitations', { email: 'eve@example.com', role: 'member' }, bearer(await userOf('ana@example.com'), 'member'))).status).toBe(403);
@@ -108,89 +104,50 @@ describe('members kept by Metro', () => {
     expect((await h.json('POST', '/api/organization/invitations/inv_000001/revoke', undefined, bearer(ADMIN))).status).toBe(404);
   });
 
-  test('with WorkOS the same routes still read and invite through WorkOS', async () => {
-    h.setMode('workos');
-    const listed = await overview(bearer('user_01ABC'));
-    expect(listed.members.map((m) => m.email)).toEqual(['admin@stage.box', 'bob@stage.box']);
-    expect((await h.json('POST', '/api/organization/invitations', { email: 'new@example.com', role: 'member' }, bearer('user_01ABC'))).status).toBe(200);
-    expect(h.workos.invitations.map((i) => i.email)).toContain('new@example.com');
-    expect(await h.held.db.select().from(users).where(eq(users.email, 'new@example.com'))).toEqual([]);
-  });
 });
 
-describe('login links, the operator\'s fallback', () => {
-  const redeem = (code: string, from = '203.0.113.7'): Promise<Response> => h.json('POST', '/api/auth/link', { code }, undefined, { 'fly-client-ip': from });
-  const codeOf = (url: string): string => /#\/auth\/link\/([A-Za-z0-9_-]{43})$/.exec(url)?.[1] ?? '';
-  const make = async (user = ADMIN): Promise<{ id: string; url: string; expiresAt: number }> => {
-    const res = await h.json('POST', `/api/admin/users/${user}/login-link`, undefined, bearer(OPERATOR));
-    expect(res.status).toBe(200);
-    return (await res.json()) as { id: string; url: string; expiresAt: number };
-  };
-  const signIn = async (code: string, from?: string): Promise<TokenBody> => {
-    const hash = ((await (await redeem(code, from)).json()) as { hash: string }).hash;
-    const handoff = /^#\/auth\/(.+)$/.exec(hash)?.[1] ?? '';
-    return (await (await h.json('POST', '/api/auth/exchange', { code: handoff })).json()) as TokenBody;
-  };
+describe('the organization routes', () => {
+  const slugOf = async (): Promise<string> => ((await (await h.json('GET', '/api/organization', undefined, bearer(ADMIN))).json()) as { slug: string }).slug;
 
-  test('a link is shown once, works once within 7 days, and its session remembers it', async () => {
-    const link = await make();
-    expect(link.url).toMatch(/^https:\/\/metro\.box\/#\/auth\/link\/[A-Za-z0-9_-]{43}$/);
-    expect(link.expiresAt).toBe(NOW + 7 * DAY);
-    const code = codeOf(link.url);
-    const listed = (await (await h.json('GET', '/api/admin/users', undefined, bearer(OPERATOR))).json()) as { users: { id: string; loginLink: { id: string; usedAt: number | null } | null }[] };
-    expect(listed.users.find((u) => u.id === ADMIN)?.loginLink).toMatchObject({ id: link.id, usedAt: null });
-    expect(JSON.stringify(listed)).not.toContain(code);
-    expect(await signIn(code)).toMatchObject({ organization: ORG, user: { id: ADMIN } });
-    expect((await redeem(code)).status).toBe(404);
-    expect((await h.held.db.select().from(authSessions)).map((s) => [s.method, s.link])).toEqual([['link', link.id]]);
-    const late = await make();
-    h.clock.now += 7 * DAY + 1;
-    expect((await redeem(codeOf(late.url))).status).toBe(404);
+  test('an admin renames the organization; a member may not, and a bad name is refused', async () => {
+    expect((await h.json('PUT', '/api/organization', { name: 'Nope' }, bearer(ADMIN, 'member'))).status).toBe(403);
+    expect((await h.json('PUT', '/api/organization', { name: 'x' }, bearer(ADMIN))).status).toBe(400);
+    const renamed = await h.json('PUT', '/api/organization', { name: '  Stage Labs SA ' }, bearer(ADMIN));
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toEqual({ id: ORG, name: 'Stage Labs SA', slug: 'stage-labs' });
   });
 
-  test('removing a link also signs out the session it opened', async () => {
-    const link = await make();
-    const tokens = await signIn(codeOf(link.url));
-    expect((await h.json('POST', '/api/auth/refresh', { refreshToken: tokens.refreshToken, organization: ORG })).status).toBe(200);
-    const removed = await h.json('DELETE', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(OPERATOR));
-    expect(await removed.json()).toEqual({ revoked: true, sessions: 1 });
-    expect((await h.held.db.select().from(authSessions))[0]?.revokedAt).not.toBeNull();
-    expect((await redeem('not a code')).status).toBe(400);
+  test('an admin sets the slug; a taken one is 409, a bad one 400, and the overview carries it', async () => {
+    expect(await slugOf()).toBe('stage-labs');
+    expect((await h.json('PUT', '/api/organization', { slug: 'Bad Slug' }, bearer(ADMIN))).status).toBe(400);
+    expect((await h.json('PUT', '/api/organization', { slug: 'members' }, bearer(ADMIN))).status).toBe(400);
+    expect((await h.json('PUT', '/api/organization', { slug: 'elsewhere' }, bearer(ADMIN))).status).toBe(409);
+    const set = await h.json('PUT', '/api/organization', { slug: 'Stage' }, bearer(ADMIN));
+    expect(set.status).toBe(200);
+    expect(((await set.json()) as { slug: string }).slug).toBe('stage');
+    expect(await slugOf()).toBe('stage');
+    expect((await h.json('PUT', '/api/organization', { slug: 'other' }, bearer(ADMIN, 'member'))).status).toBe(403);
+    expect((await h.json('PUT', '/api/organization', {}, bearer(ADMIN))).status).toBe(400);
   });
 
-  test('a new link replaces one still waiting, the operator gets none, only the operator makes them, and only with Metro accounts', async () => {
-    const first = await make();
-    await make();
-    expect((await redeem(codeOf(first.url), '203.0.113.8')).status).toBe(404);
-    expect((await h.held.db.select().from(loginLinks).where(eq(loginLinks.id, first.id)))[0]?.revokedAt).not.toBeNull();
-    expect((await h.json('POST', `/api/admin/users/${OPERATOR}/login-link`, undefined, bearer(OPERATOR))).status).toBe(400);
-    await h.held.db.insert(identities).values({ provider: 'google', subject: '104857600000000000009', userId: ADMIN, email: 'admin@example.com', createdAt: NOW });
-    expect((await h.json('POST', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(OPERATOR))).status).toBe(400);
-    expect((await h.json('POST', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(ADMIN))).status).toBe(403);
-    expect((await h.json('POST', '/api/admin/users/user_01NOBODY0000000000000000000/login-link', undefined, bearer(OPERATOR))).status).toBe(404);
-    h.setMode('workos');
-    expect((await h.json('POST', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(OPERATOR))).status).toBe(409);
-    expect((await redeem('A'.repeat(43), '203.0.113.8')).status).toBe(404);
+  test('an unknown member is 404 and a member may not remove anyone', async () => {
+    const bob = (await add('bob@example.com')).member.membershipId;
+    expect((await h.json('DELETE', '/api/organization/members/om_nobody', undefined, bearer(ADMIN))).status).toBe(404);
+    expect((await h.json('DELETE', `/api/organization/members/${bob}`, undefined, bearer(await userOf('bob@example.com'), 'member'))).status).toBe(403);
+    expect((await h.json('DELETE', `/api/organization/members/${bob}`, undefined, bearer(ADMIN))).status).toBe(200);
   });
 
-  test('redeeming is limited to 30 tries a minute from one Fly client address', async () => {
-    for (let i = 0; i < 30; i += 1) expect((await redeem('B'.repeat(43), '198.51.100.9')).status).toBe(404);
-    expect((await redeem('B'.repeat(43), '198.51.100.9')).status).toBe(429);
-    expect((await h.json('POST', '/api/auth/link', { code: 'B'.repeat(43) }, undefined, { 'fly-client-ip': '198.51.100.9', 'cf-connecting-ip': '203.0.113.99' })).status).toBe(429);
-    expect((await redeem('B'.repeat(43), '198.51.100.10')).status).toBe(404);
-    h.clock.now += 61_000;
-    expect((await redeem('B'.repeat(43), '198.51.100.9')).status).toBe(404);
-  });
-
-  test('a rejected person cannot use a link', async () => {
-    const link = await make();
-    await h.deps.users.setStatus(ADMIN, 'rejected');
-    expect(await (await redeem(codeOf(link.url), '203.0.113.11')).json()).toEqual({ hash: '#/login?refused=not-open' });
+  test('no token is 401, a token without an organization is 409, a wrong method 405, and preflight passes', async () => {
+    expect((await h.json('GET', '/api/organization')).status).toBe(401);
+    expect((await h.json('GET', '/api/organization', undefined, h.bearer({ sub: ADMIN }))).status).toBe(409);
+    expect((await h.json('DELETE', '/api/organization', undefined, bearer(ADMIN))).status).toBe(405);
+    expect((await h.json('GET', '/api/organization/nothing', undefined, bearer(ADMIN))).status).toBe(404);
+    expect((await fetch(`${h.base}/api/organization`, { method: 'OPTIONS' })).status).toBe(204);
   });
 });
 
 describe('the operator', () => {
-  test('with Metro accounts only OPERATOR_USER_ID is the operator, so a sign-in that claims the operator email gains nothing', async () => {
+  test('only OPERATOR_USER_ID is the operator, so a sign-in that claims the operator email gains nothing', async () => {
     const moved = accountId('user', NOW + 9);
     await h.held.db.insert(users).values({ id: moved, email: 'someone-else@example.com', updatedAt: 'x' });
     expect((await h.json('GET', '/api/admin/users', undefined, bearer(moved))).status).toBe(403);
@@ -201,13 +158,11 @@ describe('the operator', () => {
     expect((await h.json('GET', '/api/admin/users', undefined, bearer(OPERATOR))).status).toBe(403);
     expect(await me(OPERATOR)).toBe(false);
     expect(await me(moved)).toBe(true);
-    h.setMode('workos');
-    expect((await h.json('GET', '/api/admin/users', undefined, bearer(OPERATOR))).status).toBe(200);
     const rows = ((await (await h.json('GET', '/api/admin/users', undefined, bearer(moved))).json()) as { users: { id: string; operator: boolean }[] }).users;
-    expect(rows.filter((u) => u.operator).map((u) => u.id).sort()).toEqual([OPERATOR, moved].sort());
+    expect(rows.filter((u) => u.operator).map((u) => u.id)).toEqual([moved]);
   });
 
-  test('organizations in the operator pages come from Postgres with Metro accounts', async () => {
+  test('organizations in the operator pages come from Postgres', async () => {
     const listed = (await (await h.json('GET', '/api/admin/organizations', undefined, bearer(OPERATOR))).json()) as { organizations: { id: string; name: string; slug: string }[] };
     expect(listed.organizations.map((o) => [o.id, o.name, o.slug]).sort()).toEqual([
       ['org_01KELSEWHERE0000000000000', 'Elsewhere', 'elsewhere'],

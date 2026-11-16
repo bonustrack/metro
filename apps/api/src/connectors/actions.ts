@@ -7,7 +7,7 @@ import { verifyRemoteMcp, type ConnectorAuth, type VerifiedServer } from '@metro
 import { boundOAuthResource, optionalOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { discoverPublicOAuth } from '@metro-labs/http/connector-resource';
 import { ConnectorUnauthorized, parseConnectorUrl } from '@metro-labs/http/connector-url';
-import type { Session } from '@metro-labs/http/workos-token';
+import type { Session } from '@metro-labs/http/user-token';
 import type { ConnectorRow, OrgConnectorStore } from '@metro-labs/connectors/db/connectors';
 import { AUTO_NAMED, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorDetail, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';

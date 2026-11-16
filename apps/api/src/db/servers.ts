@@ -11,7 +11,7 @@ import type { AwsAccount } from '../aws/access.js';
 import { agentKindOf, parseServerHost, parseServerName, type AgentKind, type ServerEntry } from '../server-types.js';
 import { parseAvatar, storedAvatar } from '../avatar.js';
 import { parseSlug, slugify, withSuffix } from '../slug.js';
-import { isOrganizationId, type Session } from '@metro-labs/http/workos-token';
+import { isOrganizationId, type Session } from '@metro-labs/http/user-token';
 import type { Directory } from '../auth/directory.js';
 
 class ServerListError extends ApiError {}
@@ -301,8 +301,7 @@ function moveTarget(session: Session, body: unknown): { from: string; to: string
   return { from, to };
 }
 
-async function assertAdminOf(directory: Directory, session: Session, to: string): Promise<void> {
-  if (!directory.configured()) throw new ServerListError('sign-in is not configured on this server', 503);
+async function assertAdminOf(directory: Pick<Directory, 'userOrganizations'>, session: Session, to: string): Promise<void> {
   const target = (await directory.userOrganizations(session.userId)).find((o) => o.id === to);
   if (target === undefined) throw new ServerListError('you are not a member of that organization', 404);
   if (target.role !== 'admin') throw new ServerListError('you need the admin role in that organization too', 403);
@@ -333,7 +332,7 @@ async function changeOwner(id: string, from: string, to: string): Promise<Server
   }
 }
 
-export async function moveServerForOwner(session: Session, rawId: string, body: unknown, directory: Directory): Promise<ServerEntry> {
+export async function moveServerForOwner(session: Session, rawId: string, body: unknown, directory: Pick<Directory, 'userOrganizations'>): Promise<ServerEntry> {
   const id = idOf(rawId);
   const { from, to } = moveTarget(session, body);
   await assertAdminOf(directory, session, to);

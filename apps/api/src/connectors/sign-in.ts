@@ -7,7 +7,7 @@ import { boundOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/co
 import { verifyRemoteMcp, type OAuthTokens, type VerifiedServer } from '@metro-labs/http/connector-mcp';
 import { authorizeUrl, exchangeCode, newVerifier, registerClient, type OAuthClient } from '@metro-labs/http/connector-oauth';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
-import type { Session } from '@metro-labs/http/workos-token';
+import type { Session } from '@metro-labs/http/user-token';
 import type { OwnerTickets } from '../agents/tickets.js';
 
 export interface NewConnector {

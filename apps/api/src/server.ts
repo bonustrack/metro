@@ -2,15 +2,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { errMsg, log } from '@metro-labs/core/log';
 import { METRO_VERSION } from '@metro-labs/core/version';
 import { handleModeRequest, type ModeInfo } from '@metro-labs/http/mode-api';
-import { clientId, filled, JwksKeys, jwksUrl, SigningKeys, workosBase } from '@metro-labs/http/workos-token';
+import { filled } from '@metro-labs/http/user-token';
 import { handleAuthApiRequest } from './auth/routes.js';
 import { handleMembersApiRequest } from './auth/members.js';
 import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
-import { readWorkosConfig } from './auth/workos.js';
-import { announceAccounts, readAccountsMode, signInChoices } from './auth/accounts-mode.js';
 import { announceStateKey, stateKeyFrom } from './auth/state-seal.js';
-import { directoryFor } from './auth/directory.js';
-import { configuredProviders, readProviders } from './auth/providers.js';
+import { metroDirectory } from './auth/directory.js';
+import { announceAccounts, configuredProviders, readProviders, signInChoices } from './auth/providers.js';
 import { announceSigningKeys, handleJwksRequest, readSigningKeys } from './auth/signing-keys.js';
 import {
   addLaunchedServer,
@@ -87,19 +85,15 @@ import { randomBytes } from 'node:crypto';
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
 
-const accounts = readAccountsMode();
 const providers = readProviders();
-const choices = signInChoices(accounts, configuredProviders(providers));
+const choices = signInChoices(providers);
 const mode = (): ModeInfo & typeof choices => ({ mode: 'hosted', owner: null, version: METRO_VERSION, ...choices });
 const authKeys = readSigningKeys();
-const keys = new SigningKeys(new JwksKeys(jwksUrl(clientId(), workosBase())), authKeys);
-const workosConfig = (): ReturnType<typeof readWorkosConfig> => readWorkosConfig();
-const directory = directoryFor(accounts, workosConfig, getDb);
+const keys = authKeys;
+const directory = metroDirectory(getDb);
 const connectorsSetup = readConnectorsSetup();
 const stateKey = stateKeyFrom(authKeys.signer?.privateKey ?? null, connectorsSetup.key);
 const authApi = {
-  accounts,
-  config: workosConfig,
   directory,
   db: getDb,
   signing: authKeys,
@@ -286,10 +280,6 @@ const server = createServer((req, res) => {
 });
 
 function startPhonePush(): void {
-  if (!directory.configured()) {
-    log.warn('api: phone notifications are off: sign-in is not configured, so the members of an organization cannot be read');
-    return;
-  }
   const accessToken = filled(process.env.EXPO_ACCESS_TOKEN);
   const sender = new PushSender({
     fetch: (url, init) => fetch(url, init),
@@ -306,8 +296,7 @@ server.listen(PORT, HOST, () => {
   announceLaunchConfig(readLaunchConfig());
   announceConnectorsSetup(connectorsSetup);
   announceSigningKeys(authKeys);
-  log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: WorkOS sign-in');
-  announceAccounts(accounts, configuredProviders(providers), authKeys.signer !== null);
+  announceAccounts(configuredProviders(providers), authKeys.signer !== null);
   announceStateKey(stateKey);
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
   startPhonePush();

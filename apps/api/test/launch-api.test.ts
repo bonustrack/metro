@@ -7,7 +7,7 @@ import { TailscaleError } from '../src/aws/tailscale-key.js';
 import type { ConfigResult, LaunchConfig } from '../src/launch-config.js';
 import { ApiError } from '@metro-labs/http/api-error';
 import { auth, testKeys, TEST_OWNER, TEST_STRANGER } from './identity-helper.ts';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 
 const OWNER = TEST_OWNER;
 const WALLET = 'org_01BOXOWNER0000000';
@@ -61,7 +61,7 @@ const deps: LaunchApiDeps = {
       ? Promise.resolve({ instanceId: 'i-0abc', region: 'eu-west-1', account: null })
       : Promise.reject(new ApiError('no such server', 404)),
   now: () => now,
-  keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
+  keys: new JwksKeys('http://127.0.0.1:1/nowhere'),
 };
 
 let server: Server;

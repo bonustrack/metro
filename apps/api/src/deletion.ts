@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { Ec2Target } from './aws/resize.js';
@@ -24,7 +24,7 @@ export interface DeletionCore {
 
 export interface DeletionApiDeps extends DeletionCore {
   lookup: (owner: string, id: string) => Promise<DeletionRow>;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 interface Resolved {

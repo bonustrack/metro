@@ -1,5 +1,5 @@
 import { localOwner, setLocalOwner } from '../agents/file-admin.js';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId } from '@metro-labs/http/user-token';
 import { log } from '@metro-labs/core/log';
 
 export function applyLocalOwner(): string | null {

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { apiFailure, cors, sendJson } from '@metro-labs/http/api-http';
-import type { SigningKeys } from '@metro-labs/http/workos-token';
+import type { KeySource } from '@metro-labs/http/user-token';
 import type { AwsCredentials } from './aws/ec2.js';
 import { access, type AwsAccount } from './aws/access.js';
 import type { LinkedRow } from './db/usage.js';
@@ -14,7 +14,7 @@ const CACHE_MS = 60_000;
 
 export interface LatestApiDeps extends MetricsCore {
   rows: (owner: string) => Promise<LinkedRow[]>;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 type Answer = Record<string, Latest>;

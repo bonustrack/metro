@@ -2,34 +2,32 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { eq, sql } from 'drizzle-orm';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
+import { metroDirectory } from '../src/auth/directory.ts';
 import { handleMembersApiRequest } from '../src/auth/members.ts';
 import { handleAuthApiRequest } from '../src/auth/routes.ts';
-import { readWorkosConfig } from '../src/auth/workos.ts';
+import { accountId } from '../src/db/account-ids.ts';
 import { organizationStore } from '../src/db/organizations.ts';
-import { organizations } from '../src/db/schema.ts';
-import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
+import { memberships, organizations, users } from '../src/db/schema.ts';
 import { memoryUsers } from './users-fake.ts';
 import { pngDataUrl } from './png-fixture.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS, testDb, type TestDb } from './pglite-db.ts';
-import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 
 const ORG = 'org_01STAGELABS000';
 const OTHER = 'org_01OTHERORG0000';
 const PICTURE = pngDataUrl(128, 128);
 
 let held: TestDb;
-let workos: FakeWorkos;
+let issuer: FakeIssuer;
 let server: Server;
 let base = '';
 
 beforeAll(async () => {
   held = await testDb();
-  workos = await fakeWorkos();
-  workos.organizations.push(ORG, OTHER);
-  const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
+  issuer = await fakeIssuer();
   const store = organizationStore(() => held.db);
-  const deps = { config: () => readWorkosConfig(env), keys: new SigningKeys(workos.issuer.url), slugs: store, orgAvatars: store, users: memoryUsers() };
+  const deps = { directory: metroDirectory(() => held.db), keys: new JwksKeys(issuer.url), slugs: store, orgAvatars: store, users: memoryUsers() };
   server = createServer((req, res) => {
     if (handleMembersApiRequest(req, res, deps) || handleAuthApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
@@ -42,16 +40,28 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await held.reset();
+  await held.db.insert(organizations).values([
+    { id: ORG, slug: 'stage-labs', name: 'Stage Labs', createdAt: 'x', updatedAt: 'x' },
+    { id: OTHER, slug: 'other-org', name: 'Other Org', createdAt: 'x', updatedAt: 'x' },
+  ]);
+  await held.db.insert(users).values([{ id: 'user_01ABC', updatedAt: 'x' }, { id: 'user_02BOB', updatedAt: 'x' }]);
+  const now = Date.now();
+  await held.db.insert(memberships).values([
+    { id: accountId('om', now), organization: ORG, userId: 'user_01ABC', role: 'admin', createdAt: now, updatedAt: now },
+    { id: accountId('om', now), organization: OTHER, userId: 'user_01ABC', role: 'admin', createdAt: now, updatedAt: now },
+    { id: accountId('om', now), organization: ORG, userId: 'user_02BOB', role: 'member', createdAt: now, updatedAt: now },
+    { id: accountId('om', now), organization: OTHER, userId: 'user_02BOB', role: 'member', createdAt: now, updatedAt: now },
+  ]);
 }, PGLITE_STEP_MS);
 
 afterAll(async () => {
   server.close();
-  await workos.close();
+  await issuer.close();
   await held.close();
 });
 
-const admin = (): string => workos.issuer.mint(sessionClaims({ sub: 'user_01ABC', org_id: ORG, role: 'admin' }));
-const member = (): string => workos.issuer.mint(sessionClaims({ sub: 'user_02BOB', org_id: ORG, role: 'member' }));
+const admin = (): string => issuer.mint(sessionClaims({ sub: 'user_01ABC', org_id: ORG, role: 'admin' }));
+const member = (): string => issuer.mint(sessionClaims({ sub: 'user_02BOB', org_id: ORG, role: 'member' }));
 
 const call = (method: string, path: string, who: string, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {

@@ -2,15 +2,12 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { handleModeRequest } from '@metro-labs/http/mode-api';
-import { SigningKeys } from '@metro-labs/http/workos-token';
 import { handleAdminApiRequest, type AdminApiDeps } from '../src/admin.ts';
-import { signInChoices, type AccountsMode } from '../src/auth/accounts-mode.ts';
-import { metroDirectory, workosDirectory } from '../src/auth/directory.ts';
+import { metroDirectory } from '../src/auth/directory.ts';
 import { handleMembersApiRequest } from '../src/auth/members.ts';
-import type { ProviderId } from '../src/auth/providers.ts';
+import { signInChoices, type ProviderId } from '../src/auth/providers.ts';
 import { handleAuthApiRequest, type AuthApiDeps } from '../src/auth/routes.ts';
-import { readSigningKeys } from '../src/auth/signing-keys.ts';
-import { readWorkosConfig } from '../src/auth/workos.ts';
+import { mintAccessToken, readSigningKeys, type AccessClaims } from '../src/auth/signing-keys.ts';
 import { accountId } from '../src/db/account-ids.ts';
 import { organizationStore } from '../src/db/organizations.ts';
 import { memberships, organizations, users } from '../src/db/schema.ts';
@@ -18,7 +15,6 @@ import { userStore } from '../src/db/users.ts';
 import { fakeAccount, fakeDeletionAws } from './deletion-fake.ts';
 import { fakeProviders, googleClaims, microsoftClaims, type FakeProviders } from './oauth-fake.ts';
 import { testDb, type TestDb } from './pglite-db.ts';
-import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
 
 export const NOW = Date.now();
 export const ORG = 'org_01KSTAGELABS0000000000000';
@@ -58,9 +54,8 @@ export interface Harness {
   held: TestDb;
   deps: AuthApiDeps & AdminApiDeps;
   fake: FakeProviders;
-  workos: FakeWorkos;
   clock: { now: number };
-  setMode: (mode: AccountsMode) => void;
+  bearer: (claims: Omit<AccessClaims, 'sid'>) => string;
   json: (method: string, path: string, body?: unknown, bearer?: string, headers?: Record<string, string>) => Promise<Response>;
   start: (provider: string, options?: LandOptions) => Promise<Response>;
   land: (provider: ProviderId, claims: ClaimsOf, options?: LandOptions) => Promise<string>;
@@ -78,27 +73,22 @@ function startOf(response: Response): Start {
   return { location, state: location.searchParams.get('state') ?? '', nonce: location.searchParams.get('nonce') ?? '', challenge: location.searchParams.get('code_challenge') ?? '' };
 }
 
-export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
+export async function harness(): Promise<Harness> {
   const held = await testDb();
-  const workos = await fakeWorkos();
   let base = '';
   const fake = await fakeProviders(() => `${base}/api/auth/callback`);
   const clock = { now: NOW };
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
   const signing = readSigningKeys({ METRO_AUTH_SIGNING_KEY: privateKey });
-  const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
-  const config = (): ReturnType<typeof readWorkosConfig> => readWorkosConfig(env);
   const db = (): TestDb['db'] => held.db;
   const store = organizationStore(db);
   const now = (): number => clock.now;
   const deps: AuthApiDeps & AdminApiDeps = {
-    accounts: mode,
-    config,
-    directory: mode === 'metro' ? metroDirectory(db, now) : workosDirectory(config),
+    directory: metroDirectory(db, now),
     db,
     signing,
     providers: fake.providers,
-    keys: new SigningKeys(workos.issuer.url, signing),
+    keys: signing,
     slugs: store,
     orgAvatars: store,
     users: userStore(db),
@@ -108,7 +98,7 @@ export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
     deletion: { config: () => ({ ok: false, missing: [] }), lookup: () => Promise.reject(new Error('not used here')), remove: () => Promise.resolve(null), resizing: () => false, aws: fakeDeletionAws(fakeAccount()) },
   };
   const server: Server = createServer((req, res) => {
-    if (handleModeRequest(req, res, () => ({ mode: 'hosted', owner: null, version: 'test', ...signInChoices(deps.accounts ?? 'workos', ['google', 'microsoft']) }))) return;
+    if (handleModeRequest(req, res, () => ({ mode: 'hosted', owner: null, version: 'test', ...signInChoices(fake.providers) }))) return;
     if (handleAuthApiRequest(req, res, deps) || handleMembersApiRequest(req, res, deps) || handleAdminApiRequest(req, res, deps)) return;
     res.writeHead(404).end();
   });
@@ -157,12 +147,8 @@ export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
     held,
     deps,
     fake,
-    workos,
     clock,
-    setMode: (next) => {
-      deps.accounts = next;
-      deps.directory = next === 'metro' ? metroDirectory(db, now) : workosDirectory(config);
-    },
+    bearer: (claims) => mintAccessToken(signing, { sid: 'session_01XYZ', ...claims }),
     json,
     start,
     land,
@@ -170,7 +156,7 @@ export async function harness(mode: AccountsMode = 'metro'): Promise<Harness> {
     seed,
     close: async () => {
       server.close();
-      await Promise.all([fake.close(), workos.close(), held.close()]);
+      await Promise.all([fake.close(), held.close()]);
     },
   };
 }

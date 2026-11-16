@@ -1,6 +1,6 @@
 import type { FetchLike } from '@metro-labs/core/stations/oauth';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { OrgModelStore } from '@metro-labs/connectors/db/models';
 import type { ModelRefreshDeps } from '@metro-labs/connectors/model-refresh';
 import { OwnerTickets } from '../agents/tickets.js';
@@ -40,7 +40,7 @@ export interface OpenRouterPending {
 
 export interface ModelsDeps {
   key: () => Buffer | null;
-  keys: SigningKeys;
+  keys: KeySource;
   store: OrgModelStore;
   fetch: FetchLike;
   now: () => number;

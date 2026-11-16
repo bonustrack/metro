@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '@metro-labs/http/api-error';
 import { readJsonBody, sessionRoute, type ApiSession } from '@metro-labs/http/api-http';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId } from '@metro-labs/http/user-token';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 

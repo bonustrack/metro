@@ -10,7 +10,7 @@
     "./api-error": "./src/api-error.ts",
     "./return-to": "./src/return-to.ts",
     "./mode-api": "./src/mode-api.ts",
-    "./workos-token": "./src/workos-token.ts",
+    "./user-token": "./src/user-token.ts",
     "./sigv4": "./src/sigv4.ts",
     "./agent-signature": "./src/agent-signature.ts",
     "./connector-url": "./src/connector-url.ts",

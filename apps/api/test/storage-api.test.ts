@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ApiError } from '@metro-labs/http/api-error';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { growing, handleStorageApiRequest, resetStorageState, type StorageApiDeps } from '../src/storage.js';
 import { AwsError } from '../src/aws/ec2.js';
 import type { ConfigResult } from '../src/launch-config.js';
@@ -44,7 +44,7 @@ const deps: StorageApiDeps = {
     return Promise.resolve(0.08);
   },
   resizing: () => resizing,
-  keys: new SigningKeys('http://127.0.0.1:1/nowhere'),
+  keys: new JwksKeys('http://127.0.0.1:1/nowhere'),
 };
 
 let server: Server;

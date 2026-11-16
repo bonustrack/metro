@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult } from './launch-config.js';
 import type { DeletionRow } from './db/servers.js';
 import type { AwsStore } from './db/aws.js';
@@ -26,7 +26,7 @@ export interface ServerLinkDeps {
   store: AwsStore;
   access: Access;
   aws: LinkAws;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 interface Wanted {

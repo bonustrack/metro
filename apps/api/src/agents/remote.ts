@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
-import type { Session } from '@metro-labs/http/workos-token';
+import type { Session } from '@metro-labs/http/user-token';
 import { keyAsker } from '@metro-labs/core/approval-fields';
 import { connectorKeys } from '@metro-labs/core/connector-keys';
 import { agentTokenLabels, createAgentToken, listAgentTokens, revokeAgentToken, setAgentTokenScopes, TOKEN_LABEL_MAX, TOKEN_SCOPES, type AgentTokenRow, type TokenScope } from '@metro-labs/connectors/db/agent-tokens';

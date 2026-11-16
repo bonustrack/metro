@@ -1,36 +1,13 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import type { IncomingMessage } from 'node:http';
 import { log } from '@metro-labs/core/log';
-import { announceAccounts } from '../src/auth/accounts-mode.ts';
-import { addressBucket, clientAddress, fromCloudflare } from '../src/auth/rate-limit.ts';
+import { announceAccounts } from '../src/auth/providers.ts';
 import { openState, sealState, stateKeyFrom } from '../src/auth/state-seal.ts';
 
 const NOW = Date.parse('2026-11-16T09:00:00.000Z');
 
-const request = (headers: Record<string, string>, socket = '10.0.0.9'): IncomingMessage => ({ headers, socket: { remoteAddress: socket } }) as unknown as IncomingMessage;
-
 afterEach(() => {
   delete process.env.OPERATOR_USER_ID;
-});
-
-describe('the client address behind Fly and Cloudflare', () => {
-  test('cf-connecting-ip counts only when the Fly client address is one of Cloudflare\'s', () => {
-    expect(clientAddress(request({ 'fly-client-ip': '198.51.100.7', 'cf-connecting-ip': '203.0.113.5' }))).toBe('198.51.100.7');
-    expect(clientAddress(request({ 'fly-client-ip': '172.64.1.1', 'cf-connecting-ip': '203.0.113.5' }))).toBe('203.0.113.5');
-    expect(clientAddress(request({ 'fly-client-ip': '2606:4700::6810:1', 'cf-connecting-ip': '203.0.113.6' }))).toBe('203.0.113.6');
-    expect(clientAddress(request({ 'cf-connecting-ip': '203.0.113.5' }))).toBe('10.0.0.9');
-    expect(clientAddress(request({}, '::ffff:127.0.0.1'))).toBe('127.0.0.1');
-    expect(['104.16.0.1', '162.158.10.10', '2a06:98c1::1'].every(fromCloudflare)).toBe(true);
-    expect(['8.8.8.8', '2001:db8::1', 'not an address'].some(fromCloudflare)).toBe(false);
-  });
-
-  test('an IPv6 client is counted by its /64, so rotating the rest of the address buys nothing', () => {
-    expect(addressBucket('2001:db8:1:2:aaaa::1')).toBe('2001:0db8:0001:0002::/64');
-    expect(addressBucket('2001:db8:1:2:bbbb:cccc:dddd:eeee')).toBe('2001:0db8:0001:0002::/64');
-    expect(addressBucket('2001:db8::1')).toBe('2001:0db8:0000:0000::/64');
-    expect(clientAddress(request({ 'fly-client-ip': '172.64.1.1', 'cf-connecting-ip': '2001:db8:1:2::99' }))).toBe('2001:0db8:0001:0002::/64');
-  });
 });
 
 describe('the sealed sign-in state', () => {
@@ -56,16 +33,15 @@ describe('the sealed sign-in state', () => {
   });
 });
 
-describe('the boot log with Metro accounts', () => {
-  test('warns when OPERATOR_USER_ID is unset or not a user id, and not with WorkOS', () => {
+describe('the boot log', () => {
+  test('warns when OPERATOR_USER_ID is unset or not a user id', () => {
     const warn = spyOn(log, 'warn');
     try {
-      announceAccounts('metro', ['google'], true, {});
-      announceAccounts('metro', ['google'], true, { OPERATOR_USER_ID: 'admin@stage.box' });
+      announceAccounts(['google'], true, {});
+      announceAccounts(['google'], true, { OPERATOR_USER_ID: 'admin@stage.box' });
       expect(warn.mock.calls.filter((call) => String(call[0]).includes('OPERATOR_USER_ID'))).toHaveLength(2);
       warn.mockClear();
-      announceAccounts('metro', ['google'], true, { OPERATOR_USER_ID: 'user_01KADMIN0000000000000000AB' });
-      announceAccounts('workos', [], false, {});
+      announceAccounts(['google'], true, { OPERATOR_USER_ID: 'user_01KADMIN0000000000000000AB' });
       expect(warn.mock.calls.filter((call) => String(call[0]).includes('OPERATOR_USER_ID'))).toHaveLength(0);
     } finally {
       warn.mockRestore();

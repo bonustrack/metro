@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { errMsg, log } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult } from './launch-config.js';
 import type { ServerLaunch } from './db/servers.js';
 import { AWS_REFUSED, AwsError, type InstanceState } from './aws/ec2.js';
@@ -24,7 +24,7 @@ export interface SizeApiDeps {
   aws: ResizeAws;
   sizes: SizeDeps;
   growing: (region: string, instanceId: string) => boolean;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 const jobs = new Map<string, ResizeJob>();

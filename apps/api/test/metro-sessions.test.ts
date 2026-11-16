@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { accountId } from '../src/db/account-ids.ts';
 import { addMember } from '../src/db/memberships.ts';
 import { authSessions, memberships, users } from '../src/db/schema.ts';
@@ -11,13 +10,12 @@ let h: Harness;
 let carla = '';
 
 beforeAll(async () => {
-  h = await harness('metro');
+  h = await harness();
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
   await h.seed();
   h.clock.now = NOW;
-  h.setMode('metro');
   carla = accountId('user', NOW);
 }, PGLITE_STEP_MS);
 
@@ -35,13 +33,6 @@ const body = async (res: Response): Promise<TokenBody> => {
 async function signedInAna(): Promise<TokenBody> {
   await addMember(h.held.db, { organization: ORG, email: 'ana@example.com', role: 'member', by: ADMIN, now: NOW });
   return h.tokens('google', claimsOf('google'));
-}
-
-async function workosCarla(token: string, inOrganizations: string[]): Promise<void> {
-  h.workos.users.push({ id: carla, email: 'carla@example.com', first_name: 'Carla', last_name: 'Dias', profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z' });
-  h.workos.holders.set(token, carla);
-  await h.held.db.insert(users).values({ id: carla, email: 'carla@example.com', name: 'Carla Dias', updatedAt: 'x' }).onConflictDoNothing();
-  for (const organization of inOrganizations) await h.held.db.insert(memberships).values({ id: accountId('om', NOW), organization, userId: carla, role: 'member', createdAt: NOW, updatedAt: NOW });
 }
 
 describe('Metro refresh tokens', () => {
@@ -105,7 +96,7 @@ describe('organizations from Postgres', () => {
     const switched = await body(await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: first.refreshToken }, first.accessToken));
     expect(switched).toMatchObject({ organization: OTHER_ORG, organizationName: 'Elsewhere', organizationSlug: 'elsewhere' });
     expect(claimsOfToken(switched.accessToken)).toMatchObject({ org_id: OTHER_ORG, role: 'admin' });
-    const stranger = h.workos.issuer.mint(sessionClaims({ sub: ADMIN, org_id: OTHER_ORG, role: 'admin' }));
+    const stranger = h.bearer({ sub: ADMIN, org_id: OTHER_ORG, role: 'admin' });
     await h.held.db.insert(memberships).values({ id: accountId('om', NOW + 1), organization: OTHER_ORG, userId: ADMIN, role: 'admin', createdAt: NOW, updatedAt: NOW });
     expect((await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: switched.refreshToken }, stranger)).status).toBe(401);
   });
@@ -123,92 +114,24 @@ describe('organizations from Postgres', () => {
   });
 });
 
-describe('moving WorkOS sessions to Metro without a new sign-in', () => {
-  test('an old WorkOS refresh token is exchanged once for a Metro session of the same person', async () => {
-    await workosCarla('rt_carla_0000000001', [ORG]);
-    const moved = await body(await refresh('rt_carla_0000000001', ORG));
-    expect(moved.refreshToken).toMatch(/^mrt_/);
-    expect(moved.user).toMatchObject({ id: carla, email: 'carla@example.com', name: 'Carla Dias' });
-    expect(claimsOfToken(moved.accessToken)).toMatchObject({ iss: 'https://api.metro.box', sub: carla, org_id: ORG, role: 'member' });
-    expect((await h.held.db.select().from(authSessions)).map((s) => [s.userId, s.method])).toEqual([[carla, 'workos']]);
-    expect((await refresh(moved.refreshToken, ORG)).status).toBe(200);
-    expect((await refresh('rt_dead_000000000001', ORG)).status).toBe(401);
-  });
-
-  test('only a WorkOS-shaped token goes to WorkOS, the exchange is rate limited per address, and an unverified WorkOS email is never kept', async () => {
-    const sent = (): number => h.workos.calls.filter((c) => c.path === '/user_management/authenticate').length;
-    const before = sent();
-    expect((await refresh('short', ORG)).status).toBe(401);
-    expect((await refresh('has spaces in it 0000', ORG)).status).toBe(401);
-    expect(sent()).toBe(before);
-    await refresh('Ab+/=!~.wos~refresh~token~shape~0001', ORG, '198.51.100.41');
-    expect(sent()).toBe(before + 1);
-    for (let i = 0; i < 20; i += 1) expect((await refresh(`rt_dead_${String(i).padStart(12, '0')}`, ORG, '198.51.100.40')).status).toBe(401);
-    expect((await refresh('rt_dead_999999999999', ORG, '198.51.100.40')).status).toBe(429);
-    expect(sent()).toBe(before + 21);
-    const eve = accountId('user', NOW + 3);
-    h.workos.users.push({ id: eve, email: 'ceo@anderra.ch', first_name: 'Eve', last_name: null, profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z', email_verified: false });
-    h.workos.holders.set('rt_eve_000000000001', eve);
-    expect((await refresh('rt_eve_000000000001')).status).toBe(401);
-    expect((await h.held.db.select().from(users).where(eq(users.id, eve)))[0]).toMatchObject({ email: null, name: 'Eve' });
-    const finn = accountId('user', NOW + 4);
-    h.workos.users.push({ id: finn, email: 'finn@example.com', first_name: 'Finn', last_name: null, profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z', email_verified: true });
-    h.workos.holders.set('rt_finn_00000000001', finn);
-    expect((await refresh('rt_finn_00000000001')).status).toBe(401);
-    expect((await h.held.db.select().from(users).where(eq(users.id, finn)))[0]?.email).toBe('finn@example.com');
-  });
-
-  test('switch and create also take a WorkOS refresh token with a WorkOS bearer', async () => {
-    await workosCarla('rt_carla_switch_0001', [ORG, OTHER_ORG]);
-    const bearer = h.workos.issuer.mint(sessionClaims({ sub: carla, org_id: ORG, role: 'member' }));
-    const switched = await body(await h.json('POST', '/api/auth/switch', { organization: OTHER_ORG, refreshToken: 'rt_carla_switch_0001' }, bearer));
-    expect(switched).toMatchObject({ organization: OTHER_ORG, user: { id: carla } });
-    expect(switched.refreshToken).toMatch(/^mrt_/);
-    h.workos.holders.set('rt_carla_create_0001', carla);
-    await h.deps.users.setStatus(carla, 'approved');
-    const made = await body(await h.json('POST', '/api/auth/organization', { name: 'Carla Co', refreshToken: 'rt_carla_create_0001' }, bearer));
-    expect(made).toMatchObject({ organizationName: 'Carla Co', user: { id: carla } });
-    expect(h.workos.calls.some((c) => c.path === '/organizations')).toBe(false);
+describe('a refresh token Metro did not make', () => {
+  test('an old WorkOS refresh token, or any token without mrt_, is refused like an unknown one and starts no session', async () => {
+    await h.held.db.insert(users).values({ id: carla, email: 'carla@example.com', name: 'Carla Dias', updatedAt: 'x' });
+    await h.held.db.insert(memberships).values({ id: accountId('om', NOW), organization: ORG, userId: carla, role: 'member', createdAt: NOW, updatedAt: NOW });
+    for (const token of ['rt_carla_0000000001', 'Ab+/=!~.wos~refresh~token~shape~0001', 'short']) {
+      const refused = await refresh(token, ORG);
+      expect(refused.status).toBe(401);
+      expect(await refused.json()).toEqual({ error: 'the session has ended, sign in again' });
+    }
+    const bearer = h.bearer({ sub: carla, org_id: ORG, role: 'member' });
+    expect((await h.json('POST', '/api/auth/switch', { organization: ORG, refreshToken: 'rt_carla_switch_0001' }, bearer)).status).toBe(401);
+    expect(await h.held.db.select().from(authSessions)).toEqual([]);
   });
 });
 
-describe('the same routes in both modes', () => {
-  test('/api/mode says which accounts and buttons, and the login takes GitHub only with WorkOS', async () => {
+describe('the routes the page reads', () => {
+  test('/api/mode says which accounts and buttons, and the login takes no GitHub', async () => {
     expect(await (await h.json('GET', '/api/mode')).json()).toMatchObject({ mode: 'hosted', accounts: 'metro', providers: ['google', 'microsoft'] });
     expect((await h.start('github')).status).toBe(400);
-    h.setMode('workos');
-    expect(await (await h.json('GET', '/api/mode')).json()).toMatchObject({ accounts: 'workos', providers: ['google', 'microsoft', 'github'] });
-    const toWorkos = await h.start('github');
-    expect(toWorkos.status).toBe(302);
-    expect(new URL(toWorkos.headers.get('location') ?? '').searchParams.get('provider')).toBe('GitHubOAuth');
-  });
-
-  test('with WorkOS and no WorkOS settings, the callback still answers 503 as before', async () => {
-    h.setMode('workos');
-    const keep = h.deps.config;
-    try {
-      const state = new URL((await h.start('google')).headers.get('location') ?? '').searchParams.get('state') ?? '';
-      h.deps.config = () => null;
-      expect((await fetch(`${h.base}/api/auth/callback?code=x&state=${state}`, { redirect: 'manual' })).status).toBe(503);
-    } finally {
-      h.deps.config = keep;
-    }
-  });
-
-  test('with WorkOS, a WorkOS refresh stays with WorkOS and a Metro one still rotates, checked against WorkOS memberships', async () => {
-    const metro = await signedInAna();
-    h.setMode('workos');
-    h.workos.organizations.push(ORG);
-    try {
-      h.workos.holders.set('rt_workos_only', ADMIN);
-      const fromWorkos = await body(await refresh('rt_workos_only', ORG));
-      expect(fromWorkos.refreshToken).not.toMatch(/^mrt_/);
-      expect(claimsOfToken(fromWorkos.accessToken).iss).toBe('https://api.workos.com');
-      const rotated = await body(await refresh(metro.refreshToken, ORG));
-      expect(rotated.refreshToken).toMatch(/^mrt_/);
-      expect(claimsOfToken(rotated.accessToken)).toMatchObject({ iss: 'https://api.metro.box', org_id: ORG, role: 'admin' });
-    } finally {
-      h.workos.organizations.splice(0);
-    }
   });
 });

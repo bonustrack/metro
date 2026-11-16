@@ -13,13 +13,12 @@ let h: Harness;
 let ana = '';
 
 beforeAll(async () => {
-  h = await harness('metro');
+  h = await harness();
 }, PGLITE_START_MS);
 
 beforeEach(async () => {
   await h.seed();
   h.clock.now = NOW;
-  h.setMode('metro');
   await h.held.db.insert(organizations).values({ id: MCI, slug: 'mci-group', name: 'MCI Group', createdAt: 'x', updatedAt: 'x' });
   await h.held.db.insert(memberships).values({ id: accountId('om', NOW - 999), organization: OTHER_ORG, userId: ADMIN, role: 'admin', createdAt: NOW - 1000, updatedAt: NOW - 1000 });
   ana = (await addMember(h.held.db, { organization: ORG, email: 'ana@example.com', role: 'member', by: ADMIN, now: NOW })).user;
@@ -113,20 +112,11 @@ describe('where a sign-in lands', () => {
     expect(await lastOf()).toBe(ORG);
   });
 
-  test('only a member at that moment is remembered, and nothing is written with WorkOS', async () => {
+  test('only a member at that moment is remembered', async () => {
     await rememberOrganization(h.held.db, ana, OTHER_ORG);
     expect(await lastOf()).toBeNull();
     const first = await signIn();
     expect((await switchTo(first, OTHER_ORG)).status).toBe(404);
     expect(await lastOf()).toBe(ORG);
-    await h.held.db.update(users).set({ lastOrganization: null }).where(eq(users.id, ana));
-    h.setMode('workos');
-    h.workos.organizations.push(ORG);
-    try {
-      await body(await refresh(first.refreshToken, ORG));
-      expect(await lastOf()).toBeNull();
-    } finally {
-      h.workos.organizations.splice(0);
-    }
   });
 });

@@ -5,18 +5,15 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
-import { bearerSession, type Session } from '@metro-labs/http/workos-token';
+import { bearerSession, type Session } from '@metro-labs/http/user-token';
 import { linkIdentity } from '../db/identities.js';
-import { invitationFrom, startEmailCode, verifyEmailCode } from './email.js';
 import type { UserLogin } from '../users.js';
 import { admit, type Arrival, type Intent, type Refusal } from './operator.js';
 import { createOrg, logout, mePayload, organizationsOf, refresh, switchOrg, tokensPayload, updateAccount, type AuthApiDeps } from './account-routes.js';
-import { redeemLink } from './login-links.js';
-import { landingOrganization, modeOf, startSession, userLoginOf, type Placement } from './metro-tokens.js';
+import { landingOrganization, startSession, userLoginOf, type Placement, type Tokens } from './metro-tokens.js';
 import { openState, sealState, stateKeyOr } from './state-seal.js';
 import { authorizeUrl, newAttempt, providerOf, providerProof, type Attempt } from './oauth.js';
-import { isProviderId, SignInRefused, type Proof } from './providers.js';
-import { acceptInvitationsFor, authorizationUrl, configOf, exchangeCode, isProvider, refreshTokens, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
+import { isProviderId, SignInRefused, type Proof, type ProviderId } from './providers.js';
 
 export type { AuthApiDeps } from './account-routes.js';
 
@@ -32,14 +29,13 @@ interface Pending<T> {
 interface Started {
   returnTo: string;
   intent: Intent;
-  invitation?: string;
-  challenge?: string;
-  attempt?: Attempt;
+  challenge: string;
+  attempt: Attempt;
 }
 
 interface Handoff {
   tokens: Tokens;
-  challenge?: string;
+  challenge: string;
 }
 
 const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -84,12 +80,10 @@ const withHash = (returnTo: string, hash: string): string => {
 
 const callbackUri = (req: IncomingMessage, deps: AuthApiDeps): string => `${(deps.publicBase ?? defaultPublicBase)(req)}${PREFIX}/callback`;
 
-function signInChallenge(deps: AuthApiDeps, returnTo: string, challenge: string): { challenge?: string } {
-  const app = isAppReturn(returnTo);
-  if (!app && !validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
-  if (challenge === '' && !app && modeOf(deps) === 'workos') return {};
+function signInChallenge(returnTo: string, challenge: string): string {
+  if (!isAppReturn(returnTo) && !validateReturnTo(returnTo)) throw new ApiError('return_to must be a metro page', 400);
   if (!CHALLENGE_RE.test(challenge)) throw new ApiError('a sign-in needs a code_challenge (S256)', 400);
-  return { challenge };
+  return challenge;
 }
 
 const stateKey = (deps: AuthApiDeps): Buffer => stateKeyOr(deps.stateKey);
@@ -98,50 +92,31 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
 
 function sealedStart(started: Started): Record<string, unknown> {
   const { attempt } = started;
-  return { r: started.returnTo, i: started.intent, v: started.invitation, c: started.challenge, ...(attempt === undefined ? {} : { p: attempt.provider, n: attempt.nonce, k: attempt.verifier }) };
-}
-
-function attemptOf(value: Record<string, unknown>): { attempt?: Attempt } {
-  const nonce = text(value.n);
-  const verifier = text(value.k);
-  return isProviderId(value.p) && nonce !== undefined && verifier !== undefined ? { attempt: { provider: value.p, nonce, verifier } } : {};
+  return { r: started.returnTo, i: started.intent, c: started.challenge, p: attempt.provider, n: attempt.nonce, k: attempt.verifier };
 }
 
 function startedOf(value: Record<string, unknown> | null): Started | null {
-  const returnTo = value === null ? undefined : text(value.r);
-  if (value === null || returnTo === undefined) return null;
-  const invitation = text(value.v);
+  if (value === null) return null;
+  const returnTo = text(value.r);
   const challenge = text(value.c);
-  return { returnTo, intent: value.i === 'waitlist' ? 'waitlist' : 'login', ...(invitation === undefined ? {} : { invitation }), ...(challenge === undefined ? {} : { challenge }), ...attemptOf(value) };
-}
-
-function workosLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
-  const provider = query.get('provider');
-  if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
-  const cfg = configOf(deps);
-  const state = sealState(stateKey(deps), sealedStart({ ...started, ...invitationFrom(query.get('invitation_token') ?? '') }), (deps.now ?? Date.now)());
-  return authorizationUrl(cfg, provider, callbackUri(req, deps), state);
-}
-
-function metroLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
-  const provider = query.get('provider');
-  if (!isProviderId(provider)) throw new ApiError('provider must be google or microsoft', 400);
-  const settings = providerOf(deps.providers, provider);
-  const attempt = newAttempt(provider);
-  const state = sealState(stateKey(deps), sealedStart({ ...started, attempt }), (deps.now ?? Date.now)());
-  return authorizeUrl(settings, callbackUri(req, deps), state, attempt);
+  const nonce = text(value.n);
+  const verifier = text(value.k);
+  if (returnTo === undefined || challenge === undefined || !isProviderId(value.p) || nonce === undefined || verifier === undefined) return null;
+  return { returnTo, intent: value.i === 'waitlist' ? 'waitlist' : 'login', challenge, attempt: { provider: value.p, nonce, verifier } };
 }
 
 function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
   const returnTo = query.get('return_to') ?? '';
-  const started = { returnTo, intent: query.get('intent') === 'waitlist' ? ('waitlist' as const) : ('login' as const), ...signInChallenge(deps, returnTo, query.get('code_challenge') ?? '') };
-  redirect(res, modeOf(deps) === 'workos' ? workosLogin(req, deps, query, started) : metroLogin(req, deps, query, started));
+  const challenge = signInChallenge(returnTo, query.get('code_challenge') ?? '');
+  const provider = query.get('provider');
+  if (!isProviderId(provider)) throw new ApiError('provider must be google or microsoft', 400);
+  const settings = providerOf(deps.providers, provider);
+  const attempt = newAttempt(provider);
+  const state = sealState(stateKey(deps), sealedStart({ returnTo, intent: query.get('intent') === 'waitlist' ? 'waitlist' : 'login', challenge, attempt }), (deps.now ?? Date.now)());
+  redirect(res, authorizeUrl(settings, callbackUri(req, deps), state, attempt));
 }
 
 const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
-
-const PAGE = 'https://metro.box/';
-const INVITED_HASH = '#/login?invited=1';
 
 function refusal(query: URLSearchParams): Refusal | null {
   const error = query.get('error');
@@ -150,37 +125,20 @@ function refusal(query: URLSearchParams): Refusal | null {
   return error === 'access_denied' || error === null ? 'cancelled' : 'failed';
 }
 
-function handoffFor(tokens: Tokens, now: number, challenge?: string): string {
+function handoffFor(tokens: Tokens, now: number, challenge: string): string {
   prune(handoffs, HANDOFF_TTL_MS, now, HANDOFFS_MAX);
   const handoff = token();
-  handoffs.set(handoff, { value: { tokens, ...(challenge === undefined ? {} : { challenge }) }, at: now });
+  handoffs.set(handoff, { value: { tokens, challenge }, at: now });
   log.info({ user: tokens.user.id, organization: tokens.organization }, 'auth: signed in');
   return handoff;
 }
 
-export async function admitted(deps: AuthApiDeps, arrival: Arrival, intent: Intent, now: number, issue: () => Promise<Tokens>, challenge?: string): Promise<string> {
-  const verdict = await admit(deps.users, arrival, intent, new Date(now).toISOString(), modeOf(deps));
+async function admitted(deps: AuthApiDeps, arrival: Arrival, intent: Intent, now: number, issue: () => Promise<Tokens>, challenge: string): Promise<string> {
+  const verdict = await admit(deps.users, arrival, intent, new Date(now).toISOString());
   if (verdict.kind === 'in') return `#/auth/${handoffFor(await issue(), now, challenge)}`;
   log.info({ user: arrival.user.id, intent, verdict: verdict.kind }, 'auth: not let in');
   if (verdict.kind === 'waiting') return '#/waitlist?joined=1';
   return refusedHash(verdict.reason);
-}
-
-async function withInvitations(cfg: WorkosConfig, tokens: Tokens): Promise<Tokens> {
-  const email = tokens.user.email;
-  if (tokens.organization !== null || email === null) return tokens;
-  const joined = await acceptInvitationsFor(cfg, email).catch((err: unknown) => {
-    log.warn({ err: errMsg(err), user: tokens.user.id }, 'auth: the pending invitations could not be accepted');
-    return null;
-  });
-  if (joined === null) return tokens;
-  log.info({ user: tokens.user.id, organization: joined }, 'auth: a pending invitation was accepted at sign-in');
-  return refreshTokens(cfg, tokens.refreshToken, joined);
-}
-
-async function workosAdmitted(deps: AuthApiDeps, signedIn: Tokens, intent: Intent, now: number, challenge?: string): Promise<string> {
-  const tokens = await withInvitations(configOf(deps), signedIn);
-  return admitted(deps, tokens, intent, now, () => Promise.resolve(tokens), challenge);
 }
 
 function arrivalOf(user: UserLogin, proof: Proof): UserLogin {
@@ -189,20 +147,19 @@ function arrivalOf(user: UserLogin, proof: Proof): UserLogin {
 
 interface MetroArrival {
   user: string;
-  method: 'google' | 'microsoft' | 'link';
+  method: ProviderId;
   intent: Intent;
   now: number;
-  proof?: Proof;
-  challenge?: string;
-  link?: string;
+  proof: Proof;
+  challenge: string;
 }
 
-export async function metroAdmitted(deps: AuthApiDeps, arrival: MetroArrival): Promise<string> {
+async function metroAdmitted(deps: AuthApiDeps, arrival: MetroArrival): Promise<string> {
   const record = await userLoginOf(deps.users, arrival.user);
   if (record === null) throw new SignInRefused('failed', 'the user row is missing');
-  const user = arrival.proof === undefined ? record : arrivalOf(record, arrival.proof);
+  const user = arrivalOf(record, arrival.proof);
   const place: Placement | null = await landingOrganization(deps, arrival.user);
-  return admitted(deps, { user, organization: place?.id ?? null }, arrival.intent, arrival.now, () => startSession(deps, user, arrival.method, place, arrival.link), arrival.challenge);
+  return admitted(deps, { user, organization: place?.id ?? null }, arrival.intent, arrival.now, () => startSession(deps, user, arrival.method, place), arrival.challenge);
 }
 
 function linkRefusal(err: unknown): never {
@@ -211,34 +168,21 @@ function linkRefusal(err: unknown): never {
   throw err;
 }
 
-async function metroLanding(req: IncomingMessage, deps: AuthApiDeps, started: Started, attempt: Attempt, code: string, now: number): Promise<string> {
+async function landing(req: IncomingMessage, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
+  const { attempt } = started;
   const provider = providerOf(deps.providers, attempt.provider);
   const proof = await providerProof(provider, code, callbackUri(req, deps), attempt, now);
   if (deps.db === undefined) throw new ApiError('Metro accounts are not set up on this server', 503);
   const linked = await linkIdentity(deps.db(), { provider: attempt.provider, subject: proof.subject, email: proof.email, emailProven: proof.emailProven, now }).catch(linkRefusal);
   log.info({ user: linked.user, provider: attempt.provider, kind: linked.kind }, 'auth: identity checked');
-  return metroAdmitted(deps, { user: linked.user, method: attempt.provider, intent: started.intent, now, proof, ...(started.challenge === undefined ? {} : { challenge: started.challenge }) });
+  return metroAdmitted(deps, { user: linked.user, method: attempt.provider, intent: started.intent, now, proof, challenge: started.challenge });
 }
 
-async function landing(req: IncomingMessage, deps: AuthApiDeps, started: Started, code: string, now: number): Promise<string> {
-  if (started.attempt !== undefined) return metroLanding(req, deps, started, started.attempt, code, now);
-  return workosAdmitted(deps, await exchangeCode(configOf(deps), code, started.invitation), started.intent, now, started.challenge);
-}
-
-function exchangeRefusal(err: unknown): Refusal {
-  if (err instanceof SignInRefused) return err.reason;
-  return err instanceof WorkosError && err.code === 'email_verification_required' ? 'unverified' : 'failed';
-}
+const exchangeRefusal = (err: unknown): Refusal => (err instanceof SignInRefused ? err.reason : 'failed');
 
 async function callback(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
-  if (modeOf(deps) === 'workos') configOf(deps);
   const now = (deps.now ?? Date.now)();
   const started = startedOf(openState(stateKey(deps), query.get('state') ?? '', now));
-  if (started === null && query.get('code') !== null) {
-    log.info('auth: a sign-in started outside metro.box (an invitation), sent to the login page');
-    redirect(res, withHash(PAGE, INVITED_HASH));
-    return;
-  }
   if (started === null) throw new ApiError('this sign-in link is stale, start again', 400);
   const returnTo = started.returnTo;
   const refused = refusal(query);
@@ -259,14 +203,9 @@ async function exchange(req: IncomingMessage, deps: AuthApiDeps): Promise<unknow
   const code = isRecord(body) && typeof body.code === 'string' ? body.code : '';
   const verifier = isRecord(body) && typeof body.verifier === 'string' ? body.verifier : '';
   const handoff = take(handoffs, code, HANDOFF_TTL_MS, (deps.now ?? Date.now)());
-  if (handoff === null || (handoff.challenge !== undefined && challengeOf(verifier) !== handoff.challenge)) throw new ApiError('that sign-in has already been used or has expired', 404);
+  if (handoff === null || challengeOf(verifier) !== handoff.challenge) throw new ApiError('that sign-in has already been used or has expired', 404);
   return tokensPayload(handoff.tokens, deps);
 }
-
-const workosOnly = <T>(run: (req: IncomingMessage, deps: AuthApiDeps) => Promise<T>) => (req: IncomingMessage, deps: AuthApiDeps): Promise<T> => {
-  if (modeOf(deps) === 'metro') throw new ApiError('not found', 404);
-  return run(req, deps);
-};
 
 interface PublicRoute {
   method: string;
@@ -281,9 +220,6 @@ interface PrivateRoute {
 const PUBLIC: Record<string, PublicRoute> = {
   '/exchange': { method: 'POST', run: exchange },
   '/refresh': { method: 'POST', run: refresh },
-  '/email/start': { method: 'POST', run: workosOnly(startEmailCode) },
-  '/email/verify': { method: 'POST', run: workosOnly((req, deps) => verifyEmailCode(req, deps, workosAdmitted)) },
-  '/link': { method: 'POST', run: (req, deps) => redeemLink(req, deps, (user, link, now) => metroAdmitted(deps, { user, method: 'link', intent: 'login', now, link })) },
 };
 
 const PRIVATE: Record<string, PrivateRoute> = {

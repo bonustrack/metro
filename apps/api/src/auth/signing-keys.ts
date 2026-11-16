@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash, createPrivateKey, createPublicKey, createSign, type KeyObject } from 'node:crypto';
 import { errMsg, log } from '@metro-labs/core/log';
 import { cors, sendJson } from '@metro-labs/http/api-http';
-import { filled, isOrganizationId, METRO_ISSUER, type KeySource } from '@metro-labs/http/workos-token';
+import { filled, isOrganizationId, METRO_ISSUER, type KeySource } from '@metro-labs/http/user-token';
 
 const JWKS_PATH = '/.well-known/jwks.json';
 const ACCESS_TTL_S = 10 * 60;

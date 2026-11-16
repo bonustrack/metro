@@ -35,7 +35,7 @@ function deps(): OutboxDeps {
     fetch: expo,
     accessToken: null,
     members: async (owner) => {
-      if (membersFail) throw new Error('WorkOS answered 503 on /user_management/organization_memberships');
+      if (membersFail) throw new Error('the members could not be read');
       return owner === TEST_OWNER ? [ALICE, BOB] : [];
     },
     devices: { tokensOf: (users) => pushTokensOf(held.db, users), drop: (tokens) => dropPushTokens(held.db, tokens) },
@@ -134,7 +134,7 @@ describe('the push outbox', () => {
     for (const secret of [ALICE_PHONE, BOB_PHONE, 'Emma needs', 'Update page', 'metro.box/#']) expect(warns.join('\n')).not.toContain(secret);
   });
 
-  test('a WorkOS failure is retried and a later attempt sends', async () => {
+  test('a failed read of the members is retried and a later attempt sends', async () => {
     membersFail = true;
     await queuePush(held.db, request('abcde'), now);
     await runOutbox(deps());

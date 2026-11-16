@@ -1,30 +1,28 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { SigningKeys } from '@metro-labs/http/workos-token';
+import { JwksKeys } from '@metro-labs/http/user-token';
 import { handleAdminApiRequest, type AdminApiDeps } from '../src/admin.ts';
-import { readWorkosConfig } from '../src/auth/workos.ts';
-import { fakeWorkos, type FakeWorkos } from './workos-fake.ts';
+import { namedOrganizations } from './directory-fake.ts';
 import { memorySlugs } from './slug-fake.ts';
 import { memoryOrgAvatars } from './org-avatars-fake.ts';
 import { memoryUsers } from './users-fake.ts';
-import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
+import { fakeIssuer, sessionClaims, type FakeIssuer } from '../../../packages/http/test/token-fixture.ts';
 import { fakeAccount, fakeDeletionAws } from './deletion-fake.ts';
 import { pngDataUrl } from './png-fixture.ts';
 
-let workos: FakeWorkos;
+let issuer: FakeIssuer;
 let server: Server;
 let base = '';
 let deps: AdminApiDeps;
 const ORG = 'org_01ADMIN0000000';
 
 beforeAll(async () => {
-  workos = await fakeWorkos();
-  workos.organizations.push(ORG);
-  const env = { WORKOS_API_KEY: 'sk_test_fake', WORKOS_CLIENT_ID: 'client_test', WORKOS_API_BASE: workos.base };
+  issuer = await fakeIssuer();
+  process.env.OPERATOR_USER_ID = 'user_01ABC';
   deps = {
-    config: () => readWorkosConfig(env),
-    keys: new SigningKeys(workos.issuer.url),
+    directory: namedOrganizations([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z' }]),
+    keys: new JwksKeys(issuer.url),
     slugs: memorySlugs(),
     orgAvatars: memoryOrgAvatars(),
     users: memoryUsers(),
@@ -52,10 +50,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   server.close();
-  await workos.close();
+  delete process.env.OPERATOR_USER_ID;
+  await issuer.close();
 });
 
-const token = (sub: string): string => workos.issuer.mint(sessionClaims({ sub, org_id: ORG, role: 'admin' }));
+const token = (sub: string): string => issuer.mint(sessionClaims({ sub, org_id: ORG, role: 'admin' }));
 
 const call = (method: string, path: string, bearer?: string, body?: unknown): Promise<Response> =>
   fetch(`${base}${path}`, {
@@ -89,7 +88,7 @@ describe('the operator pages', () => {
     expect((await call('POST', '/api/admin/users/user_02BOB/status', token('user_02BOB'), { status: 'approved' })).status).toBe(403);
   });
 
-  test('organizations come from WorkOS with their metro slug, and agents from the table with their organization name', async () => {
+  test('organizations come with their metro slug, and agents from the table with their organization name', async () => {
     const orgs = (await (await call('GET', '/api/admin/organizations', token('user_01ABC'))).json()) as { organizations: Record<string, unknown>[] };
     expect(orgs.organizations).toEqual([{ id: ORG, name: 'Stage Labs', createdAt: '2026-09-10T00:00:00.000Z', slug: 'stage-labs', avatar: null }]);
     const picture = pngDataUrl(16, 16);

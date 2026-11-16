@@ -4,7 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import type { Session, SigningKeys } from '@metro-labs/http/workos-token';
+import type { Session, KeySource } from '@metro-labs/http/user-token';
 import type { ConfigResult, LaunchConfig } from './launch-config.js';
 import type { Access, AwsAccount } from './aws/access.js';
 import { AwsError, type AwsCredentials } from './aws/ec2.js';
@@ -37,7 +37,7 @@ export interface AwsConnectionsDeps {
   aws: ConnectionAws;
   externalId: () => string;
   now: () => number;
-  keys: SigningKeys;
+  keys: KeySource;
 }
 
 interface Ready {

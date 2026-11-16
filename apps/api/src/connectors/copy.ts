@@ -4,12 +4,11 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { connectorAuth, connectorName } from '@metro-labs/http/connector-input';
 import { boundOAuthResource, parsePublicConnectorUrl } from '@metro-labs/http/connector-public-url';
 import { parseConnectorUrl } from '@metro-labs/http/connector-url';
-import { isOrganizationId } from '@metro-labs/http/workos-token';
+import { isOrganizationId } from '@metro-labs/http/user-token';
 import type { ConnectorRow } from '@metro-labs/connectors/db/connectors';
 import { detailOf, detailText, openConnectorSecret, sealConnectorSecret, type ConnectorSecret } from '@metro-labs/connectors/model';
 import { sealingKey } from '@metro-labs/connectors/setup';
-import type { Directory } from '../auth/directory.js';
-import type { UserOrganization } from '../auth/workos.js';
+import type { Directory, UserOrganization } from '../auth/directory.js';
 import { at, CONNECTORS_MAX, type ActionDeps, type Caller } from './actions.js';
 import { connectorView, type ConnectorView } from './model.js';
 
@@ -17,8 +16,7 @@ export interface CopyDeps extends ActionDeps {
   organizations: (userId: string) => Promise<Pick<UserOrganization, 'id' | 'role'>[]>;
 }
 
-export async function copyOrganizations(directory: Directory, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
-  if (!directory.configured()) throw new ApiError('sign-in is not configured on this server', 503);
+export async function copyOrganizations(directory: Pick<Directory, 'userMemberships'>, userId: string): Promise<Pick<UserOrganization, 'id' | 'role'>[]> {
   try {
     return await directory.userMemberships(userId);
   } catch {

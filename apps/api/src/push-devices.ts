@@ -3,7 +3,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
-import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
+import { bearerSession, type Session, type KeySource } from '@metro-labs/http/user-token';
 import { failureText } from '@metro-labs/connectors/db/errors';
 import type { Database } from './db/client.js';
 import { dropPushDevice, EXPO_PUSH_TOKEN_RE, isPushPlatform, registerPushDevice } from './db/push-devices.js';
@@ -12,7 +12,7 @@ const PATH = '/api/push/devices';
 const BODY_MAX = 4096;
 
 export interface PushDevicesDeps {
-  keys: SigningKeys;
+  keys: KeySource;
   db: () => Database;
   now: () => number;
 }
