@@ -74,10 +74,10 @@ export function parseTrainLine(
   } & Record<string, unknown>;
   try {
     msg = JSON.parse(line) as typeof msg;
-  } catch (err) {
+  } catch {
     log.warn(
-      { name, err: errMsg(err), line: line.slice(0, 200) },
-      'train: bad JSON',
+      { name, length: line.length },
+      'train: bad JSON on stdout, dropped (its text is not logged: it can hold secrets)',
     );
     return null;
   }
@@ -124,10 +124,26 @@ export function drainLines(
   return buf;
 }
 
+const CONSOLE_METHODS = ['log', 'info', 'debug', 'trace', 'warn', 'error'] as const;
+const CONSOLE_TEXT_MAX = 200;
+
+export const consoleText = (first: unknown): string =>
+  typeof first === 'string' ? first.replace(/\s+/g, ' ').trim().slice(0, CONSOLE_TEXT_MAX) : '';
+
+export function quietConsole(name: string): void {
+  for (const method of CONSOLE_METHODS) {
+    console[method] = (first?: unknown): void => {
+      const text = consoleText(first);
+      if (text !== '') process.stderr.write(`${name}: ${text}\n`);
+    };
+  }
+}
+
 export function readCalls(
   name: string,
   handleCall: (msg: CallMsg) => Promise<void>,
 ): void {
+  quietConsole(name);
   let buf = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk: Buffer | string) => {
