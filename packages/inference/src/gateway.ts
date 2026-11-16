@@ -47,7 +47,7 @@ import { currentAttempt, type OnCall } from './attempts.js';
 import { measured } from './measure.js';
 import { NAMED_MODELS, namedChoice, WORKERS, type Chosen } from './named.js';
 import { helperSetup, notReady, pinnedRoute, resolveRoute, routeLabel, type Connection, type ModelSetup, type Route } from './model-config.js';
-import { codexMessages, type CodexDeps } from './codex.js';
+import { codexMessages, forgetCacheRefusals, type CodexDeps } from './codex.js';
 import { countTokens } from './subscription.js';
 import { OPENROUTER_BASE } from './openrouter.js';
 import { noteRoutewayRefusal, refusedWithPage, ROUTEWAY_BASE, routewayBody, routewayHeaders } from './routeway.js';
@@ -91,6 +91,7 @@ export function resetGatewayState(): void {
   forgetUsage();
   forgetAdaptations(learned);
   forgetLearnedThinking();
+  forgetCacheRefusals();
 }
 
 const keyOf = (req: IncomingMessage): string => {
