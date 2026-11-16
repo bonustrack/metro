@@ -18,7 +18,7 @@ const PATHS = new Set([MESSAGES, '/v1/messages/count_tokens', '/v1/models']);
 const MODEL_MAX = 256;
 const NO_KEY = 'A Metro access key with the Gateway scope, or the agent token of a Metro, is required (x-api-key or Authorization: Bearer mcp_...). A revoked key no longer works.';
 
-export type Upstreams = Pick<ModelDeps, 'anthropicBase' | 'bedrockBase' | 'openrouterBase' | 'routewayBase'> & { codex?: Omit<Partial<CodexDeps>, 'refresh'> };
+export type Upstreams = Pick<ModelDeps, 'anthropicBase' | 'bedrockBase' | 'openrouterBase' | 'routewayBase'> & { codex?: Omit<Partial<CodexDeps>, 'refresh' | 'caller'> };
 
 export interface GatewayAppDeps {
   callerOf: CallerOf;
@@ -96,6 +96,8 @@ function noRouteRow(caller: Caller, at: number): NewModelCall {
 
 const MACHINE = process.env.FLY_MACHINE_ID ?? '';
 
+const threadOf = (caller: Caller): string => (caller.token === null ? `agent ${caller.agent}` : `key ${caller.token}`);
+
 function noteCall(caller: Caller, call: AttemptCall): void {
   const { connection, lane, kind, attempt, status, ms, firstTokenMs, tokens } = call;
   log.info({ agent: caller.agent, machine: MACHINE, connection, lane, kind, attempt, status, ms, firstTokenMs, input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite5m + tokens.cacheWrite1h }, 'gateway: call');
@@ -129,7 +131,7 @@ async function serve(req: IncomingMessage, res: ServerResponse, path: string, de
     onCall,
     scope: `${caller.owner}\n${caller.agent}`,
     named: caller.origin === 'key',
-    codex: { ...codex, refresh: (conn) => deps.setups.refresh(caller, conn) },
+    codex: { ...codex, refresh: (conn) => deps.setups.refresh(caller, conn), caller: threadOf(caller) },
   });
 }
 

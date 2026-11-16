@@ -229,3 +229,33 @@ describe('a Codex call that asks no effort', () => {
     ]);
   });
 });
+
+describe('the Codex cache key of a caller that names no Claude Code session', () => {
+  const sentKeys = (): { key: string; session: unknown }[] =>
+    seen.map((s) => ({ key: (JSON.parse(s.body) as { prompt_cache_key: string }).prompt_cache_key, session: s.headers['session-id'] }));
+
+  test('stays the same for one access key and one model, differs between keys and models, and a box session keeps its own', async () => {
+    process.env.METRO_CODEX_REGISTRY = 'http://127.0.0.1:9/';
+    try {
+      await addConnection(held.db, CODEX, 'codex', { kind: 'codex', method: 'code', accessToken: 'codex-at-1', refreshToken: 'codex-rt-1', expiresAt: Date.now() + 7 * 86_400_000, accountId: 'acct_1' }, 'gpt-6.1-sol');
+      await held.client.exec('DELETE FROM "model_routes"');
+      await setRoute(held.db, { primary: { connection: CODEX, model: 'gpt-6.1-sol' }, fallbacks: [] });
+      const other = await addKey(held.db, REMOTE, ['gateway']);
+      const keyCalls = [[gatewayKey.key, 'metro'], [gatewayKey.key, 'metro'], [other.key, 'metro'], [gatewayKey.key, 'metro-workers']] as const;
+      for (const [key, model] of keyCalls) await (await ask({ 'x-api-key': key }, model)).text();
+      await (await ask({ authorization: `Bearer ${boxToken}`, 'x-claude-code-session-id': 'sess-box' }, 'codex:gpt-6.1-sol')).text();
+      await (await ask({ authorization: `Bearer ${boxToken}` }, 'codex:gpt-6.1-sol')).text();
+      await (await ask({ authorization: `Bearer ${boxToken}` }, 'codex:gpt-6.1-sol')).text();
+      const [first, again, otherKey, workers, session, box, boxAgain] = sentKeys();
+      for (const one of sentKeys()) expect(one.session).toBe(one.key);
+      expect(again?.key).toBe(first?.key ?? '');
+      expect(first?.key).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      for (const secret of [gatewayKey.key, gatewayKey.id, REMOTE]) expect(first?.key).not.toContain(secret);
+      expect(new Set([first?.key, otherKey?.key, workers?.key, box?.key]).size).toBe(4);
+      expect(session?.key).toBe('sess-box');
+      expect(boxAgain?.key).toBe(box?.key ?? '');
+    } finally {
+      delete process.env.METRO_CODEX_REGISTRY;
+    }
+  });
+});
