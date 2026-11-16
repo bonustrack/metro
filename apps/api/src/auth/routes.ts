@@ -13,7 +13,7 @@ import { admit, type Arrival, type Intent, type Refusal } from './operator.js';
 import { createOrg, logout, mePayload, organizationsOf, refresh, switchOrg, tokensPayload, updateAccount, type AuthApiDeps } from './account-routes.js';
 import { redeemLink } from './login-links.js';
 import { landingOrganization, modeOf, startSession, userLoginOf, type Placement } from './metro-tokens.js';
-import { clientAddress } from './rate-limit.js';
+import { openState, sealState, stateKeyOr } from './state-seal.js';
 import { authorizeUrl, newAttempt, providerOf, providerProof, type Attempt } from './oauth.js';
 import { isProviderId, SignInRefused, type Proof } from './providers.js';
 import { acceptInvitationsFor, authorizationUrl, configOf, exchangeCode, isProvider, refreshTokens, WorkosError, type Tokens, type WorkosConfig } from './workos.js';
@@ -21,10 +21,7 @@ import { acceptInvitationsFor, authorizationUrl, configOf, exchangeCode, isProvi
 export type { AuthApiDeps } from './account-routes.js';
 
 const PREFIX = '/api/auth';
-const STATE_TTL_MS = 10 * 60_000;
 const HANDOFF_TTL_MS = 60_000;
-const STATES_MAX = 5000;
-const STATES_PER_ADDRESS = 10;
 const HANDOFFS_MAX = 1000;
 
 interface Pending<T> {
@@ -33,7 +30,6 @@ interface Pending<T> {
 }
 
 interface Started {
-  address: string;
   returnTo: string;
   intent: Intent;
   invitation?: string;
@@ -50,7 +46,6 @@ const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
 
 const challengeOf = (verifier: string): string => createHash('sha256').update(verifier).digest('base64url');
 
-const states = new Map<string, Pending<Started>>();
 const handoffs = new Map<string, Pending<Handoff>>();
 
 const token = (): string => randomBytes(32).toString('base64url');
@@ -97,32 +92,50 @@ function signInChallenge(deps: AuthApiDeps, returnTo: string, challenge: string)
   return { challenge };
 }
 
-function keepState(state: string, started: Started, now: number): void {
-  prune(states, STATE_TTL_MS, now, STATES_MAX);
-  const mine = [...states].filter(([, entry]) => entry.value.address === started.address);
-  for (const [key] of mine.slice(0, Math.max(0, mine.length - STATES_PER_ADDRESS + 1))) states.delete(key);
-  states.set(state, { value: started, at: now });
+const stateKey = (deps: AuthApiDeps): Buffer => stateKeyOr(deps.stateKey);
+
+const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
+
+function sealedStart(started: Started): Record<string, unknown> {
+  const { attempt } = started;
+  return { r: started.returnTo, i: started.intent, v: started.invitation, c: started.challenge, ...(attempt === undefined ? {} : { p: attempt.provider, n: attempt.nonce, k: attempt.verifier }) };
 }
 
-function providerUrl(req: IncomingMessage, deps: AuthApiDeps, provider: string | null, state: string): { url: string; attempt?: Attempt } {
-  if (modeOf(deps) === 'workos') {
-    if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
-    return { url: authorizationUrl(configOf(deps), provider, callbackUri(req, deps), state) };
-  }
+function attemptOf(value: Record<string, unknown>): { attempt?: Attempt } {
+  const nonce = text(value.n);
+  const verifier = text(value.k);
+  return isProviderId(value.p) && nonce !== undefined && verifier !== undefined ? { attempt: { provider: value.p, nonce, verifier } } : {};
+}
+
+function startedOf(value: Record<string, unknown> | null): Started | null {
+  const returnTo = value === null ? undefined : text(value.r);
+  if (value === null || returnTo === undefined) return null;
+  const invitation = text(value.v);
+  const challenge = text(value.c);
+  return { returnTo, intent: value.i === 'waitlist' ? 'waitlist' : 'login', ...(invitation === undefined ? {} : { invitation }), ...(challenge === undefined ? {} : { challenge }), ...attemptOf(value) };
+}
+
+function workosLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
+  const provider = query.get('provider');
+  if (!isProvider(provider)) throw new ApiError('provider must be google, microsoft or github', 400);
+  const cfg = configOf(deps);
+  const state = sealState(stateKey(deps), sealedStart({ ...started, ...invitationFrom(query.get('invitation_token') ?? '') }), (deps.now ?? Date.now)());
+  return authorizationUrl(cfg, provider, callbackUri(req, deps), state);
+}
+
+function metroLogin(req: IncomingMessage, deps: AuthApiDeps, query: URLSearchParams, started: Omit<Started, 'attempt'>): string {
+  const provider = query.get('provider');
   if (!isProviderId(provider)) throw new ApiError('provider must be google or microsoft', 400);
+  const settings = providerOf(deps.providers, provider);
   const attempt = newAttempt(provider);
-  return { url: authorizeUrl(providerOf(deps.providers, provider), callbackUri(req, deps), state, attempt), attempt };
+  const state = sealState(stateKey(deps), sealedStart({ ...started, attempt }), (deps.now ?? Date.now)());
+  return authorizeUrl(settings, callbackUri(req, deps), state, attempt);
 }
 
 function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): void {
   const returnTo = query.get('return_to') ?? '';
-  const state = token();
-  const { url, attempt } = providerUrl(req, deps, query.get('provider'), state);
-  const proof = signInChallenge(deps, returnTo, query.get('code_challenge') ?? '');
-  const invitation = modeOf(deps) === 'workos' ? invitationFrom(query.get('invitation_token') ?? '') : {};
-  const intent = query.get('intent') === 'waitlist' ? 'waitlist' : 'login';
-  keepState(state, { address: clientAddress(req), returnTo, intent, ...invitation, ...proof, ...(attempt === undefined ? {} : { attempt }) }, (deps.now ?? Date.now)());
-  redirect(res, url);
+  const started = { returnTo, intent: query.get('intent') === 'waitlist' ? ('waitlist' as const) : ('login' as const), ...signInChallenge(deps, returnTo, query.get('code_challenge') ?? '') };
+  redirect(res, modeOf(deps) === 'workos' ? workosLogin(req, deps, query, started) : metroLogin(req, deps, query, started));
 }
 
 const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
@@ -220,7 +233,7 @@ function exchangeRefusal(err: unknown): Refusal {
 async function callback(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
   if (modeOf(deps) === 'workos') configOf(deps);
   const now = (deps.now ?? Date.now)();
-  const started = take(states, query.get('state') ?? '', STATE_TTL_MS, now);
+  const started = startedOf(openState(stateKey(deps), query.get('state') ?? '', now));
   if (started === null && query.get('code') !== null) {
     log.info('auth: a sign-in started outside metro.box (an invitation), sent to the login page');
     redirect(res, withHash(PAGE, INVITED_HASH));

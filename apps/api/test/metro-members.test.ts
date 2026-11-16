@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { eq } from 'drizzle-orm';
 import { sessionClaims } from '../../../packages/http/test/workos-fixture.ts';
 import { accountId } from '../src/db/account-ids.ts';
-import { authSessions, loginLinks, memberships, organizations, users } from '../src/db/schema.ts';
+import { authSessions, identities, loginLinks, memberships, organizations, users } from '../src/db/schema.ts';
 import { ADMIN, claimsOf, harness, NOW, ORG, type Harness, type TokenBody } from './metro-accounts-fixture.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS } from './pglite-db.ts';
 
@@ -72,7 +72,7 @@ describe('members kept by Metro', () => {
 
   test('adding someone who already has an account answers only the email and role, and the list hides their name and picture until they sign in', async () => {
     const known = accountId('user', NOW + 7);
-    await h.held.db.insert(users).values({ id: known, email: 'known@example.com', name: 'Known Person', picture: 'https://pic.example/k.png', lastLoginAt: new Date(NOW - DAY).toISOString(), updatedAt: 'x' });
+    await h.held.db.insert(users).values({ id: known, email: 'known@example.com', name: 'Known Person', picture: 'https://pic.example/k.png', avatar: 'data:image/png;base64,AAAA', lastLoginAt: new Date(NOW - DAY).toISOString(), updatedAt: 'x' });
     const answer = await add('known@example.com');
     expect(JSON.stringify(answer)).not.toContain('Known Person');
     expect(JSON.stringify(answer)).not.toContain(known);
@@ -81,7 +81,7 @@ describe('members kept by Metro', () => {
     expect(shown).toMatchObject({ name: null, picture: null });
     expect((await overview()).members.find((m) => m.userId === ADMIN)?.name).toBe('Ada Admin');
     await h.held.db.update(users).set({ lastLoginAt: new Date(h.clock.now + 1000).toISOString() }).where(eq(users.id, known));
-    expect((await overview()).members.find((m) => m.email === 'known@example.com')).toMatchObject({ name: 'Known Person', picture: 'https://pic.example/k.png' });
+    expect((await overview()).members.find((m) => m.email === 'known@example.com')).toMatchObject({ name: 'Known Person', picture: 'data:image/png;base64,AAAA' });
   });
 
   test('roles change and people leave, but never the last admin and never yourself', async () => {
@@ -164,6 +164,8 @@ describe('login links, the operator\'s fallback', () => {
     expect((await redeem(codeOf(first.url), '203.0.113.8')).status).toBe(404);
     expect((await h.held.db.select().from(loginLinks).where(eq(loginLinks.id, first.id)))[0]?.revokedAt).not.toBeNull();
     expect((await h.json('POST', `/api/admin/users/${OPERATOR}/login-link`, undefined, bearer(OPERATOR))).status).toBe(400);
+    await h.held.db.insert(identities).values({ provider: 'google', subject: '104857600000000000009', userId: ADMIN, email: 'admin@example.com', createdAt: NOW });
+    expect((await h.json('POST', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(OPERATOR))).status).toBe(400);
     expect((await h.json('POST', `/api/admin/users/${ADMIN}/login-link`, undefined, bearer(ADMIN))).status).toBe(403);
     expect((await h.json('POST', '/api/admin/users/user_01NOBODY0000000000000000000/login-link', undefined, bearer(OPERATOR))).status).toBe(404);
     h.setMode('workos');

@@ -8,6 +8,7 @@ import { handleMembersApiRequest } from './auth/members.js';
 import { handleAdminApiRequest, type AdminApiDeps } from './admin.js';
 import { readWorkosConfig } from './auth/workos.js';
 import { announceAccounts, readAccountsMode, signInChoices } from './auth/accounts-mode.js';
+import { announceStateKey, stateKeyFrom } from './auth/state-seal.js';
 import { directoryFor } from './auth/directory.js';
 import { configuredProviders, readProviders } from './auth/providers.js';
 import { announceSigningKeys, handleJwksRequest, readSigningKeys } from './auth/signing-keys.js';
@@ -94,6 +95,8 @@ const authKeys = readSigningKeys();
 const keys = new SigningKeys(new JwksKeys(jwksUrl(clientId(), workosBase())), authKeys);
 const workosConfig = (): ReturnType<typeof readWorkosConfig> => readWorkosConfig();
 const directory = directoryFor(accounts, workosConfig, getDb);
+const connectorsSetup = readConnectorsSetup();
+const stateKey = stateKeyFrom(authKeys.signer?.privateKey ?? null, connectorsSetup.key);
 const authApi = {
   accounts,
   config: workosConfig,
@@ -101,6 +104,7 @@ const authApi = {
   db: getDb,
   signing: authKeys,
   providers,
+  stateKey,
   keys,
   slugs: dbOrganizations,
   orgAvatars: dbOrganizations,
@@ -165,8 +169,6 @@ const awsApi: AwsConnectionsDeps = {
   now: () => Date.now(),
   keys,
 };
-
-const connectorsSetup = readConnectorsSetup();
 
 const enrollmentApi: EnrollmentDeps = {
   keys,
@@ -306,6 +308,7 @@ server.listen(PORT, HOST, () => {
   announceSigningKeys(authKeys);
   log.info({ signIn: readWorkosConfig() === null ? 'off: WORKOS_API_KEY or WORKOS_CLIENT_ID is unset' : 'on', clientId: clientId() }, 'api: WorkOS sign-in');
   announceAccounts(accounts, configuredProviders(providers), authKeys.signer !== null);
+  announceStateKey(stateKey);
   log.info({ host: HOST, port: PORT, version: METRO_VERSION }, 'api ready');
   startPhonePush();
 });

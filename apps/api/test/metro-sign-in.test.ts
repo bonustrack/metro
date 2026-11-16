@@ -127,27 +127,38 @@ describe('signing in with Google, called by Metro itself', () => {
     }
   });
 
-  test('a deploy preview never receives a sign-in, in both modes', async () => {
-    expect((await h.start('google', { returnTo: 'https://deploy-preview-452--metro-ui.netlify.app/' })).status).toBe(400);
-    expect((await h.start('google', { returnTo: 'https://main--metro-ui.netlify.app/' })).status).toBe(302);
+  test('by default no Netlify host receives a sign-in, deploy permalinks included, in both modes; only a preview api opens them', async () => {
+    const netlify = ['https://deploy-preview-452--metro-ui.netlify.app/', 'https://6738a1b2c3d4e5f60718293a--metro-ui.netlify.app/', 'https://agent-6738a1b2--metro-ui.netlify.app/', 'https://main--metro-ui.netlify.app/'];
+    for (const returnTo of netlify) expect((await h.start('google', { returnTo })).status).toBe(400);
     h.setMode('workos');
     try {
-      expect((await h.start('google', { returnTo: 'https://deploy-preview-452--metro-ui.netlify.app/' })).status).toBe(400);
+      for (const returnTo of netlify) expect((await h.start('google', { returnTo })).status).toBe(400);
+      expect((await h.start('google', { returnTo: 'http://localhost:8081/' })).status).toBe(302);
+      process.env.METRO_PREVIEW_RETURNS = '1';
+      expect((await h.start('google', { returnTo: netlify[0] })).status).toBe(302);
     } finally {
+      delete process.env.METRO_PREVIEW_RETURNS;
       h.setMode('metro');
     }
   });
 
-  test('state flood: one address keeps 10 pending sign-ins at most, and cannot push out another address\'s', async () => {
+  test('state flood: the sign-in state is sealed and kept nowhere, so no flood pushes one out, and a forged, tampered or old state is refused', async () => {
     await addByEmail('ana@example.com');
     const victim = new URL((await h.start('google', { address: '198.51.100.20' })).headers.get('location') ?? '');
-    const first = new URL((await h.start('google', { address: '198.51.100.21' })).headers.get('location') ?? '');
-    for (let i = 0; i < 10; i += 1) await h.start('google', { address: '198.51.100.21' });
-    const stale = await fetch(`${h.base}/api/auth/callback?code=x&state=${first.searchParams.get('state') ?? ''}`, { redirect: 'manual' });
-    expect(new URL(stale.headers.get('location') ?? '').hash).toBe('#/login?invited=1');
+    for (let i = 0; i < 300; i += 1) await h.start('google', { address: `198.51.100.${String(i % 200)}` });
+    const state = victim.searchParams.get('state') ?? '';
+    expect(state).toMatch(/^v1\.[A-Za-z0-9_-]+$/);
+    const callback = (s: string, code = 'x'): Promise<Response> => fetch(`${h.base}/api/auth/callback?code=${code}&state=${encodeURIComponent(s)}`, { redirect: 'manual' });
+    const tampered = `${state.slice(0, -2)}${state.endsWith('A') ? 'B' : 'A'}A`;
+    expect(new URL((await callback(tampered)).headers.get('location') ?? '').hash).toBe('#/login?invited=1');
+    expect((await fetch(`${h.base}/api/auth/callback?error=access_denied&state=v1.forged`, { redirect: 'manual' })).status).toBe(400);
     const code = h.fake.issue({ provider: 'google', claims: claimsOf('google')(victim.searchParams.get('nonce') ?? '', h.clock.now), challenge: victim.searchParams.get('code_challenge') ?? '', key: 'right' });
-    const back = await fetch(`${h.base}/api/auth/callback?code=${code}&state=${victim.searchParams.get('state') ?? ''}`, { redirect: 'manual' });
-    expect(new URL(back.headers.get('location') ?? '').hash).toMatch(/^#\/auth\//);
+    expect(new URL((await callback(state, code)).headers.get('location') ?? '').hash).toMatch(/^#\/auth\//);
+    const late = new URL((await h.start('google')).headers.get('location') ?? '');
+    h.clock.now += 10 * 60_000 + 1;
+    const lateCode = h.fake.issue({ provider: 'google', claims: claimsOf('google')(late.searchParams.get('nonce') ?? '', h.clock.now), challenge: late.searchParams.get('code_challenge') ?? '', key: 'right' });
+    expect(new URL((await callback(late.searchParams.get('state') ?? '', lateCode)).headers.get('location') ?? '').hash).toBe('#/login?invited=1');
+    expect(await h.held.db.select().from(authSessions)).toHaveLength(1);
   });
 
   test('Google proves an email only on gmail.com or googlemail.com, or for its own Workspace domain (hd)', async () => {
@@ -202,6 +213,7 @@ describe('signing in with Microsoft, on the common authority', () => {
     const personal = { tid: CONSUMER_TENANT, oid: '00000000-0000-0000-66f3-3332eca7ea81', xms_edov: undefined };
     expect(await h.land('microsoft', claimsOf('microsoft', { ...personal, email: 'ana@outlook.com' }))).toMatch(/^#\/auth\//);
     expect(await h.land('microsoft', claimsOf('microsoft', { ...personal, oid: '00000000-0000-0000-1111-222233334444', email: 'ana@gmail.com' }))).toBe('#/login?refused=unverified');
+    expect(await h.land('microsoft', claimsOf('microsoft', { ...personal, oid: '00000000-0000-0000-1111-222233334444', email: 'ana@gmail.com', xms_edov: true }))).toBe('#/login?refused=unverified');
     expect(['outlook.com', 'hotmail.fr', 'live.co.uk', 'outlook.com.br', 'msn.com', 'outlook.de', 'live.fr'].every((d) => microsoftOwnDomain(`a@${d}`))).toBe(true);
     expect(['gmail.com', 'outlook.evil.com', 'msn.fr', 'hotmail.com.evil.io', 'outlook.zz', 'live.xx', 'hotmail.co.zz'].some((d) => microsoftOwnDomain(`a@${d}`))).toBe(false);
   });

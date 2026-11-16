@@ -141,9 +141,11 @@ describe('moving WorkOS sessions to Metro without a new sign-in', () => {
     expect((await refresh('short', ORG)).status).toBe(401);
     expect((await refresh('has spaces in it 0000', ORG)).status).toBe(401);
     expect(sent()).toBe(before);
+    await refresh('Ab+/=!~.wos~refresh~token~shape~0001', ORG, '198.51.100.41');
+    expect(sent()).toBe(before + 1);
     for (let i = 0; i < 20; i += 1) expect((await refresh(`rt_dead_${String(i).padStart(12, '0')}`, ORG, '198.51.100.40')).status).toBe(401);
     expect((await refresh('rt_dead_999999999999', ORG, '198.51.100.40')).status).toBe(429);
-    expect(sent()).toBe(before + 20);
+    expect(sent()).toBe(before + 21);
     const eve = accountId('user', NOW + 3);
     h.workos.users.push({ id: eve, email: 'ceo@anderra.ch', first_name: 'Eve', last_name: null, profile_picture_url: null, created_at: '2026-10-01T00:00:00.000Z', email_verified: false });
     h.workos.holders.set('rt_eve_000000000001', eve);

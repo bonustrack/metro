@@ -40,7 +40,7 @@ export const usesMetroSessions = (deps: Pick<AccountDeps, 'accounts'>, refreshTo
 
 const nowOf = (deps: Pick<AccountDeps, 'now'>): number => (deps.now ?? Date.now)();
 
-const WORKOS_REFRESH_RE = /^[A-Za-z0-9._~-]{16,512}$/;
+const WORKOS_REFRESH_RE = /^[\x21-\x7e]{16,2048}$/;
 
 const exchanges = new RateLimit(20, 60_000);
 

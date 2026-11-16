@@ -32,7 +32,7 @@ async function known(tx: Database, provider: IdentityProvider, subject: string, 
   return rows[0]?.user ?? null;
 }
 
-async function hasIdentity(tx: Database, user: string): Promise<boolean> {
+export async function hasIdentity(tx: Database, user: string): Promise<boolean> {
   return (await tx.$count(identities, eq(identities.userId, user))) > 0;
 }
 

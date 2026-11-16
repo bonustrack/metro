@@ -19,6 +19,7 @@ export interface AuthApiDeps extends AccountDeps {
   orgAvatars: OrganizationAvatars;
   agentsOf?: (organization: string) => Promise<ServerEntry[]>;
   publicBase?: (req: IncomingMessage) => string;
+  stateKey?: Buffer | null;
 }
 
 export async function tokensPayload(t: Tokens, deps: AuthApiDeps): Promise<Record<string, unknown>> {

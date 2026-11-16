@@ -6,6 +6,7 @@ import { readJsonBody } from '@metro-labs/http/api-http';
 import { APP_ORIGIN, appOriginOf } from '@metro-labs/http/approval-rules';
 import { revokeLinkSessions } from '../db/auth-sessions.js';
 import type { Database } from '../db/client.js';
+import { hasIdentity } from '../db/identities.js';
 import { createLoginLink, currentLoginLinks, redeemLoginLink, revokeUserLoginLinks, type LoginLinkState } from '../db/login-links.js';
 import type { UserStore } from '../users.js';
 import type { AccountsMode } from './accounts-mode.js';
@@ -53,6 +54,7 @@ export async function makeLoginLink(deps: LinkDeps, user: string, by: string): P
   const target = await deps.users.find(user);
   if (target === null) throw new ApiError('no such user', 404);
   if (isOperator(target, 'metro')) throw new ApiError('the operator cannot have a login link', 400);
+  if (await hasIdentity(db, user)) throw new ApiError('this person signs in with Google or Microsoft, so a login link is not given to them', 400);
   const now = nowOf(deps);
   const made = await createLoginLink(db, { user, by, now });
   log.info({ user, link: made.id, by }, 'admin: login link made');

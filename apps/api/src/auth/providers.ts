@@ -127,7 +127,7 @@ function microsoftProof(claims: Claims): Proof {
   if (claims.iss !== `https://login.microsoftonline.com/${tenant}/v2.0`) throw new SignInRefused('failed', `Microsoft answered with the issuer ${String(claims.iss)}`);
   const object = guidOf(claims.oid, 'an object id');
   const email = emailOf(claims);
-  const emailProven = email !== null && (yes(claims.xms_edov) || (tenant === CONSUMER_TENANT && microsoftOwnDomain(email)));
+  const emailProven = email !== null && (tenant === CONSUMER_TENANT ? microsoftOwnDomain(email) : yes(claims.xms_edov));
   return { subject: `${tenant}:${object}`, email, emailProven, name: nameOf(claims), picture: null };
 }
 

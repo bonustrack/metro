@@ -92,7 +92,7 @@ async function overview(deps: MembersApiDeps, directory: Directory, session: Ses
   const [name, members, invitations] = await Promise.all([directory.organizationName(organization), directory.listMembers(organization), directory.listInvitations(organization)]);
   const slug = await deps.slugs.ensure(organization, name);
   const [pictures, avatars] = await Promise.all([deps.users.avatars(members.map((m) => m.userId)), deps.orgAvatars.avatars([organization])]);
-  const shown = members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
+  const shown = modeOf(deps) === 'metro' ? members : members.map((m) => ({ ...m, picture: pictures.get(m.userId) ?? m.picture }));
   return { id: organization, name, slug, avatar: avatars.get(organization) ?? null, self: session.userId, role: session.role, members: shown, invitations };
 }
 
