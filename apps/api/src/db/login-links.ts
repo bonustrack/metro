@@ -41,3 +41,19 @@ export async function revokeLoginLink(db: Database, id: string, now: number): Pr
   const rows = await db.update(loginLinks).set({ revokedAt: now }).where(and(eq(loginLinks.id, id), isNull(loginLinks.revokedAt))).returning({ id: loginLinks.id });
   return rows.length > 0;
 }
+
+export async function revokeUserLoginLink(db: Database, user: string, now: number): Promise<boolean> {
+  const rows = await db.update(loginLinks).set({ revokedAt: now }).where(and(eq(loginLinks.userId, user), isNull(loginLinks.revokedAt))).returning({ id: loginLinks.id });
+  return rows.length > 0;
+}
+
+export interface LiveLoginLink {
+  id: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export async function liveLoginLinks(db: Database): Promise<Map<string, LiveLoginLink>> {
+  const rows = await db.select({ id: loginLinks.id, user: loginLinks.userId, createdAt: loginLinks.createdAt, lastUsedAt: loginLinks.lastUsedAt }).from(loginLinks).where(isNull(loginLinks.revokedAt));
+  return new Map(rows.map((r) => [r.user, { id: r.id, createdAt: r.createdAt, lastUsedAt: r.lastUsedAt }]));
+}

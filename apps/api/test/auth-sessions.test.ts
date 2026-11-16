@@ -35,6 +35,7 @@ describe('auth sessions', () => {
     const made = await createSession(held.db, { user: ANA, method: 'google', now: NOW });
     expect(made.session).toMatchObject({ user: ANA, method: 'google', createdAt: NOW, expiresAt: NOW + SESSION_IDLE_MS });
     expect(made.session.id).toMatch(/^session_[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(made.refreshToken).toMatch(/^mrt_[A-Za-z0-9_-]{43}$/);
     const row = (await held.db.select().from(authSessions))[0];
     expect(row?.refreshHash).toBe(createHash('sha256').update(made.refreshToken).digest('base64url'));
     expect(JSON.stringify(row)).not.toContain(made.refreshToken);
@@ -74,7 +75,8 @@ describe('auth sessions', () => {
     expect(await revokeSession(held.db, made.session.id, NOW + 1)).toBe(true);
     expect(await revokeSession(held.db, made.session.id, NOW + 2)).toBe(false);
     expect(await rotateSession(held.db, made.refreshToken, NOW + 3)).toEqual({ kind: 'refused', reason: 'revoked' });
-    expect(await rotateSession(held.db, 'A'.repeat(43), NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
+    expect(await rotateSession(held.db, `mrt_${'A'.repeat(43)}`, NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
+    expect(await rotateSession(held.db, made.refreshToken.slice(4), NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
     expect(await rotateSession(held.db, 'short', NOW)).toEqual({ kind: 'refused', reason: 'unknown' });
   });
 });

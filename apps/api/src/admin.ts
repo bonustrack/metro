@@ -4,8 +4,13 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
 import { bearerSession, type Session, type SigningKeys } from '@metro-labs/http/workos-token';
-import { isOperatorEmail } from './auth/operator.js';
-import { configOf, listOrganizations, organizationName, type WorkosConfig } from './auth/workos.js';
+import { isOperator } from './auth/operator.js';
+import type { AccountsMode } from './auth/accounts-mode.js';
+import type { Directory } from './auth/directory.js';
+import { loginLinksOf, makeLoginLink, removeLoginLink } from './auth/login-links.js';
+import { directoryOf } from './auth/metro-tokens.js';
+import { configOf, type WorkosConfig } from './auth/workos.js';
+import type { Database } from './db/client.js';
 import type { AgentSummary, DeletionRow } from './db/servers.js';
 import { confirmDeletion, deletionView, noteRefusal, type DeletionCore } from './deletion.js';
 import type { SlugStore } from './slug.js';
@@ -14,6 +19,7 @@ import { isUserStatus, type UserStore } from './users.js';
 
 const PREFIX = '/api/admin';
 const STATUS_RE = /^\/users\/([A-Za-z0-9_]+)\/status$/;
+const LINK_RE = /^\/users\/([A-Za-z0-9_]+)\/login-link$/;
 const DELETION_RE = /^\/servers\/([^/]+)\/deletion$/;
 
 interface AdminDeletionDeps extends DeletionCore {
@@ -21,7 +27,11 @@ interface AdminDeletionDeps extends DeletionCore {
 }
 
 export interface AdminApiDeps {
+  accounts?: AccountsMode;
   config: () => WorkosConfig | null;
+  directory?: Directory;
+  db?: () => Database;
+  now?: () => number;
   keys: SigningKeys;
   users: UserStore;
   slugs: SlugStore;
@@ -34,12 +44,12 @@ async function operator(req: IncomingMessage, deps: AdminApiDeps): Promise<Sessi
   const session = await bearerSession(req, deps.keys);
   if (session === null) throw new ApiError('unauthorized', 401);
   const me = await deps.users.find(session.userId);
-  if (!isOperatorEmail(me?.email ?? null)) throw new ApiError('this page is for the Metro operator', 403);
+  if (!isOperator(me ?? { id: session.userId, email: null })) throw new ApiError('this page is for the Metro operator', 403);
   return session;
 }
 
 async function listUsers(deps: AdminApiDeps): Promise<unknown> {
-  const rows = await deps.users.list();
+  const [rows, links] = await Promise.all([deps.users.list(), loginLinksOf(deps)]);
   return {
     users: rows.map((r) => ({
       id: r.id,
@@ -49,7 +59,8 @@ async function listUsers(deps: AdminApiDeps): Promise<unknown> {
       createdAt: r.createdAt,
       lastLoginAt: r.lastLoginAt,
       status: r.status,
-      operator: isOperatorEmail(r.email),
+      operator: isOperator(r),
+      loginLink: links.get(r.id) ?? null,
     })),
   };
 }
@@ -60,29 +71,29 @@ async function setStatus(req: IncomingMessage, deps: AdminApiDeps, session: Sess
   if (!isUserStatus(status)) throw new ApiError('status must be approved, waitlist or rejected', 400);
   const target = await deps.users.find(user);
   if (target === null) throw new ApiError('no such user', 404);
-  if (isOperatorEmail(target.email)) throw new ApiError('the operator account cannot be changed', 400);
+  if (isOperator(target)) throw new ApiError('the operator account cannot be changed', 400);
   await deps.users.setStatus(user, status);
   log.info({ by: session.userId, user, status }, 'admin: user status changed');
   return { ok: true, status };
 }
 
 async function organizations(deps: AdminApiDeps): Promise<unknown> {
-  const rows = await listOrganizations(configOf(deps));
+  if (deps.accounts !== 'metro') configOf(deps);
+  const rows = await directoryOf(deps).listOrganizations();
   const avatars = await deps.orgAvatars.avatars(rows.map((o) => o.id));
   return { organizations: await Promise.all(rows.map(async (o) => ({ ...o, slug: await deps.slugs.ensure(o.id, o.name), avatar: avatars.get(o.id) ?? null }))) };
 }
 
 async function agentsList(deps: AdminApiDeps): Promise<unknown> {
   const rows = await deps.agents();
-  const cfg = deps.config();
-  const named = cfg === null ? [] : await listOrganizations(cfg);
+  const directory = directoryOf(deps);
+  const named = directory.configured() ? await directory.listOrganizations() : [];
   const orgs = new Map(named.map((o) => [o.id, o.name]));
   return { agents: rows.map((a) => ({ ...a, organizationName: orgs.get(a.owner) ?? null })) };
 }
 
 async function ownerView(deps: AdminApiDeps, row: DeletionRow): Promise<unknown> {
-  const cfg = deps.config();
-  const name = cfg === null ? null : await organizationName(cfg, row.owner);
+  const name = await directoryOf(deps).organizationName(row.owner);
   return { ...(await deletionView(deps.deletion, row)), owner: row.owner, organizationName: name };
 }
 
@@ -109,9 +120,19 @@ const LISTS = new Map<string, (deps: AdminApiDeps) => Promise<unknown>>([
   ['/agents', agentsList],
 ]);
 
+async function loginLink(deps: AdminApiDeps, session: Session, path: string, method: string): Promise<{ body: unknown } | null> {
+  const user = LINK_RE.exec(path)?.[1];
+  if (user === undefined) return null;
+  if (method === 'POST') return { body: await makeLoginLink(deps, user, session.userId) };
+  if (method === 'DELETE') return { body: await removeLoginLink(deps, user, session.userId) };
+  return null;
+}
+
 async function byId(req: IncomingMessage, deps: AdminApiDeps, session: Session, path: string, method: string): Promise<{ body: unknown } | null> {
   const status = STATUS_RE.exec(path);
   if (status !== null && method === 'POST') return { body: await setStatus(req, deps, session, status[1] ?? '') };
+  const link = await loginLink(deps, session, path, method);
+  if (link !== null) return link;
   const deletion = DELETION_RE.exec(path);
   if (deletion !== null && (method === 'GET' || method === 'POST')) return { body: await serverDeletion(req, deps, session, deletion[1] ?? '') };
   return null;

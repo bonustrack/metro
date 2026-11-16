@@ -217,6 +217,12 @@ describe('the export', () => {
     expect(await runWorkosSync(['--dry-run'], {}, write)).toBe(2);
     expect(await runWorkosSync([], { DATABASE_URL: 'postgres://x' }, write)).toBe(1);
     expect(await runWorkosSync(['--apply'], { WORKOS_API_KEY: 'sk', WORKOS_CLIENT_ID: 'client' }, write)).toBe(1);
-    expect(out).toEqual(['usage: bun apps/api/scripts/workos-sync.ts [--apply]\n', 'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n', 'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n']);
+    expect(await runWorkosSync(['--apply'], { WORKOS_API_KEY: 'sk', WORKOS_CLIENT_ID: 'client', DATABASE_URL: 'postgres://x', METRO_ACCOUNTS: 'metro' }, write)).toBe(1);
+    expect(out).toEqual([
+      'usage: bun apps/api/scripts/workos-sync.ts [--apply]\n',
+      'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n',
+      'WORKOS_API_KEY, WORKOS_CLIENT_ID and DATABASE_URL must be set\n',
+      'METRO_ACCOUNTS is metro: Metro keeps its own accounts now, so --apply would undo what changed since. Only the dry run works.\n',
+    ]);
   });
 });

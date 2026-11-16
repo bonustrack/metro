@@ -124,6 +124,13 @@ export const exchangeMagicCode = (cfg: WorkosConfig, email: string, code: string
 export const refreshTokens = (cfg: WorkosConfig, refreshToken: string, organization?: string): Promise<Tokens> =>
   authenticate(cfg, { grant_type: 'refresh_token', refresh_token: refreshToken, ...(organization === undefined ? {} : { organization_id: organization }) });
 
+const lasting = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+export function refreshRefusal(err: WorkosError): ApiError {
+  const ended = err.status === 401 || (err.upstream !== null && err.code !== null && lasting(err.upstream));
+  return ended ? new ApiError('the session has ended, sign in again', 401) : new ApiError(err.message, err.status);
+}
+
 function refusedRequest(answer: unknown, status: number, path: string): WorkosError {
   const said = isRecord(answer) ? answer : {};
   const message = str(said.message) ?? str(said.error_description);

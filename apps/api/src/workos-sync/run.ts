@@ -32,6 +32,10 @@ export async function runWorkosSync(argv: string[], env: NodeJS.ProcessEnv, writ
     return 1;
   }
   const apply = argv.includes('--apply');
+  if (apply && env.METRO_ACCOUNTS?.trim() === 'metro') {
+    write('METRO_ACCOUNTS is metro: Metro keeps its own accounts now, so --apply would undo what changed since. Only the dry run works.\n');
+    return 1;
+  }
   const sql = postgres(url, { max: 1, prepare: false, connection: { application_name: 'metro-workos-sync' }, onnotice: () => undefined });
   try {
     const plan = await syncWorkos(drizzle(sql, { schema }), await readWorkos(cfg), { apply, now: Date.now() });

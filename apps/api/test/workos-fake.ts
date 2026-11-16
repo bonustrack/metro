@@ -16,6 +16,8 @@ export interface FakeWorkos {
   paging: { size: number };
   seen: string[];
   selection: { on: boolean };
+  actor: { sub: string };
+  holders: Map<string, string>;
   close: () => Promise<void>;
 }
 
@@ -249,6 +251,7 @@ export async function fakeWorkos(): Promise<FakeWorkos> {
     seen,
     selection,
     actor,
+    holders,
     close: async () => {
       await issuer.close();
       await new Promise<void>((r) => {

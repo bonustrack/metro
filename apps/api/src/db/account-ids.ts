@@ -7,7 +7,7 @@ const BASE = 32;
 const BITS = 5;
 const MASK = 31;
 
-type AccountIdPrefix = 'user' | 'om' | 'session' | 'link';
+type AccountIdPrefix = 'user' | 'om' | 'session' | 'link' | 'org';
 
 export const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 

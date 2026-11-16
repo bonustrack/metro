@@ -18,25 +18,6 @@ const RECORD = {
 
 const record = (row: Omit<UserRecord, 'status'> & { status: string | null }): UserRecord => ({ ...row, status: isUserStatus(row.status) ? row.status : null });
 
-async function avatar(user: string): Promise<string | null> {
-  const rows = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, user)).limit(1);
-  return rows[0]?.avatar ?? null;
-}
-
-async function avatars(ids: string[]): Promise<Map<string, string>> {
-  if (ids.length === 0) return new Map();
-  const rows = await getDb().select({ id: users.id, avatar: users.avatar }).from(users).where(inArray(users.id, ids));
-  return new Map(rows.flatMap((r) => (r.avatar === null ? [] : [[r.id, r.avatar] as const])));
-}
-
-async function setAvatar(user: string, next: string | null): Promise<void> {
-  const updatedAt = new Date().toISOString();
-  await getDb()
-    .insert(users)
-    .values({ id: user, avatar: next, updatedAt })
-    .onConflictDoUpdate({ target: users.id, set: { avatar: next, updatedAt } });
-}
-
 async function writeLogin(db: Database, user: UserLogin, at: string, withEmail: boolean): Promise<void> {
   const seen = { name: user.name, picture: user.picture, lastLoginAt: at, updatedAt: at, ...(withEmail ? { email: user.email } : {}) };
   await db
@@ -55,24 +36,45 @@ export async function noteLoginIn(db: Database, user: UserLogin, at: string): Pr
   }
 }
 
-const noteLogin = (user: UserLogin, at: string): Promise<void> => noteLoginIn(getDb(), user, at);
+export function userStore(db: () => Database): UserStore {
+  async function avatar(user: string): Promise<string | null> {
+    const rows = await db().select({ avatar: users.avatar }).from(users).where(eq(users.id, user)).limit(1);
+    return rows[0]?.avatar ?? null;
+  }
 
-async function find(user: string): Promise<UserRecord | null> {
-  const rows = await getDb().select(RECORD).from(users).where(eq(users.id, user)).limit(1);
-  const row = rows[0];
-  return row === undefined ? null : record(row);
+  async function avatars(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await db().select({ id: users.id, avatar: users.avatar }).from(users).where(inArray(users.id, ids));
+    return new Map(rows.flatMap((r) => (r.avatar === null ? [] : [[r.id, r.avatar] as const])));
+  }
+
+  async function setAvatar(user: string, next: string | null): Promise<void> {
+    const updatedAt = new Date().toISOString();
+    await db()
+      .insert(users)
+      .values({ id: user, avatar: next, updatedAt })
+      .onConflictDoUpdate({ target: users.id, set: { avatar: next, updatedAt } });
+  }
+
+  async function find(user: string): Promise<UserRecord | null> {
+    const rows = await db().select(RECORD).from(users).where(eq(users.id, user)).limit(1);
+    const row = rows[0];
+    return row === undefined ? null : record(row);
+  }
+
+  async function list(): Promise<UserRecord[]> {
+    return (await db().select(RECORD).from(users).orderBy(desc(users.lastLoginAt), users.id)).map(record);
+  }
+
+  async function setStatus(user: string, status: UserStatus): Promise<void> {
+    const updatedAt = new Date().toISOString();
+    await db()
+      .insert(users)
+      .values({ id: user, status, updatedAt })
+      .onConflictDoUpdate({ target: users.id, set: { status, updatedAt } });
+  }
+
+  return { avatar, avatars, setAvatar, noteLogin: (user, at) => noteLoginIn(db(), user, at), find, list, setStatus };
 }
 
-async function list(): Promise<UserRecord[]> {
-  return (await getDb().select(RECORD).from(users).orderBy(desc(users.lastLoginAt), users.id)).map(record);
-}
-
-async function setStatus(user: string, status: UserStatus): Promise<void> {
-  const updatedAt = new Date().toISOString();
-  await getDb()
-    .insert(users)
-    .values({ id: user, status, updatedAt })
-    .onConflictDoUpdate({ target: users.id, set: { status, updatedAt } });
-}
-
-export const dbUsers: UserStore = { avatar, avatars, setAvatar, noteLogin, find, list, setStatus };
+export const dbUsers: UserStore = userStore(getDb);

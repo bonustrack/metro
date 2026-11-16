@@ -9,9 +9,12 @@ export const SESSION_IDLE_MS = 30 * DAY_MS;
 export const SESSION_MAX_MS = 90 * DAY_MS;
 export const ROTATION_GRACE_MS = 60_000;
 
-const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+export const REFRESH_PREFIX = 'mrt_';
+const TOKEN_RE = /^mrt_[A-Za-z0-9_-]{43}$/;
 
-export type SessionMethod = 'google' | 'microsoft' | 'link';
+export const isMetroRefreshToken = (token: string): boolean => token.startsWith(REFRESH_PREFIX);
+
+export type SessionMethod = 'google' | 'microsoft' | 'link' | 'workos';
 
 export interface AuthSession {
   id: string;
@@ -34,8 +37,10 @@ const deadline = (createdAt: number, now: number): number => Math.min(now + SESS
 
 const sessionOf = (row: Pick<SessionRow, 'id' | 'userId' | 'method' | 'createdAt' | 'expiresAt'>): AuthSession => ({ id: row.id, user: row.userId, method: row.method, createdAt: row.createdAt, expiresAt: row.expiresAt });
 
+const newRefreshToken = (): string => `${REFRESH_PREFIX}${newSecret()}`;
+
 export async function createSession(db: Database, input: { user: string; method: SessionMethod; now: number }): Promise<IssuedSession> {
-  const refreshToken = newSecret();
+  const refreshToken = newRefreshToken();
   const row = { id: accountId('session', input.now), userId: input.user, method: input.method, refreshHash: secretHashOf(refreshToken), createdAt: input.now, lastUsedAt: input.now, expiresAt: deadline(input.now, input.now) };
   await db.insert(authSessions).values(row);
   return { session: sessionOf(row), refreshToken };
@@ -44,7 +49,7 @@ export async function createSession(db: Database, input: { user: string; method:
 const refused = (reason: Extract<Rotation, { kind: 'refused' }>['reason']): Rotation => ({ kind: 'refused', reason });
 
 async function rotate(tx: Database, row: SessionRow, now: number): Promise<Rotation> {
-  const refreshToken = newSecret();
+  const refreshToken = newRefreshToken();
   const expiresAt = deadline(row.createdAt, now);
   await tx.update(authSessions).set({ refreshHash: secretHashOf(refreshToken), previousHash: row.refreshHash, rotatedAt: now, lastUsedAt: now, expiresAt }).where(eq(authSessions.id, row.id));
   return { kind: 'rotated', session: sessionOf({ ...row, expiresAt }), refreshToken };
