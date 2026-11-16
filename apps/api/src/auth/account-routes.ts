@@ -10,7 +10,7 @@ import { parseAccountName } from '../users.js';
 import { AVATAR_BODY_MAX, parseAvatar, type OrganizationAvatars } from '../avatar.js';
 import { isOperator, mayCreateOrganization, stillIn } from './operator.js';
 import { ORGANIZATION_NAME_RE } from './directory.js';
-import { endSession, renewSession, type AccountDeps, type Tokens } from './metro-tokens.js';
+import { checkRefresh, endSession, renewSession, type AccountDeps, type Tokens } from './metro-tokens.js';
 
 export interface AuthApiDeps extends AccountDeps {
   keys: KeySource;
@@ -110,6 +110,7 @@ export async function createOrg(req: IncomingMessage, session: Session, deps: Au
   const refreshToken = refreshOf(body);
   if (!(await mayCreateOrganization(deps.users, session.userId)))
     throw new ApiError('Creating an organization needs an approved account. Join the waitlist, and you can create one once you are let in.', 403);
+  await checkRefresh(deps, refreshToken, session.userId);
   const organization = await deps.directory.createOrganization(name, session.userId);
   log.info({ user: session.userId, organization, name }, 'auth: organization created');
   return tokensPayload(await renewSession(deps, { refreshToken, organization, expectUser: session.userId, remember: true }), deps);

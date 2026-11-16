@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { eq } from 'drizzle-orm';
 import { accountId } from '../src/db/account-ids.ts';
 import { addMember } from '../src/db/memberships.ts';
-import { authSessions, memberships, users } from '../src/db/schema.ts';
+import { authSessions, memberships, organizations, users } from '../src/db/schema.ts';
 import { ADMIN, claimsOf, claimsOfToken, harness, NOW, ORG, OTHER_ORG, type Harness, type TokenBody } from './metro-accounts-fixture.ts';
 import { PGLITE_START_MS, PGLITE_STEP_MS } from './pglite-db.ts';
 
@@ -111,6 +111,25 @@ describe('organizations from Postgres', () => {
     expect(claimsOfToken(made.accessToken)).toMatchObject({ org_id: made.organization, role: 'admin' });
     const rows = await h.held.db.select().from(memberships).where(eq(memberships.organization, made.organization ?? ''));
     expect(rows.map((r) => [r.userId, r.role])).toEqual([[first.user.id, 'admin']]);
+  });
+
+  test('a refresh token that does not work, or is another person\'s, leaves no organization behind', async () => {
+    const first = await signedInAna();
+    await h.deps.users.setStatus(first.user.id, 'approved');
+    await h.deps.users.setStatus(ADMIN, 'approved');
+    const before = (await h.held.db.select().from(organizations)).length;
+    const create = (refreshToken: string, bearer = first.accessToken): Promise<Response> => h.json('POST', '/api/auth/organization', { name: 'Never Co', refreshToken }, bearer);
+    expect((await create(`mrt_${'A'.repeat(43)}`)).status).toBe(401);
+    expect((await create('rt_old_workos_token_0001')).status).toBe(401);
+    expect((await create(first.refreshToken, h.bearer({ sub: ADMIN, org_id: ORG, role: 'admin' }))).status).toBe(401);
+    const second = await body(await refresh(first.refreshToken, ORG));
+    h.clock.now += 61_000;
+    expect((await create(first.refreshToken)).status).toBe(401);
+    expect((await h.held.db.select().from(organizations)).length).toBe(before);
+    expect((await h.held.db.select().from(authSessions))[0]?.revokedAt).toBeNull();
+    const made = await body(await create(second.refreshToken));
+    expect(made).toMatchObject({ organizationName: 'Never Co' });
+    expect((await h.held.db.select().from(organizations)).length).toBe(before + 1);
   });
 });
 

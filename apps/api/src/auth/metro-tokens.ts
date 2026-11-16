@@ -1,6 +1,6 @@
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
-import { createSession, revokeSession, rotateSession, type NewSessionMethod } from '../db/auth-sessions.js';
+import { createSession, revokeSession, rotateSession, usableSession, type NewSessionMethod } from '../db/auth-sessions.js';
 import type { Database } from '../db/client.js';
 import type { UserLogin, UserStore } from '../users.js';
 import type { Directory } from './directory.js';
@@ -99,6 +99,13 @@ async function rotated(deps: AccountDeps, refreshToken: string): Promise<Held> {
   const user = await userLoginOf(deps.users, rotation.session.user);
   if (user === null) throw ended();
   return { sessionId: rotation.session.id, refreshToken: rotation.refreshToken, user };
+}
+
+export async function checkRefresh(deps: AccountDeps, refreshToken: string, user: string): Promise<void> {
+  const session = await usableSession(dbOf(deps), refreshToken, nowOf(deps));
+  if (session?.user === user) return;
+  log.info({ user, known: session !== null }, 'auth: a refresh token that does not work for this user was sent, so nothing was done');
+  throw ended();
 }
 
 export interface RenewRequest {

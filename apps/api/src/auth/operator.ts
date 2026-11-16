@@ -8,7 +8,7 @@ export function isOperator(person: { id: string } | null, env: NodeJS.ProcessEnv
 
 export type Intent = 'login' | 'waitlist';
 
-export type Refusal = 'no-account' | 'waiting' | 'not-open' | 'unverified' | 'other-account' | 'cancelled' | 'failed';
+export type Refusal = 'no-account' | 'waiting' | 'not-open' | 'unverified' | 'other-account' | 'cancelled' | 'expired' | 'failed';
 
 export interface Arrival {
   user: UserLogin;

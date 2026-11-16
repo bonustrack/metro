@@ -46,6 +46,7 @@ const REFUSALS: Record<string, string> = {
   unverified: 'Google or Microsoft did not confirm the email address of that account. Log in with another account.',
   'other-account': 'That email address already signs in with another Google or Microsoft account. Log in with that one.',
   cancelled: 'The sign-in was cancelled.',
+  expired: 'This sign-in took too long or was opened twice. Please try again.',
   failed: 'The sign-in failed. Try again.',
 };
 

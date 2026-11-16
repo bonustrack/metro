@@ -4,6 +4,7 @@ import { log, errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import { APP_ORIGIN, appOriginOf } from '@metro-labs/http/approval-rules';
 import { isAppReturn, validateReturnTo } from '@metro-labs/http/return-to';
 import { bearerSession, type Session } from '@metro-labs/http/user-token';
 import { linkIdentity } from '../db/identities.js';
@@ -118,6 +119,8 @@ function login(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, que
 
 const refusedHash = (reason: Refusal): string => `#/login?refused=${reason}`;
 
+const expiredLogin = (): string => `${appOriginOf(process.env.METRO_APP_URL) ?? APP_ORIGIN}/${refusedHash('expired')}`;
+
 function refusal(query: URLSearchParams): Refusal | null {
   const error = query.get('error');
   if (error === null && query.get('code') !== null) return null;
@@ -183,7 +186,12 @@ const exchangeRefusal = (err: unknown): Refusal => (err instanceof SignInRefused
 async function callback(req: IncomingMessage, res: ServerResponse, deps: AuthApiDeps, query: URLSearchParams): Promise<void> {
   const now = (deps.now ?? Date.now)();
   const started = startedOf(openState(stateKey(deps), query.get('state') ?? '', now));
-  if (started === null) throw new ApiError('this sign-in link is stale, start again', 400);
+  if (started === null) {
+    if ((query.get('state') ?? '') === '' && query.get('code') === null) throw new ApiError('this sign-in link is stale, start again', 400);
+    log.info('auth: a sign-in came back with a state that is stale, tampered or missing, sent to the login page');
+    redirect(res, expiredLogin());
+    return;
+  }
   const returnTo = started.returnTo;
   const refused = refusal(query);
   if (refused !== null) {

@@ -80,6 +80,16 @@ export async function rotateSession(db: Database, refreshToken: string, now: num
   return db.transaction((tx) => rotateIn(tx, secretHashOf(refreshToken), now));
 }
 
+export async function usableSession(db: Database, refreshToken: string, now: number): Promise<AuthSession | null> {
+  if (!TOKEN_RE.test(refreshToken)) return null;
+  const hash = secretHashOf(refreshToken);
+  const rows = await db.select().from(authSessions).where(or(eq(authSessions.refreshHash, hash), eq(authSessions.previousHash, hash))).limit(1);
+  const row = rows[0];
+  if (row === undefined || row.revokedAt !== null || row.expiresAt <= now) return null;
+  const current = row.refreshHash === hash || (row.rotatedAt !== null && now - row.rotatedAt <= ROTATION_GRACE_MS);
+  return current ? sessionOf(row) : null;
+}
+
 export async function liveSession(db: Database, id: string, now: number): Promise<AuthSession | null> {
   const rows = await db.select().from(authSessions).where(and(eq(authSessions.id, id), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, now))).limit(1);
   const row = rows[0];
