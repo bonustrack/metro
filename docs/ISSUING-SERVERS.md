@@ -500,8 +500,8 @@ dialog names the instance id and its region.
 The Tailscale machine stays in the tailnet, offline, since Metro's OAuth client
 may only make join keys. Remove it in the admin console under Machines. No DNS record exists for a box, so there is none to remove.
 
-The Metro operator (the `admin@stage.box` account, not an organization's
-admin) can also delete a box of any organization from Admin, Agents. The same
+The Metro operator (the account whose user id is `OPERATOR_USER_ID`, not an
+organization's admin) can also delete a box of any organization from Admin, Agents. The same
 dialog names the organization the box belongs to. The api finds the row by its
 id in every organization, then runs exactly the same checks, and logs who
 deleted which box for which organization. An agent Metro did not launch also

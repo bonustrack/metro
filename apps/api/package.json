@@ -2,7 +2,7 @@
   "name": "@metro-labs/api",
   "version": "0.1.0",
   "private": true,
-  "description": "api.metro.box: sign-in through WorkOS, organizations and members, each organization's agent list, and launching agents on AWS.",
+  "description": "api.metro.box: sign-in with Google and Microsoft, organizations and members, each organization's agent list, and launching agents on AWS.",
   "license": "MIT",
   "type": "module",
   "engines": {
