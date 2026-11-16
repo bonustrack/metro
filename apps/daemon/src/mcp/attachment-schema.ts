@@ -28,7 +28,8 @@ export const attachmentItem = {
         '8 MiB decoded, but the real ceiling is far lower and is not enforced by the daemon: ' +
         'this base64 has to be emitted verbatim as part of the tool call, and past roughly ' +
         '10 KB (~13 KB of base64) it comes out corrupted, so the file arrives silently ' +
-        'damaged or fails to decode. Use `upload` instead for anything bigger. A ' +
+        'damaged or fails to decode. Use `path` (a file on this machine) or `upload` instead for ' +
+        'anything bigger. A ' +
         '`data:<mime>;base64,` prefix is accepted and supplies the mime when `mime` is ' +
         'omitted. Stations impose their own, lower limits (xmtp refuses non-image files over ' +
         '~190 KiB).',
@@ -38,8 +39,8 @@ export const attachmentItem = {
       description:
         'http(s) URL fetched BY THE DAEMON, so it must already be publicly reachable from the ' +
         'daemon host. Right when the file is already published; never for anything ' +
-        'confidential, because it has to be public for this to work at all. Use `upload` for ' +
-        'a confidential file.',
+        'confidential, because it has to be public for this to work at all. Use `path` or ' +
+        '`upload` for a confidential file.',
     },
     path: {
       type: 'string',

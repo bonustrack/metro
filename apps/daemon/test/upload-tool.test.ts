@@ -191,13 +191,14 @@ describe('the tool description tells an agent which source to use', () => {
     expect(props.data?.description).toContain('corrupted');
   });
 
-  test('`path` says it resolves on the daemon host, not the caller\'s', () => {
+  test('`path` says it is a file on this machine, read with the agent\'s own rights', () => {
     const props = attachmentSchema().properties as Record<
       string,
       { description: string }
     >;
-    expect(props.path?.description).toContain('DAEMON HOST');
-    expect(props.path?.description).toContain('not your machine.'.slice(4));
+    expect(props.path?.description).toContain('on this machine');
+    expect(props.path?.description).toContain('your own rights');
+    expect(props.path?.description).toContain('hidden folder');
   });
 
   test('`url` says the file has to be public already', () => {
@@ -213,12 +214,16 @@ describe('the tool description tells an agent which source to use', () => {
       string,
       { description: string }
     >;
-    for (const key of ['data', 'url', 'path'])
+    for (const key of ['data', 'url']) {
+      expect(props[key]?.description).toContain('`path`');
       expect(props[key]?.description).toContain('`upload`');
+    }
+    expect(props.upload?.description).toContain('`path`');
+    expect(tool('create_upload').description).toContain('`path`');
   });
 
-  test('the server instructions point at the upload route', () => {
-    expect(MCP_INSTRUCTIONS).toContain('create_upload');
-    expect(MCP_INSTRUCTIONS).toContain('upload:"<upload_id>"');
+  test('the server instructions send a file on this machine by path', () => {
+    expect(MCP_INSTRUCTIONS).toContain('attachments:[{path:"<absolute path>"}]');
+    expect(MCP_INSTRUCTIONS).not.toContain('DAEMON host');
   });
 });
