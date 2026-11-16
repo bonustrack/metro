@@ -11,6 +11,18 @@ export const isOperator = (account: Account | null): boolean => account?.user.em
 
 export type UserStatus = 'approved' | 'waitlist' | 'rejected';
 
+export interface LoginLink {
+  id: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface NewLoginLink {
+  id: string;
+  url: string;
+  createdAt: number;
+}
+
 export interface UserRow {
   id: string;
   email: string | null;
@@ -20,6 +32,7 @@ export interface UserRow {
   lastLoginAt: string | null;
   status: UserStatus | null;
   operator: boolean;
+  loginLink: LoginLink | null;
 }
 
 export interface OrganizationSummary {
@@ -46,6 +59,13 @@ export interface AgentRow {
 const adminUrl = (path: string): string => `${builtInDaemon()}/api/admin${path}`;
 const optional = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const status = (v: unknown): UserStatus | null => (v === 'approved' || v === 'waitlist' || v === 'rejected' ? v : null);
+const stamp = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+function loginLinkOf(v: unknown): LoginLink | null {
+  if (!isRecord(v) || typeof v.id !== 'string') return null;
+  const createdAt = stamp(v.createdAt);
+  return createdAt === null ? null : { id: v.id, createdAt, lastUsedAt: stamp(v.lastUsedAt) };
+}
 
 async function call(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {
   const bearer = await accessToken();
@@ -84,6 +104,7 @@ export async function fetchUsers(): Promise<UserRow[]> {
             lastLoginAt: optional(u.lastLoginAt),
             status: status(u.status),
             operator: u.operator === true,
+            loginLink: loginLinkOf(u.loginLink),
           },
         ]
       : [],
@@ -92,6 +113,19 @@ export async function fetchUsers(): Promise<UserRow[]> {
 
 export async function setUserStatus(id: string, next: UserStatus): Promise<void> {
   await call(`/users/${encodeURIComponent(id)}/status`, 'POST', { status: next });
+}
+
+const loginLinkPath = (userId: string): string => `/users/${encodeURIComponent(userId)}/login-link`;
+
+export async function createLoginLink(userId: string): Promise<NewLoginLink> {
+  const answer = await call(loginLinkPath(userId), 'POST');
+  const createdAt = stamp(answer.createdAt);
+  if (typeof answer.id !== 'string' || typeof answer.url !== 'string' || createdAt === null) throw new Error('Metro returned an unexpected response.');
+  return { id: answer.id, url: answer.url, createdAt };
+}
+
+export async function removeLoginLink(userId: string): Promise<void> {
+  await call(loginLinkPath(userId), 'DELETE');
 }
 
 export async function fetchAllOrganizations(): Promise<OrganizationSummary[]> {
