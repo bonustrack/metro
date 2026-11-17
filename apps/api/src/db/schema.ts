@@ -84,7 +84,7 @@ export const authSessions = pgTable(
   {
     id: text('id').primaryKey(),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-    method: text('method').$type<'google' | 'microsoft' | 'workos'>().notNull(),
+    method: text('method').$type<'google' | 'microsoft'>().notNull(),
     refreshHash: text('refresh_hash').notNull(),
     previousHash: text('previous_hash'),
     rotatedAt: bigint('rotated_at', { mode: 'number' }),
