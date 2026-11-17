@@ -225,6 +225,13 @@
       "when": 1793664000000,
       "tag": "0031_model_call_effort",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793750400000,
+      "tag": "0032_drop_login_links",
+      "breakpoints": true
     }
   ]
 }

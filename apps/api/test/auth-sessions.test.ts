@@ -58,13 +58,13 @@ describe('auth sessions', () => {
   test('a session ends after 30 idle days and after 90 days in all, however often it is used', async () => {
     const idle = await createSession(held.db, { user: ANA, method: 'google', now: NOW });
     expect(await rotateSession(held.db, idle.refreshToken, NOW + SESSION_IDLE_MS)).toEqual({ kind: 'refused', reason: 'expired' });
-    const busy = await createSession(held.db, { user: ANA, method: 'link', now: NOW });
+    const busy = await createSession(held.db, { user: ANA, method: 'microsoft', now: NOW });
     let token = busy.refreshToken;
     for (let day = 20; day < 90; day += 20) token = tokenOf(await rotateSession(held.db, token, NOW + day * DAY));
     const last = await rotateSession(held.db, token, NOW + 85 * DAY);
     expect(last).toMatchObject({ kind: 'rotated', session: { expiresAt: NOW + SESSION_MAX_MS } });
     expect(await rotateSession(held.db, tokenOf(last), NOW + SESSION_MAX_MS)).toEqual({ kind: 'refused', reason: 'expired' });
-    expect(await liveSession(held.db, busy.session.id, NOW + SESSION_MAX_MS - 1)).toMatchObject({ id: busy.session.id, user: ANA, method: 'link' });
+    expect(await liveSession(held.db, busy.session.id, NOW + SESSION_MAX_MS - 1)).toMatchObject({ id: busy.session.id, user: ANA, method: 'microsoft' });
     expect(await pruneSessions(held.db, NOW + SESSION_MAX_MS)).toBe(2);
     expect(await held.db.select().from(authSessions)).toEqual([]);
   });
