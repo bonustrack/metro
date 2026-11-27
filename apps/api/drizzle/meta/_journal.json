@@ -246,6 +246,13 @@
       "when": 1793880000000,
       "tag": "0034_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793923200000,
+      "tag": "0035_drop_workos_sessions",
+      "breakpoints": true
     }
   ]
 }
