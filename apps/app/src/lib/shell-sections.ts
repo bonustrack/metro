@@ -21,7 +21,7 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
 
 const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   servers: 'agents',
-  none: 'agents',
+  none: 'chats',
   activity: 'connectors',
   'org-connectors': 'connectors',
   'org-connector': 'connectors',

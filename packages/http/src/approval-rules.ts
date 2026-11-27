@@ -36,5 +36,5 @@ const agentSegment = (agent: string, slug: string | null | undefined): string =>
 export function approvalLink(origin: string, where: ApprovalAgent, id: string): string {
   if (where.owner === null) return origin;
   const organization = `${origin}/#/${encodeURIComponent(usable(where.ownerSlug) ? where.ownerSlug : where.owner)}`;
-  return where.agent === null ? organization : `${organization}/${encodeURIComponent(agentSegment(where.agent, where.agentSlug))}/approvals/${encodeURIComponent(id)}`;
+  return where.agent === null ? `${organization}/agents` : `${organization}/${encodeURIComponent(agentSegment(where.agent, where.agentSlug))}/approvals/${encodeURIComponent(id)}`;
 }

@@ -357,7 +357,7 @@ describe('the link names the metro.box row the box enrolled as', () => {
   test('before enrollment it is the organization agent list, never the local agent id', async () => {
     setLocalOwner(ORG, dir);
     const local = await localCreateAgent('Andy', dir);
-    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}`);
+    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}/agents`);
     expect(linkFrom()).not.toContain(local.id);
   });
 
@@ -366,6 +366,6 @@ describe('the link names the metro.box row the box enrolled as', () => {
     saveAgentKey(key, { server: ROW, organization: ORG, at: new Date().toISOString() }, dir);
     expect(linkFrom()).toBe(linkOf('jkmnp'));
     saveAgentKey(key, { server: ROW, organization: 'org_01SOMEONEELSE0000', at: new Date().toISOString() }, dir);
-    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}`);
+    expect(linkFrom()).toBe(`https://metro.box/#/${ORG}/agents`);
   });
 });

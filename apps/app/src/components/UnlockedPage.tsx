@@ -113,7 +113,10 @@ function FocusPage({ selection, onLock }: { selection: Selection; onLock: () => 
   return <ServerGate selection={selection} onLock={onLock} />;
 }
 
-export function UnlockedPage({ selection, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+const CHAT_HOME: Selection = { kind: 'chat-home' };
+
+export function UnlockedPage({ selection: routed, onLock }: { selection: Selection; onLock: () => void }): ReactNode {
+  const selection = routed.kind === 'none' ? CHAT_HOME : routed;
   const narrow = useIsNarrow();
   usePhoneNotifications();
   if (isAdminSelection(selection)) return <AdminArea selection={selection} onLock={onLock} />;
