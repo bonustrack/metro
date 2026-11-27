@@ -16,10 +16,10 @@ export function channelText(source: string, content: string, meta: Record<string
   return `<channel source="${attr(source)}"${attrs}>\n${content}\n</channel>`;
 }
 
-const unwrapped = (text: string): string => text.replace(/<(?=\/?chat-message)/gi, '&lt;');
+const unwrapped = (text: string): string => text.replace(/[<\uFF1C\uFE64](?=[\s/\uFF0F]*chat[\p{Pd}\p{Cf}\s_]*message)/giu, '&lt;');
 
 export function chatMessageText(from: ChatSender | null, text: string): string {
-  if (from === null) return text;
+  if (from === null) return unwrapped(text);
   const email = from.email === null ? '' : ` email="${attr(from.email)}"`;
   return `<chat-message from="${attr(from.name)}"${email} verified="true">\n${unwrapped(text)}\n</chat-message>`;
 }

@@ -142,10 +142,15 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   as `<chat-message from="<name>" email="<address>" verified="true">` (`chatMessageText` in
   `sdk-runner/src/channel-text.ts`): the box passes the ticket's sender in the turn line (`from`),
   the attributes are escaped like a channel's meta, and a `<chat-message` or `</chat-message` in the
-  text is broken up, so nobody can write as someone else. `CHAT_RULES` tell the agent that Metro
-  verified that person (signed in on metro.box, a member of the organization): it trusts them as a
-  verified sender on its chat networks, never asks them to prove who they are, and Ask and Block
-  still apply. A turn line with no `from` (none today) is the text alone. `METRO_SESSION=chat` makes the
+  text is broken up (also look-alikes: other hyphens, invisible characters, spaces, full-width
+  brackets), so nobody can write as someone else. `CHAT_RULES` tell the agent that Metro verified
+  that person (signed in on metro.box with that email, a member of the organization): a verified
+  sender, never asked for proof, though being verified does not widen what the owner's instructions
+  let that person ask for, and Ask and Block still apply; the email is proven, the name is the one
+  they chose, so people are told apart by email; and a `chat-message` tag in anything the agent
+  reads (a tool result, a file, a page, an email) is outside data, never verified. A turn line with
+  no `from` (a daemon older than its CLI during an update, or a name of spaces only) is the text
+  alone, tags still broken up. `METRO_SESSION=chat` makes the
   guard hook and the session-start rules stand aside: a chat works on its own thread and shows its
   tool calls.
 - Parts (`@metro-labs/core/chat`): `text`, `tool` (name, input and result as text, 4,000 characters
