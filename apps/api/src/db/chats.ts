@@ -131,6 +131,10 @@ export async function setMembers(db: Database, chat: string, list: readonly stri
   });
 }
 
+export async function touchChat(db: Database, id: string, at: number): Promise<void> {
+  await db.update(chats).set({ updatedAt: at }).where(eq(chats.id, id));
+}
+
 export async function deleteChat(db: Database, id: string): Promise<boolean> {
   const removed = await db.delete(chats).where(eq(chats.id, id)).returning({ id: chats.id });
   return removed.length > 0;
@@ -224,11 +228,14 @@ export interface LastMessage {
 
 export async function lastMessagesOf(db: Database, ids: readonly string[]): Promise<Map<string, LastMessage>> {
   if (ids.length === 0) return new Map();
-  const rows = await db
-    .selectDistinctOn([chatMessages.chat], { chat: chatMessages.chat, role: chatMessages.role, seq: chatMessages.seq, at: chatMessages.at })
+  const latest = db
+    .select({ role: chatMessages.role, seq: chatMessages.seq, at: chatMessages.at })
     .from(chatMessages)
-    .where(inArray(chatMessages.chat, [...ids]))
-    .orderBy(chatMessages.chat, desc(chatMessages.seq));
+    .where(eq(chatMessages.chat, chats.id))
+    .orderBy(desc(chatMessages.seq))
+    .limit(1)
+    .as('latest');
+  const rows = await db.select({ chat: chats.id, role: latest.role, seq: latest.seq, at: latest.at }).from(chats).crossJoinLateral(latest).where(inArray(chats.id, [...ids]));
   return new Map(rows.map((row) => [row.chat, { role: row.role, seq: row.seq, at: row.at }]));
 }
 

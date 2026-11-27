@@ -12,6 +12,7 @@ import {
   replyOf,
   setMembers,
   setPinned,
+  touchChat,
   updateChat,
   type ChatShared,
 } from '../db/chats.js';
@@ -49,7 +50,7 @@ export async function changeChat(deps: ChatsDeps, caller: Caller, rawId: string,
   log.info({ chat: open.row.id, by: caller.session.userId, shared, members: members?.length, renamed: title !== undefined }, 'chats: a chat changed');
   const row = { ...open.row, ...sealed, ...(shared === undefined ? {} : { shared }) };
   const pinned = (await pinsOf(deps.db(), caller.session.userId, [row.id])).has(row.id);
-  const activity = (await activitiesOf(deps, caller.session.userId, [row.id])).get(row.id) ?? null;
+  const activity = (await activitiesOf(deps, caller.session.userId, [row])).get(row.id) ?? null;
   return { chat: chatView(open.keys, row, caller.session, members ?? open.members, pinned, activity) };
 }
 
@@ -95,6 +96,7 @@ export async function retryTicket(deps: ChatsDeps, caller: Caller, rawId: string
   const text = messageView(open.keys, caller.owner, message).text;
   if (text === null) throw new ApiError('This message could not be read, so it cannot be sent again.', 409);
   const [author] = await peopleOf(deps.db(), [message.author ?? caller.session.userId]);
+  await touchChat(deps.db(), open.row.id, deps.now());
   const ctx = { chat: open.row, session: caller.session, name: nameOf(author), group: isGroup(open.row, open.members) };
   return { ticket: sendTicket(open.keys, ctx, message.id, text, deps.now()) };
 }

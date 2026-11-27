@@ -284,6 +284,19 @@ describe('the agent’s reply', () => {
     expect(await activity(ALICE)).toBe('working');
     now += 131 * 60_000;
     expect(await activity(ALICE)).toBeNull();
+    expect((await api('POST', `/api/chats/${chat}/messages/${field<string>(second.body.message, 'id')}/ticket`)).status).toBe(200);
+    expect(await activity(ALICE)).toBe('working');
+  });
+
+  test('a read made while the page is hidden marks nothing read', async () => {
+    const { chat, message } = await start();
+    expect((await reply(ours, chat, message)).status).toBe(200);
+    const listed = async (): Promise<unknown> => field<{ activity: unknown }[]>((await api('GET', '/api/chats')).body, 'chats')[0]?.activity;
+    const hidden = await api('GET', `/api/chats/${chat}?seen=0`);
+    expect(field<string | null>(hidden.body.chat, 'activity')).toBe('unread');
+    expect(await listed()).toBe('unread');
+    expect((await api('GET', `/api/chats/${chat}`)).status).toBe(200);
+    expect(await listed()).toBeNull();
   });
 
   test('a chat sealed with another key reads as unreadable, never as an empty message', async () => {

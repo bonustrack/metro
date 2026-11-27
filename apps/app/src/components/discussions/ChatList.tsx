@@ -42,7 +42,8 @@ function ChatRow({ chat, servers, pane, selected }: { chat: Chat; servers: Serve
   const avatar = <AgentAvatar seed={server === undefined ? chat.agent : agentSeed(server)} src={server?.avatar ?? null} size={AVATAR_SIZE.chat} />;
   const href = routeHash({ kind: 'chat', id: chat.id });
   const title = chat.title === '' ? 'Chat' : chat.title;
-  const dot = <ActivityDot activity={selected && chat.activity === 'unread' ? null : chat.activity} />;
+  const activity = selected && chat.activity === 'unread' ? null : chat.activity;
+  const dot = activity === null ? undefined : <ActivityDot activity={activity} />;
   if (pane) return <ListPaneRow title={title} line={lineOf(chat, server)} avatar={avatar} mark={chat.pinned ? 'pin' : undefined} trailing={dot} selected={selected} href={href} />;
   return <Item title={title} subtitle={lineOf(chat, server)} leading={avatar} trailing={dot} href={href} />;
 }

@@ -109,8 +109,8 @@ export async function startChat(agent: string, text: string, members: readonly s
   return { chat: toChat(body.chat), message: toChatMessage(body.message), ticket: ticketOf(body) };
 }
 
-export async function fetchChat(id: string): Promise<ChatPage> {
-  const body = await call({ method: 'GET', base: `${chatsUrl()}/${id}` });
+export async function fetchChat(id: string, seen = true): Promise<ChatPage> {
+  const body = await call({ method: 'GET', base: `${chatsUrl()}/${id}${seen ? '' : '?seen=0'}` });
   if (!isRecord(body) || !Array.isArray(body.messages) || !Array.isArray(body.people)) throw unexpected();
   return {
     chat: toChat(body.chat),
