@@ -1,4 +1,5 @@
 import { createInterface } from 'node:readline';
+import type { ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { exitFlushed, writeOut } from './chat-out.js';
@@ -17,9 +18,18 @@ function parsed(line: string): Record<string, unknown> | null {
   }
 }
 
+const SENDER_MAX = 254;
+
+const short = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' && value.length <= SENDER_MAX ? value : null);
+
+function senderOf(value: unknown): ChatSender | null {
+  const name = isRecord(value) ? short(value.name) : null;
+  return name === null || !isRecord(value) ? null : { name, email: short(value.email) };
+}
+
 function requestOf(input: Record<string, unknown> | null): ChatRequest | null {
   if (input?.t !== 'turn' || typeof input.prompt !== 'string' || input.prompt.trim() === '') return null;
-  return { prompt: input.prompt, resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null };
+  return { prompt: input.prompt, from: senderOf(input.from), resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null };
 }
 
 const turn = new ChatTurn(writeOut);

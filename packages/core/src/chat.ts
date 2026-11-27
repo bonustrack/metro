@@ -11,6 +11,11 @@ export type ApprovalState = 'waiting' | 'allowed' | 'denied';
 
 export type ReplyState = 'done' | 'error' | 'stopped';
 
+export interface ChatSender {
+  name: string;
+  email: string | null;
+}
+
 interface TextPart {
   type: 'text';
   text: string;

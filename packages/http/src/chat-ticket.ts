@@ -10,6 +10,8 @@ const SKEW_S = 30;
 const ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const USER_RE = /^[A-Za-z0-9_]{1,64}$/;
 const NAME_MAX = 120;
+const EMAIL_MAX = 254;
+const EMAIL_RE = /^[^\s@<>"]+@[^\s@<>"]+$/;
 
 type ChatAct = 'send' | 'view';
 
@@ -19,6 +21,7 @@ export interface ChatTicketClaims {
   chat: string;
   user: string;
   name: string;
+  email: string | null;
   act: ChatAct;
   message: string | null;
   digest: string | null;
@@ -52,6 +55,7 @@ export function signChatTicket(signer: ChatSigner, claims: ChatTicketClaims, now
     chat: claims.chat,
     sub: claims.user,
     name: claims.name.slice(0, NAME_MAX),
+    ...(claims.email === null ? {} : { email: claims.email }),
     act: claims.act,
     ...(claims.message === null ? {} : { msg: claims.message }),
     ...(claims.digest === null ? {} : { sha: claims.digest }),
@@ -84,6 +88,8 @@ function fresh(claims: Record<string, unknown>, act: ChatAct, now: number): numb
   return exp * 1000;
 }
 
+const emailOf = (value: unknown): string | null => (typeof value === 'string' && value.length <= EMAIL_MAX && EMAIL_RE.test(value) ? value : null);
+
 const actOf = (value: unknown): ChatAct | null => (value === 'send' || value === 'view' ? value : null);
 
 function messageFacts(claims: Record<string, unknown>, act: ChatAct): { message: string | null; digest: string | null } | null {
@@ -112,7 +118,7 @@ function chatTicketOf(claims: Record<string, unknown>, now: number): ChatTicket 
   const facts = messageFacts(claims, act);
   if (expiresAt === null || facts === null) return null;
   const name = typeof claims.name === 'string' ? claims.name.slice(0, NAME_MAX) : '';
-  return { ...who, ...facts, act, name, group: claims.group === true, expiresAt };
+  return { ...who, ...facts, act, name, email: emailOf(claims.email), group: claims.group === true, expiresAt };
 }
 
 interface TicketParts {

@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 const start = (made: Rig, n: number, chat = 'chat0000001'): ReturnType<Rig['turns']['start']> =>
-  made.turns.start({ id: `msg0000000${String(n)}`, chat, prompt: `prompt ${String(n)}` });
+  made.turns.start({ id: `msg0000000${String(n)}`, chat, prompt: `prompt ${String(n)}`, from: { name: 'Alice', email: 'alice@example.com' } });
 
 describe('a chat turn on the box', () => {
   test('sends the message to metro chat, builds the reply from its lines, keeps the session and saves the reply once', async () => {
@@ -25,7 +25,7 @@ describe('a chat turn on the box', () => {
     const turn = start(made, 1);
     const child = only(made.children);
     await tick();
-    expect(child.sent[0]).toEqual({ t: 'turn', prompt: 'prompt 1', resume: null });
+    expect(child.sent[0]).toEqual({ t: 'turn', prompt: 'prompt 1', from: { name: 'Alice', email: 'alice@example.com' }, resume: null });
     child.say({ t: 'session', id: 'a7fb5be2-f586-40cd-a384-7121b757f759' });
     child.say({ t: 'part', n: 0, part: { type: 'text', text: 'Hi' } });
     child.say({ t: 'delta', n: 0, d: ' Alice' });
@@ -40,13 +40,13 @@ describe('a chat turn on the box', () => {
     expect(JSON.parse(readFileSync(join(made.dir, 'chat-sessions.json'), 'utf8'))).toEqual({ version: 1, sessions: { chat0000001: 'a7fb5be2-f586-40cd-a384-7121b757f759' }, hidden: ['a7fb5be2-f586-40cd-a384-7121b757f759'] });
     start(made, 2);
     await tick();
-    expect(only(made.children, 1).sent[0]).toEqual({ t: 'turn', prompt: 'prompt 2', resume: 'a7fb5be2-f586-40cd-a384-7121b757f759' });
+    expect(only(made.children, 1).sent[0]).toEqual({ t: 'turn', prompt: 'prompt 2', from: { name: 'Alice', email: 'alice@example.com' }, resume: 'a7fb5be2-f586-40cd-a384-7121b757f759' });
   });
 
   test('answers one chat at a time, and at most a few chats at once', () => {
     const made = fresh();
     start(made, 1);
-    expect(() => made.turns.start({ id: 'msg00000002', chat: 'chat0000001', prompt: 'b' })).toThrow('still answering');
+    expect(() => made.turns.start({ id: 'msg00000002', chat: 'chat0000001', prompt: 'b', from: { name: 'Alice', email: 'alice@example.com' } })).toThrow('still answering');
     for (let i = 2; i <= RUNNING_MAX; i += 1) start(made, i + 2, `chat000000${String(i)}`);
     expect(() => start(made, 9, 'chat0000009')).toThrow('already answering');
   });

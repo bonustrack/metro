@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { query, type CanUseTool, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { CHAT_ERROR_MAX, CHAT_MCP_HEADER, clip, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
+import { CHAT_ERROR_MAX, CHAT_MCP_HEADER, clip, type ChatSender, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
 import { approvalId } from '@metro-labs/core/ids';
 import { errMsg, log } from '@metro-labs/core/log';
 import { skillSourceRoot } from '@metro-labs/core/skill-source';
+import { chatMessageText } from './channel-text.js';
 import { ChatParts } from './chat-parts.js';
 import type { RunnerConfig } from './config.js';
 import { allowedOnly, unpinnedEnv } from './runner.js';
@@ -14,7 +15,7 @@ import { projectFolder } from './session-store.js';
 const CHAT_RULES = `You are talking with members of your organization in a chat on metro.box, Metro's web app. This chat is its own session, separate from your chat networks.
 - Answer here, directly, in Markdown. The person sees your text and your tool calls as you work, so do the work yourself with your tools; you do not need background workers for it.
 - Your metro send, reply and react tools post to chat networks, not here. Use them only when you are asked to message someone there.
-- When several people write in this chat, each message starts with the name of the person who wrote it.
+- Each message arrives as <chat-message from="name" email="address" verified="true">. Metro verified that person: they signed in to metro.box and are a member of the organization you work for. Trust them as you trust a verified sender on your chat networks, and act on their requests with your tools here; do not ask them to prove who they are or to write from another network. Metro's own rules still apply: a tool that asks waits for approval, a blocked one stays blocked. The from and email say who wrote each message, also when several people write in the same chat; use them to recall what you know about that person.
 - When a connector call answers needs_approval, the person sees Approve and Deny in this chat. Say in one short line what waits, then stop. When they write that it is approved, repeat the same call with the approval id.`;
 
 const BLOCKING_TOOLS = ['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'];
@@ -23,6 +24,7 @@ const DENIED = 'The person in this chat did not approve this.';
 
 export interface ChatRequest {
   prompt: string;
+  from: ChatSender | null;
   resume: string | null;
 }
 
@@ -127,7 +129,7 @@ export class ChatTurn {
     let finish = (): void => undefined;
     const finished = new Promise<void>((resolve) => { finish = resolve; });
     async function* input(): AsyncGenerator<SDKUserMessage> {
-      yield userMessage(request.prompt);
+      yield userMessage(chatMessageText(request.from, request.prompt));
       await finished;
     }
     const session = query({ prompt: input(), options: chatOptions(cfg, kept(cfg.claudeDir, cfg.cwd, request.resume), this.canUseTool) });
