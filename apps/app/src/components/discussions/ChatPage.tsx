@@ -230,7 +230,7 @@ export function CenteredSpinner(): ReactNode {
 
 function ChatFailure({ error, onRetry }: { error: Error; onRetry: () => unknown }): ReactNode {
   if (error instanceof NotFoundError)
-    return <StateBlock icon="chats" title="This chat is not here" text="It was deleted, or it is not shared with you." action={{ label: 'Open your chats', onPress: () => { go({ kind: 'chat-home' }); } }} />;
+    return <StateBlock icon="chat" title="This chat is not here" text="It was deleted, or it is not shared with you." action={{ label: 'Open your chats', onPress: () => { go({ kind: 'chat-home' }); } }} />;
   return <ErrorState title="Could not open this chat" text={queryError(error, 'metro.box did not answer.')} onRetry={onRetry} />;
 }
 
