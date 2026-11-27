@@ -63,6 +63,7 @@ import { IconUserAdd } from '@central-icons-react-native/round-outlined-radius-1
 import { IconPaperclip1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPaperclip1';
 import { IconFileBend } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconFileBend';
 import { IconImages1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconImages1';
+import { IconGauge } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconGauge';
 import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
@@ -130,6 +131,7 @@ const ICONS = {
   paperclip: IconPaperclip1,
   file: IconFileBend,
   image: IconImages1,
+  gauge: IconGauge,
 };
 
 export type IconName = keyof typeof ICONS;

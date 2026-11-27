@@ -182,10 +182,10 @@ export function providerTooNew(route: ModelRoute | null, connections: Connection
 
 export const usageOf = (settings: ModelSettings, connection: string): Usage[string] | undefined => settings.usage[connection];
 
-const modelUrl = (): string => `${daemonBase()}/api/model`;
+const modelUrl = (base = daemonBase()): string => `${base}/api/model`;
 
-export async function fetchModel(): Promise<ModelSettings> {
-  return toModelSettings(await call({ method: 'GET', base: modelUrl() }));
+export async function fetchModel(base?: string): Promise<ModelSettings> {
+  return toModelSettings(await call({ method: 'GET', base: modelUrl(base) }));
 }
 
 export async function syncModel(): Promise<void> {

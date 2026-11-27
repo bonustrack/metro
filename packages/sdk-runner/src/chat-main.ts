@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline';
-import type { ChatSender } from '@metro-labs/core/chat';
+import { isChatEffort, type ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { missingFilesOf, turnFilesOf } from './chat-files.js';
@@ -33,7 +33,7 @@ function requestOf(input: Record<string, unknown> | null): ChatRequest | null {
   const files = turnFilesOf(input.files);
   const missing = missingFilesOf(input.missing);
   if (input.prompt.trim() === '' && files.length === 0 && missing.length === 0) return null;
-  return { prompt: input.prompt, from: senderOf(input.from), resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null, files, missing };
+  return { prompt: input.prompt, from: senderOf(input.from), resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null, files, missing, effort: isChatEffort(input.effort) ? input.effort : null };
 }
 
 const turn = new ChatTurn(writeOut);

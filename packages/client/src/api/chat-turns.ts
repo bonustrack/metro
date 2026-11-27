@@ -1,4 +1,4 @@
-import { chatPartOf, replyStateOf, turnEventOf, type ChatPart, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
+import { chatPartOf, replyStateOf, turnEventOf, type ChatEffort, type ChatPart, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
 import { baseFromSegment } from '../auth/daemon.js';
 import { filled, isRecord } from '../read.js';
 import { call, JSON_HEADERS } from './client.js';
@@ -37,8 +37,8 @@ export function toTurnView(value: unknown): TurnView {
 const post = (host: string, path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> =>
   call({ method: 'POST', base: `${turnsUrl(host)}${path}`, headers: JSON_HEADERS, body: JSON.stringify(body), ...(signal === undefined ? {} : { signal }) });
 
-export async function sendTurn(host: string, ticket: string, text: string): Promise<string> {
-  const body = await post(host, '', { ticket, text });
+export async function sendTurn(host: string, ticket: string, text: string, effort?: ChatEffort): Promise<string> {
+  const body = await post(host, '', { ticket, text, ...(effort === undefined ? {} : { effort }) });
   if (!isRecord(body) || typeof body.turn !== 'string') throw unexpected();
   return body.turn;
 }

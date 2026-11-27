@@ -35,6 +35,7 @@ import {
   helperRequest,
   learnAlwaysThinks,
   plannedEffort,
+  chosenEffort,
   requestKind,
   sentEffort,
   thinkingOff,
@@ -328,7 +329,8 @@ async function heldAttempt(req: IncomingMessage, held: Held, ask: Request, route
 }
 
 async function dispatch(req: IncomingMessage, res: ServerResponse, path: string, deps: ModelDeps): Promise<void> {
-  const setup = deps.setup();
+  const base = deps.setup();
+  const setup = { ...base, effort: chosenEffort(req, base.effort ?? {}) };
   const raw = await readBody(req);
   const parsed = parseJson(raw);
   const sent = fitToolSearch(req, parsed);

@@ -23,6 +23,7 @@ import { ChatMenu } from './ChatMenu.js';
 import { ChatBoxContext } from './ServerApproval.js';
 import { ChatFileContext } from './ChatFiles.js';
 import { Composer } from './Composer.js';
+import { ChatControls } from './ComposerControls.js';
 import { filesAllowed, type PickedFile } from '../../lib/chat-files.js';
 import { refreshApprovals } from '../../lib/agent-status.js';
 import { chatGate, refreshChat, sendChatMessage, unanswered, useBoxStatus, useChatQuery, type ChatGate } from '../../lib/chat-queries.js';
@@ -150,10 +151,11 @@ interface DockProps {
   watched: boolean;
   gate: ChatGate;
   attach: boolean;
+  toolbar: ReactNode;
   onSend: (text: string, files: PickedFile[]) => Promise<void>;
 }
 
-function Dock({ agent, reply, watched, gate, attach, onSend }: DockProps): ReactNode {
+function Dock({ agent, reply, watched, gate, attach, toolbar, onSend }: DockProps): ReactNode {
   const going = watched && replyGoing(reply.live);
   return (
     <Composer
@@ -163,6 +165,7 @@ function Dock({ agent, reply, watched, gate, attach, onSend }: DockProps): React
       blocked={gate.kind === 'closed' ? gate.why : null}
       docked
       attach={attach}
+      toolbar={toolbar}
       onSend={onSend}
       onStop={going ? reply.stop : undefined}
       stopping={reply.stopping}
@@ -211,7 +214,7 @@ function Conversation({ page, server }: ConversationProps): ReactNode {
                 />
               ) : null}
             </Column>
-            <Dock agent={agent} reply={reply} watched={watched} gate={gate} attach={gate.kind === 'open' && filesAllowed(status)} onSend={actions.send} />
+            <Dock agent={agent} reply={reply} watched={watched} gate={gate} attach={gate.kind === 'open' && filesAllowed(status)} toolbar={<ChatControls key={chat.id} chat={chat.id} host={host} status={status} />} onSend={actions.send} />
           </Column>
         </Column>
       </ChatFileContext.Provider>

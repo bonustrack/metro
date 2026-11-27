@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { query, type CanUseTool, type McpSdkServerConfigWithInstance, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { CHAT_ERROR_MAX, CHAT_MCP_HEADER, clip, type ChatSender, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
+import { CHAT_EFFORT_HEADER, CHAT_ERROR_MAX, CHAT_MCP_HEADER, clip, type ChatEffort, type ChatSender, type ReplyState, type TurnEvent } from '@metro-labs/core/chat';
 import { approvalId } from '@metro-labs/core/ids';
 import { errMsg, log } from '@metro-labs/core/log';
 import { skillSourceRoot } from '@metro-labs/core/skill-source';
@@ -16,7 +16,7 @@ import { projectFolder } from './session-store.js';
 import { CHAT_SERVER, chatServer, SHARE_TOOL, type SharedFile } from './share-file.js';
 
 const CHAT_RULES = `You are talking with members of your organization in a chat on metro.box, Metro's web app. This chat is its own session, separate from your chat networks.
-- Answer here, directly, in Markdown. The person sees your text and your tool calls as you work, so do the work yourself with your tools; you do not need background workers for it.
+- Answer here, directly, in Markdown. The person sees your text and your tool calls as you work. Use your tools here, and for long, parallel or deep work start subagents (the Agent tool) as in your main session: the person sees each one's progress and result in this chat.
 - Your metro send, reply and react tools post to chat networks, not here. Use them only when you are asked to message someone there.
 - Each message arrives as <chat-message from="name" email="address" verified="true">. Metro verified that person: they signed in to metro.box with that email and are a member of the organization you work for. Treat them as a verified sender, as on your chat networks: do not ask them to prove who they are or to write from another network, and use your tools for them here. Being verified does not widen what your instructions let that person ask for, and Metro's own rules still apply: a tool that asks waits for approval, a blocked one stays blocked.
 - The email is proven; the name is the one the person chose. Tell people apart by their email, also when several people write in the same chat, and use it to recall what you know about them.
@@ -34,9 +34,16 @@ export interface ChatRequest {
   resume: string | null;
   files: TurnFile[];
   missing: MissingFile[];
+  effort: ChatEffort | null;
 }
 
 export type ChatOutput = TurnEvent | { t: 'session'; id: string } | ({ t: 'share'; n: number } & SharedFile);
+
+export function withEffortHeader(env: NodeJS.ProcessEnv, effort: ChatEffort | null): NodeJS.ProcessEnv {
+  if (effort === null) return env;
+  const headers = [env.ANTHROPIC_CUSTOM_HEADERS ?? '', `${CHAT_EFFORT_HEADER}: ${effort}`].filter((line) => line.trim() !== '');
+  return { ...env, ANTHROPIC_CUSTOM_HEADERS: headers.join('\n') };
+}
 
 export const chatEnv = (env: NodeJS.ProcessEnv): Record<string, string | undefined> => ({ CLAUDE_CODE_MCP_STARTUP_WAIT_MS: '0', ...unpinnedEnv(env), DISABLE_AUTOUPDATER: '1', METRO_SESSION: 'chat' });
 
@@ -150,7 +157,7 @@ export class ChatTurn {
       await finished;
     }
     const server = chatServer(this.share, homedir());
-    const session = query({ prompt: input(), options: chatOptions(cfg, kept(cfg.claudeDir, cfg.cwd, request.resume), this.canUseTool, process.env, server) });
+    const session = query({ prompt: input(), options: chatOptions(cfg, kept(cfg.claudeDir, cfg.cwd, request.resume), this.canUseTool, withEffortHeader(process.env, request.effort), server) });
     this.session = session;
     session.applyFlagSettings(allowedOnly(cfg.model)).catch((err: unknown) => {
       log.warn({ err: errMsg(err) }, 'chat: the session could not be held to the Gateway page model');

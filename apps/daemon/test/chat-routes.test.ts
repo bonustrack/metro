@@ -100,4 +100,15 @@ describe('the chat routes', () => {
     expect(await started.json()).toEqual({ turn: 'msg00000002' });
     expect((await post('/api/chat/turns', { ticket: busy, text: 'Hello' })).status).toBe(403);
   });
+
+  test('the effort the person chose reaches metro chat, and anything that is not a chat effort is dropped', async () => {
+    const chosen = ticketOf({ chat: 'chat0000003', message: 'msg00000003' });
+    expect((await post('/api/chat/turns', { ticket: chosen, text: 'Hello', effort: 'max' })).status).toBe(200);
+    await tick();
+    expect(made.children.at(-1)?.sent[0]).toMatchObject({ t: 'turn', prompt: 'Hello', effort: 'max' });
+    const odd = ticketOf({ chat: 'chat0000004', message: 'msg00000004' });
+    expect((await post('/api/chat/turns', { ticket: odd, text: 'Hello', effort: 'xhigh' })).status).toBe(200);
+    await tick();
+    expect(made.children.at(-1)?.sent[0]).not.toHaveProperty('effort');
+  });
 });

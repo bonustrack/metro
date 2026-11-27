@@ -20,6 +20,8 @@ import { ICON_SIZE, PAGE_PAD, PHONE_PAD } from '../ui/sizes.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { CenteredSpinner } from './ChatPage.js';
 import { Composer } from './Composer.js';
+import { controlStyles, EffortAndModel } from './ComposerControls.js';
+import { effortFor, keepEffort, type EffortChoice } from '../../lib/chat-effort.js';
 import { PeoplePicker, togglePicked } from './PeoplePicker.js';
 import { fileInputOf, filesAllowed, type PickedFile } from '../../lib/chat-files.js';
 import { chatGate, holdSent, putChat, useBoxStatus } from '../../lib/chat-queries.js';
@@ -35,14 +37,14 @@ const FORM_WIDTH = 720;
 const HOME_ROWS = 2;
 const LIFT = 160;
 
-const styles = StyleSheet.create({ greeting: { fontSize: 36, lineHeight: 44, textAlign: 'center' }, control: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 } });
+const styles = StyleSheet.create({ greeting: { fontSize: 36, lineHeight: 44, textAlign: 'center' } });
 
 function AgentPicker({ boxes, picked, onPick }: { boxes: BoxServer[]; picked: BoxServer | undefined; onPick: (id: string) => void }): ReactNode {
   const palette = useKitPalette();
   const lit = { backgroundColor: hoverColor(palette) };
   const items = boxes.map((box) => ({ label: serverLabel(box), leading: <AgentAvatar seed={agentSeed(box)} src={box.avatar} size={24} />, selected: box.id === picked?.id, onSelect: () => { onPick(box.id); } }));
   return (
-    <Dropdown label="Choose the agent" align="start" items={items} style={styles.control} hoverStyle={lit}>
+    <Dropdown label="Choose the agent" align="start" items={items} style={controlStyles.control} hoverStyle={lit}>
       {picked === undefined ? null : <AgentAvatar seed={agentSeed(picked)} src={picked.avatar} size={24} />}
       <Text size="sm" fontWeight="semibold">{picked === undefined ? 'Choose an agent' : serverLabel(picked)}</Text>
       <Icon name="chevronDown" size={ICON_SIZE.sm} color={palette.sub} />
@@ -53,7 +55,7 @@ function AgentPicker({ boxes, picked, onPick }: { boxes: BoxServer[]; picked: Bo
 function PeopleButton({ invited, onPress }: { invited: ReadonlySet<string>; onPress: () => void }): ReactNode {
   const palette = useKitPalette();
   const [hovered, hover] = useHover();
-  const frame = StyleSheet.flatten([styles.control, hovered ? { backgroundColor: hoverColor(palette) } : null]);
+  const frame = StyleSheet.flatten([controlStyles.control, hovered ? { backgroundColor: hoverColor(palette) } : null]);
   const members = useOrganizationQuery().data?.members ?? [];
   const people = members.filter((m) => invited.has(m.userId));
   const first = people[0];
@@ -77,14 +79,17 @@ function Start({ boxes, initial }: { boxes: BoxServer[]; initial: string | undef
   const [picked, setPicked] = useState<string | null>(() => firstAgent(boxes, initial));
   const [invited, setInvited] = useState<ReadonlySet<string>>(new Set());
   const [adding, setAdding] = useState(false);
+  const [effort, setEffort] = useState<EffortChoice>(null);
   const server = boxes.find((b) => b.id === picked);
-  const status = useBoxStatus(server?.host ?? null);
+  const host = server?.host ?? null;
+  const status = useBoxStatus(host);
   const gate = chatGate(server, status);
   const toggle = (id: string): void => { setInvited((now) => togglePicked(now, id)); };
   const send = async (text: string, files: PickedFile[]): Promise<void> => {
     if (server === undefined) throw new Error('Choose an agent first.');
     const started = await startChat(server.id, text, [...invited], files.map(fileInputOf));
     writeItem(LAST_AGENT, server.id);
+    keepEffort(started.chat.id, effortFor(status, effort));
     holdSent(started.message, started.ticket, text, files);
     await putChat(client, started.chat);
     go({ kind: 'chat', id: started.chat.id });
@@ -93,6 +98,7 @@ function Start({ boxes, initial }: { boxes: BoxServer[]; initial: string | undef
     <Row align="center" gap={2} wrap>
       <AgentPicker boxes={boxes} picked={server} onPick={setPicked} />
       <PeopleButton invited={invited} onPress={() => { setAdding(true); }} />
+      <EffortAndModel host={host} status={status} effort={effort} onPick={setEffort} />
     </Row>
   );
   return (

@@ -1,5 +1,5 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { CHAT_PARTS_MAX, chatName, clip, PART_TEXT_MAX, TOOL_TEXT_MAX, type ApprovalState, type ChatPart, type TurnEvent } from '@metro-labs/core/chat';
+import { CHAT_PARTS_MAX, chatName, clip, PART_TEXT_MAX, STEP_TEXT_MAX, TOOL_TEXT_MAX, type ApprovalState, type ChatPart, type TurnEvent } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 
 export type Emit = (event: TurnEvent) => void;
@@ -14,6 +14,20 @@ function resultText(content: unknown): string {
   if (!Array.isArray(content)) return '';
   const texts = content.map((block: unknown) => (isRecord(block) && block.type === 'text' && typeof block.text === 'string' ? block.text : isRecord(block) ? `[${String(block.type)}]` : ''));
   return clip(texts.join('\n'), TOOL_TEXT_MAX);
+}
+
+const stepInput = (input: unknown): string => {
+  if (!isRecord(input)) return '';
+  const first = ['description', 'command', 'file_path', 'path', 'pattern', 'query', 'url', 'prompt'].map((key) => input[key]).find((value) => typeof value === 'string');
+  return typeof first === 'string' ? first.replace(/\s+/g, ' ').trim() : '';
+};
+
+const HARNESS_STEPS: ReadonlySet<string> = new Set(['SubagentHandback']);
+
+function stepsIn(message: unknown): { count: number; last: string | null } {
+  const calls = blocksOf(message).filter((block) => block.type === 'tool_use' && typeof block.name === 'string' && !HARNESS_STEPS.has(block.name));
+  const last = calls.at(-1);
+  return { count: calls.length, last: last === undefined ? null : clip(`${String(last.name)} ${stepInput(last.input)}`.trim(), STEP_TEXT_MAX) };
 }
 
 const deltaText = (delta: unknown): string | null =>
@@ -94,11 +108,24 @@ export class ChatParts {
     this.put(n, { ...part, result: resultText(block.content), ok: block.is_error !== true });
   }
 
-  take(message: SDKMessage): void {
-    if (!('parent_tool_use_id' in message) || message.parent_tool_use_id !== null) return;
+  private subagent(parent: string, message: SDKMessage): void {
+    const n = this.tools.get(parent);
+    const part = n === undefined ? undefined : this.parts[n];
+    if (n === undefined || part?.type !== 'tool' || message.type !== 'assistant') return;
+    const { count, last } = stepsIn(message.message);
+    if (count > 0) this.put(n, { ...part, steps: (part.steps ?? 0) + count, ...(last === null ? {} : { now: last }) });
+  }
+
+  private own(message: SDKMessage): void {
     if (message.type === 'stream_event' && isRecord(message.event)) this.stream(message.event);
     else if (message.type === 'assistant' && isRecord(message.message)) this.assistant(message.message);
     else if (message.type === 'user') for (const block of blocksOf(message.message)) if (block.type === 'tool_result') this.toolResult(block);
+  }
+
+  take(message: SDKMessage): void {
+    const parent = 'parent_tool_use_id' in message ? message.parent_tool_use_id : undefined;
+    if (typeof parent === 'string') this.subagent(parent, message);
+    else if (parent === null) this.own(message);
   }
 
   reserve(): number | null {
