@@ -111,6 +111,7 @@ interface TicketContext {
   session: Session;
   name: string;
   email: string | null;
+  admin: boolean;
   group: boolean;
 }
 
@@ -121,6 +122,7 @@ const claimsOf = (ctx: TicketContext) => ({
   user: ctx.session.userId,
   name: ctx.name,
   email: ctx.email,
+  admin: ctx.admin,
   group: ctx.group,
 });
 

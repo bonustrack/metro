@@ -326,6 +326,20 @@ describe('the agent’s reply', () => {
     expect((await held.client.query('SELECT 1 FROM chats')).rows).toHaveLength(0);
   });
 
+  test('a ticket marks an admin of the organization, and Try again keeps the author’s role, not the role of who pressed it', async () => {
+    const mine = await start('From a member');
+    expect(await verifyChatTicket(mine.ticket, ticketKeys, now)).toMatchObject({ user: ALICE, admin: false });
+    const admins = await api('POST', '/api/chats', { agent: AGENT, text: 'From an admin' }, CAROL);
+    expect(await verifyChatTicket(admins.body.ticket, ticketKeys, now)).toMatchObject({ user: CAROL, admin: true });
+    await api('PATCH', `/api/chats/${mine.chat}`, { shared: 'organization' });
+    const again = await api('POST', `/api/chats/${mine.chat}/messages/${mine.message}/ticket`, undefined, CAROL);
+    expect(await verifyChatTicket(again.body.ticket, ticketKeys, now)).toMatchObject({ name: 'Alice', admin: false });
+    const chat = field<string>(admins.body.chat, 'id');
+    await api('PATCH', `/api/chats/${chat}`, { shared: 'organization' }, CAROL);
+    const theirs = await api('POST', `/api/chats/${chat}/messages/${field<string>(admins.body.message, 'id')}/ticket`);
+    expect(await verifyChatTicket(theirs.body.ticket, ticketKeys, now)).toMatchObject({ user: ALICE, name: 'Carol', admin: true });
+  });
+
   test('a chat sealed with another key reads as unreadable, never as an empty message', async () => {
     const { chat, message } = await start('Secret plans');
     expect((await reply(ours, chat, message)).status).toBe(200);

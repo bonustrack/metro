@@ -4,6 +4,7 @@ import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
 import {
+  adminsAmong,
   appendMessage,
   deleteChat,
   messageOf,
@@ -17,7 +18,7 @@ import {
   type ChatShared,
 } from '../db/chats.js';
 import { canManage, chatView, isGroup, messageView, sealBody, sealTitle, sendTicket, viewTicket, type ChatView, type MessageView } from './model.js';
-import { activitiesOf, callerSender, senderOf, validMembers, openChat, bodyOf, messageInputOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
+import { activitiesOf, callerSender, isAdmin, senderOf, validMembers, openChat, bodyOf, messageInputOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
 
 function managed(open: OpenChat, caller: Caller): void {
   if (!canManage(open.row, caller.session)) throw new ApiError('Only the person who started this chat or an admin can change it.', 403);
@@ -72,6 +73,7 @@ const contextOf = async (deps: ChatsDeps, caller: Caller, open: OpenChat) => ({
   chat: open.row,
   session: caller.session,
   ...(await callerSender(deps, caller)),
+  admin: isAdmin(caller),
   group: isGroup(open.row, open.members),
 });
 
@@ -97,7 +99,8 @@ export async function retryTicket(deps: ChatsDeps, caller: Caller, rawId: string
   if (text === null) throw new ApiError('This message could not be read, so it cannot be sent again.', 409);
   const [author] = await peopleOf(deps.db(), [message.author ?? caller.session.userId]);
   await touchChat(deps.db(), open.row.id, deps.now());
-  const ctx = { chat: open.row, session: caller.session, ...senderOf(author), group: isGroup(open.row, open.members) };
+  const admins = await adminsAmong(deps.db(), caller.owner, author === undefined ? [] : [author.id]);
+  const ctx = { chat: open.row, session: caller.session, ...senderOf(author), admin: author !== undefined && admins.has(author.id), group: isGroup(open.row, open.members) };
   return { ticket: sendTicket(open.keys, ctx, message.id, { text, files }, deps.now()) };
 }
 

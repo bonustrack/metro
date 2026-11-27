@@ -110,6 +110,8 @@ export async function validMembers(deps: ChatsDeps, owner: string, creator: stri
 
 export const nameOf = (person: Person | undefined): string => person?.name ?? person?.email ?? 'A member';
 
+export const isAdmin = (caller: Caller): boolean => caller.session.role === 'admin';
+
 export const senderOf = (person: Person | undefined): { name: string; email: string | null } => ({ name: nameOf(person), email: person?.email ?? null });
 
 export async function callerSender(deps: ChatsDeps, caller: Caller): Promise<{ name: string; email: string | null }> {
@@ -161,7 +163,7 @@ export async function createChat(deps: ChatsDeps, caller: Caller, body: unknown)
   const members = await validMembers(deps, caller.owner, caller.session.userId, isRecord(body) && body.members !== undefined ? body.members : []);
   const sender = await callerSender(deps, caller);
   await insertChat(deps.db(), row, first, members);
-  const ctx = { chat: row, session: caller.session, ...sender, group: members.length > 0 };
+  const ctx = { chat: row, session: caller.session, ...sender, admin: isAdmin(caller), group: members.length > 0 };
   return { chat: chatView(keys, row, caller.session, members, false, 'working'), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, input, now) };
 }
 
@@ -184,7 +186,7 @@ export async function readChat(deps: ChatsDeps, caller: Caller, rawId: string, s
   const authors = rows.flatMap((m) => (m.author === null ? [] : [m.author]));
   const people = await peopleOf(deps.db(), [row.createdBy, ...members, ...authors, caller.session.userId]);
   const me = people.find((person) => person.id === caller.session.userId);
-  const ctx = { chat: row, session: caller.session, ...senderOf(me), group: isGroup(row, members) };
+  const ctx = { chat: row, session: caller.session, ...senderOf(me), admin: isAdmin(caller), group: isGroup(row, members) };
   const last = rows.at(-1);
   const read = await readUpTo(deps, caller, row.id, seen ? last : undefined);
   return {

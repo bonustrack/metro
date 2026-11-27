@@ -257,6 +257,12 @@ export async function peopleOf(db: Database, ids: readonly string[]): Promise<Pe
   return db.select({ id: users.id, name: users.name, email: users.email, picture: users.picture }).from(users).where(inArray(users.id, [...new Set(ids)])).orderBy(asc(users.id));
 }
 
+export async function adminsAmong(db: Database, owner: string, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await db.select({ user: memberships.userId }).from(memberships).where(and(eq(memberships.organization, owner), eq(memberships.role, 'admin'), inArray(memberships.userId, [...ids])));
+  return new Set(rows.map((row) => row.user));
+}
+
 export async function membersAmong(db: Database, owner: string, ids: readonly string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const rows = await db.select({ user: memberships.userId }).from(memberships).where(and(eq(memberships.organization, owner), inArray(memberships.userId, [...ids])));

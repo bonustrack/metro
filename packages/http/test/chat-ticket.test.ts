@@ -17,6 +17,7 @@ const claims = (over: Partial<ChatTicketClaims> = {}): ChatTicketClaims => ({
   user: 'user_01ALICE',
   name: 'Alice',
   email: 'alice@example.com',
+  admin: false,
   act: 'send',
   message: 'msg00000001',
   digest: textDigest('hello'),
@@ -80,6 +81,13 @@ describe('chat tickets', () => {
     expect(await verifyChatTicket(withFiles, keys, NOW + 14 * 60_000)).toMatchObject({ expiresAt: NOW + 15 * 60_000 });
     expect(await verifyChatTicket(withFiles, keys, NOW + 16 * 60_000)).toBeNull();
     expect(await verifyChatTicket(signChatTicket(signer, claims(), NOW), keys, NOW + 3 * 60_000)).toBeNull();
+  });
+
+  test('a ticket says whether its sender is an admin of the organization, and says nothing when not', async () => {
+    expect(await verifyChatTicket(signChatTicket(signer, claims({ admin: true }), NOW), keys, NOW)).toMatchObject({ admin: true });
+    const plain = signChatTicket(signer, claims(), NOW);
+    expect(await verifyChatTicket(plain, keys, NOW)).toMatchObject({ admin: false });
+    expect(JSON.parse(Buffer.from(plain.split('.')[1] ?? '', 'base64url').toString())).not.toHaveProperty('admin');
   });
 
   test('a send ticket without a message or digest is refused', async () => {

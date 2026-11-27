@@ -38,7 +38,7 @@ async function start(req: IncomingMessage, deps: ChatApiDeps): Promise<{ turn: s
   const ticket = await deps.gate.send(field(body, 'ticket'), session.userId, text);
   if (text.trim() === '' && ticket.files.length === 0) throw new ApiError(NO_TEXT, 400);
   const { files, missing } = deps.files.ready(ticket.chat, ticket.message, ticket.files);
-  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt: text, from: { name: ticket.name, email: ticket.email }, files, missing, effort: effortOf(body) }));
+  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt: text, from: { name: ticket.name, email: ticket.email, ...(ticket.admin ? { admin: true } : {}) }, files, missing, effort: effortOf(body) }));
   return { turn: turn.id };
 }
 

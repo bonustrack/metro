@@ -24,6 +24,7 @@ export interface ChatTicketClaims {
   user: string;
   name: string;
   email: string | null;
+  admin: boolean;
   act: ChatAct;
   message: string | null;
   digest: string | null;
@@ -61,6 +62,7 @@ export function signChatTicket(signer: ChatSigner, claims: ChatTicketClaims, now
     sub: claims.user,
     name: claims.name.slice(0, NAME_MAX),
     ...(claims.email === null ? {} : { email: claims.email }),
+    ...(claims.admin ? { admin: true } : {}),
     act: claims.act,
     ...(claims.message === null ? {} : { msg: claims.message }),
     ...(claims.digest === null ? {} : { sha: claims.digest }),
@@ -126,7 +128,7 @@ function chatTicketOf(claims: Record<string, unknown>, now: number): ChatTicket 
   const facts = messageFacts(claims, act);
   if (expiresAt === null || facts === null) return null;
   const name = typeof claims.name === 'string' ? claims.name.slice(0, NAME_MAX) : '';
-  return { ...who, ...facts, act, name, email: emailOf(claims.email), group: claims.group === true, expiresAt };
+  return { ...who, ...facts, act, name, email: emailOf(claims.email), admin: claims.admin === true, group: claims.group === true, expiresAt };
 }
 
 interface TicketParts {

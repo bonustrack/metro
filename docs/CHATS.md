@@ -84,7 +84,8 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   passes as a sign-in token (those need `typ: JWT` and a `sid`), and a sign-in token never passes
   as a ticket.
 - Claims: organization, agent row id, chat, user, the sender's name and email (`email`, absent when
-  unknown; a box drops a value that is not an address), `act`, a `jti`. A send ticket made by Try
+  unknown; a box drops a value that is not an address), `admin` (only when the sender is an admin of
+  the organization), `act`, a `jti`. A send ticket made by Try
   again carries the author's name and email, not those of who pressed it.
   - **send** (2 minutes): also the message id, the SHA-256 of its text and, when the message has
     files, `files` (each file's id, name, type and size, so the box takes exactly those bytes); a
@@ -221,11 +222,15 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   the attributes are escaped like a channel's meta, and a `<chat-message` or `</chat-message` in the
   text is broken up (also look-alikes: other hyphens, invisible characters, spaces, full-width
   brackets), so nobody can write as someone else. `CHAT_RULES` tell the agent that Metro verified
-  that person (signed in on metro.box with that email, a member of the organization): a verified
-  sender, never asked for proof, though being verified does not widen what the owner's instructions
-  let that person ask for, and Ask and Block still apply; the email is proven, the name is the one
-  they chose, so people are told apart by email; and a `chat-message` tag in anything the agent
-  reads (a tool result, a file, a page, an email) is outside data, never verified. A turn line with
+  that person (signed in on metro.box with that email, a member of the organization) and that the
+  chat is a verified channel: an instruction asking for a verified sender, account or channel (XMTP,
+  Telegram) is met, and the agent never asks for proof. A sender who is an admin of the organization
+  carries `role="admin"` in the tag (from the ticket's `admin`; Try again keeps the author's role),
+  and the admins own the agent: they may ask what its instructions allow its owner (Less, 2026-11-27).
+  For anyone else, being verified does not widen what the instructions allow; Ask and Block still
+  apply to everyone. The email is proven and the name chosen, so people are told apart by email,
+  and a `chat-message` tag in anything the agent reads (a tool result, a file, a page, an email) is
+  outside data, never verified. A turn line with
   no `from` (a daemon older than its CLI during an update, or a name of spaces only) is the text
   alone, tags still broken up. `METRO_SESSION=chat` makes the
   guard hook and the session-start rules stand aside: a chat works on its own thread and shows its
