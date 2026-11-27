@@ -78,7 +78,7 @@ function Body({ pane, selected }: { pane: boolean; selected: string | null }): R
         <Text size="xs" color="secondary">No chat yet.</Text>
       </Column>
     ) : (
-      <StateBlock icon="chats" title="No chat yet" text={EMPTY} action={{ label: 'New chat', primary: true, onPress: newChat }} />
+      <StateBlock icon="chat" title="No chat yet" text={EMPTY} action={{ label: 'New chat', primary: true, onPress: newChat }} />
     );
   return (
     <Column gap={20}>

@@ -133,7 +133,7 @@ export function NewChat({ agent }: { agent?: string }): ReactNode {
   if (error !== null && data === undefined) return <ErrorState title="Could not read the agents" text={queryError(error, 'metro.box did not answer.')} onRetry={refetch} />;
   const boxes = data === undefined ? null : boxesOf(data);
   if (boxes?.length === 0)
-    return <StateBlock icon="chats" title="No agent can chat yet" text="Chats run on an agent's server. Launch an agent with a server first." action={{ label: 'Open the agents', onPress: () => { go({ kind: 'servers' }); } }} />;
+    return <StateBlock icon="chat" title="No agent can chat yet" text="Chats run on an agent's server. Launch an agent with a server first." action={{ label: 'Open the agents', onPress: () => { go({ kind: 'servers' }); } }} />;
   if (boxes === null) return <CenteredSpinner />;
   return (
     <Centered>
