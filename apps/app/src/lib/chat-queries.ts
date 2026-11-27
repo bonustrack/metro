@@ -11,6 +11,7 @@ import { orgKey, useServerStatuses } from './queries.js';
 const CHAT_SINCE = '0.1.0-beta.341';
 
 const LIST_POLL_MS = 30_000;
+const WORKING_POLL_MS = 10_000;
 const CHAT_POLL_MS = 10_000;
 
 const chatsKey = (): string[] => orgKey('chats');
@@ -20,7 +21,7 @@ const orgOf = (key: string[]): string | null => (key[1] === undefined || key[1] 
 
 export function useChatsQuery(): UseQueryResult<Chat[]> {
   const key = chatsKey();
-  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), fetchChats), staleTime: 10_000, refetchInterval: LIST_POLL_MS });
+  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), fetchChats), staleTime: 10_000, refetchInterval: (query) => (query.state.data?.some((chat) => chat.activity === 'working') === true ? WORKING_POLL_MS : LIST_POLL_MS) });
 }
 
 export function useChatQuery(id: string): UseQueryResult<ChatPage> {

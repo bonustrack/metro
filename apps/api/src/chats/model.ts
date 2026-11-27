@@ -7,6 +7,8 @@ import type { Session } from '@metro-labs/http/user-token';
 import { openSecret, sealSecret } from '@metro-labs/connectors/secrets';
 import type { ChatRow, ChatShared, MessageRow } from '../db/chats.js';
 
+export type ChatActivity = 'working' | 'unread' | null;
+
 export interface ChatView {
   id: string;
   agent: string;
@@ -16,6 +18,7 @@ export interface ChatView {
   members: string[];
   pinned: boolean;
   manage: boolean;
+  activity: ChatActivity;
   createdAt: number;
   updatedAt: number;
 }
@@ -86,7 +89,7 @@ export function messageView(keys: ChatKeys, owner: string, row: MessageRow): Mes
   return { ...base, text: null, reply: chatReplyOf(body) ?? UNREADABLE };
 }
 
-export function chatView(keys: ChatKeys, row: ChatRow, session: Session, members: readonly string[], pinned: boolean): ChatView {
+export function chatView(keys: ChatKeys, row: ChatRow, session: Session, members: readonly string[], pinned: boolean, activity: ChatActivity): ChatView {
   return {
     id: row.id,
     agent: row.agent,
@@ -96,6 +99,7 @@ export function chatView(keys: ChatKeys, row: ChatRow, session: Session, members
     members: [...members],
     pinned,
     manage: canManage(row, session),
+    activity,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

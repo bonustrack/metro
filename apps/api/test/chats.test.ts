@@ -267,6 +267,25 @@ describe('the agent’s reply', () => {
     expect((await api('POST', '/api/chats', { agent: AGENT, text: 'mine' }, BOB)).status).toBe(200);
   });
 
+  test('the list says a chat is working while its last message waits, then that a reply is new for each person until they open it', async () => {
+    const { chat, message } = await start();
+    await api('PATCH', `/api/chats/${chat}`, { members: [BOB] });
+    const activity = async (who: string): Promise<unknown> => field<{ activity: unknown }[]>((await api('GET', '/api/chats', undefined, who)).body, 'chats')[0]?.activity;
+    expect(await activity(ALICE)).toBe('working');
+    expect(await activity(BOB)).toBe('working');
+    expect((await reply(ours, chat, message)).status).toBe(200);
+    expect(await activity(ALICE)).toBe('unread');
+    expect(await activity(BOB)).toBe('unread');
+    expect(field<string | null>((await api('GET', `/api/chats/${chat}`)).body.chat, 'activity')).toBeNull();
+    expect(await activity(ALICE)).toBeNull();
+    expect(await activity(BOB)).toBe('unread');
+    const second = await api('POST', `/api/chats/${chat}/messages`, { text: 'And then?' }, BOB);
+    expect(field<string>(second.body.message, 'id')).toBeString();
+    expect(await activity(ALICE)).toBe('working');
+    now += 131 * 60_000;
+    expect(await activity(ALICE)).toBeNull();
+  });
+
   test('a chat sealed with another key reads as unreadable, never as an empty message', async () => {
     const { chat, message } = await start('Secret plans');
     expect((await reply(ours, chat, message)).status).toBe(200);

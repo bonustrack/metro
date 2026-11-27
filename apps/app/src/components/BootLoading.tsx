@@ -9,7 +9,7 @@ const LOGO_WIDTH = 64;
 const LOGO_SIZE = Math.round(LOGO_WIDTH / LOGO_ASPECT);
 const HALF_MS = 700;
 
-function usePulse(): Animated.Value {
+export function usePulse(): Animated.Value {
   const value = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     const step = (toValue: number): Animated.CompositeAnimation =>

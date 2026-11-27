@@ -16,7 +16,7 @@ import {
   type ChatShared,
 } from '../db/chats.js';
 import { canManage, chatView, isGroup, messageView, sealBody, sealTitle, sendTicket, viewTicket, type ChatView, type MessageView } from './model.js';
-import { callerName, nameOf, validMembers, openChat, textOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
+import { activitiesOf, callerName, nameOf, validMembers, openChat, textOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
 
 function managed(open: OpenChat, caller: Caller): void {
   if (!canManage(open.row, caller.session)) throw new ApiError('Only the person who started this chat or an admin can change it.', 403);
@@ -49,7 +49,8 @@ export async function changeChat(deps: ChatsDeps, caller: Caller, rawId: string,
   log.info({ chat: open.row.id, by: caller.session.userId, shared, members: members?.length, renamed: title !== undefined }, 'chats: a chat changed');
   const row = { ...open.row, ...sealed, ...(shared === undefined ? {} : { shared }) };
   const pinned = (await pinsOf(deps.db(), caller.session.userId, [row.id])).has(row.id);
-  return { chat: chatView(open.keys, row, caller.session, members ?? open.members, pinned) };
+  const activity = (await activitiesOf(deps, caller.session.userId, [row.id])).get(row.id) ?? null;
+  return { chat: chatView(open.keys, row, caller.session, members ?? open.members, pinned, activity) };
 }
 
 export async function removeChat(deps: ChatsDeps, caller: Caller, rawId: string): Promise<{ deleted: boolean }> {

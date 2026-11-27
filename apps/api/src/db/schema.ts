@@ -161,3 +161,13 @@ export const chatMessages = pgTable(
   },
   (t) => [uniqueIndex('chat_messages_seq_idx').on(t.chat, t.seq), uniqueIndex('chat_messages_reply_idx').on(t.chat, t.replyTo)],
 );
+
+export const chatReads = pgTable(
+  'chat_reads',
+  {
+    chat: text('chat').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    seenSeq: integer('seen_seq').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chat, t.userId] })],
+);
