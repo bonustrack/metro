@@ -409,7 +409,9 @@ describe('an approval link opens that approval on its agent', () => {
     expect(link).toStartWith('https://metro.box/#/');
     expect(routeSelection(new URL(link).hash)).toEqual({ kind: 'approval', project: agent, id: 'jkmnp' });
     expect(splitOrganization(new URL(link).hash)?.organization).toBe(TEST_ORGANIZATION);
-    expect(new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent: null }, 'jkmnp')).hash).toBe(`#/${TEST_ORGANIZATION}`);
+    const fallback = new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent: null }, 'jkmnp')).hash;
+    expect(fallback).toBe(`#/${TEST_ORGANIZATION}/agents`);
+    expect(routeSelection(fallback)).toEqual({ kind: 'servers' });
     expect(approvalLink(APP_ORIGIN, { owner: null, agent: null }, 'jkmnp')).toBe('https://metro.box');
   });
 
