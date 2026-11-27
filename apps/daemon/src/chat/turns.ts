@@ -1,8 +1,9 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { chatLine, fitReply, turnEventOf, type ChatReply, type ChatSender } from '@metro-labs/core/chat';
+import { chatLine, fitReply, turnEventOf, type ChatFile, type ChatPart, type ChatReply, type ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
+import { shareIndexOf, shareOf, type MissingFile, type ShareInput, type TurnFile } from './files.js';
 import { CappedLines } from './lines.js';
 import type { ChatSessions } from './sessions.js';
 import { Turn } from './turn.js';
@@ -17,6 +18,8 @@ const DELIVERY_MS = 10 * 60_000;
 const PAUSE_FIRST_MS = 3_000;
 const PAUSE_MAX_MS = 60_000;
 const PID_MAX = 4_194_304;
+const SHARE_MAX_MS = 60_000;
+const HELD: ChatPart = { type: 'text', text: '' };
 const START_FAILED = 'The agent could not start this reply.';
 const ENDED_EARLY = 'The agent stopped before it finished this reply.';
 
@@ -32,6 +35,7 @@ export interface ChatRunnerDeps {
   signal: (child: ChildProcessWithoutNullStreams, pids: ChatPids | null, signal: ChatSignal) => void;
   sessions: ChatSessions;
   post: (chat: string, message: string, reply: ChatReply) => Promise<void>;
+  share?: (input: ShareInput) => Promise<ChatFile>;
   refused?: (err: unknown) => boolean;
   now: () => number;
   pause?: (ms: number) => Promise<void>;
@@ -44,6 +48,8 @@ interface TurnStart {
   chat: string;
   prompt: string;
   from: ChatSender;
+  files?: TurnFile[];
+  missing?: MissingFile[];
 }
 
 interface Running {
@@ -56,6 +62,7 @@ interface Running {
   drained: boolean;
   timers: ReturnType<typeof setInterval>[];
   stderr: string;
+  queue: Promise<void>;
 }
 
 const CLI_LINE = /^metro chat: [^\n]{0,300}$/;
@@ -63,6 +70,23 @@ const CLI_LINE = /^metro chat: [^\n]{0,300}$/;
 const cliLines = (text: string): string[] => text.split('\n').filter((line) => CLI_LINE.test(line)).slice(-3);
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const filesOf = ({ files = [], missing = [] }: TurnStart): Record<string, unknown> => ({
+  ...(files.length === 0 ? {} : { files }),
+  ...(missing.length === 0 ? {} : { missing }),
+});
+
+const within = <T>(work: Promise<T>, ms: number): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('the shared file took too long to copy'));
+    }, ms);
+  });
+  return Promise.race([work, late]).finally(() => {
+    clearTimeout(timer);
+  });
+};
 
 const pidOf = (value: unknown): number | null => (typeof value === 'number' && Number.isInteger(value) && value > 1 && value <= PID_MAX ? value : null);
 
@@ -95,11 +119,11 @@ export class ChatTurns {
     if (busy.length >= RUNNING_MAX) throw new ApiError(`The agent is already answering ${String(RUNNING_MAX)} chats. Try again in a moment.`, 429);
     const child = this.deps.spawn();
     const turn = new Turn(input.id, input.chat, this.deps.now());
-    const run: Running = { turn, child, pids: null, stopping: false, ending: false, exited: false, drained: false, timers: [], stderr: '' };
+    const run: Running = { turn, child, pids: null, stopping: false, ending: false, exited: false, drained: false, timers: [], stderr: '', queue: Promise.resolve() };
     this.turns.set(turn.id, turn);
     this.running.set(turn.id, run);
     this.wire(run);
-    child.stdin.write(chatLine({ t: 'turn', prompt: input.prompt, from: input.from, resume: this.deps.sessions.of(input.chat) }));
+    child.stdin.write(chatLine({ t: 'turn', prompt: input.prompt, from: input.from, resume: this.deps.sessions.of(input.chat), ...filesOf(input) }));
     run.timers.push(setTimeout(() => { this.stop(turn.id); }, this.deps.turnMaxMs ?? TURN_MAX_MS));
     log.info({ chat: input.chat, turn: turn.id, running: this.running.size }, 'chat: a turn started');
     return turn;
@@ -212,7 +236,32 @@ export class ChatTurns {
   }
 
   private settleWhenDone(run: Running): void {
-    if (run.exited && run.drained) this.settle(run, ENDED_EARLY);
+    if (!run.exited || !run.drained) return;
+    this.queued(run, () => {
+      this.settle(run, ENDED_EARLY);
+    });
+  }
+
+  private queued(run: Running, step: () => Promise<void> | void): void {
+    run.queue = run.queue.then(step).catch((err: unknown) => {
+      log.warn({ err: errMsg(err), turn: run.turn.id }, 'chat: a turn line could not be applied');
+    });
+  }
+
+  private async share(run: Running, value: Record<string, unknown>): Promise<void> {
+    const n = shareIndexOf(value);
+    if (n === null || run.turn.done) return;
+    run.turn.apply({ t: 'part', n, part: HELD }, this.deps.now());
+    const share = shareOf(value);
+    const copied = share === null ? undefined : this.deps.share?.({ ...share, chat: run.turn.chat, message: run.turn.id });
+    if (copied === undefined) return;
+    try {
+      const file = await within(copied, SHARE_MAX_MS);
+      run.turn.apply({ t: 'part', n, part: { type: 'file', file } }, this.deps.now());
+      log.info({ turn: run.turn.id, bytes: file.size }, 'chat: the agent shared a file');
+    } catch {
+      log.warn({ turn: run.turn.id }, 'chat: a file the agent shared could not be copied, so it is left out');
+    }
   }
 
   private line(run: Running, text: string): void {
@@ -226,7 +275,10 @@ export class ChatTurns {
     if (!isRecord(value)) return;
     if (value.t === 'pid') run.pids = pidsOf(value) ?? run.pids;
     else if (value.t === 'session' && typeof value.id === 'string') this.deps.sessions.keep(run.turn.chat, value.id);
-    else this.event(run, value);
+    else if (value.t === 'share') this.queued(run, () => this.share(run, value));
+    else this.queued(run, () => {
+      this.event(run, value);
+    });
   }
 
   private event(run: Running, value: Record<string, unknown>): void {

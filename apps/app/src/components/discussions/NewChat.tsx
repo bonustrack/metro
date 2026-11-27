@@ -21,8 +21,8 @@ import { StateBlock } from '../ui/StateBlock.js';
 import { CenteredSpinner } from './ChatPage.js';
 import { Composer } from './Composer.js';
 import { PeoplePicker, togglePicked } from './PeoplePicker.js';
-import { chatGate, putChat, useBoxStatus } from '../../lib/chat-queries.js';
-import { rememberSend } from '../../lib/chat-sends.js';
+import { fileInputOf, filesAllowed, type PickedFile } from '../../lib/chat-files.js';
+import { chatGate, holdSent, putChat, useBoxStatus } from '../../lib/chat-queries.js';
 import { greetingOf } from '../../lib/chat-words.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { go } from '../../lib/nav.js';
@@ -78,13 +78,14 @@ function Start({ boxes, initial }: { boxes: BoxServer[]; initial: string | undef
   const [invited, setInvited] = useState<ReadonlySet<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const server = boxes.find((b) => b.id === picked);
-  const gate = chatGate(server, useBoxStatus(server?.host ?? null));
+  const status = useBoxStatus(server?.host ?? null);
+  const gate = chatGate(server, status);
   const toggle = (id: string): void => { setInvited((now) => togglePicked(now, id)); };
-  const send = async (text: string): Promise<void> => {
+  const send = async (text: string, files: PickedFile[]): Promise<void> => {
     if (server === undefined) throw new Error('Choose an agent first.');
-    const started = await startChat(server.id, text, [...invited]);
+    const started = await startChat(server.id, text, [...invited], files.map(fileInputOf));
     writeItem(LAST_AGENT, server.id);
-    rememberSend(started.message.id, started.ticket, text);
+    holdSent(started.message, started.ticket, text, files);
     await putChat(client, started.chat);
     go({ kind: 'chat', id: started.chat.id });
   };
@@ -97,7 +98,7 @@ function Start({ boxes, initial }: { boxes: BoxServer[]; initial: string | undef
   return (
     <Column gap={28}>
       <Text accessibilityRole="header" fontWeight="semibold" style={styles.greeting}>{greetingOf(new Date(), me?.name ?? null)}</Text>
-      <Composer placeholder={askWords(server)} waiting={false} locked={gate.kind === 'wait'} blocked={gate.kind === 'closed' ? gate.why : null} rows={HOME_ROWS} toolbar={toolbar} autoFocus onSend={send} />
+      <Composer placeholder={askWords(server)} waiting={false} locked={gate.kind === 'wait'} blocked={gate.kind === 'closed' ? gate.why : null} rows={HOME_ROWS} toolbar={toolbar} attach={gate.kind === 'open' && filesAllowed(status)} autoFocus onSend={send} />
       <Modal title="Add people" open={adding} onClose={() => { setAdding(false); }}>
         <Column gap={16}>
           <ModalText>They can read this chat and write in it.</ModalText>

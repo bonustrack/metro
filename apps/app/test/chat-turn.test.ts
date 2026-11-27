@@ -28,6 +28,8 @@ function watchWith(api: Partial<TurnApi>, message: string, sentAt = Date.now()):
     poll: api.poll ?? (() => Promise.resolve(view({ done: true, state: 'done', delivery: 'saved' }))),
     stop: api.stop ?? (() => { calls.push('stop'); return Promise.resolve(); }),
     renew: api.renew ?? (() => Promise.resolve('fresh')),
+    upload: api.upload ?? (() => Promise.resolve()),
+    resend: api.resend ?? (() => Promise.resolve('resent')),
   };
   const watch = new TurnWatch({ api: full, host: 'box.ts.net', chat: 'chat0000001', message, sentAt, ticket: () => 'view', onChange: (turn) => { shown.push(turn); }, onDone: (delivery) => { calls.push(`done ${delivery}`); }, onStopFailed: () => { calls.push('stop failed'); }, signal: new AbortController().signal });
   return { shown, calls, watch, done: watch.run() };
@@ -108,7 +110,7 @@ describe('the live reply of a chat', () => {
   });
 });
 
-const message = (id: string): ChatMessage => ({ id, seq: 1, role: 'user', author: 'ann', replyTo: null, at: 1, text: 'hi', reply: null });
+const message = (id: string): ChatMessage => ({ id, seq: 1, role: 'user', author: 'ann', replyTo: null, at: 1, text: 'hi', files: [], reply: null });
 
 describe('the chat cache', () => {
   test('a message added while an older read is in flight is not wiped by that read', async () => {

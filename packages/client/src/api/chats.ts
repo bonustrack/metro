@@ -1,4 +1,4 @@
-import { chatReplyOf, type ChatReply } from '@metro-labs/core/chat';
+import { chatFileOf, chatReplyOf, type ChatFile, type ChatReply } from '@metro-labs/core/chat';
 import { builtInDaemon } from '../auth/daemon.js';
 import { filled, isRecord, str } from '../read.js';
 import { call, JSON_HEADERS } from './client.js';
@@ -29,8 +29,11 @@ export interface ChatMessage {
   replyTo: string | null;
   at: number;
   text: string | null;
+  files: ChatFile[];
   reply: ChatReply | null;
 }
+
+export type ChatFileInput = Pick<ChatFile, 'name' | 'type' | 'size'>;
 
 export interface ChatPerson {
   id: string;
@@ -56,6 +59,8 @@ const unexpected = (): Error => new Error('metro.box returned an unexpected answ
 
 const num = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []);
+const filesOf = (value: unknown): ChatFile[] => (Array.isArray(value) ? value.map(chatFileOf).filter((f): f is ChatFile => f !== null) : []);
+const fileInputs = (files: readonly ChatFileInput[]): { files?: ChatFileInput[] } => (files.length === 0 ? {} : { files: files.map(({ name, type, size }) => ({ name, type, size })) });
 
 export function toChat(value: unknown): Chat {
   if (!isRecord(value) || typeof value.id !== 'string') throw unexpected();
@@ -84,7 +89,8 @@ export function toChatMessage(value: unknown): ChatMessage {
     author: filled(value.author),
     replyTo: filled(value.replyTo),
     at: num(value.at),
-    text: role === 'user' ? filled(value.text) : null,
+    text: role === 'user' && typeof value.text === 'string' ? value.text : null,
+    files: role === 'user' ? filesOf(value.files) : [],
     reply: role === 'assistant' ? (chatReplyOf(value.reply) ?? { parts: [], state: 'error', error: 'This reply could not be read.' }) : null,
   };
 }
@@ -103,8 +109,8 @@ export async function fetchChats(): Promise<Chat[]> {
   return body.chats.map(toChat);
 }
 
-export async function startChat(agent: string, text: string, members: readonly string[] = []): Promise<SentMessage & { chat: Chat }> {
-  const body = await call({ method: 'POST', base: chatsUrl(), headers: JSON_HEADERS, body: JSON.stringify({ agent, text, ...(members.length === 0 ? {} : { members }) }) });
+export async function startChat(agent: string, text: string, members: readonly string[] = [], files: readonly ChatFileInput[] = []): Promise<SentMessage & { chat: Chat }> {
+  const body = await call({ method: 'POST', base: chatsUrl(), headers: JSON_HEADERS, body: JSON.stringify({ agent, text, ...(members.length === 0 ? {} : { members }), ...fileInputs(files) }) });
   if (!isRecord(body)) throw unexpected();
   return { chat: toChat(body.chat), message: toChatMessage(body.message), ticket: ticketOf(body) };
 }
@@ -139,8 +145,8 @@ export async function pinChat(id: string, pinned: boolean): Promise<void> {
   await call({ method: pinned ? 'PUT' : 'DELETE', base: `${chatsUrl()}/${id}/pin` });
 }
 
-export async function postChatMessage(id: string, text: string): Promise<SentMessage> {
-  const body = await call({ method: 'POST', base: `${chatsUrl()}/${id}/messages`, headers: JSON_HEADERS, body: JSON.stringify({ text }) });
+export async function postChatMessage(id: string, text: string, files: readonly ChatFileInput[] = []): Promise<SentMessage> {
+  const body = await call({ method: 'POST', base: `${chatsUrl()}/${id}/messages`, headers: JSON_HEADERS, body: JSON.stringify({ text, ...fileInputs(files) }) });
   if (!isRecord(body)) throw unexpected();
   return { message: toChatMessage(body.message), ticket: ticketOf(body) };
 }

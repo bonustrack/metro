@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { applyTurnEvent, chatLine, chatName, chatReplyOf, chatTitleOf, fitReply, turnEventOf, type ChatPart } from '../src/chat.ts';
+import { applyTurnEvent, CHAT_FILE_MAX, chatFileOf, chatFilesOf, chatLine, chatName, chatReplyOf, chatTitleOf, fileNameOf, fileTypeOf, fitReply, turnEventOf, type ChatPart } from '../src/chat.ts';
 
 describe('chat shapes', () => {
   test('a title is the first words of the message, on one line', () => {
@@ -60,5 +60,35 @@ describe('chat shapes', () => {
     const parts = line.split(/\r?\n|\r(?!\n)|\u2028|\u2029/);
     expect(parts).toEqual([line.slice(0, -1), '']);
     expect(JSON.parse(parts[0] ?? '')).toEqual(value);
+  });
+
+  test('a file name never carries a path, a control or invisible character, and stays short', () => {
+    expect(fileNameOf('../../etc/passwd')).toBe('.. .. etc passwd');
+    expect(fileNameOf('C:\\temp\\x.txt')).toBe('C: temp x.txt');
+    expect(fileNameOf('a\u0000b\u202Ec\u2028d.png')).toBe('a b c d.png');
+    expect(fileNameOf('..')).toBeNull();
+    expect(fileNameOf('   ')).toBeNull();
+    expect(fileNameOf(7)).toBeNull();
+    expect(Array.from(fileNameOf('鉄'.repeat(300)) ?? '')).toHaveLength(120);
+  });
+
+  test('a file type is a plain MIME type, else bytes', () => {
+    expect(fileTypeOf('Image/PNG')).toBe('image/png');
+    expect(fileTypeOf('text/html; charset=utf-8')).toBe('application/octet-stream');
+    expect(fileTypeOf('<script>')).toBe('application/octet-stream');
+    expect(fileTypeOf(undefined)).toBe('application/octet-stream');
+  });
+
+  test('a file is read strictly, and a message carries five at most', () => {
+    const file = { id: 'file0000001', name: 'plan.pdf', type: 'application/pdf', size: 1200 };
+    expect(chatFileOf(file)).toEqual(file);
+    expect(chatFileOf({ ...file, id: '../x' })).toBeNull();
+    expect(chatFileOf({ ...file, size: CHAT_FILE_MAX + 1 })).toBeNull();
+    expect(chatFileOf({ ...file, size: -1 })).toBeNull();
+    expect(chatFilesOf(undefined)).toEqual([]);
+    expect(chatFilesOf(Array.from({ length: 6 }, () => file))).toBeNull();
+    expect(chatFilesOf([file, { ...file, name: '' }])).toBeNull();
+    expect(chatReplyOf({ parts: [{ type: 'file', file }], state: 'done', error: null })).toEqual({ parts: [{ type: 'file', file }], state: 'done', error: null });
+    expect(chatReplyOf({ parts: [{ type: 'file', file: { ...file, id: 'x' } }], state: 'done', error: null })).toBeNull();
   });
 });

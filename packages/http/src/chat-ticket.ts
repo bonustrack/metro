@@ -1,10 +1,12 @@
 import { createHash, createSign, randomBytes, verify, type KeyObject } from 'node:crypto';
+import { chatFilesOf, type ChatFile } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { isOrganizationId, METRO_ISSUER, type KeySource } from './user-token.js';
 
 const CHAT_TICKET_TYP = 'metro-chat';
 const AUDIENCE = 'metro-chat';
 const SEND_TICKET_S = 120;
+const FILES_TICKET_S = 15 * 60;
 const VIEW_TICKET_S = 2 * 60;
 const SKEW_S = 30;
 const ID_RE = /^[A-Za-z0-9_-]{11}$/;
@@ -25,6 +27,7 @@ export interface ChatTicketClaims {
   act: ChatAct;
   message: string | null;
   digest: string | null;
+  files: ChatFile[];
   group: boolean;
 }
 
@@ -42,9 +45,11 @@ export const textDigest = (text: string): string => createHash('sha256').update(
 
 const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 
+const ticketLife = (act: ChatAct, files: boolean): number => (act === 'view' ? VIEW_TICKET_S : files ? FILES_TICKET_S : SEND_TICKET_S);
+
 export function signChatTicket(signer: ChatSigner, claims: ChatTicketClaims, now = Date.now()): string {
   const iat = Math.floor(now / 1000);
-  const ttl = claims.act === 'send' ? SEND_TICKET_S : VIEW_TICKET_S;
+  const ttl = ticketLife(claims.act, claims.files.length > 0);
   const head = b64({ alg: 'RS256', typ: CHAT_TICKET_TYP, kid: signer.kid });
   const body = b64({
     iss: METRO_ISSUER,
@@ -59,6 +64,7 @@ export function signChatTicket(signer: ChatSigner, claims: ChatTicketClaims, now
     act: claims.act,
     ...(claims.message === null ? {} : { msg: claims.message }),
     ...(claims.digest === null ? {} : { sha: claims.digest }),
+    ...(claims.files.length === 0 ? {} : { files: claims.files }),
     group: claims.group,
     iat,
     exp: iat + ttl,
@@ -80,10 +86,11 @@ const text = (value: unknown, re: RegExp): string | null => (typeof value === 's
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isInteger(value) ? value : null);
 
 function fresh(claims: Record<string, unknown>, act: ChatAct, now: number): number | null {
+  const files = Array.isArray(claims.files) && claims.files.length > 0;
   const iat = num(claims.iat);
   const exp = num(claims.exp);
   if (iat === null || exp === null) return null;
-  const ttl = act === 'send' ? SEND_TICKET_S : VIEW_TICKET_S;
+  const ttl = ticketLife(act, files);
   if (exp - iat > ttl || iat * 1000 > now + SKEW_S * 1000 || exp * 1000 < now - SKEW_S * 1000) return null;
   return exp * 1000;
 }
@@ -92,11 +99,12 @@ const emailOf = (value: unknown): string | null => (typeof value === 'string' &&
 
 const actOf = (value: unknown): ChatAct | null => (value === 'send' || value === 'view' ? value : null);
 
-function messageFacts(claims: Record<string, unknown>, act: ChatAct): { message: string | null; digest: string | null } | null {
-  if (act === 'view') return { message: null, digest: null };
+function messageFacts(claims: Record<string, unknown>, act: ChatAct): { message: string | null; digest: string | null; files: ChatFile[] } | null {
+  if (act === 'view') return { message: null, digest: null, files: [] };
   const message = text(claims.msg, ID_RE);
   const digest = text(claims.sha, /^[A-Za-z0-9_-]{43}$/);
-  return message === null || digest === null ? null : { message, digest };
+  const files = chatFilesOf(claims.files);
+  return message === null || digest === null || files === null ? null : { message, digest, files };
 }
 
 function ids(claims: Record<string, unknown>): Pick<ChatTicket, 'organization' | 'agent' | 'chat' | 'user' | 'id'> | null {
@@ -132,7 +140,7 @@ const ticketKid = (header: Record<string, unknown> | null): string | null =>
   header?.alg === 'RS256' && header.typ === CHAT_TICKET_TYP && typeof header.kid === 'string' ? header.kid : null;
 
 function ticketParts(token: unknown): TicketParts | null {
-  if (typeof token !== 'string' || token.length > 4096) return null;
+  if (typeof token !== 'string' || token.length > 8192) return null;
   const [head, body, sig] = token.split('.');
   if (head === undefined || body === undefined || sig === undefined) return null;
   const kid = ticketKid(jsonPart(head));

@@ -11,6 +11,9 @@ import { FONT_SIZE, fontName } from '@stage-labs/kit/tokens';
 import { CHAT_TEXT_MAX } from '@metro-labs/core/chat';
 import { Icon } from '../Icon.js';
 import { ICON_SIZE } from '../ui/sizes.js';
+import { AttachButton, PickedChips } from './ComposerFiles.js';
+import { addPicked, type PickedFile } from '../../lib/chat-files.js';
+import { pickChatFiles, releasePicked, usePastedFiles, type PickSource } from '../../lib/chat-pick.js';
 import { queryError } from '../../lib/queries.js';
 import { webOnly, WEB } from '../../lib/style.js';
 
@@ -29,7 +32,8 @@ interface ComposerProps {
   autoFocus?: boolean;
   rows?: number;
   toolbar?: ReactNode;
-  onSend: (text: string) => Promise<void>;
+  attach?: boolean;
+  onSend: (text: string, files: PickedFile[]) => Promise<void>;
   onStop?: () => void;
   stopping?: boolean;
 }
@@ -107,19 +111,33 @@ function Field({ rows, text, setText, placeholder, disabled, autoFocus, onEnter 
   );
 }
 
-function Box({ field, action, toolbar }: { field: ReactNode; action: ReactNode; toolbar: ReactNode }): ReactNode {
+interface BoxProps {
+  field: ReactNode;
+  action: ReactNode;
+  toolbar: ReactNode;
+  attach: ReactNode;
+  chips: ReactNode;
+}
+
+function Box({ field, action, toolbar, attach, chips }: BoxProps): ReactNode {
   const palette = useKitPalette();
   if (toolbar === undefined || toolbar === null)
     return (
-      <Row align="end" gap={8} radius="sm" padding={{ left: 8, right: 10, y: 10 }} background={palette.border}>
-        {field}
-        <Column>{action}</Column>
-      </Row>
+      <Column gap={8} radius="sm" padding={{ left: 8, right: 10, y: 10 }} background={palette.border}>
+        {chips}
+        <Row align="end" gap={8}>
+          {attach === null ? null : <Column>{attach}</Column>}
+          {field}
+          <Column>{action}</Column>
+        </Row>
+      </Column>
     );
   return (
     <Column gap={4} radius="sm" padding={{ x: 10, top: 8, bottom: 10 }} background={palette.border}>
+      {chips}
       <Row>{field}</Row>
       <Row align="center" gap={6}>
+        {attach}
         {toolbar}
         <Column weight={1} />
         {action}
@@ -128,28 +146,70 @@ function Box({ field, action, toolbar }: { field: ReactNode; action: ReactNode; 
   );
 }
 
-const sendable = (text: string, busy: boolean, props: ComposerProps): boolean => text.trim() !== '' && !busy && !props.waiting && props.locked !== true && props.blocked === null;
+const sendable = (text: string, files: readonly PickedFile[], busy: boolean, props: ComposerProps): boolean =>
+  (text.trim() !== '' || files.length > 0) && !busy && !props.waiting && props.locked !== true && props.blocked === null;
 
 const fieldOf = (props: ComposerProps): { placeholder: string; disabled: boolean } => ({ placeholder: props.blocked ?? props.placeholder, disabled: props.locked === true || props.blocked !== null });
 
 const dockPadding = (docked: boolean, inset: number): { top: number; bottom: number } => (docked ? { top: 8, bottom: DOCK_GAP + inset } : { top: 0, bottom: 0 });
 
+interface ComposerFiles {
+  files: PickedFile[];
+  refused: string | null;
+  pick: (source: PickSource) => void;
+  remove: (key: string) => void;
+  clear: () => void;
+}
+
+function useComposerFiles(attach: boolean): ComposerFiles {
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [refused, setRefused] = useState<string | null>(null);
+  const add = (picked: PickedFile[]): void => {
+    if (picked.length === 0) return;
+    const added = addPicked(files, picked);
+    for (const file of picked) if (!added.files.includes(file)) releasePicked(file);
+    setFiles(added.files);
+    setRefused(added.refused);
+  };
+  usePastedFiles(attach, add);
+  const pick = (source: PickSource): void => {
+    pickChatFiles(source)
+      .then(add)
+      .catch((err: unknown) => { setRefused(queryError(err, 'The files could not be read.')); });
+  };
+  const remove = (key: string): void => {
+    for (const file of files) if (file.key === key) releasePicked(file);
+    setFiles(files.filter((file) => file.key !== key));
+    setRefused(null);
+  };
+  const clear = (): void => {
+    setFiles([]);
+    setRefused(null);
+  };
+  return { files, refused, pick, remove, clear };
+}
+
 export function Composer(props: ComposerProps): ReactNode {
-  const { docked = false, autoFocus = false, rows = 1, toolbar, onSend, onStop } = props;
+  const { docked = false, autoFocus = false, rows = 1, toolbar, attach = false, onSend, onStop } = props;
   const palette = useKitPalette();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const ready = sendable(text, busy, props);
+  const picked = useComposerFiles(attach);
+  const files = attach ? picked.files : [];
+  const ready = sendable(text, files, busy, props);
   const field = fieldOf(props);
   const send = (): void => {
     if (!ready) return;
     const said = text.trim();
     setBusy(true);
     setFailed(null);
-    onSend(said)
-      .then(() => { setText(''); })
+    onSend(said, files)
+      .then(() => {
+        setText('');
+        picked.clear();
+      })
       .catch((err: unknown) => { setFailed(queryError(err, 'The message was not sent.')); })
       .finally(() => { setBusy(false); });
   };
@@ -159,7 +219,10 @@ export function Composer(props: ComposerProps): ReactNode {
         field={<Field rows={rows} text={text} setText={setText} placeholder={field.placeholder} disabled={field.disabled} autoFocus={autoFocus} onEnter={send} />}
         action={<Action ready={ready} onSend={send} onStop={onStop} stopping={props.stopping === true} />}
         toolbar={toolbar}
+        attach={attach ? <AttachButton disabled={busy} onPick={picked.pick} /> : null}
+        chips={<PickedChips files={files} onRemove={picked.remove} />}
       />
+      {picked.refused === null ? null : <Text size="sm" color="danger">{picked.refused}</Text>}
       {failed === null ? null : <Text size="sm" color="danger">{failed}</Text>}
     </Column>
   );

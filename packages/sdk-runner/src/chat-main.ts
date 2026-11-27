@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline';
 import type { ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
+import { missingFilesOf, turnFilesOf } from './chat-files.js';
 import { exitFlushed, writeOut } from './chat-out.js';
 import { ChatTurn, type ChatRequest } from './chat-turn.js';
 import { runnerConfig } from './config.js';
@@ -28,8 +29,11 @@ function senderOf(value: unknown): ChatSender | null {
 }
 
 function requestOf(input: Record<string, unknown> | null): ChatRequest | null {
-  if (input?.t !== 'turn' || typeof input.prompt !== 'string' || input.prompt.trim() === '') return null;
-  return { prompt: input.prompt, from: senderOf(input.from), resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null };
+  if (input?.t !== 'turn' || typeof input.prompt !== 'string') return null;
+  const files = turnFilesOf(input.files);
+  const missing = missingFilesOf(input.missing);
+  if (input.prompt.trim() === '' && files.length === 0 && missing.length === 0) return null;
+  return { prompt: input.prompt, from: senderOf(input.from), resume: typeof input.resume === 'string' && input.resume !== '' ? input.resume : null, files, missing };
 }
 
 const turn = new ChatTurn(writeOut);

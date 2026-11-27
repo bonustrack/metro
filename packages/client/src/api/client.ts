@@ -61,7 +61,7 @@ export interface CallInit {
   base?: string;
   path?: string;
   headers?: Record<string, string>;
-  body?: string;
+  body?: string | Blob | ArrayBuffer;
   checkAccount?: () => void;
   signal?: AbortSignal;
   redirect?: RequestRedirect;

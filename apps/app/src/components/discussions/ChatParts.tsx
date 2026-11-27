@@ -15,6 +15,7 @@ import { ICON_SIZE } from '../ui/sizes.js';
 import { MarkdownBlock } from '../MarkdownBlock.js';
 import { ConnectorFavicon } from '../ConnectorFavicon.js';
 import { Everything } from '../home/ApprovalCard.js';
+import { FileView } from './ChatFiles.js';
 import { ChatBoxContext, ServerApproval } from './ServerApproval.js';
 import { connectorCall, waitingApprovals } from '../../lib/chat-connectors.js';
 import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
@@ -145,5 +146,6 @@ export function PartView({ part, live, settled, onAnswer }: { part: ChatPart; on
   const palette = useKitPalette();
   if (part.type === 'text') return part.text.trim() === '' ? null : <MarkdownBlock text={part.text} color={palette.link} linkImages />;
   if (part.type === 'tool') return <ToolRow part={part} live={live} settled={settled} />;
+  if (part.type === 'file') return <FileView file={part.file} />;
   return <ApprovalCard part={part} live={live} settled={settled} onAnswer={onAnswer} />;
 }

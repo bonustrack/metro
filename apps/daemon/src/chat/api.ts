@@ -3,8 +3,9 @@ import { CHAT_TEXT_MAX } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { APPROVAL_ID_RE } from '@metro-labs/http/approval-rules';
-import { apiFailure, apiSession, cors, readJsonBody, sendJson, type ApiSession } from '@metro-labs/http/api-http';
-import type { ChatGate } from './tickets.js';
+import { apiFailure, cors, readJsonBody, sendJson } from '@metro-labs/http/api-http';
+import type { ChatFiles } from './files.js';
+import { chatCaller, type ChatGate } from './tickets.js';
 import type { ChatTurns } from './turns.js';
 import type { Turn, TurnView } from './turn.js';
 
@@ -16,30 +17,28 @@ const BODY_MAX = 128 * 1024;
 export interface ChatApiDeps {
   gate: ChatGate;
   turns: ChatTurns;
+  files: ChatFiles;
   waitMs?: number;
-}
-
-async function caller(req: IncomingMessage): Promise<ApiSession & { userId: string }> {
-  const session = await apiSession(req);
-  const userId = session?.userId;
-  if (session === null || userId === undefined) throw new ApiError('unauthorized', 401);
-  return { ...session, userId };
 }
 
 const field = (body: unknown, key: string): unknown => (isRecord(body) ? body[key] : undefined);
 
+const NO_TEXT = 'text must be the message metro.box kept';
+
 async function start(req: IncomingMessage, deps: ChatApiDeps): Promise<{ turn: string }> {
-  const session = await caller(req);
+  const session = await chatCaller(req);
   const body = await readJsonBody(req, BODY_MAX);
   const text = field(body, 'text');
-  if (typeof text !== 'string' || text.trim() === '' || text.length > CHAT_TEXT_MAX) throw new ApiError('text must be the message metro.box kept', 400);
+  if (typeof text !== 'string' || text.length > CHAT_TEXT_MAX) throw new ApiError(NO_TEXT, 400);
   const ticket = await deps.gate.send(field(body, 'ticket'), session.userId, text);
-  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt: text, from: { name: ticket.name, email: ticket.email } }));
+  if (text.trim() === '' && ticket.files.length === 0) throw new ApiError(NO_TEXT, 400);
+  const { files, missing } = deps.files.ready(ticket.chat, ticket.message, ticket.files);
+  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt: text, from: { name: ticket.name, email: ticket.email }, files, missing }));
   return { turn: turn.id };
 }
 
 async function turnOf(req: IncomingMessage, deps: ChatApiDeps, id: string): Promise<{ turn: Turn; body: unknown }> {
-  const session = await caller(req);
+  const session = await chatCaller(req);
   const body = await readJsonBody(req, BODY_MAX);
   const ticket = await deps.gate.check(field(body, 'ticket'), session.userId);
   const turn = deps.turns.find(id);

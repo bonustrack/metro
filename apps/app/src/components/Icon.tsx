@@ -60,6 +60,9 @@ import { IconCrossMedium } from '@central-icons-react-native/round-outlined-radi
 import { IconMagnifyingGlass } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconMagnifyingGlass';
 import { IconSquareBehindSquare1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconSquareBehindSquare1';
 import { IconUserAdd } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconUserAdd';
+import { IconPaperclip1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPaperclip1';
+import { IconFileBend } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconFileBend';
+import { IconImages1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconImages1';
 import { Glyph, type CentralIcon } from '@stage-labs/kit/react-native/glyph';
 
 const ICONS = {
@@ -124,6 +127,9 @@ const ICONS = {
   stop: IconStop,
   pin: IconPin,
   chats: IconChatBubbles,
+  paperclip: IconPaperclip1,
+  file: IconFileBend,
+  image: IconImages1,
 };
 
 export type IconName = keyof typeof ICONS;

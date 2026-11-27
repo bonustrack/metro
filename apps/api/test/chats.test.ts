@@ -299,6 +299,33 @@ describe('the agent’s reply', () => {
     expect(await listed()).toBeNull();
   });
 
+  test('a message carries up to five files: ids from metro.box, sealed with the message, signed into the send ticket and the retry ticket', async () => {
+    const created = await api('POST', '/api/chats', { agent: AGENT, text: '', files: [{ name: 'Quarterly plan.pdf', type: 'application/pdf', size: 1200 }] });
+    expect(created.status).toBe(200);
+    expect(field<string>(created.body.chat, 'title')).toBe('Quarterly plan.pdf');
+    const [file] = field<{ id: string; name: string; type: string; size: number }[]>(created.body.message, 'files');
+    expect(file).toMatchObject({ name: 'Quarterly plan.pdf', type: 'application/pdf', size: 1200 });
+    expect(file?.id).toMatch(/^[A-Za-z0-9_-]{11}$/);
+    expect(await verifyChatTicket(created.body.ticket, ticketKeys, now)).toMatchObject({ files: [file], digest: textDigest('') });
+    expect(JSON.stringify((await held.client.query('SELECT title, body FROM chats c JOIN chat_messages m ON m.chat = c.id')).rows)).not.toContain('Quarterly');
+    const chat = field<string>(created.body.chat, 'id');
+    const read = await api('GET', `/api/chats/${chat}`);
+    expect((read.body.messages as { files: unknown[] }[])[0]?.files).toEqual([file]);
+    const again = await api('POST', `/api/chats/${chat}/messages/${field<string>(created.body.message, 'id')}/ticket`);
+    expect(await verifyChatTicket(again.body.ticket, ticketKeys, now)).toMatchObject({ files: [file] });
+    expect((await reply(ours, chat, field<string>(created.body.message, 'id'))).status).toBe(200);
+    const posted = await api('POST', `/api/chats/${chat}/messages`, { text: 'And this', files: [{ name: '../../etc/x.png', type: 'IMAGE/PNG', size: 3 }] });
+    expect(field<{ name: string; type: string }[]>(posted.body.message, 'files')[0]).toMatchObject({ name: '.. .. etc x.png', type: 'image/png' });
+  });
+
+  test('files are refused when they are too many, too big, nameless or not a list, and a message needs text or a file', async () => {
+    const one = { name: 'a.txt', type: 'text/plain', size: 1 };
+    for (const files of [Array.from({ length: 6 }, () => one), [{ ...one, size: 20 * 1024 * 1024 + 1 }], [{ ...one, name: '  ' }], 'a.txt', [{ ...one, size: -1 }]])
+      expect((await api('POST', '/api/chats', { agent: AGENT, text: 'hi', files })).status).toBe(400);
+    expect((await api('POST', '/api/chats', { agent: AGENT, text: ' ', files: [] })).status).toBe(400);
+    expect((await held.client.query('SELECT 1 FROM chats')).rows).toHaveLength(0);
+  });
+
   test('a chat sealed with another key reads as unreadable, never as an empty message', async () => {
     const { chat, message } = await start('Secret plans');
     expect((await reply(ours, chat, message)).status).toBe(200);

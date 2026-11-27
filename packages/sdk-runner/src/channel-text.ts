@@ -1,5 +1,6 @@
 import type { ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
+import type { MissingFile, TurnFile } from './chat-files.js';
 
 const KEY = /^[A-Za-z0-9_]+$/;
 
@@ -18,10 +19,26 @@ export function channelText(source: string, content: string, meta: Record<string
 
 const unwrapped = (text: string): string => text.replace(/[<\uFF1C\uFE64](?=[\s/\uFF0F]*chat[\p{Pd}\p{Cf}\s_]*message)/giu, '&lt;');
 
-export function chatMessageText(from: ChatSender | null, text: string): string {
-  if (from === null) return unwrapped(text);
+const KB = 1024;
+const MB = 1024 * KB;
+
+function sizeText(bytes: number): string {
+  if (bytes < KB) return `${String(bytes)} ${bytes === 1 ? 'byte' : 'bytes'}`;
+  return bytes < MB ? `${(bytes / KB).toFixed(1)} KB` : `${(bytes / MB).toFixed(1)} MB`;
+}
+
+const described = (file: MissingFile): string => `"${attr(file.name)}" (${attr(file.type)}, ${sizeText(file.size)})`;
+
+const fileLine = (file: TurnFile): string => `[file: ${described(file)} at ${attr(file.path)}]`;
+
+const missingLine = (file: MissingFile): string => `[file not received: ${described(file)}]`;
+
+export function chatMessageText(from: ChatSender | null, text: string, files: readonly TurnFile[] = [], missing: readonly MissingFile[] = []): string {
+  const lines = [...files.map(fileLine), ...missing.map(missingLine)];
+  const body = [...(text.trim() === '' && lines.length > 0 ? [] : [unwrapped(text)]), ...lines].join('\n');
+  if (from === null) return body;
   const email = from.email === null ? '' : ` email="${attr(from.email)}"`;
-  return `<chat-message from="${attr(from.name)}"${email} verified="true">\n${unwrapped(text)}\n</chat-message>`;
+  return `<chat-message from="${attr(from.name)}"${email} verified="true">\n${body}\n</chat-message>`;
 }
 
 export interface ChannelEvent {

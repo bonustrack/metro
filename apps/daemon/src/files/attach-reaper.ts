@@ -11,7 +11,7 @@ const MB = 1024 * 1024;
 const DEFAULT_TTL_DAYS = 7;
 const DEFAULT_MAX_MB = 2048;
 const PART_TTL_MS = 60 * 60 * 1000;
-const SWEEP_MS = 10 * 60 * 1000;
+export const ATTACH_SWEEP_MS = 10 * 60 * 1000;
 const SIDECARS = ['.owner', '.grant'] as const;
 
 export interface AttachSweepOptions {
@@ -170,5 +170,5 @@ export function startAttachReaper(): void {
     }
   };
   run();
-  setInterval(run, SWEEP_MS).unref?.();
+  setInterval(run, ATTACH_SWEEP_MS).unref?.();
 }

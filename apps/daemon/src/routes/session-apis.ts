@@ -17,6 +17,7 @@ import { handleFilesRequest } from '../agent-user/files-api.js';
 import { handleVoiceRequest } from '../voice/api.js';
 import { handleRunEventsRequest } from '../monitor/run-events.js';
 import { handleChatRequest, type ChatApiDeps } from '../chat/api.js';
+import { handleChatFileRequest } from '../chat/files-api.js';
 
 export interface SessionApis {
   agentApi?: AgentApiDeps;
@@ -47,6 +48,7 @@ export function handleSessionApis(
     () => handleRunEventsRequest(req, res),
     () => handleApprovalsRequest(req, res),
     ...when(apis.chatApi, (d) => handleChatRequest(req, res, d)),
+    ...when(apis.chatApi, (d) => handleChatFileRequest(req, res, d)),
     ...when(apis.enrollApi, (d) => handleEnrollRequest(req, res, d)),
     ...when(apis.bundleApi, (d) => handleBundleRequest(req, res, d)),
     ...when(apis.updateApi, (d) => handleUpdateRequest(req, res, d)),

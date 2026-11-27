@@ -20,6 +20,7 @@ const claims = (over: Partial<ChatTicketClaims> = {}): ChatTicketClaims => ({
   act: 'send',
   message: 'msg00000001',
   digest: textDigest('hello'),
+  files: [],
   group: false,
   ...over,
 });
@@ -57,6 +58,28 @@ describe('chat tickets', () => {
     expect(await verifyChatTicket(signChatTicket(signer, claims(), NOW), keys, NOW)).toMatchObject({ name: 'Alice', email: 'alice@example.com' });
     expect(await verifyChatTicket(signChatTicket(signer, claims({ email: null }), NOW), keys, NOW)).toMatchObject({ email: null });
     for (const email of ['not an address', 'a"b@c.d', '<x@y.z>', `${'a'.repeat(250)}@b.cd`]) expect(await verifyChatTicket(signChatTicket(signer, claims({ email }), NOW), keys, NOW)).toMatchObject({ email: null });
+  });
+
+  test('a send ticket carries its message files, signed, and a ticket whose files are not files is refused', async () => {
+    const files = [{ id: 'file0000001', name: 'plan.pdf', type: 'application/pdf', size: 1200 }, { id: 'file0000002', name: '写真 ✓.png', type: 'image/png', size: 20 * 1024 * 1024 }];
+    const ticket = signChatTicket(signer, claims({ files }), NOW);
+    expect(await verifyChatTicket(ticket, keys, NOW)).toMatchObject({ files });
+    expect(await verifyChatTicket(signChatTicket(signer, claims(), NOW), keys, NOW)).toMatchObject({ files: [] });
+    expect(await verifyChatTicket(signChatTicket(signer, claims({ act: 'view', message: null, digest: null, files }), NOW), keys, NOW)).toMatchObject({ files: [] });
+    const [head, body, sig] = ticket.split('.');
+    const grown = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body ?? '', 'base64url').toString()), files: [{ ...files[0], size: 999 }] })).toString('base64url');
+    expect(await verifyChatTicket(`${head}.${grown}.${sig}`, keys, NOW)).toBeNull();
+    const long = Array.from({ length: 5 }, (_, i) => ({ id: `file000000${String(i)}`, name: '鉄'.repeat(120), type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1 }));
+    expect((await verifyChatTicket(signChatTicket(signer, claims({ files: long }), NOW), keys, NOW))?.files).toHaveLength(5);
+    expect(await verifyChatTicket(signChatTicket(signer, claims({ files: [...long, ...long] }), NOW), keys, NOW)).toBeNull();
+  });
+
+  test('a send ticket that carries files lives 15 minutes, so the uploads have time; without files it lives 2', async () => {
+    const files = [{ id: 'file0000001', name: 'a.png', type: 'image/png', size: 1 }];
+    const withFiles = signChatTicket(signer, claims({ files }), NOW);
+    expect(await verifyChatTicket(withFiles, keys, NOW + 14 * 60_000)).toMatchObject({ expiresAt: NOW + 15 * 60_000 });
+    expect(await verifyChatTicket(withFiles, keys, NOW + 16 * 60_000)).toBeNull();
+    expect(await verifyChatTicket(signChatTicket(signer, claims(), NOW), keys, NOW + 3 * 60_000)).toBeNull();
   });
 
   test('a send ticket without a message or digest is refused', async () => {

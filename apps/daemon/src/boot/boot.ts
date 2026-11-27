@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { type Server } from 'node:http';
 import { userSelf } from '@metro-labs/core/events';
@@ -32,6 +33,7 @@ import { removeConnectorLeftovers } from '../connectors/leftovers.js';
 import { removeMailLeftovers } from './mail-leftovers.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
 import { prepareAgentRunner, provisionAgentUser } from '../agent-user/provision.js';
+import { agentUserMissing, claudeHome } from '../agent-user/user.js';
 import { tryPythonCommand } from '../agent-user/python-command.js';
 import { blockImds } from '../metro-user/imds.js';
 import { followRelease } from '../metro-user/root-follow.js';
@@ -43,6 +45,7 @@ import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
 import type { KeySource } from '@metro-labs/http/user-token';
 import type { ChatApiDeps } from '../chat/api.js';
+import { ChatFiles, startChatFileReaper } from '../chat/files.js';
 import { ChatGate } from '../chat/tickets.js';
 import { ChatSessions } from '../chat/sessions.js';
 import { ChatTurns } from '../chat/turns.js';
@@ -67,7 +70,7 @@ import { knownAccounts, soleAgent } from '../agents/map.js';
 import { materializeFrom, reloadFrom } from '../stations/materialize.js';
 import type { StationName } from '@metro-labs/core/station-names';
 import { startUploadReaper } from '../files/upload-store.js';
-import { startAttachReaper } from '../files/attach-reaper.js';
+import { ATTACH_SWEEP_MS, attachMaxBytes, attachTtlMs, startAttachReaper } from '../files/attach-reaper.js';
 import { startCloudWatchPublisher } from '../server/cloudwatch.js';
 import { startOrgModels, stopOrgModels } from '../gateway/org-models.js';
 import { watchModelChanges } from '../gateway/effective.js';
@@ -131,11 +134,13 @@ async function syncStations(station: StationName): Promise<void> {
 }
 
 const chatSessions = new ChatSessions(agentsDir());
+const chatFiles = new ChatFiles(() => (agentUserMissing() ? null : join(claudeHome() ?? homedir(), 'chat-files')));
 
 function chatApi(keys: KeySource): ChatApiDeps {
   return {
     gate: new ChatGate({ keys, owner: localOwner, server: () => enrolledServer(), now: () => Date.now() }),
-    turns: new ChatTurns({ spawn: () => spawnChatTurn(), signal: signalChatTurn, sessions: chatSessions, post: (chat, message, reply) => postChatReply(chat, message, reply), refused: replyRefused, now: () => Date.now() }),
+    turns: new ChatTurns({ spawn: () => spawnChatTurn(), signal: signalChatTurn, sessions: chatSessions, post: (chat, message, reply) => postChatReply(chat, message, reply), share: (input) => chatFiles.share(input), refused: replyRefused, now: () => Date.now() }),
+    files: chatFiles,
   };
 }
 
@@ -190,6 +195,7 @@ async function main(): Promise<void> {
   startPromptExpiry();
   startUploadReaper();
   startAttachReaper();
+  startChatFileReaper(chatFiles, attachTtlMs, attachMaxBytes, ATTACH_SWEEP_MS);
   watchMcpServer({
     owner: localOwner,
     hold: holdServerApproval,

@@ -1,4 +1,4 @@
-import { chatReplyOf, type ChatReply } from '@metro-labs/core/chat';
+import { chatFilesOf, chatReplyOf, type ChatFile, type ChatReply } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -31,6 +31,7 @@ export interface MessageView {
   replyTo: string | null;
   at: number;
   text: string | null;
+  files: ChatFile[];
   reply: ChatReply | null;
 }
 
@@ -85,8 +86,8 @@ const UNREADABLE: ChatReply = { parts: [], state: 'error', error: 'This reply co
 export function messageView(keys: ChatKeys, owner: string, row: MessageRow): MessageView {
   const body = openBody(keys, owner, row);
   const base = { id: row.id, seq: row.seq, role: row.role, author: row.author, replyTo: row.replyTo, at: row.at };
-  if (row.role === 'user') return { ...base, text: isRecord(body) && typeof body.text === 'string' ? body.text : null, reply: null };
-  return { ...base, text: null, reply: chatReplyOf(body) ?? UNREADABLE };
+  if (row.role === 'user') return { ...base, text: isRecord(body) && typeof body.text === 'string' ? body.text : null, files: (isRecord(body) ? chatFilesOf(body.files) : null) ?? [], reply: null };
+  return { ...base, text: null, files: [], reply: chatReplyOf(body) ?? UNREADABLE };
 }
 
 export function chatView(keys: ChatKeys, row: ChatRow, session: Session, members: readonly string[], pinned: boolean, activity: ChatActivity): ChatView {
@@ -124,7 +125,7 @@ const claimsOf = (ctx: TicketContext) => ({
 });
 
 export const viewTicket = (keys: ChatKeys, ctx: TicketContext, now: number): string =>
-  signChatTicket(keys.signer, { ...claimsOf(ctx), act: 'view', message: null, digest: null }, now);
+  signChatTicket(keys.signer, { ...claimsOf(ctx), act: 'view', message: null, digest: null, files: [] }, now);
 
-export const sendTicket = (keys: ChatKeys, ctx: TicketContext, message: string, text: string, now: number): string =>
-  signChatTicket(keys.signer, { ...claimsOf(ctx), act: 'send', message, digest: textDigest(text) }, now);
+export const sendTicket = (keys: ChatKeys, ctx: TicketContext, message: string, input: { text: string; files: ChatFile[] }, now: number): string =>
+  signChatTicket(keys.signer, { ...claimsOf(ctx), act: 'send', message, digest: textDigest(input.text), files: input.files }, now);
