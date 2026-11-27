@@ -77,9 +77,11 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/login?redirect=%2Fhost.example.com')).toEqual({ kind: 'none' });
   });
 
-  test('the root is the server list, and a server id is a first segment like a host', () => {
-    for (const root of ['#/', '#', '', '/']) expect(routeSelection(root)).toEqual({ kind: 'servers' });
-    expect(routeHash({ kind: 'servers' })).toBe('#/');
+  test('the root is the chats home, the agents list is /agents, and a server id is a first segment like a host', () => {
+    for (const root of ['#/', '#', '', '/']) expect(routeSelection(root)).toEqual({ kind: 'chat-home' });
+    expect(routeHash({ kind: 'chat-home' })).toBe('#/');
+    expect(routeSelection('#/agents')).toEqual({ kind: 'servers' });
+    expect(routeHash({ kind: 'servers' })).toBe('#/agents');
     expect(routeSelection('#/aB3-_xYz9Qw')).toEqual({ kind: 'home', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/aB3-_xYz9Qw/channels')).toEqual({ kind: 'chats', project: 'aB3-_xYz9Qw' });
     expect(routeSelection('#/aB3-_xYz9Qw/server')).toEqual({ kind: 'server', project: 'aB3-_xYz9Qw' });
@@ -181,7 +183,8 @@ describe('the first segment is the daemon', () => {
   test('the chats are organization pages: the list, a new chat (with or without an agent) and one chat', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
     const cases: [string, Selection][] = [
-      ['#/stage-labs/chat', { kind: 'chat-home' }],
+      ['#/stage-labs', { kind: 'chat-home' }],
+      ['#/stage-labs/agents', { kind: 'servers' }],
       ['#/stage-labs/chat/new', { kind: 'chat-new' }],
       ['#/stage-labs/chat/new/emma0000001', { kind: 'chat-new', agent: 'emma0000001' }],
       ['#/stage-labs/chat/aB3-_xYz9Qw', { kind: 'chat', id: 'aB3-_xYz9Qw' }],
@@ -191,6 +194,7 @@ describe('the first segment is the daemon', () => {
       expect(routeHash(selection)).toBe(hash);
     }
     expect(routeSelection('#/stage-labs/chat/not-an-id').kind).toBe('none');
+    expect(routeSelection('#/stage-labs/chat')).toEqual({ kind: 'chat-home' });
     expect(routeSelection('#/chat/aB3-_xYz9Qw')).toEqual({ kind: 'chat', id: 'aB3-_xYz9Qw' });
   });
 
@@ -332,14 +336,16 @@ describe('the organization rides in front of every scoped route', () => {
 
   test('routeHash prefixes the routed organization, else the account one, and never the global pages', () => {
     routeSelection('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX');
-    expect(routeHash({ kind: 'servers' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX');
+    expect(routeHash({ kind: 'chat-home' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX');
+    expect(routeHash({ kind: 'servers' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/agents');
     expect(routeHash({ kind: 'members' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/members');
     expect(routeHash({ kind: 'launch' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/launch');
     expect(routeHash({ kind: 'server', project: 'aB3-_xYz9Qw' })).toBe('#/org_01ABCDEFGHIJKLMNOPQRSTUVWX/aB3-_xYz9Qw/server');
     expect(routeHash({ kind: 'settings' })).toBe('#/settings');
     routeSelection('#/settings');
     installTestAccount();
-    expect(routeHash({ kind: 'servers' })).toBe(`#/${TEST_ORGANIZATION}`);
+    expect(routeHash({ kind: 'chat-home' })).toBe(`#/${TEST_ORGANIZATION}`);
+    expect(routeHash({ kind: 'servers' })).toBe(`#/${TEST_ORGANIZATION}/agents`);
     expect(routeHash({ kind: 'tools', project: 'aB3-_xYz9Qw' })).toBe(`#/${TEST_ORGANIZATION}/aB3-_xYz9Qw/tools`);
   });
 
@@ -403,7 +409,9 @@ describe('an approval link opens that approval on its agent', () => {
     expect(link).toStartWith('https://metro.box/#/');
     expect(routeSelection(new URL(link).hash)).toEqual({ kind: 'approval', project: agent, id: 'jkmnp' });
     expect(splitOrganization(new URL(link).hash)?.organization).toBe(TEST_ORGANIZATION);
-    expect(new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent: null }, 'jkmnp')).hash).toBe(`#/${TEST_ORGANIZATION}`);
+    const fallback = new URL(approvalLink(APP_ORIGIN, { owner: TEST_ORGANIZATION, agent: null }, 'jkmnp')).hash;
+    expect(fallback).toBe(`#/${TEST_ORGANIZATION}/agents`);
+    expect(routeSelection(fallback)).toEqual({ kind: 'servers' });
     expect(approvalLink(APP_ORIGIN, { owner: null, agent: null }, 'jkmnp')).toBe('https://metro.box');
   });
 

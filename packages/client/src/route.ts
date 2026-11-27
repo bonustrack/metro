@@ -15,7 +15,8 @@ const APPROVAL_ID = new RegExp(`^${APPROVAL}$`);
 
 export const isApprovalId = (id: string): boolean => APPROVAL_ID.test(id);
 
-const SERVERS_PATH = /^#?\/?$/;
+const ROOT_PATH = /^#?\/?$/;
+const SERVERS_PATH = /^#?\/agents$/;
 const SETTINGS_PATH = /^#?\/settings$/;
 const ADMIN_PATH = /^#?\/admin$/;
 const ADMIN_USERS_PATH = /^#?\/admin\/users$/;
@@ -72,6 +73,7 @@ const CHAT_NEW_PATH = new RegExp(`^#?/chat/new(?:/(${ID}))?$`);
 const CHAT_PATH = new RegExp(`^#?/chat/(${ID})$`);
 
 const EXACT: [RegExp, Selection][] = [
+  [ROOT_PATH, { kind: 'chat-home' }],
   [SERVERS_PATH, { kind: 'servers' }],
   [SETTINGS_PATH, { kind: 'settings' }],
   [/^#?\/terms-of-use\/?$/, { kind: 'terms-of-use' }],
@@ -227,7 +229,7 @@ const GLOBAL: Partial<Record<Selection['kind'], string>> = {
 };
 
 const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
-  servers: '',
+  servers: 'agents',
   none: '',
   launch: 'launch',
   members: 'members',
@@ -238,7 +240,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   'org-route': 'organization/models/default',
   'org-usage': 'organization/models/usage',
   'org-aws': 'organization/aws',
-  'chat-home': 'chat',
+  'chat-home': '',
 };
 
 function adminHash(selection: Selection): string | undefined {
