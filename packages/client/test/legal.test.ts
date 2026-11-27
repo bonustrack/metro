@@ -41,7 +41,7 @@ describe('public legal pages', () => {
       storeAccount({ ...account, organizationSlug: slug });
       rememberAgents([{ id: 'aB3-_xYz9Qw', slug }]);
       expect(namedSegment('org_01OTHEROWNER000', slug)).toBe('org_01OTHEROWNER000');
-      expect(routeHash({ kind: 'servers' })).toBe(`#/${account.organization}`);
+      expect(routeHash({ kind: 'chat-home' })).toBe(`#/${account.organization}`);
       const selection = { kind: 'server', project: 'aB3-_xYz9Qw' } as const;
       const hash = routeHash(selection);
       expect(hash).toBe(`#/${account.organization}/aB3-_xYz9Qw/server`);

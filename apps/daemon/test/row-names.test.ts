@@ -123,7 +123,7 @@ describe('the names of this agent on metro.box', () => {
 
 describe('the approval link and the chat text', () => {
   test('the link uses the slugs of this row, and ids when they are unknown, belong to another row or another organization', async () => {
-    expect(linkNow()).toBe(`https://metro.box/#/${ORG}`);
+    expect(linkNow()).toBe(`https://metro.box/#/${ORG}/agents`);
     key = enrolledKey();
     expect(linkNow()).toBe(`https://metro.box/#/${ORG}/${ROW}/approvals/jkmnp`);
     answer = (current) => ({ status: 200, body: session(current, NAMED) });
@@ -133,7 +133,7 @@ describe('the approval link and the chat text', () => {
     expect(linkNow()).toBe(`https://metro.box/#/${ORG}/row00000002/approvals/jkmnp`);
     key = { ...key, enrollment: ENROLLMENT };
     owner = 'org_01SOMEONEELSE0000';
-    expect(linkNow()).toBe('https://metro.box/#/org_01SOMEONEELSE0000');
+    expect(linkNow()).toBe('https://metro.box/#/org_01SOMEONEELSE0000/agents');
   });
 
   test('the chat names the agent as metro.box does, else by its local name, else "the agent"', async () => {

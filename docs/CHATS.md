@@ -164,9 +164,11 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
 ## The page (`apps/app/src/components/discussions/`)
 
 - A **Chats** section in the rail (first, above Agents) and a tab on the phone. The list pane shows
-  Pinned then Recent; `#/<org>/chat` is a new chat (the list on a phone), `#/<org>/chat/new/<agent>`
-  starts one with an agent picked, `#/<org>/chat/<id>` is one chat. `chat` is a reserved slug.
-- The chats home (`#/<org>/chat`, wide screen) is the new chat, like Claude's and ChatGPT's: a greeting
+  Pinned then Recent; the organization's own address `#/<org>` is a new chat (the list on a phone),
+  so switching organizations lands there (`#/<org>/chat`, the address before 2026-11-27, still
+  opens it), `#/<org>/chat/new/<agent>` starts one with an agent picked, `#/<org>/chat/<id>` is one
+  chat. The agents list is `#/<org>/agents`. `chat` and `agents` are reserved slugs.
+- The chats home (`#/<org>`, wide screen) is the new chat, like Claude's and ChatGPT's: a greeting
   by first name and time of day, then one composer centred on the screen (720 px, two rows to start)
   whose bottom bar holds the agent (a dropdown; the last one used is remembered) and Add people (the
   same picker as Share; they join with the first message, `members` on `POST /api/chats`), with send
