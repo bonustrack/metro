@@ -80,7 +80,7 @@ beforeEach(async () => {
   await held.client.exec('TRUNCATE chats CASCADE');
   for (const org of [TEST_OWNER, TEST_STRANGER]) await held.db.execute(sql`INSERT INTO organizations (id, slug, created_at, updated_at) VALUES (${org}, ${org.toLowerCase()}, 'now', 'now')`);
   for (const [user, name] of [[ALICE, 'Alice'], [BOB, 'Bob'], [CAROL, 'Carol']]) {
-    await held.db.execute(sql`INSERT INTO users (id, name, updated_at) VALUES (${user}, ${name}, 'now')`);
+    await held.db.execute(sql`INSERT INTO users (id, name, email, updated_at) VALUES (${user}, ${name}, ${`${name.toLowerCase()}@example.com`}, 'now')`);
     await held.db.execute(sql`INSERT INTO memberships (id, organization, user_id, role, created_at, updated_at) VALUES (${accountId('om')}, ${TEST_OWNER}, ${user}, ${roles[user] ?? 'member'}, 0, 0)`);
   }
   ours = await enrolled(held.db, AGENT, TEST_OWNER);
@@ -100,7 +100,7 @@ describe('starting a chat', () => {
     expect(rows.rows).toHaveLength(1);
     expect(JSON.stringify(rows.rows)).not.toContain('Zurich');
     const verified = await verifyChatTicket(ticket, ticketKeys, now);
-    expect(verified).toMatchObject({ act: 'send', chat, message, agent: AGENT, organization: TEST_OWNER, user: ALICE, name: 'Alice', group: false, digest: textDigest('Plan the offsite in Zurich') });
+    expect(verified).toMatchObject({ act: 'send', chat, message, agent: AGENT, organization: TEST_OWNER, user: ALICE, name: 'Alice', email: 'alice@example.com', group: false, digest: textDigest('Plan the offsite in Zurich') });
     const read = await api('GET', `/api/chats/${chat}`);
     expect(field<string>(read.body.chat, 'title')).toBe('Plan the offsite in Zurich');
     expect(await verifyChatTicket(read.body.ticket, ticketKeys, now)).toMatchObject({ act: 'view', chat, message: null });
@@ -237,7 +237,7 @@ describe('the agent’s reply', () => {
     expect((await reply(ours, chat, message)).status).toBe(200);
     const bobs = await api('POST', `/api/chats/${chat}/messages`, { text: 'from Bob' }, BOB);
     const again = await api('POST', `/api/chats/${chat}/messages/${field<string>(bobs.body.message, 'id')}/ticket`);
-    expect(await verifyChatTicket(again.body.ticket, ticketKeys, now)).toMatchObject({ user: ALICE, name: 'Bob', group: true });
+    expect(await verifyChatTicket(again.body.ticket, ticketKeys, now)).toMatchObject({ user: ALICE, name: 'Bob', email: 'bob@example.com', group: true });
   });
 
   test('a new message waits for the reply to the last one, whoever writes it, so no message is left unanswered', async () => {

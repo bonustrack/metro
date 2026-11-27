@@ -16,6 +16,7 @@ const claims = (over: Partial<ChatTicketClaims> = {}): ChatTicketClaims => ({
   chat: 'chat0000001',
   user: 'user_01ALICE',
   name: 'Alice',
+  email: 'alice@example.com',
   act: 'send',
   message: 'msg00000001',
   digest: textDigest('hello'),
@@ -50,6 +51,12 @@ describe('chat tickets', () => {
     expect(await verifyChatTicket(`${head}.${forged}.${sig}`, keys, NOW)).toBeNull();
     expect(await verifyChatTicket(signChatTicket({ kid: 'key-1', privateKey: other.privateKey }, claims(), NOW), keys, NOW)).toBeNull();
     expect(await verifyChatTicket('not.a.ticket', keys, NOW)).toBeNull();
+  });
+
+  test('a ticket carries the sender’s email when it has one, and never a value that is not an address', async () => {
+    expect(await verifyChatTicket(signChatTicket(signer, claims(), NOW), keys, NOW)).toMatchObject({ name: 'Alice', email: 'alice@example.com' });
+    expect(await verifyChatTicket(signChatTicket(signer, claims({ email: null }), NOW), keys, NOW)).toMatchObject({ email: null });
+    for (const email of ['not an address', 'a"b@c.d', '<x@y.z>', `${'a'.repeat(250)}@b.cd`]) expect(await verifyChatTicket(signChatTicket(signer, claims({ email }), NOW), keys, NOW)).toMatchObject({ email: null });
   });
 
   test('a send ticket without a message or digest is refused', async () => {

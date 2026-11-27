@@ -105,6 +105,7 @@ interface TicketContext {
   chat: ChatRow;
   session: Session;
   name: string;
+  email: string | null;
   group: boolean;
 }
 
@@ -114,6 +115,7 @@ const claimsOf = (ctx: TicketContext) => ({
   chat: ctx.chat.id,
   user: ctx.session.userId,
   name: ctx.name,
+  email: ctx.email,
   group: ctx.group,
 });
 

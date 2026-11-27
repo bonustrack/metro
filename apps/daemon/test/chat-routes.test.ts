@@ -17,7 +17,7 @@ const signer = { kid: 'key-1', privateKey: pair.privateKey };
 const keys = { keyFor: (kid: string) => Promise.resolve(kid === 'key-1' ? pair.publicKey : null) };
 
 const ticketOf = (over: Partial<ChatTicketClaims> = {}): string =>
-  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', act: 'send', message: 'msg00000001', digest: textDigest('Hello'), group: false, ...over });
+  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', email: 'alice@example.com', act: 'send', message: 'msg00000001', digest: textDigest('Hello'), group: false, ...over });
 
 describe('the chat ticket gate', () => {
   const gate = new ChatGate({ keys, owner: () => OWNER, server: () => AGENT, now: () => Date.now() });
@@ -71,6 +71,8 @@ describe('the chat routes', () => {
     expect((await post('/api/chat/turns', { ticket: ticketOf(), text: 'Hello' }, null)).status).toBe(401);
     const started = await post('/api/chat/turns', { ticket: ticketOf(), text: 'Hello' });
     expect(await started.json()).toEqual({ turn: 'msg00000001' });
+    await tick();
+    expect(only(made.children).sent[0]).toEqual({ t: 'turn', prompt: 'Hello', from: { name: 'Alice', email: 'alice@example.com' }, resume: null });
     only(made.children).say({ t: 'part', n: 0, part: { type: 'text', text: 'Hi' } });
     await tick();
     const view = ticketOf({ act: 'view', message: null, digest: null });

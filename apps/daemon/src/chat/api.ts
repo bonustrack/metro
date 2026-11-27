@@ -34,8 +34,7 @@ async function start(req: IncomingMessage, deps: ChatApiDeps): Promise<{ turn: s
   const text = field(body, 'text');
   if (typeof text !== 'string' || text.trim() === '' || text.length > CHAT_TEXT_MAX) throw new ApiError('text must be the message metro.box kept', 400);
   const ticket = await deps.gate.send(field(body, 'ticket'), session.userId, text);
-  const prompt = ticket.group ? `${ticket.name}: ${text}` : text;
-  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt }));
+  const turn = deps.gate.spend(ticket, () => deps.turns.start({ id: ticket.message, chat: ticket.chat, prompt: text, from: { name: ticket.name, email: ticket.email } }));
   return { turn: turn.id };
 }
 
