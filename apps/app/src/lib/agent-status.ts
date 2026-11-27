@@ -1,4 +1,4 @@
-import { useQueries, useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
+import { useQueries, useQuery, type QueryClient, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
 import { fetchApprovals, type Approval } from '@metro-labs/client/api/approvals';
 import { boxesOf, isRemote } from '@metro-labs/client/api/servers';
 import { baseFromSegment, daemonBase } from '@metro-labs/client/auth/daemon';
@@ -27,6 +27,20 @@ export function waitingCount(read: ApprovalRead | undefined, live: boolean): num
   if (!live || read === undefined || read.error !== null || read.data === undefined) return null;
   return read.data.length;
 }
+
+interface FreshRead extends ApprovalRead {
+  isStale: boolean;
+  isFetchedAfterMount: boolean;
+}
+
+export function listedApproval(read: FreshRead | undefined, live: boolean, id: string): Approval | null {
+  if (!live || read === undefined || read.error !== null || read.data === undefined) return null;
+  if (read.isStale && !read.isFetchedAfterMount) return null;
+  return read.data.find((approval) => approval.id === id) ?? null;
+}
+
+export const refreshApprovals = (client: QueryClient, host: string): Promise<void> =>
+  client.invalidateQueries({ queryKey: approvalsKey(baseFromSegment(host)), exact: true });
 
 export function useApprovalLists(hosts: string[], live: boolean[]): UseQueryResult<Approval[]>[] {
   const bases = hosts.map(baseFromSegment);

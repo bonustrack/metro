@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 
-if (process.env.METRO_SESSION === 'memory') process.exit(0);
+if (process.env.METRO_SESSION === 'memory' || process.env.METRO_SESSION === 'chat') process.exit(0);
 
 const BLOCKING = new Set(['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode']);
 const ORCHESTRATION = new Set([

@@ -14,6 +14,7 @@ import { setTrainCallBackend } from '../src/stations/train-call.ts';
 import { expirePrompts, forgetAllPrompts, pendingPrompts } from '../src/approvals/pending.ts';
 import { setApprovalAgent } from '../src/approvals/link.ts';
 import { announcedLine, forgetAnnounced, setAnnouncedFile } from '../src/mcp-server/announced.ts';
+import { forgetChatMarks, markChatCalls, setChatMarksFile } from '../src/mcp-server/chat-marks.ts';
 import { newAgentKey, saveAgentKey } from '../src/connectors/agent-key.ts';
 import { makeEmit } from '../src/routes/http.ts';
 import type { McpServerLink } from '../src/mcp-server/link.ts';
@@ -220,6 +221,41 @@ describe('an approval asked by mcp.metro.box', () => {
     expect(sends()).toEqual([]);
     expect(raw()).not.toContain('(qrstv)');
     expect(raw()).not.toContain('(rstvx)');
+  });
+
+  test('asked by a metro.box chat: posted in no chat, listed on the page, answered there and sent back, the agent session never told, even after a restart', async () => {
+    const file = join(dir, 'chat-approvals.json');
+    setChatMarksFile(file);
+    markChatCalls({ calls: [{ tool: 'notion.update_page', arguments: { title: 'Weekly notes', page_id: 'p1' } }] });
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(readFileSync(file, 'utf8')).not.toContain('Weekly notes');
+    await arrives('vwxyz', { origin: 'box' });
+    expect((await pageCall('GET', '')).body.approvals).toEqual([expect.objectContaining({ id: 'vwxyz', tool: 'notion.update_page', line: null })]);
+    await link?.stop();
+    forgetAllPrompts();
+    forgetServerApprovals();
+    forgetChatMarks();
+    setChatMarksFile(file);
+    startLink();
+    await arrives('vwxyz', { origin: 'box' });
+    expect((await pageCall('POST', '/vwxyz', { decision: 'allow' })).status).toBe(200);
+    await waitFor(() => fake.answers.length === 1);
+    chat(LINE, OWNER_SENDER, 'after the chat approval');
+    await waitFor(() => raw().includes('after the chat approval'));
+    await settle(100);
+    expect(sends()).toEqual([]);
+    expect(raw()).not.toContain('(vwxyz)');
+    await arrives('wxyzb', { origin: 'box', preview: JSON.stringify({ page_id: 'p2', title: 'Weekly notes' }) });
+    await waitFor(() => sends().length === 1);
+    expect(sends()[0]).toEqual([LINE, noticeOf('wxyzb')]);
+    markChatCalls({ calls: [{ tool: 'notion.update_page', arguments: { page_id: 'p1', title: 'Weekly notes' } }] });
+    await arrives('xyzbc', { origin: 'box', connector: 'notion-work' });
+    await waitFor(() => sends().length === 2);
+    await arrives('yzbcd', { origin: 'box' });
+    await arrives('zbcde', { origin: 'box' });
+    await waitFor(() => sends().length === 3);
+    expect(sends().slice(1)).toEqual([[LINE, noticeOf('xyzbc').replace('on notion.', 'on notion-work.')], [LINE, noticeOf('zbcde')]]);
+    forgetChatMarks();
   });
 
   test('asked with an access key and already posted in a chat by an older version: held on no chat, so no confirmation goes there', async () => {

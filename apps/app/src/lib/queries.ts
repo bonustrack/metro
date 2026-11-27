@@ -30,6 +30,7 @@ import {
 } from '@metro-labs/client/api/claude';
 import { fetchClaudeSession, fetchClaudeSetup, type ClaudeSessionStatus, type ClaudeSetup } from '@metro-labs/client/api/claude-box';
 import { fetchMode, type ModeInfo } from '@metro-labs/client/api/mode';
+import { fetchOrganization, type Organization } from '@metro-labs/client/api/organization';
 import { sessionPollMs } from '@metro-labs/client/api/runner-activity';
 import { fetchUpdate, type UpdateCheck } from '@metro-labs/client/api/update';
 import { fetchServers, probeServer, toServer, type Server, type ServerStatus } from '@metro-labs/client/api/servers';
@@ -145,6 +146,11 @@ export function queryError(err: unknown, fallback: string): string {
 export const orgKey = (...parts: string[]): string[] => ['org', currentOrganization() ?? 'none', ...parts];
 
 const serversKey = (): string[] => orgKey('servers');
+
+export const organizationKey = (): string[] => orgKey('organization');
+
+export const useOrganizationQuery = (): UseQueryResult<Organization> =>
+  useQuery({ queryKey: organizationKey(), queryFn: () => fetchOrganization(), staleTime: 30_000 });
 
 const SERVERS_CACHE = 'metro.servers:';
 

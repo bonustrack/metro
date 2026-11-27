@@ -5,7 +5,8 @@
   "description": "Runs the agent as one Claude Agent SDK session: chat, call sentences and worker reports go in as messages, a light front talks and delegates, background workers do the work. Started by `metro agent` as the agent user when the Harness runner is set to the Agent SDK.",
   "type": "module",
   "exports": {
-    ".": "./src/main.ts"
+    ".": "./src/main.ts",
+    "./chat": "./src/chat-main.ts"
   },
   "scripts": {
     "build": "tsc",

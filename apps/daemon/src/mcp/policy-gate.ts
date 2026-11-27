@@ -56,11 +56,11 @@ export function channelDecision(name: string, a: Record<string, unknown>): Polic
   return verdict;
 }
 
-export function policyGate(name: string, a: Record<string, unknown>, approval?: unknown): ToolResult | undefined {
+export function policyGate(name: string, a: Record<string, unknown>, approval?: unknown, chat = false): ToolResult | undefined {
   const { access, target } = channelDecision(name, a);
   if (access === 'allow' || target === undefined) return undefined;
   if (access === 'deny') return errResult(`Blocked by the owner's policy for ${target.station} (${name}).`);
-  return askOwner(name, target, a, approval);
+  return askOwner(name, target, a, approval, chat);
 }
 
 interface EffectivePolicy {

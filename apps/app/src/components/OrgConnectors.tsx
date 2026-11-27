@@ -9,7 +9,8 @@ import { ErrorState } from './ui/ErrorState.js';
 import { RoundButton } from './ui/RoundButton.js';
 import { RowsSkeleton } from './ui/RowsSkeleton.js';
 import { connectorLine, orgConnectorStatus } from './org-connector-status.js';
-import { Rows } from './ui/Group.js';
+import { Groups, Rows } from './ui/Group.js';
+import { ActivityLink, ConnectorsActivity } from './activity/ActivityHome.js';
 import { Item } from './ui/Item.js';
 import { ListPaneRow } from './ui/ListPaneRow.js';
 import { StateBlock } from './ui/StateBlock.js';
@@ -103,14 +104,18 @@ function ConnectorsRoot({ scope, admin }: { scope: number; admin: boolean }): Re
   useDocumentTitle('Connectors');
   return (
     <TabRoot title="Connectors" action={admin ? <AddConnector /> : undefined}>
-      <Body key={scope} pane={false} selected={null} />
+      <Groups>
+        <Body key={scope} pane={false} selected={null} />
+        <ActivityLink />
+      </Groups>
     </TabRoot>
   );
 }
 
 export function ConnectorsIdle(): ReactNode {
-  const { data } = useOrgConnectorsQuery();
+  const { data, error } = useOrgConnectorsQuery();
   useDocumentTitle('Connectors');
+  if (data === undefined && error === null) return null;
   if (data !== undefined && data.connectors.length === 0) return <NoConnectors admin={data.admin} />;
-  return <StateBlock icon="plug" title="Choose a connector" text="Pick one on the left to see who uses it and what agents may do with it." />;
+  return <ConnectorsActivity />;
 }

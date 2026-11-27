@@ -45,6 +45,22 @@ describe('a channel call that needs approval, held by the daemon', () => {
     expect(h.posted('hi')).toHaveLength(1);
   });
 
+  test('asked from a metro.box chat: listed on the page only, posted in no chat, never told to the agent session, and its repeat runs once', async () => {
+    const asked = await h.tool('send', { line: LINE, text: 'from a chat' }, true);
+    const id = idIn(asked);
+    expect(asked.text).toContain('No chat got that link');
+    expect(asked.text).toContain('Metro cannot tell you the answer right now');
+    expect((await h.listed()).map((p) => [p.id, p.line])).toEqual([[id, null]]);
+    expect(await h.answerOnPage(id, 'allow')).toBe(200);
+    h.chat(LINE, OWNER, 'a marker after the chat approval');
+    expect(await h.told('a marker after the chat approval')).toBe(true);
+    await settle(50);
+    expect(h.raw()).not.toContain(`(${id})`);
+    expect(h.questions()).toEqual([]);
+    expect((await h.tool('send', { line: LINE, text: 'from a chat', approval: id }, true)).isError).toBe(false);
+    expect(h.posted('from a chat')).toHaveLength(1);
+  });
+
   test('two repeats of one approval at the same moment run the call once', async () => {
     const id = idIn(await h.send({ line: LINE, text: 'once' }));
     expect(await h.answerOnPage(id, 'allow')).toBe(200);

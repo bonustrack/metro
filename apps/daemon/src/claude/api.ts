@@ -49,7 +49,9 @@ const PAGE_MAX = 500;
 export interface ClaudeApiDeps extends SetupApiDeps {
   dir?: () => string;
   skillSource?: GitHubSkills;
+  hidden?: (session: string) => boolean;
 }
+
 
 function optionalProject(query: URLSearchParams): string | null {
   const project = query.get('project');
@@ -70,9 +72,16 @@ function pageOf(query: URLSearchParams): { offset: number; limit: number } {
 
 type Handler = (query: URLSearchParams, dir: string, item: string) => unknown;
 
+type Listing = (query: URLSearchParams, dir: string, hidden: (id: string) => boolean) => unknown;
+
+const LISTINGS: Record<string, Listing> = {
+  projects: (_query, dir, hidden) => ({ projects: listClaudeProjects(dir, hidden) }),
+  sessions: (query, dir, hidden) => ({ sessions: listClaudeSessions(projectOf(query), dir, hidden) }),
+};
+
+const SHOWN = (): boolean => false;
+
 const COLLECTIONS: Record<string, Handler> = {
-  projects: (_query, dir) => ({ projects: listClaudeProjects(dir) }),
-  sessions: (query, dir) => ({ sessions: listClaudeSessions(projectOf(query), dir) }),
   memory: (query, dir) => listMemory(projectOf(query), dir),
   settings: (_query, dir) => ({ files: listClaudeSettings(dir) }),
   skills: (_query, dir) => ({ skills: listClaudeSkills(dir) }),
@@ -93,6 +102,12 @@ const ITEMS: Record<string, Handler> = {
 };
 
 const parts = (path: string): string[] => path.slice(PREFIX.length + 1).split('/').filter(Boolean);
+
+function refuseHidden(path: string, deps: ClaudeApiDeps): void {
+  const [head, item] = parts(path);
+  if (head === 'sessions' && item !== undefined && deps.hidden?.(item) === true) throw new ApiError('no such session', 404);
+}
+
 
 const seenIn = (body: Record<string, unknown>): string | null | undefined =>
   'seenAt' in body ? (typeof body.seenAt === 'string' ? body.seenAt : null) : undefined;
@@ -212,9 +227,16 @@ function routed(req: IncomingMessage, path: string, search: string, deps: Claude
   const [head = '', item = ''] = parts(path);
   if (head === 'skill-source' && parts(path).length === 1) return githubSkillsAnswer(req, deps.skillSource);
   if (head === 'skills') return skillsAnswer(req, path, search, dir, sourceOf(deps));
-  const single = item === '' ? SINGLETONS[head] : undefined;
-  if (single !== undefined) return single(req, deps);
+  if (item === '') return collection(req, head, search, dir, deps);
   return fileAnswer(req, path, search, dir);
+}
+
+function collection(req: IncomingMessage, head: string, search: string, dir: string, deps: ClaudeApiDeps): unknown {
+  const single = SINGLETONS[head];
+  if (single !== undefined) return single(req, deps);
+  const listing = req.method === 'GET' ? LISTINGS[head] : undefined;
+  if (listing !== undefined) return listing(new URLSearchParams(search), dir, deps.hidden ?? SHOWN);
+  return fileAnswer(req, `${PREFIX}/${head}`, search, dir);
 }
 
 const TEXT = 'text/plain; charset=utf-8';
@@ -263,6 +285,7 @@ export function handleClaudeRequest(
         return;
       }
       if (req.method !== 'GET' && ADMIN_ONLY.test(path.replace(/\/{2,}/g, '/'))) requireAdmin(session);
+      refuseHidden(path, deps);
       if (await streamed(req, res, path, search, (deps.dir ?? claudeDir)())) return;
       sendJson(req, res, 200, await routed(req, path, search, deps));
     })

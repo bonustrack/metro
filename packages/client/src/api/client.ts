@@ -46,6 +46,8 @@ export interface StationsView {
   tools: Record<string, GroupedTool[]>;
 }
 
+export const JSON_HEADERS: Readonly<Record<string, string>> = { 'content-type': 'application/json' };
+
 export const agentsUrl = (): string => `${daemonBase()}/api/agents`;
 const sessionUrl = (): string => `${daemonBase()}/api/session`;
 

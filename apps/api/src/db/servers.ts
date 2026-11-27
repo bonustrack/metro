@@ -7,6 +7,7 @@ import { newId, parseId } from '@metro-labs/core/ids';
 import { agents, awsConnections, awsExternalIds } from './schema.js';
 import { connectionJoin, externalIdJoin, placedColumns, placementOf } from './aws.js';
 import { leaveOrganization } from '@metro-labs/connectors/db/agent-keys';
+import { dropAgentChats } from './chats.js';
 import type { AwsAccount } from '../aws/access.js';
 import { agentKindOf, parseServerHost, parseServerName, type AgentKind, type ServerEntry } from '../server-types.js';
 import { parseAvatar, storedAvatar } from '../avatar.js';
@@ -320,7 +321,10 @@ async function changeOwner(id: string, from: string, to: string): Promise<Server
         })
         .where(and(eq(agents.id, id), eq(agents.owner, from)))
         .returning(columns);
-      if (moved.length > 0) await leaveOrganization(tx, id);
+      if (moved.length > 0) {
+        await leaveOrganization(tx, id);
+        await dropAgentChats(tx, id);
+      }
       return moved;
     });
     const row = rows[0];

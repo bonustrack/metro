@@ -39,13 +39,14 @@ afterAll(async () => {
   await held.close();
 });
 
-test('0032, 0033 and 0034 are journaled in order after 0031', () => {
+test('0032 to 0035 are journaled in order after 0031, the WorkOS cleanup after the chats', () => {
   const journal = JSON.parse(readFileSync(join(DIR, 'meta', '_journal.json'), 'utf8')) as { entries: { idx: number; when: number; tag: string }[] };
   const at = (idx: number) => journal.entries.find((entry) => entry.idx === idx);
   expect(at(32)).toMatchObject({ tag: '0032_drop_login_links' });
   expect(at(33)).toMatchObject({ tag: '0033_drop_session_link' });
-  expect(at(34)).toMatchObject({ tag: '0034_drop_workos_sessions' });
-  for (const idx of [32, 33, 34]) expect(at(idx)?.when ?? 0).toBeGreaterThan(at(idx - 1)?.when ?? Number.MAX_SAFE_INTEGER);
+  expect(at(34)).toMatchObject({ tag: '0034_chats' });
+  expect(at(35)).toMatchObject({ tag: '0035_drop_workos_sessions' });
+  for (const idx of [32, 33, 34, 35]) expect(at(idx)?.when ?? 0).toBeGreaterThan(at(idx - 1)?.when ?? Number.MAX_SAFE_INTEGER);
 });
 
 test('login_links and auth_sessions.link are gone, and no session can be made by a login link or WorkOS', async () => {
@@ -67,14 +68,14 @@ test('sessions from Google and Microsoft still fit, and the store still makes on
   expect(rows.rows.map((row) => row.method)).toEqual(['google', 'google', 'microsoft']);
 });
 
-test('0034 deletes only the sessions moved over from WorkOS, with their spent tokens', async () => {
-  const before = mkdtempSync(join(tmpdir(), 'metro-workos-sessions-33-'));
-  const after = mkdtempSync(join(tmpdir(), 'metro-workos-sessions-34-'));
+test('0035 deletes only the sessions moved over from WorkOS, with their spent tokens', async () => {
+  const before = mkdtempSync(join(tmpdir(), 'metro-workos-sessions-34-'));
+  const after = mkdtempSync(join(tmpdir(), 'metro-workos-sessions-35-'));
   const client = new PGlite();
   const db = drizzle(client, { schema });
   try {
-    through(before, 33);
-    through(after, 34);
+    through(before, 34);
+    through(after, 35);
     await migrate(db, { migrationsFolder: before });
     for (const [id, email] of [[ANA, 'ana@example.com'], [BEN, 'ben@example.com']] as const) await client.query("INSERT INTO users (id, email, updated_at) VALUES ($1, $2, 'x')", [id, email]);
     const seeded: [number, string, string][] = [[1, ANA, 'workos'], [2, ANA, 'google'], [3, BEN, 'workos'], [4, BEN, 'microsoft']];

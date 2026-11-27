@@ -16,6 +16,7 @@
     "./automation-store": "./src/automation-store.ts",
     "./automation-types": "./src/automation-types.ts",
     "./call": "./src/call.ts",
+    "./chat": "./src/chat.ts",
     "./approval-fields": "./src/approval-fields.ts",
     "./secure-fs": "./src/secure-fs.ts",
     "./skill-source": "./src/skill-source.ts",

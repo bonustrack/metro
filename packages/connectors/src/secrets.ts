@@ -12,10 +12,10 @@ const BLOB_RE = /^[A-Za-z0-9_-]+$/;
 
 class SecretError extends ApiError {}
 
-export type SealPurpose = 'connector' | 'model' | 'webhook' | 'event';
+export type SealPurpose = 'connector' | 'model' | 'webhook' | 'event' | 'chat';
 
-const PURPOSES: Record<SealPurpose, string> = { connector: 'metro-connector/v1', model: 'metro-model/v1', webhook: 'metro-webhook-secret/v1', event: 'metro-connector-event/v1' };
-const LIMITS: Record<SealPurpose, number> = { connector: SECRET_MAX, model: SECRET_MAX, webhook: SECRET_MAX, event: EVENT_MAX };
+const PURPOSES: Record<SealPurpose, string> = { connector: 'metro-connector/v1', model: 'metro-model/v1', webhook: 'metro-webhook-secret/v1', event: 'metro-connector-event/v1', chat: 'metro-chat/v1' };
+const LIMITS: Record<SealPurpose, number> = { connector: SECRET_MAX, model: SECRET_MAX, webhook: SECRET_MAX, event: EVENT_MAX, chat: EVENT_MAX };
 
 const unreadable = (purpose: SealPurpose): SecretError => new SecretError(`a ${purpose} secret could not be opened with this key`, 500);
 

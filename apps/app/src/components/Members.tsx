@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
-import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Column } from '@stage-labs/kit/react-native/column';
 import { Button } from '@stage-labs/kit/react-native/button';
 import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
-import { fetchOrganization, inviteMember, removeMember, setMemberRole, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
+import { inviteMember, removeMember, setMemberRole, type Member, type Organization, type Role } from '@metro-labs/client/api/organization';
 import { AgentAvatar } from './AgentAvatar.js';
 import { Choice } from './Choice.js';
 import type { MenuItem } from './Dropdown.js';
@@ -17,7 +17,7 @@ import { Group } from './ui/Group.js';
 import { Item } from './ui/Item.js';
 import { RowsSkeleton, SkeletonBlock } from './ui/RowsSkeleton.js';
 import { ValueMenu } from './ValueMenu.js';
-import { orgKey, queryError } from '../lib/queries.js';
+import { organizationKey, queryError, useOrganizationQuery } from '../lib/queries.js';
 import { providerWords, useSignInOptions } from '../lib/sign-in-options.js';
 import { AVATAR_SIZE, ICON_SIZE } from './ui/sizes.js';
 
@@ -26,12 +26,6 @@ const BUTTON_HEIGHT = 40;
 const BUTTON_WIDTH = { full: 150, compact: 120 } as const;
 const NO_ASSIST = { autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'off' } as const;
 const ROLE_WORD: Record<Role, string> = { admin: 'Admin', member: 'Member' };
-
-const organizationKey = (): string[] => orgKey('organization');
-
-function useOrganizationQuery(): UseQueryResult<Organization> {
-  return useQuery({ queryKey: organizationKey(), queryFn: () => fetchOrganization(), staleTime: 30_000 });
-}
 
 function useRun(onError: (text: string) => void, failure: string): (work: Promise<void>) => void {
   const client = useQueryClient();
