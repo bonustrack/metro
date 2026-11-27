@@ -101,6 +101,12 @@ export class ChatParts {
     else if (message.type === 'user') for (const block of blocksOf(message.message)) if (block.type === 'tool_result') this.toolResult(block);
   }
 
+  reserve(): number | null {
+    if (this.parts.length >= CHAT_PARTS_MAX) return null;
+    this.parts.push({ type: 'text', text: '' });
+    return this.parts.length - 1;
+  }
+
   ask(id: string, tool: string, input: Record<string, unknown>): number | null {
     return this.add({ type: 'approval', id, tool: chatName(tool), input: toolInput(input), state: 'waiting' });
   }

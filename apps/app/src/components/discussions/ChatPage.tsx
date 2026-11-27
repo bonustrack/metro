@@ -21,7 +21,9 @@ import { StateBlock } from '../ui/StateBlock.js';
 import { AgentReply, Thread, type AgentFace } from './ChatMessages.js';
 import { ChatMenu } from './ChatMenu.js';
 import { ChatBoxContext } from './ServerApproval.js';
+import { ChatFileContext } from './ChatFiles.js';
 import { Composer } from './Composer.js';
+import { filesAllowed, type PickedFile } from '../../lib/chat-files.js';
 import { refreshApprovals } from '../../lib/agent-status.js';
 import { chatGate, refreshChat, sendChatMessage, unanswered, useBoxStatus, useChatQuery, type ChatGate } from '../../lib/chat-queries.js';
 import { useStickToBottom } from '../../lib/chat-scroll.js';
@@ -70,7 +72,7 @@ function TryAgain({ live, onRetry }: { live: LiveTurn; onRetry: () => Promise<vo
 }
 
 function LiveNote({ live, stopError, onRetry }: { live: LiveTurn; stopError: string | null; onRetry: () => Promise<void> }): ReactNode {
-  if (live.phase === 'idle') return <SkeletonLine width={PLACEHOLDER_WIDTH} />;
+  if (live.phase === 'idle' || live.phase === 'uploading') return <SkeletonLine width={PLACEHOLDER_WIDTH} />;
   if (stopError !== null && replyGoing(live)) return <Text size="sm" color="danger">{stopError}</Text>;
   if (live.phase === 'done' && live.delivery === 'failed') return <Text size="sm" color="secondary">This reply could not be saved on metro.box, so it is gone once you leave this page.</Text>;
   return live.phase === 'missing' || live.phase === 'failed' ? <TryAgain live={live} onRetry={onRetry} /> : null;
@@ -94,7 +96,7 @@ function TopBar({ chat, agent, pad }: { chat: Chat; agent: AgentFace; pad: numbe
 }
 
 interface ChatActions {
-  send: (text: string) => Promise<void>;
+  send: (text: string, files?: readonly PickedFile[]) => Promise<void>;
   decide: (approval: string, allow: boolean) => Promise<string>;
   answer: (approval: string, allow: boolean) => Promise<void>;
   retry: () => Promise<void>;
@@ -103,9 +105,9 @@ interface ChatActions {
 function useChatActions(page: Page, host: string | null, pending: ChatMessage | null, live: LiveTurn, again: () => void): ChatActions {
   const client = useQueryClient();
   const { chat } = page;
-  const send = async (text: string): Promise<void> => {
+  const send = async (text: string, files: readonly PickedFile[] = []): Promise<void> => {
     if (host === null) throw new Error('This agent cannot chat yet.');
-    await sendChatMessage(client, chat.id, text);
+    await sendChatMessage(client, chat.id, text, files);
   };
   const decide = async (approval: string, allow: boolean): Promise<string> => {
     if (host === null) throw new Error('This agent cannot chat yet.');
@@ -128,7 +130,7 @@ function useChatActions(page: Page, host: string | null, pending: ChatMessage | 
   };
   const resend = async (message: ChatMessage): Promise<void> => {
     try {
-      rememberSend(message.id, await retryTicket(chat.id, message.id), message.text ?? '');
+      rememberSend(message.id, await retryTicket(chat.id, message.id), message.text ?? '', message.files);
     } catch (err) {
       if (err instanceof HttpError && err.status === 409) await refreshChat(client, chat.id);
       throw err;
@@ -147,10 +149,11 @@ interface DockProps {
   reply: LiveReply;
   watched: boolean;
   gate: ChatGate;
-  onSend: (text: string) => Promise<void>;
+  attach: boolean;
+  onSend: (text: string, files: PickedFile[]) => Promise<void>;
 }
 
-function Dock({ agent, reply, watched, gate, onSend }: DockProps): ReactNode {
+function Dock({ agent, reply, watched, gate, attach, onSend }: DockProps): ReactNode {
   const going = watched && replyGoing(reply.live);
   return (
     <Composer
@@ -159,6 +162,7 @@ function Dock({ agent, reply, watched, gate, onSend }: DockProps): ReactNode {
       locked={gate.kind === 'wait'}
       blocked={gate.kind === 'closed' ? gate.why : null}
       docked
+      attach={attach}
       onSend={onSend}
       onStop={going ? reply.stop : undefined}
       stopping={reply.stopping}
@@ -184,30 +188,33 @@ function Conversation({ page, server }: ConversationProps): ReactNode {
   const actions = useChatActions(page, host, pending, reply.live, () => { setAttempt((n) => n + 1); });
   const agent = faceOf(server, chat.agent);
   const pad = useIsNarrow() ? PHONE_PAD : PAGE_PAD;
+  const gate = chatGate(server, status);
   useStickToBottom(`${String(page.messages.length)}:${String(shownLength(reply.live.parts))}`);
   return (
     <ChatBoxContext.Provider value={{ host, agent: chat.agent, live: status?.state === 'live', decide: actions.decide }}>
-      <Column weight={1}>
-        <TopBar chat={chat} agent={agent} pad={pad} />
-        <Column weight={1} gap={20} width="100%" maxWidth={CHAT_WIDTH + 2 * pad} padding={{ x: pad, top: 24 }} style={CENTERED}>
-          <Column weight={1} gap={28}>
-            <Thread messages={page.messages} people={page.people} me={activeAccount()?.user.id ?? ''} group={isShared(chat)} agent={agent} onAnswer={actions.answer} />
-            {watched ? (
-              <AgentReply
-                agent={agent}
-                parts={reply.live.parts}
-                live={replyGoing(reply.live)}
-                settled={reply.live.phase === 'done'}
-                state={reply.live.state}
-                error={reply.live.error}
-                note={<LiveNote live={reply.live} stopError={reply.stopError} onRetry={actions.retry} />}
-                onAnswer={actions.answer}
-              />
-            ) : null}
+      <ChatFileContext.Provider value={{ host, chat: chat.id, ticket: page.ticket }}>
+        <Column weight={1}>
+          <TopBar chat={chat} agent={agent} pad={pad} />
+          <Column weight={1} gap={20} width="100%" maxWidth={CHAT_WIDTH + 2 * pad} padding={{ x: pad, top: 24 }} style={CENTERED}>
+            <Column weight={1} gap={28}>
+              <Thread messages={page.messages} people={page.people} me={activeAccount()?.user.id ?? ''} group={isShared(chat)} agent={agent} onAnswer={actions.answer} />
+              {watched ? (
+                <AgentReply
+                  agent={agent}
+                  parts={reply.live.parts}
+                  live={replyGoing(reply.live)}
+                  settled={reply.live.phase === 'done'}
+                  state={reply.live.state}
+                  error={reply.live.error}
+                  note={<LiveNote live={reply.live} stopError={reply.stopError} onRetry={actions.retry} />}
+                  onAnswer={actions.answer}
+                />
+              ) : null}
+            </Column>
+            <Dock agent={agent} reply={reply} watched={watched} gate={gate} attach={gate.kind === 'open' && filesAllowed(status)} onSend={actions.send} />
           </Column>
-          <Dock agent={agent} reply={reply} watched={watched} gate={chatGate(server, status)} onSend={actions.send} />
         </Column>
-      </Column>
+      </ChatFileContext.Provider>
     </ChatBoxContext.Provider>
   );
 }

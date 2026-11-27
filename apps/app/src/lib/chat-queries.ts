@@ -4,7 +4,9 @@ import { HttpError } from '@metro-labs/client/api/client';
 import { fetchChat, fetchChats, postChatMessage, type Chat, type ChatMessage, type ChatPage } from '@metro-labs/client/api/chats';
 import type { Server, ServerStatus } from '@metro-labs/client/api/servers';
 import { olderThan } from '@metro-labs/client/api/version';
+import { fileInputOf, pairFiles, type PickedFile } from './chat-files.js';
 import { rememberSend } from './chat-sends.js';
+import { holdFiles } from './chat-uploads.js';
 import { logError } from './log.js';
 import { orgKey, useServerStatuses } from './queries.js';
 
@@ -66,12 +68,17 @@ export async function showSent(client: QueryClient, id: string, message: ChatMes
   refreshChat(client, id).catch(logError('chat refresh'));
 }
 
-export async function sendChatMessage(client: QueryClient, id: string, text: string): Promise<void> {
-  const sent = await postChatMessage(id, text).catch((err: unknown) => {
+export function holdSent(message: ChatMessage, ticket: string, text: string, picked: readonly PickedFile[]): void {
+  holdFiles(message.id, pairFiles(message.files, picked));
+  rememberSend(message.id, ticket, text, message.files);
+}
+
+export async function sendChatMessage(client: QueryClient, id: string, text: string, picked: readonly PickedFile[] = []): Promise<void> {
+  const sent = await postChatMessage(id, text, picked.map(fileInputOf)).catch((err: unknown) => {
     if (err instanceof HttpError && err.status === 409) refreshChat(client, id).catch(logError('chat refresh'));
     throw err;
   });
-  rememberSend(sent.message.id, sent.ticket, text);
+  holdSent(sent.message, sent.ticket, text, picked);
   await showSent(client, id, sent.message);
   refreshChats(client).catch(logError('chat list'));
 }

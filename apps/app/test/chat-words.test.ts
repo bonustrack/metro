@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { approvalOf } from '@metro-labs/client/api/approvals';
 import { toOrgConnector } from '@metro-labs/client/api/org-connectors';
 import { approvalOfCall, chatApprovalTitle, connectorCall, waitingApprovals } from '../src/lib/chat-connectors.ts';
-import { approvalAnswer, callFields, clockOf, decidedWords, greetingOf, imageLink, replyText, sharedWords, tookWords } from '../src/lib/chat-words.ts';
+import { approvalAnswer, callFields, clockOf, decidedWords, greetingOf, imageLink, replyText, sharedWords, tookWords, toolLabel } from '../src/lib/chat-words.ts';
 
 describe('chat words', () => {
   test('a time is the hour and minute today, with the day on other days', () => {
@@ -22,6 +22,13 @@ describe('chat words', () => {
     expect(greetingOf(new Date(2026, 10, 27, 8, 0), 'Tony Stark')).toBe('Good morning, Tony');
     expect(greetingOf(new Date(2026, 10, 27, 14, 0), null)).toBe('Good afternoon');
     expect(greetingOf(new Date(2026, 10, 27, 23, 0), '  ')).toBe('Good evening');
+  });
+
+  test('a tool row shows the short name of metro’s and the chat’s own tools, and other servers keep theirs', () => {
+    expect(toolLabel('mcp__chat__share_file')).toBe('share_file');
+    expect(toolLabel('mcp__metro__tool_search')).toBe('tool_search');
+    expect(toolLabel('mcp__other__x')).toBe('other__x');
+    expect(toolLabel('Bash')).toBe('Bash');
   });
 
   test('copy takes the text of a reply, never its tool calls', () => {

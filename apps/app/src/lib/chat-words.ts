@@ -6,7 +6,7 @@ import { isRecord } from '@metro-labs/client/read';
 const SUMMARY_MAX = 120;
 const SUMMARY_KEYS = ['command', 'file_path', 'path', 'url', 'pattern', 'query', 'description', 'prompt', 'tool', 'text'];
 
-export const toolLabel = (name: string): string => name.replace(/^mcp__metro__/, '').replace(/^mcp__/, '');
+export const toolLabel = (name: string): string => name.replace(/^mcp__(?:metro|chat)__/, '').replace(/^mcp__/, '');
 
 export function parsedInput(input: string): Record<string, unknown> | null {
   try {

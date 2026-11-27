@@ -34,6 +34,11 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   `created_at`, `updated_at`), `chat_members` (who was added), `chat_pins` (one row per person and
   chat: a pin is personal), `chat_messages` (`seq`, `role` `user` or `assistant`, `author` for a
   user message, `reply_to` for a reply, sealed `body`, `at`; one reply per message).
+- A person's message body is `{text, files?}`: `files` describes up to 5 files of at most 20 MB
+  (`ChatFile` in `@metro-labs/core/chat`: an id metro.box gives, a cleaned name, a MIME type, a
+  size). The bytes are never on metro.box: they live on the agent's server (owner's call,
+  2026-11-27), see Files. A message may be files only; the chat's title is then the first file's
+  name.
 - **Every title and message body is sealed** with `METRO_CONNECTORS_KEY` (AES-256-GCM, purpose
   `metro-chat/v1`, additional data owner and `<chat>/<message>` or `<chat>/title`), so a value
   copied to another chat or organization does not open. Without the key every chat route answers
@@ -81,7 +86,10 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
 - Claims: organization, agent row id, chat, user, the sender's name and email (`email`, absent when
   unknown; a box drops a value that is not an address), `act`, a `jti`. A send ticket made by Try
   again carries the author's name and email, not those of who pressed it.
-  - **send** (2 minutes): also the message id and the SHA-256 of its text. The box refuses another
+  - **send** (2 minutes): also the message id, the SHA-256 of its text and, when the message has
+    files, `files` (each file's id, name, type and size, so the box takes exactly those bytes); a
+    send ticket with files lives 15 minutes, so the uploads have time. A ticket string is at most
+    8,192 characters. The box refuses another
     text, another person (the bearer's `sub` must match), another agent (its enrolled server id),
     another organization (`.owner`), and a ticket already used (`jti` kept until it expires).
   - **view** (2 minutes): reading a live reply, stopping it, answering its approvals. The page gets
@@ -92,7 +100,10 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
 
 - `POST /api/chat/turns {ticket, text}` starts `metro chat` as the agent (`claude/chat-process.ts`:
   `metroCli(['chat'])` through `asAgent`, in a memory scope of a quarter of the session's), sends
-  `{t: 'turn', prompt, resume}` on its stdin, and reads JSON lines from its stdout. One reply per chat
+  `{t: 'turn', prompt, from, resume, files?, missing?}` on its stdin, and reads JSON lines from its
+  stdout. The text may be empty only when the ticket has files. **Files never hold a turn back**: it
+  starts with the files that arrived and names the others as missing (see Files), since metro.box
+  refuses a new message while the last one has no reply and a reload loses the bytes. One reply per chat
   at a time (409), at most 3 at once per box (429), 2 hours at most. In a shared chat the prompt starts
   with `<name>: `. **A box that expects an agent user and has none refuses (503)**, so a chat never
   runs as `metro`. The ticket's `jti` is spent only once the turn started, so a 409 or 429 leaves the
@@ -143,6 +154,59 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   seal limit and the agent route's body limit. The daemon never logs a reply or the process's
   stderr, only its own `metro chat:` lines.
 
+## Files on the agent's server (`apps/daemon/src/chat/files*.ts`)
+
+- **Every chat file lives in the agent's home and is written as the agent**:
+  `<agent home>/chat-files/<chat id>/<file id>.<ext>` (0600; `ext` is the last dot segment of the
+  cleaned name, lower-cased, only `[a-z0-9]{1,10}`, else none, so Claude Code's Read tool opens
+  images and PDFs by itself) with a sidecar `<file id>.meta.json` `{name, type, size, chat, message,
+  at}`, written only by the daemon, which a stored file can never be named (an uploaded `x.json` is
+  `<file id>.json`, and only `.meta.json` is ever read as a sidecar) (`ChatFiles`, through `home-fs`;
+  reads through `agent-fs`). A box that expects an agent user and has none keeps nothing (503). The daemon never
+  logs a file's name, its bytes or a ticket, only ids and sizes.
+- **Upload**: `PUT /api/chat/files/<message id>/<file id>`, bearer plus header
+  `x-metro-chat-ticket: <send ticket>`. The ticket is checked like a send ticket (signature,
+  organization, agent, person, time; a refusal is 403, so the page can ask for a fresh one) but not
+  spent and without the text check; a view ticket, another message or a file id the ticket does not
+  name is a 404, and so is a malformed id. The body must be exactly the signed size (a
+  `Content-Length` that differs, more bytes or fewer at the end is a 400; an over-long body is read
+  to its end, up to 40 MiB, so the client gets the answer). It lands in a `<file id>.up-<random>` file
+  first and replaces the file only once complete, so a failed upload leaves nothing; a second upload
+  replaces the first until the turn starts, then 409.
+- **Turn start** passes `files: [{path, name, type, size}]` for the files on the box at their signed
+  size (the stored paths, with the extension; the name and type are the ticket's) and
+  `missing: [{name, type, size}]` for the others. The runner lists each file in the message as
+  `[file: "<name>" (<type>, <size>) at <path>]` and each missing one as
+  `[file not received: "<name>" (<type>, <size>)]` inside the `<chat-message>` tag, every value escaped
+  like the tag's attributes (the name is quoted, so a name cannot fake a second file line);
+  `CHAT_RULES` say a file not received did not reach this machine and can be sent again. It adds
+  an image block for each png, jpeg, gif or webp of at most 3.75 MiB, typed by its bytes, not by the
+  name (a file whose bytes are no such image is only listed).
+- **`share_file({path, name?})`** is an in-process tool of the chat session only
+  (`sdk-runner/src/share-file.ts`, server `chat`, so `mcp__chat__share_file`, always loaded and in
+  `allowedTools`, so it never asks). It refuses a folder, a missing or unreadable file, one over
+  20 MB and a link whose target is outside the agent's home, takes a type from the extension, keeps
+  the next part index for the file and writes `{t: 'share', n, path, name, type}`, then answers
+  `Shared <name>.`. The daemon puts an empty text part at `n` at once, copies the file as the agent
+  (`copyIntoHome`: the same link check, a regular file, 20 MiB at most) under a new id with its
+  sidecar, then sets `{type: 'file', file}` at `n`, so the page sees it live and it is saved with the
+  reply. A share it cannot copy keeps its empty part. Lines are applied in order, and the reply waits
+  for a copy in progress (60 s at most) before it ends and is saved.
+- **Serve**: `GET /api/chat/files/<chat id>/<file id>`, bearer plus a view or send ticket of that
+  chat in `x-metro-chat-ticket` (a ticket of another chat, an unknown file, a file or folder that is a
+  link are all 404). `Content-Type` is the sidecar's type only for png, jpeg, gif and webp
+  (`Content-Disposition: inline`), else `application/octet-stream` with
+  `attachment; filename*=UTF-8''<name>`; always `X-Content-Type-Options: nosniff`,
+  `Cache-Control: private, max-age=300` and `Content-Length`. The preflight of both routes allows
+  `PUT` and `GET` and the `authorization`, `content-type` and `x-metro-chat-ticket` headers.
+- **Cleanup**: on the attachment reaper's schedule (at start, then every 10 minutes), `find -P` as the
+  agent removes everything under `chat-files` older than `METRO_ATTACH_TTL_DAYS` (7 days), then empty
+  folders unchanged for 10 minutes; it never follows a link. Then the folder is held to the
+  attachment cache's budget (`METRO_ATTACH_MAX_MB`, 2048 by default): the oldest files go first, each
+  with its sidecar, removed as the agent (`capFolder` in `chat/files-cap.ts`, links neither counted
+  nor followed). Files also go when the server is
+  replaced: the page then says the file is no longer on the agent's server.
+
 ## `metro chat` and the chat session (`packages/sdk-runner/src/chat-*.ts`)
 
 - `metro chat` prepares the runner store like `metro agent`, takes `headlessEnv` (the gateway, the
@@ -167,7 +231,8 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   guard hook and the session-start rules stand aside: a chat works on its own thread and shows its
   tool calls.
 - Parts (`@metro-labs/core/chat`): `text`, `tool` (name, input and result as text, 4,000 characters
-  each; ids and names made safe with `chatName`), `approval` (waiting, allowed, denied). Thinking and
+  each; ids and names made safe with `chatName`), `approval` (waiting, allowed, denied), `file` (one
+  the agent shared, see Files). Thinking and
   a worker's inner messages are never shown. When the permission mode asks, the approval waits in the
   chat itself (30 minutes, then denied) and anyone who can read the chat answers it there; it is not
   listed on the agent's Home, so a private chat stays private.
@@ -234,6 +299,36 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   approved. A permission prompt inside a reply lists every argument too, and keeps its answer until
   the reply reports it. It still shows on the
   agent's Home like every connector approval.
+- **Files on the page** (`components/discussions/ChatFiles.tsx`, `ComposerFiles.tsx`,
+  `lib/chat-files.ts`, `lib/chat-uploads.ts`, the client's `api/chat-files.ts`). The composer has an
+  attach button (a paperclip, first in the home's bottom bar, before the field in a chat) only for a
+  live box on `0.1.0-beta.343` or later (`filesAllowed`; an unknown version never hides it, and it
+  shows nothing until the box's status is known). The web opens a file input that takes several
+  files and also takes images pasted into the field (`lib/chat-pick.web.ts`); a phone offers Photos
+  (`expo-image-picker`) and Files (`expo-document-picker`). Chosen files are removable chips (name,
+  size, a thumbnail for an image); more than 5, or one over 20 MB, is refused with one sentence
+  (`addPicked`). Send works with files and no text. A send posts the files' name, type and size,
+  keeps their bytes in memory under the ids metro.box gave (`holdSent`, paired by order and size),
+  then the watch uploads them one at a time to the box (`PUT /api/chat/files/<message>/<file>`, send
+  ticket in `x-metro-chat-ticket`, never in a url) before it starts the turn; an expired send ticket
+  is renewed once per call (`…/messages/<id>/ticket`). Each file in the bubble shows its state (a
+  spinner while it goes, dimmed while it waits, a red mark when it failed), the reply shows its
+  placeholder line, and the composer stays held. A failed upload shows under the message with Try
+  again, which uploads only what did not arrive. One upload run per message at a time, and a watch
+  that finds one running never calls the message unanswered. A page that no longer has some bytes (a
+  reload, or Try again pressed by someone else) uploads what it still has and starts the turn anyway;
+  the files it could not send read "Not sent." in the bubble. A 409 on start only means a reply
+  already runs. The bytes are dropped once the turn started; an image's local preview stays for the
+  page's life, so the bubble never reloads it. Only `INLINE_IMAGE_TYPES` decide what shows inline
+  (and which pasted files are taken); a file the agent shares is fetched only to draw its thumbnail
+  when it is such an image, and nothing downloads or opens without a tap.
+- **Showing files**: under the text in a person's bubble, and where a `file` part comes in a reply.
+  An image (`INLINE_IMAGE_TYPES`) is a 240 by 180 thumbnail read from the box with the chat's view
+  ticket (`GET /api/chat/files/<chat>/<file>`, renewed once on a 403), from a blob url on the web
+  and a data URI on a phone, a placeholder of that size until it has loaded; a tap opens it full
+  size. Any other file is a chip (name, size) that downloads on the web and opens the share sheet on
+  a phone (`lib/chat-file-view.ts`). A 404 says "No longer on the agent's server.", or "Not on the
+  agent's server yet." while the message has no reply.
 
 ## What private does not cover
 

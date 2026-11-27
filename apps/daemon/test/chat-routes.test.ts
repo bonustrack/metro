@@ -6,6 +6,7 @@ import { ApiError } from '@metro-labs/http/api-error';
 import { setBearerSessions } from '@metro-labs/http/api-http';
 import { signChatTicket, textDigest, type ChatTicketClaims } from '@metro-labs/http/chat-ticket';
 import { handleChatRequest } from '../src/chat/api.ts';
+import { ChatFiles } from '../src/chat/files.ts';
 import { ChatGate } from '../src/chat/tickets.ts';
 import { only, rig, tick } from './chat-rig.ts';
 
@@ -17,7 +18,7 @@ const signer = { kid: 'key-1', privateKey: pair.privateKey };
 const keys = { keyFor: (kid: string) => Promise.resolve(kid === 'key-1' ? pair.publicKey : null) };
 
 const ticketOf = (over: Partial<ChatTicketClaims> = {}): string =>
-  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', email: 'alice@example.com', act: 'send', message: 'msg00000001', digest: textDigest('Hello'), group: false, ...over });
+  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', email: 'alice@example.com', act: 'send', message: 'msg00000001', digest: textDigest('Hello'), files: [], group: false, ...over });
 
 describe('the chat ticket gate', () => {
   const gate = new ChatGate({ keys, owner: () => OWNER, server: () => AGENT, now: () => Date.now() });
@@ -48,7 +49,7 @@ describe('the chat routes', () => {
 
   beforeAll(async () => {
     setBearerSessions((req) => Promise.resolve(req.headers.authorization === 'Bearer alice' ? { subject: OWNER, userId: ALICE, sessionId: 's', role: 'member' } : null));
-    const deps = { gate: new ChatGate({ keys, owner: () => OWNER, server: () => AGENT, now: () => Date.now() }), turns: made.turns, waitMs: 200 };
+    const deps = { gate: new ChatGate({ keys, owner: () => OWNER, server: () => AGENT, now: () => Date.now() }), turns: made.turns, files: new ChatFiles(() => made.dir), waitMs: 200 };
     server = createServer((req, res) => {
       if (!handleChatRequest(req, res, deps)) res.writeHead(404).end();
     });

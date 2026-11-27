@@ -1,12 +1,15 @@
+import type { ChatFile } from '@metro-labs/core/chat';
+
 export interface Send {
   ticket: string;
   text: string;
+  files: readonly ChatFile[];
 }
 
 const waiting = new Map<string, Send>();
 
-export function rememberSend(message: string, ticket: string, text: string): void {
-  waiting.set(message, { ticket, text });
+export function rememberSend(message: string, ticket: string, text: string, files: readonly ChatFile[] = []): void {
+  waiting.set(message, { ticket, text, files });
 }
 
 export function takeSend(message: string): Send | null {

@@ -8,6 +8,7 @@ import type { ChatPart, ReplyState } from '@metro-labs/core/chat';
 import { personName, type ChatMessage, type ChatPerson } from '@metro-labs/client/api/chats';
 import { AgentAvatar } from '../AgentAvatar.js';
 import { Spinner } from '../Spinner.js';
+import { MessageFiles } from './ChatFiles.js';
 import { PartView, type Answer } from './ChatParts.js';
 import { clockOf, personOf, replyText, tookWords } from '../../lib/chat-words.js';
 import { copyText } from '../../lib/clipboard.js';
@@ -25,7 +26,20 @@ export interface AgentFace {
   avatar: string | null;
 }
 
-function UserBubble({ message, author, mine, group }: { message: ChatMessage; author: ChatPerson | undefined; mine: boolean; group: boolean }): ReactNode {
+interface BubbleProps {
+  message: ChatMessage;
+  author: ChatPerson | undefined;
+  mine: boolean;
+  group: boolean;
+  answered: boolean;
+}
+
+function BubbleText({ text }: { text: string | null }): ReactNode {
+  if (text === null) return <Text size="lg" color="secondary">This message could not be read.</Text>;
+  return text === '' ? null : <Text size="lg" selectable>{text}</Text>;
+}
+
+function UserBubble({ message, author, mine, group, answered }: BubbleProps): ReactNode {
   const palette = useKitPalette();
   return (
     <Column align="end" gap={6}>
@@ -34,8 +48,9 @@ function UserBubble({ message, author, mine, group }: { message: ChatMessage; au
         {group && !mine ? <Text size="xs" color="secondary">{personName(author)}</Text> : null}
         <Text size="3xs" color="secondary">{clockOf(message.at)}</Text>
       </Row>
-      <Column radius={16} padding={{ x: 16, y: 10 }} background={palette.inputBg} maxWidth={BUBBLE_MAX}>
-        {message.text === null ? <Text size="lg" color="secondary">This message could not be read.</Text> : <Text size="lg" selectable>{message.text}</Text>}
+      <Column radius={16} padding={{ x: 16, y: 10 }} gap={10} background={palette.inputBg} maxWidth={BUBBLE_MAX}>
+        <BubbleText text={message.text} />
+        <MessageFiles message={message.id} files={message.files} settled={answered} />
       </Column>
     </Column>
   );
@@ -134,9 +149,10 @@ interface ThreadProps {
 }
 
 export function Thread({ messages, people, me, group, agent, onAnswer }: ThreadProps): ReactNode {
+  const replied = new Set(messages.flatMap((m) => (m.replyTo === null ? [] : [m.replyTo])));
   return messages.map((message) =>
     message.role === 'user' ? (
-      <UserBubble key={message.id} message={message} author={personOf(people, message.author)} mine={message.author === me} group={group} />
+      <UserBubble key={message.id} message={message} author={personOf(people, message.author)} mine={message.author === me} group={group} answered={replied.has(message.id)} />
     ) : (
       <StoredReply key={message.id} message={message} agent={agent} onAnswer={onAnswer} />
     ),

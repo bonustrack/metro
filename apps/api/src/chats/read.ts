@@ -1,4 +1,4 @@
-import { CHAT_TEXT_MAX, chatTitleOf } from '@metro-labs/core/chat';
+import { CHAT_FILES_MAX, CHAT_TEXT_MAX, chatFileOf, chatTitleOf, type ChatFile } from '@metro-labs/core/chat';
 import { newId, parseId } from '@metro-labs/core/ids';
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -75,12 +75,30 @@ export async function openChat(deps: ChatsDeps, caller: Caller, rawId: string): 
   return { row, members, keys };
 }
 
-export function textOf(body: unknown): string {
-  const text = isRecord(body) && typeof body.text === 'string' ? body.text.trim() : '';
-  if (text === '') throw new ApiError('text must not be empty', 400);
-  if (text.length > CHAT_TEXT_MAX) throw new ApiError(`text must be at most ${String(CHAT_TEXT_MAX)} characters`, 400);
-  return text;
+export interface MessageInput {
+  text: string;
+  files: ChatFile[];
 }
+
+function newFilesOf(value: unknown): ChatFile[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > CHAT_FILES_MAX) throw new ApiError(`files must be a list of at most ${String(CHAT_FILES_MAX)}`, 400);
+  return value.map((raw) => {
+    const file = chatFileOf({ ...(isRecord(raw) ? raw : {}), id: newId() });
+    if (file === null) throw new ApiError('each file needs a name and a size of at most 20 MB', 400);
+    return file;
+  });
+}
+
+export function messageInputOf(body: unknown): MessageInput {
+  const files = newFilesOf(isRecord(body) ? body.files : undefined);
+  const text = isRecord(body) && typeof body.text === 'string' ? body.text.trim() : '';
+  if (text === '' && files.length === 0) throw new ApiError('text must not be empty', 400);
+  if (text.length > CHAT_TEXT_MAX) throw new ApiError(`text must be at most ${String(CHAT_TEXT_MAX)} characters`, 400);
+  return { text, files };
+}
+
+export const bodyOf = (input: MessageInput): Record<string, unknown> => (input.files.length === 0 ? { text: input.text } : { text: input.text, files: input.files });
 
 export async function validMembers(deps: ChatsDeps, owner: string, creator: string, value: unknown, kept: readonly string[] = []): Promise<string[]> {
   if (!Array.isArray(value) || value.length > CHAT_MEMBERS_MAX || !value.every((user): user is string => typeof user === 'string')) throw new ApiError(`members must be a list of at most ${String(CHAT_MEMBERS_MAX)} user ids`, 400);
@@ -132,19 +150,19 @@ async function boxAgent(deps: ChatsDeps, owner: string, body: unknown): Promise<
 
 export async function createChat(deps: ChatsDeps, caller: Caller, body: unknown): Promise<{ chat: ChatView; message: MessageView; ticket: string }> {
   const keys = keysOf(deps);
-  const text = textOf(body);
+  const input = messageInputOf(body);
   const agent = await boxAgent(deps, caller.owner, body);
   if ((await chatsStartedBy(deps.db(), caller.owner, caller.session.userId)) >= CHATS_PER_PERSON_MAX) throw new ApiError(`You have ${String(CHATS_PER_PERSON_MAX)} chats in this organization. Delete some to start a new one.`, 409);
   const now = deps.now();
   const id = newId();
   const messageId = newId();
-  const row: ChatRow = { id, owner: caller.owner, agent, createdBy: caller.session.userId, title: sealTitle(keys, caller.owner, id, chatTitleOf(text)), shared: 'private', createdAt: now, updatedAt: now };
-  const first = { id: messageId, chat: id, seq: 1, role: 'user' as const, author: caller.session.userId, replyTo: null, body: sealBody(keys, caller.owner, id, messageId, { text }), at: now };
+  const row: ChatRow = { id, owner: caller.owner, agent, createdBy: caller.session.userId, title: sealTitle(keys, caller.owner, id, chatTitleOf(input.text === '' ? (input.files[0]?.name ?? '') : input.text)), shared: 'private', createdAt: now, updatedAt: now };
+  const first = { id: messageId, chat: id, seq: 1, role: 'user' as const, author: caller.session.userId, replyTo: null, body: sealBody(keys, caller.owner, id, messageId, bodyOf(input)), at: now };
   const members = await validMembers(deps, caller.owner, caller.session.userId, isRecord(body) && body.members !== undefined ? body.members : []);
   const sender = await callerSender(deps, caller);
   await insertChat(deps.db(), row, first, members);
   const ctx = { chat: row, session: caller.session, ...sender, group: members.length > 0 };
-  return { chat: chatView(keys, row, caller.session, members, false, 'working'), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, text, now) };
+  return { chat: chatView(keys, row, caller.session, members, false, 'working'), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, input, now) };
 }
 
 export interface ChatPage {

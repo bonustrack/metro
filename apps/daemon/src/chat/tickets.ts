@@ -1,4 +1,7 @@
+import type { IncomingMessage } from 'node:http';
+import type { ChatFile } from '@metro-labs/core/chat';
 import { ApiError } from '@metro-labs/http/api-error';
+import { apiSession, type ApiSession } from '@metro-labs/http/api-http';
 import { textDigest, verifyChatTicket, type ChatTicket } from '@metro-labs/http/chat-ticket';
 import type { KeySource } from '@metro-labs/http/user-token';
 
@@ -10,6 +13,13 @@ export interface TicketFacts {
 }
 
 const refused = (why: string): ApiError => new ApiError(why, 403);
+
+export async function chatCaller(req: IncomingMessage): Promise<ApiSession & { userId: string }> {
+  const session = await apiSession(req);
+  const userId = session?.userId;
+  if (session === null || userId === undefined) throw new ApiError('unauthorized', 401);
+  return { ...session, userId };
+}
 
 export class ChatGate {
   private readonly spent = new Map<string, number>();
@@ -31,6 +41,13 @@ export class ChatGate {
     const message = ticket.message;
     if (ticket.act !== 'send' || message === null || ticket.digest !== textDigest(text)) throw refused('This ticket does not send this message.');
     return { ...ticket, message };
+  }
+
+  async fileOf(token: unknown, user: string, message: string, id: string): Promise<{ ticket: ChatTicket; file: ChatFile }> {
+    const ticket = await this.check(token, user);
+    const file = ticket.act === 'send' && ticket.message === message ? ticket.files.find((f) => f.id === id) : undefined;
+    if (file === undefined) throw new ApiError('No such file.', 404);
+    return { ticket, file };
   }
 
   spend<T>(ticket: ChatTicket, use: () => T): T {

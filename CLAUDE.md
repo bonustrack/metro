@@ -281,6 +281,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 - **Everything runs as the agent through `asUser`** (`sudo -n -u agent -- env -i …`; never `runuser`). Nothing is spawned with the agent's home as cwd. Writes into the agent's home go through `home-fs.ts` (as the agent, so a planted symlink cannot redirect them); reads go through `agent-user/agent-fs.ts`, and a link out of the home is read as the agent.
 - **The agent reads a key-free copy of the Metro files** (`view.ts`, `<home>/.metro/agents`). `connectors.json`, `voice.json`, `agent-key.json`, `mcp-token` are never copied. Nothing trusts the agent's copies.
 - **An inbound file reaches the agent as its url only.** A `send` attachment by `path` or `url` is read or fetched as the agent.
+- **metro.box chat files live in `<agent home>/chat-files` and are written, copied and cleaned only as the agent**; a file the agent shares is copied as the agent, never read by metro (`docs/CHATS.md`, Files).
 - **The Claude session's memory:** the unit has `OOMPolicy=continue`, and the session's tmux runs in its own scope with `MemoryMax` 80% of the box and **`MemoryHigh` the same value, never lower**.
 - **Scheduled jobs:** the page lists the agent's jobs only; root's jobs never show.
 - **The daily memory routine is a cron block the daemon owns** at the end of the agent's crontab; one memory job per box, named `memory-routine`. `metro memory` runs with no metro MCP server and **no Bash, ever**. **The crontab is read strictly**: a failed read must throw, never read as empty.

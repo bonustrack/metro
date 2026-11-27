@@ -6,6 +6,10 @@ export const CHAT_PARTS_MAX = 300;
 export const PART_TEXT_MAX = 100_000;
 export const TOOL_TEXT_MAX = 4_000;
 export const CHAT_ERROR_MAX = 500;
+export const CHAT_FILE_MAX = 20 * 1024 * 1024;
+export const CHAT_FILES_MAX = 5;
+export const FILE_NAME_MAX = 120;
+export const INLINE_IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 export type ApprovalState = 'waiting' | 'allowed' | 'denied';
 
@@ -38,7 +42,19 @@ export interface ApprovalPart {
   state: ApprovalState;
 }
 
-export type ChatPart = TextPart | ToolPart | ApprovalPart;
+export interface ChatFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+}
+
+export interface FilePart {
+  type: 'file';
+  file: ChatFile;
+}
+
+export type ChatPart = TextPart | ToolPart | ApprovalPart | FilePart;
 
 export interface ChatReply {
   parts: ChatPart[];
@@ -97,9 +113,44 @@ function approvalPartOf(raw: Record<string, unknown>): ApprovalPart | null {
   return { type: 'approval', id, tool, input: str(raw.input, TOOL_TEXT_MAX) ?? '', state };
 }
 
+const FILE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const MIME_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,99}$/;
+
+export function fileNameOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = Array.from(value.replace(/[\p{Cc}\p{Cf}\u2028\u2029/\\]/gu, ' ').replace(/\s+/g, ' ').trim()).slice(0, FILE_NAME_MAX).join('').trim();
+  return name === '' || /^\.+$/.test(name) ? null : name;
+}
+
+export const fileTypeOf = (value: unknown): string => (typeof value === 'string' && MIME_RE.test(value.toLowerCase()) ? value.toLowerCase() : 'application/octet-stream');
+
+const fileSizeOf = (value: unknown): number | null => (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= CHAT_FILE_MAX ? value : null);
+
+export function chatFileOf(raw: unknown): ChatFile | null {
+  if (!isRecord(raw)) return null;
+  const id = matching(raw.id, FILE_ID_RE);
+  const name = fileNameOf(raw.name);
+  const size = fileSizeOf(raw.size);
+  if (id === null || name === null || size === null) return null;
+  return { id, name, type: fileTypeOf(raw.type), size };
+}
+
+export function chatFilesOf(raw: unknown): ChatFile[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > CHAT_FILES_MAX) return null;
+  const files = raw.map(chatFileOf);
+  return files.every((file): file is ChatFile => file !== null) ? files : null;
+}
+
+function filePartOf(raw: Record<string, unknown>): FilePart | null {
+  const file = chatFileOf(raw.file);
+  return file === null ? null : { type: 'file', file };
+}
+
 export function chatPartOf(raw: unknown): ChatPart | null {
   if (!isRecord(raw)) return null;
   if (raw.type === 'text') return textPartOf(raw);
+  if (raw.type === 'file') return filePartOf(raw);
   if (raw.type === 'tool') return toolPartOf(raw);
   return raw.type === 'approval' ? approvalPartOf(raw) : null;
 }
@@ -154,7 +205,7 @@ const replySize = (reply: ChatReply): number => new TextEncoder().encode(JSON.st
 
 function shrinkTools(parts: ChatPart[], max: number): ChatPart[] {
   return parts.map((part) => {
-    if (part.type === 'text') return part;
+    if (part.type === 'text' || part.type === 'file') return part;
     if (part.type === 'approval') return { ...part, input: clip(part.input, max) };
     return { ...part, input: clip(part.input, max), result: part.result === null ? null : clip(part.result, max) };
   });

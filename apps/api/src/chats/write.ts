@@ -17,7 +17,7 @@ import {
   type ChatShared,
 } from '../db/chats.js';
 import { canManage, chatView, isGroup, messageView, sealBody, sealTitle, sendTicket, viewTicket, type ChatView, type MessageView } from './model.js';
-import { activitiesOf, callerSender, senderOf, validMembers, openChat, textOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
+import { activitiesOf, callerSender, senderOf, validMembers, openChat, bodyOf, messageInputOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
 
 function managed(open: OpenChat, caller: Caller): void {
   if (!canManage(open.row, caller.session)) throw new ApiError('Only the person who started this chat or an admin can change it.', 403);
@@ -77,14 +77,14 @@ const contextOf = async (deps: ChatsDeps, caller: Caller, open: OpenChat) => ({
 
 export async function postMessage(deps: ChatsDeps, caller: Caller, rawId: string, body: unknown): Promise<{ message: MessageView; ticket: string }> {
   const open = await openChat(deps, caller, rawId);
-  const text = textOf(body);
+  const input = messageInputOf(body);
   const now = deps.now();
   const id = newId();
-  const row = { id, chat: open.row.id, role: 'user' as const, author: caller.session.userId, replyTo: null, body: sealBody(open.keys, caller.owner, open.row.id, id, { text }), at: now };
+  const row = { id, chat: open.row.id, role: 'user' as const, author: caller.session.userId, replyTo: null, body: sealBody(open.keys, caller.owner, open.row.id, id, bodyOf(input)), at: now };
   const seq = await appendMessage(deps.db(), row);
   if (seq === null) throw new ApiError('The agent is still answering the last message. Wait for its reply, or use Try again on it.', 409);
   const ctx = await contextOf(deps, caller, open);
-  return { message: messageView(open.keys, caller.owner, { ...row, seq }), ticket: sendTicket(open.keys, ctx, id, text, now) };
+  return { message: messageView(open.keys, caller.owner, { ...row, seq }), ticket: sendTicket(open.keys, ctx, id, input, now) };
 }
 
 export async function retryTicket(deps: ChatsDeps, caller: Caller, rawId: string, rawMessage: string): Promise<{ ticket: string }> {
@@ -93,12 +93,12 @@ export async function retryTicket(deps: ChatsDeps, caller: Caller, rawId: string
   const message = id === null ? null : await messageOf(deps.db(), open.row.id, id);
   if (message?.role !== 'user') throw new ApiError('no such message', 404);
   if ((await replyOf(deps.db(), open.row.id, message.id)) !== null) throw new ApiError('This message already has a reply.', 409);
-  const text = messageView(open.keys, caller.owner, message).text;
+  const { text, files } = messageView(open.keys, caller.owner, message);
   if (text === null) throw new ApiError('This message could not be read, so it cannot be sent again.', 409);
   const [author] = await peopleOf(deps.db(), [message.author ?? caller.session.userId]);
   await touchChat(deps.db(), open.row.id, deps.now());
   const ctx = { chat: open.row, session: caller.session, ...senderOf(author), group: isGroup(open.row, open.members) };
-  return { ticket: sendTicket(open.keys, ctx, message.id, text, deps.now()) };
+  return { ticket: sendTicket(open.keys, ctx, message.id, { text, files }, deps.now()) };
 }
 
 export async function watchTicket(deps: ChatsDeps, caller: Caller, rawId: string): Promise<{ ticket: string }> {

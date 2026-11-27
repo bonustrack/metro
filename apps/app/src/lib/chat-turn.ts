@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { applyTurnEvent, type ChatPart, type ReplyState } from '@metro-labs/core/chat';
+import { applyTurnEvent, type ChatFile, type ChatPart, type ReplyState } from '@metro-labs/core/chat';
+import { uploadChatFile, type ChatFileBody } from '@metro-labs/client/api/chat-files';
 import { ForbiddenError, HttpError, NotFoundError } from '@metro-labs/client/api/client';
 import { pollTurn, sendTurn, stopTurn, type Delivery, type TurnView } from '@metro-labs/client/api/chat-turns';
-import { viewTicket } from '@metro-labs/client/api/chats';
+import { retryTicket, viewTicket } from '@metro-labs/client/api/chats';
 import { refreshChat, refreshChats, sendChatMessage } from './chat-queries.js';
 import { takeGoOns, takeSend, type Send } from './chat-sends.js';
+import { settleUploads, uploadAll, uploadsRunning } from './chat-uploads.js';
 import { logError } from './log.js';
 import { queryError } from './queries.js';
 
-type LivePhase = 'idle' | 'starting' | 'live' | 'done' | 'missing' | 'failed';
+type LivePhase = 'idle' | 'uploading' | 'starting' | 'live' | 'done' | 'missing' | 'failed';
 
 export type TryAgain = 'send' | 'watch';
 
@@ -30,19 +32,22 @@ const RENEW_GAP_MS = 60_000;
 const STARTING_MS = 30_000;
 const FAILURES_MAX = 5;
 const UNREACHED = 'The agent could not be reached.';
+const FILES_FAILED = 'The files did not reach the agent.';
 
 export const replyGoing = (live: LiveTurn): boolean => live.phase === 'starting' || live.phase === 'live';
 
-export const replyHolds = (live: LiveTurn): boolean => live.phase === 'idle' || replyGoing(live) || (live.phase === 'done' && live.delivery === 'pending');
+export const replyHolds = (live: LiveTurn): boolean => live.phase === 'idle' || live.phase === 'uploading' || replyGoing(live) || (live.phase === 'done' && live.delivery === 'pending');
 
 export interface TurnApi {
   send: typeof sendTurn;
   poll: typeof pollTurn;
   stop: typeof stopTurn;
   renew: typeof viewTicket;
+  upload: typeof uploadChatFile;
+  resend: typeof retryTicket;
 }
 
-const TURN_API: TurnApi = { send: sendTurn, poll: pollTurn, stop: stopTurn, renew: viewTicket };
+const TURN_API: TurnApi = { send: sendTurn, poll: pollTurn, stop: stopTurn, renew: viewTicket, upload: uploadChatFile, resend: retryTicket };
 
 interface WatchOptions {
   api: TurnApi;
@@ -74,6 +79,11 @@ async function bounded<T>(signal: AbortSignal, run: (signal: AbortSignal) => Pro
 
 const busyChat = (err: unknown): boolean => err instanceof HttpError && err.status === 409;
 
+function filesFailed(err: unknown): string {
+  const reason = queryError(err, '');
+  return reason === '' ? FILES_FAILED : `${FILES_FAILED} ${reason}`;
+}
+
 export class TurnWatch {
   private after = 0;
   private parts: ChatPart[] = [];
@@ -83,6 +93,7 @@ export class TurnWatch {
   private known = false;
   private stopWanted = false;
   private stopSent = false;
+  private lost: string[] = [];
 
   constructor(private readonly opts: WatchOptions) {}
 
@@ -120,18 +131,57 @@ export class TurnWatch {
   }
 
   private async hand(send: Send): Promise<boolean> {
+    const ticket = send.files.length === 0 ? send.ticket : await this.upload(send);
+    if (ticket === null) return false;
     this.show({ phase: 'starting' });
     try {
-      await this.opts.api.send(this.opts.host, send.ticket, send.text);
+      await this.begin(send, ticket);
     } catch (err) {
       if (!busyChat(err)) return this.failed(err, 'send');
       this.show({ phase: 'idle' });
       return true;
     }
+    settleUploads(this.opts.message, send.files, this.lost);
     this.known = true;
     this.show({ phase: 'live' });
     this.sendStop();
     return true;
+  }
+
+  private async renewing(ticket: string, run: (ticket: string) => Promise<unknown>): Promise<string> {
+    try {
+      await run(ticket);
+      return ticket;
+    } catch (err) {
+      if (!(err instanceof ForbiddenError)) throw err;
+      const fresh = await this.opts.api.resend(this.opts.chat, this.opts.message);
+      await run(fresh);
+      return fresh;
+    }
+  }
+
+  private async upload(send: Send): Promise<string | null> {
+    this.show({ phase: 'uploading' });
+    let ticket = send.ticket;
+    const put = async (file: ChatFile, body: ChatFileBody): Promise<void> => {
+      try {
+        ticket = await this.renewing(ticket, (current) => this.opts.api.upload(this.opts.host, this.opts.message, file.id, current, body));
+      } catch (err) {
+        if (!busyChat(err)) throw err;
+      }
+    };
+    try {
+      this.lost = (await uploadAll(this.opts.message, send.files, put)).lost;
+      return ticket;
+    } catch (err) {
+      this.show({ phase: 'failed', error: filesFailed(err), again: 'send' });
+      return null;
+    }
+  }
+
+  private async begin(send: Send, ticket: string): Promise<void> {
+    if (send.files.length === 0) await this.opts.api.send(this.opts.host, ticket, send.text);
+    else await this.renewing(ticket, (current) => this.opts.api.send(this.opts.host, current, send.text));
   }
 
   private async refused(err: unknown): Promise<boolean> {
@@ -146,7 +196,7 @@ export class TurnWatch {
   private async notYet(): Promise<boolean> {
     const send = takeSend(this.opts.message);
     if (send !== null) return this.hand(send);
-    if (Date.now() - this.opts.sentAt > STARTING_MS) {
+    if (Date.now() - this.opts.sentAt > STARTING_MS && !uploadsRunning(this.opts.message)) {
       this.show({ phase: 'missing', again: 'send' });
       return false;
     }
