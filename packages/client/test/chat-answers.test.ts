@@ -6,6 +6,9 @@ describe('reading the chat answers', () => {
   test('a chat and its messages are read with safe defaults', () => {
     expect(toChat({ id: 'c1', agent: 'a1', title: 'T', shared: 'weird', members: ['u1', 2], pinned: 'yes' })).toMatchObject({ id: 'c1', shared: 'private', members: ['u1'], pinned: false, manage: false });
     expect(toChatMessage({ id: 'm1', role: 'user', text: 'hi', author: 'u1' })).toMatchObject({ role: 'user', text: 'hi', reply: null });
+    expect(toChat({ id: 'c1', activity: 'working' }).activity).toBe('working');
+    expect(toChat({ id: 'c1', activity: 'unread' }).activity).toBe('unread');
+    for (const activity of [undefined, null, 'busy', 1]) expect(toChat({ id: 'c1', activity }).activity).toBeNull();
     expect(toChatMessage({ id: 'm2', role: 'assistant', reply: { parts: [{ type: 'bad' }], state: 'done' } }).reply).toEqual({ parts: [], state: 'error', error: 'This reply could not be read.' });
   });
 

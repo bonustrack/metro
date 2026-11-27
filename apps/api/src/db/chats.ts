@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, or, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@metro-labs/connectors/db/errors';
 import type { Database } from './client.js';
-import { agents, chatMembers, chatMessages, chatPins, chats, memberships, users } from './schema.js';
+import { agents, chatMembers, chatMessages, chatPins, chatReads, chats, memberships, users } from './schema.js';
 
 const CHATS_LISTED_MAX = 200;
 const CHAT_MESSAGES_MAX = 500;
@@ -131,6 +131,10 @@ export async function setMembers(db: Database, chat: string, list: readonly stri
   });
 }
 
+export async function touchChat(db: Database, id: string, at: number): Promise<void> {
+  await db.update(chats).set({ updatedAt: at }).where(eq(chats.id, id));
+}
+
 export async function deleteChat(db: Database, id: string): Promise<boolean> {
   const removed = await db.delete(chats).where(eq(chats.id, id)).returning({ id: chats.id });
   return removed.length > 0;
@@ -214,6 +218,38 @@ export async function replaceReply(db: Database, chat: string, id: string, body:
     await tx.update(chatMessages).set({ body, at }).where(and(eq(chatMessages.chat, chat), eq(chatMessages.id, id)));
     await tx.update(chats).set({ updatedAt: at }).where(eq(chats.id, chat));
   });
+}
+
+export interface LastMessage {
+  role: 'user' | 'assistant';
+  seq: number;
+  at: number;
+}
+
+export async function lastMessagesOf(db: Database, ids: readonly string[]): Promise<Map<string, LastMessage>> {
+  if (ids.length === 0) return new Map();
+  const latest = db
+    .select({ role: chatMessages.role, seq: chatMessages.seq, at: chatMessages.at })
+    .from(chatMessages)
+    .where(eq(chatMessages.chat, chats.id))
+    .orderBy(desc(chatMessages.seq))
+    .limit(1)
+    .as('latest');
+  const rows = await db.select({ chat: chats.id, role: latest.role, seq: latest.seq, at: latest.at }).from(chats).crossJoinLateral(latest).where(inArray(chats.id, [...ids]));
+  return new Map(rows.map((row) => [row.chat, { role: row.role, seq: row.seq, at: row.at }]));
+}
+
+export async function seenOf(db: Database, user: string, ids: readonly string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db.select({ chat: chatReads.chat, seq: chatReads.seenSeq }).from(chatReads).where(and(eq(chatReads.userId, user), inArray(chatReads.chat, [...ids])));
+  return new Map(rows.map((row) => [row.chat, row.seq]));
+}
+
+export async function markSeen(db: Database, chat: string, user: string, seq: number): Promise<void> {
+  await db
+    .insert(chatReads)
+    .values({ chat, userId: user, seenSeq: seq })
+    .onConflictDoUpdate({ target: [chatReads.chat, chatReads.userId], set: { seenSeq: seq }, setWhere: sql`${chatReads.seenSeq} < ${seq}` });
 }
 
 export async function peopleOf(db: Database, ids: readonly string[]): Promise<Person[]> {

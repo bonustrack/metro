@@ -16,6 +16,7 @@ import { OrganizationSetup } from './OrganizationSetup.js';
 import { UnlockedPage } from './UnlockedPage.js';
 import { OrganizationGate } from './gates.js';
 import { clearSignedIn, dropStaleQueries, makeQueryClient } from '../lib/queries.js';
+import { followAppState } from '../lib/app-focus.js';
 import { noteTitle } from '../lib/title.js';
 import { onRelaunch } from '../lib/land.js';
 import { useSelection } from '../lib/route-hash.js';
@@ -83,6 +84,7 @@ function MetroApp({ selection }: { selection: Selection }): ReactNode {
   };
   const [client] = useState(() => makeQueryClient(lock));
   useEffect(() => dropStaleQueries(client), [client]);
+  useEffect(followAppState, []);
   useEffect(() => {
     if (phase === 'login') {
       clearSignedIn(client);

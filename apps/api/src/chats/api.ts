@@ -32,7 +32,7 @@ const ROUTES: Route[] = [
   {
     path: new RegExp(`^/api/chats/${ID}$`),
     methods: {
-      GET: (deps, caller, [id = '']) => readChat(deps, caller, id),
+      GET: (deps, caller, [id = ''], req) => readChat(deps, caller, id, !/[?&]seen=0(?:&|$)/.test(req.url ?? '')),
       PATCH: async (deps, caller, [id = ''], req) => changeChat(deps, caller, id, await body(req)),
       DELETE: (deps, caller, [id = '']) => removeChat(deps, caller, id),
     },

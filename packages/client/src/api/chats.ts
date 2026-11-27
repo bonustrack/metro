@@ -5,6 +5,8 @@ import { call, JSON_HEADERS } from './client.js';
 
 export type ChatShared = 'private' | 'organization';
 
+export type ChatActivity = 'working' | 'unread' | null;
+
 export interface Chat {
   id: string;
   agent: string;
@@ -14,6 +16,7 @@ export interface Chat {
   members: string[];
   pinned: boolean;
   manage: boolean;
+  activity: ChatActivity;
   createdAt: number;
   updatedAt: number;
 }
@@ -65,6 +68,7 @@ export function toChat(value: unknown): Chat {
     members: strings(value.members),
     pinned: value.pinned === true,
     manage: value.manage === true,
+    activity: value.activity === 'working' || value.activity === 'unread' ? value.activity : null,
     createdAt: num(value.createdAt),
     updatedAt: num(value.updatedAt),
   };
@@ -105,8 +109,8 @@ export async function startChat(agent: string, text: string, members: readonly s
   return { chat: toChat(body.chat), message: toChatMessage(body.message), ticket: ticketOf(body) };
 }
 
-export async function fetchChat(id: string): Promise<ChatPage> {
-  const body = await call({ method: 'GET', base: `${chatsUrl()}/${id}` });
+export async function fetchChat(id: string, seen = true): Promise<ChatPage> {
+  const body = await call({ method: 'GET', base: `${chatsUrl()}/${id}${seen ? '' : '?seen=0'}` });
   if (!isRecord(body) || !Array.isArray(body.messages) || !Array.isArray(body.people)) throw unexpected();
   return {
     chat: toChat(body.chat),

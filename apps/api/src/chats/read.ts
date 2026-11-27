@@ -12,13 +12,18 @@ import {
   chatsStartedBy,
   chatOf,
   insertChat,
+  lastMessagesOf,
+  markSeen,
   membersAmong,
   membersOf,
   messagesOf,
   peopleOf,
   pinsOf,
+  seenOf,
   visibleChats,
   type ChatRow,
+  type LastMessage,
+  type MessageRow,
   type Person,
 } from '../db/chats.js';
 import {
@@ -31,6 +36,7 @@ import {
   sealTitle,
   sendTicket,
   viewTicket,
+  type ChatActivity,
   type ChatKeys,
   type ChatView,
   type MessageView,
@@ -93,12 +99,27 @@ export async function callerSender(deps: ChatsDeps, caller: Caller): Promise<{ n
   return senderOf(person);
 }
 
+const WORKING_MS = 130 * 60_000;
+
+export function activityOf(last: LastMessage | undefined, seen: number, now: number, touched: number): ChatActivity {
+  if (last === undefined) return null;
+  if (last.role === 'user') return now - Math.max(last.at, touched) < WORKING_MS ? 'working' : null;
+  return last.seq > seen ? 'unread' : null;
+}
+
+export async function activitiesOf(deps: ChatsDeps, user: string, rows: readonly ChatRow[]): Promise<Map<string, ChatActivity>> {
+  const ids = rows.map((row) => row.id);
+  const [last, seen] = await Promise.all([lastMessagesOf(deps.db(), ids), seenOf(deps.db(), user, ids)]);
+  const now = deps.now();
+  return new Map(rows.map((row) => [row.id, activityOf(last.get(row.id), seen.get(row.id) ?? 0, now, row.updatedAt)]));
+}
+
 export async function listChats(deps: ChatsDeps, caller: Caller): Promise<{ chats: ChatView[] }> {
   const keys = keysOf(deps);
   const rows = await visibleChats(deps.db(), caller.owner, caller.session.userId);
   const ids = rows.map((row) => row.id);
-  const [members, pins] = await Promise.all([membersOf(deps.db(), ids), pinsOf(deps.db(), caller.session.userId, ids)]);
-  return { chats: rows.map((row) => chatView(keys, row, caller.session, members.get(row.id) ?? [], pins.has(row.id))) };
+  const [members, pins, activities] = await Promise.all([membersOf(deps.db(), ids), pinsOf(deps.db(), caller.session.userId, ids), activitiesOf(deps, caller.session.userId, rows)]);
+  return { chats: rows.map((row) => chatView(keys, row, caller.session, members.get(row.id) ?? [], pins.has(row.id), activities.get(row.id) ?? null)) };
 }
 
 async function boxAgent(deps: ChatsDeps, owner: string, body: unknown): Promise<string> {
@@ -123,7 +144,7 @@ export async function createChat(deps: ChatsDeps, caller: Caller, body: unknown)
   const sender = await callerSender(deps, caller);
   await insertChat(deps.db(), row, first, members);
   const ctx = { chat: row, session: caller.session, ...sender, group: members.length > 0 };
-  return { chat: chatView(keys, row, caller.session, members, false), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, text, now) };
+  return { chat: chatView(keys, row, caller.session, members, false, 'working'), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, text, now) };
 }
 
 export interface ChatPage {
@@ -133,15 +154,23 @@ export interface ChatPage {
   ticket: string;
 }
 
-export async function readChat(deps: ChatsDeps, caller: Caller, rawId: string): Promise<ChatPage> {
+async function readUpTo(deps: ChatsDeps, caller: Caller, chat: string, newest: MessageRow | undefined): Promise<number> {
+  if (newest === undefined) return (await seenOf(deps.db(), caller.session.userId, [chat])).get(chat) ?? 0;
+  await markSeen(deps.db(), chat, caller.session.userId, newest.seq);
+  return newest.seq;
+}
+
+export async function readChat(deps: ChatsDeps, caller: Caller, rawId: string, seen = true): Promise<ChatPage> {
   const { row, members, keys } = await openChat(deps, caller, rawId);
   const [rows, pins] = await Promise.all([messagesOf(deps.db(), row.id), pinsOf(deps.db(), caller.session.userId, [row.id])]);
   const authors = rows.flatMap((m) => (m.author === null ? [] : [m.author]));
   const people = await peopleOf(deps.db(), [row.createdBy, ...members, ...authors, caller.session.userId]);
   const me = people.find((person) => person.id === caller.session.userId);
   const ctx = { chat: row, session: caller.session, ...senderOf(me), group: isGroup(row, members) };
+  const last = rows.at(-1);
+  const read = await readUpTo(deps, caller, row.id, seen ? last : undefined);
   return {
-    chat: chatView(keys, row, caller.session, members, pins.has(row.id)),
+    chat: chatView(keys, row, caller.session, members, pins.has(row.id), activityOf(last, read, deps.now(), row.updatedAt)),
     messages: rows.map((m) => messageView(keys, row.owner, m)),
     people,
     ticket: viewTicket(keys, ctx, deps.now()),

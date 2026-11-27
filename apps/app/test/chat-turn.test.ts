@@ -6,7 +6,7 @@ import { approvalOf, type Approval } from '@metro-labs/client/api/approvals';
 import type { ChatMessage, ChatPage } from '@metro-labs/client/api/chats';
 import { toServer, type ServerStatus } from '@metro-labs/client/api/servers';
 import { listedApproval } from '../src/lib/agent-status.ts';
-import { addMessage, chatGate, putChat, showSent } from '../src/lib/chat-queries.ts';
+import { addMessage, chatGate, noteActivity, putChat, showSent } from '../src/lib/chat-queries.ts';
 import { holdGoOn, rememberSend, takeGoOns } from '../src/lib/chat-sends.ts';
 import { replyGoing, replyHolds, TurnWatch, type LiveTurn, type TurnApi } from '../src/lib/chat-turn.ts';
 import { orgKey } from '../src/lib/queries.ts';
@@ -150,12 +150,27 @@ describe('the chat cache after a send', () => {
 
   test('renaming, sharing or pinning a chat keeps its place in the list; only a new chat goes first', async () => {
     const client = new QueryClient();
-    const base = { agent: 'a', title: '', createdBy: 'ann', shared: 'private' as const, members: [], pinned: false, manage: true, createdAt: 1, updatedAt: 1 };
+    const base = { agent: 'a', title: '', createdBy: 'ann', shared: 'private' as const, members: [], pinned: false, manage: true, activity: null, createdAt: 1, updatedAt: 1 };
     client.setQueryData(orgKey('chats'), [{ ...base, id: 'one' }, { ...base, id: 'two' }, { ...base, id: 'three' }]);
     await putChat(client, { ...base, id: 'two', title: 'Renamed', pinned: true });
     expect(client.getQueryData<{ id: string; title: string }[]>(orgKey('chats'))?.map((c) => `${c.id}:${c.title}`)).toEqual(['one:', 'two:Renamed', 'three:']);
     await putChat(client, { ...base, id: 'four' });
     expect(client.getQueryData<{ id: string }[]>(orgKey('chats'))?.map((c) => c.id)).toEqual(['four', 'one', 'two', 'three']);
+  });
+});
+
+describe('the chat list after a chat is read', () => {
+  test('a read chat loses its new-reply dot in the list at once, and an unchanged one touches nothing', async () => {
+    const client = new QueryClient();
+    const base = { agent: 'a', title: '', createdBy: 'ann', shared: 'private' as const, members: [], pinned: false, manage: true, createdAt: 1, updatedAt: 1 };
+    const list = [{ ...base, id: 'one', activity: 'unread' as const }, { ...base, id: 'two', activity: 'working' as const }];
+    client.setQueryData(orgKey('chats'), list);
+    const page = (id: string, activity: 'working' | 'unread' | null): ChatPage => ({ chat: { ...base, id, activity }, messages: [], people: [], ticket: 't' });
+    await noteActivity(client, page('one', null));
+    expect(client.getQueryData<{ id: string; activity: unknown }[]>(orgKey('chats'))?.map((c) => `${c.id}:${String(c.activity)}`)).toEqual(['one:null', 'two:working']);
+    const before = client.getQueryData(orgKey('chats'));
+    await noteActivity(client, page('two', 'working'));
+    expect(client.getQueryData(orgKey('chats'))).toBe(before);
   });
 });
 

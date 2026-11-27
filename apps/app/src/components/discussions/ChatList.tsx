@@ -16,6 +16,7 @@ import { AVATAR_SIZE } from '../ui/sizes.js';
 import { StateBlock } from '../ui/StateBlock.js';
 import { ListPane } from '../shell/ListPane.js';
 import { TabRoot } from '../shell/TabRoot.js';
+import { ActivityDot } from './ActivityDot.js';
 import { useChatsQuery } from '../../lib/chat-queries.js';
 import { isShared } from '../../lib/chat-words.js';
 import { go } from '../../lib/nav.js';
@@ -41,8 +42,10 @@ function ChatRow({ chat, servers, pane, selected }: { chat: Chat; servers: Serve
   const avatar = <AgentAvatar seed={server === undefined ? chat.agent : agentSeed(server)} src={server?.avatar ?? null} size={AVATAR_SIZE.chat} />;
   const href = routeHash({ kind: 'chat', id: chat.id });
   const title = chat.title === '' ? 'Chat' : chat.title;
-  if (pane) return <ListPaneRow title={title} line={lineOf(chat, server)} avatar={avatar} mark={chat.pinned ? 'pin' : undefined} selected={selected} href={href} />;
-  return <Item title={title} subtitle={lineOf(chat, server)} leading={avatar} href={href} />;
+  const activity = selected && chat.activity === 'unread' ? null : chat.activity;
+  const dot = activity === null ? undefined : <ActivityDot activity={activity} />;
+  if (pane) return <ListPaneRow title={title} line={lineOf(chat, server)} avatar={avatar} mark={chat.pinned ? 'pin' : undefined} trailing={dot} selected={selected} href={href} />;
+  return <Item title={title} subtitle={lineOf(chat, server)} leading={avatar} trailing={dot} href={href} />;
 }
 
 function Section({ label, chats, servers, pane, selected }: { label: string; chats: Chat[]; servers: Server[]; pane: boolean; selected: string | null }): ReactNode {

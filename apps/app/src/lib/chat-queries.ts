@@ -1,4 +1,4 @@
-import { useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { focusManager, useQuery, useQueryClient, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { forOrganization } from '@metro-labs/client/auth/org-route';
 import { HttpError } from '@metro-labs/client/api/client';
 import { fetchChat, fetchChats, postChatMessage, type Chat, type ChatMessage, type ChatPage } from '@metro-labs/client/api/chats';
@@ -11,6 +11,7 @@ import { orgKey, useServerStatuses } from './queries.js';
 const CHAT_SINCE = '0.1.0-beta.341';
 
 const LIST_POLL_MS = 30_000;
+const WORKING_POLL_MS = 10_000;
 const CHAT_POLL_MS = 10_000;
 
 const chatsKey = (): string[] => orgKey('chats');
@@ -20,18 +21,27 @@ const orgOf = (key: string[]): string | null => (key[1] === undefined || key[1] 
 
 export function useChatsQuery(): UseQueryResult<Chat[]> {
   const key = chatsKey();
-  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), fetchChats), staleTime: 10_000, refetchInterval: LIST_POLL_MS });
+  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), fetchChats), staleTime: 10_000, refetchInterval: (query) => (query.state.data?.some((chat) => chat.activity === 'working') === true ? WORKING_POLL_MS : LIST_POLL_MS) });
 }
 
 export function useChatQuery(id: string): UseQueryResult<ChatPage> {
+  const client = useQueryClient();
   const key = chatKey(id);
-  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), () => fetchChat(id)), staleTime: 5_000, refetchInterval: CHAT_POLL_MS });
+  return useQuery({ queryKey: key, queryFn: () => forOrganization(orgOf(key), () => fetchChat(id, focusManager.isFocused())).then((page) => noteActivity(client, page)), staleTime: 5_000, refetchInterval: CHAT_POLL_MS });
 }
 
 async function rewrite<T>(client: QueryClient, key: string[], change: (now: T) => T): Promise<void> {
   if (client.getQueryData<T>(key) === undefined) return;
   await client.cancelQueries({ queryKey: key, exact: true });
   client.setQueryData<T>(key, (now) => (now === undefined ? now : change(now)));
+}
+
+export async function noteActivity(client: QueryClient, page: ChatPage): Promise<ChatPage> {
+  const listed = client.getQueryData<Chat[]>(chatsKey())?.find((c) => c.id === page.chat.id);
+  if (listed !== undefined && listed.activity !== page.chat.activity) {
+    await rewrite<Chat[]>(client, chatsKey(), (list) => list.map((c) => (c.id === page.chat.id ? { ...c, activity: page.chat.activity } : c)));
+  }
+  return page;
 }
 
 export async function putChat(client: QueryClient, chat: Chat): Promise<void> {

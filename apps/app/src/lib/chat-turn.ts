@@ -4,7 +4,7 @@ import { applyTurnEvent, type ChatPart, type ReplyState } from '@metro-labs/core
 import { ForbiddenError, HttpError, NotFoundError } from '@metro-labs/client/api/client';
 import { pollTurn, sendTurn, stopTurn, type Delivery, type TurnView } from '@metro-labs/client/api/chat-turns';
 import { viewTicket } from '@metro-labs/client/api/chats';
-import { refreshChat, sendChatMessage } from './chat-queries.js';
+import { refreshChat, refreshChats, sendChatMessage } from './chat-queries.js';
 import { takeGoOns, takeSend, type Send } from './chat-sends.js';
 import { logError } from './log.js';
 import { queryError } from './queries.js';
@@ -227,7 +227,9 @@ export function useLiveTurn(host: string | null, chat: string, pending: Pending 
     if (host === null || message === null) return undefined;
     const control = new AbortController();
     const onDone = (delivery: Delivery): void => {
-      refreshChat(client, chat).catch(logError('chat refresh'));
+      refreshChat(client, chat)
+        .then(() => refreshChats(client))
+        .catch(logError('chat refresh'));
       if (delivery !== 'saved') return;
       for (const text of takeGoOns(message)) sendChatMessage(client, chat, text).catch(logError('chat go on'));
     };

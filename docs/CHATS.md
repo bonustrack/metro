@@ -40,6 +40,19 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   503. Ids, times, roles and who wrote are kept in clear.
 - A chat is deleted with its agent (cascade) and when its agent moves to another organization
   (`dropAgentChats` in the move's transaction, `chats_agent_idx`). Nothing is deleted by time.
+- `chat_reads` (`0036_chat_reads`: chat, user, `seen_seq`, cascading with the chat) keeps how far each
+  person has read each chat: reading a chat page moves it to its newest message (never back), but
+  not a read the page makes while it is not in front (`?seen=0`: a hidden tab, or the phone app in
+  the background, where react-query's focus follows `AppState`, `lib/app-focus.ts`). The migration
+  marked every existing chat read for its starter, the people added and, for a chat shared with the
+  organization, every member. Each listed chat carries `activity` (its newest message, found per
+  chat through the `(chat, seq)` index): `working` while that message is a person's and under 130
+  minutes old, counted from Try again too (it moves `updated_at`), so a message the box never got
+  does not look busy forever (the box's 2-hour cap plus its 10 minutes of save retries); `unread`
+  when it is a reply past what this person has read, else null. Reading a chat page also updates
+  that chat's `activity` in the cached list at once. The list shows `working` as a gray dot that pulses in opacity only, and
+  `unread` as a still white dot (not for the chat open on screen); it re-reads every 10 s while a
+  chat is working, else every 30 s, and once more when an open chat's reply is saved.
 - The list answers 200 chats at most, the person's pinned ones first, so a pin never falls off; a
   chat page answers its last 500 messages, newest first within 4 MiB of sealed bodies (the newest
   message always), so one read stays bounded. A person starts at most 5,000 chats per organization
