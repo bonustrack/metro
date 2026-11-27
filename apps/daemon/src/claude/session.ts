@@ -15,7 +15,7 @@ import { primaryRoute, setupNotReady, type ModelSetup } from '@metro-labs/infere
 import { effectiveSetup } from '../gateway/effective.js';
 import { inSessionScope } from './memory.js';
 import { runningAsRoot } from '../metro-user/privilege.js';
-import { agentUser, agentUserExpected, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
+import { agentUser, agentUserMissing, agentViewDir, asAgent, claudeHome } from '../agent-user/user.js';
 
 function sessionEnv(): Record<string, string> {
   const user = agentUser();
@@ -145,8 +145,7 @@ function credentialReady(deps: SessionDeps): string | null {
   }
 }
 
-const agentUserMissing = (deps: SessionDeps): boolean =>
-  deps.metro === undefined && agentUserExpected() && agentUser() === null;
+const sessionUserMissing = (deps: SessionDeps): boolean => deps.metro === undefined && agentUserMissing();
 
 const ROOT_REFUSED = 'Metro runs as root; reinstall it as the metro user';
 
@@ -157,7 +156,7 @@ export function sessionBlocked(deps: SessionDeps = {}): string | null {
 }
 
 function launchBlocked(deps: SessionDeps): string | null {
-  if (agentUserMissing(deps))
+  if (sessionUserMissing(deps))
     return 'Claude Code runs as the user agent here, and that user is not ready yet; see the log';
   if (!tmuxOk(deps.tmux ?? 'tmux', ['-V'])) return 'tmux is not installed on this machine';
   return credentialReady(deps);

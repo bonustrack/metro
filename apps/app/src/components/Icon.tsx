@@ -1,5 +1,12 @@
 import { type ReactElement } from 'react';
 import { IconArrowDown } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowDown';
+import { IconPencil } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPencil';
+import { IconEditBig } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconEditBig';
+import { IconHammer } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconHammer';
+import { IconLock } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconLock';
+import { IconStop } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconStop';
+import { IconPin } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconPin';
+import { IconChatBubbles } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChatBubbles';
 import { IconChart1 } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconChart1';
 import { IconArrowLeft } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowLeft';
 import { IconArrowRight } from '@central-icons-react-native/round-outlined-radius-1-stroke-2/IconArrowRight';
@@ -110,6 +117,13 @@ const ICONS = {
   terminal: IconConsole,
   update: IconArrowUpCircle,
   userAdd: IconUserAdd,
+  pencil: IconPencil,
+  compose: IconEditBig,
+  tool: IconHammer,
+  lock: IconLock,
+  stop: IconStop,
+  pin: IconPin,
+  chats: IconChatBubbles,
 };
 
 export type IconName = keyof typeof ICONS;

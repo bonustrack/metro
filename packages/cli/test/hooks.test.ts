@@ -104,6 +104,16 @@ describe('the guard and the standing rules in the memory routine (METRO_SESSION=
   });
 });
 
+describe('the guard and the standing rules in a metro.box chat (METRO_SESSION=chat)', () => {
+  test('stand aside: a chat works on its own thread and its tools show in the chat', () => {
+    for (const payload of [{ tool_name: 'Bash', tool_input: { command: 'ls' } }, { tool_name: 'mcp__metro__tool_call', tool_input: {} }])
+      expect(guard(payload, EMPTY, 'chat')).toBe('allow');
+    const run = spawnSync('node', [START], { encoding: 'utf8', env: { ...process.env, METRO_SESSION: 'chat' } });
+    expect(run.status).toBe(0);
+    expect(run.stdout.trim()).toBe('');
+  });
+});
+
 describe('the standing rules loaded at session start', () => {
   test('come from the metro skill on the machine, else from the copy the CLI carries', () => {
     const dir = mkdtempSync(join(tmpdir(), 'metro-guard-'));

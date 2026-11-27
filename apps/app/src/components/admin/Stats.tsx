@@ -5,12 +5,12 @@ import { Text } from '@stage-labs/kit/react-native/text';
 import { useKitPalette } from '@stage-labs/kit/react-native/theme-context';
 import { Dot, type DotColor } from './Marks.js';
 import { side } from '../ui/edges.js';
+import { PHONE_PAD } from '../ui/sizes.js';
 import { useIsNarrow } from '../../lib/media.js';
 import { SHRINK } from '../../lib/style.js';
 
 const PHONE_PER_ROW = 3;
 const WIDE_PAD = 32;
-const PHONE_PAD = 20;
 
 export interface Stat {
   label: string;

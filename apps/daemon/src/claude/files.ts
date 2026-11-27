@@ -75,9 +75,13 @@ export interface ClaudeProject {
   hasMemory: boolean;
 }
 
-function sessionFiles(path: string): { name: string; mtime: number; size: number }[] {
+const SHOWN = (): boolean => false;
+
+const sessionIdOf = (name: string): string => name.slice(0, -'.jsonl'.length);
+
+function sessionFiles(path: string, hidden: (id: string) => boolean): { name: string; mtime: number; size: number }[] {
   return readdirNames(path)
-    .filter((name) => name.endsWith('.jsonl'))
+    .filter((name) => name.endsWith('.jsonl') && !hidden(sessionIdOf(name)))
     .map((name) => {
       const s = statSync(join(path, name));
       return { name, mtime: s.mtimeMs, size: s.size };
@@ -93,14 +97,14 @@ function cwdOf(path: string): string | null {
   return null;
 }
 
-export function listClaudeProjects(dir = claudeDir()): ClaudeProject[] {
+export function listClaudeProjects(dir = claudeDir(), hidden: (id: string) => boolean = SHOWN): ClaudeProject[] {
   const root = join(dir, 'projects');
   if (!existsSync(root)) return [];
   return readdirEntries(root)
     .filter((entry) => entry.isDirectory() && PROJECT_RE.test(entry.name))
     .map((entry) => {
       const path = join(root, entry.name);
-      const files = sessionFiles(path);
+      const files = sessionFiles(path, hidden);
       const newest = files[0];
       return {
         id: entry.name,
@@ -160,11 +164,9 @@ function sessionOf(path: string, id: string, mtime: number, size: number): Claud
   };
 }
 
-export function listClaudeSessions(project: string, dir = claudeDir()): ClaudeSession[] {
+export function listClaudeSessions(project: string, dir = claudeDir(), hidden: (id: string) => boolean = SHOWN): ClaudeSession[] {
   const path = projectDir(project, dir);
-  return sessionFiles(path).map((f) =>
-    sessionOf(join(path, f.name), f.name.slice(0, -'.jsonl'.length), f.mtime, f.size),
-  );
+  return sessionFiles(path, hidden).map((f) => sessionOf(join(path, f.name), sessionIdOf(f.name), f.mtime, f.size));
 }
 
 type Block =

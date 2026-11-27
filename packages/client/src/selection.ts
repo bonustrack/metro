@@ -27,6 +27,9 @@ export type Selection =
   | { kind: 'org-model-sign-in'; id: string }
   | { kind: 'org-aws' }
   | { kind: 'app-connect'; grant: string }
+  | { kind: 'chat-home' }
+  | { kind: 'chat-new'; agent?: string }
+  | { kind: 'chat'; id: string }
   | { kind: 'home'; project: string }
   | { kind: 'approval'; project: string; id: string }
   | { kind: 'run'; project: string; view?: RunView; id?: string }

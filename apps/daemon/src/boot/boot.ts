@@ -25,6 +25,7 @@ import { stopConnectorEvents, watchConnectorEvents } from '../mcp-server/event-l
 import { connectorEventTaker } from '../channels/connector-event.js';
 import { refreshConnectorTools, watchConnectorTools } from '../mcp-server/connector-tools.js';
 import { setAnnouncedFile } from '../mcp-server/announced.js';
+import { setChatMarksFile } from '../mcp-server/chat-marks.js';
 import { LAST_CHAT_FILE, removeOldOwnerChat, setLastChatFile } from '../channels/last-chat.js';
 import { holdServerApproval } from '../mcp/server-approvals.js';
 import { removeConnectorLeftovers } from '../connectors/leftovers.js';
@@ -40,6 +41,13 @@ import { tryMemoryJob } from '../claude/memory-routine.js';
 import { githubSkills } from '../claude/github-skills.js';
 import { applyLocalOwner } from './local-owner.js';
 import { installBearerSessions } from '../routes/bearer.js';
+import type { KeySource } from '@metro-labs/http/user-token';
+import type { ChatApiDeps } from '../chat/api.js';
+import { ChatGate } from '../chat/tickets.js';
+import { ChatSessions } from '../chat/sessions.js';
+import { ChatTurns } from '../chat/turns.js';
+import { signalChatTurn, spawnChatTurn } from '../claude/chat-process.js';
+import { enrolledServer, postChatReply, replyRefused } from '../connectors/chat-reply.js';
 import { ensureLocalAgent, localOwner } from '../agents/file-admin.js';
 import { ensureStationDeps } from '../stations/runtime-deps.js';
 import { localSessionApis } from '../routes/local-mode.js';
@@ -72,6 +80,7 @@ import { isCallEvent, leaveCallsForShutdown, onCallEvent, sweepLeftoverCalls } f
 installCrashGuard();
 acquireLock(join(STATE_DIR, '.tail-lock'));
 setAnnouncedFile(join(agentsDir(), 'mcp-approvals.json'));
+setChatMarksFile(join(agentsDir(), 'chat-approvals.json'));
 setLastChatFile(join(agentsDir(), LAST_CHAT_FILE));
 setApprovalAgent(() => approvalAgentOf(localOwner(), readAgentKey()?.enrollment, rowNames()));
 
@@ -121,8 +130,17 @@ async function syncStations(station: StationName): Promise<void> {
   }
 }
 
-function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
-  return localSessionApis({
+const chatSessions = new ChatSessions(agentsDir());
+
+function chatApi(keys: KeySource): ChatApiDeps {
+  return {
+    gate: new ChatGate({ keys, owner: localOwner, server: () => enrolledServer(), now: () => Date.now() }),
+    turns: new ChatTurns({ spawn: () => spawnChatTurn(), signal: signalChatTurn, sessions: chatSessions, post: (chat, message, reply) => postChatReply(chat, message, reply), refused: replyRefused, now: () => Date.now() }),
+  };
+}
+
+function sessionApis(setLiveEvents: (on: boolean) => void, chat: ChatApiDeps): SessionApis {
+  const apis = localSessionApis({
       syncStations,
       reloadAgents: async () => {
         await reloadFrom(fileSource);
@@ -141,6 +159,7 @@ function sessionApis(setLiveEvents: (on: boolean) => void): SessionApis {
       prepareAccount,
       liveEvents: setLiveEvents,
     });
+  return { ...apis, claudeApi: { ...apis.claudeApi, hidden: (session) => chatSessions.hides(session) }, chatApi: chat };
 }
 
 
@@ -150,7 +169,7 @@ async function main(): Promise<void> {
   removeMailLeftovers();
   removeOldOwnerChat(STATE_DIR);
   applyLocalOwner();
-installBearerSessions(agentsDir(), localOwner);
+  const signingKeys = installBearerSessions(agentsDir(), localOwner);
   log.info({ agent: await ensureLocalAgent() }, 'local daemon: agent');
   await materializeFrom(fileSource);
   ensureStationDeps();
@@ -163,7 +182,7 @@ installBearerSessions(agentsDir(), localOwner);
   watchModelChanges(models, metroMcp.switchModel);
   webhookServer = await startWebhookServer(
     emit,
-    sessionApis(metroMcp.setLiveEvents),
+    sessionApis(metroMcp.setLiveEvents, chatApi(signingKeys)),
     metroMcp.httpHandler,
     true,
   );

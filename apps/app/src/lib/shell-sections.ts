@@ -3,7 +3,7 @@ import type { Selection } from '@metro-labs/client/selection';
 
 type Kind = Selection['kind'];
 
-export type ShellSectionId = 'agents' | 'connectors' | 'models' | 'organization';
+export type ShellSectionId = 'agents' | 'chats' | 'connectors' | 'models' | 'organization';
 
 export interface ShellSection {
   id: ShellSectionId;
@@ -12,6 +12,7 @@ export interface ShellSection {
 }
 
 export const SHELL_SECTIONS: readonly ShellSection[] = [
+  { id: 'chats', label: 'Chats', target: { kind: 'chat-home' } },
   { id: 'agents', label: 'Agents', target: { kind: 'servers' } },
   { id: 'connectors', label: 'Connectors', target: { kind: 'org-connectors' } },
   { id: 'models', label: 'Gateway', target: { kind: 'org-models' } },
@@ -21,7 +22,7 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
 const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   servers: 'agents',
   none: 'agents',
-  activity: 'agents',
+  activity: 'connectors',
   'org-connectors': 'connectors',
   'org-connector': 'connectors',
   'org-connector-new': 'connectors',
@@ -33,6 +34,9 @@ const SECTION_OF: Partial<Record<Kind, ShellSectionId>> = {
   'org-model-sign-in': 'models',
   'org-aws': 'organization',
   'app-connect': 'agents',
+  'chat-home': 'chats',
+  'chat-new': 'chats',
+  chat: 'chats',
   organization: 'organization',
   members: 'organization',
 };
@@ -43,7 +47,7 @@ const ADMIN_KINDS = new Set<Kind>(['admin', 'admin-users', 'admin-organizations'
 
 export const isAdminSelection = (s: Selection): s is AdminSelection => ADMIN_KINDS.has(s.kind);
 
-const TAB_ROOTS = new Set<Kind>(['servers', 'none', 'org-connectors', 'org-models', 'organization', 'members']);
+const TAB_ROOTS = new Set<Kind>(['servers', 'none', 'chat-home', 'org-connectors', 'org-models', 'organization', 'members']);
 
 export function shellSectionOf(selection: Selection): ShellSectionId | null {
   if ('project' in selection) return 'agents';
@@ -59,6 +63,8 @@ const BACK_TO: Partial<Record<Kind, Selection>> = {
   'org-usage': { kind: 'org-models' },
   'org-model': { kind: 'org-models' },
   'org-model-add': { kind: 'org-models' },
+  chat: { kind: 'chat-home' },
+  'chat-new': { kind: 'chat-home' },
 };
 
 export function phoneBackOf(selection: Selection): Selection | null {
@@ -66,7 +72,7 @@ export function phoneBackOf(selection: Selection): Selection | null {
   if ('project' in selection) return { kind: 'servers' };
   if (selection.kind === 'org-connector') return selection.agent === undefined ? { kind: 'org-connectors' } : null;
   if (selection.kind === 'org-model-sign-in') return { kind: 'org-model', id: selection.id };
-  if (selection.kind === 'activity') return selection.agent === undefined ? { kind: 'servers' } : { kind: 'home', project: selection.agent };
+  if (selection.kind === 'activity') return selection.agent === undefined ? { kind: 'org-connectors' } : { kind: 'home', project: selection.agent };
   const back = BACK_TO[selection.kind];
   return back === undefined ? { kind: 'organization' } : { ...back };
 }

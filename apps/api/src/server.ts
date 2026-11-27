@@ -81,6 +81,8 @@ import { codexLogins, deviceLogins, openrouterLogins, type ModelsDeps } from './
 import { ListCache } from './models/list-cache.js';
 import { OPENROUTER_CALLBACK } from './models/openrouter-login.js';
 import { randomBytes } from 'node:crypto';
+import { handleChatsApiRequest, type ChatsApiDeps } from './chats/api.js';
+import { handleAgentChatsRequest, type AgentChatsDeps } from './chats/agent-api.js';
 
 const PORT = Number(process.env.METRO_WEBHOOK_PORT) || 8420;
 const HOST = process.env.METRO_HTTP_HOST ?? '127.0.0.1';
@@ -169,7 +171,7 @@ const enrollmentApi: EnrollmentDeps = {
   tickets: new EnrollTickets(),
   store: agentKeyStore(getDb),
   names: (owner, agent) => agentNames(getDb(), owner, agent),
-  auth: new AgentAuth('api.metro.box', () => Date.now()),
+  auth: new AgentAuth(filled(process.env.METRO_API_HOST) ?? 'api.metro.box', () => Date.now()),
   now: () => Date.now(),
 };
 
@@ -215,6 +217,21 @@ const agentModelsApi: AgentModelsDeps = {
   now: () => Date.now(),
 };
 
+const chatsApi: ChatsApiDeps = {
+  keys,
+  db: getDb,
+  seal: () => connectorsSetup.key,
+  signer: () => authKeys.signer,
+  now: () => Date.now(),
+};
+
+const agentChatsApi: AgentChatsDeps = {
+  ...chatsApi,
+  identities: enrollmentApi.store,
+  nonces: agentModelsApi.nonces,
+  auth: enrollmentApi.auth,
+};
+
 const remoteAgentsApi: RemoteAgentsApiDeps = { keys, db: getDb, now: () => Date.now() };
 
 const pushDevicesApi: PushDevicesDeps = { keys, db: getDb, now: () => Date.now() };
@@ -256,6 +273,8 @@ const HANDLERS: ((req: IncomingMessage, res: ServerResponse) => boolean)[] = [
   (req, res) => handleLatestApiRequest(req, res, latestApi),
   (req, res) => handleEnrollmentRequest(req, res, enrollmentApi),
   (req, res) => handleAgentModelsRequest(req, res, agentModelsApi),
+  (req, res) => handleAgentChatsRequest(req, res, agentChatsApi),
+  (req, res) => handleChatsApiRequest(req, res, chatsApi),
   (req, res) => handleRemoteAgentsRequest(req, res, remoteAgentsApi),
   (req, res) => handleOauthGrantsRequest(req, res, remoteAgentsApi),
   (req, res) => handlePushDevicesRequest(req, res, pushDevicesApi),

@@ -107,13 +107,13 @@ function Attachment({ card }: { card: Card }): ReactNode {
   );
 }
 
-function Everything({ card }: { card: Card }): ReactNode {
-  if (card.everything.length === 0) return null;
-  const names = card.everything.map((row) => row.label).join(', ');
-  const rows = card.everything.map((row) => `${row.label}: ${row.value}`).join('\n');
+export function Everything({ rows }: { rows: readonly { label: string; value: string }[] }): ReactNode {
+  if (rows.length === 0) return null;
+  const names = rows.map((row) => row.label).join(', ');
+  const body = rows.map((row) => `${row.label}: ${row.value}`).join('\n');
   return (
     <Column margin={{ top: 16 }}>
-      <Disclosure summary={`Everything in this call: ${names}`} body={rows} />
+      <Disclosure summary={`Everything in this call: ${names}`} body={body} />
     </Column>
   );
 }
@@ -246,7 +246,7 @@ export function ApprovalCardView({ approval, context, project, decide, connector
         </Column>
       )}
       <Attachment card={card} />
-      <Everything card={card} />
+      <Everything rows={card.everything} />
       <Note note={note} />
       <Details project={project} id={approval.id} />
       <Answers decide={decide ?? boxDecide} />

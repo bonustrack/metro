@@ -23,10 +23,10 @@ export function sessionMemoryLimit(total: number): number {
   return Math.max(FLOOR, Math.floor(kept / (1024 * 1024)) * 1024 * 1024);
 }
 
-export function inSessionScope(command: [string, string[]], host: ScopeHost = realHost()): [string, string[]] {
+export function inSessionScope(command: [string, string[]], host: ScopeHost = realHost(), limitOf: (total: number) => number = sessionMemoryLimit): [string, string[]] {
   const [file, args] = command;
   const asAgent = file === 'sudo' && args[0] === '-n' && args[1] === '-u' && args[3] === '--';
   if (!host.metro || !host.systemd || !asAgent) return command;
-  const limit = sessionMemoryLimit(host.total);
+  const limit = limitOf(host.total);
   return helperArgv(['as-agent-scope', String(limit), String(limit), ...args.slice(4)]);
 }

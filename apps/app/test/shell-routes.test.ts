@@ -157,16 +157,16 @@ describe('the shell knows its section and what a phone shows', () => {
     expect(phoneBackOf({ kind: 'settings' })).toEqual({ kind: 'organization' });
   });
 
-  test('the live activity sits under Agents, and a phone goes back to the agents list from it', () => {
-    expect(shellSectionOf({ kind: 'activity' })).toBe('agents');
-    expect(phoneTabOf({ kind: 'activity' })).toBe('agents');
+  test('the live activity sits under Connectors, and a phone goes back to the connectors list from it', () => {
+    expect(shellSectionOf({ kind: 'activity' })).toBe('connectors');
+    expect(phoneTabOf({ kind: 'activity' })).toBe('connectors');
     expect(isTabRoot({ kind: 'activity' })).toBe(false);
-    expect(phoneBackOf({ kind: 'activity' })).toEqual({ kind: 'servers' });
+    expect(phoneBackOf({ kind: 'activity' })).toEqual({ kind: 'org-connectors' });
   });
 
   test('the activity of one agent goes back to that agent on a phone, named after it', () => {
     const one: Selection = { kind: 'activity', agent: AGENT };
-    expect(shellSectionOf(one)).toBe('agents');
+    expect(shellSectionOf(one)).toBe('connectors');
     expect(isTabRoot(one)).toBe(false);
     const back: Selection = { kind: 'home', project: AGENT };
     expect(phoneBackOf(one)).toEqual(back);

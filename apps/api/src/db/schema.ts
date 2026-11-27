@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { bigint, index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { organizations } from '@metro-labs/connectors/db/schema';
+import { bigint, index, integer, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { agents, organizations } from '@metro-labs/connectors/db/schema';
 
 export * from '@metro-labs/connectors/db/schema';
 
@@ -109,4 +109,55 @@ export const authSpentTokens = pgTable(
     spentAt: bigint('spent_at', { mode: 'number' }).notNull(),
   },
   (t) => [index('auth_spent_tokens_session_idx').on(t.session)],
+);
+
+export const chats = pgTable(
+  'chats',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+    agent: text('agent').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').notNull(),
+    title: text('title').notNull(),
+    shared: text('shared').$type<'private' | 'organization'>().notNull().default('private'),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [index('chats_owner_updated_idx').on(t.owner, t.updatedAt.desc(), t.id), index('chats_agent_idx').on(t.agent)],
+);
+
+export const chatMembers = pgTable(
+  'chat_members',
+  {
+    chat: text('chat').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    addedBy: text('added_by').notNull(),
+    addedAt: bigint('added_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chat, t.userId] }), index('chat_members_user_idx').on(t.userId)],
+);
+
+export const chatPins = pgTable(
+  'chat_pins',
+  {
+    userId: text('user_id').notNull(),
+    chat: text('chat').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+    pinnedAt: bigint('pinned_at', { mode: 'number' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.chat] }), index('chat_pins_chat_idx').on(t.chat)],
+);
+
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: text('id').primaryKey(),
+    chat: text('chat').notNull().references(() => chats.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    author: text('author'),
+    replyTo: text('reply_to'),
+    body: text('body').notNull(),
+    at: bigint('at', { mode: 'number' }).notNull(),
+  },
+  (t) => [uniqueIndex('chat_messages_seq_idx').on(t.chat, t.seq), uniqueIndex('chat_messages_reply_idx').on(t.chat, t.replyTo)],
 );

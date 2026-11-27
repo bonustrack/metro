@@ -3,6 +3,7 @@ import { whoisAuthorized } from './api.js';
 import { stopAll } from './control.js';
 import { tailEvents } from './tail.js';
 import { agentSession } from './agent.js';
+import { chatTurn } from './chat.js';
 import { automationCommand } from './automation.js';
 import { memoryPaths, memoryRoutine } from './memory.js';
 import { update } from './update.js';
@@ -36,6 +37,9 @@ const USAGE = `metro: run your agent on this machine
   metro agent --prepare
                   install the Agent SDK runtime and the Claude Code it bundles if needed,
                   and check that it runs, without starting a session or connecting to chat
+  metro chat      answer one metro.box chat message in that chat's own Agent SDK session;
+                  the daemon starts it as the agent, sends the message on stdin and reads
+                  the reply as JSON lines on stdout
   metro task submit <routine> <prompt-file> [--slot <UTC ISO timestamp>] [--dry-run]
   metro task status [routine]
   metro task finish <uuid> <token> completed|blocked
@@ -83,6 +87,7 @@ const COMMANDS: Record<string, () => Promise<number>> = {
   stop: stopDaemon,
   tail: () => tailEvents(process.argv.slice(3)),
   agent: () => agentSession(process.argv.slice(3)),
+  chat: () => chatTurn(process.argv.slice(3)),
   task: () => automationCommand(process.argv.slice(3)),
   memory: () => memoryRoutine(memoryPaths(process.env, process.argv[3])),
   update: () => update(process.argv.slice(3)),

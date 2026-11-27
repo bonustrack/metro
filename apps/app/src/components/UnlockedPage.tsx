@@ -10,7 +10,8 @@ import { AddConnectorPage } from './connectors/AddConnectorPage.js';
 import { Settings } from './Settings.js';
 import { ServerGate } from './gates.js';
 import { AgentList } from './agents/AgentList.js';
-import { ActivityPage, AgentsIdle } from './agents/AgentsIdle.js';
+import { AgentsIdle } from './agents/AgentsIdle.js';
+import { ActivityPage } from './activity/ActivityHome.js';
 import { Jump } from './jump/Jump.js';
 import { LaunchFlow } from './launch/LaunchFlow.js';
 import { DefaultRoute } from './models/DefaultRoute.js';
@@ -28,6 +29,9 @@ import { isFocusPage } from '../lib/focus-pages.js';
 import { useIsNarrow } from '../lib/media.js';
 import { OrgUsagePage } from './models/OrgUsagePage.js';
 import { usePhoneNotifications } from '../lib/phone-push.js';
+import { ChatList } from './discussions/ChatList.js';
+import { ChatPage } from './discussions/ChatPage.js';
+import { NewChat } from './discussions/NewChat.js';
 
 interface PageProps {
   selection: Selection;
@@ -48,14 +52,25 @@ function OrganizationRoot({ onLock }: { onLock: () => void }): ReactNode {
 }
 
 function modelsPage(selection: Selection, narrow: boolean): ReactNode {
-  if (selection.kind === 'org-models') return narrow ? <ModelList pane={false} /> : <DefaultRoute />;
+  if (selection.kind === 'org-models') return narrow ? <ModelList pane={false} /> : <OrgUsagePage />;
   if (selection.kind === 'org-route') return <DefaultRoute />;
   if (selection.kind === 'org-usage') return <OrgUsagePage />;
   if (selection.kind === 'org-model') return <ModelAccount id={selection.id} />;
   return null;
 }
 
+const docked = (selection: Selection, narrow: boolean): boolean =>
+  selection.kind === 'chat' || selection.kind === 'chat-new' || (selection.kind === 'chat-home' && !narrow);
+
+function chatPage(selection: Selection, narrow: boolean): ReactNode {
+  if (selection.kind === 'chat-home') return narrow ? <ChatList pane={false} /> : <NewChat />;
+  if (selection.kind === 'chat-new') return <NewChat agent={selection.agent} />;
+  return selection.kind === 'chat' ? <ChatPage key={selection.id} id={selection.id} /> : null;
+}
+
 function organizationPage({ selection, onLock, narrow }: PageProps): ReactNode {
+  const chat = chatPage(selection, narrow);
+  if (chat !== null) return chat;
   if (selection.kind === 'org-connectors') return narrow ? <OrgConnectorList pane={false} /> : <ConnectorsIdle />;
   if (selection.kind === 'org-connector') return <OrgConnectorPage id={selection.id} tab={selection.tab} agent={selection.agent} />;
   const models = modelsPage(selection, narrow);
@@ -76,13 +91,14 @@ function SectionPage(props: PageProps): ReactNode {
 
 function modelPick(selection: Selection): ModelPick {
   if (selection.kind === 'org-model') return { kind: 'account', id: selection.id };
-  if (selection.kind === 'org-usage') return { kind: 'usage' };
-  return selection.kind === 'org-models' || selection.kind === 'org-route' ? { kind: 'route' } : null;
+  if (selection.kind === 'org-usage' || selection.kind === 'org-models') return { kind: 'usage' };
+  return selection.kind === 'org-route' ? { kind: 'route' } : null;
 }
 
 function listOf(selection: Selection): ReactNode {
   const section = shellSectionOf(selection);
   if (section === 'agents') return <AgentList pane selected={selectionProject(selection)} />;
+  if (section === 'chats') return <ChatList pane selected={selection.kind === 'chat' ? selection.id : null} />;
   if (section === 'connectors') return <OrgConnectorList pane selected={selection.kind === 'org-connector' ? selection.id : null} />;
   if (section === 'models') return <ModelList pane pick={modelPick(selection)} />;
   return null;
@@ -106,7 +122,7 @@ export function UnlockedPage({ selection, onLock }: { selection: Selection; onLo
   if (isFocusPage(selection)) return <FocusPage selection={selection} onLock={onLock} />;
   return (
     <>
-      <AppShell selection={selection} onLock={onLock} list={narrow ? null : listOf(selection)}>
+      <AppShell selection={selection} onLock={onLock} list={narrow ? null : listOf(selection)} dock={docked(selection, narrow)}>
         <SectionPage selection={selection} onLock={onLock} narrow={narrow} />
       </AppShell>
       <Jump />

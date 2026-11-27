@@ -110,10 +110,10 @@ export async function fetchApprovals(daemon?: string): Promise<Approval[]> {
     .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
 }
 
-export async function decideApproval(id: string, decision: Decision): Promise<void> {
+export async function decideApproval(id: string, decision: Decision, daemon?: string): Promise<void> {
   await call({
     method: 'POST',
-    base: base(),
+    base: base(daemon),
     path: `/${encodeURIComponent(id)}`,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ decision }),

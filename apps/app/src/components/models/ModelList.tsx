@@ -83,8 +83,8 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
   if (pane)
     return (
       <Column>
-        <ListPaneRow title="Default route" line={routeSummary(list.default)} avatar={<RouteMark />} selected={pick?.kind === 'route'} href={href} />
         <ListPaneRow title="Usage" line={USAGE_LINE} avatar={<RouteMark icon="chart" />} selected={pick?.kind === 'usage'} href={usage} />
+        <ListPaneRow title="Default route" line={routeSummary(list.default)} avatar={<RouteMark />} selected={pick?.kind === 'route'} href={href} />
         <PaneLabel text="Accounts" />
         {accounts.length === 0 ? <Column padding={{ x: 12 }}><Text size="xs" color="secondary">No account yet.</Text></Column> : accounts}
       </Column>
@@ -92,8 +92,8 @@ function Lists({ list, pane, pick }: { list: OrgModels; pane: boolean; pick: Mod
   return (
     <Column gap={40}>
       <Group>
-        <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={count === null ? undefined : agentsWord(count)} href={href} />
         <Item title="Usage" subtitle={USAGE_LINE} leading={<RouteMark icon="chart" />} href={usage} />
+        <Item title="Default route" subtitle={routeSummary(list.default)} leading={<RouteMark />} value={count === null ? undefined : agentsWord(count)} href={href} />
       </Group>
       <Group label="Accounts" note={accounts.length === 0 ? 'No account yet. Add a Claude subscription, ChatGPT, OpenRouter, Routeway, an Anthropic key or Amazon Bedrock.' : undefined}>{accounts}</Group>
     </Column>

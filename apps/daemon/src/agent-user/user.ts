@@ -38,6 +38,8 @@ export function agentUser(host: UserHost = realHost()): AgentUser | null {
   return cached;
 }
 
+export const agentUserMissing = (host: UserHost = realHost()): boolean => agentUserExpected(host) && agentUser(host) === null;
+
 export function forgetAgentUser(): void {
   cached = null;
 }
