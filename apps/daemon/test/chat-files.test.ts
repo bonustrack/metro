@@ -25,7 +25,7 @@ const PNG: ChatFile = { id: 'file0000001', name: 'chart.png', type: 'image/png',
 const PDF: ChatFile = { id: 'file0000002', name: 'Q3 (final)\'s "plan"; filename=x.html.pdf', type: 'application/pdf', size: 3 };
 
 const ticketOf = (over: Partial<ChatTicketClaims> = {}): string =>
-  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: CHAT, user: ALICE, name: 'Alice', email: 'alice@example.com', act: 'send', message: 'msg00000001', digest: textDigest(''), files: [PNG, PDF], group: false, ...over });
+  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: CHAT, user: ALICE, name: 'Alice', email: 'alice@example.com', admin: false, act: 'send', message: 'msg00000001', digest: textDigest(''), files: [PNG, PDF], group: false, ...over });
 
 const viewOf = (chat = CHAT): string => ticketOf({ act: 'view', message: null, digest: null, files: [], chat });
 

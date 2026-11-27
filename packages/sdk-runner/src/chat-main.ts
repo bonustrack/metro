@@ -25,7 +25,7 @@ const short = (value: unknown): string | null => (typeof value === 'string' && v
 
 function senderOf(value: unknown): ChatSender | null {
   const name = isRecord(value) ? short(value.name) : null;
-  return name === null || !isRecord(value) ? null : { name, email: short(value.email) };
+  return name === null || !isRecord(value) ? null : { name, email: short(value.email), ...(value.admin === true ? { admin: true } : {}) };
 }
 
 function requestOf(input: Record<string, unknown> | null): ChatRequest | null {

@@ -18,7 +18,7 @@ const signer = { kid: 'key-1', privateKey: pair.privateKey };
 const keys = { keyFor: (kid: string) => Promise.resolve(kid === 'key-1' ? pair.publicKey : null) };
 
 const ticketOf = (over: Partial<ChatTicketClaims> = {}): string =>
-  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', email: 'alice@example.com', act: 'send', message: 'msg00000001', digest: textDigest('Hello'), files: [], group: false, ...over });
+  signChatTicket(signer, { organization: OWNER, agent: AGENT, chat: 'chat0000001', user: ALICE, name: 'Alice', email: 'alice@example.com', admin: false, act: 'send', message: 'msg00000001', digest: textDigest('Hello'), files: [], group: false, ...over });
 
 describe('the chat ticket gate', () => {
   const gate = new ChatGate({ keys, owner: () => OWNER, server: () => AGENT, now: () => Date.now() });
@@ -99,6 +99,21 @@ describe('the chat routes', () => {
     const started = await post('/api/chat/turns', { ticket: busy, text: 'Hello' });
     expect(await started.json()).toEqual({ turn: 'msg00000002' });
     expect((await post('/api/chat/turns', { ticket: busy, text: 'Hello' })).status).toBe(403);
+  });
+
+  test('an admin of the organization reaches metro chat marked as one, and a member is not marked', async () => {
+    const admin = ticketOf({ chat: 'chat0000005', message: 'msg00000005', admin: true });
+    expect((await post('/api/chat/turns', { ticket: admin, text: 'Hello' })).status).toBe(200);
+    await tick();
+    expect(made.children.at(-1)?.sent[0]).toMatchObject({ from: { name: 'Alice', email: 'alice@example.com', admin: true } });
+    made.children.at(-1)?.exit(0);
+    await tick(40);
+    const member = ticketOf({ chat: 'chat0000006', message: 'msg00000006' });
+    expect((await post('/api/chat/turns', { ticket: member, text: 'Hello' })).status).toBe(200);
+    await tick();
+    expect(made.children.at(-1)?.sent[0]?.from).toEqual({ name: 'Alice', email: 'alice@example.com' });
+    made.children.at(-1)?.exit(0);
+    await tick(40);
   });
 
   test('the effort the person chose reaches metro chat, and anything that is not a chat effort is dropped', async () => {

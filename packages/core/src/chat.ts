@@ -19,6 +19,7 @@ export type ReplyState = 'done' | 'error' | 'stopped';
 export interface ChatSender {
   name: string;
   email: string | null;
+  admin?: boolean;
 }
 
 interface TextPart {

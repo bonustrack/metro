@@ -38,7 +38,8 @@ export function chatMessageText(from: ChatSender | null, text: string, files: re
   const body = [...(text.trim() === '' && lines.length > 0 ? [] : [unwrapped(text)]), ...lines].join('\n');
   if (from === null) return body;
   const email = from.email === null ? '' : ` email="${attr(from.email)}"`;
-  return `<chat-message from="${attr(from.name)}"${email} verified="true">\n${body}\n</chat-message>`;
+  const role = from.admin === true ? ' role="admin"' : '';
+  return `<chat-message from="${attr(from.name)}"${email}${role} verified="true">\n${body}\n</chat-message>`;
 }
 
 export interface ChannelEvent {
