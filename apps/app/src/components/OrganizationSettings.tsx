@@ -47,7 +47,7 @@ export function OrganizationSettings(): ReactNode {
     <Group label="Profile" note={admin ? undefined : 'Only an admin can change the name, the picture and the web address.'}>
       <OrganizationPicture name={name} avatar={avatar} admin={admin} />
       <Item title="Name" value={name} onPress={open('name')} />
-      <Item title="Web address" value={`metro.box/${routeHash({ kind: 'servers' })}`} onPress={open('slug')} />
+      <Item title="Web address" value={`metro.box/${routeHash({ kind: 'chat-home' })}`} onPress={open('slug')} />
       <NameModal key={`name:${name}`} title="Rename the organization" action="Save" placeholder="Anderra" initial={name} failure="Could not rename the organization." open={editing === 'name'}
         onClose={() => { setEditing(null); }} onSubmit={async (next) => { await rename(next); await client.invalidateQueries({ queryKey: orgKey('organization') }); }} />
       <NameModal key={`slug:${slug}`} title="Change the web address" field="Web address" action="Save" placeholder="anderra" initial={slug} failure="Could not change the web address." open={editing === 'slug'}

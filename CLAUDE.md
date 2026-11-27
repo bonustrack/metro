@@ -407,7 +407,7 @@ Bun workspaces, `bun@1.4.0` minimum (Bun 1.3.9 leaks the upstream socket of an a
 
 - **One Expo app for metro.box and the phones, like Stage**: Expo Router, React Native, react-native-web, `@stage-labs/kit` for every screen. A platform file (`*.web.tsx`) only where the web and the phone must differ.
 - **`packages/client` holds everything without React** and reaches the platform only through `platform.ts` (`configurePlatform`). **Not an MCP client**: the app must never import one.
-- **Hash addresses are unchanged**: `#/<org slug or id>/<agent slug or id>/<page>`. **The whole app renders from the root layout**, so the query cache and the sign-in survive every navigation.
+- **Hash addresses are unchanged**: `#/<org slug or id>/<agent slug or id>/<page>`; `#/<org>` is the chats home, the agents list `#/<org>/agents`. **The whole app renders from the root layout**, so the query cache and the sign-in survive every navigation.
 - **A navigable thing is a `RouteLink`** (or `TextLink`). The child's style must be flat (`StyleSheet.flatten`), and a click must go through the router, never the browser following the href (`test/route-link.test.ts`).
 - **The shell** is a rail, a 320 px list and a detail on a wide screen, and a floating tab bar on a phone; sections Chats, Agents, Connectors, Models (the page says Gateway), Organization. The web scrolls the document, the phone a ScrollView (`PageScroll`).
 - **One agent is six tabs: Home, Channels, Memory, Connectors, Scheduled, Settings** (`AGENT_TABS`; ids and addresses stay `chats`, `tools`). A page below a tab is a deep page drawn with `AgentDeepPage`, never with its own breadcrumb. An agent without a server is `RemoteAgentScreen`, and nothing on its page calls a box.
