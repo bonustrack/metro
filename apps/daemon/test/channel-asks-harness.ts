@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { randomInt, randomUUID } from 'node:crypto';
 import { publishEvent, type MetroEvent } from '@metro-labs/core/events';
 import { asLine, Line } from '@metro-labs/core/lines';
+import { CHAT_MCP_HEADER } from '@metro-labs/core/chat';
 import { createMetroMcp } from '../src/mcp/index.ts';
 import { forgetChannelAsks } from '../src/mcp/channel-asks.ts';
 import { setKeyMap } from '../src/agents/keys.ts';
@@ -28,6 +29,7 @@ export const STRANGER = `metro://telegram-bot/${TG}/user/999`;
 export const ORG = 'org_01ASKSOWNER000000';
 export const ROW = 'row00000001';
 export const TARGET = { kind: 'channel', station: 'telegram-bot', account: TG } as const;
+const CHAT_SESSION = 'c7a1f0de-2b3c-4d5e-8f90-a1b2c3d4e5f6';
 export const OTHER_TARGET = { kind: 'channel', station: 'whatsapp', account: WA } as const;
 
 export interface TrainCall {
@@ -176,8 +178,8 @@ export class AsksHarness {
     };
   }
 
-  async rpc(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const res = await fetch(this.url, { method: 'POST', headers: this.headers(), body: JSON.stringify({ jsonrpc: '2.0', id: randomUUID(), method, params }) });
+  async rpc(method: string, params: Record<string, unknown>, headers = this.headers()): Promise<Record<string, unknown>> {
+    const res = await fetch(this.url, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: randomUUID(), method, params }) });
     const raw = await res.text();
     const json = raw.trimStart().startsWith('{') ? raw : (raw.split('\n').find((line) => line.startsWith('data: ')) ?? '').slice(6);
     return (JSON.parse(json) as { result: Record<string, unknown> }).result;
@@ -188,8 +190,9 @@ export class AsksHarness {
     await res.body?.cancel();
   }
 
-  async tool(name: string, args: Record<string, unknown>): Promise<ToolAnswer> {
-    const result = await this.rpc('tools/call', { name, arguments: args });
+  async tool(name: string, args: Record<string, unknown>, chat = false): Promise<ToolAnswer> {
+    const headers = chat ? { ...this.headers(), 'mcp-session-id': CHAT_SESSION, [CHAT_MCP_HEADER]: '1' } : this.headers();
+    const result = await this.rpc('tools/call', { name, arguments: args }, headers);
     const content = result.content as { text: string }[];
     return { text: content.map((part) => part.text).join('\n'), isError: result.isError === true };
   }

@@ -16,6 +16,7 @@ export interface AskedCall {
 export interface AskRoute {
   line: string | undefined;
   call: CallSource | undefined;
+  quiet?: boolean;
 }
 
 export interface Ask extends AskedCall, AskRoute {

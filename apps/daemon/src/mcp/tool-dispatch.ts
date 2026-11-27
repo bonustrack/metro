@@ -39,6 +39,8 @@ import {
 import { str } from '@metro-labs/core/str';
 import { channelArgsError, channelScopeDenied, dispatchListChannels } from './channel-tool.js';
 import { callConnectorTool, CONNECTOR_TOOLS, connectorToolsVersion, type ConnectorResult } from '../mcp-server/connector-tools.js';
+import { markChatCalls } from '../mcp-server/chat-marks.js';
+import { TOOL_CALL } from '@metro-labs/http/mcp-server-protocol';
 
 const STATION_TOOLS = new Map<
   string,
@@ -174,7 +176,7 @@ async function runTool(
     return errResult('metro: this account is outside your authorized scope');
 
   settlePromptsFor(name, req.params.arguments ?? {});
-  const blocked = policyGate(name, a, approval);
+  const blocked = policyGate(name, a, approval, hooks.chat === true);
   if (blocked) return blocked;
 
   return dispatchTool(name, a, identity, hooks);
@@ -210,9 +212,10 @@ export async function callToolHandler(
   return result;
 }
 
-function connectorToolHandler(req: { params: { name: string; arguments?: Record<string, unknown> } }): Promise<ConnectorResult> {
+function connectorToolHandler(req: { params: { name: string; arguments?: Record<string, unknown> } }, hooks: ToolHooks): Promise<ConnectorResult> {
   const args = req.params.arguments ?? {};
   settlePromptsFor(req.params.name, args);
+  if (hooks.chat === true && req.params.name === TOOL_CALL) markChatCalls(args);
   return callConnectorTool(req.params.name, args);
 }
 
@@ -245,7 +248,7 @@ export function registerToolHandlers(
       notice?.deliver(() =>
         extra.sendNotification({ method: TOOL_LIST_CHANGED }),
       );
-      return CONNECTOR_TOOLS.has(req.params.name) ? connectorToolHandler(req) : callToolHandler(req, hooks);
+      return CONNECTOR_TOOLS.has(req.params.name) ? connectorToolHandler(req, hooks) : callToolHandler(req, hooks);
     }) as Parameters<typeof server.setRequestHandler>[1],
   );
 }

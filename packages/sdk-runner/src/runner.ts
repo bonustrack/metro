@@ -26,8 +26,10 @@ export const COMPACT_IDLE_MS = 60_000;
 
 const MODEL_PINS: ReadonlySet<string> = new Set(['ANTHROPIC_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL']);
 
+export const unpinnedEnv = (env: NodeJS.ProcessEnv): Record<string, string | undefined> => Object.fromEntries(Object.entries(env).filter(([name]) => !MODEL_PINS.has(name)));
+
 export function runnerEnv(env: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  const unpinned = Object.fromEntries(Object.entries(env).filter(([name]) => !MODEL_PINS.has(name)));
+  const unpinned = unpinnedEnv(env);
   const terminals = new Set((env.CLAUDE_CODE_TERMINAL_MCP_TOOLS ?? '').split(',').map((name) => name.trim()).filter(Boolean));
   terminals.add('mcp__metro__send');
   return { [STARTUP_WAIT]: '0', ...unpinned, DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_TERMINAL_MCP_TOOLS: [...terminals].join(',') };

@@ -178,6 +178,22 @@ describe('the first segment is the daemon', () => {
     expect(routeSelection('#/stage-labs/aB3-_xYz9Qw/connectors')).toEqual({ kind: 'tools', project: 'aB3-_xYz9Qw' });
   });
 
+  test('the chats are organization pages: the list, a new chat (with or without an agent) and one chat', () => {
+    storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
+    const cases: [string, Selection][] = [
+      ['#/stage-labs/chat', { kind: 'chat-home' }],
+      ['#/stage-labs/chat/new', { kind: 'chat-new' }],
+      ['#/stage-labs/chat/new/emma0000001', { kind: 'chat-new', agent: 'emma0000001' }],
+      ['#/stage-labs/chat/aB3-_xYz9Qw', { kind: 'chat', id: 'aB3-_xYz9Qw' }],
+    ];
+    for (const [hash, selection] of cases) {
+      expect(routeSelection(hash)).toEqual(selection);
+      expect(routeHash(selection)).toBe(hash);
+    }
+    expect(routeSelection('#/stage-labs/chat/not-an-id').kind).toBe('none');
+    expect(routeSelection('#/chat/aB3-_xYz9Qw')).toEqual({ kind: 'chat', id: 'aB3-_xYz9Qw' });
+  });
+
   test('a connector has a Tools, an Agents and a Settings address, one per agent, and an add page', () => {
     storeAccount({ ...installTestAccount(), organizationSlug: 'stage-labs' });
     const id = 'aB3-_xYz9Qw';

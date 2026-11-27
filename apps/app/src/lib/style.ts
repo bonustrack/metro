@@ -4,6 +4,8 @@ export const SHRINK = { flexShrink: 1, minWidth: 0 } as const;
 
 export const GROW = { flexGrow: 1, minWidth: 0 } as const;
 
+export const NO_SHRINK = { flexShrink: 0 } as const;
+
 export const CENTER_TEXT: TextStyle = { textAlign: 'center' };
 
 export const FULL_WIDTH: ViewStyle = { alignSelf: 'stretch' };

@@ -1,6 +1,7 @@
 import { isRecord } from '@metro-labs/core/is-record';
 import { ApiError } from '@metro-labs/http/api-error';
 import { signAgentRequest } from '@metro-labs/http/agent-signature';
+import { filled } from '@metro-labs/http/user-token';
 import type { AgentKey } from './agent-key.js';
 
 const TIMEOUT_MS = 15_000;
@@ -15,7 +16,7 @@ export interface MetroApi {
 }
 
 export const METRO_API: MetroApi = {
-  base: 'https://api.metro.box',
+  base: filled(process.env.METRO_API_URL) ?? 'https://api.metro.box',
   fetch: (url, init) => fetch(url, init),
   now: () => Date.now(),
 };

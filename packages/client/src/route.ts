@@ -67,6 +67,9 @@ const ORG_MODEL_ADD_PATH = /^#?\/organization\/models\/add(?:\/([a-z]{1,32}))?$/
 const ORG_MODEL_SIGN_IN_PATH = new RegExp(`^#?/organization/models/(${ID})/sign-in$`);
 const ORG_AWS_PATH = /^#?\/organization\/aws$/;
 const APP_CONNECT_PATH = new RegExp(`^#?/connect/(${ID})$`);
+const CHAT_HOME_PATH = /^#?\/chat$/;
+const CHAT_NEW_PATH = new RegExp(`^#?/chat/new(?:/(${ID}))?$`);
+const CHAT_PATH = new RegExp(`^#?/chat/(${ID})$`);
 
 const EXACT: [RegExp, Selection][] = [
   [SERVERS_PATH, { kind: 'servers' }],
@@ -84,6 +87,7 @@ const EXACT: [RegExp, Selection][] = [
   [ORG_CONNECTORS_PATH, { kind: 'org-connectors' }],
   [ORG_AWS_PATH, { kind: 'org-aws' }],
   [ORG_CONNECTOR_NEW_PATH, { kind: 'org-connector-new' }],
+  [CHAT_HOME_PATH, { kind: 'chat-home' }],
 ];
 
 function adminSelection(path: string): Selection | null {
@@ -97,7 +101,14 @@ function exactSelection(hash: string): Selection | null {
   const exact = EXACT.find(([re]) => re.test(hash))?.[1];
   if (exact !== undefined) return { ...exact };
   const path = hash.split('?')[0] ?? '';
-  return adminSelection(path) ?? activitySelection(path) ?? appConnectSelection(path) ?? organizationSelection(path);
+  return adminSelection(path) ?? activitySelection(path) ?? appConnectSelection(path) ?? chatSelection(path) ?? organizationSelection(path);
+}
+
+function chatSelection(path: string): Selection | null {
+  const fresh = CHAT_NEW_PATH.exec(path);
+  if (fresh !== null) return fresh[1] === undefined ? { kind: 'chat-new' } : { kind: 'chat-new', agent: fresh[1] };
+  const id = CHAT_PATH.exec(path)?.[1];
+  return id === undefined ? null : { kind: 'chat', id };
 }
 
 function appConnectSelection(path: string): Selection | null {
@@ -227,6 +238,7 @@ const ORGANIZATION_PAGES: Partial<Record<Selection['kind'], string>> = {
   'org-route': 'organization/models/default',
   'org-usage': 'organization/models/usage',
   'org-aws': 'organization/aws',
+  'chat-home': 'chat',
 };
 
 function adminHash(selection: Selection): string | undefined {
@@ -301,6 +313,12 @@ const SUFFIX: Record<string, (s: Selection) => string> = {
   'agent-activity': () => '/activity',
 };
 
+function chatPath(selection: Selection): string | null {
+  if (selection.kind === 'chat') return `chat/${selection.id}`;
+  if (selection.kind !== 'chat-new') return null;
+  return selection.agent === undefined ? 'chat/new' : `chat/new/${selection.agent}`;
+}
+
 function orgItemPath(selection: Selection): string | null {
   if (selection.kind === 'activity') return selection.agent === undefined ? 'activity' : `activity/${selection.agent}`;
   if (selection.kind === 'app-connect') return `connect/${selection.grant}`;
@@ -316,7 +334,7 @@ export function routeHash(selection: Selection): string {
   const prefix = organizationPrefix();
   const page = ORGANIZATION_PAGES[selection.kind];
   if (page !== undefined) return page === '' ? home(prefix) : `${prefix}${page}`;
-  const org = orgItemPath(selection);
+  const org = orgItemPath(selection) ?? chatPath(selection);
   if (org !== null) return `${prefix}${org}`;
   const suffix = SUFFIX[selection.kind];
   if (suffix === undefined || !('project' in selection)) return home(prefix);

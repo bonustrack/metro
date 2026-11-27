@@ -16,6 +16,7 @@ import {
 } from './raw-get-stream.js';
 import { errMsg } from '@metro-labs/core/log';
 import { isRecord } from '@metro-labs/core/is-record';
+import { CHAT_MCP_HEADER } from '@metro-labs/core/chat';
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { channelLog, RUNNER_CLIENT, type McpSession } from './session.js';
 import { SessionSlot } from './session-slot.js';
@@ -77,17 +78,23 @@ async function resolveSession(
 ): Promise<Routed | undefined> {
   const current = slot.current;
   const held = current?.heldByRunner === true;
+  const presented = headerValue(req, 'mcp-session-id');
+  if (headerValue(req, CHAT_MCP_HEADER) !== undefined) return { side: await chatSide(sides, isInitialize(body) ? undefined : presented) };
   if (isInitialize(body)) {
     if (held && clientName(body) !== RUNNER_CLIENT) return { side: await sides.start() };
     return { main: await slot.open(identity) };
   }
-  const presented = headerValue(req, 'mcp-session-id');
   if (presented !== undefined) return byId(slot, sides, presented, identity);
   if (current) return { main: current };
   channelLog('session: refused, no Mcp-Session-Id and no session');
   res.writeHead(400).end(NO_SESSION_HEADER);
   return undefined;
 }
+
+const chatSide = (sides: SideSessions, presented: string | undefined): Promise<StreamableHTTPServerTransport> => {
+  const found = presented === undefined ? undefined : sides.find(presented);
+  return found === undefined ? sides.start(presented, true) : Promise.resolve(found);
+};
 
 async function byId(slot: SessionSlot, sides: SideSessions, presented: string, identity: RequestIdentity): Promise<Routed> {
   const current = slot.current;
@@ -180,7 +187,10 @@ export async function createMetroMcp(options: { liveEvents?: boolean; publish?: 
       if (!routed) return;
       if ('side' in routed) {
         if (isStandaloneGet(req)) res.writeHead(405).end(SIDE_NO_STREAM);
-        else await routed.side.handleRequest(req, res, parsed.body);
+        else {
+          sides.serving(routed.side, res);
+          await routed.side.handleRequest(req, res, parsed.body);
+        }
         return;
       }
       if (isStandaloneGet(req)) {

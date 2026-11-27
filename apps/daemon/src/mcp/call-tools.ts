@@ -210,6 +210,7 @@ const MESSAGE_HANDLERS: Record<string, MessageHandler> = {
 
 export interface ToolHooks {
   onSent?: (messageId: string) => void;
+  chat?: boolean;
 }
 
 export async function dispatchMessageTool(

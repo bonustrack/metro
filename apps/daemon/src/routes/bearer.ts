@@ -57,7 +57,9 @@ export function boxSigningKeys(dir: string, env: NodeJS.ProcessEnv = process.env
   return metro;
 }
 
-export function installBearerSessions(dir: string, owner: () => string | null, env: NodeJS.ProcessEnv = process.env): void {
+export function installBearerSessions(dir: string, owner: () => string | null, env: NodeJS.ProcessEnv = process.env): KeySource {
   removeOldKeyCache(dir);
-  setBearerSessions(bearerSessionsFor(owner, boxSigningKeys(dir, env)));
+  const keys = boxSigningKeys(dir, env);
+  setBearerSessions(bearerSessionsFor(owner, keys));
+  return keys;
 }

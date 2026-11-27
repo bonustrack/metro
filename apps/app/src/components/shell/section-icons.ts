@@ -3,6 +3,7 @@ import type { ShellSectionId } from '../../lib/shell-sections.js';
 
 export const SECTION_ICONS: Record<ShellSectionId, IconName> = {
   agents: 'robot',
+  chats: 'chats',
   connectors: 'plug',
   models: 'processor',
   organization: 'officeBuilding',
