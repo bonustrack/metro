@@ -19,7 +19,7 @@ import { FileView } from './ChatFiles.js';
 import { ChatBoxContext, ServerApproval } from './ServerApproval.js';
 import { connectorCall, waitingApprovals } from '../../lib/chat-connectors.js';
 import { useOrgConnectorsQuery } from '../../lib/org-connector-queries.js';
-import { approvalAnswer, callFields, prettyInput, toolLabel, toolSummary, type SentAnswer } from '../../lib/chat-words.js';
+import { approvalAnswer, callFields, prettyInput, subagentRow, toolLabel, toolSummary, type SentAnswer } from '../../lib/chat-words.js';
 import { MONO, NO_SHRINK, SHRINK } from '../../lib/style.js';
 
 const TOOL_NAME = StyleSheet.flatten([MONO, NO_SHRINK]);
@@ -59,12 +59,15 @@ interface ToolFace {
   tool: string;
   summary: string;
   connector: ReactNode;
+  prose?: boolean;
 }
 
-function useToolFace(part: ToolPart): ToolFace {
+function useToolFace(part: ToolPart, live: boolean): ToolFace {
   const palette = useKitPalette();
   const { agent } = useContext(ChatBoxContext);
   const read = useOrgConnectorsQuery();
+  const subagent = subagentRow(part, live);
+  if (subagent !== null) return { leading: <Icon name="robot" size={ICON_SIZE.sm} color={palette.sub} />, tool: subagent.title, summary: subagent.line, connector: null, prose: true };
   const call = connectorCall(part.name, part.input);
   if (call === null) return { leading: <Icon name="tool" size={ICON_SIZE.sm} color={palette.sub} />, tool: toolLabel(part.name), summary: toolSummary(part.input), connector: null };
   const tool = `${call.tool}${call.more > 0 ? ` +${String(call.more)}` : ''}`;
@@ -78,7 +81,7 @@ function useToolFace(part: ToolPart): ToolFace {
 function ToolRow({ part, live, settled }: { part: ToolPart } & PartState): ReactNode {
   const palette = useKitPalette();
   const [open, setOpen] = useState(false);
-  const face = useToolFace(part);
+  const face = useToolFace(part, live);
   return (
     <Column gap={10}>
       <Column radius={10} border={allSides(palette.border)} padding={{ x: 12, y: 8 }} gap={10}>
@@ -86,7 +89,7 @@ function ToolRow({ part, live, settled }: { part: ToolPart } & PartState): React
           <Row align="center" gap={10}>
             {face.leading}
             {face.connector}
-            <Text size="sm" fontWeight="semibold" style={TOOL_NAME} numberOfLines={1}>{face.tool}</Text>
+            <Text size="sm" fontWeight="semibold" style={face.prose === true ? SHRINK : TOOL_NAME} numberOfLines={1}>{face.tool}</Text>
             <Text size="sm" color="secondary" numberOfLines={1} style={SHRINK}>{face.summary}</Text>
             <Column weight={1} />
             <ToolStatus part={part} live={live} settled={settled} />

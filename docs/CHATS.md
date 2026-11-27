@@ -229,11 +229,19 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   no `from` (a daemon older than its CLI during an update, or a name of spaces only) is the text
   alone, tags still broken up. `METRO_SESSION=chat` makes the
   guard hook and the session-start rules stand aside: a chat works on its own thread and shows its
-  tool calls.
+  tool calls. It may start subagents (the Agent tool) for long, parallel or deep work, as `CHAT_RULES`
+  say.
+- **Effort** (2026-11-27): `POST /api/chat/turns` takes an optional `effort` (`low`, `medium`,
+  `high`, `max`; anything else is dropped), the turn line carries it, and the chat process adds
+  `x-metro-effort: <level>` to `ANTHROPIC_CUSTOM_HEADERS` (`withEffortHeader`), so gateway.metro.box
+  runs that turn's main thread at it (subagents keep the route's helpers level, see
+  docs/rules/MODELS.md). No effort means the route's main-thread level.
 - Parts (`@metro-labs/core/chat`): `text`, `tool` (name, input and result as text, 4,000 characters
   each; ids and names made safe with `chatName`), `approval` (waiting, allowed, denied), `file` (one
   the agent shared, see Files). Thinking and
-  a worker's inner messages are never shown. When the permission mode asks, the approval waits in the
+  a worker's inner messages are never shown: a subagent's row (its `Agent` tool part) carries only
+  `steps` (how many tools it called) and `now` (its latest tool and first argument, 200 characters),
+  updated live. When the permission mode asks, the approval waits in the
   chat itself (30 minutes, then denied) and anyone who can read the chat answers it there; it is not
   listed on the agent's Home, so a private chat stays private.
 - Its main thread still thinks at the gateway's main-thread effort (`low` by default): the gateway
@@ -329,6 +337,24 @@ box  ──(4) POST /api/agents/chats/reply (MetroAgent signed) ──> api.metr
   size. Any other file is a chip (name, size) that downloads on the web and opens the share sheet on
   a phone (`lib/chat-file-view.ts`). A 404 says "No longer on the agent's server.", or "Not on the
   agent's server yet." while the message has no reply.
+- **Effort and model in the composer** (`components/discussions/ComposerControls.tsx`,
+  `lib/chat-effort.ts`, `lib/chat-model.ts`). Next to the agent picker, Add people and the paperclip
+  on the home, and in a chat's bottom bar (a chat's composer now always has that bar, so nothing
+  moves when its controls show), an effort picker styled like the agent picker: Default (no effort
+  sent, so the gateway's main-thread level; with technical details on, its item says so), Low,
+  Medium, High, Max. It shows only for a live box on `0.1.0-beta.344` or later (`effortAllowed`; an
+  unknown version never hides it). The choice is kept per chat in this browser
+  (`metro.chat.effort:<chat id>`, Default stores nothing); the home's choice becomes the new chat's,
+  and every turn the page starts in that chat sends it (`effort` on `POST /api/chat/turns`, read
+  when the turn starts: first message, follow-ups, Try again, the approval's Go on). Beside it, the
+  model the chat's main thread runs as, plain text, never a control: the main model of the box's
+  `GET /api/model` named like the Gateway page (`modelOrder`, `nameIn` over the account's model
+  list), a placeholder of its size while the box or the list is read, nothing when the box does not
+  answer or has no route. Any box with `/api/model` shows it.
+- **Subagent rows**: a tool part named `Agent` or `Task` is a subagent (`subagentRow` in
+  `lib/chat-words.ts`). Its row is named by the input's `description` (else "Subagent"), not in the
+  tool font; while it runs, a spinner and "N steps · <latest step>" (the part's `steps` and `now`,
+  live). Once done it reads like any tool row, its result in its detail.
 
 ## What private does not cover
 

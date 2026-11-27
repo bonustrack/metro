@@ -6,6 +6,7 @@ import { ForbiddenError, HttpError, NotFoundError } from '@metro-labs/client/api
 import { pollTurn, sendTurn, stopTurn, type Delivery, type TurnView } from '@metro-labs/client/api/chat-turns';
 import { retryTicket, viewTicket } from '@metro-labs/client/api/chats';
 import { refreshChat, refreshChats, sendChatMessage } from './chat-queries.js';
+import { effortOf, type EffortChoice } from './chat-effort.js';
 import { takeGoOns, takeSend, type Send } from './chat-sends.js';
 import { settleUploads, uploadAll, uploadsRunning } from './chat-uploads.js';
 import { logError } from './log.js';
@@ -56,6 +57,7 @@ interface WatchOptions {
   message: string;
   sentAt: number;
   ticket: () => string;
+  effort?: () => EffortChoice;
   onChange: (turn: LiveTurn) => void;
   onDone: (delivery: Delivery) => void;
   onStopFailed: (error: string) => void;
@@ -180,8 +182,9 @@ export class TurnWatch {
   }
 
   private async begin(send: Send, ticket: string): Promise<void> {
-    if (send.files.length === 0) await this.opts.api.send(this.opts.host, ticket, send.text);
-    else await this.renewing(ticket, (current) => this.opts.api.send(this.opts.host, current, send.text));
+    const effort = this.opts.effort?.() ?? undefined;
+    if (send.files.length === 0) await this.opts.api.send(this.opts.host, ticket, send.text, effort);
+    else await this.renewing(ticket, (current) => this.opts.api.send(this.opts.host, current, send.text, effort));
   }
 
   private async refused(err: unknown): Promise<boolean> {
@@ -288,7 +291,7 @@ export function useLiveTurn(host: string | null, chat: string, pending: Pending 
       setStopError(error);
     };
     const onChange = (live: LiveTurn): void => { setShown({ key, live }); };
-    const created = new TurnWatch({ api: TURN_API, host, chat, message, sentAt: at, ticket: () => current.current, onChange, onDone, onStopFailed, signal: control.signal });
+    const created = new TurnWatch({ api: TURN_API, host, chat, message, sentAt: at, ticket: () => current.current, effort: () => effortOf(chat), onChange, onDone, onStopFailed, signal: control.signal });
     watch.current = created;
     created.run().catch(logError('chat turn'));
     return () => {

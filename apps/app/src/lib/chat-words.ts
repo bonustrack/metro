@@ -1,5 +1,5 @@
 import { approvalFields } from '@metro-labs/core/approval-fields';
-import type { ApprovalPart, ApprovalState, ChatPart } from '@metro-labs/core/chat';
+import type { ApprovalPart, ApprovalState, ChatPart, ToolPart } from '@metro-labs/core/chat';
 import type { Chat, ChatPerson } from '@metro-labs/client/api/chats';
 import { isRecord } from '@metro-labs/client/read';
 
@@ -17,13 +17,36 @@ export function parsedInput(input: string): Record<string, unknown> | null {
   }
 }
 
+const oneLine = (text: string): string => {
+  const line = text.replace(/\s+/g, ' ').trim();
+  return line.length > SUMMARY_MAX ? `${line.slice(0, SUMMARY_MAX - 1)}…` : line;
+};
+
 export function toolSummary(input: string): string {
   const value = parsedInput(input);
   if (value === null) return '';
   const key = SUMMARY_KEYS.find((k) => typeof value[k] === 'string' && value[k] !== '');
-  const text = key === undefined ? '' : String(value[key]);
-  const line = text.replace(/\s+/g, ' ').trim();
-  return line.length > SUMMARY_MAX ? `${line.slice(0, SUMMARY_MAX - 1)}…` : line;
+  return oneLine(key === undefined ? '' : String(value[key]));
+}
+
+const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task']);
+
+export interface SubagentRow {
+  title: string;
+  line: string;
+}
+
+function progressLine(part: Pick<ToolPart, 'steps' | 'now'>): string {
+  const steps = part.steps === undefined ? '' : `${String(part.steps)} ${part.steps === 1 ? 'step' : 'steps'}`;
+  const line = [steps, oneLine(part.now ?? '')].filter((piece) => piece !== '').join(' · ');
+  return line === '' ? 'Starting' : line;
+}
+
+export function subagentRow(part: Pick<ToolPart, 'name' | 'input' | 'result' | 'steps' | 'now'>, live: boolean): SubagentRow | null {
+  if (!SUBAGENT_TOOLS.has(part.name)) return null;
+  const described = parsedInput(part.input)?.description;
+  const title = typeof described === 'string' ? oneLine(described) : '';
+  return { title: title === '' ? 'Subagent' : title, line: live && part.result === null ? progressLine(part) : '' };
 }
 
 export function prettyInput(input: string): string {

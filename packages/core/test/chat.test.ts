@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { applyTurnEvent, CHAT_FILE_MAX, chatFileOf, chatFilesOf, chatLine, chatName, chatReplyOf, chatTitleOf, fileNameOf, fileTypeOf, fitReply, turnEventOf, type ChatPart } from '../src/chat.ts';
+import { applyTurnEvent, CHAT_FILE_MAX, chatFileOf, chatFilesOf, chatLine, chatName, chatPartOf, chatReplyOf, chatTitleOf, fileNameOf, fileTypeOf, fitReply, turnEventOf, type ChatPart } from '../src/chat.ts';
 
 describe('chat shapes', () => {
   test('a title is the first words of the message, on one line', () => {
@@ -91,4 +91,13 @@ describe('chat shapes', () => {
     expect(chatReplyOf({ parts: [{ type: 'file', file }], state: 'done', error: null })).toEqual({ parts: [{ type: 'file', file }], state: 'done', error: null });
     expect(chatReplyOf({ parts: [{ type: 'file', file: { ...file, id: 'x' } }], state: 'done', error: null })).toBeNull();
   });
+
+  test('a subagent row may carry its step count and its latest step, read strictly', () => {
+    const tool = { type: 'tool', id: 'a1', name: 'Agent', input: '', result: null, ok: null };
+    expect(chatPartOf({ ...tool, steps: 3, now: 'Bash ls' })).toEqual({ ...tool, steps: 3, now: 'Bash ls' });
+    for (const steps of [0, -1, 1.5, '3', 200_000]) expect(chatPartOf({ ...tool, steps })).toEqual(tool);
+    expect((chatPartOf({ ...tool, now: 'x'.repeat(500) }) as { now?: string }).now).toHaveLength(200);
+    expect(chatPartOf({ ...tool, now: '' })).toEqual(tool);
+  });
 });
+

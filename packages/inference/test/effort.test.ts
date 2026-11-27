@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { IncomingMessage } from 'node:http';
 import {
   cappedEffort,
+  chosenEffort,
   compactionRequest,
   effortToApply,
   helperRequest,
@@ -179,5 +180,21 @@ describe('models that cannot run with thinking off', () => {
     expect(withThinkingFor(off, 'claude-opus-5')).toBe(off);
     const adaptive = turn();
     expect(withThinkingFor(adaptive, 'claude-opus-5-5')).toBe(adaptive);
+  });
+});
+
+describe('the effort a web chat chooses', () => {
+  test('it sets the main thread only: a subagent keeps its route level and a compaction stays low', () => {
+    const chat = (headers: Record<string, string>): IncomingMessage => asRequest({ 'x-metro-effort': 'max', ...headers });
+    expect(plannedEffort(chat({}), turn(), chosenEffort(chat({}), { main: 'low' }))).toBe('max');
+    expect(plannedEffort(chat({}), turn(), chosenEffort(chat({})))).toBe('max');
+    expect(plannedEffort(chat({ 'x-claude-code-agent-id': 'a0248f42' }), turn(), chosenEffort(chat({}), { helpers: 'medium' }))).toBe('medium');
+    expect(plannedEffort(chat({}), mainCompaction(), chosenEffort(chat({})))).toBe('low');
+    expect(unaskedEffort({ messages: [] }, chosenEffort(chat({}), { main: 'low' }), 'main')).toBe('max');
+  });
+
+  test('no header, or a value that is not a chat effort, leaves the route as it is', () => {
+    expect(chosenEffort(asRequest(), { main: 'medium' })).toEqual({ main: 'medium' });
+    for (const value of ['asked', 'xhigh', 'MAX', ' high ', 'none']) expect(chosenEffort(asRequest({ 'x-metro-effort': value }), { main: 'low' }).main).toBe(value.trim() === 'high' ? 'high' : 'low');
   });
 });

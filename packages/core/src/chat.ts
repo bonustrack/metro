@@ -6,6 +6,7 @@ export const CHAT_PARTS_MAX = 300;
 export const PART_TEXT_MAX = 100_000;
 export const TOOL_TEXT_MAX = 4_000;
 export const CHAT_ERROR_MAX = 500;
+export const STEP_TEXT_MAX = 200;
 export const CHAT_FILE_MAX = 20 * 1024 * 1024;
 export const CHAT_FILES_MAX = 5;
 export const FILE_NAME_MAX = 120;
@@ -32,6 +33,8 @@ export interface ToolPart {
   input: string;
   result: string | null;
   ok: boolean | null;
+  steps?: number;
+  now?: string;
 }
 
 export interface ApprovalPart {
@@ -74,6 +77,10 @@ const NAME_RE = /^[A-Za-z0-9_:.-]{1,128}$/;
 const NAME_MAX = 128;
 
 export const CHAT_MCP_HEADER = 'x-metro-chat';
+export const CHAT_EFFORT_HEADER = 'x-metro-effort';
+export const CHAT_EFFORTS = ['low', 'medium', 'high', 'max'] as const;
+export type ChatEffort = (typeof CHAT_EFFORTS)[number];
+export const isChatEffort = (value: unknown): value is ChatEffort => typeof value === 'string' && (CHAT_EFFORTS as readonly string[]).includes(value);
 
 export const chatName = (raw: string): string => raw.replace(/[^A-Za-z0-9_:.-]/g, '_').slice(0, NAME_MAX) || '_';
 
@@ -95,6 +102,12 @@ function textPartOf(raw: Record<string, unknown>): TextPart | null {
   return text === null ? null : { type: 'text', text };
 }
 
+function progressOf(raw: Record<string, unknown>): Pick<ToolPart, 'steps' | 'now'> {
+  const steps = typeof raw.steps === 'number' && Number.isInteger(raw.steps) && raw.steps > 0 && raw.steps <= 100_000 ? raw.steps : undefined;
+  const now = str(raw.now, STEP_TEXT_MAX) ?? undefined;
+  return { ...(steps === undefined ? {} : { steps }), ...(now === undefined || now === '' ? {} : { now }) };
+}
+
 function toolPartOf(raw: Record<string, unknown>): ToolPart | null {
   const id = matching(raw.id, NAME_RE);
   const name = matching(raw.name, NAME_RE);
@@ -102,7 +115,7 @@ function toolPartOf(raw: Record<string, unknown>): ToolPart | null {
   if (id === null || name === null) return null;
   const result = str(raw.result, TOOL_TEXT_MAX);
   const ok = typeof raw.ok === 'boolean' ? raw.ok : null;
-  return { type: 'tool', id, name, input, result, ok };
+  return { type: 'tool', id, name, input, result, ok, ...progressOf(raw) };
 }
 
 function approvalPartOf(raw: Record<string, unknown>): ApprovalPart | null {

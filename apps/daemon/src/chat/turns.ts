@@ -1,5 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { chatLine, fitReply, turnEventOf, type ChatFile, type ChatPart, type ChatReply, type ChatSender } from '@metro-labs/core/chat';
+import { chatLine, fitReply, turnEventOf, type ChatEffort, type ChatFile, type ChatPart, type ChatReply, type ChatSender } from '@metro-labs/core/chat';
 import { isRecord } from '@metro-labs/core/is-record';
 import { errMsg, log } from '@metro-labs/core/log';
 import { ApiError } from '@metro-labs/http/api-error';
@@ -50,6 +50,7 @@ interface TurnStart {
   from: ChatSender;
   files?: TurnFile[];
   missing?: MissingFile[];
+  effort?: ChatEffort | null;
 }
 
 interface Running {
@@ -123,7 +124,7 @@ export class ChatTurns {
     this.turns.set(turn.id, turn);
     this.running.set(turn.id, run);
     this.wire(run);
-    child.stdin.write(chatLine({ t: 'turn', prompt: input.prompt, from: input.from, resume: this.deps.sessions.of(input.chat), ...filesOf(input) }));
+    child.stdin.write(chatLine({ t: 'turn', prompt: input.prompt, from: input.from, resume: this.deps.sessions.of(input.chat), ...filesOf(input), ...(input.effort === undefined || input.effort === null ? {} : { effort: input.effort }) }));
     run.timers.push(setTimeout(() => { this.stop(turn.id); }, this.deps.turnMaxMs ?? TURN_MAX_MS));
     log.info({ chat: input.chat, turn: turn.id, running: this.running.size }, 'chat: a turn started');
     return turn;

@@ -69,7 +69,7 @@ export function linkWords(sync: ModelSync | null | undefined, attempt: Attempt |
 
 async function stillUnlinked(client: QueryClient): Promise<boolean> {
   try {
-    const model = await client.fetchQuery({ queryKey: boxKey('model'), queryFn: fetchModel, staleTime: 0 });
+    const model = await client.fetchQuery({ queryKey: boxKey('model'), queryFn: () => fetchModel(), staleTime: 0 });
     return model.sync?.enrolled === false;
   } catch (err) {
     logError('model read before linking')(err);

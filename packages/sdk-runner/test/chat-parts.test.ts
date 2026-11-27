@@ -5,7 +5,7 @@ import { ChatParts } from '../src/chat-parts.ts';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chatEnv, chatOptions, kept } from '../src/chat-turn.ts';
+import { chatEnv, chatOptions, kept, withEffortHeader } from '../src/chat-turn.ts';
 import { runnerConfig } from '../src/config.ts';
 
 const main = { parent_tool_use_id: null, uuid: 'u', session_id: 's' };
@@ -103,5 +103,29 @@ describe('the chat turn reads the SDK stream into parts', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('subagents and effort in a web chat', () => {
+  test('a subagent shows its step count and its latest step on its own row, never its text or its own rows', () => {
+    const { parts, events } = collect();
+    const sub = (content: unknown[]): SDKMessage => ({ type: 'assistant', message: { id: 'sm', content }, parent_tool_use_id: 'agent_1', uuid: 'u', session_id: 's' }) as never;
+    parts.take(assistant('m1', [{ type: 'tool_use', id: 'agent_1', name: 'Agent', input: { description: 'Read the logs', prompt: 'Look at the logs' } }]));
+    parts.take(sub([{ type: 'text', text: 'private thinking out loud' }, { type: 'tool_use', id: 's1', name: 'Bash', input: { command: 'ls   -la\n/var/log' } }]));
+    parts.take(sub([{ type: 'tool_use', id: 's2', name: 'Read', input: { file_path: '/var/log/syslog' } }]));
+    parts.take(sub([{ type: 'tool_use', id: 's3', name: 'SubagentHandback', input: { report: 'done' } }]));
+    parts.take(stream({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: 'sub stream' } }, 'agent_1'));
+    parts.take(user([{ type: 'tool_result', tool_use_id: 'agent_1', content: 'Done: 3 errors', is_error: false }]));
+    expect(parts.parts).toEqual([{ type: 'tool', id: 'agent_1', name: 'Agent', input: '{"description":"Read the logs","prompt":"Look at the logs"}', result: 'Done: 3 errors', ok: true, steps: 2, now: 'Read /var/log/syslog' }]);
+    expect(JSON.stringify(events)).not.toContain('private thinking');
+    expect(JSON.stringify(events)).not.toContain('sub stream');
+    expect(chatPartOf(parts.parts[0])).toEqual(parts.parts[0] ?? null);
+  });
+
+  test('a chosen effort is one more custom header after the agent key, and none leaves the environment as it is', () => {
+    const env = { ANTHROPIC_CUSTOM_HEADERS: 'x-metro-key: k' };
+    expect(withEffortHeader(env, 'high').ANTHROPIC_CUSTOM_HEADERS).toBe('x-metro-key: k\nx-metro-effort: high');
+    expect(withEffortHeader({}, 'max').ANTHROPIC_CUSTOM_HEADERS).toBe('x-metro-effort: max');
+    expect(withEffortHeader(env, null)).toBe(env);
   });
 });

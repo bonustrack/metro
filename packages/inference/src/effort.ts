@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http';
+import { CHAT_EFFORT_HEADER, isChatEffort } from '@metro-labs/core/chat';
 import { EFFORT_DEFAULTS, type RouteEffort } from '@metro-labs/core/effort';
 import { isRecord } from '@metro-labs/core/is-record';
 
@@ -51,6 +52,11 @@ function asksForSummary(body: Body): boolean {
 }
 
 export const agentIdOf = (req: IncomingMessage): string => header(req, SUBAGENT_HEADER);
+
+export function chosenEffort(req: IncomingMessage, setting: RouteEffort = {}): RouteEffort {
+  const chosen = header(req, CHAT_EFFORT_HEADER);
+  return isChatEffort(chosen) ? { ...setting, main: chosen } : setting;
+}
 
 export const helperRequest = (req: IncomingMessage, body: Body): boolean => agentIdOf(req) !== '' || systemMarksSubagent(body);
 
