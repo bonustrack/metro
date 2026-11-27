@@ -92,9 +92,11 @@ export async function validMembers(deps: ChatsDeps, owner: string, creator: stri
 
 export const nameOf = (person: Person | undefined): string => person?.name ?? person?.email ?? 'A member';
 
-export async function callerName(deps: ChatsDeps, caller: Caller): Promise<string> {
+export const senderOf = (person: Person | undefined): { name: string; email: string | null } => ({ name: nameOf(person), email: person?.email ?? null });
+
+export async function callerSender(deps: ChatsDeps, caller: Caller): Promise<{ name: string; email: string | null }> {
   const [person] = await peopleOf(deps.db(), [caller.session.userId]);
-  return nameOf(person);
+  return senderOf(person);
 }
 
 const WORKING_MS = 130 * 60_000;
@@ -139,9 +141,9 @@ export async function createChat(deps: ChatsDeps, caller: Caller, body: unknown)
   const row: ChatRow = { id, owner: caller.owner, agent, createdBy: caller.session.userId, title: sealTitle(keys, caller.owner, id, chatTitleOf(text)), shared: 'private', createdAt: now, updatedAt: now };
   const first = { id: messageId, chat: id, seq: 1, role: 'user' as const, author: caller.session.userId, replyTo: null, body: sealBody(keys, caller.owner, id, messageId, { text }), at: now };
   const members = await validMembers(deps, caller.owner, caller.session.userId, isRecord(body) && body.members !== undefined ? body.members : []);
-  const name = await callerName(deps, caller);
+  const sender = await callerSender(deps, caller);
   await insertChat(deps.db(), row, first, members);
-  const ctx = { chat: row, session: caller.session, name, group: members.length > 0 };
+  const ctx = { chat: row, session: caller.session, ...sender, group: members.length > 0 };
   return { chat: chatView(keys, row, caller.session, members, false, 'working'), message: messageView(keys, caller.owner, first), ticket: sendTicket(keys, ctx, messageId, text, now) };
 }
 
@@ -164,7 +166,7 @@ export async function readChat(deps: ChatsDeps, caller: Caller, rawId: string, s
   const authors = rows.flatMap((m) => (m.author === null ? [] : [m.author]));
   const people = await peopleOf(deps.db(), [row.createdBy, ...members, ...authors, caller.session.userId]);
   const me = people.find((person) => person.id === caller.session.userId);
-  const ctx = { chat: row, session: caller.session, name: nameOf(me), group: isGroup(row, members) };
+  const ctx = { chat: row, session: caller.session, ...senderOf(me), group: isGroup(row, members) };
   const last = rows.at(-1);
   const read = await readUpTo(deps, caller, row.id, seen ? last : undefined);
   return {

@@ -17,7 +17,7 @@ import {
   type ChatShared,
 } from '../db/chats.js';
 import { canManage, chatView, isGroup, messageView, sealBody, sealTitle, sendTicket, viewTicket, type ChatView, type MessageView } from './model.js';
-import { activitiesOf, callerName, nameOf, validMembers, openChat, textOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
+import { activitiesOf, callerSender, senderOf, validMembers, openChat, textOf, type Caller, type ChatsDeps, type OpenChat } from './read.js';
 
 function managed(open: OpenChat, caller: Caller): void {
   if (!canManage(open.row, caller.session)) throw new ApiError('Only the person who started this chat or an admin can change it.', 403);
@@ -71,7 +71,7 @@ export async function pinChat(deps: ChatsDeps, caller: Caller, rawId: string, pi
 const contextOf = async (deps: ChatsDeps, caller: Caller, open: OpenChat) => ({
   chat: open.row,
   session: caller.session,
-  name: await callerName(deps, caller),
+  ...(await callerSender(deps, caller)),
   group: isGroup(open.row, open.members),
 });
 
@@ -97,7 +97,7 @@ export async function retryTicket(deps: ChatsDeps, caller: Caller, rawId: string
   if (text === null) throw new ApiError('This message could not be read, so it cannot be sent again.', 409);
   const [author] = await peopleOf(deps.db(), [message.author ?? caller.session.userId]);
   await touchChat(deps.db(), open.row.id, deps.now());
-  const ctx = { chat: open.row, session: caller.session, name: nameOf(author), group: isGroup(open.row, open.members) };
+  const ctx = { chat: open.row, session: caller.session, ...senderOf(author), group: isGroup(open.row, open.members) };
   return { ticket: sendTicket(open.keys, ctx, message.id, text, deps.now()) };
 }
 
